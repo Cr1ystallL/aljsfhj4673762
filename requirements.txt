@@ -1,3 +1,4 @@
 aiogram==3.7.0
 python-dotenv==1.0.0
-aiocryptopay==0.6.0
+aiocryptopay==0.4.8
+psycopg2-binary==2.9.9
