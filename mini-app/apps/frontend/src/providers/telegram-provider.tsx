@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SDKProvider } from '@telegram-apps/sdk-react';
+import { useTelegramAuth } from '@/hooks/use-telegram-auth';
 
 /**
  * Telegram Mini Apps SDK Provider
@@ -31,6 +32,9 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
  */
 function TelegramInitializer({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
+  
+  // Initialize Telegram authentication
+  const { isAuthenticating, error: authError } = useTelegramAuth();
 
   useEffect(() => {
     // Initialize Telegram WebApp
@@ -60,7 +64,12 @@ function TelegramInitializer({ children }: { children: React.ReactNode }) {
   if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted">Loading...</div>
+        <div className="animate-pulse text-muted">
+          {isAuthenticating ? 'Authenticating...' : 'Loading...'}
+        </div>
+        {authError && (
+          <div className="text-red-500 text-sm mt-2">{authError}</div>
+        )}
       </div>
     );
   }
