@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { Providers } from '@/providers';
 import { AnimatedBackground } from '@/components/ui/animated-background';
@@ -24,6 +25,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Telegram WebApp SDK - REQUIRED for Mini Apps */}
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body className="font-sans antialiased">
         <Providers>
           <AnimatedBackground />
