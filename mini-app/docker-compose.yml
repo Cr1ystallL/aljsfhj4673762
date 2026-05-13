@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: casino-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-casino_miniapp}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: casino-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-}
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (development)
+  backend:
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+      target: development
+    container_name: casino-backend
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-casino_miniapp}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+      JWT_SECRET: ${JWT_SECRET:-development-secret-only}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      PYTHON_BOT_API_URL: ${PYTHON_BOT_API_URL:-http://host.docker.internal:8000}
+      PYTHON_BOT_API_KEY: ${PYTHON_BOT_API_KEY:-}
+    ports:
+      - '4000:4000'
+    volumes:
+      - ./apps/backend:/app/apps/backend
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/backend/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: pnpm --filter @casino/backend dev
+
+  # Frontend (development)
+  frontend:
+    build:
+      context: .
+      dockerfile: ./apps/frontend/Dockerfile
+      target: development
+    container_name: casino-frontend
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_WS_URL: ws://localhost:4000
+      NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-}
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./apps/frontend:/app/apps/frontend
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/frontend/node_modules
+      - /app/apps/frontend/.next
+    depends_on:
+      - backend
+    command: pnpm --filter @casino/frontend dev
+
+volumes:
+  postgres_data:
+  redis_data:

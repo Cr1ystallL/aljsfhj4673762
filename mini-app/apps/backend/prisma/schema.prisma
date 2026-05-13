@@ -1,0 +1,131 @@
+// Prisma schema for PostgreSQL database
+// This is the initial schema - will be expanded in later phases
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id           String   @id @default(uuid())
+  telegramId   BigInt   @unique @map("telegram_id")
+  username     String?
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  languageCode String?  @map("language_code")
+  isPremium    Boolean  @default(false) @map("is_premium")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions     Session[]
+  balance      Balance?
+  bets         Bet[]
+  transactions Transaction[]
+
+  @@index([telegramId])
+  @@map("users")
+}
+
+// Session model for JWT management
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Balance model (1:1 with User)
+model Balance {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  amount       Decimal  @default(0) @db.Decimal(20, 2)
+  currency     String   @default("USD")
+  demoMode     Boolean  @default(false) @map("demo_mode")
+  lastSyncedAt DateTime @default(now()) @map("last_synced_at")
+  version      Int      @default(0) // Optimistic locking
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("balances")
+}
+
+// Transaction model
+model Transaction {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  type          String   // bet, win, deposit, withdrawal, refund
+  amount        Decimal  @db.Decimal(20, 2)
+  balanceBefore Decimal  @map("balance_before") @db.Decimal(20, 2)
+  balanceAfter  Decimal  @map("balance_after") @db.Decimal(20, 2)
+  gameType      String?  @map("game_type")
+  gameRoundId   String?  @map("game_round_id")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([gameType])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+// Game round model (base structure)
+model GameRound {
+  id             String    @id @default(uuid())
+  gameType       String    @map("game_type")
+  state          String    // idle, waiting, starting, active, resolving, completed, cancelled
+  serverSeedHash String    @map("server_seed_hash")
+  serverSeed     String?   @map("server_seed")
+  clientSeed     String?   @map("client_seed")
+  nonce          Int       @default(0)
+  result         Json?     // Game-specific result data
+  metadata       Json?
+  startedAt      DateTime? @map("started_at")
+  endedAt        DateTime? @map("ended_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([gameType])
+  @@index([state])
+  @@index([createdAt])
+  @@map("game_rounds")
+}
+
+// Bet model
+model Bet {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  roundId     String    @map("round_id")
+  gameType    String    @map("game_type")
+  amount      Decimal   @db.Decimal(20, 2)
+  state       String    // pending, active, won, lost, cancelled, cashed_out
+  payout      Decimal?  @db.Decimal(20, 2)
+  multiplier  Decimal?  @db.Decimal(10, 4) // 4 decimals for crash precision
+  metadata    Json?
+  placedAt    DateTime  @default(now()) @map("placed_at")
+  resolvedAt  DateTime? @map("resolved_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([roundId])
+  @@index([gameType])
+  @@index([state])
+  @@index([placedAt])
+  @@map("bets")
+}

@@ -1,0 +1,423 @@
+import type { FastifyInstance } from 'fastify';
+import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { CrashGameEngine } from '../games/crash/crash-engine.js';
+import { MinesGameEngine } from '../games/mines/mines-engine.js';
+import { PlinkoGameEngine } from '../games/plinko/plinko-engine.js';
+import { GameRoomManager } from '../game-engine/game-room-manager.js';
+import { logger } from '../utils/logger.js';
+
+/**
+ * Game Routes
+ * Handles game actions and room management
+ * 
+ * SECURITY:
+ * - Rate limiting: 10 actions / 10 seconds per user per game
+ * - Authentication required
+ * - Server-authoritative validation
+ */
+
+// Rate limiting tracking
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 10000; // 10 seconds
+const RATE_LIMIT_MAX = 10; // 10 actions per window
+
+function checkRateLimit(userId: string, action: string): boolean {
+  const key = `${userId}:${action}`;
+  const now = Date.now();
+  const limit = rateLimits.get(key);
+
+  if (!limit || now > limit.resetAt) {
+    rateLimits.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (limit.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  limit.count++;
+  return true;
+}
+
+// Game room managers
+const crashManager = new GameRoomManager('crash');
+const minesManager = new GameRoomManager('mines');
+const plinkoManager = new GameRoomManager('plinko');
+
+// Initialize default rooms
+const crashEngine = new CrashGameEngine('crash_main');
+crashEngine.start();
+crashManager.createRoom('crash_main', crashEngine);
+
+const minesEngine = new MinesGameEngine('mines_main');
+minesEngine.start();
+minesManager.createRoom('mines_main', minesEngine);
+
+const plinkoEngine = new PlinkoGameEngine('plinko_main');
+plinkoEngine.start();
+plinkoManager.createRoom('plinko_main', plinkoEngine);
+
+export async function gameRoutes(app: FastifyInstance): Promise<void> {
+  /**
+   * POST /api/games/crash/bet
+   * Place bet in crash game
+   */
+  app.post<{
+    Body: {
+      amount: number;
+      autoCashout?: number;
+      demoMode?: boolean;
+    };
+  }>(
+    '/crash/bet',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount'],
+          properties: {
+            amount: { type: 'number' },
+            autoCashout: { type: 'number' },
+            demoMode: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, autoCashout, demoMode = false } = request.body;
+
+      // Rate limiting
+      if (!checkRateLimit(userId, 'crash:bet')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded. Please wait before placing another bet.',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = crashManager.getRoom('crash_main') as CrashGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        // Set player demo mode
+        const player = engine.getState().players.get(userId);
+        if (player) {
+          player.demoMode = demoMode;
+        }
+
+        const bet = await engine.placeBet(userId, amount);
+
+        if (autoCashout) {
+          engine.setAutoCashout(userId, autoCashout);
+        }
+
+        return reply.send({ success: true, bet });
+      } catch (error) {
+        logger.error(error, 'Failed to place crash bet');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'BET_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/crash/cashout
+   * Cashout from crash game
+   */
+  app.post(
+    '/crash/cashout',
+    {
+      preHandler: authenticate,
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+
+      // Rate limiting
+      if (!checkRateLimit(userId, 'crash:cashout')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = crashManager.getRoom('crash_main') as CrashGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        engine.queueCashout(userId);
+
+        return reply.send({ success: true });
+      } catch (error) {
+        logger.error(error, 'Failed to cashout');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'CASHOUT_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/mines/start
+   * Start mines game
+   */
+  app.post<{
+    Body: {
+      amount: number;
+      mineCount: number;
+      demoMode?: boolean;
+    };
+  }>(
+    '/mines/start',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'mineCount'],
+          properties: {
+            amount: { type: 'number' },
+            mineCount: { type: 'number' },
+            demoMode: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, mineCount, demoMode = false } = request.body;
+
+      // Rate limiting
+      if (!checkRateLimit(userId, 'mines:start')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = minesManager.getRoom('mines_main') as MinesGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        // Set player demo mode
+        const player = engine.getState().players.get(userId);
+        if (player) {
+          player.demoMode = demoMode;
+        }
+
+        const bet = await engine.placeBet(userId, amount);
+        await engine.startGame(userId, mineCount);
+
+        return reply.send({ success: true, bet });
+      } catch (error) {
+        logger.error(error, 'Failed to start mines game');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'START_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/mines/reveal
+   * Reveal tile in mines game
+   */
+  app.post<{
+    Body: {
+      position: number;
+    };
+  }>(
+    '/mines/reveal',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['position'],
+          properties: {
+            position: { type: 'number' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { position } = request.body;
+
+      // Rate limiting
+      if (!checkRateLimit(userId, 'mines:reveal')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = minesManager.getRoom('mines_main') as MinesGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        await engine.revealTile(userId, position);
+
+        return reply.send({ success: true });
+      } catch (error) {
+        logger.error(error, 'Failed to reveal tile');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'REVEAL_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/mines/cashout
+   * Cashout from mines game
+   */
+  app.post(
+    '/mines/cashout',
+    {
+      preHandler: authenticate,
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+
+      // Rate limiting
+      if (!checkRateLimit(userId, 'mines:cashout')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = minesManager.getRoom('mines_main') as MinesGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        await engine.cashout(userId);
+
+        return reply.send({ success: true });
+      } catch (error) {
+        logger.error(error, 'Failed to cashout');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'CASHOUT_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/plinko/drop
+   * Drop ball in plinko game
+   */
+  app.post<{
+    Body: {
+      amount: number;
+      riskLevel: 'low' | 'medium' | 'high';
+      demoMode?: boolean;
+    };
+  }>(
+    '/plinko/drop',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'riskLevel'],
+          properties: {
+            amount: { type: 'number' },
+            riskLevel: { type: 'string', enum: ['low', 'medium', 'high'] },
+            demoMode: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, riskLevel, demoMode = false } = request.body;
+
+      // Rate limiting
+      if (!checkRateLimit(userId, 'plinko:drop')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = plinkoManager.getRoom('plinko_main') as PlinkoGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        // Set player demo mode
+        const player = engine.getState().players.get(userId);
+        if (player) {
+          player.demoMode = demoMode;
+        }
+
+        await engine.dropBall(userId, amount, riskLevel);
+
+        return reply.send({ success: true });
+      } catch (error) {
+        logger.error(error, 'Failed to drop ball');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'DROP_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/games/crash/state
+   * Get current crash game state
+   */
+  app.get(
+    '/crash/state',
+    {
+      preHandler: authenticate,
+    },
+    async (request, reply) => {
+      try {
+        const engine = crashManager.getRoom('crash_main') as CrashGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+
+        const state = engine.getCurrentState();
+
+        return reply.send({ state });
+      } catch (error) {
+        logger.error(error, 'Failed to get crash state');
+        return reply.code(500).send({ error: 'Internal server error' });
+      }
+    }
+  );
+}
