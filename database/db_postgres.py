@@ -46,12 +46,12 @@ class DatabasePostgres:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        # Находим пользователя по telegramId
+        # Находим пользователя по telegram_id (Prisma @map)
         cursor.execute('''
             SELECT b.amount 
             FROM balances b
-            JOIN users u ON b."userId" = u.id
-            WHERE u."telegramId" = %s AND b."demoMode" = false
+            JOIN users u ON b.user_id = u.id
+            WHERE u.telegram_id = %s AND b.demo_mode = false
         ''', (user_id,))
         
         result = cursor.fetchone()
@@ -74,21 +74,21 @@ class DatabasePostgres:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        # Обновляем баланс через telegramId
+        # Обновляем баланс через telegram_id
         cursor.execute('''
             UPDATE balances 
-            SET amount = %s, "updatedAt" = NOW()
-            WHERE "userId" = (
-                SELECT id FROM users WHERE "telegramId" = %s
-            ) AND "demoMode" = false
+            SET amount = %s, updated_at = NOW()
+            WHERE user_id = (
+                SELECT id FROM users WHERE telegram_id = %s
+            ) AND demo_mode = false
         ''', (amount, user_id))
         
         # Если баланс не существует, создаем его
         if cursor.rowcount == 0:
             cursor.execute('''
-                INSERT INTO balances (id, "userId", amount, currency, "demoMode", "createdAt", "updatedAt")
+                INSERT INTO balances (id, user_id, amount, currency, demo_mode, created_at, updated_at)
                 SELECT gen_random_uuid(), id, %s, 'USD', false, NOW(), NOW()
-                FROM users WHERE "telegramId" = %s
+                FROM users WHERE telegram_id = %s
             ''', (amount, user_id))
         
         conn.commit()
@@ -159,12 +159,12 @@ class DatabasePostgres:
         cursor = conn.cursor()
         
         # Проверяем существование пользователя
-        cursor.execute('SELECT id FROM users WHERE "telegramId" = %s', (user_id,))
+        cursor.execute('SELECT id FROM users WHERE telegram_id = %s', (user_id,))
         
         if not cursor.fetchone():
             # Создаем пользователя
             cursor.execute('''
-                INSERT INTO users (id, "telegramId", "createdAt", "updatedAt")
+                INSERT INTO users (id, telegram_id, created_at, updated_at)
                 VALUES (gen_random_uuid(), %s, NOW(), NOW())
                 RETURNING id
             ''', (user_id,))
@@ -173,7 +173,7 @@ class DatabasePostgres:
             
             # Создаем баланс
             cursor.execute('''
-                INSERT INTO balances (id, "userId", amount, currency, "demoMode", "createdAt", "updatedAt")
+                INSERT INTO balances (id, user_id, amount, currency, demo_mode, created_at, updated_at)
                 VALUES (gen_random_uuid(), %s, %s, 'USD', false, NOW(), NOW())
             ''', (user_uuid, initial_balance))
             
@@ -196,7 +196,7 @@ class DatabasePostgres:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        update_fields = ['"updatedAt" = NOW()']
+        update_fields = ['updated_at = NOW()']
         params = []
         
         if username is not None:
@@ -204,7 +204,7 @@ class DatabasePostgres:
             params.append(username)
         
         if first_name is not None:
-            update_fields.append('"firstName" = %s')
+            update_fields.append('first_name = %s')
             params.append(first_name)
         
         params.append(user_id)
@@ -212,7 +212,7 @@ class DatabasePostgres:
         cursor.execute(f'''
             UPDATE users 
             SET {', '.join(update_fields)}
-            WHERE "telegramId" = %s
+            WHERE telegram_id = %s
         ''', params)
         
         conn.commit()
@@ -233,14 +233,14 @@ class DatabasePostgres:
         
         cursor.execute('''
             SELECT 
-                u."telegramId" as user_id,
+                u.telegram_id as user_id,
                 u.username,
-                u."firstName" as first_name,
+                u.first_name,
                 COALESCE(b.amount, 0) as balance,
-                u."createdAt" as last_activity
+                u.created_at as last_activity
             FROM users u
-            LEFT JOIN balances b ON b."userId" = u.id AND b."demoMode" = false
-            WHERE u."telegramId" = %s
+            LEFT JOIN balances b ON b.user_id = u.id AND b.demo_mode = false
+            WHERE u.telegram_id = %s
         ''', (user_id,))
         
         result = cursor.fetchone()
@@ -275,36 +275,38 @@ class DatabasePostgres:
         cursor = conn.cursor()
         
         # Получаем UUID пользователя
-        cursor.execute('SELECT id FROM users WHERE "telegramId" = %s', (user_id,))
+        cursor.execute('SELECT id FROM users WHERE telegram_id = %s', (user_id,))
         user_result = cursor.fetchone()
         
         if user_result:
             user_uuid = user_result[0]
             
+            # Получаем текущий баланс для balance_before
+            cursor.execute('SELECT amount FROM balances WHERE user_id = %s AND demo_mode = false', (user_uuid,))
+            balance_result = cursor.fetchone()
+            current_balance = float(balance_result[0]) if balance_result else 0.0
+            
             # Создаем транзакцию для ставки
             cursor.execute('''
                 INSERT INTO transactions (
-                    id, "userId", type, amount, "balanceAfter", description, "createdAt"
+                    id, user_id, type, amount, balance_before, balance_after, game_type, created_at
                 )
                 VALUES (
-                    gen_random_uuid(), %s, 'bet', %s, 
-                    (SELECT amount FROM balances WHERE "userId" = %s AND "demoMode" = false),
-                    %s, NOW()
+                    gen_random_uuid(), %s, 'bet', %s, %s, %s, %s, NOW()
                 )
-            ''', (user_uuid, -bet_amount, user_uuid, f'{game_type} bet'))
+            ''', (user_uuid, bet_amount, current_balance, current_balance - bet_amount, game_type))
             
             # Если есть выигрыш, создаем транзакцию выигрыша
             if win_amount > 0:
+                new_balance = current_balance - bet_amount + win_amount
                 cursor.execute('''
                     INSERT INTO transactions (
-                        id, "userId", type, amount, "balanceAfter", description, "createdAt"
+                        id, user_id, type, amount, balance_before, balance_after, game_type, created_at
                     )
                     VALUES (
-                        gen_random_uuid(), %s, 'win', %s,
-                        (SELECT amount FROM balances WHERE "userId" = %s AND "demoMode" = false),
-                        %s, NOW()
+                        gen_random_uuid(), %s, 'win', %s, %s, %s, %s, NOW()
                     )
-                ''', (user_uuid, win_amount, user_uuid, f'{game_type} win'))
+                ''', (user_uuid, win_amount, current_balance - bet_amount, new_balance, game_type))
         
         conn.commit()
         conn.close()
@@ -335,14 +337,14 @@ class DatabasePostgres:
         
         cursor.execute('''
             SELECT 
-                u."telegramId",
+                u.telegram_id,
                 u.username,
-                u."firstName",
+                u.first_name,
                 COALESCE(b.amount, 0),
                 0 as turnover
             FROM users u
-            LEFT JOIN balances b ON b."userId" = u.id AND b."demoMode" = false
-            ORDER BY u."telegramId"
+            LEFT JOIN balances b ON b.user_id = u.id AND b.demo_mode = false
+            ORDER BY u.telegram_id
         ''')
         
         users = cursor.fetchall()
