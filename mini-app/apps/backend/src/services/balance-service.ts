@@ -28,7 +28,7 @@ export class BalanceService {
 
   /**
    * Get balance (real or demo)
-   * Real: Fetch from Python bot, cache in Redis
+   * Real: Fetch from PostgreSQL (shared with Python bot)
    * Demo: Fetch from local database
    */
   async getBalance(userId: string, demoMode: boolean = false) {
@@ -43,47 +43,48 @@ export class BalanceService {
         return cached;
       }
 
-      // Fetch from Python bot (source of truth)
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      const pythonBalance = await pythonBotAdapter.getBalance(Number(user.telegramId));
-      
-      if (!pythonBalance) {
-        throw new Error('Failed to fetch balance from Python bot');
-      }
-
-      // Cache in Redis
-      await this.cacheBalance(userId, {
-        amount: Number(pythonBalance.amount),
-        currency: pythonBalance.currency,
-        demoMode: false,
-      });
-
-      // Update local cache (for quick reads)
-      await prisma.balance.upsert({
+      // Fetch from PostgreSQL (shared database with Python bot)
+      const balance = await prisma.balance.findUnique({
         where: { userId },
-        update: {
-          amount: pythonBalance.amount,
-          currency: pythonBalance.currency,
-          demoMode: false,
-          lastSyncedAt: new Date(),
-        },
-        create: {
-          userId,
-          amount: pythonBalance.amount,
-          currency: pythonBalance.currency,
-          demoMode: false,
-        },
       });
 
-      return {
-        amount: Number(pythonBalance.amount),
-        currency: pythonBalance.currency,
+      if (!balance || balance.demoMode) {
+        // Create real balance if doesn't exist
+        const newBalance = await prisma.balance.upsert({
+          where: { userId },
+          update: {
+            demoMode: false,
+          },
+          create: {
+            userId,
+            amount: 0,
+            currency: 'USD',
+            demoMode: false,
+          },
+        });
+
+        const result = {
+          amount: Number(newBalance.amount),
+          currency: newBalance.currency,
+          demoMode: false,
+        };
+
+        // Cache in Redis
+        await this.cacheBalance(userId, result);
+
+        return result;
+      }
+
+      const result = {
+        amount: Number(balance.amount),
+        currency: balance.currency,
         demoMode: false,
       };
+
+      // Cache in Redis
+      await this.cacheBalance(userId, result);
+
+      return result;
     } catch (error) {
       logger.error(error, 'Failed to get balance');
       throw error;
@@ -91,53 +92,41 @@ export class BalanceService {
   }
 
   /**
-   * Sync balance from Python bot
+   * Sync balance from PostgreSQL
    * Called periodically or after transactions
    */
   async syncBalance(userId: string) {
     try {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user) return;
+      // Read from PostgreSQL (shared with Python bot)
+      const balance = await prisma.balance.findUnique({
+        where: { userId },
+      });
 
-      const pythonBalance = await pythonBotAdapter.getBalance(Number(user.telegramId));
-      if (!pythonBalance) return;
+      if (!balance || balance.demoMode) {
+        return;
+      }
 
-      const amount = Number(pythonBalance.amount);
+      const amount = Number(balance.amount);
 
       // Update cache
       await this.cacheBalance(userId, {
         amount,
-        currency: pythonBalance.currency,
+        currency: balance.currency,
         demoMode: false,
       });
 
-      // Update database
-      await prisma.balance.upsert({
-        where: { userId },
-        update: {
-          amount: pythonBalance.amount,
-          lastSyncedAt: new Date(),
-        },
-        create: {
-          userId,
-          amount: pythonBalance.amount,
-          currency: pythonBalance.currency,
-          demoMode: false,
-        },
-      });
-
       // Broadcast to user's WebSocket connections
-      await this.broadcastBalanceUpdate(userId, amount, pythonBalance.currency, false);
+      await this.broadcastBalanceUpdate(userId, amount, balance.currency, false);
 
-      logger.info({ userId, amount }, 'Balance synced from Python bot');
+      logger.info({ userId, amount }, 'Balance synced from PostgreSQL');
     } catch (error) {
       logger.error(error, 'Failed to sync balance');
     }
   }
 
   /**
-   * Handle balance update from Python bot webhook
-   * Called when Python bot processes transaction
+   * Handle balance update from Python bot or internal transaction
+   * Called when balance changes in PostgreSQL
    */
   async handleBalanceUpdate(
     telegramId: number,
@@ -182,7 +171,7 @@ export class BalanceService {
 
       logger.info(
         { userId: user.id, newAmount, reason, transactionId },
-        'Balance updated from Python bot'
+        'Balance updated'
       );
     } catch (error) {
       logger.error(error, 'Failed to handle balance update');
@@ -260,7 +249,7 @@ export class BalanceService {
         data: { demoMode: true },
       });
     } else {
-      // Switch to real - sync from Python bot
+      // Switch to real - sync from PostgreSQL
       await this.syncBalance(userId);
     }
 
