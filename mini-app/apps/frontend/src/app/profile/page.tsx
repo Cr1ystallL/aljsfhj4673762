@@ -137,15 +137,23 @@ export default function ProfilePage() {
           >
             <GlassCard className="p-6">
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-full bg-gradient-primary flex items-center justify-center">
-                  <User size={32} className="text-white" />
+                {/* Avatar with gradient background and user initial or icon */}
+                <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center">
+                  {user?.firstName ? (
+                    <span className="text-2xl font-bold text-white">
+                      {user.firstName.charAt(0).toUpperCase()}
+                    </span>
+                  ) : (
+                    <User size={32} className="text-white" />
+                  )}
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">
                     {user?.firstName || 'User'}
+                    {user?.lastName && ` ${user.lastName}`}
                   </h2>
                   <p className="text-white/60">
-                    @{user?.username || 'telegram_user'}
+                    @{user?.username || `user${user?.telegramId || '0'}`}
                   </p>
                 </div>
               </div>
