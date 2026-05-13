@@ -19,6 +19,7 @@ export function useTelegramAuth() {
     async function authenticate() {
       // Check if running in Telegram WebApp
       if (typeof window === 'undefined' || !window.Telegram?.WebApp) {
+        console.log('[AUTH] Telegram WebApp not available');
         setLoading(false);
         return;
       }
@@ -26,7 +27,14 @@ export function useTelegramAuth() {
       const tg = window.Telegram.WebApp;
       const initData = tg.initData;
 
+      console.log('[AUTH] Telegram WebApp detected');
+      console.log('[AUTH] initData length:', initData?.length || 0);
+      console.log('[AUTH] initData (first 100 chars):', initData?.substring(0, 100) || 'EMPTY');
+      console.log('[AUTH] platform:', tg.platform);
+      console.log('[AUTH] version:', tg.version);
+
       if (!initData) {
+        console.error('[AUTH] No Telegram initData available');
         setLoading(false);
         setError('No Telegram initData available');
         return;
@@ -36,8 +44,11 @@ export function useTelegramAuth() {
       setError(null);
 
       try {
+        console.log('[AUTH] Sending initData to backend...');
         // Send initData to backend for validation
         const response = await authenticateWithTelegram(initData);
+
+        console.log('[AUTH] Authentication successful:', response.user.username);
 
         // Store user data and sessionId in Zustand (token is in httpOnly cookie)
         setAuth(
@@ -57,6 +68,7 @@ export function useTelegramAuth() {
         );
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
+        console.error('[AUTH] Authentication failed:', errorMessage);
         setError(errorMessage);
         setLoading(false);
       } finally {
