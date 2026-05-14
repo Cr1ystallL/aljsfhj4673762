@@ -59,13 +59,39 @@ plinkoManager.createRoom('plinko_main', plinkoEngine);
 
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
   /**
+   * Helper: ensure the engine knows display info for the current user.
+   * This populates avatar/name fields embedded in player feed events.
+   */
+  async function ensureCrashUser(userId: string): Promise<void> {
+    const engine = crashManager.getRoom('crash_main') as CrashGameEngine;
+    if (!engine || engine.hasUserInfo(userId)) return;
+    try {
+      const user = await app.prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, firstName: true, lastName: true, photoUrl: true },
+      });
+      engine.setUserInfo({
+        userId,
+        username: user?.username ?? null,
+        firstName: user?.firstName ?? null,
+        photoUrl: user?.photoUrl ?? null,
+      });
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to load crash user info');
+    }
+  }
+
+  /**
    * POST /api/games/crash/bet
-   * Place bet in crash game
+   * Place a slot bet in the crash game.
+   * Slots: 0 (top panel) or 1 (bottom panel) — each user can hold up to two
+   * concurrent bets per round.
    */
   app.post<{
     Body: {
       amount: number;
-      autoCashout?: number;
+      slot?: number;
+      autoCashout?: number | null;
       demoMode?: boolean;
     };
   }>(
@@ -78,7 +104,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           required: ['amount'],
           properties: {
             amount: { type: 'number' },
-            autoCashout: { type: 'number' },
+            slot: { type: 'number' },
+            autoCashout: { type: ['number', 'null'] },
             demoMode: { type: 'boolean' },
           },
         },
@@ -86,9 +113,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const { amount, autoCashout, demoMode = false } = request.body;
+      const { amount, slot = 0, autoCashout = null, demoMode = false } = request.body;
 
-      // Rate limiting
       if (!checkRateLimit(userId, 'crash:bet')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -103,17 +129,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ error: 'Game room not found' });
         }
 
-        // Set player demo mode
-        const player = engine.getState().players.get(userId);
-        if (player) {
-          player.demoMode = demoMode;
-        }
-
-        const bet = await engine.placeBet(userId, amount);
-
-        if (autoCashout) {
-          engine.setAutoCashout(userId, autoCashout);
-        }
+        await ensureCrashUser(userId);
+        const bet = await engine.placeCrashBet(userId, slot, amount, autoCashout, demoMode);
 
         return reply.send({ success: true, bet });
       } catch (error) {
@@ -128,18 +145,69 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
-   * POST /api/games/crash/cashout
-   * Cashout from crash game
+   * POST /api/games/crash/cancel
+   * Cancel a queued slot bet during waiting/countdown — refunds the stake.
    */
-  app.post(
-    '/crash/cashout',
+  app.post<{ Body: { slot?: number } }>(
+    '/crash/cancel',
     {
       preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          properties: { slot: { type: 'number' } },
+        },
+      },
     },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
+      const { slot = 0 } = request.body || {};
 
-      // Rate limiting
+      if (!checkRateLimit(userId, 'crash:cancel')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const engine = crashManager.getRoom('crash_main') as CrashGameEngine;
+        if (!engine) {
+          return reply.code(404).send({ error: 'Game room not found' });
+        }
+        await engine.cancelCrashBet(userId, slot);
+        return reply.send({ success: true });
+      } catch (error) {
+        logger.error(error, 'Failed to cancel crash bet');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'CANCEL_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/crash/cashout
+   * Cashout from a specific slot (defaults to slot 0).
+   */
+  app.post<{ Body: { slot?: number } }>(
+    '/crash/cashout',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          properties: { slot: { type: 'number' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { slot = 0 } = request.body || {};
+
       if (!checkRateLimit(userId, 'crash:cashout')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -154,7 +222,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ error: 'Game room not found' });
         }
 
-        engine.queueCashout(userId);
+        engine.queueSlotCashout(userId, slot);
 
         return reply.send({ success: true });
       } catch (error) {

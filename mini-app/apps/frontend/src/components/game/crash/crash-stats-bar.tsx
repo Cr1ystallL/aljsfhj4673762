@@ -1,13 +1,12 @@
 'use client';
 
-import { Coins, Rocket, Trophy } from 'lucide-react';
+import { Coins, Trophy } from 'lucide-react';
 
 /**
  * Crash Stats Bar — Monopo Saigon Style
  *
- * Two stat tiles (players, total bets) plus a small launch indicator.
- * Tile-on-tile composition; restrained typography; deep ocean accents only
- * via the icon stroke color.
+ * Two compact tiles: live distinct-player count and total wagered for the
+ * current round. Both values come from the live WebSocket snapshot.
  */
 
 interface CrashStatsBarProps {
@@ -16,9 +15,13 @@ interface CrashStatsBarProps {
   currency?: string;
 }
 
-export function CrashStatsBar({ playerCount, totalBets, currency = '₽' }: CrashStatsBarProps) {
+export function CrashStatsBar({
+  playerCount,
+  totalBets,
+  currency = '₽',
+}: CrashStatsBarProps) {
   return (
-    <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+    <div className="grid grid-cols-2 gap-2">
       <Tile
         icon={<Trophy size={13} className="text-frost-white/55" strokeWidth={2} />}
         label="Игроки"
@@ -32,14 +35,6 @@ export function CrashStatsBar({ playerCount, totalBets, currency = '₽' }: Cras
           maximumFractionDigits: 2,
         })} ${currency}`}
       />
-      <div className="flex items-center justify-center w-12 rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl">
-        <Rocket
-          size={16}
-          className="text-frost-white/70"
-          strokeWidth={1.6}
-          style={{ transform: 'rotate(-30deg)' }}
-        />
-      </div>
     </div>
   );
 }

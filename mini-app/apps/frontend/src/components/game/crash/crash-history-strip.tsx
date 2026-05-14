@@ -6,11 +6,11 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Crash History Strip - Monopo Saigon Style
+ * Crash History Strip — Monopo Saigon Style
  *
- * Pill-shaped multiplier chips floating on a frosted glass surface.
- * Restrained palette: tones of deep ocean gradient for high crashes,
- * whisper gray for typical, frost white text everywhere.
+ * Pill-shaped multiplier chips on a frosted-glass surface. Collapsed shows
+ * the most recent 7 crashes; expanded reveals the last 20 in a flowing grid.
+ * Color tiers come from the deep-ocean palette — restrained, never harsh.
  */
 
 interface HistoryItem {
@@ -23,7 +23,6 @@ interface CrashHistoryStripProps {
 
 function chipStyle(value: number): string {
   if (value >= 10) {
-    // Highest accent — deep ocean gradient
     return 'bg-[linear-gradient(90deg,rgba(160,224,171,0.35),rgba(255,172,46,0.35)_50%,rgba(165,45,37,0.35))] text-frost-white border-white/25';
   }
   if (value >= 5) {
@@ -37,12 +36,19 @@ function chipStyle(value: number): string {
 
 export function CrashHistoryStrip({ history }: CrashHistoryStripProps) {
   const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? history.slice(0, 32) : history.slice(0, 7);
+  const visible = expanded ? history.slice(0, 20) : history.slice(0, 7);
 
   return (
     <div className="rounded-card bg-white/[0.04] border border-white/10 backdrop-blur-xl px-3 py-2.5">
-      <div className="flex items-center gap-2">
-        <div className="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+      <div className="flex items-start gap-2">
+        <div
+          className={cn(
+            'flex-1 min-w-0',
+            expanded
+              ? 'flex flex-wrap gap-1.5'
+              : 'flex items-center gap-1.5 overflow-x-auto scrollbar-hide'
+          )}
+        >
           <AnimatePresence initial={false}>
             {visible.map((item, idx) => (
               <motion.div
@@ -62,7 +68,9 @@ export function CrashHistoryStrip({ history }: CrashHistoryStripProps) {
             ))}
           </AnimatePresence>
           {history.length === 0 && (
-            <span className="text-whisper-gray text-[11px] font-roobert">No history yet</span>
+            <span className="text-whisper-gray text-[11px] font-roobert">
+              История появится после первого раунда
+            </span>
           )}
         </div>
         <button

@@ -8,20 +8,28 @@ import { cn } from '@/lib/utils';
 /**
  * Crash Stage — Monopo Saigon Style
  *
- * Atmospheric scene with deep ocean gradient as a soft volumetric backdrop.
- * UI etched on top: countdown plate, multiplier display, hash + latency chips.
- * Depth comes from gradients and translucency, not box-shadows.
+ * Atmospheric dark canvas with deep ocean radial gradient + drifting orbs.
+ * The crash curve is rendered into a backing <canvas>:
+ *   - Origin at bottom-left.
+ *   - X axis — elapsed game time (auto-scaled to fill width).
+ *   - Y axis — multiplier (auto-scaled with min headroom of 2x).
+ *   - Curve uses the brand gradient (green → amber → red) and a soft fill.
+ *   - On crash the gradient shifts toward red and the area dims.
+ *
+ * The provably-fair seed hash and the live ping are exposed as small pills
+ * docked at the bottom of the stage.
  */
 
-type Phase = 'waiting' | 'countdown' | 'active' | 'crashed';
+type Phase = 'idle' | 'waiting' | 'starting' | 'active' | 'resolving' | 'completed';
 
 interface CrashStageProps {
   phase: Phase;
   multiplier: number;
   countdown: number | null;
   graphPoints: Array<{ time: number; multiplier: number }>;
-  roundHash?: string;
-  latencyMs?: number;
+  serverSeedHash: string;
+  latencyMs: number;
+  connected: boolean;
 }
 
 export function CrashStage({
@@ -29,71 +37,107 @@ export function CrashStage({
   multiplier,
   countdown,
   graphPoints,
-  roundHash = '94f1556b9c',
-  latencyMs = 213,
+  serverSeedHash,
+  latencyMs,
+  connected,
 }: CrashStageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Render multiplier curve onto canvas with gradient strokes
+  // Render curve into canvas any time the points or phase change.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    const w = rect.width;
+    const h = rect.height;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
 
-    ctx.clearRect(0, 0, rect.width, rect.height);
-
-    if (graphPoints.length < 2) return;
-
-    const maxTime = graphPoints[graphPoints.length - 1].time || 1;
-    const maxMult = Math.max(...graphPoints.map((p) => p.multiplier), 2);
-
-    // Curve gradient — deep ocean, restrained opacity
-    const curveGradient = ctx.createLinearGradient(0, 0, rect.width, 0);
-    if (phase === 'crashed') {
-      curveGradient.addColorStop(0, 'rgba(165, 45, 37, 0.95)');
-      curveGradient.addColorStop(1, 'rgba(255, 172, 46, 0.6)');
-    } else {
-      curveGradient.addColorStop(0, 'rgba(160, 224, 171, 0.9)');
-      curveGradient.addColorStop(0.5, 'rgba(255, 172, 46, 0.85)');
-      curveGradient.addColorStop(1, 'rgba(165, 45, 37, 0.85)');
+    if (graphPoints.length < 2 || phase === 'waiting' || phase === 'starting' || phase === 'idle') {
+      return;
     }
 
-    ctx.lineWidth = 2;
+    // Padding so the curve doesn't kiss the edges.
+    const padX = 12;
+    const padBottom = 18;
+    const padTop = 18;
+    const innerW = Math.max(1, w - padX * 2);
+    const innerH = Math.max(1, h - padTop - padBottom);
+
+    const lastT = graphPoints[graphPoints.length - 1].time || 1;
+    // Window keeps last ~20s visible at most so older curves slide left.
+    const windowMs = Math.max(8000, lastT);
+    const startT = Math.max(0, lastT - windowMs);
+    const maxMult = Math.max(2, ...graphPoints.map((p) => p.multiplier));
+
+    const project = (t: number, m: number) => {
+      const x = padX + ((t - startT) / Math.max(1, lastT - startT)) * innerW;
+      const y = h - padBottom - ((m - 1) / Math.max(0.001, maxMult - 1)) * innerH;
+      return { x, y };
+    };
+
+    // Stroke gradient — brand deep-ocean horizontally.
+    const strokeGrad = ctx.createLinearGradient(0, 0, w, 0);
+    if (phase === 'completed') {
+      strokeGrad.addColorStop(0, 'rgba(165, 45, 37, 0.95)');
+      strokeGrad.addColorStop(1, 'rgba(255, 172, 46, 0.65)');
+    } else {
+      strokeGrad.addColorStop(0, 'rgba(160, 224, 171, 0.95)');
+      strokeGrad.addColorStop(0.55, 'rgba(255, 172, 46, 0.9)');
+      strokeGrad.addColorStop(1, 'rgba(165, 45, 37, 0.9)');
+    }
+
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = curveGradient;
-    ctx.beginPath();
+    ctx.strokeStyle = strokeGrad;
 
-    graphPoints.forEach((p, i) => {
-      const x = (p.time / maxTime) * rect.width;
-      const y = rect.height - ((p.multiplier - 1) / Math.max(maxMult - 1, 0.001)) * rect.height * 0.85;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+    ctx.beginPath();
+    let first = true;
+    for (const p of graphPoints) {
+      const { x, y } = project(p.time, p.multiplier);
+      if (first) {
+        ctx.moveTo(x, y);
+        first = false;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
     ctx.stroke();
 
-    // Subtle area fill
-    ctx.lineTo(rect.width, rect.height);
-    ctx.lineTo(0, rect.height);
+    // Filled area under curve.
+    const lastPoint = graphPoints[graphPoints.length - 1];
+    const start0 = project(Math.max(startT, graphPoints[0].time), 1);
+    ctx.lineTo(project(lastPoint.time, 1).x, h - padBottom);
+    ctx.lineTo(start0.x, h - padBottom);
     ctx.closePath();
-    const fill = ctx.createLinearGradient(0, 0, 0, rect.height);
-    if (phase === 'crashed') {
-      fill.addColorStop(0, 'rgba(165, 45, 37, 0.18)');
-      fill.addColorStop(1, 'rgba(165, 45, 37, 0)');
+    const fillGrad = ctx.createLinearGradient(0, 0, 0, h);
+    if (phase === 'completed') {
+      fillGrad.addColorStop(0, 'rgba(165, 45, 37, 0.22)');
+      fillGrad.addColorStop(1, 'rgba(165, 45, 37, 0)');
     } else {
-      fill.addColorStop(0, 'rgba(160, 224, 171, 0.15)');
-      fill.addColorStop(1, 'rgba(160, 224, 171, 0)');
+      fillGrad.addColorStop(0, 'rgba(160, 224, 171, 0.18)');
+      fillGrad.addColorStop(1, 'rgba(160, 224, 171, 0)');
     }
-    ctx.fillStyle = fill;
+    ctx.fillStyle = fillGrad;
     ctx.fill();
+
+    // Leading dot.
+    const head = project(lastPoint.time, lastPoint.multiplier);
+    ctx.beginPath();
+    ctx.arc(head.x, head.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = phase === 'completed' ? 'rgba(255, 138, 118, 1)' : 'rgba(255, 255, 255, 0.95)';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle =
+      phase === 'completed' ? 'rgba(165, 45, 37, 0.8)' : 'rgba(160, 224, 171, 0.6)';
+    ctx.stroke();
   }, [graphPoints, phase]);
 
   return (
@@ -114,7 +158,7 @@ export function CrashStage({
         }}
       />
 
-      {/* Drifting volumetric orbs */}
+      {/* Drifting orbs */}
       <motion.div
         className="absolute -top-10 -left-10 w-48 h-48 rounded-full"
         style={{
@@ -157,10 +201,10 @@ export function CrashStage({
 
       {/* Stage content */}
       <div className="relative aspect-[16/11] sm:aspect-[16/9] flex flex-col">
-        {/* Countdown plate (top-left) */}
+        {/* Countdown / waiting plate (top-left) */}
         <div className="absolute top-5 left-5">
           <AnimatePresence mode="wait">
-            {phase === 'countdown' && countdown !== null && (
+            {phase === 'starting' && countdown !== null && (
               <motion.div
                 key="countdown"
                 initial={{ opacity: 0, y: -8 }}
@@ -188,7 +232,20 @@ export function CrashStage({
                 className="px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10 backdrop-blur-md"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Ожидание раунда
+                  Приём ставок
+                </span>
+              </motion.div>
+            )}
+            {phase === 'idle' && (
+              <motion.div
+                key="idle"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10 backdrop-blur-md"
+              >
+                <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
+                  Подключение…
                 </span>
               </motion.div>
             )}
@@ -198,7 +255,7 @@ export function CrashStage({
         {/* Multiplier (center) */}
         <div className="flex-1 flex items-center justify-center">
           <AnimatePresence mode="wait">
-            {(phase === 'active' || phase === 'crashed') && (
+            {(phase === 'active' || phase === 'completed' || phase === 'resolving') && (
               <motion.div
                 key={phase}
                 initial={{ opacity: 0, scale: 0.92 }}
@@ -211,11 +268,11 @@ export function CrashStage({
                   className={cn(
                     'font-roobert font-light leading-none tabular-nums',
                     'text-[64px] sm:text-[78px]',
-                    phase === 'crashed' ? 'text-[#ff8a76]' : 'text-frost-white'
+                    phase === 'completed' ? 'text-[#ff8a76]' : 'text-frost-white'
                   )}
                   style={{
                     textShadow:
-                      phase === 'crashed'
+                      phase === 'completed'
                         ? '0 0 30px rgba(165, 45, 37, 0.45)'
                         : '0 0 28px rgba(255, 255, 255, 0.18)',
                   }}
@@ -223,7 +280,7 @@ export function CrashStage({
                   {multiplier.toFixed(2)}x
                 </span>
                 <span className="mt-2 text-[10px] uppercase tracking-[0.22em] text-whisper-gray font-roobert">
-                  {phase === 'crashed' ? 'Раунд завершён' : 'Текущий коэффициент'}
+                  {phase === 'completed' ? 'Краш' : 'Текущий коэффициент'}
                 </span>
               </motion.div>
             )}
@@ -235,14 +292,23 @@ export function CrashStage({
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-white/[0.05] border border-white/10 backdrop-blur-md">
             <Shield size={11} className="text-frost-white/60" strokeWidth={2} />
             <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
-              {roundHash.slice(0, 10)}…
+              {serverSeedHash
+                ? `${serverSeedHash.slice(0, 10)}…`
+                : 'no seed yet'}
             </span>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-white/[0.05] border border-white/10 backdrop-blur-md">
+          <div
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border backdrop-blur-md',
+              connected
+                ? 'bg-white/[0.05] border-white/10'
+                : 'bg-[rgba(165,45,37,0.18)] border-[rgba(165,45,37,0.4)]'
+            )}
+          >
             <Wifi size={11} className="text-frost-white/60" strokeWidth={2} />
             <span className="text-[10px] font-roobert text-frost-white/70 tabular-nums">
-              {latencyMs} ms
+              {connected ? `${latencyMs} ms` : 'offline'}
             </span>
           </div>
         </div>

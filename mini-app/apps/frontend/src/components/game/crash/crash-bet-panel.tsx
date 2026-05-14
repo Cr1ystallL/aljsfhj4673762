@@ -7,12 +7,24 @@ import { cn } from '@/lib/utils';
 /**
  * Crash Bet Panel — Monopo Saigon Style
  *
- * One betting slot. Two-column layout: stake on the left, auto-cashout
- * on the right, primary CTA pill on the far right. Frosted glass card,
- * pill controls, frost white text, generous breathing room.
+ * One betting slot. Two-column layout: stake | auto-cashout, then a primary
+ * pill CTA. The CTA changes label and behaviour based on phase + slot state:
+ *
+ *   - Idle (no bet, betting open) → "Играть" (place bet)
+ *   - Queued (bet placed, betting open) → "Отменить" (refund)
+ *   - Locked (bet queued, countdown) → "Отменить" (still cancellable)
+ *   - Active no bet → "Раунд идёт" (disabled)
+ *   - Active with bet → "Забрать · x1.32" (cashout, live mult)
+ *   - Completed (bet) → "Проиграно" or "Забрано" depending on outcome
  */
 
-export type BetSlotPhase = 'idle' | 'queued' | 'active' | 'cashable' | 'finished';
+export type BetSlotPhase =
+  | 'idle'
+  | 'queued'
+  | 'cashable'
+  | 'finished_won'
+  | 'finished_lost'
+  | 'locked';
 
 interface CrashBetPanelProps {
   amount: number;
@@ -21,12 +33,18 @@ interface CrashBetPanelProps {
   onAutoCashoutToggle: (enabled: boolean) => void;
   autoCashoutMultiplier: number;
   onAutoCashoutChange: (next: number) => void;
-  phase: BetSlotPhase;
+
+  /** UI state for this slot. */
+  slotPhase: BetSlotPhase;
+  /** Live multiplier (used in cashout label during 'cashable'). */
   multiplier: number;
+  /** True if global round phase doesn't allow placing/cancelling now. */
+  bettingClosed: boolean;
   minBet: number;
   maxBet: number;
   onPrimary: () => void;
-  disabled?: boolean;
+  /** When true, primary CTA shows a small pending spinner instead of label. */
+  busy?: boolean;
 }
 
 export function CrashBetPanel({
@@ -36,28 +54,53 @@ export function CrashBetPanel({
   onAutoCashoutToggle,
   autoCashoutMultiplier,
   onAutoCashoutChange,
-  phase,
+  slotPhase,
   multiplier,
+  bettingClosed,
   minBet,
   maxBet,
   onPrimary,
-  disabled = false,
+  busy = false,
 }: CrashBetPanelProps) {
-  const cta =
-    phase === 'cashable'
-      ? `Забрать · x${multiplier.toFixed(2)}`
-      : phase === 'queued'
-      ? 'Отменить'
-      : phase === 'active'
-      ? 'Ожидание'
-      : 'Играть';
+  const inputsLocked = slotPhase !== 'idle';
 
-  const ctaActive = phase === 'cashable' || phase === 'idle';
+  const ctaLabel = (() => {
+    switch (slotPhase) {
+      case 'idle':
+        return bettingClosed ? 'Раунд идёт' : 'Играть';
+      case 'queued':
+        return 'Отменить';
+      case 'locked':
+        return 'Отменить';
+      case 'cashable':
+        return `Забрать · x${multiplier.toFixed(2)}`;
+      case 'finished_won':
+        return 'Забрано';
+      case 'finished_lost':
+        return 'Проиграно';
+    }
+  })();
 
-  const decAmount = () => onAmountChange(Math.max(minBet, +(amount / 2).toFixed(2)));
-  const incAmount = () => onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
-  const decAuto = () => onAutoCashoutChange(Math.max(1.01, +(autoCashoutMultiplier - 0.1).toFixed(2)));
-  const incAuto = () => onAutoCashoutChange(+(autoCashoutMultiplier + 0.1).toFixed(2));
+  const ctaActive =
+    slotPhase === 'cashable' ||
+    (slotPhase === 'idle' && !bettingClosed) ||
+    slotPhase === 'queued' ||
+    slotPhase === 'locked';
+
+  const ctaDisabled =
+    busy ||
+    slotPhase === 'finished_won' ||
+    slotPhase === 'finished_lost' ||
+    (slotPhase === 'idle' && bettingClosed);
+
+  const decAmount = () =>
+    onAmountChange(Math.max(minBet, +(amount / 2 || minBet).toFixed(2)));
+  const incAmount = () =>
+    onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
+  const decAuto = () =>
+    onAutoCashoutChange(Math.max(1.01, +(autoCashoutMultiplier - 0.1).toFixed(2)));
+  const incAuto = () =>
+    onAutoCashoutChange(+(autoCashoutMultiplier + 0.1).toFixed(2));
 
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
@@ -70,7 +113,7 @@ export function CrashBetPanel({
           <div className="mt-2 flex items-center justify-between gap-2">
             <button
               onClick={decAmount}
-              disabled={disabled}
+              disabled={inputsLocked}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
               aria-label="Уменьшить ставку"
             >
@@ -81,17 +124,18 @@ export function CrashBetPanel({
               value={amount}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
-                if (!isNaN(v)) onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
+                if (!isNaN(v))
+                  onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
               }}
-              disabled={disabled}
+              disabled={inputsLocked}
               className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[22px] font-light tabular-nums focus:outline-none text-center"
-              step={minBet}
+              step={1}
               min={minBet}
               max={maxBet}
             />
             <button
               onClick={incAmount}
-              disabled={disabled}
+              disabled={inputsLocked}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
               aria-label="Увеличить ставку"
             >
@@ -108,7 +152,7 @@ export function CrashBetPanel({
             </span>
             <button
               onClick={() => onAutoCashoutToggle(!autoCashoutEnabled)}
-              disabled={disabled}
+              disabled={inputsLocked}
               className={cn(
                 'shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border text-[9px] uppercase tracking-[0.16em] font-roobert transition-colors',
                 autoCashoutEnabled
@@ -122,7 +166,7 @@ export function CrashBetPanel({
           <div className="mt-2 flex items-center justify-between gap-2">
             <button
               onClick={decAuto}
-              disabled={disabled || !autoCashoutEnabled}
+              disabled={inputsLocked || !autoCashoutEnabled}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
               aria-label="Уменьшить множитель"
             >
@@ -138,7 +182,7 @@ export function CrashBetPanel({
             </div>
             <button
               onClick={incAuto}
-              disabled={disabled || !autoCashoutEnabled}
+              disabled={inputsLocked || !autoCashoutEnabled}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
               aria-label="Увеличить множитель"
             >
@@ -151,18 +195,18 @@ export function CrashBetPanel({
         <div className="p-2.5 flex items-stretch">
           <motion.button
             onClick={onPrimary}
-            disabled={disabled || phase === 'active'}
-            whileHover={!disabled ? { scale: 1.02 } : undefined}
-            whileTap={!disabled ? { scale: 0.98 } : undefined}
+            disabled={ctaDisabled}
+            whileHover={!ctaDisabled ? { scale: 1.02 } : undefined}
+            whileTap={!ctaDisabled ? { scale: 0.98 } : undefined}
             className={cn(
-              'min-w-[96px] h-full px-5 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors',
+              'min-w-[112px] h-full px-5 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors',
               ctaActive
                 ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/90'
-                : 'bg-white/[0.06] text-frost-white/80 border border-white/15 hover:bg-white/10',
-              disabled && 'opacity-50 cursor-not-allowed'
+                : 'bg-white/[0.06] text-frost-white/70 border border-white/15 hover:bg-white/10',
+              ctaDisabled && 'opacity-50 cursor-not-allowed'
             )}
           >
-            {cta}
+            {busy ? '…' : ctaLabel}
           </motion.button>
         </div>
       </div>

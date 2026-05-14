@@ -1,31 +1,65 @@
+import { randomUUID } from 'crypto';
 import { BaseGameEngine } from '../../game-engine/base-game-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { logger } from '../../utils/logger.js';
-import type { GameRound, Bet, GameTick, GameConfig } from '../../game-engine/types.js';
+import type {
+  GameRound,
+  Bet,
+  GameTick,
+  GameConfig,
+} from '../../game-engine/types.js';
 
 /**
- * Crash Game Engine - Production Implementation
- * High-frequency multiplayer crash game
- * 
- * FEATURES:
- * - 100ms tick rate (10 updates/second)
- * - Exponential multiplier growth
- * - Real-time cashout queue processing
- * - Provably fair crash point
- * - Auto-bet and auto-cashout support
- * - Historical round tracking
- * - Late-join synchronization
+ * Crash Game Engine — Slot-aware Multiplayer
+ *
+ * RULES:
+ * - One global round at a time. ~15s cooldown between rounds (9s open
+ *   betting + 3s countdown + 3s post-round resolve).
+ * - Each user can place up to TWO bets per round (slot 0 and slot 1).
+ *   Each slot has its own amount and optional auto-cashout target.
+ * - During WAITING/STARTING (countdown) bets can be placed AND cancelled
+ *   (refunded). Once ACTIVE, the only outgoing action is cashout.
+ * - On crash, all active (non-cashed-out) slots lose.
+ * - Provably fair: server seed hashed before round opens, revealed after
+ *   completion. House edge = 1% (RTP 99%) — see provably-fair.ts.
+ *
+ * EVENTS (server → clients via room broadcast):
+ *   round:created, phase:waiting, phase:countdown, phase:active,
+ *   bet:placed, bet:cancelled, multiplier:update, player:cashout,
+ *   player:lost, game:crashed, round:completed.
  */
+
+export interface CrashUserInfo {
+  userId: string;
+  username?: string | null;
+  firstName?: string | null;
+  photoUrl?: string | null;
+}
+
+interface SlotKey {
+  userId: string;
+  slot: number;
+}
+
+interface CashedOutInfo {
+  multiplier: number;
+  payout: number;
+  timestamp: number;
+}
 
 interface CrashState {
   currentMultiplier: number;
   crashPoint: number;
   elapsedTime: number;
   startTime: number;
-  cashedOutPlayers: Map<string, { multiplier: number; payout: number; timestamp: number }>;
-  cashoutQueue: Array<{ userId: string; timestamp: number }>;
-  autoCashouts: Map<string, number>; // userId -> target multiplier
+  /** key = `${userId}:${slot}` */
+  slotBets: Map<string, Bet>;
+  /** key = `${userId}:${slot}` */
+  slotAutoCashouts: Map<string, number>;
+  /** key = `${userId}:${slot}` */
+  slotCashedOut: Map<string, CashedOutInfo>;
+  cashoutQueue: Array<SlotKey & { timestamp: number }>;
 }
 
 interface CrashHistory {
@@ -36,63 +70,229 @@ interface CrashHistory {
   totalWagered: number;
 }
 
-export class CrashGameEngine extends BaseGameEngine {
-  private crashState: CrashState = {
-    currentMultiplier: 1.0,
-    crashPoint: 0,
-    elapsedTime: 0,
-    startTime: 0,
-    cashedOutPlayers: new Map(),
-    cashoutQueue: [],
-    autoCashouts: new Map(),
-  };
+const VALID_SLOTS = new Set([0, 1]);
 
+export class CrashGameEngine extends BaseGameEngine {
+  private crashState: CrashState = this.makeInitialCrashState();
   private history: CrashHistory[] = [];
+  private userInfo: Map<string, CrashUserInfo> = new Map();
+  private playerDemoMode: Map<string, boolean> = new Map();
+
   private readonly MAX_HISTORY = 50;
-  private readonly WAITING_TIME = 8000; // 8s betting phase
-  private readonly COUNTDOWN_TIME = 3000; // 3s countdown
-  private readonly MIN_PLAYERS = 0; // Minimum players to start (0 = no minimum)
-  private readonly ROOM_CLEANUP_TIMEOUT = 300000; // 5 minutes of inactivity
+  private readonly WAITING_TIME = 9000; // betting open
+  private readonly COUNTDOWN_TIME = 3000; // betting locked, lift-off countdown
+  private readonly ROOM_CLEANUP_TIMEOUT = 300000;
+
   private waitingTimeout?: NodeJS.Timeout;
   private countdownTimeout?: NodeJS.Timeout;
-  private lastActivityTime: number = Date.now();
+  private currentServerSeedHash = '';
+  private lastActivityTime = Date.now();
 
   constructor(gameId: string) {
     const config: GameConfig = {
-      minBet: 0.1,
+      minBet: 1,
       maxBet: 10000,
-      maxPlayers: 100,
-      tickRate: 100, // 100ms = 10 ticks/second
-      autoStartDelay: 3000,
+      maxPlayers: 200,
+      tickRate: 100,
+      autoStartDelay: 0, // not used; we manage phases ourselves
       provablyFair: true,
     };
-
     super(gameId, 'crash', config);
-    
-    // Start room cleanup monitor
     this.startCleanupMonitor();
   }
 
   /**
-   * Create new round with provably fair crash point
+   * Bootstrap: bring the room online and start the round loop.
    */
+  start(): void {
+    super.start();
+    void this.startRound().catch((err) =>
+      logger.error(err, 'Failed to start initial crash round')
+    );
+  }
+
+  /* -----------------------------------------------------------------------
+   * Public API used by HTTP routes
+   * ----------------------------------------------------------------------*/
+
+  hasUserInfo(userId: string): boolean {
+    return this.userInfo.has(userId);
+  }
+
+  setUserInfo(info: CrashUserInfo): void {
+    this.userInfo.set(info.userId, info);
+  }
+
+  /**
+   * Place a bet on a specific slot (0 or 1).
+   */
+  async placeCrashBet(
+    userId: string,
+    slot: number,
+    amount: number,
+    autoCashout: number | null,
+    demoMode: boolean
+  ): Promise<Bet> {
+    if (!VALID_SLOTS.has(slot)) {
+      throw new Error('Invalid slot (use 0 or 1)');
+    }
+    if (amount < this.config.minBet || amount > this.config.maxBet) {
+      throw new Error(
+        `Bet amount must be between ${this.config.minBet} and ${this.config.maxBet}`
+      );
+    }
+    if (!this.canPlaceBet()) {
+      throw new Error('Round is already running, betting is closed');
+    }
+    const key = this.slotKey(userId, slot);
+    if (this.crashState.slotBets.has(key)) {
+      throw new Error('This slot already has a bet');
+    }
+    if (autoCashout != null && autoCashout < 1.01) {
+      throw new Error('Auto-cashout must be at least 1.01x');
+    }
+
+    if (!this.room.players.has(userId)) {
+      this.addPlayer(userId, demoMode);
+    }
+    this.playerDemoMode.set(userId, demoMode);
+    this.updateActivity();
+
+    const bet: Bet = {
+      id: `bet_${Date.now()}_${randomUUID()}`,
+      userId,
+      gameId: this.gameId,
+      roundId: this.room.currentRound?.id || '',
+      amount,
+      state: 'pending',
+      placedAt: Date.now(),
+      metadata: { slot, autoCashout: autoCashout ?? null },
+    };
+
+    await bettingPipeline.processBet(bet, demoMode);
+    bet.state = 'active';
+
+    this.crashState.slotBets.set(key, bet);
+    if (autoCashout) {
+      this.crashState.slotAutoCashouts.set(key, autoCashout);
+    }
+
+    this.emitEvent('bet:placed', {
+      bet,
+      userId,
+      slot,
+      amount: bet.amount,
+      autoCashout: autoCashout ?? null,
+      user: this.userInfo.get(userId) ?? { userId },
+      stats: this.getRoomStats(),
+    });
+
+    logger.info({ betId: bet.id, userId, slot, amount }, 'Crash bet placed');
+
+    return bet;
+  }
+
+  /**
+   * Cancel a pending bet during waiting/countdown — refunds via rollback.
+   */
+  async cancelCrashBet(userId: string, slot: number): Promise<void> {
+    if (!VALID_SLOTS.has(slot)) {
+      throw new Error('Invalid slot');
+    }
+    if (this.room.state === 'active' || this.room.state === 'resolving') {
+      throw new Error('Cannot cancel: round already started');
+    }
+    const key = this.slotKey(userId, slot);
+    const bet = this.crashState.slotBets.get(key);
+    if (!bet) {
+      throw new Error('No bet on that slot');
+    }
+    const demoMode = this.playerDemoMode.get(userId) ?? false;
+
+    await bettingPipeline.rollbackBet(bet, demoMode);
+
+    this.crashState.slotBets.delete(key);
+    this.crashState.slotAutoCashouts.delete(key);
+
+    this.emitEvent('bet:cancelled', {
+      userId,
+      slot,
+      betId: bet.id,
+      stats: this.getRoomStats(),
+    });
+
+    logger.info({ betId: bet.id, userId, slot }, 'Crash bet cancelled');
+  }
+
+  /**
+   * Queue cashout for a specific slot. Resolved on next tick.
+   */
+  queueSlotCashout(userId: string, slot: number): void {
+    if (!VALID_SLOTS.has(slot)) {
+      throw new Error('Invalid slot');
+    }
+    if (this.room.state !== 'active') {
+      throw new Error('Round is not active');
+    }
+    const key = this.slotKey(userId, slot);
+    if (!this.crashState.slotBets.has(key)) {
+      throw new Error('No bet on that slot');
+    }
+    if (this.crashState.slotCashedOut.has(key)) {
+      return; // already cashed out
+    }
+    this.crashState.cashoutQueue.push({ userId, slot, timestamp: Date.now() });
+  }
+
+  /**
+   * Snapshot used by REST `/crash/state` and late-joiners.
+   */
+  getCurrentState(): unknown {
+    return {
+      phase: this.room.state,
+      multiplier: this.crashState.currentMultiplier,
+      elapsedTime: this.crashState.elapsedTime,
+      crashPointPreview:
+        this.room.state === 'completed'
+          ? this.crashState.crashPoint
+          : null,
+      serverSeedHash: this.currentServerSeedHash,
+      activePlayers: this.getActivePlayersList(),
+      cashedOut: Array.from(this.crashState.slotCashedOut.entries()).map(
+        ([k, v]) => {
+          const [userId, slotStr] = k.split(':');
+          return {
+            userId,
+            slot: parseInt(slotStr, 10),
+            multiplier: v.multiplier,
+            payout: v.payout,
+            timestamp: v.timestamp,
+          };
+        }
+      ),
+      history: this.history.slice(-20).reverse(),
+      stats: this.getRoomStats(),
+    };
+  }
+
+  getHistory(): CrashHistory[] {
+    return [...this.history];
+  }
+
+  /* -----------------------------------------------------------------------
+   * Lifecycle (overrides BaseGameEngine hooks)
+   * ----------------------------------------------------------------------*/
+
   protected async createRound(): Promise<GameRound> {
     const serverSeed = provablyFair.generateServerSeed();
     const clientSeed = provablyFair.generateClientSeed();
     const nonce = (this.room.currentRound?.nonce || 0) + 1;
-
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
     const crashPoint = provablyFair.generateCrashMultiplier(hash);
 
-    this.crashState = {
-      currentMultiplier: 1.0,
-      crashPoint,
-      elapsedTime: 0,
-      startTime: 0,
-      cashedOutPlayers: new Map(),
-      cashoutQueue: [],
-      autoCashouts: new Map(),
-    };
+    this.crashState = this.makeInitialCrashState();
+    this.crashState.crashPoint = crashPoint;
+    this.currentServerSeedHash = provablyFair.hashServerSeed(serverSeed);
 
     const round: GameRound = {
       id: `crash_${Date.now()}_${nonce}`,
@@ -103,70 +303,151 @@ export class CrashGameEngine extends BaseGameEngine {
       serverSeed,
       clientSeed,
       nonce,
-      metadata: {
-        crashPoint,
-        serverSeedHash: provablyFair.hashServerSeed(serverSeed),
-      },
+      metadata: { crashPoint, serverSeedHash: this.currentServerSeedHash },
     };
 
     this.emitEvent('round:created', {
       roundId: round.id,
-      serverSeedHash: round.metadata?.serverSeedHash as string,
-      history: this.history.slice(-10),
+      serverSeedHash: this.currentServerSeedHash,
+      history: this.history.slice(-20).reverse(),
     });
 
-    // Auto-start waiting phase
-    setTimeout(() => {
-      this.startWaitingPhase();
-    }, 1000);
+    setTimeout(() => this.startWaitingPhase(), 50);
 
-    logger.info({ roundId: round.id, crashPoint }, 'Crash round created');
-
+    logger.info({ roundId: round.id }, 'Crash round created');
     return round;
   }
 
-  /**
-   * Start waiting phase (betting period)
-   */
-  private startWaitingPhase(): void {
-    this.clearTimeouts();
-    
-    this.emitEvent('phase:waiting', {
-      duration: this.WAITING_TIME,
-    });
-
-    this.waitingTimeout = setTimeout(() => {
-      const activePlayers = Array.from(this.room.players.values()).filter(p => p.bet).length;
-      
-      if (activePlayers >= this.MIN_PLAYERS) {
-        this.startCountdown();
-      } else {
-        // Not enough players, restart waiting
-        logger.debug({ activePlayers, minPlayers: this.MIN_PLAYERS }, 'Not enough players, restarting waiting phase');
-        this.startWaitingPhase();
-      }
-    }, this.WAITING_TIME);
+  protected async processBet(bet: Bet, demoMode: boolean): Promise<void> {
+    // Not used directly. placeCrashBet calls bettingPipeline itself.
+    await bettingPipeline.processBet(bet, demoMode);
   }
 
-  /**
-   * Start countdown phase
-   */
+  protected canPlaceBet(): boolean {
+    return this.room.state === 'waiting' || this.room.state === 'starting';
+  }
+
+  protected getTickState(): unknown {
+    return {
+      multiplier: this.crashState.currentMultiplier,
+      elapsedTime: this.crashState.elapsedTime,
+    };
+  }
+
+  protected onRoundStarted(round: GameRound): void {
+    this.crashState.startTime = Date.now();
+    this.emitEvent('phase:active', {
+      startTime: this.crashState.startTime,
+      roundId: round.id,
+    });
+  }
+
+  protected onTick(tick: GameTick): void {
+    if (this.room.state !== 'active') return;
+
+    this.crashState.elapsedTime += tick.deltaTime;
+    const growthRate = 0.00006;
+    this.crashState.currentMultiplier = Math.pow(
+      Math.E,
+      growthRate * this.crashState.elapsedTime
+    );
+
+    this.processCashoutQueue();
+    this.checkAutoCashouts();
+
+    if (this.crashState.currentMultiplier >= this.crashState.crashPoint) {
+      void this.crash();
+      return;
+    }
+
+    this.emitEvent('multiplier:update', {
+      multiplier: this.crashState.currentMultiplier,
+      elapsedTime: this.crashState.elapsedTime,
+    });
+  }
+
+  protected async resolveBets(): Promise<void> {
+    for (const [key, bet] of this.crashState.slotBets.entries()) {
+      if (this.crashState.slotCashedOut.has(key)) continue;
+      const [userId, slotStr] = key.split(':');
+      const slot = parseInt(slotStr, 10);
+      try {
+        await bettingPipeline.processLoss(bet);
+      } catch (err) {
+        logger.error(err, 'processLoss failed');
+      }
+      this.emitEvent('player:lost', {
+        userId,
+        slot,
+        betAmount: bet.amount,
+        crashPoint: parseFloat(this.crashState.crashPoint.toFixed(2)),
+        user: this.userInfo.get(userId) ?? { userId },
+      });
+    }
+  }
+
+  protected onRoundCompleted(round: GameRound, result: unknown): void {
+    const r = result as { crashPoint: number };
+    this.emitEvent('round:completed', {
+      roundId: round.id,
+      crashPoint: r.crashPoint,
+      serverSeed: round.serverSeed,
+      clientSeed: round.clientSeed,
+      nonce: round.nonce,
+    });
+  }
+
+  /* -----------------------------------------------------------------------
+   * Internal helpers
+   * ----------------------------------------------------------------------*/
+
+  private makeInitialCrashState(): CrashState {
+    return {
+      currentMultiplier: 1.0,
+      crashPoint: 0,
+      elapsedTime: 0,
+      startTime: 0,
+      slotBets: new Map(),
+      slotAutoCashouts: new Map(),
+      slotCashedOut: new Map(),
+      cashoutQueue: [],
+    };
+  }
+
+  private slotKey(userId: string, slot: number): string {
+    return `${userId}:${slot}`;
+  }
+
+  private startWaitingPhase(): void {
+    this.clearTimeouts();
+    this.room.state = 'waiting';
+    this.emitEvent('phase:waiting', {
+      duration: this.WAITING_TIME,
+      endsAt: Date.now() + this.WAITING_TIME,
+      roundId: this.room.currentRound?.id ?? null,
+      serverSeedHash: this.currentServerSeedHash,
+      history: this.history.slice(-20).reverse(),
+      stats: this.getRoomStats(),
+    });
+    this.waitingTimeout = setTimeout(
+      () => this.startCountdown(),
+      this.WAITING_TIME
+    );
+  }
+
   private startCountdown(): void {
     this.clearTimeouts();
     this.room.state = 'starting';
-    
     this.emitEvent('phase:countdown', {
       duration: this.COUNTDOWN_TIME,
+      endsAt: Date.now() + this.COUNTDOWN_TIME,
     });
-
-    this.countdownTimeout = setTimeout(() => {
-      this.activateRound();
-    }, this.COUNTDOWN_TIME);
+    this.countdownTimeout = setTimeout(
+      () => this.activateRound(),
+      this.COUNTDOWN_TIME
+    );
   }
 
-  /**
-   * Clear all timeouts
-   */
   private clearTimeouts(): void {
     if (this.waitingTimeout) {
       clearTimeout(this.waitingTimeout);
@@ -178,165 +459,47 @@ export class CrashGameEngine extends BaseGameEngine {
     }
   }
 
-  /**
-   * Start room cleanup monitor
-   */
-  private startCleanupMonitor(): void {
-    setInterval(() => {
-      const inactiveTime = Date.now() - this.lastActivityTime;
-      
-      if (inactiveTime > this.ROOM_CLEANUP_TIMEOUT && this.room.players.size === 0) {
-        logger.info({ gameId: this.gameId, inactiveTime }, 'Room inactive, stopping engine');
-        this.stop();
-      }
-    }, 60000); // Check every minute
-  }
-
-  /**
-   * Update activity timestamp
-   */
-  private updateActivity(): void {
-    this.lastActivityTime = Date.now();
-  }
-
-  /**
-   * Process bet placement
-   */
-  protected async processBet(bet: Bet, demoMode: boolean): Promise<void> {
-    this.updateActivity();
-    // Use unified betting pipeline
-    await bettingPipeline.processBet(bet, demoMode);
-  }
-
-  /**
-   * Check if bets can be placed
-   */
-  protected canPlaceBet(): boolean {
-    return this.room.state === 'waiting' || this.room.state === 'starting';
-  }
-
-  /**
-   * Get current tick state
-   */
-  protected getTickState(): any {
-    return {
-      multiplier: this.crashState.currentMultiplier,
-      elapsedTime: this.crashState.elapsedTime,
-    };
-  }
-
-  /**
-   * Handle round start
-   */
-  protected onRoundStarted(round: GameRound): void {
-    this.crashState.startTime = Date.now();
-    
-    this.emitEvent('phase:active', {
-      startTime: this.crashState.startTime,
-    });
-
-    logger.info({ roundId: round.id }, 'Crash round started');
-  }
-
-  /**
-   * Handle game tick (100ms intervals)
-   */
-  protected onTick(tick: GameTick): void {
-    if (this.room.state !== 'active') {
-      return;
-    }
-
-    this.crashState.elapsedTime += tick.deltaTime;
-
-    // Exponential growth: multiplier = e^(0.00006 * time)
-    const growthRate = 0.00006;
-    this.crashState.currentMultiplier = Math.pow(
-      Math.E,
-      growthRate * this.crashState.elapsedTime
-    );
-
-    // Process cashout queue
-    this.processCashoutQueue();
-
-    // Check auto-cashouts
-    this.checkAutoCashouts();
-
-    // Check if crashed
-    if (this.crashState.currentMultiplier >= this.crashState.crashPoint) {
-      this.crash();
-      return;
-    }
-
-    // Emit tick update
-    this.emitEvent('multiplier:update', {
-      multiplier: this.crashState.currentMultiplier,
-      elapsedTime: this.crashState.elapsedTime,
-      activePlayers: this.getActivePlayers(),
-    });
-  }
-
-  /**
-   * Process cashout queue
-   */
   private processCashoutQueue(): void {
     while (this.crashState.cashoutQueue.length > 0) {
-      const { userId, timestamp } = this.crashState.cashoutQueue.shift()!;
-      
-      try {
-        this.executeCashout(userId, timestamp);
-      } catch (error) {
-        logger.error(error, 'Failed to process cashout');
-      }
+      const item = this.crashState.cashoutQueue.shift()!;
+      this.executeCashout(item.userId, item.slot, item.timestamp).catch(
+        (err) => logger.error(err, 'cashout failed')
+      );
     }
   }
 
-  /**
-   * Check and execute auto-cashouts
-   */
   private checkAutoCashouts(): void {
-    for (const [userId, targetMultiplier] of this.crashState.autoCashouts.entries()) {
-      if (this.crashState.currentMultiplier >= targetMultiplier) {
-        this.queueCashout(userId);
-        this.crashState.autoCashouts.delete(userId);
+    for (const [key, target] of this.crashState.slotAutoCashouts.entries()) {
+      if (this.crashState.currentMultiplier >= target) {
+        const [userId, slotStr] = key.split(':');
+        const slot = parseInt(slotStr, 10);
+        if (!this.crashState.slotCashedOut.has(key)) {
+          this.crashState.cashoutQueue.push({
+            userId,
+            slot,
+            timestamp: Date.now(),
+          });
+        }
+        this.crashState.slotAutoCashouts.delete(key);
       }
     }
   }
 
-  /**
-   * Queue cashout request
-   */
-  queueCashout(userId: string): void {
-    this.updateActivity();
-    
-    const player = this.room.players.get(userId);
-    if (!player || !player.bet || player.bet.state !== 'active') {
-      return;
-    }
+  private async executeCashout(
+    userId: string,
+    slot: number,
+    timestamp: number
+  ): Promise<void> {
+    const key = this.slotKey(userId, slot);
+    const bet = this.crashState.slotBets.get(key);
+    if (!bet) return;
+    if (this.crashState.slotCashedOut.has(key)) return;
 
-    if (this.crashState.cashedOutPlayers.has(userId)) {
-      return;
-    }
-
-    this.crashState.cashoutQueue.push({
-      userId,
-      timestamp: Date.now(),
-    });
-  }
-
-  /**
-   * Execute cashout
-   */
-  private async executeCashout(userId: string, timestamp: number): Promise<void> {
-    const player = this.room.players.get(userId);
-    if (!player || !player.bet) {
-      return;
-    }
-
-    const bet = player.bet;
     const multiplier = this.crashState.currentMultiplier;
     const cashoutAmount = bet.amount * multiplier;
+    const demoMode = this.playerDemoMode.get(userId) ?? false;
 
-    this.crashState.cashedOutPlayers.set(userId, {
+    this.crashState.slotCashedOut.set(key, {
       multiplier,
       payout: cashoutAmount,
       timestamp,
@@ -345,165 +508,114 @@ export class CrashGameEngine extends BaseGameEngine {
     bet.multiplier = multiplier;
     bet.payout = cashoutAmount;
 
-    await bettingPipeline.processCashout(bet, cashoutAmount, multiplier, player.demoMode);
+    await bettingPipeline.processCashout(bet, cashoutAmount, multiplier, demoMode);
 
     this.emitEvent('player:cashout', {
       userId,
+      slot,
+      betAmount: bet.amount,
       multiplier: parseFloat(multiplier.toFixed(2)),
       payout: parseFloat(cashoutAmount.toFixed(2)),
       timestamp,
-    });
-
-    logger.info({ userId, multiplier, payout: cashoutAmount }, 'Player cashed out');
-  }
-
-  /**
-   * Set auto-cashout for player
-   */
-  setAutoCashout(userId: string, targetMultiplier: number): void {
-    if (targetMultiplier < 1.01) {
-      throw new Error('Auto-cashout must be at least 1.01x');
-    }
-
-    this.crashState.autoCashouts.set(userId, targetMultiplier);
-
-    this.emitEvent('player:auto_cashout_set', {
-      userId,
-      targetMultiplier,
+      user: this.userInfo.get(userId) ?? { userId },
     });
   }
 
-  /**
-   * Get active players (not cashed out)
-   */
-  private getActivePlayers(): Array<{ userId: string; betAmount: number }> {
-    const active: Array<{ userId: string; betAmount: number }> = [];
-
-    for (const [userId, player] of this.room.players.entries()) {
-      if (player.bet && player.bet.state === 'active' && !this.crashState.cashedOutPlayers.has(userId)) {
-        active.push({
-          userId,
-          betAmount: player.bet.amount,
-        });
-      }
-    }
-
-    return active;
-  }
-
-  /**
-   * Handle crash event
-   */
   private async crash(): Promise<void> {
     const crashPoint = this.crashState.crashPoint;
 
     this.emitEvent('game:crashed', {
       crashPoint: parseFloat(crashPoint.toFixed(2)),
       finalMultiplier: parseFloat(this.crashState.currentMultiplier.toFixed(2)),
-      cashedOutCount: this.crashState.cashedOutPlayers.size,
-      totalPlayers: this.room.players.size,
+      cashedOutCount: this.crashState.slotCashedOut.size,
     });
 
-    // Calculate stats
-    const totalWagered = Array.from(this.room.players.values())
-      .reduce((sum, p) => sum + (p.bet?.amount || 0), 0);
+    const totalWagered = Array.from(this.crashState.slotBets.values()).reduce(
+      (sum, b) => sum + b.amount,
+      0
+    );
 
-    // Add to history
     this.history.push({
       roundId: this.room.currentRound!.id,
       crashPoint,
       timestamp: Date.now(),
-      playerCount: this.room.players.size,
+      playerCount: this.getRoomStats().playerCount,
       totalWagered,
     });
-
-    if (this.history.length > this.MAX_HISTORY) {
-      this.history.shift();
-    }
+    if (this.history.length > this.MAX_HISTORY) this.history.shift();
 
     await this.endRound({
       crashPoint,
       finalMultiplier: this.crashState.currentMultiplier,
-      cashedOutPlayers: Array.from(this.crashState.cashedOutPlayers.entries()).map(([userId, data]) => ({
-        userId,
-        ...data,
-      })),
       totalWagered,
     });
 
-    logger.info({ crashPoint, players: this.room.players.size }, 'Crash occurred');
+    logger.info(
+      { crashPoint, players: this.getRoomStats().playerCount },
+      'Crash occurred'
+    );
   }
 
-  /**
-   * Resolve all bets after crash
-   */
-  protected async resolveBets(result: any): Promise<void> {
-    const { crashPoint } = result;
-
-    for (const [userId, player] of this.room.players.entries()) {
-      if (!player.bet || player.bet.state !== 'active') {
-        continue;
-      }
-
-      // Skip cashed out players
-      if (this.crashState.cashedOutPlayers.has(userId)) {
-        continue;
-      }
-
-      // Player lost
-      await bettingPipeline.processLoss(player.bet);
-
-      this.emitEvent('player:lost', {
+  private getActivePlayersList(): Array<{
+    userId: string;
+    slot: number;
+    betAmount: number;
+    user: CrashUserInfo | null;
+  }> {
+    const list: Array<{
+      userId: string;
+      slot: number;
+      betAmount: number;
+      user: CrashUserInfo | null;
+    }> = [];
+    for (const [key, bet] of this.crashState.slotBets.entries()) {
+      const [userId, slotStr] = key.split(':');
+      list.push({
         userId,
-        betAmount: player.bet.amount,
-        crashPoint: parseFloat(crashPoint.toFixed(2)),
+        slot: parseInt(slotStr, 10),
+        betAmount: bet.amount,
+        user: this.userInfo.get(userId) ?? null,
       });
     }
+    return list;
   }
 
-  /**
-   * Handle round completion
-   */
-  protected onRoundCompleted(round: GameRound, result: any): void {
-    // Reveal server seed for verification
-    this.emitEvent('round:completed', {
-      roundId: round.id,
-      crashPoint: result.crashPoint,
-      serverSeed: round.serverSeed,
-      clientSeed: round.clientSeed,
-      nonce: round.nonce,
-      cashedOutPlayers: result.cashedOutPlayers,
-    });
-
-    // Clear player bets
-    for (const player of this.room.players.values()) {
-      player.bet = undefined;
+  private getRoomStats(): {
+    playerCount: number;
+    totalWagered: number;
+    betsCount: number;
+  } {
+    const userIds = new Set<string>();
+    let totalWagered = 0;
+    for (const [key, bet] of this.crashState.slotBets.entries()) {
+      const [userId] = key.split(':');
+      userIds.add(userId);
+      totalWagered += bet.amount;
     }
-
-    logger.info({ roundId: round.id, crashPoint: result.crashPoint }, 'Crash round completed');
-  }
-
-  /**
-   * Get crash history
-   */
-  getHistory(): CrashHistory[] {
-    return [...this.history];
-  }
-
-  /**
-   * Get current crash state (for late join)
-   */
-  getCurrentState(): any {
     return {
-      phase: this.room.state,
-      multiplier: this.crashState.currentMultiplier,
-      elapsedTime: this.crashState.elapsedTime,
-      activePlayers: this.getActivePlayers(),
-      cashedOutPlayers: Array.from(this.crashState.cashedOutPlayers.entries()).map(([userId, data]) => ({
-        userId,
-        ...data,
-      })),
-      history: this.history.slice(-10),
+      playerCount: userIds.size,
+      totalWagered: parseFloat(totalWagered.toFixed(2)),
+      betsCount: this.crashState.slotBets.size,
     };
+  }
+
+  private startCleanupMonitor(): void {
+    setInterval(() => {
+      const inactiveTime = Date.now() - this.lastActivityTime;
+      if (
+        inactiveTime > this.ROOM_CLEANUP_TIMEOUT &&
+        this.room.players.size === 0
+      ) {
+        logger.info(
+          { gameId: this.gameId, inactiveTime },
+          'Room inactive, stopping engine'
+        );
+        this.stop();
+      }
+    }, 60000);
+  }
+
+  private updateActivity(): void {
+    this.lastActivityTime = Date.now();
   }
 }

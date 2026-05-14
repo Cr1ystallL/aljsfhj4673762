@@ -1,6 +1,6 @@
 'use client';
 
-import { HelpCircle, Shield, Volume2, VolumeX, Rocket } from 'lucide-react';
+import { HelpCircle, Volume2, VolumeX, Rocket } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -8,23 +8,22 @@ import { soundManager } from '@/lib/sound/sound-manager';
 /**
  * Crash Top Bar — Monopo Saigon Style
  *
- * Title with rocket glyph on the left, support pills on the right
- * ("Как играть", provably-fair, demo dot, sound). Pure pill chrome,
- * 1px translucent borders, no shadows.
+ * Title with rocket glyph on the left, support pills on the right.
+ *   - "Как играть" → opens the rules modal.
+ *   - Demo / Real toggle.
+ *   - Sound mute toggle.
  */
 
 interface CrashTopBarProps {
   isDemoMode: boolean;
   onToggleDemoMode: () => void;
   onHowToPlay?: () => void;
-  onProvablyFair?: () => void;
 }
 
 export function CrashTopBar({
   isDemoMode,
   onToggleDemoMode,
   onHowToPlay,
-  onProvablyFair,
 }: CrashTopBarProps) {
   const [muted, setMuted] = useState(soundManager.isMuted());
 
@@ -55,14 +54,6 @@ export function CrashTopBar({
         >
           <span className="font-roobert text-[12px]">Как играть</span>
           <HelpCircle size={12} strokeWidth={1.8} />
-        </button>
-
-        <button
-          onClick={onProvablyFair}
-          className="w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
-          aria-label="Provably fair"
-        >
-          <Shield size={13} strokeWidth={1.8} />
         </button>
 
         <button

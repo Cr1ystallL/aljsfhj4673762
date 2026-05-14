@@ -5,307 +5,326 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CrashTopBar } from '@/components/game/crash/crash-top-bar';
 import { CrashHistoryStrip } from '@/components/game/crash/crash-history-strip';
 import { CrashStage } from '@/components/game/crash/crash-stage';
-import { CrashBetPanel, type BetSlotPhase } from '@/components/game/crash/crash-bet-panel';
-import { CrashStatsBar } from '@/components/game/crash/crash-stats-bar';
 import {
-  CrashPlayerFeed,
-  type CrashPlayerEntry,
-} from '@/components/game/crash/crash-player-feed';
+  CrashBetPanel,
+  type BetSlotPhase,
+} from '@/components/game/crash/crash-bet-panel';
+import { CrashStatsBar } from '@/components/game/crash/crash-stats-bar';
+import { CrashPlayerFeed } from '@/components/game/crash/crash-player-feed';
+import { CrashRulesModal } from '@/components/game/crash/crash-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
 import { useDemoMode } from '@/store/demo-mode-store';
-import { CrashGameClient } from '@/lib/games/crash/crash-client';
+import { useCrashLive } from '@/hooks/use-crash-live';
 import { soundManager } from '@/lib/sound/sound-manager';
 
 /**
- * Crash Game Page — Monopo Saigon Theme
+ * Crash Game Page — Live Multiplayer
  *
- * Full-bleed dark canvas with deep ocean gradient atmospherics provided
- * by the global animated background. Page composes:
- *   - Top bar (title, support pills)
- *   - Recent multipliers strip
- *   - Atmospheric stage (countdown / multiplier / curve)
- *   - Two parallel bet slots
- *   - Round stats tiles
- *   - Live player feed
+ * Full-bleed dark canvas with deep ocean gradient atmospherics. The page is a
+ * thin orchestrator: it subscribes to a single live WebSocket stream
+ * (`useCrashLive`) and routes that snapshot through composable section
+ * components.
  *
- * Tokens come from globals.css and tailwind.config.ts (frost white,
- * midnight canvas, whisper gray, pill radius, frosted glass surfaces).
+ * Per-slot UI state is derived in two layers:
+ *   1. Local: the user's two slots have an "intent" — idle, queued,
+ *      cashable — driven by the bet flow on this client.
+ *   2. Server: when an authoritative server event arrives (placed,
+ *      cancelled, cashed_out, lost) we sync the slot state.
  */
 
-type Phase = 'waiting' | 'countdown' | 'active' | 'crashed';
-
-interface BetSlotState {
+interface SlotConfig {
   amount: number;
   autoCashoutEnabled: boolean;
   autoCashoutMultiplier: number;
-  phase: BetSlotPhase;
 }
 
-const INITIAL_SLOT: BetSlotState = {
+interface SlotRuntime {
+  phase: BetSlotPhase;
+  busy: boolean;
+}
+
+const DEFAULT_SLOT: SlotConfig = {
   amount: 0,
   autoCashoutEnabled: true,
   autoCashoutMultiplier: 2.0,
-  phase: 'idle',
 };
 
 export default function CrashGamePage() {
   const { balance } = useBalance();
   const { isDemoMode, toggleDemoMode, setActiveBet } = useDemoMode();
+  const { snapshot, userId } = useCrashLive();
 
-  const [client] = useState(() => new CrashGameClient('crash_main'));
-
-  const [phase, setPhase] = useState<Phase>('waiting');
-  const [multiplier, setMultiplier] = useState(1.0);
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [graphPoints, setGraphPoints] = useState<
-    Array<{ time: number; multiplier: number }>
-  >([]);
-  const [history, setHistory] = useState<Array<{ crashPoint: number }>>([
-    { crashPoint: 1.24 },
-    { crashPoint: 1.48 },
-    { crashPoint: 2.72 },
-    { crashPoint: 3.78 },
-    { crashPoint: 9.76 },
-    { crashPoint: 1.08 },
-    { crashPoint: 7.73 },
+  const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
+    { ...DEFAULT_SLOT },
+    { ...DEFAULT_SLOT },
   ]);
-
-  const [slotA, setSlotA] = useState<BetSlotState>(INITIAL_SLOT);
-  const [slotB, setSlotB] = useState<BetSlotState>(INITIAL_SLOT);
-
-  const [playerCount, setPlayerCount] = useState(32);
-  const [totalBets, setTotalBets] = useState(2524.88);
-  const [feed] = useState<CrashPlayerEntry[]>([
-    {
-      id: 'p1',
-      name: 'pazikgara',
-      avatarColor: 'bg-[#a05cd6]',
-      amount: 435,
-      status: 'active',
-    },
-    {
-      id: 'p2',
-      name: 'Андрей Шад…',
-      avatarColor: 'bg-white/10',
-      amount: 350,
-      status: 'active',
-    },
-    {
-      id: 'p3',
-      name: 'Мухаммад А…',
-      avatarColor: 'bg-white/10',
-      amount: 350,
-      status: 'active',
-    },
+  const [runtime, setRuntime] = useState<[SlotRuntime, SlotRuntime]>([
+    { phase: 'idle', busy: false },
+    { phase: 'idle', busy: false },
   ]);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
-  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Initialise sound manager once
+  // Sound manager warm-up.
   useEffect(() => {
     soundManager.initialize();
   }, []);
 
-  // Wire up the game client lifecycle
+  /* -------------------------------------------------------- slot state ----
+   * Re-derive each slot's UI phase from the authoritative server snapshot.
+   * If the server says a slot has an active bet for current user → 'queued'
+   * during waiting, 'locked' during countdown, 'cashable' once active,
+   * finished_won / finished_lost once the round resolves.
+   */
   useEffect(() => {
-    client.on('phase:waiting', () => {
-      setPhase('waiting');
-      setSlotA((s) => (s.phase === 'finished' ? { ...INITIAL_SLOT, amount: s.amount, autoCashoutEnabled: s.autoCashoutEnabled, autoCashoutMultiplier: s.autoCashoutMultiplier } : s));
-      setSlotB((s) => (s.phase === 'finished' ? { ...INITIAL_SLOT, amount: s.amount, autoCashoutEnabled: s.autoCashoutEnabled, autoCashoutMultiplier: s.autoCashoutMultiplier } : s));
-      setActiveBet(false);
-    });
+    if (!userId) return;
 
-    client.on('phase:countdown', (data: { duration: number }) => {
-      setPhase('countdown');
-      setCountdown(Math.ceil(data.duration / 1000));
+    setRuntime((prev) => {
+      const out: [SlotRuntime, SlotRuntime] = [prev[0], prev[1]];
+      for (const slot of [0, 1] as const) {
+        const live = snapshot.players.find(
+          (p) => p.userId === userId && p.slot === slot
+        );
 
-      if (countdownInterval.current) clearInterval(countdownInterval.current);
-      countdownInterval.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            if (countdownInterval.current) {
-              clearInterval(countdownInterval.current);
-              countdownInterval.current = null;
-            }
-            return null;
+        if (!live) {
+          // No active bet for this slot on the server → idle.
+          if (out[slot].phase !== 'idle') {
+            out[slot] = { phase: 'idle', busy: false };
           }
-          return prev - 1;
-        });
-      }, 1000);
+          continue;
+        }
+
+        let phase: BetSlotPhase = out[slot].phase;
+        if (live.status === 'cashed') phase = 'finished_won';
+        else if (live.status === 'lost') phase = 'finished_lost';
+        else if (snapshot.phase === 'active') phase = 'cashable';
+        else if (snapshot.phase === 'starting') phase = 'locked';
+        else phase = 'queued';
+
+        if (phase !== out[slot].phase || out[slot].busy) {
+          out[slot] = { phase, busy: false };
+        }
+      }
+      return out;
     });
+  }, [snapshot.phase, snapshot.players, userId]);
 
-    client.on('phase:active', () => {
-      setPhase('active');
-      setCountdown(null);
-      setSlotA((s) => (s.phase === 'queued' ? { ...s, phase: 'cashable' } : s));
-      setSlotB((s) => (s.phase === 'queued' ? { ...s, phase: 'cashable' } : s));
-      soundManager.play('game.bet_placed');
+  // Reset finished slot to idle when a brand-new round opens betting again.
+  useEffect(() => {
+    if (snapshot.phase === 'waiting') {
+      setRuntime((prev) => {
+        const map = (r: SlotRuntime): SlotRuntime =>
+          r.phase === 'finished_won' || r.phase === 'finished_lost'
+            ? { phase: 'idle', busy: false }
+            : r;
+        return [map(prev[0]), map(prev[1])];
+      });
+    }
+  }, [snapshot.phase]);
+
+  // Surface "user has an active bet" to the demo-mode guard.
+  useEffect(() => {
+    const anyActive = runtime.some((r) =>
+      ['queued', 'locked', 'cashable'].includes(r.phase)
+    );
+    setActiveBet(anyActive);
+  }, [runtime, setActiveBet]);
+
+  // Play short cues for round transitions.
+  const prevPhaseRef = useRef(snapshot.phase);
+  useEffect(() => {
+    if (prevPhaseRef.current !== snapshot.phase) {
+      if (snapshot.phase === 'active') soundManager.play('game.bet_placed');
+      if (snapshot.phase === 'completed') soundManager.play('game.lose');
+      prevPhaseRef.current = snapshot.phase;
+    }
+  }, [snapshot.phase]);
+
+  /* ------------------------------------------------------------ actions */
+
+  async function placeSlotBet(slot: 0 | 1) {
+    const cfg = slots[slot];
+    if (cfg.amount <= 0) return;
+
+    setRuntime((prev) => {
+      const out = [...prev] as [SlotRuntime, SlotRuntime];
+      out[slot] = { phase: 'queued', busy: true };
+      return out;
     });
-
-    client.on('display:update', (data: { multiplier: number; graphPoints: Array<{ time: number; multiplier: number }> }) => {
-      setMultiplier(data.multiplier);
-      setGraphPoints(data.graphPoints);
-    });
-
-    client.on('game:crashed', (data: { crashPoint: number }) => {
-      setPhase('crashed');
-      setMultiplier(data.crashPoint);
-      setSlotA((s) => (s.phase === 'cashable' ? { ...s, phase: 'finished' } : s));
-      setSlotB((s) => (s.phase === 'cashable' ? { ...s, phase: 'finished' } : s));
-      soundManager.play('game.lose');
-    });
-
-    client.on('round:completed', (data: { crashPoint: number }) => {
-      setHistory((prev) => [{ crashPoint: data.crashPoint }, ...prev].slice(0, 50));
-    });
-
-    return () => {
-      if (countdownInterval.current) clearInterval(countdownInterval.current);
-      client.removeAllListeners();
-      client.destroy();
-    };
-  }, [client, setActiveBet]);
-
-  const placeBetForSlot = async (
-    slot: BetSlotState,
-    setSlot: (next: BetSlotState | ((prev: BetSlotState) => BetSlotState)) => void
-  ) => {
-    if (slot.amount <= 0) return;
-
-    setSlot((prev) => ({ ...prev, phase: 'queued' }));
-    setActiveBet(true);
 
     try {
-      const response = await fetch('/api/games/crash/bet', {
+      const res = await fetch('/api/games/crash/bet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          amount: slot.amount,
+          slot,
+          amount: cfg.amount,
+          autoCashout: cfg.autoCashoutEnabled
+            ? cfg.autoCashoutMultiplier
+            : null,
           demoMode: isDemoMode,
-          autoCashout: slot.autoCashoutEnabled ? slot.autoCashoutMultiplier : null,
         }),
       });
-
-      if (!response.ok) throw new Error('Failed to place bet');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to place bet');
+      }
       soundManager.play('ui.click');
     } catch (err) {
       console.error('Bet failed:', err);
-      setSlot((prev) => ({ ...prev, phase: 'idle' }));
-      setActiveBet(false);
-    }
-  };
-
-  const cashoutSlot = async (
-    setSlot: (next: BetSlotState | ((prev: BetSlotState) => BetSlotState)) => void
-  ) => {
-    try {
-      const response = await fetch('/api/games/crash/cashout', {
-        method: 'POST',
-        credentials: 'include',
+      setRuntime((prev) => {
+        const out = [...prev] as [SlotRuntime, SlotRuntime];
+        out[slot] = { phase: 'idle', busy: false };
+        return out;
       });
-      if (!response.ok) throw new Error('Failed to cashout');
-      client.emit('cashout:requested', {});
-      setSlot((prev) => ({ ...prev, phase: 'finished' }));
+    }
+  }
+
+  async function cancelSlot(slot: 0 | 1) {
+    setRuntime((prev) => {
+      const out = [...prev] as [SlotRuntime, SlotRuntime];
+      out[slot] = { ...out[slot], busy: true };
+      return out;
+    });
+
+    try {
+      const res = await fetch('/api/games/crash/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ slot }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Cancel failed');
+      }
+      soundManager.play('ui.click');
+    } catch (err) {
+      console.error('Cancel failed:', err);
+      setRuntime((prev) => {
+        const out = [...prev] as [SlotRuntime, SlotRuntime];
+        out[slot] = { ...out[slot], busy: false };
+        return out;
+      });
+    }
+  }
+
+  async function cashoutSlot(slot: 0 | 1) {
+    setRuntime((prev) => {
+      const out = [...prev] as [SlotRuntime, SlotRuntime];
+      out[slot] = { ...out[slot], busy: true };
+      return out;
+    });
+
+    try {
+      const res = await fetch('/api/games/crash/cashout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ slot }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Cashout failed');
+      }
       soundManager.play('game.cashout');
     } catch (err) {
       console.error('Cashout failed:', err);
+      setRuntime((prev) => {
+        const out = [...prev] as [SlotRuntime, SlotRuntime];
+        out[slot] = { ...out[slot], busy: false };
+        return out;
+      });
     }
-  };
+  }
 
-  const handleSlotPrimary = (
-    slot: BetSlotState,
-    setSlot: (next: BetSlotState | ((prev: BetSlotState) => BetSlotState)) => void
-  ) => {
-    if (slot.phase === 'idle') {
-      placeBetForSlot(slot, setSlot);
-      return;
-    }
-    if (slot.phase === 'queued') {
-      // Cancel a queued bet
-      setSlot((prev) => ({ ...prev, phase: 'idle' }));
-      setActiveBet(false);
-      return;
-    }
-    if (slot.phase === 'cashable') {
-      cashoutSlot(setSlot);
-    }
-  };
+  function handlePrimary(slot: 0 | 1) {
+    const phase = runtime[slot].phase;
+    if (phase === 'idle') return placeSlotBet(slot);
+    if (phase === 'queued' || phase === 'locked') return cancelSlot(slot);
+    if (phase === 'cashable') return cashoutSlot(slot);
+  }
+
+  /* ----------------------------------------------------------- derived */
 
   const minBet = 1;
-  const maxBet = useMemo(() => Math.max(minBet, Math.floor(balance?.amount ?? 10000)), [balance]);
+  const maxBet = useMemo(
+    () => Math.max(minBet, Math.floor(balance?.amount ?? 10000)),
+    [balance]
+  );
 
-  const slotADisabled = phase === 'crashed';
-  const slotBDisabled = phase === 'crashed';
+  const bettingClosed = snapshot.phase === 'active' || snapshot.phase === 'completed' || snapshot.phase === 'resolving';
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        {/* Top bar */}
         <CrashTopBar
           isDemoMode={isDemoMode}
           onToggleDemoMode={() => toggleDemoMode()}
+          onHowToPlay={() => setRulesOpen(true)}
         />
 
-        {/* History */}
-        <CrashHistoryStrip history={history} />
+        <CrashHistoryStrip history={snapshot.history} />
 
-        {/* Stage */}
         <CrashStage
-          phase={phase}
-          multiplier={multiplier}
-          countdown={countdown}
-          graphPoints={graphPoints}
+          phase={snapshot.phase}
+          multiplier={snapshot.displayMultiplier}
+          countdown={snapshot.countdown}
+          graphPoints={snapshot.graphPoints}
+          serverSeedHash={snapshot.serverSeedHash}
+          latencyMs={snapshot.latencyMs}
+          connected={snapshot.connected}
         />
 
-        {/* Bet slots */}
         <div className="flex flex-col gap-2.5">
-          <CrashBetPanel
-            amount={slotA.amount}
-            onAmountChange={(v) => setSlotA((s) => ({ ...s, amount: v }))}
-            autoCashoutEnabled={slotA.autoCashoutEnabled}
-            onAutoCashoutToggle={(v) =>
-              setSlotA((s) => ({ ...s, autoCashoutEnabled: v }))
-            }
-            autoCashoutMultiplier={slotA.autoCashoutMultiplier}
-            onAutoCashoutChange={(v) =>
-              setSlotA((s) => ({ ...s, autoCashoutMultiplier: v }))
-            }
-            phase={slotA.phase}
-            multiplier={multiplier}
-            minBet={minBet}
-            maxBet={maxBet}
-            onPrimary={() => handleSlotPrimary(slotA, setSlotA)}
-            disabled={slotADisabled}
-          />
-
-          <CrashBetPanel
-            amount={slotB.amount}
-            onAmountChange={(v) => setSlotB((s) => ({ ...s, amount: v }))}
-            autoCashoutEnabled={slotB.autoCashoutEnabled}
-            onAutoCashoutToggle={(v) =>
-              setSlotB((s) => ({ ...s, autoCashoutEnabled: v }))
-            }
-            autoCashoutMultiplier={slotB.autoCashoutMultiplier}
-            onAutoCashoutChange={(v) =>
-              setSlotB((s) => ({ ...s, autoCashoutMultiplier: v }))
-            }
-            phase={slotB.phase}
-            multiplier={multiplier}
-            minBet={minBet}
-            maxBet={maxBet}
-            onPrimary={() => handleSlotPrimary(slotB, setSlotB)}
-            disabled={slotBDisabled}
-          />
+          {([0, 1] as const).map((slot) => (
+            <CrashBetPanel
+              key={slot}
+              amount={slots[slot].amount}
+              onAmountChange={(v) =>
+                setSlots((prev) => {
+                  const out = [...prev] as [SlotConfig, SlotConfig];
+                  out[slot] = { ...out[slot], amount: v };
+                  return out;
+                })
+              }
+              autoCashoutEnabled={slots[slot].autoCashoutEnabled}
+              onAutoCashoutToggle={(v) =>
+                setSlots((prev) => {
+                  const out = [...prev] as [SlotConfig, SlotConfig];
+                  out[slot] = { ...out[slot], autoCashoutEnabled: v };
+                  return out;
+                })
+              }
+              autoCashoutMultiplier={slots[slot].autoCashoutMultiplier}
+              onAutoCashoutChange={(v) =>
+                setSlots((prev) => {
+                  const out = [...prev] as [SlotConfig, SlotConfig];
+                  out[slot] = { ...out[slot], autoCashoutMultiplier: v };
+                  return out;
+                })
+              }
+              slotPhase={runtime[slot].phase}
+              multiplier={snapshot.displayMultiplier}
+              bettingClosed={bettingClosed}
+              minBet={minBet}
+              maxBet={maxBet}
+              onPrimary={() => handlePrimary(slot)}
+              busy={runtime[slot].busy}
+            />
+          ))}
         </div>
 
-        {/* Stats */}
-        <CrashStatsBar playerCount={playerCount} totalBets={totalBets} />
+        <CrashStatsBar
+          playerCount={snapshot.stats.playerCount}
+          totalBets={snapshot.stats.totalWagered}
+        />
 
-        {/* Player feed */}
-        <CrashPlayerFeed entries={feed} />
+        <CrashPlayerFeed players={snapshot.players} currentUserId={userId} />
       </div>
+
+      <CrashRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </main>
   );
 }
