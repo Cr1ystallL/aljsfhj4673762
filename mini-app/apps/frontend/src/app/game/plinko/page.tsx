@@ -78,10 +78,10 @@ export default function PlinkoGamePage() {
 
     soundManager.initialize();
 
-    // Fetch player's own history
+    // Fetch player's own history (7 bets)
     const fetchPlayerHistory = async () => {
       try {
-        const response = await fetch('/api/games/plinko/my-history', {
+        const response = await fetch('/api/games/plinko/my-history?limit=7', {
           method: 'GET',
           credentials: 'include',
         });
@@ -536,14 +536,14 @@ export default function PlinkoGamePage() {
           {!matterLoaded ? 'Loading...' : activeBallsCount > 0 ? `Drop Ball (${activeBallsCount} active)` : 'Drop Ball'}
         </motion.button>
 
-        {/* Player History - Last 10 bets of current player */}
+        {/* Player History - Last 7 bets of current player */}
         <div className="rounded-[10px] bg-black/40 border border-white/30 p-3">
           <h3 className="text-white text-xs font-semibold mb-2">Последние ставки</h3>
           <div className="space-y-1.5">
             {playerHistory.length === 0 ? (
               <p className="text-white/40 text-[9px] text-center py-2">Нет ставок</p>
             ) : (
-              playerHistory.slice(0, 10).map((bet, i) => (
+              playerHistory.slice(0, 7).map((bet, i) => (
                 <div
                   key={`${bet.timestamp}-${i}`}
                   className="flex items-center justify-between bg-white/5 rounded-[10px] px-2.5 py-2"
@@ -602,24 +602,9 @@ export default function PlinkoGamePage() {
                     className="flex items-center justify-between bg-white/5 rounded-md px-2 py-1.5"
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {/* User Avatar - Telegram photo or initials */}
-                      {bet.telegramId ? (
-                        <img
-                          src={`https://t.me/i/userpic/160/${bet.telegramId}.jpg`}
-                          alt={bet.username}
-                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                          onError={(e) => {
-                            // Fallback to initials if image fails to load
-                            e.currentTarget.style.display = 'none';
-                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                            if (fallback) fallback.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      {/* Fallback initials */}
+                      {/* User Avatar - Just show initials (simpler and works always) */}
                       <div 
                         className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0"
-                        style={{ display: bet.telegramId ? 'none' : 'flex' }}
                       >
                         <span className="text-white text-[10px] font-bold">{initials}</span>
                       </div>

@@ -584,7 +584,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const limit = parseInt(request.query.limit || '10', 10);
+      const limit = parseInt(request.query.limit || '7', 10);
 
       try {
         const prisma = app.prisma;
@@ -613,10 +613,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         logger.info({ userId, count: bets.length }, 'Fetched player plinko history');
 
         // Filter only completed bets with results
-        const completedBets = bets.filter((b: any) => b.payout && b.multiplier);
+        const completedBets = bets.filter((b) => b.payout && b.multiplier);
 
         // Format for frontend
-        const history = completedBets.map((bet: any) => ({
+        const history = completedBets.map((bet) => ({
           betAmount: Number(bet.amount),
           multiplier: Number(bet.multiplier || 0),
           payout: Number(bet.payout || 0),

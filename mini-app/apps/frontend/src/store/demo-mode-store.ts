@@ -24,7 +24,7 @@ interface DemoModeState {
 export const useDemoMode = create<DemoModeState>()(
   persist(
     (set, get) => ({
-      isDemoMode: true, // Default to demo mode for safety
+      isDemoMode: false, // Default to REAL mode - sync with bot balance
       hasActiveBet: false,
       canSwitchMode: true,
       
