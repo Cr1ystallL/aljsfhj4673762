@@ -94,24 +94,31 @@ export function CrashStage({
     // (the head always sits at the same relative position). To preserve real
     // exponential shape we anchor the axes:
     //
-    //   * X axis: a 10s rolling window. While the round is shorter than 10s,
-    //     time grows leftward into a fixed window (curve covers <100% width).
-    //     Once it exceeds 10s, the window slides so the head stays near the
-    //     right edge but the *shape* keeps its curvature.
+    //   * X axis: starts at a 4s window and grows to fit the round. The
+    //     head approaches the right edge as time passes, reaching ~80%
+    //     of the width once the round runs longer than the initial window.
     //
-    //   * Y axis: anchored at 2.0x (full height = 2x). When the multiplier
-    //     overshoots 2x, we expand the scale, but only to the smallest power
-    //     of 2 that still contains it (2x → 4x → 8x → 16x …). Stepwise growth
-    //     keeps the perceived curvature — the curve doesn't snap flat.
+    //   * Y axis: stepwise — 2x → 3x → 5x → 8x → 13x → 21x (Fibonacci-ish
+    //     growth). Stepwise growth keeps the perceived curvature; the
+    //     curve doesn't snap flat each time the multiplier overshoots the
+    //     previous bucket.
     // ---------------------------------------------------------------------
     const lastT = graphPoints[graphPoints.length - 1].time || 1;
     const lastM = graphPoints[graphPoints.length - 1].multiplier || 1;
 
-    const xWindow = Math.max(10000, lastT); // ms visible
-    const startT = Math.max(0, lastT - xWindow);
+    // Window grows: 4s → as long as the round runs.
+    const xWindow = Math.max(4000, lastT * 1.05);
+    const startT = 0;
 
-    let yMax = 2;
-    while (yMax < lastM) yMax *= 2;
+    const Y_BUCKETS = [2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610];
+    let yMax = Y_BUCKETS[0];
+    for (const b of Y_BUCKETS) {
+      if (b >= lastM * 1.05) {
+        yMax = b;
+        break;
+      }
+      yMax = b;
+    }
 
     const project = (t: number, m: number) => {
       const x = padX + ((t - startT) / xWindow) * innerW;

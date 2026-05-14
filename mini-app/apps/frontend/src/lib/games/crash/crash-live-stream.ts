@@ -325,10 +325,14 @@ export class CrashLiveStream extends EventEmitter {
           phase === 'active' && this.snapshot.phase === 'active'
             ? Math.max(this.snapshot.displayMultiplier, serverMult)
             : serverMult,
+        // Preserve the locally accumulated curve while the round is
+        // running. Only seed a fresh stub curve when we're entering the
+        // round mid-flight (phase transitioned to active right now) or
+        // there's nothing accumulated yet.
         graphPoints:
           phase === 'active' || phase === 'completed'
-            ? this.snapshot.graphPoints.length > 1 &&
-              this.snapshot.phase === phase
+            ? this.snapshot.phase === phase &&
+              this.snapshot.graphPoints.length > 1
               ? this.snapshot.graphPoints
               : [
                   { time: 0, multiplier: 1 },
@@ -498,6 +502,9 @@ export class CrashLiveStream extends EventEmitter {
         const next = [...this.snapshot.graphPoints, { time: t, multiplier: m }];
         // Keep curve responsive but bounded.
         while (next.length > 240) next.shift();
+        // Anchor for client-side prediction so the curve keeps growing
+        // smoothly between 100ms server ticks.
+        this.activeStartedAt = Date.now() - t;
         this.update({ serverMultiplier: m, graphPoints: next });
         return;
       }
@@ -602,20 +609,43 @@ export class CrashLiveStream extends EventEmitter {
   private tickAnim(deltaMs: number): void {
     if (this.snapshot.phase !== 'active') return;
 
-    const target = this.snapshot.serverMultiplier;
-    const current = this.snapshot.displayMultiplier;
-    // Light interpolation toward the latest server tick.
-    const lerpStep = Math.min(1, deltaMs / 80);
-    let next = current + (target - current) * lerpStep;
-
-    // Forward prediction so the curve never visually stalls between ticks.
+    // 1) Predict the current multiplier from the round's wall-clock anchor.
+    //    This is what keeps the head moving smoothly even when no fresh
+    //    server tick arrived in the last frame.
+    let predicted = this.snapshot.serverMultiplier;
+    let elapsed = 0;
     if (this.activeStartedAt !== null) {
-      const elapsed = Date.now() - this.activeStartedAt;
-      const predicted = Math.exp(0.00006 * elapsed);
-      if (predicted > next) next = predicted;
+      elapsed = Date.now() - this.activeStartedAt;
+      predicted = Math.exp(0.00006 * elapsed);
     }
 
-    this.update({ displayMultiplier: next });
+    // 2) Lerp the *displayed* multiplier toward the prediction. Quick but
+    //    not snap-instant so micro-jitter doesn't bleed through.
+    const target = Math.max(this.snapshot.serverMultiplier, predicted);
+    const current = this.snapshot.displayMultiplier;
+    const lerpStep = Math.min(1, deltaMs / 60);
+    const display = current + (target - current) * lerpStep;
+
+    // 3) Extend graphPoints with the freshly predicted head so the canvas
+    //    drawer has something to lerp the curve toward. We don't push
+    //    every frame (60fps × 200 points = blown buffer); instead we
+    //    push when ~50ms passed since the last point or the multiplier
+    //    advanced more than 0.5%.
+    let nextPoints = this.snapshot.graphPoints;
+    const last = nextPoints[nextPoints.length - 1];
+    if (
+      last &&
+      (elapsed - last.time > 50 ||
+        Math.abs(target - last.multiplier) > last.multiplier * 0.005)
+    ) {
+      nextPoints = [...nextPoints, { time: elapsed, multiplier: target }];
+      while (nextPoints.length > 240) nextPoints.shift();
+    }
+
+    this.update({
+      displayMultiplier: display,
+      graphPoints: nextPoints,
+    });
   }
 
   /* ----------------------------------------------------------- latency */

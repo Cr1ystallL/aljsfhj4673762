@@ -19,18 +19,17 @@ def get_games_menu(lang: str = 'ru') -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text=get_text(lang, 'btn_dice'), callback_data="game_dice"),
-            InlineKeyboardButton(text=get_text(lang, 'btn_mines'), callback_data="game_mines")
+            InlineKeyboardButton(text=get_text(lang, 'btn_bowling'), callback_data="game_bowling")
         ],
         [
-            InlineKeyboardButton(text=get_text(lang, 'btn_bowling'), callback_data="game_bowling"),
-            InlineKeyboardButton(text=get_text(lang, 'btn_football'), callback_data="game_football")
+            InlineKeyboardButton(text=get_text(lang, 'btn_football'), callback_data="game_football"),
+            InlineKeyboardButton(text=get_text(lang, 'btn_basketball'), callback_data="game_basketball")
         ],
         [
-            InlineKeyboardButton(text=get_text(lang, 'btn_basketball'), callback_data="game_basketball"),
-            InlineKeyboardButton(text=get_text(lang, 'btn_rps'), callback_data="game_rps")
+            InlineKeyboardButton(text=get_text(lang, 'btn_rps'), callback_data="game_rps"),
+            InlineKeyboardButton(text=get_text(lang, 'btn_darts'), callback_data="game_darts")
         ],
         [
-            InlineKeyboardButton(text=get_text(lang, 'btn_darts'), callback_data="game_darts"),
             InlineKeyboardButton(text=get_text(lang, 'btn_spider'), callback_data="game_slot")
         ]
     ]

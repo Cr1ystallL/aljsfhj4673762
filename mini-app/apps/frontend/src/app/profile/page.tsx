@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, Coins, Dice5, Trophy, Sparkles, ChevronRight } from 'lucide-react';
+import { Copy, Check, Coins, Dice5, Trophy, Sparkles, ChevronRight, Wallet } from 'lucide-react';
 
 import { PageTransition } from '@/components/ui/page-transition';
 import { GameIconTile, gameLabel, resolveGameKey } from '@/components/ui/game-icon';
@@ -166,9 +166,22 @@ export default function ProfilePage() {
                 </button>
               )}
 
-              <span className="mt-3 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-                Аккаунт активен
-              </span>
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md">
+                <Wallet
+                  size={13}
+                  className="text-frost-white/70"
+                  strokeWidth={1.8}
+                />
+                <span className="font-roobert text-frost-white text-[14px] tabular-nums">
+                  {balanceAmount.toLocaleString('ru-RU', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+                <span className="text-whisper-gray text-[11px] font-roobert">
+                  ₽
+                </span>
+              </div>
             </div>
           </motion.section>
 
