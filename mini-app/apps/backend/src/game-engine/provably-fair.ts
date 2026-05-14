@@ -110,31 +110,65 @@ export class ProvablyFairSystem {
   }
 
   /**
-   * Generate mines positions from hash
+   * Generate mine positions deterministically from a hash via Fisher-Yates.
+   *
+   * The naive "pick N indices from raw hash bytes and dedupe" approach we
+   * used previously had two flaws:
+   *
+   *   1. It read past the end of the 64-char hash for mineCount > ~14,
+   *      producing NaN positions and silently undercounting mines.
+   *   2. With many collisions (e.g. 24 mines in 25 cells) it would either
+   *      loop forever or — combined with the slicing bug — leave the
+   *      array with fewer entries than requested.
+   *
+   * Fisher-Yates is the canonical fix: shuffle [0..totalCells-1] using a
+   * stream of uniform integers derived from the hash, then take the first
+   * `mineCount` entries. The stream is extended by chained sha256 so we
+   * never run out of entropy regardless of grid size or mine count.
    */
-  generateMinesPositions(hash: string, gridSize: number, mineCount: number): number[] {
-    const positions: number[] = [];
+  generateMinesPositions(
+    hash: string,
+    gridSize: number,
+    mineCount: number
+  ): number[] {
     const totalCells = gridSize * gridSize;
-    
-    let currentHash = hash;
-    let index = 0;
-    
-    while (positions.length < mineCount && index < totalCells) {
-      // Generate new hash if needed
-      if (index > 0 && index % 8 === 0) {
-        currentHash = createHash('sha256').update(currentHash).digest('hex');
-      }
-      
-      const position = this.hashToInt(currentHash.substring(index * 4, (index + 1) * 4), 0, totalCells - 1);
-      
-      if (!positions.includes(position)) {
-        positions.push(position);
-      }
-      
-      index++;
+    const safeMineCount = Math.max(0, Math.min(mineCount, totalCells));
+
+    // Build a stretchable byte stream by re-hashing `hash || counter`.
+    // Each call returns the next uint32 in the sequence.
+    const stream = (() => {
+      let buffer = Buffer.alloc(0);
+      let counter = 0;
+      const refill = () => {
+        const next = createHash('sha256')
+          .update(hash)
+          .update(`:${counter++}`)
+          .digest();
+        buffer = Buffer.concat([buffer, next]);
+      };
+      return () => {
+        if (buffer.length < 4) refill();
+        const v = buffer.readUInt32BE(0);
+        buffer = buffer.subarray(4);
+        return v;
+      };
+    })();
+
+    // Build [0..totalCells-1] and Fisher-Yates shuffle in place using the
+    // stream. We only need to shuffle the first `safeMineCount` slots;
+    // everything after that stays untouched (we don't care about its order).
+    const cells: number[] = Array.from({ length: totalCells }, (_, i) => i);
+    for (let i = 0; i < safeMineCount; i++) {
+      const remaining = totalCells - i;
+      // Pick j ∈ [i, totalCells). Modulo on a uint32 is uniform enough
+      // for grid sizes ≤ 65536; ours is 25.
+      const j = i + (stream() % remaining);
+      const tmp = cells[i];
+      cells[i] = cells[j];
+      cells[j] = tmp;
     }
-    
-    return positions.sort((a, b) => a - b);
+
+    return cells.slice(0, safeMineCount).sort((a, b) => a - b);
   }
 
   /**

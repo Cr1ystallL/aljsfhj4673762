@@ -7,17 +7,22 @@ import { cn } from '@/lib/utils';
 /**
  * Mines Grid — Monopo Saigon Style
  *
- * 5×5 board of pill-rounded tiles. Each cell has three visual states:
- *   - idle      → number 1..25, frosted glass tile, hoverable.
- *   - revealed  → diamond icon centered, deep-ocean tint.
- *   - exploded  → bomb icon, soft red tint (only the cell that ended
- *                 the round).
- *   - mine-shown → mine revealed at the end (round over), neutral frost.
+ * 5×5 board of pill-rounded tiles. Each cell has up to four visual states:
+ *   - idle        → number 1..25, frosted glass tile, hoverable.
+ *   - revealed    → diamond icon, deep-ocean tint (cell user opened safely).
+ *   - safe-shown  → diamond icon, frost tint (revealed at end of round so
+ *                   the user sees the full board — never clicked).
+ *   - exploded    → bomb icon, soft red tint (cell that ended the round).
+ *   - mine-shown  → bomb icon, neutral frost (mine revealed at end of
+ *                   round, but not the one user hit).
  *
  * The grid is purely presentational — clicks bubble up via onCellClick.
+ * Pass `minePositions` only after the round resolves; that toggles the
+ * full-board reveal so the user can see where every mine and every safe
+ * cell was.
  */
 
-type CellState = 'idle' | 'revealed' | 'exploded' | 'mine-shown';
+type CellState = 'idle' | 'revealed' | 'exploded' | 'mine-shown' | 'safe-shown';
 
 interface MinesGridProps {
   /** Indices 0..24 the user has revealed safely. */
@@ -43,7 +48,10 @@ export function MinesGrid({
   const cellState = (i: number): CellState => {
     if (hitPosition === i) return 'exploded';
     if (revealed.includes(i)) return 'revealed';
-    if (minePositions?.includes(i)) return 'mine-shown';
+    if (minePositions) {
+      // Round is over — reveal the full board.
+      return minePositions.includes(i) ? 'mine-shown' : 'safe-shown';
+    }
     return 'idle';
   };
 
@@ -65,10 +73,12 @@ export function MinesGrid({
                 'border-white/10 bg-white/[0.04] backdrop-blur-md text-frost-white/55 hover:text-frost-white hover:border-white/25',
               state === 'revealed' &&
                 'border-white/25 bg-[linear-gradient(135deg,rgba(160,224,171,0.22),rgba(255,172,46,0.15))] text-frost-white',
+              state === 'safe-shown' &&
+                'border-white/15 bg-white/[0.06] text-frost-white/70',
               state === 'exploded' &&
                 'border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.18)] text-[#ff8a76]',
               state === 'mine-shown' &&
-                'border-white/10 bg-white/[0.06] text-whisper-gray',
+                'border-white/10 bg-white/[0.04] text-whisper-gray',
               !isClickable && 'cursor-default'
             )}
             aria-label={`Клетка ${i + 1}`}
@@ -76,7 +86,9 @@ export function MinesGrid({
             {state === 'idle' && (
               <span className="text-[14px]">{i + 1}</span>
             )}
-            {state === 'revealed' && <Gem size={18} strokeWidth={1.6} />}
+            {(state === 'revealed' || state === 'safe-shown') && (
+              <Gem size={18} strokeWidth={1.6} />
+            )}
             {(state === 'exploded' || state === 'mine-shown') && (
               <Bomb size={18} strokeWidth={1.6} />
             )}
