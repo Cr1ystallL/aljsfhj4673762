@@ -17,13 +17,12 @@ interface BottomNavigationProps {
  * Frosted-glass bar floating just above the safe-area inset. Three pills:
  *
  *   - Menu  (left)   → opens the games drawer.
- *   - Play  (center) → goes to the featured game; raised slightly so it
- *     reads as the primary action without resorting to rainbow gradients.
+ *   - Play  (center) → primary action, raised slightly and washed in the
+ *     brand Deep Ocean Gradient so it reads as the focal point.
  *   - Account (right) → profile screen.
  *
- * No emoji, no neon accents. The center button uses a deep-ocean accent
- * gradient only on its inner sphere; the surrounding chrome stays
- * monochrome — matches the "atmospheric, restrained" tone of the brand.
+ * No emoji. Colour is restricted to the centre pill, which carries the
+ * full Deep Ocean gradient required by the design reference.
  */
 export function BottomNavigation({
   onMenuClick,
@@ -31,7 +30,6 @@ export function BottomNavigation({
   onProfileClick,
 }: BottomNavigationProps) {
   const pathname = usePathname();
-  const isPlayActive = pathname?.startsWith('/game') ?? false;
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
 
   return (
@@ -57,26 +55,36 @@ export function BottomNavigation({
                 whileTap={{ scale: 0.96 }}
                 className="-mt-7 relative"
               >
+                {/* Soft brand halo */}
                 <span
-                  className="absolute inset-0 rounded-pill blur-xl opacity-50"
+                  className="absolute inset-0 rounded-pill blur-xl opacity-60"
                   style={{
                     background:
-                      'linear-gradient(135deg, rgba(160, 224, 171, 0.45), rgba(255, 172, 46, 0.4) 55%, rgba(165, 45, 37, 0.35))',
+                      'linear-gradient(135deg, rgba(160, 224, 171, 0.55), rgba(255, 172, 46, 0.50) 55%, rgba(165, 45, 37, 0.45))',
                   }}
                 />
+                {/* Gradient pill — Deep Ocean as required by the brand */}
                 <span
-                  className={cn(
-                    'relative w-14 h-14 rounded-pill flex items-center justify-center border',
-                    isPlayActive
-                      ? 'bg-frost-white text-midnight-canvas border-frost-white'
-                      : 'bg-white/[0.06] text-frost-white border-white/20'
-                  )}
+                  className="relative w-14 h-14 rounded-pill flex items-center justify-center border border-white/25"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
+                  }}
                 >
+                  {/* Subtle inner highlight to lift the icon off the wash */}
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 rounded-pill"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%)',
+                    }}
+                  />
                   <Play
                     size={20}
-                    fill="currentColor"
+                    fill="#0a0a0a"
                     strokeWidth={0}
-                    className="ml-0.5"
+                    className="relative ml-0.5 text-midnight-canvas"
                   />
                 </span>
                 <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/70">
