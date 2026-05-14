@@ -4,6 +4,7 @@ import { registerPlugins } from './plugins/index.js';
 import { registerRoutes } from './routes/index.js';
 import { logger } from './utils/logger.js';
 import { redisClient } from './lib/redis.js';
+import { disconnectPrisma } from './lib/prisma.js';
 
 /**
  * Main application entry point
@@ -56,6 +57,7 @@ async function shutdown() {
   logger.info('Shutting down gracefully');
   try {
     await redisClient.disconnect();
+    await disconnectPrisma();
   } catch (error) {
     logger.error(error, 'Error during shutdown');
   }

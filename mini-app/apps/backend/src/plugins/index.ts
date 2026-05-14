@@ -6,6 +6,26 @@ import jwt from '@fastify/jwt';
 import websocket from '@fastify/websocket';
 import cookie from '@fastify/cookie';
 import { config } from '../config/index.js';
+import { prisma } from '../lib/prisma.js';
+import fp from 'fastify-plugin';
+
+/**
+ * Prisma plugin
+ */
+const prismaPlugin = fp(async (app: FastifyInstance) => {
+  app.decorate('prisma', prisma);
+  
+  app.addHook('onClose', async (app) => {
+    await app.prisma.$disconnect();
+  });
+});
+
+// Type augmentation for Fastify
+declare module 'fastify' {
+  interface FastifyInstance {
+    prisma: typeof prisma;
+  }
+}
 
 /**
  * Register all Fastify plugins
@@ -19,6 +39,8 @@ import { config } from '../config/index.js';
  * - WebSocket support
  */
 export async function registerPlugins(app: FastifyInstance): Promise<void> {
+  // Prisma database client
+  await app.register(prismaPlugin);
   // Cookie support (required for httpOnly cookies)
   await app.register(cookie, {
     secret: config.jwtSecret,

@@ -420,4 +420,87 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /**
+   * GET /api/games/plinko/history
+   * Get plinko game history
+   */
+  app.get<{
+    Querystring: {
+      limit?: string;
+      offset?: string;
+    };
+  }>(
+    '/plinko/history',
+    {
+      preHandler: authenticate,
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: { type: 'string' },
+            offset: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const limit = parseInt(request.query.limit || '20', 10);
+      const offset = parseInt(request.query.offset || '0', 10);
+
+      try {
+        const prisma = app.prisma;
+        
+        // Get user's plinko bets with pagination
+        const bets = await prisma.bet.findMany({
+          where: {
+            userId,
+            gameType: 'plinko',
+          },
+          orderBy: {
+            placedAt: 'desc',
+          },
+          take: Math.min(limit, 100), // Max 100 records
+          skip: offset,
+          select: {
+            id: true,
+            amount: true,
+            payout: true,
+            multiplier: true,
+            state: true,
+            metadata: true,
+            placedAt: true,
+            resolvedAt: true,
+          },
+        });
+
+        // Get total count
+        const total = await prisma.bet.count({
+          where: {
+            userId,
+            gameType: 'plinko',
+          },
+        });
+
+        return reply.send({
+          success: true,
+          data: bets,
+          pagination: {
+            total,
+            limit,
+            offset,
+            hasMore: offset + bets.length < total,
+          },
+        });
+      } catch (error) {
+        logger.error(error, 'Failed to get plinko history');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch game history',
+          code: 'HISTORY_FETCH_FAILED',
+        });
+      }
+    }
+  );
 }
