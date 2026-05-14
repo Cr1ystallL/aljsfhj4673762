@@ -1,24 +1,22 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Target } from 'lucide-react';
 import { GameHeader } from '@/components/game/game-header';
-import { Button } from '@/components/ui/button';
 import { DemoModeToggle } from '@/components/ui/demo-mode-toggle';
 import { useBalance } from '@/hooks/use-balance';
 import { useDemoMode } from '@/store/demo-mode-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 
 /**
- * Plinko Game Page - Compact Mobile-First Design (Monopo Saigon Style)
+ * Plinko Game Page - Matter.js Physics Engine
  * 
  * FEATURES:
- * - Compact layout that fits on one screen
- * - Smooth ball drop animation
- * - Ball must reach bottom before bet completes
- * - Winnings credited after ball lands
- * - Dark theme with subtle gradients
+ * - Realistic physics with Matter.js
+ * - Ball bounces off pins naturally
+ * - Smooth animations
+ * - Compact mobile-first design
  */
 
 const MULTIPLIERS = {
@@ -27,16 +25,8 @@ const MULTIPLIERS = {
   high: [1000, 130, 26, 9, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 9, 26, 130, 1000],
 };
 
-interface Ball {
-  id: string;
-  x: number;
-  y: number;
-  vx: number; // velocity x
-  vy: number; // velocity y
-  path: number[];
-  currentStep: number;
-  finalSlot: number;
-}
+// Matter.js will be loaded dynamically
+let Matter: any = null;
 
 export default function PlinkoGamePage() {
   const { balance, fetchBalance } = useBalance();
@@ -44,225 +34,122 @@ export default function PlinkoGamePage() {
   
   const [betAmount, setBetAmount] = useState(1);
   const [riskLevel, setRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [activeBall, setActiveBall] = useState<Ball | null>(null);
   const [history, setHistory] = useState<Array<{ multiplier: number; payout: number }>>([]);
   const [isDropping, setIsDropping] = useState(false);
+  const [matterLoaded, setMatterLoaded] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const engineRef = useRef<any>(null);
+  const renderRef = useRef<any>(null);
+  const pegsRef = useRef<any[]>([]);
+  const pegAnimsRef = useRef<(number | null)[]>([]);
 
+  // Load Matter.js
   useEffect(() => {
-    soundManager.initialize();
-  }, []);
-
-  // Render plinko board and ball
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-
-    const render = () => {
-      // Clear
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fillRect(0, 0, rect.width, rect.height);
-
-      const rows = 16;
-      const pinRadius = 2.5;
-      const spacing = rect.width / (rows + 2);
-      const startY = 30;
-      const endY = rect.height - 60;
-      const rowHeight = (endY - startY) / rows;
-
-      // Draw pins with subtle glow
-      ctx.shadowBlur = 5;
-      ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-      
-      for (let row = 0; row < rows; row++) {
-        const pinsInRow = row + 1;
-        const rowY = startY + (row * rowHeight);
-
-        for (let pin = 0; pin < pinsInRow; pin++) {
-          const pinX = (rect.width / 2) - ((pinsInRow - 1) * spacing / 2) + (pin * spacing);
-          
-          ctx.beginPath();
-          ctx.arc(pinX, rowY, pinRadius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      ctx.shadowBlur = 0;
-
-      // Draw buckets
-      const bucketWidth = rect.width / 17;
-      const bucketY = rect.height - 50;
-      const bucketHeight = 40;
-      const multipliers = MULTIPLIERS[riskLevel];
-
-      multipliers.forEach((mult, i) => {
-        const x = i * bucketWidth;
-        
-        // Bucket color based on multiplier
-        let color = 'rgba(255, 255, 255, 0.05)';
-        let textColor = 'rgba(255, 255, 255, 0.4)';
-        
-        if (mult >= 100) {
-          color = 'rgba(168, 85, 247, 0.15)';
-          textColor = 'rgba(168, 85, 247, 0.8)';
-        } else if (mult >= 10) {
-          color = 'rgba(16, 185, 129, 0.15)';
-          textColor = 'rgba(16, 185, 129, 0.8)';
-        } else if (mult >= 2) {
-          color = 'rgba(59, 130, 246, 0.15)';
-          textColor = 'rgba(59, 130, 246, 0.8)';
-        } else if (mult < 1) {
-          color = 'rgba(239, 68, 68, 0.15)';
-          textColor = 'rgba(239, 68, 68, 0.8)';
-        }
-
-        // Highlight if ball landed here
-        if (activeBall && activeBall.finalSlot === i && activeBall.y >= 0.9) {
-          color = color.replace('0.15', '0.3');
-        }
-
-        ctx.fillStyle = color;
-        ctx.fillRect(x + 1, bucketY, bucketWidth - 2, bucketHeight);
-
-        // Multiplier text
-        ctx.fillStyle = textColor;
-        ctx.font = '9px Roobert, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${mult}x`, x + bucketWidth / 2, bucketY + 25);
-      });
-
-      // Draw active ball - smaller, white, with realistic physics
-      if (activeBall) {
-        const ballX = activeBall.x * rect.width;
-        const ballY = activeBall.y * rect.height;
-        const ballRadius = 6; // Smaller ball
-
-        // Subtle glow
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
-
-        // White ball with gradient for depth
-        const gradient = ctx.createRadialGradient(ballX - 2, ballY - 2, 0, ballX, ballY, ballRadius);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(0.7, 'rgba(240, 240, 240, 1)');
-        gradient.addColorStop(1, 'rgba(200, 200, 200, 0.8)');
-
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Inner highlight for 3D effect
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.beginPath();
-        ctx.arc(ballX - 2, ballY - 2, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      animationRef.current = requestAnimationFrame(render);
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js';
+    script.async = true;
+    script.onload = () => {
+      Matter = (window as any).Matter;
+      setMatterLoaded(true);
     };
+    document.body.appendChild(script);
 
-    render();
+    soundManager.initialize();
 
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      document.body.removeChild(script);
     };
-  }, [activeBall, riskLevel]);
+  }, []);
 
-  // Animate ball drop with realistic physics (SLOW BUT VISIBLE)
+  // Initialize Matter.js engine
   useEffect(() => {
-    if (!activeBall || !isDropping) return;
+    if (!matterLoaded || !canvasRef.current || !Matter) return;
 
-    const gravity = 0.0003; // Visible gravity - ball actually falls
-    const friction = 0.995; // Minimal air resistance
-    const bounceDamping = 0.75; // Good energy retention
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    // Create engine
+    const engine = Matter.Engine.create({
+      gravity: { x: 0, y: 0.6, scale: 0.001 },
+    });
+    engineRef.current = engine;
+
+    // Create renderer
+    const render = Matter.Render.create({
+      canvas,
+      engine,
+      options: {
+        width,
+        height,
+        wireframes: false,
+        background: 'transparent',
+      },
+    });
+    renderRef.current = render;
+
+    // Create pegs
+    const GAP = width / 19;
+    const PEG_RAD = 3;
+    const pegs: any[] = [];
     
-    let animationId: number;
-    let lastTime = Date.now();
+    for (let row = 0; row < 16; row++) {
+      const pegsInRow = row + 3;
+      for (let col = 0; col < pegsInRow; col++) {
+        const x = width / 2 + (col - (pegsInRow - 1) / 2) * GAP;
+        const y = GAP + row * GAP;
+        const peg = Matter.Bodies.circle(x, y, PEG_RAD, {
+          isStatic: true,
+          label: 'Peg',
+          render: {
+            fillStyle: 'rgba(255, 255, 255, 0.2)',
+          },
+        });
+        pegs.push(peg);
+      }
+    }
+    
+    pegsRef.current = pegs;
+    pegAnimsRef.current = new Array(pegs.length).fill(null);
+    Matter.Composite.add(engine.world, pegs);
 
-    const animate = () => {
-      const currentTime = Date.now();
-      const deltaTime = Math.min(currentTime - lastTime, 50); // Cap delta time
-      lastTime = currentTime;
+    // Create ground
+    const ground = Matter.Bodies.rectangle(width / 2, height + 20, width * 2, 40, {
+      isStatic: true,
+      label: 'Ground',
+      render: {
+        fillStyle: 'transparent',
+      },
+    });
+    Matter.Composite.add(engine.world, [ground]);
 
-      setActiveBall((prev) => {
-        if (!prev) return null;
-
-        // Apply gravity (10x slower)
-        let newVy = prev.vy + gravity * deltaTime;
-        let newVx = prev.vx * friction;
-
-        // Update position
-        let newX = prev.x + newVx * deltaTime;
-        let newY = prev.y + newVy * deltaTime;
-
-        // Check collision with pins
-        const rows = 16;
-        const spacing = 1 / (rows + 2);
-        const currentRow = Math.floor(newY / (0.8 / rows));
-        
-        if (currentRow >= 0 && currentRow < rows) {
-          const pinsInRow = currentRow + 1;
-          const rowY = (currentRow / rows) * 0.8 + 0.05;
-          
-          // Check if ball is near a pin
-          for (let pin = 0; pin < pinsInRow; pin++) {
-            const pinX = 0.5 - ((pinsInRow - 1) * spacing / 2) + (pin * spacing);
-            const distance = Math.sqrt(Math.pow(newX - pinX, 2) + Math.pow(newY - rowY, 2));
-            
-            if (distance < 0.025) {
-              // Collision! Bounce off pin
-              const angle = Math.atan2(newY - rowY, newX - pinX);
-              
-              // Add slight bias towards center for more realistic distribution
-              const centerBias = (0.5 - newX) * 0.15;
-              newVx = Math.cos(angle) * Math.abs(newVy) * bounceDamping + centerBias;
-              newVy = Math.sin(angle) * Math.abs(newVy) * bounceDamping;
-              
-              // Move ball away from pin
-              newX = pinX + Math.cos(angle) * 0.025;
-              newY = rowY + Math.sin(angle) * 0.025;
-              
-              soundManager.play('ui.click');
-              break;
-            }
+    // Collision detection
+    Matter.Events.on(engine, 'collisionStart', (event: any) => {
+      event.pairs.forEach(({ bodyA, bodyB }: any) => {
+        // Ball hit peg
+        if ((bodyA.label === 'Ball' && bodyB.label === 'Peg') || 
+            (bodyA.label === 'Peg' && bodyB.label === 'Ball')) {
+          const peg = bodyA.label === 'Peg' ? bodyA : bodyB;
+          const index = pegs.findIndex((p) => p === peg);
+          if (index !== -1 && !pegAnimsRef.current[index]) {
+            pegAnimsRef.current[index] = Date.now();
+            soundManager.play('ui.click');
           }
         }
 
-        // Boundary checks
-        if (newX < 0.05) {
-          newX = 0.05;
-          newVx = -newVx * bounceDamping;
-        }
-        if (newX > 0.95) {
-          newX = 0.95;
-          newVx = -newVx * bounceDamping;
-        }
-
-        // Check if reached bottom
-        if (newY >= 0.9) {
-          // Ball landed - calculate slot based on final X position
-          const slotWidth = 0.9 / 17;
-          const finalSlot = Math.floor((newX - 0.05) / slotWidth);
-          const clampedSlot = Math.max(0, Math.min(16, finalSlot));
+        // Ball hit ground
+        if ((bodyA.label === 'Ball' && bodyB.label === 'Ground') || 
+            (bodyA.label === 'Ground' && bodyB.label === 'Ball')) {
+          const ball = bodyA.label === 'Ball' ? bodyA : bodyB;
           
-          const multiplier = MULTIPLIERS[riskLevel][clampedSlot];
+          // Calculate which bucket
+          const bucketWidth = width / 17;
+          const index = Math.floor(ball.position.x / bucketWidth);
+          const clampedIndex = Math.max(0, Math.min(16, index));
+          
+          const multiplier = MULTIPLIERS[riskLevel][clampedIndex];
           const payout = betAmount * multiplier;
           
           setHistory((h) => [{ multiplier, payout }, ...h.slice(0, 11)]);
@@ -276,39 +163,62 @@ export default function PlinkoGamePage() {
             soundManager.play('game.cashout');
           }
           
-          // Refetch balance
+          // Remove ball
           setTimeout(() => {
+            Matter.Composite.remove(engine.world, ball);
             fetchBalance(isDemoMode);
             setIsDropping(false);
-            setActiveBall(null);
-          }, 500);
-          
-          return null;
+          }, 300);
         }
-
-        return {
-          ...prev,
-          x: newX,
-          y: newY,
-          vx: newVx,
-          vy: newVy,
-        };
       });
+    });
 
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animationId = requestAnimationFrame(animate);
+    // Custom render loop for peg animations
+    const ctx = canvas.getContext('2d');
+    function customRender() {
+      if (!ctx) return;
+      
+      const now = Date.now();
+      
+      // Draw peg glow animations
+      pegAnimsRef.current.forEach((anim, index) => {
+        if (!anim) return;
+        
+        const delta = now - anim;
+        if (delta > 400) {
+          pegAnimsRef.current[index] = null;
+          return;
+        }
+        
+        const peg = pegs[index];
+        if (!peg) return;
+        
+        const pct = delta / 400;
+        const expandProgression = 1 - Math.abs(pct * 2 - 1);
+        const expandRadius = expandProgression * 10;
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.beginPath();
+        ctx.arc(peg.position.x, peg.position.y, expandRadius, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+      
+      requestAnimationFrame(customRender);
+    }
+    
+    // Start engines
+    Matter.Render.run(render);
+    Matter.Runner.run(Matter.Runner.create(), engine);
+    customRender();
 
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
+      Matter.Render.stop(render);
+      Matter.Engine.clear(engine);
     };
-  }, [activeBall, isDropping, betAmount, riskLevel, fetchBalance, isDemoMode]);
+  }, [matterLoaded, riskLevel, betAmount, fetchBalance, isDemoMode]);
 
   const handleDrop = async () => {
-    if (isDropping) return;
+    if (isDropping || !engineRef.current || !Matter) return;
     
     try {
       const response = await fetch('/api/games/plinko/drop', {
@@ -326,20 +236,23 @@ export default function PlinkoGamePage() {
         throw new Error('Failed to drop ball');
       }
 
-      const data = await response.json();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
       
-      // Start ball at center with small initial velocity
-      setActiveBall({
-        id: Date.now().toString(),
-        x: 0.5, // Start at center
-        y: 0.05, // Start at top
-        vx: 0, // No horizontal velocity
-        vy: 0.0005, // Small initial downward velocity
-        path: [],
-        currentStep: 0,
-        finalSlot: 8, // Will be calculated based on actual landing position
+      const width = canvas.width;
+      const dropLeft = width / 2 - 15;
+      const dropRight = width / 2 + 15;
+      const x = Math.random() * (dropRight - dropLeft) + dropLeft;
+      
+      const ball = Matter.Bodies.circle(x, -10, 7, {
+        label: 'Ball',
+        restitution: 0.6,
+        render: {
+          fillStyle: '#ffffff',
+        },
       });
       
+      Matter.Composite.add(engineRef.current.world, [ball]);
       setIsDropping(true);
       soundManager.play('ui.click');
     } catch (error) {
@@ -362,15 +275,52 @@ export default function PlinkoGamePage() {
       {/* Main Content - Fits on screen */}
       <div className="flex-1 flex flex-col px-3 pb-24 gap-2 overflow-hidden">
         {/* Plinko Board - Takes most space */}
-        <div className="flex-1 rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden min-h-0">
+        <div className="flex-1 rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden min-h-0 relative">
           <canvas
             ref={canvasRef}
             className="w-full h-full"
-            style={{ imageRendering: 'crisp-edges' }}
+            style={{ imageRendering: 'auto' }}
           />
+          
+          {/* Multiplier buckets overlay */}
+          <div className="absolute bottom-0 left-0 right-0 flex gap-[2px] px-1 pb-1">
+            {MULTIPLIERS[riskLevel].map((mult, i) => {
+              let bgColor = 'bg-white/5';
+              let textColor = 'text-white/40';
+              
+              if (mult >= 100) {
+                bgColor = 'bg-purple-500/20';
+                textColor = 'text-purple-400';
+              } else if (mult >= 10) {
+                bgColor = 'bg-emerald-500/20';
+                textColor = 'text-emerald-400';
+              } else if (mult >= 2) {
+                bgColor = 'bg-blue-500/20';
+                textColor = 'text-blue-400';
+              } else if (mult < 1) {
+                bgColor = 'bg-red-500/20';
+                textColor = 'text-red-400';
+              }
+              
+              return (
+                <div
+                  key={i}
+                  className={`flex-1 ${bgColor} rounded-md flex items-center justify-center py-2 border-b-2 ${
+                    mult >= 100 ? 'border-purple-500' :
+                    mult >= 10 ? 'border-emerald-500' :
+                    mult >= 2 ? 'border-blue-500' :
+                    mult < 1 ? 'border-red-500' :
+                    'border-yellow-500'
+                  }`}
+                >
+                  <span className={`text-[9px] font-bold ${textColor}`}>
+                    {mult}x
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-
-        {/* Last Win Display - REMOVED, was covering pyramid */}
 
         {/* Controls - Compact */}
         <div className="grid grid-cols-2 gap-2">
@@ -415,17 +365,17 @@ export default function PlinkoGamePage() {
         {/* Drop Button */}
         <motion.button
           onClick={handleDrop}
-          disabled={isDropping}
+          disabled={isDropping || !matterLoaded}
           whileHover={{ scale: isDropping ? 1 : 1.02 }}
           whileTap={{ scale: isDropping ? 1 : 0.98 }}
           className={`w-full py-3 rounded-xl font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2 ${
-            isDropping
+            isDropping || !matterLoaded
               ? 'bg-gray-700 text-white/40 cursor-not-allowed'
               : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
           }`}
         >
           <Target className="w-5 h-5" />
-          {isDropping ? 'Dropping...' : 'Drop Ball'}
+          {!matterLoaded ? 'Loading...' : isDropping ? 'Dropping...' : 'Drop Ball'}
         </motion.button>
 
         {/* History - Compact */}
