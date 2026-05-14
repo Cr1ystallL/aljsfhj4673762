@@ -37,6 +37,13 @@ export default function PlinkoGamePage() {
   const [isDropping, setIsDropping] = useState(false);
   const [activeBallsCount, setActiveBallsCount] = useState(0);
   const [matterLoaded, setMatterLoaded] = useState(false);
+  const [liveHistory, setLiveHistory] = useState<Array<{
+    username: string;
+    betAmount: number;
+    multiplier: number;
+    payout: number;
+    timestamp: number;
+  }>>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
@@ -58,8 +65,27 @@ export default function PlinkoGamePage() {
 
     soundManager.initialize();
 
+    // Fetch live history periodically
+    const fetchLiveHistory = async () => {
+      try {
+        const response = await fetch('/api/games/plinko/history', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setLiveHistory(data.history || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch live history:', error);
+      }
+    };
+
+    fetchLiveHistory();
+    const interval = setInterval(fetchLiveHistory, 3000); // Update every 3 seconds
+
     return () => {
       document.body.removeChild(script);
+      clearInterval(interval);
     };
   }, []);
 
@@ -91,16 +117,17 @@ export default function PlinkoGamePage() {
     });
     renderRef.current = render;
 
-    // Create pegs
+    // Create pegs - 17 rows instead of 16, start higher
     const GAP = width / 19;
     const PEG_RAD = 2.5;
     const pegs: any[] = [];
+    const startY = GAP * 2; // Start higher
     
-    for (let row = 0; row < 16; row++) {
+    for (let row = 0; row < 17; row++) {
       const pegsInRow = row + 3;
       for (let col = 0; col < pegsInRow; col++) {
         const x = width / 2 + (col - (pegsInRow - 1) / 2) * GAP;
-        const y = GAP + row * GAP;
+        const y = startY + row * GAP;
         const peg = Matter.Bodies.circle(x, y, PEG_RAD, {
           isStatic: true,
           label: 'Peg',
@@ -385,6 +412,66 @@ export default function PlinkoGamePage() {
           <Target className="w-4 h-4" />
           {!matterLoaded ? 'Loading...' : activeBallsCount > 0 ? `Drop Ball (${activeBallsCount} active)` : 'Drop Ball'}
         </motion.button>
+
+        {/* Live History - All Players */}
+        <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2 max-h-[120px] overflow-y-auto">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <p className="text-white/60 text-[10px] font-medium">Live Bets</p>
+          </div>
+          <div className="space-y-1">
+            {liveHistory.slice(0, 5).map((bet, i) => (
+              <motion.div
+                key={`${bet.timestamp}-${i}`}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="flex items-center justify-between bg-white/5 rounded-md px-2 py-1.5"
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[8px] font-bold text-white">
+                      {bet.username.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-[10px] font-medium truncate">
+                      {bet.username}
+                    </p>
+                    <p className="text-white/40 text-[9px]">
+                      ${bet.betAmount.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      bet.multiplier >= 10
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : bet.multiplier < 1
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-white/10 text-white/60'
+                    }`}
+                  >
+                    {bet.multiplier}x
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold ${
+                      bet.payout > bet.betAmount ? 'text-emerald-400' : 'text-red-400'
+                    }`}
+                  >
+                    ${bet.payout.toFixed(2)}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+            {liveHistory.length === 0 && (
+              <p className="text-white/40 text-[9px] text-center py-2">
+                No recent bets
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
