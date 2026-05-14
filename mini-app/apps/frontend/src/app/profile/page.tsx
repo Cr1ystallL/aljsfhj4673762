@@ -82,15 +82,6 @@ export default function ProfilePage() {
             <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
               Аккаунт
             </span>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md">
-              <span className="font-roobert text-frost-white text-[14px] tabular-nums">
-                {balanceAmount.toLocaleString('ru-RU', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span className="text-whisper-gray text-[11px]">₽</span>
-            </div>
           </div>
 
           {/* Identity card */}
