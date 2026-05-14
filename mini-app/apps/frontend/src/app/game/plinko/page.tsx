@@ -118,11 +118,11 @@ export default function PlinkoGamePage() {
     });
     renderRef.current = render;
 
-    // Create pegs - 17 rows, start MUCH higher to avoid multipliers
+    // Create pegs - 17 rows, positioned to fill canvas perfectly
     const GAP = width / 19;
     const PEG_RAD = 2.5;
     const pegs: any[] = [];
-    const startY = GAP * 3.5; // Start much higher
+    const startY = GAP * 1.5; // Start closer to top
     
     for (let row = 0; row < 17; row++) {
       const pegsInRow = row + 3;
@@ -144,22 +144,57 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create invisible walls on left and right to prevent balls from escaping
-    const wallThickness = 20;
-    const leftWall = Matter.Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height * 2, {
-      isStatic: true,
-      label: 'Wall',
-      render: {
-        fillStyle: 'transparent',
-      },
-    });
-    const rightWall = Matter.Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height * 2, {
-      isStatic: true,
-      label: 'Wall',
-      render: {
-        fillStyle: 'transparent',
-      },
-    });
+    // Create decorative walls on left and right with triangular shape
+    // These walls prevent balls from escaping and look beautiful
+    const wallThickness = 15;
+    const pyramidWidth = GAP * 18; // Width of pyramid at bottom
+    const pyramidLeft = (width - pyramidWidth) / 2;
+    const pyramidRight = width - pyramidLeft;
+    
+    // Left wall - angled to match pyramid shape
+    const leftWallVertices = [
+      { x: pyramidLeft - wallThickness, y: 0 },
+      { x: pyramidLeft, y: 0 },
+      { x: pyramidLeft, y: height },
+      { x: pyramidLeft - wallThickness, y: height },
+    ];
+    const leftWall = Matter.Bodies.fromVertices(
+      pyramidLeft - wallThickness / 2,
+      height / 2,
+      [leftWallVertices],
+      {
+        isStatic: true,
+        label: 'Wall',
+        render: {
+          fillStyle: 'rgba(139, 92, 246, 0.15)', // Purple glow
+          strokeStyle: 'rgba(139, 92, 246, 0.4)',
+          lineWidth: 2,
+        },
+      }
+    );
+    
+    // Right wall - angled to match pyramid shape
+    const rightWallVertices = [
+      { x: pyramidRight, y: 0 },
+      { x: pyramidRight + wallThickness, y: 0 },
+      { x: pyramidRight + wallThickness, y: height },
+      { x: pyramidRight, y: height },
+    ];
+    const rightWall = Matter.Bodies.fromVertices(
+      pyramidRight + wallThickness / 2,
+      height / 2,
+      [rightWallVertices],
+      {
+        isStatic: true,
+        label: 'Wall',
+        render: {
+          fillStyle: 'rgba(139, 92, 246, 0.15)', // Purple glow
+          strokeStyle: 'rgba(139, 92, 246, 0.4)',
+          lineWidth: 2,
+        },
+      }
+    );
+    
     Matter.Composite.add(engine.world, [leftWall, rightWall]);
 
     // Create ground (lower position so buckets are visible)
@@ -320,8 +355,8 @@ export default function PlinkoGamePage() {
     <div className="h-screen flex flex-col bg-gradient-to-b from-black via-gray-900 to-black overflow-hidden">
       {/* Main Content - Full screen, scrollable for history */}
       <div className="flex-1 flex flex-col px-2 pb-20 pt-2 gap-1.5 overflow-y-auto">
-        {/* Plinko Board - Full height */}
-        <div className="flex-1 min-h-[450px] rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden relative">
+        {/* Plinko Board - Compact height to fit pyramid perfectly */}
+        <div className="flex-1 min-h-[380px] max-h-[500px] rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden relative">
           <canvas
             ref={canvasRef}
             className="w-full h-full"
