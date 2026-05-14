@@ -38,6 +38,11 @@ export default function PlinkoGamePage() {
   const [activeBallsCount, setActiveBallsCount] = useState(0);
   const [matterLoaded, setMatterLoaded] = useState(false);
   const [highlightedBucket, setHighlightedBucket] = useState<number | null>(null);
+  const [winNotification, setWinNotification] = useState<{
+    amount: number;
+    multiplier: number;
+    show: boolean;
+  } | null>(null);
   const [liveHistory, setLiveHistory] = useState<Array<{
     username: string;
     betAmount: number;
@@ -147,53 +152,58 @@ export default function PlinkoGamePage() {
 
     // Create decorative walls on left and right with DIAGONAL shape matching pyramid
     // These walls prevent balls from escaping and look beautiful
-    const wallThickness = 15;
-    const pyramidWidth = GAP * 18; // Width of pyramid at bottom
-    const pyramidLeft = (width - pyramidWidth) / 2;
-    const pyramidRight = width - pyramidLeft;
+    const wallThickness = 20;
+    const pyramidTopWidth = GAP * 3; // Width at top (3 pegs)
+    const pyramidBottomWidth = GAP * 19; // Width at bottom (19 pegs)
     const pyramidTop = startY;
     const pyramidBottom = height - 30; // Above buckets
     
-    // Left wall - DIAGONAL angled to match pyramid shape
+    // Calculate diagonal wall positions
+    const topLeft = width / 2 - pyramidTopWidth / 2;
+    const topRight = width / 2 + pyramidTopWidth / 2;
+    const bottomLeft = width / 2 - pyramidBottomWidth / 2;
+    const bottomRight = width / 2 + pyramidBottomWidth / 2;
+    
+    // Left wall - DIAGONAL from top-left to bottom-left
     const leftWallVertices = [
-      { x: pyramidLeft - wallThickness, y: pyramidTop },
-      { x: pyramidLeft, y: pyramidTop },
-      { x: pyramidLeft, y: pyramidBottom },
-      { x: pyramidLeft - wallThickness * 2, y: pyramidBottom },
+      { x: topLeft - wallThickness, y: pyramidTop },
+      { x: topLeft, y: pyramidTop },
+      { x: bottomLeft, y: pyramidBottom },
+      { x: bottomLeft - wallThickness, y: pyramidBottom },
     ];
     const leftWall = Matter.Bodies.fromVertices(
-      pyramidLeft - wallThickness,
+      (topLeft + bottomLeft) / 2 - wallThickness / 2,
       (pyramidTop + pyramidBottom) / 2,
       [leftWallVertices],
       {
         isStatic: true,
         label: 'Wall',
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.15)', // Purple glow
-          strokeStyle: 'rgba(139, 92, 246, 0.4)',
-          lineWidth: 2,
+          fillStyle: 'rgba(139, 92, 246, 0.2)', // Purple glow
+          strokeStyle: 'rgba(139, 92, 246, 0.5)',
+          lineWidth: 3,
         },
       }
     );
     
-    // Right wall - DIAGONAL angled to match pyramid shape
+    // Right wall - DIAGONAL from top-right to bottom-right
     const rightWallVertices = [
-      { x: pyramidRight, y: pyramidTop },
-      { x: pyramidRight + wallThickness, y: pyramidTop },
-      { x: pyramidRight + wallThickness * 2, y: pyramidBottom },
-      { x: pyramidRight, y: pyramidBottom },
+      { x: topRight, y: pyramidTop },
+      { x: topRight + wallThickness, y: pyramidTop },
+      { x: bottomRight + wallThickness, y: pyramidBottom },
+      { x: bottomRight, y: pyramidBottom },
     ];
     const rightWall = Matter.Bodies.fromVertices(
-      pyramidRight + wallThickness,
+      (topRight + bottomRight) / 2 + wallThickness / 2,
       (pyramidTop + pyramidBottom) / 2,
       [rightWallVertices],
       {
         isStatic: true,
         label: 'Wall',
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.15)', // Purple glow
-          strokeStyle: 'rgba(139, 92, 246, 0.4)',
-          lineWidth: 2,
+          fillStyle: 'rgba(139, 92, 246, 0.2)', // Purple glow
+          strokeStyle: 'rgba(139, 92, 246, 0.5)',
+          lineWidth: 3,
         },
       }
     );
@@ -249,6 +259,14 @@ export default function PlinkoGamePage() {
           setHighlightedBucket(clampedIndex);
           setTimeout(() => setHighlightedBucket(null), 500);
           
+          // Show win notification
+          setWinNotification({
+            amount: payout,
+            multiplier: multiplier,
+            show: true,
+          });
+          setTimeout(() => setWinNotification(null), 2000);
+          
           // Play sound
           if (multiplier >= 10) {
             soundManager.play('game.win');
@@ -258,15 +276,13 @@ export default function PlinkoGamePage() {
             soundManager.play('game.cashout');
           }
           
-          // Remove ball and update balance
-          setTimeout(() => {
-            Matter.Composite.remove(engine.world, ball);
-            processedBallsRef.current.delete(ball.id);
-            fetchBalance(isDemoMode);
-            
-            // Decrease active balls count
-            setActiveBallsCount((prev) => Math.max(0, prev - 1));
-          }, 300);
+          // Remove ball IMMEDIATELY
+          Matter.Composite.remove(engine.world, ball);
+          processedBallsRef.current.delete(ball.id);
+          fetchBalance(isDemoMode);
+          
+          // Decrease active balls count
+          setActiveBallsCount((prev) => Math.max(0, prev - 1));
         }
       });
     });
@@ -369,6 +385,39 @@ export default function PlinkoGamePage() {
             className="w-full h-full"
             style={{ imageRendering: 'auto' }}
           />
+          
+          {/* Win Notification - Center of screen */}
+          {winNotification?.show && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.5, y: 20 }}
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50"
+            >
+              <div className={`px-6 py-3 rounded-2xl backdrop-blur-xl border-2 shadow-2xl ${
+                winNotification.multiplier >= 10
+                  ? 'bg-emerald-500/20 border-emerald-400'
+                  : winNotification.multiplier < 1
+                  ? 'bg-red-500/20 border-red-400'
+                  : 'bg-blue-500/20 border-blue-400'
+              }`}>
+                <div className="text-center">
+                  <p className={`text-2xl font-bold ${
+                    winNotification.multiplier >= 10
+                      ? 'text-emerald-400'
+                      : winNotification.multiplier < 1
+                      ? 'text-red-400'
+                      : 'text-blue-400'
+                  }`}>
+                    {winNotification.multiplier}x
+                  </p>
+                  <p className="text-white text-lg font-semibold">
+                    {winNotification.multiplier >= 1 ? '+' : ''}${winNotification.amount.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
           
           {/* Multiplier buckets overlay - BELOW pyramid with highlight animation */}
           <div className="absolute bottom-0 left-0 right-0 flex gap-[1px] px-[1px] pb-[1px] pointer-events-none">
