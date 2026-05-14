@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Wifi } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -26,6 +26,8 @@ interface CrashStageProps {
   phase: Phase;
   multiplier: number;
   countdown: number | null;
+  /** Timestamp (ms epoch) when the current 'waiting' phase ends. */
+  waitingEndsAt: number | null;
   graphPoints: Array<{ time: number; multiplier: number }>;
   serverSeedHash: string;
   latencyMs: number;
@@ -36,12 +38,27 @@ export function CrashStage({
   phase,
   multiplier,
   countdown,
+  waitingEndsAt,
   graphPoints,
   serverSeedHash,
   latencyMs,
   connected,
 }: CrashStageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // 1Hz ticker so the waiting countdown decrements visibly even when the
+  // snapshot only refreshes every couple of seconds via REST poll.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (phase !== 'waiting' || !waitingEndsAt) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [phase, waitingEndsAt]);
+
+  const waitingSeconds =
+    phase === 'waiting' && waitingEndsAt
+      ? Math.max(0, Math.ceil((waitingEndsAt - now) / 1000))
+      : null;
 
   // Render curve into canvas any time the points or phase change.
   useEffect(() => {
@@ -229,11 +246,17 @@ export function CrashStage({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10 backdrop-blur-md"
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10 backdrop-blur-md"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
                   Приём ставок
                 </span>
+                {waitingSeconds !== null && (
+                  <span className="font-roobert text-frost-white text-[13px] tabular-nums leading-none">
+                    {String(Math.floor(waitingSeconds / 60)).padStart(2, '0')}:
+                    {String(waitingSeconds % 60).padStart(2, '0')}
+                  </span>
+                )}
               </motion.div>
             )}
             {phase === 'idle' && (

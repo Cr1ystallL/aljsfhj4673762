@@ -81,6 +81,7 @@ export class CrashLiveStream extends EventEmitter {
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
   private animFrame: number | null = null;
   private lastFrameTime = 0;
 
@@ -110,9 +111,11 @@ export class CrashLiveStream extends EventEmitter {
   destroy(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.pingTimer) clearInterval(this.pingTimer);
+    if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.animFrame) cancelAnimationFrame(this.animFrame);
     this.reconnectTimer = null;
     this.pingTimer = null;
+    this.pollTimer = null;
     this.animFrame = null;
     this.removeAllListeners();
     if (this.ws) {
@@ -148,6 +151,7 @@ export class CrashLiveStream extends EventEmitter {
     this.ws.onclose = () => {
       this.update({ connected: false });
       this.stopPings();
+      this.stopPoll();
       this.scheduleReconnect();
     };
 
@@ -190,6 +194,23 @@ export class CrashLiveStream extends EventEmitter {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
+    }
+  }
+
+  private startPoll(): void {
+    this.stopPoll();
+    // 2.5s is fast enough that any visual stall caused by a missed
+    // broadcast self-corrects within a single user-perceptible beat,
+    // while staying gentle on the server.
+    this.pollTimer = setInterval(() => {
+      void this.fetchInitialState();
+    }, 2500);
+  }
+
+  private stopPoll(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
   }
 
@@ -271,6 +292,26 @@ export class CrashLiveStream extends EventEmitter {
         this.startAnim();
       }
 
+      // Map authoritative phase end timestamp (server clock-aligned) into
+      // local UI fields: countdown for `starting`, waitingEndsAt for
+      // `waiting`. This is what survives lossy WS broadcasts.
+      const phaseEndsAt = typeof s.phaseEndsAt === 'number' ? s.phaseEndsAt : null;
+      let countdown: number | null = this.snapshot.countdown;
+      let waitingEndsAt: number | null = this.snapshot.waitingEndsAt;
+      if (phase === 'starting' && phaseEndsAt !== null) {
+        countdown = Math.max(
+          0,
+          Math.ceil((phaseEndsAt - Date.now()) / 1000)
+        );
+        waitingEndsAt = null;
+      } else if (phase === 'waiting') {
+        waitingEndsAt = phaseEndsAt;
+        countdown = null;
+      } else if (phase === 'active' || phase === 'completed') {
+        countdown = null;
+        waitingEndsAt = null;
+      }
+
       this.update({
         phase,
         players,
@@ -278,14 +319,24 @@ export class CrashLiveStream extends EventEmitter {
         stats,
         serverSeedHash,
         serverMultiplier: serverMult,
-        displayMultiplier: serverMult,
+        // Don't clobber the smoothed value mid-round; only resync if we're
+        // far behind or in a non-active phase.
+        displayMultiplier:
+          phase === 'active' && this.snapshot.phase === 'active'
+            ? Math.max(this.snapshot.displayMultiplier, serverMult)
+            : serverMult,
         graphPoints:
           phase === 'active' || phase === 'completed'
-            ? [
-                { time: 0, multiplier: 1 },
-                { time: Number(s.elapsedTime) || 1, multiplier: serverMult },
-              ]
+            ? this.snapshot.graphPoints.length > 1 &&
+              this.snapshot.phase === phase
+              ? this.snapshot.graphPoints
+              : [
+                  { time: 0, multiplier: 1 },
+                  { time: Number(s.elapsedTime) || 1, multiplier: serverMult },
+                ]
             : [{ time: 0, multiplier: 1 }],
+        countdown,
+        waitingEndsAt,
         lastCrashPoint:
           phase === 'completed' && typeof s.crashPointPreview === 'number'
             ? s.crashPointPreview
@@ -322,6 +373,11 @@ export class CrashLiveStream extends EventEmitter {
         // events because they already happened — only a future round would
         // wake up the UI.
         void this.fetchInitialState();
+        // Reconciliation poll: even with the WS connected, the broadcast
+        // can be lossy across some proxies (notably nginx without
+        // sticky / proper proxy_read_timeout). A periodic REST pull keeps
+        // the UI in sync with the authoritative server state regardless.
+        this.startPoll();
         return;
 
       case 'auth_error':

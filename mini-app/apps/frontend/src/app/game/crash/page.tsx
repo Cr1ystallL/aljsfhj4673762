@@ -271,6 +271,7 @@ export default function CrashGamePage() {
           phase={snapshot.phase}
           multiplier={snapshot.displayMultiplier}
           countdown={snapshot.countdown}
+          waitingEndsAt={snapshot.waitingEndsAt}
           graphPoints={snapshot.graphPoints}
           serverSeedHash={snapshot.serverSeedHash}
           latencyMs={snapshot.latencyMs}

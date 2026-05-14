@@ -87,6 +87,8 @@ export class CrashGameEngine extends BaseGameEngine {
   private countdownTimeout?: NodeJS.Timeout;
   private currentServerSeedHash = '';
   private lastActivityTime = Date.now();
+  /** Wall-clock timestamp the current phase will end at (ms). */
+  private currentPhaseEndsAt: number | null = null;
 
   constructor(gameId: string) {
     const config: GameConfig = {
@@ -252,6 +254,7 @@ export class CrashGameEngine extends BaseGameEngine {
       phase: this.room.state,
       multiplier: this.crashState.currentMultiplier,
       elapsedTime: this.crashState.elapsedTime,
+      phaseEndsAt: this.currentPhaseEndsAt,
       crashPointPreview:
         this.room.state === 'completed'
           ? this.crashState.crashPoint
@@ -336,6 +339,7 @@ export class CrashGameEngine extends BaseGameEngine {
 
   protected onRoundStarted(round: GameRound): void {
     this.crashState.startTime = Date.now();
+    this.currentPhaseEndsAt = null;
     this.emitEvent('phase:active', {
       startTime: this.crashState.startTime,
       roundId: round.id,
@@ -421,9 +425,11 @@ export class CrashGameEngine extends BaseGameEngine {
   private startWaitingPhase(): void {
     this.clearTimeouts();
     this.room.state = 'waiting';
+    const endsAt = Date.now() + this.WAITING_TIME;
+    this.currentPhaseEndsAt = endsAt;
     this.emitEvent('phase:waiting', {
       duration: this.WAITING_TIME,
-      endsAt: Date.now() + this.WAITING_TIME,
+      endsAt,
       roundId: this.room.currentRound?.id ?? null,
       serverSeedHash: this.currentServerSeedHash,
       history: this.history.slice(-20).reverse(),
@@ -438,9 +444,11 @@ export class CrashGameEngine extends BaseGameEngine {
   private startCountdown(): void {
     this.clearTimeouts();
     this.room.state = 'starting';
+    const endsAt = Date.now() + this.COUNTDOWN_TIME;
+    this.currentPhaseEndsAt = endsAt;
     this.emitEvent('phase:countdown', {
       duration: this.COUNTDOWN_TIME,
-      endsAt: Date.now() + this.COUNTDOWN_TIME,
+      endsAt,
     });
     this.countdownTimeout = setTimeout(
       () => this.activateRound(),
