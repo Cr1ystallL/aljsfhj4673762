@@ -92,7 +92,7 @@ export default function PlinkoGamePage() {
 
     // Create pegs
     const GAP = width / 19;
-    const PEG_RAD = 3;
+    const PEG_RAD = 2.5;
     const pegs: any[] = [];
     
     for (let row = 0; row < 16; row++) {
@@ -115,8 +115,8 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create ground
-    const ground = Matter.Bodies.rectangle(width / 2, height + 20, width * 2, 40, {
+    // Create ground (lower position so buckets are visible)
+    const ground = Matter.Bodies.rectangle(width / 2, height - 10, width * 2, 20, {
       isStatic: true,
       label: 'Ground',
       render: {
@@ -244,9 +244,9 @@ export default function PlinkoGamePage() {
       const dropRight = width / 2 + 15;
       const x = Math.random() * (dropRight - dropLeft) + dropLeft;
       
-      const ball = Matter.Bodies.circle(x, -10, 7, {
+      const ball = Matter.Bodies.circle(x, -10, 4, {
         label: 'Ball',
-        restitution: 0.6,
+        restitution: 0.7,
         render: {
           fillStyle: '#ffffff',
         },
@@ -282,38 +282,39 @@ export default function PlinkoGamePage() {
             style={{ imageRendering: 'auto' }}
           />
           
-          {/* Multiplier buckets overlay */}
-          <div className="absolute bottom-0 left-0 right-0 flex gap-[2px] px-1 pb-1">
+          {/* Multiplier buckets overlay - BELOW pyramid */}
+          <div className="absolute bottom-0 left-0 right-0 flex gap-[1px] px-[2px] pb-[2px] pointer-events-none">
             {MULTIPLIERS[riskLevel].map((mult, i) => {
               let bgColor = 'bg-white/5';
               let textColor = 'text-white/40';
               
               if (mult >= 100) {
-                bgColor = 'bg-purple-500/20';
-                textColor = 'text-purple-400';
+                bgColor = 'bg-purple-500/30';
+                textColor = 'text-purple-300';
               } else if (mult >= 10) {
-                bgColor = 'bg-emerald-500/20';
-                textColor = 'text-emerald-400';
+                bgColor = 'bg-emerald-500/30';
+                textColor = 'text-emerald-300';
               } else if (mult >= 2) {
-                bgColor = 'bg-blue-500/20';
-                textColor = 'text-blue-400';
+                bgColor = 'bg-blue-500/30';
+                textColor = 'text-blue-300';
               } else if (mult < 1) {
-                bgColor = 'bg-red-500/20';
-                textColor = 'text-red-400';
+                bgColor = 'bg-red-500/30';
+                textColor = 'text-red-300';
               }
               
               return (
                 <div
                   key={i}
-                  className={`flex-1 ${bgColor} rounded-md flex items-center justify-center py-2 border-b-2 ${
-                    mult >= 100 ? 'border-purple-500' :
-                    mult >= 10 ? 'border-emerald-500' :
-                    mult >= 2 ? 'border-blue-500' :
-                    mult < 1 ? 'border-red-500' :
-                    'border-yellow-500'
+                  className={`flex-1 ${bgColor} rounded-sm flex items-center justify-center py-1.5 border-b-[3px] ${
+                    mult >= 100 ? 'border-purple-400' :
+                    mult >= 10 ? 'border-emerald-400' :
+                    mult >= 2 ? 'border-blue-400' :
+                    mult < 1 ? 'border-red-400' :
+                    'border-yellow-400'
                   }`}
+                  style={{ minHeight: '32px' }}
                 >
-                  <span className={`text-[9px] font-bold ${textColor}`}>
+                  <span className={`text-[8px] font-bold ${textColor}`}>
                     {mult}x
                   </span>
                 </div>
