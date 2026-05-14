@@ -75,6 +75,7 @@ export class TransactionService {
       amount: Number(tx.amount),
       createdAt: tx.createdAt,
       gameType: tx.gameType,
+      metadata: tx.metadata, // ✅ Add metadata to response
     }));
   }
 
