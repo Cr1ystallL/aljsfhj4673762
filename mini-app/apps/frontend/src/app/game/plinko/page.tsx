@@ -185,13 +185,13 @@ export default function PlinkoGamePage() {
     };
   }, [activeBall, riskLevel]);
 
-  // Animate ball drop with realistic physics (slower)
+  // Animate ball drop with realistic physics (very slow)
   useEffect(() => {
     if (!activeBall || !isDropping) return;
 
-    const gravity = 0.0003; // Reduced gravity for slower fall
-    const friction = 0.99; // Less air resistance
-    const bounceDamping = 0.75; // More energy retained on bounce
+    const gravity = 0.00015; // Very slow gravity
+    const friction = 0.995; // Minimal air resistance
+    const bounceDamping = 0.8; // Good energy retention
     
     let animationId: number;
     let lastTime = Date.now();
@@ -204,7 +204,7 @@ export default function PlinkoGamePage() {
       setActiveBall((prev) => {
         if (!prev) return null;
 
-        // Apply gravity (slower)
+        // Apply gravity (very slow)
         let newVy = prev.vy + gravity * deltaTime;
         let newVx = prev.vx * friction;
 
@@ -212,7 +212,7 @@ export default function PlinkoGamePage() {
         let newX = prev.x + newVx * deltaTime;
         let newY = prev.y + newVy * deltaTime;
 
-        // Check collision with pins (simplified)
+        // Check collision with pins
         const rows = 16;
         const spacing = 1 / (rows + 2);
         const currentRow = Math.floor(newY / (0.8 / rows));
@@ -229,7 +229,10 @@ export default function PlinkoGamePage() {
             if (distance < 0.025) {
               // Collision! Bounce off pin
               const angle = Math.atan2(newY - rowY, newX - pinX);
-              newVx = Math.cos(angle) * Math.abs(newVy) * bounceDamping;
+              
+              // Add slight bias towards center for more realistic distribution
+              const centerBias = (0.5 - newX) * 0.1;
+              newVx = Math.cos(angle) * Math.abs(newVy) * bounceDamping + centerBias;
               newVy = Math.sin(angle) * Math.abs(newVy) * bounceDamping;
               
               // Move ball away from pin
@@ -254,8 +257,12 @@ export default function PlinkoGamePage() {
 
         // Check if reached bottom
         if (newY >= 0.9) {
-          // Ball landed
-          const multiplier = MULTIPLIERS[riskLevel][prev.finalSlot];
+          // Ball landed - calculate slot based on final X position
+          const slotWidth = 0.9 / 17;
+          const finalSlot = Math.floor((newX - 0.05) / slotWidth);
+          const clampedSlot = Math.max(0, Math.min(16, finalSlot));
+          
+          const multiplier = MULTIPLIERS[riskLevel][clampedSlot];
           const payout = betAmount * multiplier;
           
           setHistory((h) => [{ multiplier, payout }, ...h.slice(0, 11)]);
@@ -321,19 +328,16 @@ export default function PlinkoGamePage() {
 
       const data = await response.json();
       
-      // Calculate final slot based on server response or random
-      const rows = 16;
-      const finalSlot = Math.floor(Math.random() * 17); // 0-16
-
+      // Start ball at center with minimal velocity
       setActiveBall({
         id: Date.now().toString(),
         x: 0.5, // Start at center
         y: 0.05, // Start at top
-        vx: (Math.random() - 0.5) * 0.0001, // Smaller random horizontal velocity
-        vy: 0.0005, // Slower initial downward velocity
+        vx: 0, // No horizontal velocity
+        vy: 0.0003, // Very slow initial downward velocity
         path: [],
         currentStep: 0,
-        finalSlot,
+        finalSlot: 8, // Will be calculated based on actual landing position
       });
       
       setIsDropping(true);
