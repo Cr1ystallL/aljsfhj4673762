@@ -144,6 +144,24 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
+    // Create invisible walls on left and right to prevent balls from escaping
+    const wallThickness = 20;
+    const leftWall = Matter.Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height * 2, {
+      isStatic: true,
+      label: 'Wall',
+      render: {
+        fillStyle: 'transparent',
+      },
+    });
+    const rightWall = Matter.Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height * 2, {
+      isStatic: true,
+      label: 'Wall',
+      render: {
+        fillStyle: 'transparent',
+      },
+    });
+    Matter.Composite.add(engine.world, [leftWall, rightWall]);
+
     // Create ground (lower position so buckets are visible)
     const ground = Matter.Bodies.rectangle(width / 2, height - 10, width * 2, 20, {
       isStatic: true,
@@ -300,19 +318,10 @@ export default function PlinkoGamePage() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-b from-black via-gray-900 to-black overflow-hidden">
-      {/* Minimal Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 pt-safe">
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-white" />
-          <h1 className="text-white text-sm font-bold">Plinko</h1>
-        </div>
-        <DemoModeToggle />
-      </div>
-
-      {/* Main Content - Ultra Compact, scrollable for history */}
-      <div className="flex-1 flex flex-col px-2 pb-20 gap-1.5 overflow-y-auto">
-        {/* Plinko Board - BIGGER, takes almost all space */}
-        <div className="flex-1 min-h-[400px] rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden relative">
+      {/* Main Content - Full screen, scrollable for history */}
+      <div className="flex-1 flex flex-col px-2 pb-20 pt-2 gap-1.5 overflow-y-auto">
+        {/* Plinko Board - Full height */}
+        <div className="flex-1 min-h-[450px] rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden relative">
           <canvas
             ref={canvasRef}
             className="w-full h-full"
