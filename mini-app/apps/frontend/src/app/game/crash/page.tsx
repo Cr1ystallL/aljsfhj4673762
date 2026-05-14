@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { Rocket, TrendingUp } from 'lucide-react';
 import { GameHeader } from '@/components/game/game-header';
 import { BetControls } from '@/components/game/bet-controls';
 import { GlassCard } from '@/components/ui/glass-card';
@@ -259,7 +260,10 @@ export default function CrashGamePage() {
     <div className="h-screen flex flex-col bg-gradient-to-b from-black via-gray-900 to-black overflow-hidden">
       {/* Header - Compact */}
       <div className="flex items-center justify-between px-4 py-2 pt-safe">
-        <GameHeader title="🚀 Crash" />
+        <div className="flex items-center gap-2">
+          <Rocket className="w-5 h-5 text-white" />
+          <GameHeader title="Crash" />
+        </div>
         <DemoModeToggle />
       </div>
 
@@ -312,7 +316,19 @@ export default function CrashGamePage() {
                   className="py-4"
                 >
                   <p className="text-white/60 text-xs mb-1">
-                    {phase === 'crashed' ? '💥 Crashed' : '🚀 Multiplier'}
+                    {phase === 'crashed' ? (
+                      <span className="flex items-center justify-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        Crashed
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-1">
+                        <Rocket className="w-4 h-4" />
+                        Multiplier
+                      </span>
+                    )}
                   </p>
                   <motion.div
                     animate={{
@@ -341,9 +357,12 @@ export default function CrashGamePage() {
                   onClick={handleCashout}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-base shadow-lg"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-base shadow-lg flex items-center justify-center gap-2"
                 >
-                  💰 Cashout ${((balance?.amount || 0) * multiplier).toFixed(2)}
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                  </svg>
+                  Cashout ${((balance?.amount || 0) * multiplier).toFixed(2)}
                 </motion.button>
               </motion.div>
             )}
@@ -361,7 +380,10 @@ export default function CrashGamePage() {
 
         {/* History - Compact */}
         <div className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3">
-          <p className="text-white/60 text-xs mb-2">📊 Recent</p>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 text-white/60" />
+            <p className="text-white/60 text-xs">Recent</p>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {history.slice(0, 12).map((item, i) => (
               <motion.div
@@ -404,10 +426,10 @@ export default function CrashGamePage() {
             <p className="text-emerald-400 text-xl font-bold mb-1">$10.00</p>
             <p className="text-white/60 text-xs">
               {phase === 'waiting' || phase === 'countdown'
-                ? '⏳ Starting...'
+                ? 'Starting...'
                 : phase === 'active'
-                ? '🎯 Cashout!'
-                : '🏁 Ended'}
+                ? 'Cashout!'
+                : 'Ended'}
             </p>
           </div>
         )}

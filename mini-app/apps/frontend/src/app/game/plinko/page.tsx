@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Target } from 'lucide-react';
 import { GameHeader } from '@/components/game/game-header';
 import { Button } from '@/components/ui/button';
 import { DemoModeToggle } from '@/components/ui/demo-mode-toggle';
@@ -184,26 +185,26 @@ export default function PlinkoGamePage() {
     };
   }, [activeBall, riskLevel]);
 
-  // Animate ball drop with realistic physics
+  // Animate ball drop with realistic physics (slower)
   useEffect(() => {
     if (!activeBall || !isDropping) return;
 
-    const gravity = 0.0008; // Gravity acceleration
-    const friction = 0.98; // Air resistance
-    const bounceDamping = 0.7; // Energy loss on bounce
+    const gravity = 0.0003; // Reduced gravity for slower fall
+    const friction = 0.99; // Less air resistance
+    const bounceDamping = 0.75; // More energy retained on bounce
     
     let animationId: number;
     let lastTime = Date.now();
 
     const animate = () => {
       const currentTime = Date.now();
-      const deltaTime = currentTime - lastTime;
+      const deltaTime = Math.min(currentTime - lastTime, 50); // Cap delta time
       lastTime = currentTime;
 
       setActiveBall((prev) => {
         if (!prev) return null;
 
-        // Apply gravity
+        // Apply gravity (slower)
         let newVy = prev.vy + gravity * deltaTime;
         let newVx = prev.vx * friction;
 
@@ -225,15 +226,15 @@ export default function PlinkoGamePage() {
             const pinX = 0.5 - ((pinsInRow - 1) * spacing / 2) + (pin * spacing);
             const distance = Math.sqrt(Math.pow(newX - pinX, 2) + Math.pow(newY - rowY, 2));
             
-            if (distance < 0.02) {
+            if (distance < 0.025) {
               // Collision! Bounce off pin
               const angle = Math.atan2(newY - rowY, newX - pinX);
               newVx = Math.cos(angle) * Math.abs(newVy) * bounceDamping;
               newVy = Math.sin(angle) * Math.abs(newVy) * bounceDamping;
               
               // Move ball away from pin
-              newX = pinX + Math.cos(angle) * 0.02;
-              newY = rowY + Math.sin(angle) * 0.02;
+              newX = pinX + Math.cos(angle) * 0.025;
+              newY = rowY + Math.sin(angle) * 0.025;
               
               soundManager.play('ui.click');
               break;
@@ -328,8 +329,8 @@ export default function PlinkoGamePage() {
         id: Date.now().toString(),
         x: 0.5, // Start at center
         y: 0.05, // Start at top
-        vx: (Math.random() - 0.5) * 0.0002, // Small random horizontal velocity
-        vy: 0.001, // Initial downward velocity
+        vx: (Math.random() - 0.5) * 0.0001, // Smaller random horizontal velocity
+        vy: 0.0005, // Slower initial downward velocity
         path: [],
         currentStep: 0,
         finalSlot,
@@ -347,7 +348,10 @@ export default function PlinkoGamePage() {
     <div className="h-screen flex flex-col bg-gradient-to-b from-black via-gray-900 to-black overflow-hidden">
       {/* Header - Compact */}
       <div className="flex items-center justify-between px-4 py-2 pt-safe">
-        <GameHeader title="🎯 Plinko" />
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-white" />
+          <GameHeader title="Plinko" />
+        </div>
         <DemoModeToggle />
       </div>
 
@@ -410,18 +414,24 @@ export default function PlinkoGamePage() {
           disabled={isDropping}
           whileHover={{ scale: isDropping ? 1 : 1.02 }}
           whileTap={{ scale: isDropping ? 1 : 0.98 }}
-          className={`w-full py-3 rounded-xl font-bold text-base shadow-lg transition-all ${
+          className={`w-full py-3 rounded-xl font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2 ${
             isDropping
               ? 'bg-gray-700 text-white/40 cursor-not-allowed'
               : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
           }`}
         >
-          {isDropping ? '🎯 Dropping...' : '🎯 Drop Ball'}
+          <Target className="w-5 h-5" />
+          {isDropping ? 'Dropping...' : 'Drop Ball'}
         </motion.button>
 
         {/* History - Compact */}
         <div className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3">
-          <p className="text-white/60 text-xs mb-2">📊 Recent</p>
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <p className="text-white/60 text-xs">Recent</p>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {history.slice(0, 8).map((item, i) => (
               <motion.div
