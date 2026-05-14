@@ -36,7 +36,7 @@ interface Ball {
 }
 
 export default function PlinkoGamePage() {
-  const { balance, refetch } = useBalance();
+  const { balance, fetchBalance } = useBalance();
   const { isDemoMode } = useDemoMode();
   
   const [betAmount, setBetAmount] = useState(1);
@@ -211,7 +211,7 @@ export default function PlinkoGamePage() {
           
           // Refetch balance after 500ms
           setTimeout(() => {
-            refetch();
+            fetchBalance(isDemoMode);
             setIsDropping(false);
             setActiveBall(null);
           }, 500);
@@ -234,7 +234,7 @@ export default function PlinkoGamePage() {
     }, duration);
 
     return () => clearInterval(interval);
-  }, [activeBall, isDropping, betAmount, riskLevel, refetch]);
+  }, [activeBall, isDropping, betAmount, riskLevel, fetchBalance, isDemoMode]);
 
   const handleDrop = async () => {
     if (isDropping) return;
