@@ -152,58 +152,59 @@ export default function PlinkoGamePage() {
 
     // Create decorative walls on left and right with DIAGONAL shape matching pyramid
     // These walls prevent balls from escaping and look beautiful
-    const wallThickness = 20;
+    // EXTENDED OUTWARD to fill the yellow areas shown in user's screenshot
+    const wallThickness = 30; // Thicker walls
     const pyramidTopWidth = GAP * 3; // Width at top (3 pegs)
     const pyramidBottomWidth = GAP * 19; // Width at bottom (19 pegs)
-    const pyramidTop = startY;
-    const pyramidBottom = height - 30; // Above buckets
+    const pyramidTop = 0; // Start from very top
+    const pyramidBottom = height; // Extend to very bottom
     
-    // Calculate diagonal wall positions
+    // Calculate diagonal wall positions - MOVED OUTWARD
     const topLeft = width / 2 - pyramidTopWidth / 2;
     const topRight = width / 2 + pyramidTopWidth / 2;
-    const bottomLeft = width / 2 - pyramidBottomWidth / 2;
-    const bottomRight = width / 2 + pyramidBottomWidth / 2;
+    const bottomLeft = width / 2 - pyramidBottomWidth / 2 - GAP * 2; // Move LEFT more
+    const bottomRight = width / 2 + pyramidBottomWidth / 2 + GAP * 2; // Move RIGHT more
     
-    // Left wall - DIAGONAL from top-left to bottom-left
+    // Left wall - DIAGONAL from top-left to bottom-left, EXTENDED
     const leftWallVertices = [
-      { x: topLeft - wallThickness, y: pyramidTop },
+      { x: topLeft - wallThickness * 2, y: pyramidTop },
       { x: topLeft, y: pyramidTop },
       { x: bottomLeft, y: pyramidBottom },
-      { x: bottomLeft - wallThickness, y: pyramidBottom },
+      { x: bottomLeft - wallThickness * 2, y: pyramidBottom },
     ];
     const leftWall = Matter.Bodies.fromVertices(
-      (topLeft + bottomLeft) / 2 - wallThickness / 2,
+      (topLeft + bottomLeft) / 2 - wallThickness,
       (pyramidTop + pyramidBottom) / 2,
       [leftWallVertices],
       {
         isStatic: true,
         label: 'Wall',
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.2)', // Purple glow
-          strokeStyle: 'rgba(139, 92, 246, 0.5)',
-          lineWidth: 3,
+          fillStyle: 'rgba(139, 92, 246, 0.3)', // Purple glow
+          strokeStyle: 'rgba(139, 92, 246, 0.6)',
+          lineWidth: 4,
         },
       }
     );
     
-    // Right wall - DIAGONAL from top-right to bottom-right
+    // Right wall - DIAGONAL from top-right to bottom-right, EXTENDED
     const rightWallVertices = [
       { x: topRight, y: pyramidTop },
-      { x: topRight + wallThickness, y: pyramidTop },
-      { x: bottomRight + wallThickness, y: pyramidBottom },
+      { x: topRight + wallThickness * 2, y: pyramidTop },
+      { x: bottomRight + wallThickness * 2, y: pyramidBottom },
       { x: bottomRight, y: pyramidBottom },
     ];
     const rightWall = Matter.Bodies.fromVertices(
-      (topRight + bottomRight) / 2 + wallThickness / 2,
+      (topRight + bottomRight) / 2 + wallThickness,
       (pyramidTop + pyramidBottom) / 2,
       [rightWallVertices],
       {
         isStatic: true,
         label: 'Wall',
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.2)', // Purple glow
-          strokeStyle: 'rgba(139, 92, 246, 0.5)',
-          lineWidth: 3,
+          fillStyle: 'rgba(139, 92, 246, 0.3)', // Purple glow
+          strokeStyle: 'rgba(139, 92, 246, 0.6)',
+          lineWidth: 4,
         },
       }
     );
@@ -386,35 +387,33 @@ export default function PlinkoGamePage() {
             style={{ imageRendering: 'auto' }}
           />
           
-          {/* Win Notification - Center of screen */}
+          {/* Win Notification - Toast style in top-right corner */}
           {winNotification?.show && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.5, y: -20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.5, y: 20 }}
-              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50"
+              initial={{ opacity: 0, x: 100, y: -20 }}
+              animate={{ opacity: 1, x: 0, y: 0 }}
+              exit={{ opacity: 0, x: 100 }}
+              className="absolute top-2 right-2 z-50"
             >
-              <div className={`px-6 py-3 rounded-2xl backdrop-blur-xl border-2 shadow-2xl ${
+              <div className={`px-4 py-2 rounded-lg backdrop-blur-xl border shadow-lg flex items-center gap-2 ${
                 winNotification.multiplier >= 10
-                  ? 'bg-emerald-500/20 border-emerald-400'
+                  ? 'bg-emerald-500/30 border-emerald-400/50'
                   : winNotification.multiplier < 1
-                  ? 'bg-red-500/20 border-red-400'
-                  : 'bg-blue-500/20 border-blue-400'
+                  ? 'bg-red-500/30 border-red-400/50'
+                  : 'bg-blue-500/30 border-blue-400/50'
               }`}>
-                <div className="text-center">
-                  <p className={`text-2xl font-bold ${
-                    winNotification.multiplier >= 10
-                      ? 'text-emerald-400'
-                      : winNotification.multiplier < 1
-                      ? 'text-red-400'
-                      : 'text-blue-400'
-                  }`}>
-                    {winNotification.multiplier}x
-                  </p>
-                  <p className="text-white text-lg font-semibold">
-                    {winNotification.multiplier >= 1 ? '+' : ''}${winNotification.amount.toFixed(2)}
-                  </p>
-                </div>
+                <span className={`text-sm font-bold ${
+                  winNotification.multiplier >= 10
+                    ? 'text-emerald-400'
+                    : winNotification.multiplier < 1
+                    ? 'text-red-400'
+                    : 'text-blue-400'
+                }`}>
+                  {winNotification.multiplier}x
+                </span>
+                <span className="text-white text-sm font-semibold">
+                  {winNotification.multiplier >= 1 ? '+' : ''}${winNotification.amount.toFixed(2)}
+                </span>
               </div>
             </motion.div>
           )}

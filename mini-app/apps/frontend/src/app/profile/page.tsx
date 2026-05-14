@@ -30,17 +30,24 @@ export default function ProfilePage() {
     0
   );
   
-  // For maxMultiplier, we need to safely access metadata if it exists
-  // Get REAL maximum multiplier that user actually hit
-  const allMultipliers = transactions
-    .filter((tx) => tx.type === 'win')
-    .map((tx) => {
-      const txAny = tx as any;
-      return txAny.metadata?.multiplier || 0;
-    })
-    .filter((mult) => mult > 0); // Filter out zeros
+  // For maxMultiplier, get REAL maximum multiplier that user actually hit
+  // Filter wins and extract multipliers from metadata
+  const winTransactions = transactions.filter((tx) => tx.type === 'win');
   
-  const maxMultiplier = allMultipliers.length > 0 ? Math.max(...allMultipliers) : 0;
+  let maxMultiplier = 0;
+  winTransactions.forEach((tx) => {
+    const txAny = tx as any;
+    const mult = txAny.metadata?.multiplier;
+    if (mult && typeof mult === 'number' && mult > maxMultiplier) {
+      maxMultiplier = mult;
+    }
+  });
+  
+  console.log('Max multiplier calculation:', { 
+    totalTransactions: transactions.length, 
+    winTransactions: winTransactions.length,
+    maxMultiplier 
+  });
 
   // Get user initials
   const getInitials = () => {

@@ -423,7 +423,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * GET /api/games/plinko/history
-   * Get plinko game history
+   * Get plinko game history - RANDOM BETS FROM ALL PLAYERS
    */
   app.get<{
     Querystring: {
@@ -445,53 +445,53 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const limit = parseInt(request.query.limit || '20', 10);
-      const offset = parseInt(request.query.offset || '0', 10);
+      const limit = parseInt(request.query.limit || '10', 10);
 
       try {
         const prisma = app.prisma;
         
-        // Get user's plinko bets with pagination
+        // Get RANDOM recent plinko bets from ALL PLAYERS (not just current user)
         const bets = await prisma.bet.findMany({
           where: {
-            userId,
             gameType: 'plinko',
+            state: 'resolved', // Only show completed bets
           },
           orderBy: {
-            placedAt: 'desc',
+            resolvedAt: 'desc',
           },
-          take: Math.min(limit, 100), // Max 100 records
-          skip: offset,
+          take: Math.min(limit * 3, 100), // Get more to randomize
           select: {
             id: true,
             amount: true,
             payout: true,
             multiplier: true,
-            state: true,
-            metadata: true,
             placedAt: true,
             resolvedAt: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
           },
         });
 
-        // Get total count
-        const total = await prisma.bet.count({
-          where: {
-            userId,
-            gameType: 'plinko',
-          },
-        });
+        // Shuffle and take random subset
+        const shuffled = bets.sort(() => Math.random() - 0.5).slice(0, limit);
+
+        // Format for frontend
+        const history = shuffled.map((bet) => ({
+          username: bet.user.username || bet.user.firstName || 'Player',
+          betAmount: Number(bet.amount),
+          multiplier: Number(bet.multiplier || 0),
+          payout: Number(bet.payout || 0),
+          timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
+        }));
 
         return reply.send({
           success: true,
-          data: bets,
-          pagination: {
-            total,
-            limit,
-            offset,
-            hasMore: offset + bets.length < total,
-          },
+          history,
         });
       } catch (error) {
         logger.error(error, 'Failed to get plinko history');
