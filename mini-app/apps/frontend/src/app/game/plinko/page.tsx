@@ -37,6 +37,7 @@ export default function PlinkoGamePage() {
   const [isDropping, setIsDropping] = useState(false);
   const [activeBallsCount, setActiveBallsCount] = useState(0);
   const [matterLoaded, setMatterLoaded] = useState(false);
+  const [highlightedBucket, setHighlightedBucket] = useState<number | null>(null);
   const [liveHistory, setLiveHistory] = useState<Array<{
     username: string;
     betAmount: number;
@@ -242,6 +243,10 @@ export default function PlinkoGamePage() {
           const multiplier = MULTIPLIERS[riskLevel][clampedIndex];
           const payout = betAmount * multiplier;
           
+          // Highlight bucket with animation
+          setHighlightedBucket(clampedIndex);
+          setTimeout(() => setHighlightedBucket(null), 500);
+          
           // Play sound
           if (multiplier >= 10) {
             soundManager.play('game.win');
@@ -363,7 +368,7 @@ export default function PlinkoGamePage() {
             style={{ imageRendering: 'auto' }}
           />
           
-          {/* Multiplier buckets overlay - BELOW pyramid */}
+          {/* Multiplier buckets overlay - BELOW pyramid with highlight animation */}
           <div className="absolute bottom-0 left-0 right-0 flex gap-[1px] px-[1px] pb-[1px] pointer-events-none">
             {MULTIPLIERS[riskLevel].map((mult, i) => {
               let bgColor = 'bg-white/5';
@@ -383,22 +388,29 @@ export default function PlinkoGamePage() {
                 textColor = 'text-red-300';
               }
               
+              const isHighlighted = highlightedBucket === i;
+              
               return (
-                <div
+                <motion.div
                   key={i}
+                  animate={isHighlighted ? {
+                    scale: [1, 1.15, 1],
+                    opacity: [1, 0.8, 1],
+                  } : {}}
+                  transition={{ duration: 0.5 }}
                   className={`flex-1 ${bgColor} rounded-sm flex items-center justify-center py-1 border-b-[2px] ${
                     mult >= 100 ? 'border-purple-400' :
                     mult >= 10 ? 'border-emerald-400' :
                     mult >= 2 ? 'border-blue-400' :
                     mult < 1 ? 'border-red-400' :
                     'border-yellow-400'
-                  }`}
+                  } ${isHighlighted ? 'ring-2 ring-white shadow-lg' : ''}`}
                   style={{ minHeight: '24px' }}
                 >
                   <span className={`text-[7px] font-bold ${textColor}`}>
                     {mult}x
                   </span>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -458,14 +470,14 @@ export default function PlinkoGamePage() {
           {!matterLoaded ? 'Loading...' : activeBallsCount > 0 ? `Drop Ball (${activeBallsCount} active)` : 'Drop Ball'}
         </motion.button>
 
-        {/* Live History - All Players */}
-        <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2 max-h-[120px] overflow-y-auto">
+        {/* Live History - All Players - NO SCROLL, 10 bets */}
+        <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
           <div className="flex items-center gap-1.5 mb-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <p className="text-white/60 text-[10px] font-medium">Live Bets</p>
           </div>
           <div className="space-y-1">
-            {liveHistory.slice(0, 5).map((bet, i) => (
+            {liveHistory.slice(0, 10).map((bet, i) => (
               <motion.div
                 key={`${bet.timestamp}-${i}`}
                 initial={{ opacity: 0, x: -20 }}
@@ -474,10 +486,24 @@ export default function PlinkoGamePage() {
                 className="flex items-center justify-between bg-white/5 rounded-md px-2 py-1.5"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[8px] font-bold text-white">
-                      {bet.username.charAt(0).toUpperCase()}
-                    </span>
+                  {/* Game Icon SVG */}
+                  <div className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-blue-400"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <circle cx="12" cy="12" r="6" />
+                      <circle cx="12" cy="12" r="2" />
+                    </svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-[10px] font-medium truncate">
@@ -510,11 +536,6 @@ export default function PlinkoGamePage() {
                 </div>
               </motion.div>
             ))}
-            {liveHistory.length === 0 && (
-              <p className="text-white/40 text-[9px] text-center py-2">
-                No recent bets
-              </p>
-            )}
           </div>
         </div>
       </div>
