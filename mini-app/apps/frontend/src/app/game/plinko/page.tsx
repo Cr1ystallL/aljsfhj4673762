@@ -272,10 +272,10 @@ export default function PlinkoGamePage() {
         <DemoModeToggle />
       </div>
 
-      {/* Main Content - Fits on screen */}
-      <div className="flex-1 flex flex-col px-3 pb-24 gap-2 overflow-hidden">
+      {/* Main Content - Ultra Compact */}
+      <div className="flex-1 flex flex-col px-2 pb-20 gap-1.5 overflow-hidden">
         {/* Plinko Board - Takes most space */}
-        <div className="flex-1 rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden min-h-0 relative">
+        <div className="flex-1 rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden min-h-0 relative">
           <canvas
             ref={canvasRef}
             className="w-full h-full"
@@ -283,7 +283,7 @@ export default function PlinkoGamePage() {
           />
           
           {/* Multiplier buckets overlay - BELOW pyramid */}
-          <div className="absolute bottom-0 left-0 right-0 flex gap-[1px] px-[2px] pb-[2px] pointer-events-none">
+          <div className="absolute bottom-0 left-0 right-0 flex gap-[1px] px-[1px] pb-[1px] pointer-events-none">
             {MULTIPLIERS[riskLevel].map((mult, i) => {
               let bgColor = 'bg-white/5';
               let textColor = 'text-white/40';
@@ -305,16 +305,16 @@ export default function PlinkoGamePage() {
               return (
                 <div
                   key={i}
-                  className={`flex-1 ${bgColor} rounded-sm flex items-center justify-center py-1.5 border-b-[3px] ${
+                  className={`flex-1 ${bgColor} rounded-sm flex items-center justify-center py-1 border-b-[2px] ${
                     mult >= 100 ? 'border-purple-400' :
                     mult >= 10 ? 'border-emerald-400' :
                     mult >= 2 ? 'border-blue-400' :
                     mult < 1 ? 'border-red-400' :
                     'border-yellow-400'
                   }`}
-                  style={{ minHeight: '32px' }}
+                  style={{ minHeight: '24px' }}
                 >
-                  <span className={`text-[8px] font-bold ${textColor}`}>
+                  <span className={`text-[7px] font-bold ${textColor}`}>
                     {mult}x
                   </span>
                 </div>
@@ -323,16 +323,16 @@ export default function PlinkoGamePage() {
           </div>
         </div>
 
-        {/* Controls - Compact */}
-        <div className="grid grid-cols-2 gap-2">
-          {/* Bet Amount - Simple input only */}
-          <div className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3">
-            <p className="text-white/60 text-xs mb-2">Bet Amount</p>
+        {/* Controls - Ultra Compact */}
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* Bet Amount */}
+          <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
+            <p className="text-white/60 text-[10px] mb-1">Bet Amount</p>
             <input
               type="number"
               value={betAmount}
               onChange={(e) => setBetAmount(parseFloat(e.target.value) || 0.1)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center text-white text-base"
+              className="w-full bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-center text-white text-sm"
               step={0.1}
               min={0.1}
               max={10000}
@@ -342,15 +342,15 @@ export default function PlinkoGamePage() {
           </div>
 
           {/* Risk Level */}
-          <div className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3">
-            <p className="text-white/60 text-xs mb-2">Risk Level</p>
+          <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
+            <p className="text-white/60 text-[10px] mb-1">Risk Level</p>
             <div className="flex gap-1">
               {(['low', 'medium', 'high'] as const).map((level) => (
                 <button
                   key={level}
                   onClick={() => !isDropping && setRiskLevel(level)}
                   disabled={isDropping}
-                  className={`flex-1 py-1 rounded-lg text-xs font-medium transition-all ${
+                  className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all ${
                     riskLevel === level
                       ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
                       : 'bg-white/5 text-white/60 hover:bg-white/10'
@@ -363,38 +363,38 @@ export default function PlinkoGamePage() {
           </div>
         </div>
 
-        {/* Drop Button */}
+        {/* Drop Button - Compact */}
         <motion.button
           onClick={handleDrop}
           disabled={isDropping || !matterLoaded}
           whileHover={{ scale: isDropping ? 1 : 1.02 }}
           whileTap={{ scale: isDropping ? 1 : 0.98 }}
-          className={`w-full py-3 rounded-xl font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2 ${
+          className={`w-full py-2.5 rounded-lg font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 ${
             isDropping || !matterLoaded
               ? 'bg-gray-700 text-white/40 cursor-not-allowed'
               : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
           }`}
         >
-          <Target className="w-5 h-5" />
+          <Target className="w-4 h-4" />
           {!matterLoaded ? 'Loading...' : isDropping ? 'Dropping...' : 'Drop Ball'}
         </motion.button>
 
-        {/* History - Compact */}
-        <div className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        {/* History - Ultra Compact */}
+        <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <svg className="w-3 h-3 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p className="text-white/60 text-xs">Recent</p>
+            <p className="text-white/60 text-[10px]">Recent</p>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {history.slice(0, 8).map((item, i) => (
+          <div className="flex flex-wrap gap-1">
+            {history.slice(0, 10).map((item, i) => (
               <motion.div
                 key={i}
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: i * 0.02 }}
-                className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                   item.multiplier >= 100
                     ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
                     : item.multiplier >= 10
