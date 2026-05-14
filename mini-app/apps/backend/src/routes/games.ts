@@ -18,8 +18,8 @@ import { logger } from '../utils/logger.js';
 
 // Rate limiting tracking
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 10000; // 10 seconds
-const RATE_LIMIT_MAX = 100; // 100 actions per window (increased for fast games like Plinko)
+const RATE_LIMIT_WINDOW = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '10000', 10);
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '1000', 10);
 
 function checkRateLimit(userId: string, action: string): boolean {
   const key = `${userId}:${action}`;

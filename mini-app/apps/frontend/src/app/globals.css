@@ -122,6 +122,23 @@
     box-shadow: 0 0 40px rgba(255, 172, 46, 0.15);
   }
   
+  /* Premium glow effects */
+  .glow-emerald {
+    box-shadow: 0 0 60px rgba(16, 185, 129, 0.3), 0 0 30px rgba(16, 185, 129, 0.2);
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 60px rgba(59, 130, 246, 0.3), 0 0 30px rgba(59, 130, 246, 0.2);
+  }
+  
+  .glow-purple {
+    box-shadow: 0 0 60px rgba(168, 85, 247, 0.3), 0 0 30px rgba(168, 85, 247, 0.2);
+  }
+  
+  .glow-red {
+    box-shadow: 0 0 60px rgba(239, 68, 68, 0.3), 0 0 30px rgba(239, 68, 68, 0.2);
+  }
+  
   /* Hide scrollbar but keep functionality */
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -139,6 +156,26 @@
   
   .element-gap {
     gap: var(--element-gap);
+  }
+  
+  /* Premium card styles */
+  .card-premium {
+    @apply rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-2xl;
+  }
+  
+  /* Animated gradient background */
+  @keyframes gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
   }
 }
 

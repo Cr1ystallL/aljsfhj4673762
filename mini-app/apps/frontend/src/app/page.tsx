@@ -1,104 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { PageTransition } from '@/components/ui/page-transition';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GameCard } from '@/components/ui/game-card';
-import { BalanceDisplay } from '@/components/ui/balance-display';
-import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+/**
+ * Home Page - Redirects to Crash Game
+ * 
+ * Main screen shows Crash game directly as requested.
+ * Users see the game immediately when opening the mini app.
+ */
 export default function HomePage() {
   const router = useRouter();
 
+  useEffect(() => {
+    // Redirect to Crash game on mount
+    router.replace('/game/crash');
+  }, [router]);
+
+  // Show minimal loading state during redirect
   return (
-    <PageTransition>
-      <div className="min-h-screen flex flex-col pb-32 pt-safe px-safe">
-        {/* Header */}
-        <header className="p-6">
-          <motion.h1
-            className="text-4xl font-bold text-white mb-6"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            Casino
-          </motion.h1>
-          
-          {/* Balance */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <BalanceDisplay amount={10000} demoMode />
-          </motion.div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 px-6 space-y-6">
-          {/* Featured Games */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h3 className="text-xl font-bold text-white mb-4">Featured</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <GameCard
-                id="crash"
-                name="Crash"
-                icon="🚀"
-                description="Multiplayer"
-                players={42}
-                onClick={() => router.push('/game/crash')}
-              />
-              
-              <GameCard
-                id="plinko"
-                name="Plinko"
-                icon="🎯"
-                description="Classic"
-                onClick={() => router.push('/game/plinko')}
-              />
-            </div>
-          </motion.div>
-
-          {/* All Games */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <h3 className="text-xl font-bold text-white mb-4">All Games</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <GameCard
-                id="mines"
-                name="Mines"
-                icon="💣"
-                onClick={() => router.push('/game/mines')}
-              />
-              <GameCard
-                id="cookies"
-                name="Cookies"
-                icon="🍪"
-                onClick={() => router.push('/game/cookies')}
-              />
-              <GameCard
-                id="nuts"
-                name="Nuts"
-                icon="🥜"
-                onClick={() => router.push('/game/nuts')}
-              />
-              <GameCard
-                id="keno"
-                name="Keno"
-                icon="🎱"
-                onClick={() => router.push('/game/keno')}
-              />
-            </div>
-          </motion.div>
-        </main>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-black via-gray-900 to-black">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-white/60 text-sm">Loading...</p>
       </div>
-    </PageTransition>
+    </div>
   );
 }

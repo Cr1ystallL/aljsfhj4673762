@@ -10,14 +10,14 @@ interface BottomNavigationProps {
 }
 
 /**
- * Bottom Navigation - Monopo Saigon Style
+ * Bottom Navigation - Premium Modern Style
  * 
  * DESIGN:
- * - Floating glass effect with subtle depth
- * - Center Play button dominant with animated pulse
- * - Pill-shaped container
+ * - Dark glassmorphic effect with depth and shadows
+ * - Center Play button with gradient and glow
+ * - Rounded container with border glow
  * - Spacious layout with generous padding
- * - Smooth, premium interactions
+ * - Smooth, premium interactions with hover effects
  */
 export function BottomNavigation({
   onMenuClick,
@@ -25,79 +25,87 @@ export function BottomNavigation({
   onProfileClick,
 }: BottomNavigationProps) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe">
-      {/* Glassmorphic container */}
-      <div className="relative mx-4 mb-4 rounded-pill glass-strong border border-white/20 overflow-hidden">
-        {/* Subtle gradient overlay for depth */}
-        <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent pointer-events-none" />
+    <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none">
+      {/* Glassmorphic container with glow */}
+      <div className="relative mx-3 mb-3 pointer-events-auto">
+        {/* Outer glow effect */}
+        <div className="absolute inset-0 rounded-[28px] bg-gradient-to-r from-emerald-500/20 via-blue-500/20 to-purple-500/20 blur-xl" />
         
-        <div className="relative flex items-center justify-between px-8 py-4">
-          {/* Menu Button */}
-          <motion.button
-            onClick={onMenuClick}
-            className="flex flex-col items-center gap-1 text-whisper-gray hover:text-frost-white transition-all duration-300"
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-          >
-            <Menu size={24} strokeWidth={1.5} />
-            <span className="text-caption font-roobert">Menu</span>
-          </motion.button>
+        {/* Main container */}
+        <div className="relative rounded-[28px] bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-visible">
+          {/* Subtle gradient overlay for depth */}
+          <div className="absolute inset-0 bg-gradient-to-t from-white/5 via-transparent to-white/5 pointer-events-none rounded-[28px]" />
           
-          {/* Play Button - Dominant Center with Pulse */}
-          <motion.button
-            onClick={onPlayClick}
-            className="relative -mt-10"
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-          >
-            {/* Soft glow - atmospheric */}
-            <div className="absolute inset-0 rounded-full bg-gradient-ocean opacity-25 blur-2xl" />
+          <div className="relative flex items-center justify-between px-6 py-3">
+            {/* Menu Button */}
+            <motion.button
+              onClick={onMenuClick}
+              className="flex flex-col items-center gap-1 text-white/60 hover:text-white transition-all duration-300 relative group min-w-[60px]"
+              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+            >
+              {/* Hover glow */}
+              <div className="absolute inset-0 rounded-2xl bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
+              
+              <div className="relative">
+                <Menu size={22} strokeWidth={2} />
+              </div>
+              <span className="text-[10px] font-medium tracking-wide relative">Menu</span>
+            </motion.button>
             
-            {/* Animated pulse rings */}
-            <motion.div
-              className="absolute inset-0 rounded-full border-2 border-white/30"
-              animate={{
-                scale: [1, 1.3, 1],
-                opacity: [0.6, 0, 0.6],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            />
+            {/* Play Button - Compact Center with Gradient & Glow */}
+            <motion.button
+              onClick={onPlayClick}
+              className="relative -mt-8"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              {/* Multi-layer glow effect */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-400 opacity-30 blur-2xl" />
+              
+              {/* Animated pulse rings */}
+              <motion.div
+                className="absolute inset-0 rounded-full border-2 border-emerald-400/30"
+                animate={{
+                  scale: [1, 1.3, 1],
+                  opacity: [0.5, 0, 0.5],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+              />
+              
+              {/* Button with premium gradient */}
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 via-blue-500 to-purple-600 flex items-center justify-center shadow-2xl">
+                {/* Inner shine effect */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-transparent to-transparent" />
+                
+                {/* Icon */}
+                <div className="relative">
+                  <Play size={32} fill="white" strokeWidth={0} className="ml-1 drop-shadow-lg" />
+                </div>
+              </div>
+            </motion.button>
             
-            <motion.div
-              className="absolute inset-0 rounded-full border-2 border-white/20"
-              animate={{
-                scale: [1, 1.5, 1],
-                opacity: [0.4, 0, 0.4],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                delay: 0.5,
-              }}
-            />
-            
-            {/* Button with gradient */}
-            <div className="relative w-24 h-24 rounded-full bg-gradient-ocean flex items-center justify-center shadow-2xl">
-              <Play size={36} fill="white" strokeWidth={0} className="ml-1" />
-            </div>
-          </motion.button>
-          
-          {/* Profile Button */}
-          <motion.button
-            onClick={onProfileClick}
-            className="flex flex-col items-center gap-1 text-whisper-gray hover:text-frost-white transition-all duration-300"
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-          >
-            <User size={24} strokeWidth={1.5} />
-            <span className="text-caption font-roobert">Profile</span>
-          </motion.button>
+            {/* Profile Button */}
+            <motion.button
+              onClick={onProfileClick}
+              className="flex flex-col items-center gap-1 text-white/60 hover:text-white transition-all duration-300 relative group min-w-[60px]"
+              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+            >
+              {/* Hover glow */}
+              <div className="absolute inset-0 rounded-2xl bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
+              
+              <div className="relative">
+                <User size={22} strokeWidth={2} />
+              </div>
+              <span className="text-[10px] font-medium tracking-wide relative">Profile</span>
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
