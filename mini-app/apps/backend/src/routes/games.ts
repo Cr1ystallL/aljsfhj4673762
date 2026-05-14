@@ -477,6 +477,59 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           },
         });
 
+        logger.info({ count: bets.length }, 'Fetched plinko history');
+
+        // If no bets found, try without state filter
+        if (bets.length === 0) {
+          const allBets = await prisma.bet.findMany({
+            where: {
+              gameType: 'plinko',
+            },
+            orderBy: {
+              placedAt: 'desc',
+            },
+            take: Math.min(limit * 3, 100),
+            select: {
+              id: true,
+              amount: true,
+              payout: true,
+              multiplier: true,
+              state: true,
+              placedAt: true,
+              resolvedAt: true,
+              user: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  username: true,
+                },
+              },
+            },
+          });
+
+          logger.info({ count: allBets.length, states: allBets.map(b => b.state) }, 'All plinko bets (any state)');
+
+          // Shuffle and take random subset
+          const shuffled = allBets
+            .filter(b => b.payout && b.multiplier) // Only bets with results
+            .sort(() => Math.random() - 0.5)
+            .slice(0, limit);
+
+          // Format for frontend
+          const history = shuffled.map((bet) => ({
+            username: bet.user.username || bet.user.firstName || 'Player',
+            betAmount: Number(bet.amount),
+            multiplier: Number(bet.multiplier || 0),
+            payout: Number(bet.payout || 0),
+            timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
+          }));
+
+          return reply.send({
+            success: true,
+            history,
+          });
+        }
+
         // Shuffle and take random subset
         const shuffled = bets.sort(() => Math.random() - 0.5).slice(0, limit);
 

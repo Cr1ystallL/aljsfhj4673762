@@ -165,20 +165,21 @@ export default function PlinkoGamePage() {
     const bottomLeft = width / 2 - pyramidBottomWidth / 2 - GAP * 2; // Move LEFT more
     const bottomRight = width / 2 + pyramidBottomWidth / 2 + GAP * 2; // Move RIGHT more
     
-    // Left wall - DIAGONAL from top-left to bottom-left, EXTENDED
+    // Left wall - DIAGONAL, EXTENDED TO SCREEN EDGE with STRONGER BOUNCE
     const leftWallVertices = [
-      { x: topLeft - wallThickness * 2, y: pyramidTop },
+      { x: 0, y: pyramidTop }, // Start from screen edge
       { x: topLeft, y: pyramidTop },
       { x: bottomLeft, y: pyramidBottom },
-      { x: bottomLeft - wallThickness * 2, y: pyramidBottom },
+      { x: 0, y: pyramidBottom }, // End at screen edge
     ];
     const leftWall = Matter.Bodies.fromVertices(
-      (topLeft + bottomLeft) / 2 - wallThickness,
+      topLeft / 2,
       (pyramidTop + pyramidBottom) / 2,
       [leftWallVertices],
       {
         isStatic: true,
         label: 'Wall',
+        restitution: 1.2, // STRONGER BOUNCE to push balls toward center
         render: {
           fillStyle: 'rgba(139, 92, 246, 0.3)', // Purple glow
           strokeStyle: 'rgba(139, 92, 246, 0.6)',
@@ -187,20 +188,21 @@ export default function PlinkoGamePage() {
       }
     );
     
-    // Right wall - DIAGONAL from top-right to bottom-right, EXTENDED
+    // Right wall - DIAGONAL, EXTENDED TO SCREEN EDGE with STRONGER BOUNCE
     const rightWallVertices = [
       { x: topRight, y: pyramidTop },
-      { x: topRight + wallThickness * 2, y: pyramidTop },
-      { x: bottomRight + wallThickness * 2, y: pyramidBottom },
+      { x: width, y: pyramidTop }, // Start from screen edge
+      { x: width, y: pyramidBottom }, // End at screen edge
       { x: bottomRight, y: pyramidBottom },
     ];
     const rightWall = Matter.Bodies.fromVertices(
-      (topRight + bottomRight) / 2 + wallThickness,
+      (topRight + width) / 2,
       (pyramidTop + pyramidBottom) / 2,
       [rightWallVertices],
       {
         isStatic: true,
         label: 'Wall',
+        restitution: 1.2, // STRONGER BOUNCE to push balls toward center
         render: {
           fillStyle: 'rgba(139, 92, 246, 0.3)', // Purple glow
           strokeStyle: 'rgba(139, 92, 246, 0.6)',
@@ -335,6 +337,12 @@ export default function PlinkoGamePage() {
   const handleDrop = async () => {
     if (!engineRef.current || !Matter) return;
     
+    // Check if user has enough balance
+    if (!isDemoMode && balance && balance.amount < betAmount) {
+      alert('Insufficient balance! Please deposit or reduce bet amount.');
+      return;
+    }
+    
     try {
       const response = await fetch('/api/games/plinko/drop', {
         method: 'POST',
@@ -348,7 +356,9 @@ export default function PlinkoGamePage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to drop ball');
+        const error = await response.json();
+        alert(error.message || 'Failed to drop ball');
+        return;
       }
 
       const canvas = canvasRef.current;
@@ -372,6 +382,7 @@ export default function PlinkoGamePage() {
       soundManager.play('ui.click');
     } catch (error) {
       console.error('Drop failed:', error);
+      alert('Failed to place bet. Please try again.');
     }
   };
 
@@ -387,33 +398,50 @@ export default function PlinkoGamePage() {
             style={{ imageRendering: 'auto' }}
           />
           
-          {/* Win Notification - Toast style in top-right corner */}
+          {/* Win Notification - Stylish compact design */}
           {winNotification?.show && (
             <motion.div
-              initial={{ opacity: 0, x: 100, y: -20 }}
-              animate={{ opacity: 1, x: 0, y: 0 }}
-              exit={{ opacity: 0, x: 100 }}
-              className="absolute top-2 right-2 z-50"
+              initial={{ opacity: 0, scale: 0.8, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -10 }}
+              className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50"
             >
-              <div className={`px-4 py-2 rounded-lg backdrop-blur-xl border shadow-lg flex items-center gap-2 ${
+              <div className={`px-6 py-3 rounded-2xl backdrop-blur-2xl border-2 shadow-2xl flex items-center gap-3 ${
                 winNotification.multiplier >= 10
-                  ? 'bg-emerald-500/30 border-emerald-400/50'
+                  ? 'bg-gradient-to-r from-emerald-500/40 to-emerald-600/40 border-emerald-400'
                   : winNotification.multiplier < 1
-                  ? 'bg-red-500/30 border-red-400/50'
-                  : 'bg-blue-500/30 border-blue-400/50'
+                  ? 'bg-gradient-to-r from-red-500/40 to-red-600/40 border-red-400'
+                  : 'bg-gradient-to-r from-blue-500/40 to-blue-600/40 border-blue-400'
               }`}>
-                <span className={`text-sm font-bold ${
-                  winNotification.multiplier >= 10
-                    ? 'text-emerald-400'
-                    : winNotification.multiplier < 1
-                    ? 'text-red-400'
-                    : 'text-blue-400'
-                }`}>
-                  {winNotification.multiplier}x
-                </span>
-                <span className="text-white text-sm font-semibold">
-                  {winNotification.multiplier >= 1 ? '+' : ''}${winNotification.amount.toFixed(2)}
-                </span>
+                <div className="flex flex-col items-center">
+                  <span className={`text-xs font-medium ${
+                    winNotification.multiplier >= 10
+                      ? 'text-emerald-300'
+                      : winNotification.multiplier < 1
+                      ? 'text-red-300'
+                      : 'text-blue-300'
+                  }`}>
+                    Multiplier
+                  </span>
+                  <span className={`text-2xl font-black ${
+                    winNotification.multiplier >= 10
+                      ? 'text-emerald-400'
+                      : winNotification.multiplier < 1
+                      ? 'text-red-400'
+                      : 'text-blue-400'
+                  }`}>
+                    {winNotification.multiplier}x
+                  </span>
+                </div>
+                <div className="w-px h-10 bg-white/20" />
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-medium text-white/60">
+                    {winNotification.multiplier >= 1 ? 'Win' : 'Loss'}
+                  </span>
+                  <span className="text-2xl font-black text-white">
+                    {winNotification.multiplier >= 1 ? '+' : ''}${winNotification.amount.toFixed(2)}
+                  </span>
+                </div>
               </div>
             </motion.div>
           )}
@@ -466,38 +494,52 @@ export default function PlinkoGamePage() {
           </div>
         </div>
 
-        {/* Controls - Ultra Compact */}
-        <div className="grid grid-cols-2 gap-1.5">
-          {/* Bet Amount */}
-          <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
-            <p className="text-white/60 text-[10px] mb-1">Bet Amount</p>
-            <input
-              type="number"
-              value={betAmount}
-              onChange={(e) => setBetAmount(parseFloat(e.target.value) || 0.1)}
-              className="w-full bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-center text-white text-sm"
-              step={0.1}
-              min={0.1}
-              max={10000}
-              placeholder="Enter amount"
-            />
+        {/* Controls - Combined in one beautiful element */}
+        <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-3">
+          {/* Bet Amount with x2 and 1/2 buttons */}
+          <div className="mb-3">
+            <p className="text-white/60 text-[10px] mb-1.5">Bet Amount</p>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setBetAmount((prev) => Math.max(0.1, prev / 2))}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white text-xs font-medium transition-all"
+              >
+                1/2
+              </button>
+              <input
+                type="number"
+                value={betAmount}
+                onChange={(e) => setBetAmount(parseFloat(e.target.value) || 0.1)}
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center text-white text-sm font-semibold"
+                step={0.1}
+                min={0.1}
+                max={10000}
+                placeholder="0.00"
+              />
+              <button
+                onClick={() => setBetAmount((prev) => Math.min(10000, prev * 2))}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white text-xs font-medium transition-all"
+              >
+                x2
+              </button>
+            </div>
           </div>
 
           {/* Risk Level */}
-          <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
-            <p className="text-white/60 text-[10px] mb-1">Risk Level</p>
-            <div className="flex gap-1">
+          <div>
+            <p className="text-white/60 text-[10px] mb-1.5">Risk Level</p>
+            <div className="flex gap-1.5">
               {(['low', 'medium', 'high'] as const).map((level) => (
                 <button
                   key={level}
                   onClick={() => setRiskLevel(level)}
-                  className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all ${
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
                     riskLevel === level
-                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
-                      : 'bg-white/5 text-white/60 hover:bg-white/10'
+                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg'
+                      : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
                   }`}
                 >
-                  {level[0].toUpperCase()}
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
                 </button>
               ))}
             </div>

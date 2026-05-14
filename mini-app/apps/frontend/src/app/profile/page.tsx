@@ -38,15 +38,20 @@ export default function ProfilePage() {
   winTransactions.forEach((tx) => {
     const txAny = tx as any;
     const mult = txAny.metadata?.multiplier;
-    if (mult && typeof mult === 'number' && mult > maxMultiplier) {
-      maxMultiplier = mult;
+    
+    // Convert to number if it's a string
+    const multNum = typeof mult === 'string' ? parseFloat(mult) : mult;
+    
+    if (multNum && typeof multNum === 'number' && !isNaN(multNum) && multNum > maxMultiplier) {
+      maxMultiplier = multNum;
     }
   });
   
   console.log('Max multiplier calculation:', { 
     totalTransactions: transactions.length, 
     winTransactions: winTransactions.length,
-    maxMultiplier 
+    maxMultiplier,
+    sampleMetadata: winTransactions.slice(0, 3).map(tx => (tx as any).metadata)
   });
 
   // Get user initials
