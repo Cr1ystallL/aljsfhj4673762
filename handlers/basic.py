@@ -5,6 +5,7 @@ from typing import Union
 from aiogram import Router, F
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.context import FSMContext
 
 from database.db import db
 from config import config
@@ -17,8 +18,9 @@ router = Router()
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, command: CommandObject):
+async def cmd_start(message: Message, command: CommandObject, state: FSMContext):
     """Обработчик команды /start"""
+    await state.clear()
     user_id = message.from_user.id
     username = message.from_user.first_name
     

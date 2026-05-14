@@ -80,6 +80,15 @@ def get_withdrawal_methods_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+def get_withdraw_amount_cancel_keyboard(lang: str) -> InlineKeyboardMarkup:
+    """Отмена ввода суммы вывода"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=get_text(lang, 'btn_withdraw_cancel'), callback_data="cancel_withdraw_input")]
+        ]
+    )
+
+
 def get_invoice_keyboard(lang: str, pay_url: str, invoice_id: int) -> InlineKeyboardMarkup:
     """Клавиатура для оплаты инвойса"""
     keyboard = [
@@ -388,14 +397,34 @@ async def withdraw_cryptobot(callback: CallbackQuery, state: FSMContext):
     balance_usdt = balance_rub / usdt_rate
     
     text = get_text(lang, 'withdraw_enter_amount', available=f"{balance_usdt:.2f}")
-    
-    msg = await callback.message.edit_text(text)
+
+    msg = await callback.message.edit_text(text, reply_markup=get_withdraw_amount_cancel_keyboard(lang))
     await state.update_data(
         prompt_message_id=msg.message_id,
         available_usdt=balance_usdt,
         usdt_rate=usdt_rate
     )
     await state.set_state(WithdrawalStates.waiting_for_amount)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cancel_withdraw_input")
+async def cancel_withdraw_input(callback: CallbackQuery, state: FSMContext):
+    """Отмена ввода суммы вывода (кнопка)"""
+    await state.clear()
+    user_id = callback.from_user.id
+    lang = db.get_user_language(user_id)
+    balance = db.get_balance(user_id)
+    profile_text = get_text(lang, 'profile_balance', balance=format_amount(balance))
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance"),
+                InlineKeyboardButton(text=get_text(lang, 'btn_withdraw'), callback_data="withdraw_balance"),
+            ]
+        ]
+    )
+    await callback.message.edit_text(profile_text, reply_markup=keyboard)
     await callback.answer()
 
 

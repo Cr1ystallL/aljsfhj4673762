@@ -18,6 +18,7 @@ model User {
   firstName    String?  @map("first_name")
   lastName     String?  @map("last_name")
   languageCode String?  @map("language_code")
+  photoUrl     String?  @map("photo_url")
   isPremium    Boolean  @default(false) @map("is_premium")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

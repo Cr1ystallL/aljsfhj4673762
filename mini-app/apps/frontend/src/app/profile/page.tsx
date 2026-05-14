@@ -12,10 +12,28 @@ export default function ProfilePage() {
   const { user } = useAuthStore();
   const { balance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
+  const [realBalanceAmount, setRealBalanceAmount] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchTransactions();
+    fetchTransactions(7);
   }, [fetchTransactions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/balance?demo=false', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = (await res.json()) as { balance: { amount: number } };
+        if (!cancelled) setRealBalanceAmount(data.balance.amount);
+      } catch {
+        if (!cancelled) setRealBalanceAmount(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Calculate stats
   const totalBets = transactions.filter((tx) => tx.type === 'bet').length;
@@ -47,13 +65,6 @@ export default function ProfilePage() {
     }
   });
   
-  console.log('Max multiplier calculation:', { 
-    totalTransactions: transactions.length, 
-    winTransactions: winTransactions.length,
-    maxMultiplier,
-    sampleMetadata: winTransactions.slice(0, 3).map(tx => (tx as any).metadata)
-  });
-
   // Get user initials
   const getInitials = () => {
     if (user?.firstName) {
@@ -69,7 +80,9 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <h1 className="text-white font-semibold text-lg">Аккаунт</h1>
           <div className="bg-blue-500/20 border border-blue-500/40 rounded-lg px-3 py-1.5 flex items-center gap-2">
-            <span className="text-white font-semibold text-sm">{balance?.amount || 0}</span>
+            <span className="text-white font-semibold text-sm">
+              {realBalanceAmount ?? balance?.amount ?? 0}
+            </span>
             <span className="text-white/60 text-xs">₽</span>
           </div>
         </div>
@@ -209,7 +222,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {transactions.slice(0, 10).map((tx, index) => {
+              {transactions.slice(0, 7).map((tx, index) => {
                 const txAny = tx as any;
                 return (
                   <motion.div

@@ -6,14 +6,14 @@ import { logger } from '../utils/logger.js';
 
 /**
  * Balance Service - Synchronization Layer
- * 
- * CRITICAL: Python bot is the source of truth
+ *
+ * CRITICAL: Python bot / shared PostgreSQL is the source of truth for real balances
  * This service only:
  * - Caches balance for performance
- * - Synchronizes with Python bot
+ * - Synchronizes with Python bot when available
  * - Broadcasts updates via WebSocket
  * - Handles demo mode (isolated)
- * 
+ *
  * Does NOT:
  * - Own balance logic
  * - Process transactions independently
@@ -22,13 +22,21 @@ import { logger } from '../utils/logger.js';
 
 const prisma = new PrismaClient();
 
+function parseBotBalancePayload(data: unknown): number | null {
+  if (data == null || typeof data !== 'object') return null;
+  const o = data as Record<string, unknown>;
+  if (typeof o.amount === 'number' && !Number.isNaN(o.amount)) return o.amount;
+  if (typeof o.balance === 'number' && !Number.isNaN(o.balance)) return o.balance;
+  return null;
+}
+
 export class BalanceService {
   private readonly CACHE_PREFIX = 'balance:';
   private readonly CACHE_TTL = 60; // 1 minute
 
   /**
    * Get balance (real or demo)
-   * Real: Fetch from PostgreSQL (shared with Python bot)
+   * Real: Align with Python bot + `demo_mode = false` row (same query shape as bot DB code)
    * Demo: Fetch from local database
    */
   async getBalance(userId: string, demoMode: boolean = false) {
@@ -37,51 +45,64 @@ export class BalanceService {
     }
 
     try {
-      // Check cache first
       const cached = await this.getCachedBalance(userId);
-      if (cached) {
+      if (cached && cached.demoMode === false) {
         return cached;
       }
 
-      // Fetch from PostgreSQL (shared database with Python bot)
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { telegramId: true },
+      });
+      const telegramId = user ? Number(user.telegramId) : 0;
+
       const balance = await prisma.balance.findUnique({
         where: { userId },
       });
 
+      let realAmount = 0;
+
+      if (telegramId) {
+        const botPayload = await pythonBotAdapter.getBalance(telegramId);
+        const parsed = parseBotBalancePayload(botPayload);
+        if (parsed != null) {
+          realAmount = parsed;
+        }
+      }
+
       if (!balance || balance.demoMode) {
-        // Create real balance if doesn't exist
-        const newBalance = await prisma.balance.upsert({
+        await prisma.balance.upsert({
           where: { userId },
           update: {
+            amount: realAmount,
             demoMode: false,
+            lastSyncedAt: new Date(),
           },
           create: {
             userId,
-            amount: 0,
+            amount: realAmount,
             currency: 'USD',
             demoMode: false,
           },
         });
-
-        const result = {
-          amount: Number(newBalance.amount),
-          currency: newBalance.currency,
-          demoMode: false,
-        };
-
-        // Cache in Redis
-        await this.cacheBalance(userId, result);
-
-        return result;
+      } else if (Number(balance.amount) !== realAmount) {
+        await prisma.balance.update({
+          where: { userId },
+          data: {
+            amount: realAmount,
+            demoMode: false,
+            lastSyncedAt: new Date(),
+          },
+        });
       }
 
       const result = {
-        amount: Number(balance.amount),
-        currency: balance.currency,
+        amount: realAmount,
+        currency: 'USD',
         demoMode: false,
       };
 
-      // Cache in Redis
+      await this.invalidateCache(userId);
       await this.cacheBalance(userId, result);
 
       return result;
@@ -97,28 +118,10 @@ export class BalanceService {
    */
   async syncBalance(userId: string) {
     try {
-      // Read from PostgreSQL (shared with Python bot)
-      const balance = await prisma.balance.findUnique({
-        where: { userId },
-      });
-
-      if (!balance || balance.demoMode) {
-        return;
-      }
-
-      const amount = Number(balance.amount);
-
-      // Update cache
-      await this.cacheBalance(userId, {
-        amount,
-        currency: balance.currency,
-        demoMode: false,
-      });
-
-      // Broadcast to user's WebSocket connections
-      await this.broadcastBalanceUpdate(userId, amount, balance.currency, false);
-
-      logger.info({ userId, amount }, 'Balance synced from PostgreSQL');
+      await this.invalidateCache(userId);
+      const b = await this.getBalance(userId, false);
+      await this.broadcastBalanceUpdate(userId, b.amount, b.currency, false);
+      logger.info({ userId, amount: b.amount }, 'Balance synced');
     } catch (error) {
       logger.error(error, 'Failed to sync balance');
     }
@@ -284,7 +287,7 @@ export class BalanceService {
       const redis = redisClient.getClient();
       const cached = await redis.get(`${this.CACHE_PREFIX}${userId}`);
       if (cached) {
-        return JSON.parse(cached);
+        return JSON.parse(cached) as { amount: number; currency: string; demoMode: boolean };
       }
     } catch (error) {
       logger.error(error, 'Failed to get cached balance');

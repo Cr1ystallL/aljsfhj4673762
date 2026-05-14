@@ -43,6 +43,7 @@ export class UserService {
           lastName: telegramUser.last_name,
           languageCode: telegramUser.language_code,
           isPremium: telegramUser.is_premium || false,
+          photoUrl: telegramUser.photo_url ?? undefined,
           updatedAt: new Date(),
         },
         create: {
@@ -52,6 +53,7 @@ export class UserService {
           lastName: telegramUser.last_name,
           languageCode: telegramUser.language_code,
           isPremium: telegramUser.is_premium || false,
+          photoUrl: telegramUser.photo_url,
         },
       });
 

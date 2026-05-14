@@ -28,6 +28,26 @@ const MULTIPLIERS = {
 // Matter.js will be loaded dynamically
 let Matter: any = null;
 
+function LiveBetAvatar({ photoUrl, initials }: { photoUrl?: string; initials: string }) {
+  const [broken, setBroken] = useState(false);
+  const showPhoto = Boolean(photoUrl) && !broken;
+  return (
+    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+      {showPhoto ? (
+        <img
+          src={photoUrl}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={() => setBroken(true)}
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <span className="text-white text-[10px] font-bold">{initials}</span>
+      )}
+    </div>
+  );
+}
+
 export default function PlinkoGamePage() {
   const { balance, fetchBalance } = useBalance();
   const { isDemoMode } = useDemoMode();
@@ -49,7 +69,8 @@ export default function PlinkoGamePage() {
     multiplier: number;
     payout: number;
     timestamp: number;
-    telegramId?: string; // For avatar
+    telegramId?: string;
+    photoUrl?: string;
   }>>([]);
   const [playerHistory, setPlayerHistory] = useState<Array<{
     betAmount: number;
@@ -97,7 +118,7 @@ export default function PlinkoGamePage() {
     // Fetch live history periodically
     const fetchLiveHistory = async () => {
       try {
-        const response = await fetch('/api/games/plinko/history', {
+        const response = await fetch('/api/games/plinko/history?limit=7', {
           method: 'GET',
           credentials: 'include',
         });
@@ -579,7 +600,7 @@ export default function PlinkoGamePage() {
           </div>
         </div>
 
-        {/* Live History - All Players - NO SCROLL, 10 bets */}
+        {/* Live History - All Players */}
         <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
           <div className="flex items-center gap-1.5 mb-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -589,10 +610,9 @@ export default function PlinkoGamePage() {
             {liveHistory.length === 0 ? (
               <p className="text-white/40 text-[9px] text-center py-2">No recent bets</p>
             ) : (
-              liveHistory.slice(0, 10).map((bet, i) => {
-                // Get user initials for fallback
+              liveHistory.slice(0, 7).map((bet, i) => {
                 const initials = bet.username.charAt(0).toUpperCase();
-                
+
                 return (
                   <motion.div
                     key={`${bet.timestamp}-${i}`}
@@ -602,12 +622,7 @@ export default function PlinkoGamePage() {
                     className="flex items-center justify-between bg-white/5 rounded-md px-2 py-1.5"
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {/* User Avatar - Just show initials (simpler and works always) */}
-                      <div 
-                        className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0"
-                      >
-                        <span className="text-white text-[10px] font-bold">{initials}</span>
-                      </div>
+                      <LiveBetAvatar photoUrl={bet.photoUrl} initials={initials} />
                       
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-[10px] font-medium truncate">

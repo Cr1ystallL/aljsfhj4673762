@@ -445,21 +445,21 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const limit = parseInt(request.query.limit || '10', 10);
+      const limit = Math.min(parseInt(request.query.limit || '7', 10), 50);
 
       try {
         const prisma = app.prisma;
-        
-        // Get RANDOM recent plinko bets from ALL PLAYERS (not just current user)
+
+        // Recent completed Plinko bets from all players (newest first, stable order)
         const bets = await prisma.bet.findMany({
           where: {
-            gameType: 'plinko', // ONLY PLINKO BETS
-            state: 'resolved', // Only show completed bets
+            gameType: 'plinko',
+            state: 'won',
+            multiplier: { not: null },
+            payout: { not: null },
           },
-          orderBy: {
-            resolvedAt: 'desc',
-          },
-          take: Math.min(limit * 3, 100), // Get more to randomize
+          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
+          take: limit,
           select: {
             id: true,
             amount: true,
@@ -472,7 +472,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
                 firstName: true,
                 lastName: true,
                 username: true,
-                telegramId: true, // Need for avatar URL
+                telegramId: true,
+                photoUrl: true,
               },
             },
           },
@@ -480,70 +481,14 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
         logger.info({ count: bets.length }, 'Fetched plinko history');
 
-        // If no bets found, try without state filter
-        if (bets.length === 0) {
-          const allBets = await prisma.bet.findMany({
-            where: {
-              gameType: 'plinko', // ONLY PLINKO BETS
-            },
-            orderBy: {
-              placedAt: 'desc',
-            },
-            take: Math.min(limit * 3, 100),
-            select: {
-              id: true,
-              amount: true,
-              payout: true,
-              multiplier: true,
-              state: true,
-              placedAt: true,
-              resolvedAt: true,
-              user: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  username: true,
-                  telegramId: true, // Need for avatar URL
-                },
-              },
-            },
-          });
-
-          logger.info({ count: allBets.length, states: allBets.map(b => b.state) }, 'All plinko bets (any state)');
-
-          // Shuffle and take random subset
-          const shuffled = allBets
-            .filter(b => b.payout && b.multiplier) // Only bets with results
-            .sort(() => Math.random() - 0.5)
-            .slice(0, limit);
-
-          // Format for frontend
-          const history = shuffled.map((bet) => ({
-            username: bet.user.username || bet.user.firstName || 'Player',
-            betAmount: Number(bet.amount),
-            multiplier: Number(bet.multiplier || 0),
-            payout: Number(bet.payout || 0),
-            timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
-            telegramId: bet.user.telegramId.toString(), // For avatar
-          }));
-
-          return reply.send({
-            success: true,
-            history,
-          });
-        }
-
-        // Shuffle and take random subset
-        const shuffled = bets.sort(() => Math.random() - 0.5).slice(0, limit);
-
-        // Format for frontend
-        const history = shuffled.map((bet) => ({
+        const history = bets.map((bet) => ({
           username: bet.user.username || bet.user.firstName || 'Player',
           betAmount: Number(bet.amount),
           multiplier: Number(bet.multiplier || 0),
           payout: Number(bet.payout || 0),
           timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
-          telegramId: bet.user.telegramId.toString(), // For avatar
+          telegramId: bet.user.telegramId.toString(),
+          photoUrl: bet.user.photoUrl || undefined,
         }));
 
         return reply.send({
@@ -593,12 +538,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         const bets = await prisma.bet.findMany({
           where: {
             userId,
-            gameType: 'plinko', // ONLY PLINKO BETS
+            gameType: 'plinko',
+            state: 'won',
+            multiplier: { not: null },
+            payout: { not: null },
           },
-          orderBy: {
-            placedAt: 'desc',
-          },
-          take: Math.min(limit, 50), // Max 50 records
+          orderBy: [{ placedAt: 'desc' }],
+          take: Math.min(limit, 50),
           select: {
             id: true,
             amount: true,
@@ -612,11 +558,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
         logger.info({ userId, count: bets.length }, 'Fetched player plinko history');
 
-        // Filter only completed bets with results
-        const completedBets = bets.filter((b) => b.payout && b.multiplier);
-
-        // Format for frontend
-        const history = completedBets.map((bet) => ({
+        const history = bets.map((bet) => ({
           betAmount: Number(bet.amount),
           multiplier: Number(bet.multiplier || 0),
           payout: Number(bet.payout || 0),
