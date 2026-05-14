@@ -34,8 +34,8 @@ export default function PlinkoGamePage() {
   
   const [betAmount, setBetAmount] = useState(1);
   const [riskLevel, setRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [history, setHistory] = useState<Array<{ multiplier: number; payout: number }>>([]);
   const [isDropping, setIsDropping] = useState(false);
+  const [activeBallsCount, setActiveBallsCount] = useState(0);
   const [matterLoaded, setMatterLoaded] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,6 +43,7 @@ export default function PlinkoGamePage() {
   const renderRef = useRef<any>(null);
   const pegsRef = useRef<any[]>([]);
   const pegAnimsRef = useRef<(number | null)[]>([]);
+  const processedBallsRef = useRef<Set<any>>(new Set()); // Track processed balls
 
   // Load Matter.js
   useEffect(() => {
@@ -144,6 +145,14 @@ export default function PlinkoGamePage() {
             (bodyA.label === 'Ground' && bodyB.label === 'Ball')) {
           const ball = bodyA.label === 'Ball' ? bodyA : bodyB;
           
+          // Check if already processed
+          if (processedBallsRef.current.has(ball.id)) {
+            return;
+          }
+          
+          // Mark as processed
+          processedBallsRef.current.add(ball.id);
+          
           // Calculate which bucket
           const bucketWidth = width / 17;
           const index = Math.floor(ball.position.x / bucketWidth);
@@ -151,8 +160,6 @@ export default function PlinkoGamePage() {
           
           const multiplier = MULTIPLIERS[riskLevel][clampedIndex];
           const payout = betAmount * multiplier;
-          
-          setHistory((h) => [{ multiplier, payout }, ...h.slice(0, 11)]);
           
           // Play sound
           if (multiplier >= 10) {
@@ -163,11 +170,14 @@ export default function PlinkoGamePage() {
             soundManager.play('game.cashout');
           }
           
-          // Remove ball
+          // Remove ball and update balance
           setTimeout(() => {
             Matter.Composite.remove(engine.world, ball);
+            processedBallsRef.current.delete(ball.id);
             fetchBalance(isDemoMode);
-            setIsDropping(false);
+            
+            // Decrease active balls count
+            setActiveBallsCount((prev) => Math.max(0, prev - 1));
           }, 300);
         }
       });
@@ -218,7 +228,7 @@ export default function PlinkoGamePage() {
   }, [matterLoaded, riskLevel, betAmount, fetchBalance, isDemoMode]);
 
   const handleDrop = async () => {
-    if (isDropping || !engineRef.current || !Matter) return;
+    if (!engineRef.current || !Matter) return;
     
     try {
       const response = await fetch('/api/games/plinko/drop', {
@@ -253,11 +263,10 @@ export default function PlinkoGamePage() {
       });
       
       Matter.Composite.add(engineRef.current.world, [ball]);
-      setIsDropping(true);
+      setActiveBallsCount((prev) => prev + 1);
       soundManager.play('ui.click');
     } catch (error) {
       console.error('Drop failed:', error);
-      setIsDropping(false);
     }
   };
 
@@ -274,7 +283,7 @@ export default function PlinkoGamePage() {
 
       {/* Main Content - Ultra Compact */}
       <div className="flex-1 flex flex-col px-2 pb-20 gap-1.5 overflow-hidden">
-        {/* Plinko Board - Takes most space */}
+        {/* Plinko Board - BIGGER, takes almost all space */}
         <div className="flex-1 rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden min-h-0 relative">
           <canvas
             ref={canvasRef}
@@ -336,7 +345,6 @@ export default function PlinkoGamePage() {
               step={0.1}
               min={0.1}
               max={10000}
-              disabled={isDropping}
               placeholder="Enter amount"
             />
           </div>
@@ -348,8 +356,7 @@ export default function PlinkoGamePage() {
               {(['low', 'medium', 'high'] as const).map((level) => (
                 <button
                   key={level}
-                  onClick={() => !isDropping && setRiskLevel(level)}
-                  disabled={isDropping}
+                  onClick={() => setRiskLevel(level)}
                   className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all ${
                     riskLevel === level
                       ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
@@ -363,54 +370,21 @@ export default function PlinkoGamePage() {
           </div>
         </div>
 
-        {/* Drop Button - Compact */}
+        {/* Drop Button - Can drop multiple balls */}
         <motion.button
           onClick={handleDrop}
-          disabled={isDropping || !matterLoaded}
-          whileHover={{ scale: isDropping ? 1 : 1.02 }}
-          whileTap={{ scale: isDropping ? 1 : 0.98 }}
+          disabled={!matterLoaded}
+          whileHover={{ scale: !matterLoaded ? 1 : 1.02 }}
+          whileTap={{ scale: !matterLoaded ? 1 : 0.98 }}
           className={`w-full py-2.5 rounded-lg font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 ${
-            isDropping || !matterLoaded
+            !matterLoaded
               ? 'bg-gray-700 text-white/40 cursor-not-allowed'
               : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
           }`}
         >
           <Target className="w-4 h-4" />
-          {!matterLoaded ? 'Loading...' : isDropping ? 'Dropping...' : 'Drop Ball'}
+          {!matterLoaded ? 'Loading...' : activeBallsCount > 0 ? `Drop Ball (${activeBallsCount} active)` : 'Drop Ball'}
         </motion.button>
-
-        {/* History - Ultra Compact */}
-        <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <svg className="w-3 h-3 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <p className="text-white/60 text-[10px]">Recent</p>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {history.slice(0, 10).map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: i * 0.02 }}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                  item.multiplier >= 100
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                    : item.multiplier >= 10
-                    ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
-                    : item.multiplier >= 2
-                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
-                    : item.multiplier < 1
-                    ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white'
-                    : 'bg-white/10 text-white/60'
-                }`}
-              >
-                {item.multiplier}x
-              </motion.div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
