@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { BaseGameEngine } from '../../game-engine/base-game-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { provablyFair } from '../../game-engine/provably-fair.js';
+import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import type {
   GameRound,
@@ -108,9 +109,46 @@ export class CrashGameEngine extends BaseGameEngine {
    */
   start(): void {
     super.start();
-    void this.startRound().catch((err) =>
-      logger.error(err, 'Failed to start initial crash round')
-    );
+    // Hydrate the in-memory history strip from the persistent table so a
+    // fresh server still shows the last 20 crashes from previous sessions.
+    void this.hydrateHistory()
+      .catch((err) => logger.error(err, 'Failed to hydrate crash history'))
+      .finally(() => {
+        void this.startRound().catch((err) =>
+          logger.error(err, 'Failed to start initial crash round')
+        );
+      });
+  }
+
+  /**
+   * Load the last 20 completed crashes from the `game_rounds` table.
+   * Newest first internally, but we present old → new in events.
+   */
+  private async hydrateHistory(): Promise<void> {
+    const rows = await prisma.gameRound.findMany({
+      where: { gameType: 'crash', state: 'completed' },
+      orderBy: { endedAt: 'desc' },
+      take: 20,
+    });
+
+    const items: CrashHistory[] = rows
+      .map((r) => {
+        const meta = (r.metadata as { crashPoint?: number } | null) ?? null;
+        const cp = meta?.crashPoint;
+        if (typeof cp !== 'number') return null;
+        return {
+          roundId: r.id,
+          crashPoint: cp,
+          timestamp: r.endedAt?.getTime() ?? r.createdAt.getTime(),
+          playerCount: 0,
+          totalWagered: 0,
+        } as CrashHistory;
+      })
+      .filter((x): x is CrashHistory => x !== null)
+      .reverse(); // chronological
+
+    this.history = items;
+    logger.info({ count: items.length }, 'Crash history hydrated');
   }
 
   /* -----------------------------------------------------------------------
@@ -531,6 +569,7 @@ export class CrashGameEngine extends BaseGameEngine {
 
   private async crash(): Promise<void> {
     const crashPoint = this.crashState.crashPoint;
+    const round = this.room.currentRound!;
 
     this.emitEvent('game:crashed', {
       crashPoint: parseFloat(crashPoint.toFixed(2)),
@@ -544,13 +583,41 @@ export class CrashGameEngine extends BaseGameEngine {
     );
 
     this.history.push({
-      roundId: this.room.currentRound!.id,
+      roundId: round.id,
       crashPoint,
       timestamp: Date.now(),
       playerCount: this.getRoomStats().playerCount,
       totalWagered,
     });
     if (this.history.length > this.MAX_HISTORY) this.history.shift();
+
+    // Persist this round to `game_rounds` so the history strip is durable
+    // across server restarts and visible to all clients (not just those
+    // who were online when the round happened).
+    try {
+      await prisma.gameRound.create({
+        data: {
+          id: round.id,
+          gameType: 'crash',
+          state: 'completed',
+          serverSeedHash: this.currentServerSeedHash,
+          serverSeed: round.serverSeed,
+          clientSeed: round.clientSeed ?? null,
+          nonce: round.nonce,
+          startedAt: round.startedAt ? new Date(round.startedAt) : null,
+          endedAt: new Date(),
+          metadata: {
+            crashPoint,
+            finalMultiplier: this.crashState.currentMultiplier,
+            playerCount: this.getRoomStats().playerCount,
+            totalWagered,
+          },
+          result: { crashPoint },
+        },
+      });
+    } catch (err) {
+      logger.error(err, 'Failed to persist crash round');
+    }
 
     await this.endRound({
       crashPoint,

@@ -1,11 +1,350 @@
-import { ComingSoon } from '@/components/game/coming-soon';
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { Bomb } from 'lucide-react';
+
+import { GameTopBar } from '@/components/game/game-top-bar';
+import { MinesGrid } from '@/components/game/mines/mines-grid';
+import {
+  MinesBetPanel,
+  type MinesPhase,
+} from '@/components/game/mines/mines-bet-panel';
+import { MinesRulesModal } from '@/components/game/mines/mines-rules-modal';
+import { useBalance } from '@/hooks/use-balance';
+import { useDemoMode } from '@/store/demo-mode-store';
+import { soundManager } from '@/lib/sound/sound-manager';
+
+/**
+ * Mines Game Page — Monopo Saigon Theme
+ *
+ * Single-player REST game: place a stake, choose a mine count (1–24),
+ * reveal safe cells, cash out at any time. State lives on the server —
+ * we mirror the authoritative `MinesPublicState` and rerender on each
+ * call.
+ *
+ * On mount we re-fetch any active round so a refresh resumes the
+ * session instead of forfeiting the stake.
+ */
+
+interface ServerState {
+  roundId: string;
+  mineCount: number;
+  betAmount: number;
+  revealed: number[];
+  currentMultiplier: number;
+  nextMultiplier: number;
+  serverSeedHash: string;
+  state: 'active' | 'cashed' | 'busted';
+  serverSeed?: string;
+  minePositions?: number[];
+  finalMultiplier?: number;
+  finalPayout?: number;
+}
 
 export default function MinesGamePage() {
+  const { balance } = useBalance();
+  const { isDemoMode, setActiveBet } = useDemoMode();
+
+  const [server, setServer] = useState<ServerState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+
+  // Local config (used while no round is live).
+  const [amount, setAmount] = useState(10);
+  const [mineCount, setMineCount] = useState(3);
+  /** The cell that ended the round, derived from server state. */
+  const [hitPosition, setHitPosition] = useState<number | null>(null);
+
+  // Sound init.
+  useEffect(() => {
+    soundManager.initialize();
+  }, []);
+
+  // Resume any active round on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/games/mines/state', {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const s: ServerState | null = json?.state ?? null;
+        if (!cancelled && s) applyServer(s);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the demo-mode guard in sync with whether we have an active stake.
+  useEffect(() => {
+    setActiveBet(server?.state === 'active');
+  }, [server?.state, setActiveBet]);
+
+  function applyServer(next: ServerState) {
+    setServer(next);
+
+    // If the round just ended on a mine, find the cell that wasn't in
+    // `revealed` but is in `minePositions` — that's the hit cell. The
+    // server doesn't tag it explicitly so we infer.
+    if (next.state === 'busted' && next.minePositions) {
+      // The hit position is the most recent click — but we don't have
+      // history here. Conservative approach: highlight the first mine
+      // that isn't revealed (functionally indistinguishable when there's
+      // exactly one bust per round).
+      const candidate = next.minePositions.find(
+        (p) => !next.revealed.includes(p)
+      );
+      setHitPosition(typeof candidate === 'number' ? candidate : null);
+    } else {
+      setHitPosition(null);
+    }
+
+    if (next.state === 'cashed') soundManager.play('game.cashout');
+    if (next.state === 'busted') soundManager.play('game.lose');
+  }
+
+  /* ------------------------------------------------------------ actions */
+
+  async function startRound() {
+    if (busy) return;
+    if (amount <= 0) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/games/mines/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ amount, mineCount, demoMode: isDemoMode }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message ?? 'Не удалось начать раунд');
+      applyServer(json.state as ServerState);
+      soundManager.play('ui.click');
+    } catch (err) {
+      console.error('mines:start', err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reveal(position: number) {
+    if (busy) return;
+    if (server?.state !== 'active') return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/games/mines/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ position }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message ?? 'Reveal failed');
+      const next = json.state as ServerState;
+      // If we busted right now, the clicked position is the hit one —
+      // remember it before applyServer's heuristic kicks in.
+      if (next.state === 'busted') {
+        setServer(next);
+        setHitPosition(position);
+        soundManager.play('game.lose');
+      } else {
+        applyServer(next);
+        soundManager.play('ui.click');
+      }
+    } catch (err) {
+      console.error('mines:reveal', err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cashout() {
+    if (busy) return;
+    if (server?.state !== 'active') return;
+    if (server.revealed.length === 0) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/games/mines/cashout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message ?? 'Cashout failed');
+      applyServer(json.state as ServerState);
+    } catch (err) {
+      console.error('mines:cashout', err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function newRound() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await fetch('/api/games/mines/dismiss', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // best-effort
+    }
+    setServer(null);
+    setHitPosition(null);
+    setBusy(false);
+  }
+
+  function handlePrimary() {
+    if (!server || server.state === 'cashed' || server.state === 'busted') {
+      if (server) {
+        void newRound();
+      } else {
+        void startRound();
+      }
+      return;
+    }
+    if (server.state === 'active') {
+      void cashout();
+    }
+  }
+
+  /* ----------------------------------------------------------- derived */
+
+  const phase: MinesPhase = !server
+    ? 'idle'
+    : server.state === 'active'
+    ? 'active'
+    : server.state;
+
+  const minBet = 1;
+  const maxBet = useMemo(
+    () => Math.max(minBet, Math.floor(balance?.amount ?? 10000)),
+    [balance]
+  );
+
+  const displayMineCount = server?.mineCount ?? mineCount;
+  const displayAmount = server?.betAmount ?? amount;
+  const revealedCount = server?.revealed.length ?? 0;
+  const safeRevealed = phase === 'active' ? revealedCount : 0;
+
+  const currentMult = server?.currentMultiplier ?? 1;
+  const nextMult = server?.nextMultiplier ?? 1;
+  const canCashout = phase === 'active' && revealedCount > 0;
+
   return (
-    <ComingSoon
-      game="mines"
-      title="Mines"
-      description="Готовим обновлённый формат игры в стиле monopo saigon. Скоро снова можно будет играть."
-    />
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
+        <GameTopBar
+          title="Mines"
+          Icon={Bomb}
+          onHowToPlay={() => setRulesOpen(true)}
+        />
+
+        {/* Status strip — current and next multiplier preview */}
+        <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-3 grid grid-cols-3 gap-3 items-center">
+          <Stat label="Открыто" value={`${safeRevealed} / ${25 - displayMineCount}`} />
+          <Stat
+            label="Текущий"
+            value={`x${currentMult.toFixed(2)}`}
+            emphasis
+          />
+          <Stat label="Следующий" value={`x${nextMult.toFixed(2)}`} muted />
+        </div>
+
+        {/* Grid */}
+        <MinesGrid
+          revealed={server?.revealed ?? []}
+          minePositions={
+            phase === 'busted' || phase === 'cashed'
+              ? server?.minePositions
+              : undefined
+          }
+          hitPosition={hitPosition}
+          disabled={phase !== 'active' || busy}
+          onCellClick={reveal}
+        />
+
+        {/* Bet controls */}
+        <MinesBetPanel
+          amount={displayAmount}
+          onAmountChange={setAmount}
+          mineCount={displayMineCount}
+          onMineCountChange={setMineCount}
+          phase={phase}
+          currentMultiplier={currentMult}
+          busy={busy}
+          minBet={minBet}
+          maxBet={maxBet}
+          canCashout={canCashout}
+          onPrimary={handlePrimary}
+        />
+
+        {/* Provably-fair seed strip — visible only when round is over so the
+            user can verify the result. */}
+        {server?.serverSeedHash && (
+          <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
+                Хеш сида
+              </span>
+              <span className="font-roobert text-[11px] text-frost-white/80 tabular-nums">
+                {server.serverSeedHash.slice(0, 16)}…
+              </span>
+            </div>
+            {server.serverSeed && (
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
+                  Сид раунда
+                </span>
+                <span className="font-roobert text-[11px] text-frost-white/80 tabular-nums">
+                  {server.serverSeed.slice(0, 16)}…
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <MinesRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+    </main>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  emphasis = false,
+  muted = false,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <span className="text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
+        {label}
+      </span>
+      <span
+        className={
+          'mt-0.5 font-roobert tabular-nums ' +
+          (emphasis
+            ? 'text-frost-white text-[20px] font-light'
+            : muted
+            ? 'text-whisper-gray text-[15px] font-light'
+            : 'text-frost-white text-[15px] font-light')
+        }
+      >
+        {value}
+      </span>
+    </div>
   );
 }

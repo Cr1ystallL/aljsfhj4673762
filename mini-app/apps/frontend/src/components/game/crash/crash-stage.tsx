@@ -91,34 +91,30 @@ export function CrashStage({
     //
     // The curve must visibly bend as the multiplier accelerates. Auto-scaling
     // both axes to the leading point flattens the curve into a straight line
-    // (the head always sits at the same relative position). To preserve real
-    // exponential shape we anchor the axes:
+    // (the head always sits at the same relative position). To preserve
+    // real exponential shape we anchor the axes:
     //
-    //   * X axis: starts at a 4s window and grows to fit the round. The
-    //     head approaches the right edge as time passes, reaching ~80%
-    //     of the width once the round runs longer than the initial window.
+    //   * X axis: starts at 0 (the round began at t=0). Window grows with
+    //     elapsed time — minimum 4s, then matches the round so the head
+    //     sits ~10% from the right edge regardless of round length.
     //
-    //   * Y axis: stepwise — 2x → 3x → 5x → 8x → 13x → 21x (Fibonacci-ish
-    //     growth). Stepwise growth keeps the perceived curvature; the
-    //     curve doesn't snap flat each time the multiplier overshoots the
-    //     previous bucket.
+    //   * Y axis: smooth headroom. We pick yMax such that the head sits
+    //     at ~75% of the inner height. As the multiplier grows, yMax
+    //     follows continuously (no Fibonacci buckets, no snapping). This
+    //     keeps the curve organically bending instead of compressing.
     // ---------------------------------------------------------------------
     const lastT = graphPoints[graphPoints.length - 1].time || 1;
     const lastM = graphPoints[graphPoints.length - 1].multiplier || 1;
 
-    // Window grows: 4s → as long as the round runs.
-    const xWindow = Math.max(4000, lastT * 1.05);
+    // Window grows: at least 4s, otherwise round-length × 1.1 so the head
+    // never kisses the right wall.
+    const xWindow = Math.max(4000, lastT * 1.1);
     const startT = 0;
 
-    const Y_BUCKETS = [2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610];
-    let yMax = Y_BUCKETS[0];
-    for (const b of Y_BUCKETS) {
-      if (b >= lastM * 1.05) {
-        yMax = b;
-        break;
-      }
-      yMax = b;
-    }
+    // Pick yMax so the head sits around ~75% height. Clamp the lower bound
+    // to 1.5 so the very first ticks of the round don't render a vertical
+    // wall.
+    const yMax = Math.max(1.5, 1 + (lastM - 1) / 0.75);
 
     const project = (t: number, m: number) => {
       const x = padX + ((t - startT) / xWindow) * innerW;

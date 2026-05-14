@@ -106,6 +106,13 @@ export class CrashLiveStream extends EventEmitter {
   connect(sessionId: string): void {
     this.sessionId = sessionId;
     this.openSocket();
+    // Fire a REST snapshot immediately — independent of WS auth. This
+    // ensures the page never sits on "Подключение..." while we're still
+    // negotiating the socket; the snapshot reveals the live phase.
+    void this.fetchInitialState();
+    // Start the reconciliation poll early too, so even if the WS never
+    // negotiates (e.g. nginx misconfig) the screen still updates.
+    this.startPoll();
   }
 
   destroy(): void {
@@ -151,7 +158,7 @@ export class CrashLiveStream extends EventEmitter {
     this.ws.onclose = () => {
       this.update({ connected: false });
       this.stopPings();
-      this.stopPoll();
+      // Keep the poll running — REST is our fallback while we reconnect.
       this.scheduleReconnect();
     };
 
@@ -372,16 +379,10 @@ export class CrashLiveStream extends EventEmitter {
           timestamp: Date.now(),
         });
         this.startPings();
-        // Pull the current round snapshot via REST. Without this, a client
-        // joining mid-round would never see `round:created` / `phase:*`
-        // events because they already happened — only a future round would
-        // wake up the UI.
+        // The poll & initial snapshot are already running from connect().
+        // Refresh once more so we pick up the freshest state right after
+        // the socket is authenticated.
         void this.fetchInitialState();
-        // Reconciliation poll: even with the WS connected, the broadcast
-        // can be lossy across some proxies (notably nginx without
-        // sticky / proper proxy_read_timeout). A periodic REST pull keeps
-        // the UI in sync with the authoritative server state regardless.
-        this.startPoll();
         return;
 
       case 'auth_error':
@@ -500,8 +501,9 @@ export class CrashLiveStream extends EventEmitter {
         const m = Number(p.multiplier) || 1;
         const t = Number(p.elapsedTime) || 0;
         const next = [...this.snapshot.graphPoints, { time: t, multiplier: m }];
-        // Keep curve responsive but bounded.
-        while (next.length > 240) next.shift();
+        // Bound the buffer but keep enough headroom for the longest round.
+        // ~600 points at our push rate covers >30s of curve.
+        while (next.length > 600) next.shift();
         // Anchor for client-side prediction so the curve keeps growing
         // smoothly between 100ms server ticks.
         this.activeStartedAt = Date.now() - t;
@@ -639,7 +641,7 @@ export class CrashLiveStream extends EventEmitter {
         Math.abs(target - last.multiplier) > last.multiplier * 0.005)
     ) {
       nextPoints = [...nextPoints, { time: elapsed, multiplier: target }];
-      while (nextPoints.length > 240) nextPoints.shift();
+      while (nextPoints.length > 600) nextPoints.shift();
     }
 
     this.update({

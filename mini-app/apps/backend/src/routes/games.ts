@@ -1,16 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { CrashGameEngine } from '../games/crash/crash-engine.js';
+import { minesEngine } from '../games/mines/mines-engine.js';
 import { GameRoomManager } from '../game-engine/game-room-manager.js';
 import { logger } from '../utils/logger.js';
 
 /**
  * Game Routes
  * Handles game actions and room management
- * 
- * Mines and Plinko engines are temporarily removed pending a rewrite.
- * Their HTTP endpoints have been stripped; the frontend ships placeholder
- * pages that point users back to Crash.
+ *
+ * Crash is multiplayer with a shared room broadcast over WebSocket.
+ * Mines is single-player, REST-only — each user keeps their own active
+ * round on the server-side engine until cashout / bust.
  *
  * SECURITY:
  * - Rate limiting: 10 actions / 10 seconds per user per game
@@ -253,5 +254,146 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /* -------------------------------------------------------------- mines */
+
+  /**
+   * GET /api/games/mines/state
+   * Returns the user's active mines round (if any) so a refresh resumes
+   * the session.
+   */
+  app.get('/mines/state', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    const state = minesEngine.getState(userId);
+    return reply.send({ state });
+  });
+
+  /**
+   * POST /api/games/mines/start
+   * Start a new mines round.
+   */
+  app.post<{
+    Body: { amount: number; mineCount: number; demoMode?: boolean };
+  }>(
+    '/mines/start',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'mineCount'],
+          properties: {
+            amount: { type: 'number' },
+            mineCount: { type: 'number' },
+            demoMode: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, mineCount, demoMode = false } = request.body;
+
+      if (!checkRateLimit(userId, 'mines:start')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const state = await minesEngine.start(userId, amount, mineCount, demoMode);
+        return reply.send({ success: true, state });
+      } catch (error) {
+        logger.error(error, 'Failed to start mines');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'START_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/mines/reveal
+   * Reveal a single cell in the active round.
+   */
+  app.post<{ Body: { position: number } }>(
+    '/mines/reveal',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['position'],
+          properties: { position: { type: 'number' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { position } = request.body;
+
+      if (!checkRateLimit(userId, 'mines:reveal')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const state = await minesEngine.reveal(userId, position);
+        return reply.send({ success: true, state });
+      } catch (error) {
+        logger.error(error, 'Failed to reveal mines cell');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'REVEAL_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/mines/cashout
+   * Cashout the active round.
+   */
+  app.post('/mines/cashout', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+
+    if (!checkRateLimit(userId, 'mines:cashout')) {
+      return reply.code(429).send({
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+    }
+
+    try {
+      const state = await minesEngine.cashout(userId);
+      return reply.send({ success: true, state });
+    } catch (error) {
+      logger.error(error, 'Failed to cashout mines');
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: (error as Error).message,
+        code: 'CASHOUT_FAILED',
+      });
+    }
+  });
+
+  /**
+   * POST /api/games/mines/dismiss
+   * Forget the most recent finished round so the UI can start a new one.
+   */
+  app.post('/mines/dismiss', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    minesEngine.forget(userId);
+    return reply.send({ success: true });
+  });
 }
 

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Rocket } from 'lucide-react';
 
-import { CrashTopBar } from '@/components/game/crash/crash-top-bar';
+import { GameTopBar } from '@/components/game/game-top-bar';
 import { CrashHistoryStrip } from '@/components/game/crash/crash-history-strip';
 import { CrashStage } from '@/components/game/crash/crash-stage';
 import {
@@ -259,7 +260,12 @@ export default function CrashGamePage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <CrashTopBar onHowToPlay={() => setRulesOpen(true)} />
+        <GameTopBar
+          title="Crash"
+          Icon={Rocket}
+          iconRotate={-30}
+          onHowToPlay={() => setRulesOpen(true)}
+        />
 
         <CrashHistoryStrip history={snapshot.history} />
 
