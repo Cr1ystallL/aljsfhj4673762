@@ -1,137 +1,46 @@
-# Команды для деплоя на сервере
+# Deployment Commands
 
-## 1. Подключитесь к серверу по SSH
-
-```bash
-ssh user@your-server.com
-```
-
-## 2. Перейдите в директорию проекта
+Run these commands on the server to deploy the latest changes:
 
 ```bash
-cd /path/to/your/project
-```
-
-## 3. Получите последние изменения из Git
-
-```bash
+cd /var/www/MACVBET
 git pull origin main
-```
-
-## 4. Перейдите в директорию backend
-
-```bash
 cd mini-app/apps/backend
-```
-
-## 5. Установите новые зависимости
-
-```bash
-npm install
-# или если используете pnpm
-pnpm install
-```
-
-## 6. Сгенерируйте Prisma Client (если нужно)
-
-```bash
-npm run db:generate
-# или
-pnpm db:generate
-```
-
-## 7. Пересоберите проект
-
-```bash
 npm run build
-# или
-pnpm build
+pkill -f "node dist/index.js"
+sleep 2
+nohup node dist/index.js > /var/log/backend.log 2>&1 &
+cd ../frontend
+npm run build
+fuser -k 3000/tcp
+sleep 2
+nohup npm run start > /var/log/frontend.log 2>&1 &
+sleep 10
+ps aux | grep node | grep -v grep
+echo ""
+echo "=== Backend log ==="
+tail -10 /var/log/backend.log
+echo ""
+echo "=== Frontend log ==="
+tail -10 /var/log/frontend.log
 ```
 
-## 8. Перезапустите backend сервис
+## Changes in this deployment:
 
-### Если используете PM2:
-```bash
-pm2 restart backend
-# или
-pm2 restart all
-```
+1. **Fixed TypeScript errors** - `/plinko/my-history` endpoint now properly typed
+2. **Player history limit changed to 7** - Shows last 7 bets instead of 10
+3. **Balance sync fixed** - Default mode changed from demo to real, so users see their actual bot balance (0 instead of 10k demo balance)
+4. **Avatar display simplified** - Shows initials instead of trying to load Telegram avatars (which were 404ing)
 
-### Если используете systemd:
-```bash
-sudo systemctl restart backend
-```
+## Expected Results:
 
-### Если используете Docker:
-```bash
-cd ../../  # вернитесь в корень mini-app
-docker-compose down
-docker-compose up -d --build
-```
+- ✅ Backend builds without TypeScript errors
+- ✅ Player history shows 7 bets maximum
+- ✅ Balance shows 0 (real balance from bot) instead of 10k (demo balance)
+- ✅ Live history shows initials instead of broken avatar images
+- ✅ All bets are saved with multipliers (already fixed in previous deployment)
 
-## 9. Проверьте логи
+## Still TODO (for next deployment):
 
-### PM2:
-```bash
-pm2 logs backend
-```
-
-### systemd:
-```bash
-sudo journalctl -u backend -f
-```
-
-### Docker:
-```bash
-docker-compose logs -f backend
-```
-
-## 10. Проверьте работу API
-
-```bash
-curl https://macvbet.nl/api/games/plinko/history
-```
-
----
-
-## Что было исправлено:
-
-1. ✅ Добавлен новый API endpoint: `GET /api/games/plinko/history`
-2. ✅ Создан общий Prisma Client singleton (`src/lib/prisma.ts`)
-3. ✅ Prisma интегрирован как Fastify plugin
-4. ✅ Добавлена зависимость `fastify-plugin`
-5. ✅ Endpoint поддерживает пагинацию (limit, offset)
-6. ✅ Возвращает историю игр пользователя с деталями ставок
-
-## Параметры API:
-
-**Endpoint:** `GET /api/games/plinko/history`
-
-**Query параметры:**
-- `limit` (опционально, по умолчанию 20, максимум 100)
-- `offset` (опционально, по умолчанию 0)
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "bet_id",
-      "amount": "10.00",
-      "payout": "25.50",
-      "multiplier": "2.55",
-      "state": "won",
-      "metadata": { "riskLevel": "medium" },
-      "placedAt": "2026-05-14T10:30:00Z",
-      "resolvedAt": "2026-05-14T10:30:01Z"
-    }
-  ],
-  "pagination": {
-    "total": 150,
-    "limit": 20,
-    "offset": 0,
-    "hasMore": true
-  }
-}
-```
+1. **Bot withdrawal cancellation** - Add inline "Отмена" button or /start command to cancel withdrawal flow
+2. **Debug 400 error on bet placement** - Need to check backend logs to see why some bets fail
