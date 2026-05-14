@@ -7,7 +7,6 @@ import { User, Dice1, TrendingUp, Trophy, X } from 'lucide-react';
 import { useBalance } from '@/hooks/use-balance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
-import type { Transaction } from '@casino/shared';
 
 export default function ProfilePage() {
   const { user } = useAuthStore();
@@ -20,21 +19,27 @@ export default function ProfilePage() {
   }, [fetchTransactions]);
 
   // Calculate stats
-  const totalBets = transactions.filter((tx: Transaction) => tx.type === 'bet').length;
+  const totalBets = transactions.filter((tx) => tx.type === 'bet').length;
   const totalWagered = transactions
-    .filter((tx: Transaction) => tx.type === 'bet')
+    .filter((tx) => tx.type === 'bet')
     .reduce((sum, tx) => sum + tx.amount, 0);
   const totalWon = transactions
-    .filter((tx: Transaction) => tx.type === 'win')
+    .filter((tx) => tx.type === 'win')
     .reduce((sum, tx) => sum + tx.amount, 0);
   const maxWin = Math.max(
-    ...transactions.filter((tx: Transaction) => tx.type === 'win').map((tx) => tx.amount),
+    ...transactions.filter((tx) => tx.type === 'win').map((tx) => tx.amount),
     0
   );
+  
+  // For maxMultiplier, we need to safely access metadata if it exists
   const maxMultiplier = Math.max(
     ...transactions
-      .filter((tx: Transaction) => tx.type === 'win' && tx.metadata?.multiplier)
-      .map((tx) => (tx.metadata?.multiplier as number) || 0),
+      .filter((tx) => tx.type === 'win')
+      .map((tx) => {
+        // Check if tx has metadata property and multiplier
+        const txAny = tx as any;
+        return txAny.metadata?.multiplier || 0;
+      }),
     0
   );
 
@@ -233,40 +238,43 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {transactions.slice(0, 10).map((tx: Transaction, index: number) => (
-                <motion.div
-                  key={tx.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-gray-800/30 backdrop-blur-sm border border-white/5 rounded-lg p-3 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <Dice1 size={18} className="text-blue-400" />
+              {transactions.slice(0, 10).map((tx, index) => {
+                const txAny = tx as any;
+                return (
+                  <motion.div
+                    key={tx.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-gray-800/30 backdrop-blur-sm border border-white/5 rounded-lg p-3 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                        <Dice1 size={18} className="text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-white text-sm font-medium">
+                          {txAny.metadata?.gameType || tx.gameType || 'Game'}
+                        </p>
+                        <p className="text-white/40 text-xs">
+                          {new Date(tx.createdAt).toLocaleString('ru-RU')}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-white text-sm font-medium">
-                        {(tx.metadata?.gameType as string) || tx.gameType || 'Game'}
+                    <div className="text-right">
+                      <p className="text-white text-sm font-semibold">
+                        {tx.type === 'win' ? '+' : '-'}
+                        {tx.amount.toFixed(2)} ₽
                       </p>
-                      <p className="text-white/40 text-xs">
-                        {new Date(tx.createdAt).toLocaleString('ru-RU')}
-                      </p>
+                      {txAny.metadata?.multiplier && (
+                        <p className="text-white/60 text-xs">
+                          {Number(txAny.metadata.multiplier).toFixed(2)}x
+                        </p>
+                      )}
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white text-sm font-semibold">
-                      {tx.type === 'win' ? '+' : '-'}
-                      {tx.amount.toFixed(2)} ₽
-                    </p>
-                    {tx.metadata?.multiplier && (
-                      <p className="text-white/60 text-xs">
-                        {(tx.metadata.multiplier as number).toFixed(2)}x
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>
