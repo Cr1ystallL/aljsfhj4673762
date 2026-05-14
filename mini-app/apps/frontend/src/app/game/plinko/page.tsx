@@ -49,6 +49,7 @@ export default function PlinkoGamePage() {
     multiplier: number;
     payout: number;
     timestamp: number;
+    telegramId?: string; // For avatar
   }>>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -569,65 +570,77 @@ export default function PlinkoGamePage() {
             <p className="text-white/60 text-[10px] font-medium">Live Bets</p>
           </div>
           <div className="space-y-1">
-            {liveHistory.slice(0, 10).map((bet, i) => (
-              <motion.div
-                key={`${bet.timestamp}-${i}`}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="flex items-center justify-between bg-white/5 rounded-md px-2 py-1.5"
-              >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {/* Game Icon SVG */}
-                  <div className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-blue-400"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <circle cx="12" cy="12" r="6" />
-                      <circle cx="12" cy="12" r="2" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-[10px] font-medium truncate">
-                      {bet.username}
-                    </p>
-                    <p className="text-white/40 text-[9px]">
-                      ${bet.betAmount.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                      bet.multiplier >= 10
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : bet.multiplier < 1
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-white/10 text-white/60'
-                    }`}
+            {liveHistory.length === 0 ? (
+              <p className="text-white/40 text-[9px] text-center py-2">No recent bets</p>
+            ) : (
+              liveHistory.slice(0, 10).map((bet, i) => {
+                // Get user initials for fallback
+                const initials = bet.username.charAt(0).toUpperCase();
+                
+                return (
+                  <motion.div
+                    key={`${bet.timestamp}-${i}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="flex items-center justify-between bg-white/5 rounded-md px-2 py-1.5"
                   >
-                    {bet.multiplier}x
-                  </span>
-                  <span
-                    className={`text-[10px] font-bold ${
-                      bet.payout > bet.betAmount ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    ${bet.payout.toFixed(2)}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* User Avatar - Telegram photo or initials */}
+                      {bet.telegramId ? (
+                        <img
+                          src={`https://t.me/i/userpic/160/${bet.telegramId}.jpg`}
+                          alt={bet.username}
+                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                          onError={(e) => {
+                            // Fallback to initials if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      {/* Fallback initials */}
+                      <div 
+                        className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0"
+                        style={{ display: bet.telegramId ? 'none' : 'flex' }}
+                      >
+                        <span className="text-white text-[10px] font-bold">{initials}</span>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-[10px] font-medium truncate">
+                          {bet.username}
+                        </p>
+                        <p className="text-white/40 text-[9px]">
+                          ${bet.betAmount.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          bet.multiplier >= 10
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : bet.multiplier < 1
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'bg-white/10 text-white/60'
+                        }`}
+                      >
+                        {bet.multiplier}x
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold ${
+                          bet.payout > bet.betAmount ? 'text-emerald-400' : 'text-red-400'
+                        }`}
+                      >
+                        ${bet.payout.toFixed(2)}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

@@ -453,7 +453,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         // Get RANDOM recent plinko bets from ALL PLAYERS (not just current user)
         const bets = await prisma.bet.findMany({
           where: {
-            gameType: 'plinko',
+            gameType: 'plinko', // ONLY PLINKO BETS
             state: 'resolved', // Only show completed bets
           },
           orderBy: {
@@ -472,6 +472,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
                 firstName: true,
                 lastName: true,
                 username: true,
+                telegramId: true, // Need for avatar URL
               },
             },
           },
@@ -483,7 +484,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         if (bets.length === 0) {
           const allBets = await prisma.bet.findMany({
             where: {
-              gameType: 'plinko',
+              gameType: 'plinko', // ONLY PLINKO BETS
             },
             orderBy: {
               placedAt: 'desc',
@@ -502,6 +503,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
                   firstName: true,
                   lastName: true,
                   username: true,
+                  telegramId: true, // Need for avatar URL
                 },
               },
             },
@@ -522,6 +524,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             multiplier: Number(bet.multiplier || 0),
             payout: Number(bet.payout || 0),
             timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
+            telegramId: bet.user.telegramId.toString(), // For avatar
           }));
 
           return reply.send({
@@ -540,6 +543,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           multiplier: Number(bet.multiplier || 0),
           payout: Number(bet.payout || 0),
           timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
+          telegramId: bet.user.telegramId.toString(), // For avatar
         }));
 
         return reply.send({
