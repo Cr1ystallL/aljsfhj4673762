@@ -185,13 +185,13 @@ export default function PlinkoGamePage() {
     };
   }, [activeBall, riskLevel]);
 
-  // Animate ball drop with realistic physics (very slow)
+  // Animate ball drop with realistic physics (VERY VERY SLOW)
   useEffect(() => {
     if (!activeBall || !isDropping) return;
 
-    const gravity = 0.00015; // Very slow gravity
-    const friction = 0.995; // Minimal air resistance
-    const bounceDamping = 0.8; // Good energy retention
+    const gravity = 0.000015; // 10x slower gravity
+    const friction = 0.998; // Almost no air resistance
+    const bounceDamping = 0.85; // High energy retention
     
     let animationId: number;
     let lastTime = Date.now();
@@ -204,7 +204,7 @@ export default function PlinkoGamePage() {
       setActiveBall((prev) => {
         if (!prev) return null;
 
-        // Apply gravity (very slow)
+        // Apply gravity (10x slower)
         let newVy = prev.vy + gravity * deltaTime;
         let newVx = prev.vx * friction;
 
@@ -231,7 +231,7 @@ export default function PlinkoGamePage() {
               const angle = Math.atan2(newY - rowY, newX - pinX);
               
               // Add slight bias towards center for more realistic distribution
-              const centerBias = (0.5 - newX) * 0.1;
+              const centerBias = (0.5 - newX) * 0.15;
               newVx = Math.cos(angle) * Math.abs(newVy) * bounceDamping + centerBias;
               newVy = Math.sin(angle) * Math.abs(newVy) * bounceDamping;
               
@@ -334,7 +334,7 @@ export default function PlinkoGamePage() {
         x: 0.5, // Start at center
         y: 0.05, // Start at top
         vx: 0, // No horizontal velocity
-        vy: 0.0003, // Very slow initial downward velocity
+        vy: 0.00003, // VERY slow initial downward velocity (10x slower)
         path: [],
         currentStep: 0,
         finalSlot: 8, // Will be calculated based on actual landing position
