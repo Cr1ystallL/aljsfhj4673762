@@ -193,6 +193,109 @@ export class CrashLiveStream extends EventEmitter {
     }
   }
 
+  /**
+   * Pull the current round state via REST so a late-joiner doesn't sit on
+   * a blank screen waiting for the next phase event. We only fill in the
+   * fields we don't already have from streamed events.
+   */
+  private async fetchInitialState(): Promise<void> {
+    try {
+      const res = await fetch('/api/games/crash/state', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      const s = json?.state;
+      if (!s) return;
+
+      // Map server "GameState" → our public phase taxonomy.
+      const phaseMap: Record<string, CrashPhase> = {
+        idle: 'idle',
+        waiting: 'waiting',
+        starting: 'starting',
+        active: 'active',
+        resolving: 'resolving',
+        completed: 'completed',
+      };
+      const phase: CrashPhase = phaseMap[s.phase] ?? this.snapshot.phase;
+
+      const players: CrashLivePlayer[] = Array.isArray(s.activePlayers)
+        ? s.activePlayers.map((p: any) => ({
+            key: `${p.userId}:${p.slot ?? 0}`,
+            userId: p.userId,
+            slot: Number(p.slot ?? 0),
+            betAmount: Number(p.betAmount ?? 0),
+            user: p.user ?? null,
+            status: 'active' as const,
+          }))
+        : [];
+
+      // Cashed-out slots also surface in REST snapshot.
+      if (Array.isArray(s.cashedOut)) {
+        for (const c of s.cashedOut) {
+          const key = `${c.userId}:${c.slot ?? 0}`;
+          const i = players.findIndex((x) => x.key === key);
+          const next: CrashLivePlayer = {
+            key,
+            userId: c.userId,
+            slot: Number(c.slot ?? 0),
+            betAmount: i !== -1 ? players[i].betAmount : 0,
+            user: i !== -1 ? players[i].user : null,
+            multiplier: Number(c.multiplier),
+            payout: Number(c.payout),
+            status: 'cashed',
+          };
+          if (i === -1) players.push(next);
+          else players[i] = next;
+        }
+      }
+
+      const history = Array.isArray(s.history)
+        ? s.history.map((h: any) => ({
+            crashPoint: Number(h.crashPoint),
+            roundId: h.roundId,
+          }))
+        : this.snapshot.history;
+
+      const stats = s.stats ?? this.snapshot.stats;
+      const serverSeedHash = s.serverSeedHash || this.snapshot.serverSeedHash;
+      const serverMult = Number(s.multiplier) || 1;
+
+      // If we joined while the round is active, prime the prediction anchor
+      // so the curve continues smoothly.
+      if (phase === 'active') {
+        const elapsed = Number(s.elapsedTime) || 0;
+        this.activeStartedAt = Date.now() - elapsed;
+        this.activeStartMultiplier = 1;
+        this.startAnim();
+      }
+
+      this.update({
+        phase,
+        players,
+        history,
+        stats,
+        serverSeedHash,
+        serverMultiplier: serverMult,
+        displayMultiplier: serverMult,
+        graphPoints:
+          phase === 'active' || phase === 'completed'
+            ? [
+                { time: 0, multiplier: 1 },
+                { time: Number(s.elapsedTime) || 1, multiplier: serverMult },
+              ]
+            : [{ time: 0, multiplier: 1 }],
+        lastCrashPoint:
+          phase === 'completed' && typeof s.crashPointPreview === 'number'
+            ? s.crashPointPreview
+            : this.snapshot.lastCrashPoint,
+      });
+    } catch {
+      // Best-effort; the WS will catch us up on the next phase event.
+    }
+  }
+
   /* ------------------------------------------------------------ messages */
 
   private handleMessage(ev: MessageEvent): void {
@@ -214,6 +317,11 @@ export class CrashLiveStream extends EventEmitter {
           timestamp: Date.now(),
         });
         this.startPings();
+        // Pull the current round snapshot via REST. Without this, a client
+        // joining mid-round would never see `round:created` / `phase:*`
+        // events because they already happened — only a future round would
+        // wake up the UI.
+        void this.fetchInitialState();
         return;
 
       case 'auth_error':

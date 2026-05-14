@@ -84,7 +84,8 @@ export class SoundManager {
 
     const audio = this.sounds.get(id);
     if (!audio) {
-      console.warn(`Sound ${id} not found`);
+      // Sound not registered yet — skip silently. Games may call play()
+      // before COMMON_SOUNDS are preloaded; we don't want noisy logs.
       return;
     }
 
