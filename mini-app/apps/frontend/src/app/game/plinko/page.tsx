@@ -69,6 +69,7 @@ export default function PlinkoGamePage() {
     const fetchLiveHistory = async () => {
       try {
         const response = await fetch('/api/games/plinko/history', {
+          method: 'GET',
           credentials: 'include',
         });
         if (response.ok) {
@@ -81,7 +82,7 @@ export default function PlinkoGamePage() {
     };
 
     fetchLiveHistory();
-    const interval = setInterval(fetchLiveHistory, 3000); // Update every 3 seconds
+    const interval = setInterval(fetchLiveHistory, 5000); // Update every 5 seconds
 
     return () => {
       document.body.removeChild(script);
@@ -117,11 +118,11 @@ export default function PlinkoGamePage() {
     });
     renderRef.current = render;
 
-    // Create pegs - 17 rows instead of 16, start higher
+    // Create pegs - 17 rows, start MUCH higher to avoid multipliers
     const GAP = width / 19;
     const PEG_RAD = 2.5;
     const pegs: any[] = [];
-    const startY = GAP * 2; // Start higher
+    const startY = GAP * 3.5; // Start much higher
     
     for (let row = 0; row < 17; row++) {
       const pegsInRow = row + 3;
@@ -299,19 +300,19 @@ export default function PlinkoGamePage() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-b from-black via-gray-900 to-black overflow-hidden">
-      {/* Header - Compact */}
-      <div className="flex items-center justify-between px-4 py-2 pt-safe">
+      {/* Minimal Header */}
+      <div className="flex items-center justify-between px-3 py-1.5 pt-safe">
         <div className="flex items-center gap-2">
-          <Target className="w-5 h-5 text-white" />
-          <GameHeader title="Plinko" />
+          <Target className="w-4 h-4 text-white" />
+          <h1 className="text-white text-sm font-bold">Plinko</h1>
         </div>
         <DemoModeToggle />
       </div>
 
-      {/* Main Content - Ultra Compact */}
-      <div className="flex-1 flex flex-col px-2 pb-20 gap-1.5 overflow-hidden">
+      {/* Main Content - Ultra Compact, scrollable for history */}
+      <div className="flex-1 flex flex-col px-2 pb-20 gap-1.5 overflow-y-auto">
         {/* Plinko Board - BIGGER, takes almost all space */}
-        <div className="flex-1 rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden min-h-0 relative">
+        <div className="flex-1 min-h-[400px] rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl overflow-hidden relative">
           <canvas
             ref={canvasRef}
             className="w-full h-full"
