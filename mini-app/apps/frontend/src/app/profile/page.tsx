@@ -7,6 +7,7 @@ import { User, Dice1, TrendingUp, Trophy, X } from 'lucide-react';
 import { useBalance } from '@/hooks/use-balance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
+import type { Transaction } from '@casino/shared/types/balance';
 
 export default function ProfilePage() {
   const { user } = useAuthStore();
@@ -19,21 +20,21 @@ export default function ProfilePage() {
   }, [fetchTransactions]);
 
   // Calculate stats
-  const totalBets = transactions.filter((tx) => tx.type === 'bet').length;
+  const totalBets = transactions.filter((tx: Transaction) => tx.type === 'bet').length;
   const totalWagered = transactions
-    .filter((tx) => tx.type === 'bet')
+    .filter((tx: Transaction) => tx.type === 'bet')
     .reduce((sum, tx) => sum + tx.amount, 0);
   const totalWon = transactions
-    .filter((tx) => tx.type === 'win')
+    .filter((tx: Transaction) => tx.type === 'win')
     .reduce((sum, tx) => sum + tx.amount, 0);
   const maxWin = Math.max(
-    ...transactions.filter((tx) => tx.type === 'win').map((tx) => tx.amount),
+    ...transactions.filter((tx: Transaction) => tx.type === 'win').map((tx) => tx.amount),
     0
   );
   const maxMultiplier = Math.max(
     ...transactions
-      .filter((tx) => tx.type === 'win' && tx.metadata?.multiplier)
-      .map((tx) => tx.metadata?.multiplier || 0),
+      .filter((tx: Transaction) => tx.type === 'win' && tx.metadata?.multiplier)
+      .map((tx) => (tx.metadata?.multiplier as number) || 0),
     0
   );
 
@@ -232,7 +233,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {transactions.slice(0, 10).map((tx, index) => (
+              {transactions.slice(0, 10).map((tx: Transaction, index: number) => (
                 <motion.div
                   key={tx.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -246,7 +247,7 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <p className="text-white text-sm font-medium">
-                        {tx.metadata?.gameType || 'Game'}
+                        {(tx.metadata?.gameType as string) || tx.gameType || 'Game'}
                       </p>
                       <p className="text-white/40 text-xs">
                         {new Date(tx.createdAt).toLocaleString('ru-RU')}
@@ -260,7 +261,7 @@ export default function ProfilePage() {
                     </p>
                     {tx.metadata?.multiplier && (
                       <p className="text-white/60 text-xs">
-                        {tx.metadata.multiplier.toFixed(2)}x
+                        {(tx.metadata.multiplier as number).toFixed(2)}x
                       </p>
                     )}
                   </div>
