@@ -31,16 +31,16 @@ export default function ProfilePage() {
   );
   
   // For maxMultiplier, we need to safely access metadata if it exists
-  const maxMultiplier = Math.max(
-    ...transactions
-      .filter((tx) => tx.type === 'win')
-      .map((tx) => {
-        // Check if tx has metadata property and multiplier
-        const txAny = tx as any;
-        return txAny.metadata?.multiplier || 0;
-      }),
-    0
-  );
+  // Get REAL maximum multiplier that user actually hit
+  const allMultipliers = transactions
+    .filter((tx) => tx.type === 'win')
+    .map((tx) => {
+      const txAny = tx as any;
+      return txAny.metadata?.multiplier || 0;
+    })
+    .filter((mult) => mult > 0); // Filter out zeros
+  
+  const maxMultiplier = allMultipliers.length > 0 ? Math.max(...allMultipliers) : 0;
 
   // Get user initials
   const getInitials = () => {

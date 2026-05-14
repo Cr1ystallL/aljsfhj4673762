@@ -145,23 +145,25 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create decorative walls on left and right with triangular shape
+    // Create decorative walls on left and right with DIAGONAL shape matching pyramid
     // These walls prevent balls from escaping and look beautiful
     const wallThickness = 15;
     const pyramidWidth = GAP * 18; // Width of pyramid at bottom
     const pyramidLeft = (width - pyramidWidth) / 2;
     const pyramidRight = width - pyramidLeft;
+    const pyramidTop = startY;
+    const pyramidBottom = height - 30; // Above buckets
     
-    // Left wall - angled to match pyramid shape
+    // Left wall - DIAGONAL angled to match pyramid shape
     const leftWallVertices = [
-      { x: pyramidLeft - wallThickness, y: 0 },
-      { x: pyramidLeft, y: 0 },
-      { x: pyramidLeft, y: height },
-      { x: pyramidLeft - wallThickness, y: height },
+      { x: pyramidLeft - wallThickness, y: pyramidTop },
+      { x: pyramidLeft, y: pyramidTop },
+      { x: pyramidLeft, y: pyramidBottom },
+      { x: pyramidLeft - wallThickness * 2, y: pyramidBottom },
     ];
     const leftWall = Matter.Bodies.fromVertices(
-      pyramidLeft - wallThickness / 2,
-      height / 2,
+      pyramidLeft - wallThickness,
+      (pyramidTop + pyramidBottom) / 2,
       [leftWallVertices],
       {
         isStatic: true,
@@ -174,16 +176,16 @@ export default function PlinkoGamePage() {
       }
     );
     
-    // Right wall - angled to match pyramid shape
+    // Right wall - DIAGONAL angled to match pyramid shape
     const rightWallVertices = [
-      { x: pyramidRight, y: 0 },
-      { x: pyramidRight + wallThickness, y: 0 },
-      { x: pyramidRight + wallThickness, y: height },
-      { x: pyramidRight, y: height },
+      { x: pyramidRight, y: pyramidTop },
+      { x: pyramidRight + wallThickness, y: pyramidTop },
+      { x: pyramidRight + wallThickness * 2, y: pyramidBottom },
+      { x: pyramidRight, y: pyramidBottom },
     ];
     const rightWall = Matter.Bodies.fromVertices(
-      pyramidRight + wallThickness / 2,
-      height / 2,
+      pyramidRight + wallThickness,
+      (pyramidTop + pyramidBottom) / 2,
       [rightWallVertices],
       {
         isStatic: true,

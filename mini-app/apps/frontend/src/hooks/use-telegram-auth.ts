@@ -50,6 +50,10 @@ export function useTelegramAuth() {
 
         console.log('[AUTH] Authentication successful:', response.user.username);
 
+        // Get photo URL from Telegram WebApp if available
+        const photoUrl = tg.initDataUnsafe?.user?.photo_url || undefined;
+        console.log('[AUTH] Photo URL:', photoUrl);
+
         // Store user data and sessionId in Zustand (token is in httpOnly cookie)
         setAuth(
           {
@@ -58,6 +62,7 @@ export function useTelegramAuth() {
             username: response.user.username,
             firstName: response.user.firstName,
             lastName: response.user.lastName,
+            photoUrl: photoUrl, // Add photo URL from Telegram
             isPremium: response.user.isPremium,
             languageCode: undefined,
             createdAt: new Date(),

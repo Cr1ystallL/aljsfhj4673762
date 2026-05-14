@@ -10,6 +10,7 @@ export const UserSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   languageCode: z.string().optional(),
+  photoUrl: z.string().optional(), // Telegram profile photo URL
   isPremium: z.boolean().default(false),
   createdAt: z.date(),
   updatedAt: z.date(),
