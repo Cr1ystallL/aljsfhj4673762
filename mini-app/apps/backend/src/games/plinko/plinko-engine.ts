@@ -171,15 +171,12 @@ export class PlinkoGameEngine extends BaseGameEngine {
       payout,
     });
 
-    // Process payout
+    // Process payout - ALWAYS process, even for losses
     bet.multiplier = multiplier;
     bet.payout = payout;
 
-    if (multiplier > 0) {
-      await bettingPipeline.processPayout(bet, payout, player.demoMode);
-    } else {
-      await bettingPipeline.processLoss(bet);
-    }
+    // Always process payout to save bet with multiplier
+    await bettingPipeline.processPayout(bet, payout, player.demoMode);
 
     // Remove ball
     this.plinkoState.activeBalls.delete(ball.id);

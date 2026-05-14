@@ -177,22 +177,23 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create DIAGONAL walls FURTHER from pyramid with STRONGER BOUNCE
-    // Walls are positioned away from pyramid edges
-    const wallThickness = 15;
-    const wallOffset = GAP * 3; // Move walls FURTHER from pyramid
+    // Create DIAGONAL walls VERY CLOSE to pyramid with STRONGER BOUNCE
+    // Walls are positioned just outside pyramid edges (ball width + small gap)
+    const wallThickness = 10;
+    const ballRadius = 4; // Ball radius from frontend
+    const wallOffset = ballRadius + 2; // Just enough space for ball to pass
     const pyramidTopWidth = GAP * 3; // Width at top (3 pegs)
     const pyramidBottomWidth = GAP * 19; // Width at bottom (19 pegs)
     const pyramidTop = startY; // Start where pegs start
     const pyramidBottom = height - 30; // End above buckets
     
-    // Calculate diagonal wall positions - FURTHER from pyramid
+    // Calculate diagonal wall positions - VERY CLOSE to pyramid
     const topLeft = width / 2 - pyramidTopWidth / 2 - wallOffset;
     const topRight = width / 2 + pyramidTopWidth / 2 + wallOffset;
     const bottomLeft = width / 2 - pyramidBottomWidth / 2 - wallOffset;
     const bottomRight = width / 2 + pyramidBottomWidth / 2 + wallOffset;
     
-    // Left wall - DIAGONAL, FURTHER from pyramid
+    // Left wall - DIAGONAL, VERY CLOSE to pyramid
     const leftWallVertices = [
       { x: topLeft - wallThickness, y: pyramidTop },
       { x: topLeft, y: pyramidTop },
@@ -215,7 +216,7 @@ export default function PlinkoGamePage() {
       }
     );
     
-    // Right wall - DIAGONAL, FURTHER from pyramid
+    // Right wall - DIAGONAL, VERY CLOSE to pyramid
     const rightWallVertices = [
       { x: topRight, y: pyramidTop },
       { x: topRight + wallThickness, y: pyramidTop },
