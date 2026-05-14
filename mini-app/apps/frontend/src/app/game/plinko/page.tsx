@@ -51,6 +51,12 @@ export default function PlinkoGamePage() {
     timestamp: number;
     telegramId?: string; // For avatar
   }>>([]);
+  const [playerHistory, setPlayerHistory] = useState<Array<{
+    betAmount: number;
+    multiplier: number;
+    payout: number;
+    timestamp: number;
+  }>>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
@@ -72,6 +78,22 @@ export default function PlinkoGamePage() {
 
     soundManager.initialize();
 
+    // Fetch player's own history
+    const fetchPlayerHistory = async () => {
+      try {
+        const response = await fetch('/api/games/plinko/my-history', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setPlayerHistory(data.history || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch player history:', error);
+      }
+    };
+
     // Fetch live history periodically
     const fetchLiveHistory = async () => {
       try {
@@ -88,8 +110,12 @@ export default function PlinkoGamePage() {
       }
     };
 
+    fetchPlayerHistory();
     fetchLiveHistory();
-    const interval = setInterval(fetchLiveHistory, 5000); // Update every 5 seconds
+    const interval = setInterval(() => {
+      fetchPlayerHistory();
+      fetchLiveHistory();
+    }, 5000); // Update every 5 seconds
 
     return () => {
       document.body.removeChild(script);
@@ -151,21 +177,22 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create DIAGONAL walls matching pyramid shape with STRONGER BOUNCE
-    // Walls follow the pyramid edges
+    // Create DIAGONAL walls FURTHER from pyramid with STRONGER BOUNCE
+    // Walls are positioned away from pyramid edges
     const wallThickness = 15;
+    const wallOffset = GAP * 3; // Move walls FURTHER from pyramid
     const pyramidTopWidth = GAP * 3; // Width at top (3 pegs)
     const pyramidBottomWidth = GAP * 19; // Width at bottom (19 pegs)
     const pyramidTop = startY; // Start where pegs start
     const pyramidBottom = height - 30; // End above buckets
     
-    // Calculate diagonal wall positions
-    const topLeft = width / 2 - pyramidTopWidth / 2;
-    const topRight = width / 2 + pyramidTopWidth / 2;
-    const bottomLeft = width / 2 - pyramidBottomWidth / 2;
-    const bottomRight = width / 2 + pyramidBottomWidth / 2;
+    // Calculate diagonal wall positions - FURTHER from pyramid
+    const topLeft = width / 2 - pyramidTopWidth / 2 - wallOffset;
+    const topRight = width / 2 + pyramidTopWidth / 2 + wallOffset;
+    const bottomLeft = width / 2 - pyramidBottomWidth / 2 - wallOffset;
+    const bottomRight = width / 2 + pyramidBottomWidth / 2 + wallOffset;
     
-    // Left wall - DIAGONAL from top-left to bottom-left
+    // Left wall - DIAGONAL, FURTHER from pyramid
     const leftWallVertices = [
       { x: topLeft - wallThickness, y: pyramidTop },
       { x: topLeft, y: pyramidTop },
@@ -181,14 +208,14 @@ export default function PlinkoGamePage() {
         label: 'Wall',
         restitution: 1.3, // STRONG BOUNCE to push balls toward center
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.4)', // Purple glow - VISIBLE
-          strokeStyle: 'rgba(139, 92, 246, 0.8)',
+          fillStyle: 'rgba(160, 224, 171, 0.3)', // Gradient color from Monopo Saigon
+          strokeStyle: 'rgba(160, 224, 171, 0.6)',
           lineWidth: 3,
         },
       }
     );
     
-    // Right wall - DIAGONAL from top-right to bottom-right
+    // Right wall - DIAGONAL, FURTHER from pyramid
     const rightWallVertices = [
       { x: topRight, y: pyramidTop },
       { x: topRight + wallThickness, y: pyramidTop },
@@ -204,8 +231,8 @@ export default function PlinkoGamePage() {
         label: 'Wall',
         restitution: 1.3, // STRONG BOUNCE to push balls toward center
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.4)', // Purple glow - VISIBLE
-          strokeStyle: 'rgba(139, 92, 246, 0.8)',
+          fillStyle: 'rgba(255, 172, 46, 0.3)', // Gradient color from Monopo Saigon
+          strokeStyle: 'rgba(255, 172, 46, 0.6)',
           lineWidth: 3,
         },
       }
@@ -262,13 +289,7 @@ export default function PlinkoGamePage() {
           setHighlightedBucket(clampedIndex);
           setTimeout(() => setHighlightedBucket(null), 500);
           
-          // Show win notification
-          setWinNotification({
-            amount: payout,
-            multiplier: multiplier,
-            show: true,
-          });
-          setTimeout(() => setWinNotification(null), 2000);
+          // NO WIN NOTIFICATION - removed as requested
           
           // Play sound
           if (multiplier >= 10) {
@@ -398,54 +419,6 @@ export default function PlinkoGamePage() {
             style={{ imageRendering: 'auto' }}
           />
           
-          {/* Win Notification - Stylish compact design */}
-          {winNotification?.show && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: -10 }}
-              className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50"
-            >
-              <div className={`px-6 py-3 rounded-2xl backdrop-blur-2xl border-2 shadow-2xl flex items-center gap-3 ${
-                winNotification.multiplier >= 10
-                  ? 'bg-gradient-to-r from-emerald-500/40 to-emerald-600/40 border-emerald-400'
-                  : winNotification.multiplier < 1
-                  ? 'bg-gradient-to-r from-red-500/40 to-red-600/40 border-red-400'
-                  : 'bg-gradient-to-r from-blue-500/40 to-blue-600/40 border-blue-400'
-              }`}>
-                <div className="flex flex-col items-center">
-                  <span className={`text-xs font-medium ${
-                    winNotification.multiplier >= 10
-                      ? 'text-emerald-300'
-                      : winNotification.multiplier < 1
-                      ? 'text-red-300'
-                      : 'text-blue-300'
-                  }`}>
-                    Multiplier
-                  </span>
-                  <span className={`text-2xl font-black ${
-                    winNotification.multiplier >= 10
-                      ? 'text-emerald-400'
-                      : winNotification.multiplier < 1
-                      ? 'text-red-400'
-                      : 'text-blue-400'
-                  }`}>
-                    {winNotification.multiplier}x
-                  </span>
-                </div>
-                <div className="w-px h-10 bg-white/20" />
-                <div className="flex flex-col items-center">
-                  <span className="text-xs font-medium text-white/60">
-                    {winNotification.multiplier >= 1 ? 'Win' : 'Loss'}
-                  </span>
-                  <span className="text-2xl font-black text-white">
-                    {winNotification.multiplier >= 1 ? '+' : ''}${winNotification.amount.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-          
           {/* Multiplier buckets overlay - BELOW pyramid with highlight animation */}
           <div className="absolute bottom-0 left-0 right-0 flex gap-[1px] px-[1px] pb-[1px] pointer-events-none">
             {MULTIPLIERS[riskLevel].map((mult, i) => {
@@ -561,6 +534,49 @@ export default function PlinkoGamePage() {
           <Target className="w-4 h-4" />
           {!matterLoaded ? 'Loading...' : activeBallsCount > 0 ? `Drop Ball (${activeBallsCount} active)` : 'Drop Ball'}
         </motion.button>
+
+        {/* Player History - Last 10 bets of current player */}
+        <div className="rounded-[10px] bg-black/40 border border-white/30 p-3">
+          <h3 className="text-white text-xs font-semibold mb-2">Последние ставки</h3>
+          <div className="space-y-1.5">
+            {playerHistory.length === 0 ? (
+              <p className="text-white/40 text-[9px] text-center py-2">Нет ставок</p>
+            ) : (
+              playerHistory.slice(0, 10).map((bet, i) => (
+                <div
+                  key={`${bet.timestamp}-${i}`}
+                  className="flex items-center justify-between bg-white/5 rounded-[10px] px-2.5 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/60 text-[10px]">
+                      ${bet.betAmount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-[75px] ${
+                        bet.multiplier >= 10
+                          ? 'bg-emerald-500/20 text-emerald-400'
+                          : bet.multiplier < 1
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-white/10 text-white/60'
+                      }`}
+                    >
+                      {bet.multiplier}x
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold ${
+                        bet.payout > bet.betAmount ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      ${bet.payout.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         {/* Live History - All Players - NO SCROLL, 10 bets */}
         <div className="rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-2">

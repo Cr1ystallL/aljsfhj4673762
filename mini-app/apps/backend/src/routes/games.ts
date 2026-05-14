@@ -561,3 +561,80 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 }
+
+  /**
+   * GET /api/games/plinko/my-history
+   * Get current player's plinko history - ONLY THEIR BETS
+   */
+  app.get<{
+    Querystring: {
+      limit?: string;
+    };
+  }>(
+    '/plinko/my-history',
+    {
+      preHandler: authenticate,
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const limit = parseInt(request.query.limit || '10', 10);
+
+      try {
+        const prisma = app.prisma;
+        
+        // Get current player's plinko bets
+        const bets = await prisma.bet.findMany({
+          where: {
+            userId,
+            gameType: 'plinko', // ONLY PLINKO BETS
+          },
+          orderBy: {
+            placedAt: 'desc',
+          },
+          take: Math.min(limit, 50), // Max 50 records
+          select: {
+            id: true,
+            amount: true,
+            payout: true,
+            multiplier: true,
+            state: true,
+            placedAt: true,
+            resolvedAt: true,
+          },
+        });
+
+        logger.info({ userId, count: bets.length }, 'Fetched player plinko history');
+
+        // Filter only completed bets with results
+        const completedBets = bets.filter(b => b.payout && b.multiplier);
+
+        // Format for frontend
+        const history = completedBets.map((bet) => ({
+          betAmount: Number(bet.amount),
+          multiplier: Number(bet.multiplier || 0),
+          payout: Number(bet.payout || 0),
+          timestamp: bet.resolvedAt?.getTime() || bet.placedAt.getTime(),
+        }));
+
+        return reply.send({
+          success: true,
+          history,
+        });
+      } catch (error) {
+        logger.error(error, 'Failed to get player plinko history');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch player history',
+          code: 'PLAYER_HISTORY_FETCH_FAILED',
+        });
+      }
+    }
+  );
