@@ -44,7 +44,6 @@ export default function PlinkoGamePage() {
   const [activeBall, setActiveBall] = useState<Ball | null>(null);
   const [history, setHistory] = useState<Array<{ multiplier: number; payout: number }>>([]);
   const [isDropping, setIsDropping] = useState(false);
-  const [lastWin, setLastWin] = useState<{ multiplier: number; payout: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
@@ -142,26 +141,33 @@ export default function PlinkoGamePage() {
         ctx.fillText(`${mult}x`, x + bucketWidth / 2, bucketY + 25);
       });
 
-      // Draw active ball with glow
+      // Draw active ball with glow and trail effect
       if (activeBall) {
         const ballX = activeBall.x * rect.width;
         const ballY = activeBall.y * rect.height;
 
-        // Glow effect
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'rgba(160, 224, 171, 0.8)';
+        // Draw subtle trail
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = 'rgba(160, 224, 171, 0.6)';
 
-        const gradient = ctx.createRadialGradient(ballX, ballY, 0, ballX, ballY, 10);
-        gradient.addColorStop(0, 'rgba(160, 224, 171, 1)');
-        gradient.addColorStop(0.5, 'rgba(255, 172, 46, 0.8)');
-        gradient.addColorStop(1, 'rgba(165, 45, 37, 0.3)');
+        // Ball gradient with Deep Ocean colors
+        const gradient = ctx.createRadialGradient(ballX - 2, ballY - 2, 0, ballX, ballY, 10);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(0.3, 'rgba(160, 224, 171, 1)');
+        gradient.addColorStop(0.6, 'rgba(255, 172, 46, 0.9)');
+        gradient.addColorStop(1, 'rgba(165, 45, 37, 0.4)');
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(ballX, ballY, 8, 0, Math.PI * 2);
+        ctx.arc(ballX, ballY, 9, 0, Math.PI * 2);
         ctx.fill();
 
+        // Inner highlight
         ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.beginPath();
+        ctx.arc(ballX - 2, ballY - 2, 3, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       animationRef.current = requestAnimationFrame(render);
@@ -176,12 +182,12 @@ export default function PlinkoGamePage() {
     };
   }, [activeBall, riskLevel]);
 
-  // Animate ball drop
+  // Animate ball drop with smooth physics
   useEffect(() => {
     if (!activeBall || !isDropping) return;
 
     const rows = 16;
-    const duration = 50; // ms per step
+    const duration = 120; // ms per step - slower for better animation
 
     const interval = setInterval(() => {
       setActiveBall((prev) => {
@@ -197,7 +203,6 @@ export default function PlinkoGamePage() {
           const multiplier = MULTIPLIERS[riskLevel][prev.finalSlot];
           const payout = betAmount * multiplier;
           
-          setLastWin({ multiplier, payout });
           setHistory((h) => [{ multiplier, payout }, ...h.slice(0, 11)]);
           
           // Play sound
@@ -209,20 +214,24 @@ export default function PlinkoGamePage() {
             soundManager.play('game.cashout');
           }
           
-          // Refetch balance after 500ms
+          // Refetch balance after 800ms
           setTimeout(() => {
             fetchBalance(isDemoMode);
             setIsDropping(false);
             setActiveBall(null);
-          }, 500);
+          }, 800);
           
           return prev;
         }
 
-        // Calculate new position
+        // Calculate new position with smooth movement
         const progress = nextStep / rows;
         const direction = prev.path[nextStep];
-        const newX = 0.5 + (direction * 0.03);
+        
+        // Smooth horizontal movement
+        const baseX = 0.5;
+        const horizontalOffset = (direction * 0.025);
+        const newX = baseX + horizontalOffset;
 
         return {
           ...prev,
@@ -257,18 +266,31 @@ export default function PlinkoGamePage() {
 
       const data = await response.json();
       
-      // Generate random path for ball
+      // Generate realistic path for ball with physics-like movement
       const rows = 16;
       const path: number[] = [0];
       let position = 0;
       
+      // More natural bouncing pattern
       for (let i = 0; i < rows; i++) {
-        const direction = Math.random() > 0.5 ? 1 : -1;
+        // Slightly biased towards center (gravity effect)
+        const randomFactor = Math.random();
+        let direction;
+        
+        if (Math.abs(position) > rows / 3) {
+          // If too far from center, bias towards center
+          direction = position > 0 ? -1 : 1;
+          if (randomFactor > 0.3) direction *= -1; // 70% chance to go towards center
+        } else {
+          // Normal random bounce
+          direction = randomFactor > 0.5 ? 1 : -1;
+        }
+        
         position += direction;
         path.push(position);
       }
       
-      // Calculate final slot (0-16)
+      // Calculate final slot (0-16) based on final position
       const finalSlot = Math.max(0, Math.min(16, Math.floor((position + rows) / 2)));
 
       setActiveBall({
@@ -281,7 +303,6 @@ export default function PlinkoGamePage() {
       });
       
       setIsDropping(true);
-      setLastWin(null);
       soundManager.play('ui.click');
     } catch (error) {
       console.error('Drop failed:', error);
@@ -308,55 +329,24 @@ export default function PlinkoGamePage() {
           />
         </div>
 
-        {/* Last Win Display */}
-        <AnimatePresence>
-          {lastWin && (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3 text-center"
-            >
-              <p className="text-white/60 text-xs mb-1">Won</p>
-              <p className={`text-2xl font-bold ${
-                lastWin.multiplier >= 10 ? 'text-emerald-400' :
-                lastWin.multiplier >= 2 ? 'text-blue-400' :
-                lastWin.multiplier < 1 ? 'text-red-400' : 'text-white'
-              }`}>
-                {lastWin.multiplier}x → ${lastWin.payout.toFixed(2)}
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Last Win Display - REMOVED, was covering pyramid */}
 
         {/* Controls - Compact */}
         <div className="grid grid-cols-2 gap-2">
-          {/* Bet Amount */}
+          {/* Bet Amount - Simple input only */}
           <div className="rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 shadow-xl p-3">
             <p className="text-white/60 text-xs mb-2">Bet Amount</p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setBetAmount((prev) => Math.max(0.1, prev / 2))}
-                className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-white text-xs transition-colors"
-              >
-                ÷2
-              </button>
-              <input
-                type="number"
-                value={betAmount}
-                onChange={(e) => setBetAmount(parseFloat(e.target.value) || 0.1)}
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-center text-white text-sm"
-                step={0.1}
-                min={0.1}
-                disabled={isDropping}
-              />
-              <button
-                onClick={() => setBetAmount((prev) => Math.min(1000, prev * 2))}
-                className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-white text-xs transition-colors"
-              >
-                ×2
-              </button>
-            </div>
+            <input
+              type="number"
+              value={betAmount}
+              onChange={(e) => setBetAmount(parseFloat(e.target.value) || 0.1)}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-center text-white text-base"
+              step={0.1}
+              min={0.1}
+              max={10000}
+              disabled={isDropping}
+              placeholder="Enter amount"
+            />
           </div>
 
           {/* Risk Level */}
