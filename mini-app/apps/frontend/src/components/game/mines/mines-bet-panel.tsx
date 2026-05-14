@@ -147,7 +147,11 @@ export function MinesBetPanel({
               <Minus size={12} strokeWidth={2.2} />
             </button>
             <div className="flex-1 flex items-center justify-center gap-2">
-              <Bomb size={14} className="text-frost-white/55" strokeWidth={1.6} />
+              <Bomb
+                size={14}
+                strokeWidth={1.6}
+                className="text-[#ff8a76]/80"
+              />
               <span className="font-roobert text-[22px] font-light tabular-nums text-frost-white">
                 {mineCount}
               </span>
@@ -171,16 +175,27 @@ export function MinesBetPanel({
           disabled={ctaDisabled}
           whileHover={!ctaDisabled ? { scale: 1.01 } : undefined}
           whileTap={!ctaDisabled ? { scale: 0.99 } : undefined}
+          style={
+            ctaActive && phase === 'active' && canCashout
+              ? {
+                  background:
+                    'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
+                  color: '#0a0a0a',
+                }
+              : undefined
+          }
           className={cn(
             'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors inline-flex items-center justify-center gap-2',
             ctaActive
-              ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/90'
+              ? phase === 'active' && canCashout
+                ? 'hover:opacity-90'
+                : 'bg-frost-white text-midnight-canvas hover:bg-frost-white/90'
               : 'bg-white/[0.06] text-frost-white/70 border border-white/15 hover:bg-white/10',
             ctaDisabled && 'opacity-50 cursor-not-allowed'
           )}
         >
           {phase === 'active' && canCashout && (
-            <Gem size={13} strokeWidth={1.6} />
+            <Gem size={13} strokeWidth={1.8} />
           )}
           {ctaLabel}
         </motion.button>

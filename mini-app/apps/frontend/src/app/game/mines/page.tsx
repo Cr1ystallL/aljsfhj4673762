@@ -248,14 +248,34 @@ export default function MinesGamePage() {
         />
 
         {/* Status strip — current and next multiplier preview */}
-        <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-3 grid grid-cols-3 gap-3 items-center">
-          <Stat label="Открыто" value={`${safeRevealed} / ${25 - displayMineCount}`} />
-          <Stat
-            label="Текущий"
-            value={`x${currentMult.toFixed(2)}`}
-            emphasis
-          />
-          <Stat label="Следующий" value={`x${nextMult.toFixed(2)}`} muted />
+        <div className="relative rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-3 grid grid-cols-3 gap-3 items-center overflow-hidden">
+          {/* Soft brand-coloured wash that strengthens as the round progresses */}
+          {phase === 'active' && (
+            <div
+              aria-hidden
+              className="absolute inset-0 opacity-40 pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(90deg, rgba(160, 224, 171, 0.10) 0%, rgba(255, 172, 46, 0.08) 55%, rgba(165, 45, 37, 0.06) 100%)',
+              }}
+            />
+          )}
+          <div className="relative">
+            <Stat
+              label="Открыто"
+              value={`${safeRevealed} / ${25 - displayMineCount}`}
+            />
+          </div>
+          <div className="relative">
+            <Stat
+              label="Текущий"
+              value={`x${currentMult.toFixed(2)}`}
+              emphasis
+            />
+          </div>
+          <div className="relative">
+            <Stat label="Следующий" value={`x${nextMult.toFixed(2)}`} muted />
+          </div>
         </div>
 
         {/* Grid */}

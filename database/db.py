@@ -937,3 +937,30 @@ class Database:
 
 # Глобальный экземпляр базы данных
 db = Database()
+
+
+# ---------------------------------------------------------------------------
+# Backend selection.
+#
+# Earlier handlers imported the SQLite database directly (`from database.db
+# import db`) instead of going through `database/__init__.py`. That meant
+# turning on `USE_POSTGRES` only switched the imports done via
+# `from database import db` — every existing handler kept writing to the
+# local SQLite file, which is exactly why the bot's balance and the
+# mini-app's balance drifted apart.
+#
+# To fix this without touching every handler we re-bind the public `db`
+# symbol here, after the SQLite class is fully defined, to the PostgreSQL
+# adapter when the env var is set. Both adapters expose the same surface
+# API used by the handlers, so they can stay agnostic about which backend
+# is actually live.
+# ---------------------------------------------------------------------------
+import os as _os
+
+if _os.getenv('USE_POSTGRES', 'true').lower() in ('true', '1', 'yes'):
+    try:
+        from .db_postgres import db_postgres as _pg_db
+        db = _pg_db  # type: ignore[assignment]
+        print("✅ database.db rebound to PostgreSQL adapter")
+    except Exception as _err:
+        print(f"⚠️  Failed to bind PostgreSQL adapter, staying on SQLite: {_err}")
