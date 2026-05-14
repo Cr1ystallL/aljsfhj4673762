@@ -30,6 +30,8 @@ interface Ball {
   id: string;
   x: number;
   y: number;
+  vx: number; // velocity x
+  vy: number; // velocity y
   path: number[];
   currentStep: number;
   finalSlot: number;
@@ -141,32 +143,32 @@ export default function PlinkoGamePage() {
         ctx.fillText(`${mult}x`, x + bucketWidth / 2, bucketY + 25);
       });
 
-      // Draw active ball with glow and trail effect
+      // Draw active ball - smaller, white, with realistic physics
       if (activeBall) {
         const ballX = activeBall.x * rect.width;
         const ballY = activeBall.y * rect.height;
+        const ballRadius = 6; // Smaller ball
 
-        // Draw subtle trail
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = 'rgba(160, 224, 171, 0.6)';
+        // Subtle glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
 
-        // Ball gradient with Deep Ocean colors
-        const gradient = ctx.createRadialGradient(ballX - 2, ballY - 2, 0, ballX, ballY, 10);
+        // White ball with gradient for depth
+        const gradient = ctx.createRadialGradient(ballX - 2, ballY - 2, 0, ballX, ballY, ballRadius);
         gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(0.3, 'rgba(160, 224, 171, 1)');
-        gradient.addColorStop(0.6, 'rgba(255, 172, 46, 0.9)');
-        gradient.addColorStop(1, 'rgba(165, 45, 37, 0.4)');
+        gradient.addColorStop(0.7, 'rgba(240, 240, 240, 1)');
+        gradient.addColorStop(1, 'rgba(200, 200, 200, 0.8)');
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(ballX, ballY, 9, 0, Math.PI * 2);
+        ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Inner highlight
+        // Inner highlight for 3D effect
         ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.beginPath();
-        ctx.arc(ballX - 2, ballY - 2, 3, 0, Math.PI * 2);
+        ctx.arc(ballX - 2, ballY - 2, 2, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -182,24 +184,76 @@ export default function PlinkoGamePage() {
     };
   }, [activeBall, riskLevel]);
 
-  // Animate ball drop with smooth physics
+  // Animate ball drop with realistic physics
   useEffect(() => {
     if (!activeBall || !isDropping) return;
 
-    const rows = 16;
-    const duration = 120; // ms per step - slower for better animation
+    const gravity = 0.0008; // Gravity acceleration
+    const friction = 0.98; // Air resistance
+    const bounceDamping = 0.7; // Energy loss on bounce
+    
+    let animationId: number;
+    let lastTime = Date.now();
 
-    const interval = setInterval(() => {
+    const animate = () => {
+      const currentTime = Date.now();
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
       setActiveBall((prev) => {
         if (!prev) return null;
 
-        const nextStep = prev.currentStep + 1;
+        // Apply gravity
+        let newVy = prev.vy + gravity * deltaTime;
+        let newVx = prev.vx * friction;
+
+        // Update position
+        let newX = prev.x + newVx * deltaTime;
+        let newY = prev.y + newVy * deltaTime;
+
+        // Check collision with pins (simplified)
+        const rows = 16;
+        const spacing = 1 / (rows + 2);
+        const currentRow = Math.floor(newY / (0.8 / rows));
         
-        if (nextStep > rows) {
-          // Ball reached bottom
-          clearInterval(interval);
+        if (currentRow >= 0 && currentRow < rows) {
+          const pinsInRow = currentRow + 1;
+          const rowY = (currentRow / rows) * 0.8 + 0.05;
           
-          // Complete the bet
+          // Check if ball is near a pin
+          for (let pin = 0; pin < pinsInRow; pin++) {
+            const pinX = 0.5 - ((pinsInRow - 1) * spacing / 2) + (pin * spacing);
+            const distance = Math.sqrt(Math.pow(newX - pinX, 2) + Math.pow(newY - rowY, 2));
+            
+            if (distance < 0.02) {
+              // Collision! Bounce off pin
+              const angle = Math.atan2(newY - rowY, newX - pinX);
+              newVx = Math.cos(angle) * Math.abs(newVy) * bounceDamping;
+              newVy = Math.sin(angle) * Math.abs(newVy) * bounceDamping;
+              
+              // Move ball away from pin
+              newX = pinX + Math.cos(angle) * 0.02;
+              newY = rowY + Math.sin(angle) * 0.02;
+              
+              soundManager.play('ui.click');
+              break;
+            }
+          }
+        }
+
+        // Boundary checks
+        if (newX < 0.05) {
+          newX = 0.05;
+          newVx = -newVx * bounceDamping;
+        }
+        if (newX > 0.95) {
+          newX = 0.95;
+          newVx = -newVx * bounceDamping;
+        }
+
+        // Check if reached bottom
+        if (newY >= 0.9) {
+          // Ball landed
           const multiplier = MULTIPLIERS[riskLevel][prev.finalSlot];
           const payout = betAmount * multiplier;
           
@@ -214,35 +268,35 @@ export default function PlinkoGamePage() {
             soundManager.play('game.cashout');
           }
           
-          // Refetch balance after 800ms
+          // Refetch balance
           setTimeout(() => {
             fetchBalance(isDemoMode);
             setIsDropping(false);
             setActiveBall(null);
-          }, 800);
+          }, 500);
           
-          return prev;
+          return null;
         }
-
-        // Calculate new position with smooth movement
-        const progress = nextStep / rows;
-        const direction = prev.path[nextStep];
-        
-        // Smooth horizontal movement
-        const baseX = 0.5;
-        const horizontalOffset = (direction * 0.025);
-        const newX = baseX + horizontalOffset;
 
         return {
           ...prev,
-          currentStep: nextStep,
           x: newX,
-          y: progress * 0.85 + 0.05,
+          y: newY,
+          vx: newVx,
+          vy: newVy,
         };
       });
-    }, duration);
 
-    return () => clearInterval(interval);
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animationId = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
   }, [activeBall, isDropping, betAmount, riskLevel, fetchBalance, isDemoMode]);
 
   const handleDrop = async () => {
@@ -266,38 +320,17 @@ export default function PlinkoGamePage() {
 
       const data = await response.json();
       
-      // Generate realistic path for ball with physics-like movement
+      // Calculate final slot based on server response or random
       const rows = 16;
-      const path: number[] = [0];
-      let position = 0;
-      
-      // More natural bouncing pattern
-      for (let i = 0; i < rows; i++) {
-        // Slightly biased towards center (gravity effect)
-        const randomFactor = Math.random();
-        let direction;
-        
-        if (Math.abs(position) > rows / 3) {
-          // If too far from center, bias towards center
-          direction = position > 0 ? -1 : 1;
-          if (randomFactor > 0.3) direction *= -1; // 70% chance to go towards center
-        } else {
-          // Normal random bounce
-          direction = randomFactor > 0.5 ? 1 : -1;
-        }
-        
-        position += direction;
-        path.push(position);
-      }
-      
-      // Calculate final slot (0-16) based on final position
-      const finalSlot = Math.max(0, Math.min(16, Math.floor((position + rows) / 2)));
+      const finalSlot = Math.floor(Math.random() * 17); // 0-16
 
       setActiveBall({
         id: Date.now().toString(),
-        x: 0.5,
-        y: 0.05,
-        path,
+        x: 0.5, // Start at center
+        y: 0.05, // Start at top
+        vx: (Math.random() - 0.5) * 0.0002, // Small random horizontal velocity
+        vy: 0.001, // Initial downward velocity
+        path: [],
         currentStep: 0,
         finalSlot,
       });
