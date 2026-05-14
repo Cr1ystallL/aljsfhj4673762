@@ -7,7 +7,7 @@ import { User, Dice1, TrendingUp, Trophy, X } from 'lucide-react';
 import { useBalance } from '@/hooks/use-balance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
-import type { Transaction } from '@casino/shared/types/balance';
+import type { Transaction } from '@casino/shared';
 
 export default function ProfilePage() {
   const { user } = useAuthStore();
