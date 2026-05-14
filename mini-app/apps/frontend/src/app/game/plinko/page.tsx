@@ -151,63 +151,42 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create decorative walls on left and right with DIAGONAL shape matching pyramid
-    // These walls prevent balls from escaping and look beautiful
-    // EXTENDED OUTWARD to fill the yellow areas shown in user's screenshot
-    const wallThickness = 30; // Thicker walls
-    const pyramidTopWidth = GAP * 3; // Width at top (3 pegs)
-    const pyramidBottomWidth = GAP * 19; // Width at bottom (19 pegs)
-    const pyramidTop = 0; // Start from very top
-    const pyramidBottom = height; // Extend to very bottom
+    // Create VISIBLE walls on left and right edges with STRONGER BOUNCE
+    // Attached to canvas edges, full height
+    const wallThickness = 15;
     
-    // Calculate diagonal wall positions - MOVED OUTWARD
-    const topLeft = width / 2 - pyramidTopWidth / 2;
-    const topRight = width / 2 + pyramidTopWidth / 2;
-    const bottomLeft = width / 2 - pyramidBottomWidth / 2 - GAP * 2; // Move LEFT more
-    const bottomRight = width / 2 + pyramidBottomWidth / 2 + GAP * 2; // Move RIGHT more
-    
-    // Left wall - DIAGONAL, EXTENDED TO SCREEN EDGE with STRONGER BOUNCE
-    const leftWallVertices = [
-      { x: 0, y: pyramidTop }, // Start from screen edge
-      { x: topLeft, y: pyramidTop },
-      { x: bottomLeft, y: pyramidBottom },
-      { x: 0, y: pyramidBottom }, // End at screen edge
-    ];
-    const leftWall = Matter.Bodies.fromVertices(
-      topLeft / 2,
-      (pyramidTop + pyramidBottom) / 2,
-      [leftWallVertices],
+    // Left wall - VISIBLE, attached to left edge
+    const leftWall = Matter.Bodies.rectangle(
+      wallThickness / 2, // Position at left edge
+      height / 2,
+      wallThickness,
+      height,
       {
         isStatic: true,
         label: 'Wall',
-        restitution: 1.2, // STRONGER BOUNCE to push balls toward center
+        restitution: 1.3, // STRONG BOUNCE to push balls toward center
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.3)', // Purple glow
-          strokeStyle: 'rgba(139, 92, 246, 0.6)',
-          lineWidth: 4,
+          fillStyle: 'rgba(139, 92, 246, 0.4)', // Purple glow - VISIBLE
+          strokeStyle: 'rgba(139, 92, 246, 0.8)',
+          lineWidth: 3,
         },
       }
     );
     
-    // Right wall - DIAGONAL, EXTENDED TO SCREEN EDGE with STRONGER BOUNCE
-    const rightWallVertices = [
-      { x: topRight, y: pyramidTop },
-      { x: width, y: pyramidTop }, // Start from screen edge
-      { x: width, y: pyramidBottom }, // End at screen edge
-      { x: bottomRight, y: pyramidBottom },
-    ];
-    const rightWall = Matter.Bodies.fromVertices(
-      (topRight + width) / 2,
-      (pyramidTop + pyramidBottom) / 2,
-      [rightWallVertices],
+    // Right wall - VISIBLE, attached to right edge
+    const rightWall = Matter.Bodies.rectangle(
+      width - wallThickness / 2, // Position at right edge
+      height / 2,
+      wallThickness,
+      height,
       {
         isStatic: true,
         label: 'Wall',
-        restitution: 1.2, // STRONGER BOUNCE to push balls toward center
+        restitution: 1.3, // STRONG BOUNCE to push balls toward center
         render: {
-          fillStyle: 'rgba(139, 92, 246, 0.3)', // Purple glow
-          strokeStyle: 'rgba(139, 92, 246, 0.6)',
-          lineWidth: 4,
+          fillStyle: 'rgba(139, 92, 246, 0.4)', // Purple glow - VISIBLE
+          strokeStyle: 'rgba(139, 92, 246, 0.8)',
+          lineWidth: 3,
         },
       }
     );
