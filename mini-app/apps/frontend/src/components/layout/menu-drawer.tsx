@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { GlassCard } from '@/components/ui/glass-card';
+import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -10,83 +10,104 @@ interface MenuDrawerProps {
   onGameSelect: (game: string) => void;
 }
 
-const games = [
-  { id: 'crash', name: 'Crash', icon: '🚀' },
-  { id: 'plinko', name: 'Plinko', icon: '🎯' },
-  { id: 'mines', name: 'Mines', icon: '💣' },
-  { id: 'cookies', name: 'Cookies', icon: '🍪' },
-  { id: 'nuts', name: 'Nuts', icon: '🥜' },
-  { id: 'keno', name: 'Keno', icon: '🎱' },
-  { id: 'coinflip', name: 'Coinflip', icon: '🪙' },
+/**
+ * Menu Drawer — Monopo Saigon Style
+ *
+ * Slide-in panel from the left holding the available games. Each row is
+ * a frosted-glass tile with a minimal outlined icon and the game name in
+ * Roobert. No emoji, no rainbow tints — the tile uses the same deep
+ * ocean atmospherics as the rest of the brand.
+ */
+const games: Array<{ id: GameKey; name: string }> = [
+  { id: 'crash', name: 'Crash' },
+  { id: 'plinko', name: 'Plinko' },
+  { id: 'mines', name: 'Mines' },
 ];
 
-/**
- * Animated menu drawer with game list
- * Slides in from left with glass morphism
- */
 export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+          {/* Scrim */}
+          <motion.button
+            type="button"
+            aria-label="Close menu"
+            onClick={onClose}
+            className="fixed inset-0 z-40 bg-midnight-canvas/80 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
           />
-          
+
           {/* Drawer */}
-          <motion.div
-            className="fixed left-0 top-0 bottom-0 w-80 z-50 pt-safe pb-safe"
-            initial={{ x: -320 }}
+          <motion.aside
+            className="fixed left-0 top-0 bottom-0 z-50 w-[320px] max-w-[85vw] pt-safe pb-safe"
+            initial={{ x: '-100%' }}
             animate={{ x: 0 }}
-            exit={{ x: -320 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
           >
-            <div className="h-full glass border-r border-white/10 flex flex-col">
+            <div
+              className="h-full border-r border-white/10 backdrop-blur-2xl flex flex-col"
+              style={{ background: 'rgba(0, 0, 0, 0.78)' }}
+            >
+              {/* Atmospheric glow at the bottom — restrained, just the brand */}
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-64 opacity-40"
+                style={{
+                  background:
+                    'radial-gradient(80% 60% at 30% 100%, rgba(160, 224, 171, 0.18) 0%, rgba(255, 172, 46, 0.10) 45%, transparent 80%)',
+                }}
+              />
+
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-white/10">
-                <h2 className="text-2xl font-bold text-white">Games</h2>
-                <motion.button
+              <div className="relative flex items-center justify-between px-5 py-5 border-b border-white/10">
+                <span className="font-roobert text-frost-white text-[20px] font-normal leading-none">
+                  Игры
+                </span>
+                <button
                   onClick={onClose}
-                  className="text-white/60 hover:text-white transition-colors"
-                  whileTap={{ scale: 0.9 }}
+                  aria-label="Close"
+                  className="w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
                 >
-                  <X size={24} />
-                </motion.button>
+                  <X size={14} strokeWidth={1.8} />
+                </button>
               </div>
-              
-              {/* Game List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+
+              {/* Games list */}
+              <div className="relative flex-1 overflow-y-auto px-3 py-4 space-y-2 scrollbar-hide">
                 {games.map((game, index) => (
-                  <motion.div
+                  <motion.button
                     key={game.id}
-                    initial={{ opacity: 0, x: -20 }}
+                    onClick={() => {
+                      onGameSelect(game.id);
+                      onClose();
+                    }}
+                    initial={{ opacity: 0, x: -16 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                    transition={{ delay: index * 0.04 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="w-full text-left rounded-card border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/20 transition-colors px-4 py-3 flex items-center gap-3"
                   >
-                    <GlassCard
-                      onClick={() => {
-                        onGameSelect(game.id);
-                        onClose();
-                      }}
-                      className="cursor-pointer hover:bg-white/10 transition-colors"
-                    >
-                      <div className="flex items-center gap-4 p-4">
-                        <span className="text-3xl">{game.icon}</span>
-                        <span className="text-lg font-medium text-white">
-                          {game.name}
-                        </span>
-                      </div>
-                    </GlassCard>
-                  </motion.div>
+                    <span className="w-10 h-10 rounded-card border border-white/10 bg-white/[0.04] flex items-center justify-center shrink-0">
+                      <GameIcon game={game.id} size={18} strokeWidth={1.6} />
+                    </span>
+                    <span className="font-roobert text-[15px] text-frost-white">
+                      {game.name}
+                    </span>
+                  </motion.button>
                 ))}
               </div>
+
+              {/* Footer */}
+              <div className="relative px-5 py-4 border-t border-white/10">
+                <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+                  Macvbet · monopo saigon
+                </span>
+              </div>
             </div>
-          </motion.div>
+          </motion.aside>
         </>
       )}
     </AnimatePresence>

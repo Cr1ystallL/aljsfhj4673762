@@ -1,21 +1,43 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { PageTransition } from '@/components/ui/page-transition';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Dice1, TrendingUp, Trophy, X } from 'lucide-react';
+import { Copy, Check, Coins, Dice5, Trophy, Sparkles, ChevronRight } from 'lucide-react';
+
+import { PageTransition } from '@/components/ui/page-transition';
+import { GameIconTile, gameLabel, resolveGameKey } from '@/components/ui/game-icon';
 import { useBalance } from '@/hooks/use-balance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
+import { useRouter } from 'next/navigation';
+
+/**
+ * Profile Page — Monopo Saigon Style
+ *
+ * Dark midnight canvas, frosted-glass cards (10px radius, 1px white/10
+ * borders, no harsh shadows), pill controls (75px radius), Roobert
+ * typography. Deep ocean gradient appears only as an atmospheric backdrop
+ * on the avatar plate, never as a flat surface.
+ *
+ * Sections, top → bottom:
+ *   - Header pill row: title and balance pill.
+ *   - Identity card: avatar plate over a soft Deep-Ocean halo, name,
+ *     telegram id with copy-to-clipboard, registration date.
+ *   - Stat tiles: total bets, total winnings, biggest win, biggest mult.
+ *   - Recent bets: per-game icon + label + relative date + stake +
+ *     payout. Amounts are normalised so we don't show "Ставка: -4.00 ₽".
+ */
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const { balance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
-  const [realBalanceAmount, setRealBalanceAmount] = useState<number | null>(null);
+  const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchTransactions(7);
+    fetchTransactions(20);
   }, [fetchTransactions]);
 
   useEffect(() => {
@@ -25,9 +47,9 @@ export default function ProfilePage() {
         const res = await fetch('/api/balance?demo=false', { credentials: 'include' });
         if (!res.ok) return;
         const data = (await res.json()) as { balance: { amount: number } };
-        if (!cancelled) setRealBalanceAmount(data.balance.amount);
+        if (!cancelled) setRealBalance(data.balance.amount);
       } catch {
-        if (!cancelled) setRealBalanceAmount(null);
+        if (!cancelled) setRealBalance(null);
       }
     })();
     return () => {
@@ -35,258 +57,398 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Calculate stats
-  const totalBets = transactions.filter((tx) => tx.type === 'bet').length;
-  const totalWagered = transactions
-    .filter((tx) => tx.type === 'bet')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const totalWon = transactions
-    .filter((tx) => tx.type === 'win')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const maxWin = Math.max(
-    ...transactions.filter((tx) => tx.type === 'win').map((tx) => tx.amount),
-    0
-  );
-  
-  // For maxMultiplier, get REAL maximum multiplier that user actually hit
-  // Filter wins and extract multipliers from metadata
-  const winTransactions = transactions.filter((tx) => tx.type === 'win');
-  
-  let maxMultiplier = 0;
-  winTransactions.forEach((tx) => {
-    const txAny = tx as any;
-    const mult = txAny.metadata?.multiplier;
-    
-    // Convert to number if it's a string
-    const multNum = typeof mult === 'string' ? parseFloat(mult) : mult;
-    
-    if (multNum && typeof multNum === 'number' && !isNaN(multNum) && multNum > maxMultiplier) {
-      maxMultiplier = multNum;
+  const stats = useMemo(() => deriveStats(transactions), [transactions]);
+
+  const handleCopyId = async () => {
+    if (!user?.telegramId) return;
+    try {
+      await navigator.clipboard.writeText(String(user.telegramId));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // ignore — clipboard may be blocked in the embedded webview
     }
-  });
-  
-  // Get user initials
-  const getInitials = () => {
-    if (user?.firstName) {
-      return user.firstName.charAt(0).toUpperCase();
-    }
-    return 'U';
   };
+
+  const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
+  const balanceAmount = realBalance ?? balance?.amount ?? 0;
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black pb-24 overflow-y-auto">
-        {/* Header with Balance on RIGHT */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <h1 className="text-white font-semibold text-lg">Аккаунт</h1>
-          <div className="bg-blue-500/20 border border-blue-500/40 rounded-lg px-3 py-1.5 flex items-center gap-2">
-            <span className="text-white font-semibold text-sm">
-              {realBalanceAmount ?? balance?.amount ?? 0}
+      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+        <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-4">
+          {/* Header */}
+          <div className="flex items-center justify-between px-1">
+            <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
+              Аккаунт
             </span>
-            <span className="text-white/60 text-xs">₽</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md">
+              <span className="font-roobert text-frost-white text-[14px] tabular-nums">
+                {balanceAmount.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span className="text-whisper-gray text-[11px]">₽</span>
+            </div>
           </div>
-        </div>
 
-        {/* Tabs - ONLY Account, removed История and Настройки */}
-        <div className="flex items-center gap-4 px-4 py-4 border-b border-white/10">
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 rounded-full text-white text-sm font-medium">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            Аккаунт
-          </button>
-        </div>
+          {/* Identity card */}
+          <motion.section
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl"
+          >
+            {/* Atmospheric backdrop */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{
+                background:
+                  'radial-gradient(120% 100% at 50% 0%, rgba(160, 224, 171, 0.18) 0%, rgba(255, 172, 46, 0.10) 45%, transparent 80%)',
+              }}
+            />
+            <div
+              className="pointer-events-none absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(165, 45, 37, 0.22) 0%, transparent 70%)',
+                filter: 'blur(48px)',
+              }}
+            />
 
-        {/* User ID */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
-          <span className="text-white/40 text-xs font-mono">
-            # {user?.telegramId || 'unknown'}
-          </span>
-          <button className="text-white/40 text-xs">Копировать</button>
-        </div>
+            <div className="relative px-5 pt-7 pb-5 flex flex-col items-center text-center">
+              {/* Avatar */}
+              <div className="relative">
+                <div className="absolute -inset-3 rounded-full opacity-50 blur-2xl"
+                  style={{
+                    background:
+                      'radial-gradient(circle, rgba(160, 224, 171, 0.35) 0%, transparent 70%)',
+                  }}
+                />
+                {user?.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.photoUrl}
+                    alt={user.firstName || 'User'}
+                    className="relative w-20 h-20 rounded-pill object-cover border border-white/20"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="relative w-20 h-20 rounded-pill border border-white/20 bg-white/[0.06] flex items-center justify-center">
+                    <span className="font-roobert text-[28px] font-light text-frost-white">
+                      {initials}
+                    </span>
+                  </div>
+                )}
+              </div>
 
-        {/* Avatar Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-4 mt-4 bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-xl border border-white/10 rounded-xl p-6"
-        >
-          <div className="flex flex-col items-center">
-            {/* Avatar - Telegram photo or initials */}
-            {user?.photoUrl ? (
-              <img
-                src={user.photoUrl}
-                alt={user.firstName || 'User'}
-                className="w-20 h-20 rounded-2xl object-cover mb-3"
-              />
+              {/* Name */}
+              <h2 className="mt-4 font-roobert text-[22px] font-normal text-frost-white leading-tight">
+                {user?.firstName || 'Игрок'}
+                {user?.lastName ? ` ${user.lastName}` : ''}
+              </h2>
+
+              {/* Telegram id with copy */}
+              {user?.telegramId !== undefined && (
+                <button
+                  onClick={handleCopyId}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
+                >
+                  <span className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+                    #{user.telegramId}
+                  </span>
+                  {copied ? (
+                    <Check size={11} className="text-frost-white" strokeWidth={2} />
+                  ) : (
+                    <Copy size={11} className="text-whisper-gray" strokeWidth={1.8} />
+                  )}
+                </button>
+              )}
+
+              <span className="mt-3 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+                Аккаунт активен
+              </span>
+            </div>
+          </motion.section>
+
+          {/* Stats */}
+          <section className="grid grid-cols-2 gap-2">
+            <StatTile
+              icon={<Dice5 size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              label="Всего ставок"
+              value={stats.totalBets.toLocaleString('ru-RU')}
+            />
+            <StatTile
+              icon={<Coins size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              label="Сумма выигрышей"
+              value={`${stats.totalWon.toLocaleString('ru-RU', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })} ₽`}
+            />
+            <StatTile
+              icon={<Trophy size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              label="Макс выигрыш"
+              value={`${stats.maxWin.toLocaleString('ru-RU', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })} ₽`}
+            />
+            <StatTile
+              icon={<Sparkles size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              label="Макс коэфф."
+              value={
+                stats.maxMultiplier > 0
+                  ? `x${stats.maxMultiplier.toFixed(2)}`
+                  : '—'
+              }
+            />
+          </section>
+
+          {/* Recent bets */}
+          <section>
+            <div className="flex items-center justify-between px-1 mb-2">
+              <span className="font-roobert text-frost-white text-[14px]">
+                Последние ставки
+              </span>
+              <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+                {Math.min(transactions.length, 7)} из {transactions.length}
+              </span>
+            </div>
+
+            {txLoading ? (
+              <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl py-12 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+              </div>
+            ) : stats.bets.length === 0 ? (
+              <EmptyBets onPlay={() => router.push('/game/crash')} />
             ) : (
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center mb-3">
-                <span className="text-3xl font-bold text-white">{getInitials()}</span>
+              <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+                <div className="divide-y divide-white/5">
+                  {stats.bets.slice(0, 7).map((row, idx) => (
+                    <BetRow key={row.id} row={row} index={idx} />
+                  ))}
+                </div>
               </div>
             )}
+          </section>
+        </div>
+      </main>
+    </PageTransition>
+  );
+}
 
-            {/* Name */}
-            <h2 className="text-white font-semibold text-lg mb-1">
-              {user?.firstName || 'User'} {user?.lastName || ''}
-            </h2>
+/* ------------------------------------------------------------------ types */
 
-            {/* Registration Date */}
-            <p className="text-white/40 text-xs mb-6">
-              Зарегистрирован {new Date().toLocaleDateString('ru-RU')}
-            </p>
+interface BetRowData {
+  id: string;
+  game: ReturnType<typeof resolveGameKey>;
+  gameLabel: string;
+  date: Date;
+  stake: number;
+  payout: number;
+  net: number; // signed: positive = won, negative = lost
+  multiplier: number | null;
+  outcome: 'won' | 'lost' | 'pending';
+}
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3 w-full">
-              {/* Total Bets */}
-              <div className="bg-gray-800/30 rounded-lg p-4 flex flex-col items-center">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center mb-2">
-                  <Dice1 size={20} className="text-blue-400" />
-                </div>
-                <span className="text-white/40 text-xs mb-1">ВСЕГО СТАВОК</span>
-                <span className="text-white font-bold text-lg">{totalBets}</span>
-              </div>
+interface DerivedStats {
+  totalBets: number;
+  totalWon: number;
+  maxWin: number;
+  maxMultiplier: number;
+  bets: BetRowData[];
+}
 
-              {/* Total Won */}
-              <div className="bg-gray-800/30 rounded-lg p-4 flex flex-col items-center">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-2">
-                  <TrendingUp size={20} className="text-emerald-400" />
-                </div>
-                <span className="text-white/40 text-xs mb-1">СУММА ВЫИГРЫШЕЙ</span>
-                <span className="text-white font-bold text-lg">{totalWon.toFixed(0)} ₽</span>
-              </div>
+/* ------------------------------------------------------------ data shaping */
 
-              {/* Max Win */}
-              <div className="bg-gray-800/30 rounded-lg p-4 flex flex-col items-center">
-                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center mb-2">
-                  <Trophy size={20} className="text-purple-400" />
-                </div>
-                <span className="text-white/40 text-xs mb-1">МАКС ВЫИГРЫШ</span>
-                <span className="text-white font-bold text-lg">{maxWin.toFixed(0)} ₽</span>
-              </div>
+/**
+ * Reduce raw transactions into per-bet rows + aggregate stats.
+ *
+ * The shared transaction table mixes bet debits (negative `amount`),
+ * win/cashout credits (positive `amount`), refunds, and deposits. To
+ * present a "bet history" we only care about debits typed `bet` (the
+ * authoritative stake) and pair them with their corresponding credit
+ * (`win` or `cashout`) when one exists — matched via `metadata.betId`
+ * or, failing that, the closest credit on the same `gameRoundId`.
+ */
+function deriveStats(transactions: Array<any>): DerivedStats {
+  const bets: BetRowData[] = [];
+  let totalWon = 0;
+  let maxWin = 0;
+  let maxMultiplier = 0;
 
-              {/* Max Multiplier */}
-              <div className="bg-gray-800/30 rounded-lg p-4 flex flex-col items-center">
-                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center mb-2">
-                  <X size={20} className="text-orange-400" />
-                </div>
-                <span className="text-white/40 text-xs mb-1">МАКС КОЭФФ</span>
-                <span className="text-white font-bold text-lg">x {maxMultiplier.toFixed(1)}</span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+  // Index credits by betId / roundId for quick pairing.
+  const creditsByBetId = new Map<string, any>();
+  const creditsByRoundId = new Map<string, any>();
+  for (const tx of transactions) {
+    if (tx.type === 'win' || tx.type === 'cashout') {
+      const betId = tx.metadata?.betId;
+      if (betId) creditsByBetId.set(betId, tx);
+      else if (tx.gameRoundId) creditsByRoundId.set(tx.gameRoundId, tx);
 
-        {/* Recent Bets - Single format: {GameSVG} {GameName} {GameDate} {BetSum} {WinningSum} */}
-        <div className="px-4 mt-6">
-          <h3 className="text-white font-semibold text-lg mb-4">Последние ставки</h3>
+      const amt = Math.abs(Number(tx.amount));
+      totalWon += amt;
+      if (amt > maxWin) maxWin = amt;
+      const mult = Number(tx.metadata?.multiplier);
+      if (Number.isFinite(mult) && mult > maxMultiplier) maxMultiplier = mult;
+    }
+  }
 
-          {/* Bets List */}
-          {txLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/20 border-t-white" />
-            </div>
-          ) : transactions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Dice1 size={48} className="text-white/20 mb-3" />
-              <p className="text-white/40 text-sm mb-2">Ставки отсутствуют</p>
-              <p className="text-white/30 text-xs text-center max-w-xs">
-                Самое время чтобы сыграть. Мы используем доказуемо честный принцип работы, а наш RTP от 97% и более.
-              </p>
-              <button className="mt-6 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 transition-colors">
-                Играть
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {transactions.slice(0, 7).map((tx, index) => {
-                const txAny = tx as any;
-                return (
-                  <motion.div
-                    key={tx.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="bg-gray-800/30 backdrop-blur-sm border border-white/5 rounded-lg p-3 flex items-center justify-between"
-                  >
-                    {/* Left: Game SVG + Name + Date */}
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {/* Game Icon SVG */}
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-blue-400"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <circle cx="12" cy="12" r="6" />
-                          <circle cx="12" cy="12" r="2" />
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">
-                          {txAny.metadata?.gameType || tx.gameType || 'Game'}
-                        </p>
-                        <p className="text-white/40 text-xs">
-                          {new Date(tx.createdAt).toLocaleString('ru-RU')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Right: Bet Sum + Winning Sum */}
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-white/60 text-xs mb-0.5">
-                        Ставка: {tx.amount.toFixed(2)} ₽
-                      </p>
-                      <p className={`text-sm font-semibold ${
-                        tx.type === 'win' ? 'text-emerald-400' : 'text-red-400'
-                      }`}>
-                        {tx.type === 'win' ? '+' : '-'}
-                        {tx.amount.toFixed(2)} ₽
-                      </p>
-                      {txAny.metadata?.multiplier && (
-                        <p className="text-white/60 text-xs">
-                          {Number(txAny.metadata.multiplier).toFixed(2)}x
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
+  for (const tx of transactions) {
+    if (tx.type !== 'bet') continue;
+
+    const stake = Math.abs(Number(tx.amount));
+    const betId = tx.metadata?.betId ?? tx.id;
+    const credit =
+      creditsByBetId.get(betId) ??
+      (tx.gameRoundId ? creditsByRoundId.get(tx.gameRoundId) : undefined);
+
+    const payout = credit ? Math.abs(Number(credit.amount)) : 0;
+    const multiplier =
+      credit?.metadata?.multiplier !== undefined
+        ? Number(credit.metadata.multiplier)
+        : null;
+
+    const outcome: BetRowData['outcome'] = credit
+      ? payout > 0
+        ? 'won'
+        : 'lost'
+      : 'pending';
+
+    const game = resolveGameKey(
+      tx.metadata?.gameType ?? tx.gameType ?? tx.metadata?.gameId
+    );
+
+    bets.push({
+      id: tx.id,
+      game,
+      gameLabel: gameLabel(game),
+      date: new Date(tx.createdAt),
+      stake,
+      payout,
+      net: outcome === 'won' ? payout - stake : -stake,
+      multiplier: Number.isFinite(multiplier as number) ? (multiplier as number) : null,
+      outcome,
+    });
+  }
+
+  return {
+    totalBets: bets.length,
+    totalWon,
+    maxWin,
+    maxMultiplier,
+    bets,
+  };
+}
+
+/* -------------------------------------------------------------- subcomponents */
+
+function StatTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-3 py-2.5">
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <span className="text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
+          {label}
+        </span>
+      </div>
+      <div className="mt-1 font-roobert text-[18px] font-light text-frost-white tabular-nums">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function BetRow({ row, index }: { row: BetRowData; index: number }) {
+  const dateLabel = row.date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const netLabel =
+    row.outcome === 'pending'
+      ? '…'
+      : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString('ru-RU', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        })} ₽`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3"
+    >
+      <GameIconTile game={row.game} size="sm" />
+
+      <div className="min-w-0">
+        <div className="font-roobert text-[14px] text-frost-white truncate">
+          {row.gameLabel}
+        </div>
+        <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+          {dateLabel} · ставка{' '}
+          {row.stake.toLocaleString('ru-RU', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          })}{' '}
+          ₽
         </div>
       </div>
-    </PageTransition>
+
+      <div className="text-right">
+        <div
+          className={`font-roobert text-[14px] tabular-nums ${
+            row.outcome === 'won'
+              ? 'text-frost-white'
+              : row.outcome === 'lost'
+              ? 'text-[#ff8a76]/80'
+              : 'text-whisper-gray'
+          }`}
+        >
+          {netLabel}
+        </div>
+        {row.multiplier !== null && row.outcome === 'won' && (
+          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+            x{row.multiplier.toFixed(2)}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function EmptyBets({ onPlay }: { onPlay: () => void }) {
+  return (
+    <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl py-10 px-6 flex flex-col items-center text-center">
+      <div className="w-12 h-12 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center mb-3">
+        <Dice5 size={20} className="text-frost-white/70" strokeWidth={1.6} />
+      </div>
+      <p className="font-roobert text-frost-white text-[15px]">
+        Ставки появятся здесь
+      </p>
+      <p className="mt-1 font-roobert text-[12px] text-whisper-gray max-w-[280px]">
+        Самое время сыграть. Принцип честный, RTP от 97% и выше.
+      </p>
+      <button
+        onClick={onPlay}
+        className="mt-5 inline-flex items-center gap-1.5 px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
+      >
+        Играть
+        <ChevronRight size={14} strokeWidth={2} />
+      </button>
+    </div>
   );
 }

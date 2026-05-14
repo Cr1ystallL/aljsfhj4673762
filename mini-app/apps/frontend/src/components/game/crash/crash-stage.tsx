@@ -80,26 +80,46 @@ export function CrashStage({
       return;
     }
 
-    // Padding so the curve doesn't kiss the edges.
-    const padX = 12;
-    const padBottom = 18;
-    const padTop = 18;
+    // Layout padding so the curve doesn't kiss the edges.
+    const padX = 14;
+    const padBottom = 22;
+    const padTop = 28;
     const innerW = Math.max(1, w - padX * 2);
     const innerH = Math.max(1, h - padTop - padBottom);
 
+    // ---- Reference scales -------------------------------------------------
+    //
+    // The curve must visibly bend as the multiplier accelerates. Auto-scaling
+    // both axes to the leading point flattens the curve into a straight line
+    // (the head always sits at the same relative position). To preserve real
+    // exponential shape we anchor the axes:
+    //
+    //   * X axis: a 10s rolling window. While the round is shorter than 10s,
+    //     time grows leftward into a fixed window (curve covers <100% width).
+    //     Once it exceeds 10s, the window slides so the head stays near the
+    //     right edge but the *shape* keeps its curvature.
+    //
+    //   * Y axis: anchored at 2.0x (full height = 2x). When the multiplier
+    //     overshoots 2x, we expand the scale, but only to the smallest power
+    //     of 2 that still contains it (2x → 4x → 8x → 16x …). Stepwise growth
+    //     keeps the perceived curvature — the curve doesn't snap flat.
+    // ---------------------------------------------------------------------
     const lastT = graphPoints[graphPoints.length - 1].time || 1;
-    // Window keeps last ~20s visible at most so older curves slide left.
-    const windowMs = Math.max(8000, lastT);
-    const startT = Math.max(0, lastT - windowMs);
-    const maxMult = Math.max(2, ...graphPoints.map((p) => p.multiplier));
+    const lastM = graphPoints[graphPoints.length - 1].multiplier || 1;
+
+    const xWindow = Math.max(10000, lastT); // ms visible
+    const startT = Math.max(0, lastT - xWindow);
+
+    let yMax = 2;
+    while (yMax < lastM) yMax *= 2;
 
     const project = (t: number, m: number) => {
-      const x = padX + ((t - startT) / Math.max(1, lastT - startT)) * innerW;
-      const y = h - padBottom - ((m - 1) / Math.max(0.001, maxMult - 1)) * innerH;
+      const x = padX + ((t - startT) / xWindow) * innerW;
+      const y = h - padBottom - ((m - 1) / Math.max(0.001, yMax - 1)) * innerH;
       return { x, y };
     };
 
-    // Stroke gradient — brand deep-ocean horizontally.
+    // ---- Curve stroke -----------------------------------------------------
     const strokeGrad = ctx.createLinearGradient(0, 0, w, 0);
     if (phase === 'completed') {
       strokeGrad.addColorStop(0, 'rgba(165, 45, 37, 0.95)');
@@ -128,11 +148,13 @@ export function CrashStage({
     }
     ctx.stroke();
 
-    // Filled area under curve.
+    // ---- Filled area under curve -----------------------------------------
     const lastPoint = graphPoints[graphPoints.length - 1];
-    const start0 = project(Math.max(startT, graphPoints[0].time), 1);
-    ctx.lineTo(project(lastPoint.time, 1).x, h - padBottom);
-    ctx.lineTo(start0.x, h - padBottom);
+    const headProj = project(lastPoint.time, lastPoint.multiplier);
+    const startProj = project(graphPoints[0].time, 1);
+
+    ctx.lineTo(headProj.x, h - padBottom);
+    ctx.lineTo(startProj.x, h - padBottom);
     ctx.closePath();
     const fillGrad = ctx.createLinearGradient(0, 0, 0, h);
     if (phase === 'completed') {
@@ -145,10 +167,9 @@ export function CrashStage({
     ctx.fillStyle = fillGrad;
     ctx.fill();
 
-    // Leading dot.
-    const head = project(lastPoint.time, lastPoint.multiplier);
+    // ---- Leading dot ------------------------------------------------------
     ctx.beginPath();
-    ctx.arc(head.x, head.y, 4, 0, Math.PI * 2);
+    ctx.arc(headProj.x, headProj.y, 4, 0, Math.PI * 2);
     ctx.fillStyle = phase === 'completed' ? 'rgba(255, 138, 118, 1)' : 'rgba(255, 255, 255, 0.95)';
     ctx.fill();
     ctx.lineWidth = 1.5;

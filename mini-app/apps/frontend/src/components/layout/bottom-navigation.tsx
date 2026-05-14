@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion';
 import { Menu, Play, User } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 interface BottomNavigationProps {
   onMenuClick: () => void;
@@ -10,70 +12,116 @@ interface BottomNavigationProps {
 }
 
 /**
- * Bottom Navigation - Ultra Compact Style
- * 
- * DESIGN:
- * - Minimal height and padding
- * - Smaller buttons and icons
- * - Compact center Play button
- * - Tight spacing
+ * Bottom Navigation — Monopo Saigon Style
+ *
+ * Frosted-glass bar floating just above the safe-area inset. Three pills:
+ *
+ *   - Menu  (left)   → opens the games drawer.
+ *   - Play  (center) → goes to the featured game; raised slightly so it
+ *     reads as the primary action without resorting to rainbow gradients.
+ *   - Account (right) → profile screen.
+ *
+ * No emoji, no neon accents. The center button uses a deep-ocean accent
+ * gradient only on its inner sphere; the surrounding chrome stays
+ * monochrome — matches the "atmospheric, restrained" tone of the brand.
  */
 export function BottomNavigation({
   onMenuClick,
   onPlayClick,
   onProfileClick,
 }: BottomNavigationProps) {
+  const pathname = usePathname();
+  const isPlayActive = pathname?.startsWith('/game') ?? false;
+  const isProfileActive = pathname?.startsWith('/profile') ?? false;
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none">
-      {/* Ultra compact container */}
-      <div className="relative mx-2 mb-2 pointer-events-auto">
-        {/* Subtle glow */}
-        <div className="absolute inset-0 rounded-[20px] bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-purple-500/10 blur-lg" />
-        
-        {/* Main container - compact */}
-        <div className="relative rounded-[20px] bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl border border-white/10 shadow-xl overflow-visible">
-          <div className="relative flex items-center justify-between px-4 py-2">
-            {/* Menu Button - Compact */}
-            <motion.button
+      <div className="relative mx-3 mb-3 pointer-events-auto">
+        <div
+          className="relative rounded-card border border-white/10 backdrop-blur-2xl"
+          style={{ background: 'rgba(0, 0, 0, 0.55)' }}
+        >
+          <div className="relative grid grid-cols-3 items-center px-2 py-2">
+            <NavItem
+              icon={<Menu size={18} strokeWidth={1.7} />}
+              label="Меню"
               onClick={onMenuClick}
-              className="flex flex-col items-center gap-0.5 text-white/60 hover:text-white transition-all min-w-[50px]"
-              whileTap={{ scale: 0.9 }}
-              whileHover={{ scale: 1.05 }}
-            >
-              <Menu size={18} strokeWidth={2} />
-              <span className="text-[9px] font-medium">Menu</span>
-            </motion.button>
-            
-            {/* Play Button - Compact Center */}
-            <motion.button
-              onClick={onPlayClick}
-              className="relative -mt-6"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {/* Glow */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-400 opacity-20 blur-xl" />
-              
-              {/* Button - smaller */}
-              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 via-blue-500 to-purple-600 flex items-center justify-center shadow-xl">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <Play size={24} fill="white" strokeWidth={0} className="ml-0.5 drop-shadow-lg" />
-              </div>
-            </motion.button>
-            
-            {/* Profile Button - Compact */}
-            <motion.button
+            />
+
+            {/* Center action — raised pill */}
+            <div className="flex items-start justify-center">
+              <motion.button
+                onClick={onPlayClick}
+                aria-label="Играть"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                className="-mt-7 relative"
+              >
+                <span
+                  className="absolute inset-0 rounded-pill blur-xl opacity-50"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, rgba(160, 224, 171, 0.45), rgba(255, 172, 46, 0.4) 55%, rgba(165, 45, 37, 0.35))',
+                  }}
+                />
+                <span
+                  className={cn(
+                    'relative w-14 h-14 rounded-pill flex items-center justify-center border',
+                    isPlayActive
+                      ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                      : 'bg-white/[0.06] text-frost-white border-white/20'
+                  )}
+                >
+                  <Play
+                    size={20}
+                    fill="currentColor"
+                    strokeWidth={0}
+                    className="ml-0.5"
+                  />
+                </span>
+                <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/70">
+                  Играть
+                </span>
+              </motion.button>
+            </div>
+
+            <NavItem
+              icon={<User size={18} strokeWidth={1.7} />}
+              label="Аккаунт"
               onClick={onProfileClick}
-              className="flex flex-col items-center gap-0.5 text-white/60 hover:text-white transition-all min-w-[50px]"
-              whileTap={{ scale: 0.9 }}
-              whileHover={{ scale: 1.05 }}
-            >
-              <User size={18} strokeWidth={2} />
-              <span className="text-[9px] font-medium">Profile</span>
-            </motion.button>
+              active={isProfileActive}
+            />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function NavItem({
+  icon,
+  label,
+  onClick,
+  active = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  return (
+    <motion.button
+      onClick={onClick}
+      whileTap={{ scale: 0.95 }}
+      className={cn(
+        'flex flex-col items-center gap-1 py-1 transition-colors',
+        active ? 'text-frost-white' : 'text-frost-white/60 hover:text-frost-white'
+      )}
+    >
+      {icon}
+      <span className="font-roobert text-[10px] uppercase tracking-[0.18em]">
+        {label}
+      </span>
+    </motion.button>
   );
 }

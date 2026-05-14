@@ -2,29 +2,21 @@
 
 import { HelpCircle, Volume2, VolumeX, Rocket } from 'lucide-react';
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 
 /**
  * Crash Top Bar — Monopo Saigon Style
  *
- * Title with rocket glyph on the left, support pills on the right.
+ * Title with rocket glyph on the left, two pills on the right:
  *   - "Как играть" → opens the rules modal.
- *   - Demo / Real toggle.
  *   - Sound mute toggle.
  */
 
 interface CrashTopBarProps {
-  isDemoMode: boolean;
-  onToggleDemoMode: () => void;
   onHowToPlay?: () => void;
 }
 
-export function CrashTopBar({
-  isDemoMode,
-  onToggleDemoMode,
-  onHowToPlay,
-}: CrashTopBarProps) {
+export function CrashTopBar({ onHowToPlay }: CrashTopBarProps) {
   const [muted, setMuted] = useState(soundManager.isMuted());
 
   const toggleSound = () => {
@@ -54,24 +46,6 @@ export function CrashTopBar({
         >
           <span className="font-roobert text-[12px]">Как играть</span>
           <HelpCircle size={12} strokeWidth={1.8} />
-        </button>
-
-        <button
-          onClick={onToggleDemoMode}
-          className={cn(
-            'w-8 h-8 rounded-pill flex items-center justify-center transition-colors border',
-            isDemoMode
-              ? 'bg-frost-white text-midnight-canvas border-frost-white'
-              : 'bg-white/[0.04] text-frost-white/80 border-white/15 hover:border-white/25'
-          )}
-          aria-label="Toggle demo mode"
-        >
-          <span
-            className={cn(
-              'w-2.5 h-2.5 rounded-full',
-              isDemoMode ? 'bg-midnight-canvas' : 'bg-frost-white/80'
-            )}
-          />
         </button>
 
         <button

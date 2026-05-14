@@ -52,7 +52,7 @@ const DEFAULT_SLOT: SlotConfig = {
 
 export default function CrashGamePage() {
   const { balance } = useBalance();
-  const { isDemoMode, toggleDemoMode, setActiveBet } = useDemoMode();
+  const { isDemoMode, setActiveBet } = useDemoMode();
   const { snapshot, userId } = useCrashLive();
 
   const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
@@ -259,11 +259,7 @@ export default function CrashGamePage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <CrashTopBar
-          isDemoMode={isDemoMode}
-          onToggleDemoMode={() => toggleDemoMode()}
-          onHowToPlay={() => setRulesOpen(true)}
-        />
+        <CrashTopBar onHowToPlay={() => setRulesOpen(true)} />
 
         <CrashHistoryStrip history={snapshot.history} />
 
