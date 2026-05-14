@@ -67,6 +67,8 @@ export class BalanceService {
         const parsed = parseBotBalancePayload(botPayload);
         if (parsed != null) {
           realAmount = parsed;
+        } else if (balance && !balance.demoMode) {
+          realAmount = Number(balance.amount);
         }
       }
 
