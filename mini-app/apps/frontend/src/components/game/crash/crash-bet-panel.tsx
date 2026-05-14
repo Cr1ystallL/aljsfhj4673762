@@ -7,15 +7,22 @@ import { cn } from '@/lib/utils';
 /**
  * Crash Bet Panel — Monopo Saigon Style
  *
- * One betting slot. Two-column layout: stake | auto-cashout, then a primary
- * pill CTA. The CTA changes label and behaviour based on phase + slot state:
+ * One betting slot. The card is split into two rows:
+ *   1. Top row, two columns: stake | auto-cashout (each with ± controls).
+ *   2. Bottom row: a single full-width pill CTA that adapts to the slot's
+ *      lifecycle.
  *
- *   - Idle (no bet, betting open) → "Играть" (place bet)
- *   - Queued (bet placed, betting open) → "Отменить" (refund)
- *   - Locked (bet queued, countdown) → "Отменить" (still cancellable)
- *   - Active no bet → "Раунд идёт" (disabled)
- *   - Active with bet → "Забрать · x1.32" (cashout, live mult)
- *   - Completed (bet) → "Проиграно" or "Забрано" depending on outcome
+ * Why two rows? On narrow Telegram WebView widths the previous 3-column
+ * layout pushed the CTA off-screen. Stacking keeps the action discoverable
+ * on every device.
+ *
+ * CTA labels per phase:
+ *   - idle (open betting)        → "Играть"            (place bet)
+ *   - idle (round in progress)   → "Раунд идёт"        (disabled)
+ *   - queued / locked            → "Отменить"          (refund)
+ *   - cashable (round active)    → "Забрать · x1.32"   (cashout)
+ *   - finished_won               → "Забрано"           (terminal)
+ *   - finished_lost              → "Проиграно"         (terminal)
  */
 
 export type BetSlotPhase =
@@ -34,16 +41,12 @@ interface CrashBetPanelProps {
   autoCashoutMultiplier: number;
   onAutoCashoutChange: (next: number) => void;
 
-  /** UI state for this slot. */
   slotPhase: BetSlotPhase;
-  /** Live multiplier (used in cashout label during 'cashable'). */
   multiplier: number;
-  /** True if global round phase doesn't allow placing/cancelling now. */
   bettingClosed: boolean;
   minBet: number;
   maxBet: number;
   onPrimary: () => void;
-  /** When true, primary CTA shows a small pending spinner instead of label. */
   busy?: boolean;
 }
 
@@ -69,7 +72,6 @@ export function CrashBetPanel({
       case 'idle':
         return bettingClosed ? 'Раунд идёт' : 'Играть';
       case 'queued':
-        return 'Отменить';
       case 'locked':
         return 'Отменить';
       case 'cashable':
@@ -104,7 +106,8 @@ export function CrashBetPanel({
 
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
-      <div className="grid grid-cols-[1fr_1fr_auto] items-stretch">
+      {/* Row 1 — Stake + Auto cashout */}
+      <div className="grid grid-cols-2 items-stretch">
         {/* Stake */}
         <div className="px-4 py-3 border-r border-white/10">
           <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
@@ -190,25 +193,25 @@ export function CrashBetPanel({
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Primary action */}
-        <div className="p-2.5 flex items-stretch">
-          <motion.button
-            onClick={onPrimary}
-            disabled={ctaDisabled}
-            whileHover={!ctaDisabled ? { scale: 1.02 } : undefined}
-            whileTap={!ctaDisabled ? { scale: 0.98 } : undefined}
-            className={cn(
-              'min-w-[112px] h-full px-5 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors',
-              ctaActive
-                ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/90'
-                : 'bg-white/[0.06] text-frost-white/70 border border-white/15 hover:bg-white/10',
-              ctaDisabled && 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            {busy ? '…' : ctaLabel}
-          </motion.button>
-        </div>
+      {/* Row 2 — Primary CTA, full width */}
+      <div className="px-3 pb-3 pt-1 border-t border-white/10">
+        <motion.button
+          onClick={onPrimary}
+          disabled={ctaDisabled}
+          whileHover={!ctaDisabled ? { scale: 1.01 } : undefined}
+          whileTap={!ctaDisabled ? { scale: 0.99 } : undefined}
+          className={cn(
+            'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors',
+            ctaActive
+              ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/90'
+              : 'bg-white/[0.06] text-frost-white/70 border border-white/15 hover:bg-white/10',
+            ctaDisabled && 'opacity-50 cursor-not-allowed'
+          )}
+        >
+          {busy ? '…' : ctaLabel}
+        </motion.button>
       </div>
     </div>
   );

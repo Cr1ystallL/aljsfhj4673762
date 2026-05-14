@@ -294,7 +294,7 @@ export function CrashStage({
             <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
               {serverSeedHash
                 ? `${serverSeedHash.slice(0, 10)}…`
-                : 'no seed yet'}
+                : 'хеш загружается'}
             </span>
           </div>
 
@@ -308,7 +308,7 @@ export function CrashStage({
           >
             <Wifi size={11} className="text-frost-white/60" strokeWidth={2} />
             <span className="text-[10px] font-roobert text-frost-white/70 tabular-nums">
-              {connected ? `${latencyMs} ms` : 'offline'}
+              {connected ? `${latencyMs} ms` : 'нет связи'}
             </span>
           </div>
         </div>

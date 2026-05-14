@@ -32,8 +32,14 @@ export function useCrashLive(): {
   useEffect(() => {
     if (!sessionId) return;
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-    const stream = new CrashLiveStream(`${wsUrl.replace(/\/$/, '')}/ws`);
+    // The frontend env var (NEXT_PUBLIC_WS_URL) may already include the
+    // trailing `/ws` path (as it does on production behind nginx). Append
+    // `/ws` only when it isn't there yet.
+    const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
+    const base = baseRaw.replace(/\/$/, '');
+    const fullUrl = /\/ws$/.test(base) ? base : `${base}/ws`;
+
+    const stream = new CrashLiveStream(fullUrl);
     streamRef.current = stream;
 
     stream.on('state', (s: CrashLiveSnapshot) => setSnapshot(s));
