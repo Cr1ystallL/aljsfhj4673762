@@ -560,7 +560,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
-}
 
   /**
    * GET /api/games/plinko/my-history
@@ -614,10 +613,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         logger.info({ userId, count: bets.length }, 'Fetched player plinko history');
 
         // Filter only completed bets with results
-        const completedBets = bets.filter(b => b.payout && b.multiplier);
+        const completedBets = bets.filter((b: any) => b.payout && b.multiplier);
 
         // Format for frontend
-        const history = completedBets.map((bet) => ({
+        const history = completedBets.map((bet: any) => ({
           betAmount: Number(bet.amount),
           multiplier: Number(bet.multiplier || 0),
           payout: Number(bet.payout || 0),
@@ -638,3 +637,5 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+}
+
