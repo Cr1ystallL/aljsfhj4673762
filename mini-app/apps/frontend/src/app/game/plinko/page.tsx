@@ -151,16 +151,31 @@ export default function PlinkoGamePage() {
     pegAnimsRef.current = new Array(pegs.length).fill(null);
     Matter.Composite.add(engine.world, pegs);
 
-    // Create VISIBLE walls on left and right edges with STRONGER BOUNCE
-    // Attached to canvas edges, full height
+    // Create DIAGONAL walls matching pyramid shape with STRONGER BOUNCE
+    // Walls follow the pyramid edges
     const wallThickness = 15;
+    const pyramidTopWidth = GAP * 3; // Width at top (3 pegs)
+    const pyramidBottomWidth = GAP * 19; // Width at bottom (19 pegs)
+    const pyramidTop = startY; // Start where pegs start
+    const pyramidBottom = height - 30; // End above buckets
     
-    // Left wall - VISIBLE, attached to left edge
-    const leftWall = Matter.Bodies.rectangle(
-      wallThickness / 2, // Position at left edge
-      height / 2,
-      wallThickness,
-      height,
+    // Calculate diagonal wall positions
+    const topLeft = width / 2 - pyramidTopWidth / 2;
+    const topRight = width / 2 + pyramidTopWidth / 2;
+    const bottomLeft = width / 2 - pyramidBottomWidth / 2;
+    const bottomRight = width / 2 + pyramidBottomWidth / 2;
+    
+    // Left wall - DIAGONAL from top-left to bottom-left
+    const leftWallVertices = [
+      { x: topLeft - wallThickness, y: pyramidTop },
+      { x: topLeft, y: pyramidTop },
+      { x: bottomLeft, y: pyramidBottom },
+      { x: bottomLeft - wallThickness, y: pyramidBottom },
+    ];
+    const leftWall = Matter.Bodies.fromVertices(
+      (topLeft + bottomLeft) / 2 - wallThickness / 2,
+      (pyramidTop + pyramidBottom) / 2,
+      [leftWallVertices],
       {
         isStatic: true,
         label: 'Wall',
@@ -173,12 +188,17 @@ export default function PlinkoGamePage() {
       }
     );
     
-    // Right wall - VISIBLE, attached to right edge
-    const rightWall = Matter.Bodies.rectangle(
-      width - wallThickness / 2, // Position at right edge
-      height / 2,
-      wallThickness,
-      height,
+    // Right wall - DIAGONAL from top-right to bottom-right
+    const rightWallVertices = [
+      { x: topRight, y: pyramidTop },
+      { x: topRight + wallThickness, y: pyramidTop },
+      { x: bottomRight + wallThickness, y: pyramidBottom },
+      { x: bottomRight, y: pyramidBottom },
+    ];
+    const rightWall = Matter.Bodies.fromVertices(
+      (topRight + bottomRight) / 2 + wallThickness / 2,
+      (pyramidTop + pyramidBottom) / 2,
+      [rightWallVertices],
       {
         isStatic: true,
         label: 'Wall',
