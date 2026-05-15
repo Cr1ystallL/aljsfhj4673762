@@ -9,6 +9,10 @@ import { PlinkoMultiplierStrip } from '@/components/game/plinko/plinko-multiplie
 import { PlinkoRiskSelector } from '@/components/game/plinko/plinko-risk-selector';
 import { PlinkoBetPanel } from '@/components/game/plinko/plinko-bet-panel';
 import { PlinkoHistory } from '@/components/game/plinko/plinko-history';
+import {
+  PlinkoMyWins,
+  type PlinkoMyWin,
+} from '@/components/game/plinko/plinko-my-wins';
 import { PlinkoRulesModal } from '@/components/game/plinko/plinko-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
@@ -50,7 +54,7 @@ const DEFAULT_CONFIG: PlinkoConfig = {
 };
 
 /** Delay between drops in auto mode (ms). */
-const AUTO_INTERVAL_MS = 1500;
+const AUTO_INTERVAL_MS = 700;
 
 export default function PlinkoGamePage() {
   const { balance, fetchBalance } = useBalance();
@@ -75,6 +79,7 @@ export default function PlinkoGamePage() {
   const dropCounterRef = useRef(0);
 
   const [history, setHistory] = useState<PlinkoHistoryEntry[]>([]);
+  const [myWins, setMyWins] = useState<PlinkoMyWin[]>([]);
 
   // For auto mode lifecycle.
   const autoEnabledRef = useRef(false);
@@ -133,8 +138,25 @@ export default function PlinkoGamePage() {
       }
     };
 
+    const fetchMine = async () => {
+      try {
+        const res = await fetch('/api/games/plinko/my-big-wins?limit=12', {
+          credentials: 'include',
+        });
+        if (!alive || !res.ok) return;
+        const json = (await res.json()) as { history: PlinkoMyWin[] };
+        setMyWins(json.history ?? []);
+      } catch {
+        // ignore
+      }
+    };
+
     void fetchHist();
-    const id = setInterval(fetchHist, 5000);
+    void fetchMine();
+    const id = setInterval(() => {
+      void fetchHist();
+      void fetchMine();
+    }, 5000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -346,6 +368,9 @@ export default function PlinkoGamePage() {
           onAutoToggle={setAutoEnabled}
           onPrimary={handleManualDrop}
         />
+
+        {/* Player's personal big-wins highlight reel (>=5x) */}
+        <PlinkoMyWins wins={myWins} />
 
         {/* History */}
         <PlinkoHistory entries={sampledHistory} />

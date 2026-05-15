@@ -2,6 +2,7 @@
 
 import {
   Bomb,
+  Circle,
   CircleDot,
   Rocket,
   type LucideIcon,
@@ -20,12 +21,13 @@ import { cn } from '@/lib/utils';
  * frosted glass tile. No emoji, no rainbow accents.
  */
 
-export type GameKey = 'crash' | 'mines' | 'plinko' | 'unknown';
+export type GameKey = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'unknown';
 
 const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   crash: { label: 'Crash', Icon: Rocket },
   mines: { label: 'Mines', Icon: Bomb },
   plinko: { label: 'Plinko', Icon: CircleDot },
+  coinflip: { label: 'Coinflip', Icon: Circle },
   unknown: { label: 'Игра', Icon: CircleDot },
 };
 
@@ -40,6 +42,7 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('crash')) return 'crash';
   if (v.startsWith('mines')) return 'mines';
   if (v.startsWith('plinko')) return 'plinko';
+  if (v.startsWith('coinflip')) return 'coinflip';
   return 'unknown';
 }
 

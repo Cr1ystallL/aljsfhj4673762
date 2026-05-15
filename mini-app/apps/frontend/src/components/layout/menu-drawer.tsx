@@ -22,6 +22,7 @@ const games: Array<{ id: GameKey; name: string }> = [
   { id: 'crash', name: 'Crash' },
   { id: 'mines', name: 'Mines' },
   { id: 'plinko', name: 'Plinko' },
+  { id: 'coinflip', name: 'Coinflip' },
 ];
 
 export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {

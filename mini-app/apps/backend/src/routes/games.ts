@@ -7,6 +7,10 @@ import {
   PLINKO_MULTIPLIERS,
   type PlinkoRisk,
 } from '../games/plinko/plinko-engine.js';
+import {
+  coinflipEngine,
+  type CoinSide,
+} from '../games/coinflip/coinflip-engine.js';
 import { GameRoomManager } from '../game-engine/game-room-manager.js';
 import { logger } from '../utils/logger.js';
 
@@ -523,6 +527,339 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ success: true, history });
       } catch (error) {
         logger.error(error, 'Failed to fetch plinko history');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'history fetch failed',
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/games/plinko/my-big-wins
+   * The current player's recent drops with multiplier ≥ 5x. Powers the
+   * "your highlight reel" strip the page renders above the live feed.
+   */
+  app.get<{ Querystring: { limit?: string } }>(
+    '/plinko/my-big-wins',
+    {
+      preHandler: authenticate,
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: { limit: { type: 'string' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const limit = Math.min(parseInt(request.query.limit || '10', 10), 30);
+      try {
+        const bets = await app.prisma.bet.findMany({
+          where: {
+            userId,
+            gameType: 'plinko',
+            payout: { not: null },
+            multiplier: { gte: 5 },
+          },
+          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
+          take: limit,
+          select: {
+            id: true,
+            amount: true,
+            payout: true,
+            multiplier: true,
+            placedAt: true,
+            resolvedAt: true,
+          },
+        });
+
+        const history = bets.map((b) => ({
+          id: b.id,
+          betAmount: Number(b.amount),
+          multiplier: Number(b.multiplier),
+          payout: Number(b.payout),
+          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
+        }));
+
+        return reply.send({ success: true, history });
+      } catch (error) {
+        logger.error(error, 'Failed to fetch player plinko big wins');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'my-big-wins fetch failed',
+        });
+      }
+    }
+  );
+
+  /* ----------------------------------------------------------- coinflip */
+
+  /**
+   * GET /api/games/coinflip/config
+   * Public-facing constants for the multiply mode UI.
+   */
+  app.get('/coinflip/config', { preHandler: authenticate }, async (_req, reply) => {
+    return reply.send({
+      multipliers: coinflipEngine.getMultipliers(),
+      modes: ['quick', 'multiply'],
+    });
+  });
+
+  /**
+   * GET /api/games/coinflip/state
+   * Resume the user's active multiply session if any.
+   */
+  app.get(
+    '/coinflip/state',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const state = coinflipEngine.getState(userId);
+      return reply.send({ state });
+    }
+  );
+
+  /**
+   * POST /api/games/coinflip/quick
+   * Single-shot toss. Returns the outcome immediately.
+   */
+  app.post<{ Body: { amount: number; choice: CoinSide } }>(
+    '/coinflip/quick',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'choice'],
+          properties: {
+            amount: { type: 'number' },
+            choice: { type: 'string', enum: ['heads', 'tails'] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, choice } = request.body;
+
+      if (!checkRateLimit(userId, 'coinflip:quick')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const result = await coinflipEngine.playQuick(userId, amount, choice);
+        return reply.send({ success: true, result });
+      } catch (error) {
+        logger.error(error, 'coinflip quick failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'COINFLIP_QUICK_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/coinflip/start
+   * Start a multiply session. The first call also picks the first side
+   * and resolves the first toss in one round-trip.
+   */
+  app.post<{ Body: { amount: number; choice: CoinSide } }>(
+    '/coinflip/start',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'choice'],
+          properties: {
+            amount: { type: 'number' },
+            choice: { type: 'string', enum: ['heads', 'tails'] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, choice } = request.body;
+
+      if (!checkRateLimit(userId, 'coinflip:start')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const result = await coinflipEngine.startMultiply(userId, amount, choice);
+        return reply.send({ success: true, ...result });
+      } catch (error) {
+        logger.error(error, 'coinflip start failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'COINFLIP_START_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/coinflip/flip
+   * Pick a side for the next round of an active multiply session.
+   */
+  app.post<{ Body: { choice: CoinSide } }>(
+    '/coinflip/flip',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['choice'],
+          properties: {
+            choice: { type: 'string', enum: ['heads', 'tails'] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { choice } = request.body;
+
+      if (!checkRateLimit(userId, 'coinflip:flip')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const result = await coinflipEngine.flip(userId, choice);
+        return reply.send({ success: true, ...result });
+      } catch (error) {
+        logger.error(error, 'coinflip flip failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'COINFLIP_FLIP_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/coinflip/cashout
+   * Lock in the current cumulative multiplier and pay out.
+   */
+  app.post(
+    '/coinflip/cashout',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+
+      if (!checkRateLimit(userId, 'coinflip:cashout')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const state = await coinflipEngine.cashout(userId);
+        return reply.send({ success: true, state });
+      } catch (error) {
+        logger.error(error, 'coinflip cashout failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'COINFLIP_CASHOUT_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/coinflip/dismiss
+   * Forget a finished multiply session so the UI can start a fresh one.
+   */
+  app.post(
+    '/coinflip/dismiss',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      coinflipEngine.forget(userId);
+      return reply.send({ success: true });
+    }
+  );
+
+  /**
+   * GET /api/games/coinflip/history
+   * Recent drops across all players. Sampled live ticker for the lobby.
+   */
+  app.get<{ Querystring: { limit?: string } }>(
+    '/coinflip/history',
+    {
+      preHandler: authenticate,
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: { limit: { type: 'string' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const limit = Math.min(parseInt(request.query.limit || '40', 10), 60);
+      try {
+        const bets = await app.prisma.bet.findMany({
+          where: {
+            gameType: 'coinflip',
+            payout: { not: null },
+          },
+          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
+          take: limit,
+          select: {
+            id: true,
+            amount: true,
+            payout: true,
+            multiplier: true,
+            placedAt: true,
+            resolvedAt: true,
+            user: {
+              select: {
+                firstName: true,
+                username: true,
+                photoUrl: true,
+                telegramId: true,
+              },
+            },
+          },
+        });
+
+        const history = bets.map((b) => ({
+          id: b.id,
+          name:
+            b.user.firstName ||
+            b.user.username ||
+            `id${b.user.telegramId.toString().slice(-4)}`,
+          photoUrl: b.user.photoUrl ?? null,
+          betAmount: Number(b.amount),
+          multiplier: Number(b.multiplier ?? 0),
+          payout: Number(b.payout ?? 0),
+          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
+        }));
+
+        return reply.send({ success: true, history });
+      } catch (error) {
+        logger.error(error, 'Failed to fetch coinflip history');
         return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'history fetch failed',
