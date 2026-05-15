@@ -51,7 +51,7 @@ export function CoinflipBetPanel({
     onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
+    <div className="relative rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl">
       <div className="grid grid-cols-2 items-stretch">
         {/* Stake */}
         <div className="px-4 py-3 border-r border-white/10">
@@ -120,7 +120,10 @@ export function CoinflipBetPanel({
           </button>
 
           {open && !locked && (
-            <div className="absolute left-3 right-3 top-[calc(100%-4px)] z-10 rounded-card border border-white/15 bg-midnight-canvas/95 backdrop-blur-xl overflow-hidden">
+            <div
+              className="absolute left-3 right-3 top-full mt-1 z-50 rounded-card border border-white/15 backdrop-blur-2xl overflow-hidden shadow-2xl"
+              style={{ background: 'rgba(10, 10, 10, 0.96)' }}
+            >
               {(['multiply', 'quick'] as CoinflipMode[]).map((k) => (
                 <button
                   key={k}

@@ -110,7 +110,12 @@ class CoinflipEngine {
   private rooms = new Map<string, MultiplyState>();
 
   hasActive(userId: string): boolean {
-    return this.rooms.has(userId);
+    const g = this.rooms.get(userId);
+    // A finished session (busted/cashed) is in memory only so the user
+    // can read the final state via /state. It must not block /start.
+    if (!g) return false;
+    const status = (g as unknown as { _status?: 'cashed' | 'busted' })._status;
+    return status === undefined;
   }
 
   getState(userId: string): CoinflipMultiplyState | null {
@@ -218,8 +223,17 @@ class CoinflipEngine {
     amount: number,
     firstChoice: CoinSide
   ): Promise<{ state: CoinflipMultiplyState; outcome: CoinSide; won: boolean }> {
-    if (this.hasActive(userId)) {
-      throw new Error('У вас уже идёт раунд — закончите его сначала');
+    // Sweep any residual finished session from a previous round so the
+    // user can start fresh without explicitly hitting /dismiss first.
+    const existing = this.rooms.get(userId);
+    if (existing) {
+      const status = (existing as unknown as { _status?: 'cashed' | 'busted' })
+        ._status;
+      if (status !== undefined) {
+        this.rooms.delete(userId);
+      } else {
+        throw new Error('У вас уже идёт раунд — закончите его сначала');
+      }
     }
     if (!Number.isFinite(amount) || amount < MIN_BET || amount > MAX_BET) {
       throw new Error(`Ставка должна быть от ${MIN_BET} до ${MAX_BET}`);
@@ -351,7 +365,9 @@ class CoinflipEngine {
   forget(userId: string): void {
     // Used by the UI to dismiss a finished session and start fresh.
     const g = this.rooms.get(userId);
-    if (g && g.bet.state === 'active') {
+    if (!g) return;
+    const status = (g as unknown as { _status?: 'cashed' | 'busted' })._status;
+    if (status === undefined) {
       // Don't drop an active bet — that would silently swallow the stake.
       return;
     }

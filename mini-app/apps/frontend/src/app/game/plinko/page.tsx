@@ -288,6 +288,9 @@ export default function PlinkoGamePage() {
     [balance]
   );
 
+  /** True when the user can afford the current stake. */
+  const canAfford = (balance?.amount ?? 0) >= amount && amount >= minBet;
+
   const multipliers = config.multipliers[risk];
 
   /**
@@ -322,7 +325,7 @@ export default function PlinkoGamePage() {
           <PlinkoRiskSelector
             value={risk}
             onChange={setRisk}
-            disabled={busy || autoEnabled}
+            disabled={busy || autoEnabled || drops.length > 0}
           />
           {lastResult && (
             <span
@@ -367,6 +370,7 @@ export default function PlinkoGamePage() {
           autoEnabled={autoEnabled}
           onAutoToggle={setAutoEnabled}
           onPrimary={handleManualDrop}
+          canAfford={canAfford}
         />
 
         {/* Player's personal big-wins highlight reel (>=5x) */}

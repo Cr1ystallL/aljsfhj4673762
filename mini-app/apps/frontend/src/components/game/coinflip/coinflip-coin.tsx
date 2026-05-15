@@ -38,7 +38,7 @@ export function CoinflipCoin({
   className,
 }: CoinflipCoinProps) {
   return (
-    <div className={cn('relative w-28 h-28 sm:w-32 sm:h-32', className)}>
+    <div className={cn('relative w-36 h-36 sm:w-40 sm:h-40', className)}>
       {/* Soft halo */}
       <div
         aria-hidden
@@ -85,7 +85,7 @@ export function CoinflipCoin({
               aria-hidden
             />
             <Rocket
-              size={42}
+              size={56}
               strokeWidth={1.6}
               className="relative text-midnight-canvas"
               style={{ transform: 'rotate(-30deg)' }}
@@ -112,7 +112,7 @@ export function CoinflipCoin({
             {/* Stylised tails glyph: nested circles for the brand-neutral side */}
             <svg
               viewBox="0 0 64 64"
-              className="relative w-12 h-12 text-frost-white/85"
+              className="relative w-16 h-16 text-frost-white/85"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"

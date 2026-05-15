@@ -29,6 +29,9 @@ interface PlinkoBetPanelProps {
   autoEnabled: boolean;
   onAutoToggle: (enabled: boolean) => void;
 
+  /** True when the user has enough balance for the current stake. */
+  canAfford?: boolean;
+
   onPrimary: () => void;
 }
 
@@ -40,6 +43,7 @@ export function PlinkoBetPanel({
   busy = false,
   autoEnabled,
   onAutoToggle,
+  canAfford = true,
   onPrimary,
 }: PlinkoBetPanelProps) {
   const halve = () =>
@@ -51,6 +55,8 @@ export function PlinkoBetPanel({
     ? 'Остановить'
     : busy
     ? '…'
+    : !canAfford
+    ? 'Недостаточно средств'
     : 'Сбросить';
 
   return (
@@ -120,11 +126,11 @@ export function PlinkoBetPanel({
       <div className="px-3 pb-3 pt-1 border-t border-white/10">
         <motion.button
           onClick={onPrimary}
-          disabled={busy && !autoEnabled}
-          whileHover={!busy ? { scale: 1.01 } : undefined}
-          whileTap={!busy ? { scale: 0.99 } : undefined}
+          disabled={(busy && !autoEnabled) || (!autoEnabled && !canAfford)}
+          whileHover={!busy && (autoEnabled || canAfford) ? { scale: 1.01 } : undefined}
+          whileTap={!busy && (autoEnabled || canAfford) ? { scale: 0.99 } : undefined}
           style={
-            !busy || autoEnabled
+            !busy && (autoEnabled || canAfford)
               ? autoEnabled
                 ? {
                     background: 'rgba(255, 255, 255, 0.08)',
@@ -140,7 +146,8 @@ export function PlinkoBetPanel({
           }
           className={cn(
             'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors inline-flex items-center justify-center gap-2',
-            busy && !autoEnabled && 'bg-white/[0.06] text-frost-white/70 border border-white/15'
+            ((busy && !autoEnabled) || (!autoEnabled && !canAfford)) &&
+              'bg-white/[0.06] text-frost-white/70 border border-white/15'
           )}
         >
           {ctaLabel}

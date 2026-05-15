@@ -255,6 +255,9 @@ export default function CoinflipGamePage() {
   const sessionActive = !!multi && multi.status === 'awaiting';
   const sessionFinished = !!multi && multi.status !== 'awaiting';
 
+  /** True when the user has enough balance to start a NEW session. */
+  const canAfford = (balance?.amount ?? 0) >= amount && amount >= minBet;
+
   const currentRound = multi?.round ?? 1;
   const maxRounds = multi?.maxRounds ?? 20;
   const currentMultiplier = multi?.currentMultiplier ?? 0;
@@ -288,54 +291,72 @@ export default function CoinflipGamePage() {
           onHowToPlay={() => setRulesOpen(true)}
         />
 
-        {/* Hero — round counter + coin + multiplier */}
-        <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-4 flex flex-col items-center gap-3">
-          <div className="grid grid-cols-3 items-center w-full">
-            <div className="flex flex-col items-start">
-              <span className="font-roobert text-frost-white text-[18px] font-light tabular-nums">
+        {/* Hero — coin centre stage, then round/multiplier plate, then side picks */}
+        <section className="relative rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 pt-6 pb-4 flex flex-col items-center gap-4 overflow-hidden">
+          {/* Atmospheric backdrop */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-60"
+            style={{
+              background:
+                'radial-gradient(80% 60% at 50% 20%, rgba(255, 172, 46, 0.15) 0%, rgba(165, 45, 37, 0.08) 35%, transparent 75%)',
+            }}
+          />
+
+          {/* The coin itself — front and centre */}
+          <div className="relative">
+            <CoinflipCoin
+              face={coinFace}
+              flipKey={flipKey}
+              flipping={flipping}
+            />
+          </div>
+
+          {/* Round / multiplier plate */}
+          <div className="relative w-full grid grid-cols-2 gap-2 items-stretch">
+            <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5">
+              <span className="font-roobert text-frost-white text-[18px] font-light tabular-nums leading-none">
                 {mode === 'multiply'
                   ? `${Math.max(0, currentRound - 1)} из ${maxRounds}`
                   : '—'}
               </span>
-              <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+              <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
                 раунд
-              </span>
+              </div>
             </div>
-
-            <div className="flex justify-center">
-              <CoinflipCoin
-                face={coinFace}
-                flipKey={flipKey}
-                flipping={flipping}
-              />
-            </div>
-
-            <div className="flex flex-col items-end">
+            <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5 text-right">
               <span
-                className={`font-roobert text-[18px] font-light tabular-nums ${
+                className={`font-roobert text-[18px] font-light tabular-nums leading-none ${
                   currentMultiplier > 0 ? 'text-frost-white' : 'text-whisper-gray'
                 }`}
               >
                 x{currentMultiplier.toFixed(2)}
               </span>
-              <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+              <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
                 множитель
-              </span>
+              </div>
             </div>
           </div>
 
           {/* Side buttons */}
-          <div className="w-full">
+          <div className="relative w-full">
             <CoinflipSideButtons
               onPick={pickSide}
-              disabled={busy || flipping || sessionFinished}
+              disabled={busy || flipping || sessionFinished || (!sessionActive && !canAfford)}
               captions={{ heads: headsCaption, tails: tailsCaption }}
             />
           </div>
 
+          {/* Insufficient-balance hint */}
+          {!sessionActive && !canAfford && (
+            <span className="relative font-roobert text-[11px] text-[#ff8a76]/85">
+              Недостаточно средств для ставки
+            </span>
+          )}
+
           {/* Multiplier dot strip — only shown in multiply mode */}
           {mode === 'multiply' && (
-            <div className="w-full">
+            <div className="relative w-full">
               <CoinflipMultiplierStrip
                 multipliers={stripMultipliers}
                 round={currentRound}
