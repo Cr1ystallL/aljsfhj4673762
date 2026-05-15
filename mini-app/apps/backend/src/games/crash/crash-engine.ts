@@ -82,12 +82,10 @@ export class CrashGameEngine extends BaseGameEngine {
   private readonly MAX_HISTORY = 50;
   private readonly WAITING_TIME = 9000; // betting open
   private readonly COUNTDOWN_TIME = 3000; // betting locked, lift-off countdown
-  private readonly ROOM_CLEANUP_TIMEOUT = 300000;
 
   private waitingTimeout?: NodeJS.Timeout;
   private countdownTimeout?: NodeJS.Timeout;
   private currentServerSeedHash = '';
-  private lastActivityTime = Date.now();
   /** Wall-clock timestamp the current phase will end at (ms). */
   private currentPhaseEndsAt: number | null = null;
 
@@ -101,11 +99,16 @@ export class CrashGameEngine extends BaseGameEngine {
       provablyFair: true,
     };
     super(gameId, 'crash', config);
-    this.startCleanupMonitor();
   }
 
   /**
    * Bootstrap: bring the room online and start the round loop.
+   *
+   * Note: the room runs continuously while the backend process is up.
+   * There used to be an inactivity-based cleanup that called `this.stop()`
+   * after 5 minutes with no players — but the manager never restarted
+   * the engine afterwards, so the room ended up frozen until the next
+   * deploy. Removed; the engine is cheap to keep alive.
    */
   start(): void {
     super.start();
@@ -196,7 +199,6 @@ export class CrashGameEngine extends BaseGameEngine {
       this.addPlayer(userId, demoMode);
     }
     this.playerDemoMode.set(userId, demoMode);
-    this.updateActivity();
 
     const bet: Bet = {
       id: `bet_${Date.now()}_${randomUUID()}`,
@@ -672,25 +674,5 @@ export class CrashGameEngine extends BaseGameEngine {
       totalWagered: parseFloat(totalWagered.toFixed(2)),
       betsCount: this.crashState.slotBets.size,
     };
-  }
-
-  private startCleanupMonitor(): void {
-    setInterval(() => {
-      const inactiveTime = Date.now() - this.lastActivityTime;
-      if (
-        inactiveTime > this.ROOM_CLEANUP_TIMEOUT &&
-        this.room.players.size === 0
-      ) {
-        logger.info(
-          { gameId: this.gameId, inactiveTime },
-          'Room inactive, stopping engine'
-        );
-        this.stop();
-      }
-    }, 60000);
-  }
-
-  private updateActivity(): void {
-    this.lastActivityTime = Date.now();
   }
 }

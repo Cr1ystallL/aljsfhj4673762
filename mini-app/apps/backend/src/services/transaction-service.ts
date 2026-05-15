@@ -1,66 +1,30 @@
 import { PrismaClient } from '@prisma/client';
-import { pythonBotAdapter } from '../adapters/python-bot-adapter.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Transaction Service - Synchronization Layer
- * 
- * CRITICAL: Python bot owns transaction processing
- * This service only:
- * - Syncs transaction history for display
- * - Caches recent transactions
- * - Does NOT process transactions independently
+ * Transaction Service - reads from shared PostgreSQL.
+ *
+ * The `transactions` table is written by:
+ *   - Node BettingPipeline (bet, win, cashout, refund) under Prisma transaction.
+ *   - Python bot DatabasePostgres adapter (deposits, withdrawals, classic games).
+ *
+ * Both sides hit the same table, so this service only needs to read.
  */
 
 const prisma = new PrismaClient();
 
 export class TransactionService {
   /**
-   * Sync transactions from Python bot
+   * No-op kept for API compatibility.
+   * Previously called Python bot HTTP endpoints which don't exist - we
+   * instead rely on the bot writing to PostgreSQL directly.
    */
-  async syncTransactions(userId: string, limit: number = 50) {
-    try {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user) return [];
-
-      // Fetch from Python bot (source of truth)
-      const pythonTransactions = await pythonBotAdapter.getTransactions(
-        Number(user.telegramId),
-        limit
-      );
-
-      // Store in local database for quick reads
-      for (const tx of pythonTransactions) {
-        await prisma.transaction.upsert({
-          where: { id: tx.id },
-          update: {
-            type: tx.type,
-            amount: tx.amount,
-            createdAt: new Date(tx.timestamp),
-          },
-          create: {
-            id: tx.id,
-            userId: user.id,
-            type: tx.type,
-            amount: tx.amount,
-            balanceBefore: 0, // Python bot doesn't provide this
-            balanceAfter: 0,
-            createdAt: new Date(tx.timestamp),
-          },
-        });
-      }
-
-      logger.info({ userId, count: pythonTransactions.length }, 'Transactions synced');
-
-      return pythonTransactions;
-    } catch (error) {
-      logger.error(error, 'Failed to sync transactions');
-      return [];
-    }
+  async syncTransactions(_userId: string, _limit: number = 50) {
+    return [];
   }
 
   /**
-   * Get transaction history (from local cache)
+   * Get transaction history from shared DB.
    */
   async getTransactions(userId: string, limit: number = 50) {
     const transactions = await prisma.transaction.findMany({
@@ -73,15 +37,19 @@ export class TransactionService {
       id: tx.id,
       type: tx.type,
       amount: Number(tx.amount),
-      createdAt: tx.createdAt,
+      balanceBefore: Number(tx.balanceBefore),
+      balanceAfter: Number(tx.balanceAfter),
       gameType: tx.gameType,
-      metadata: tx.metadata, // ✅ Add metadata to response
+      gameRoundId: tx.gameRoundId,
+      metadata: tx.metadata,
+      createdAt: tx.createdAt,
     }));
   }
 
   /**
-   * Record transaction reference (for tracking only)
-   * Actual transaction processed by Python bot
+   * Record an out-of-band transaction reference (e.g. for adapters).
+   * Pipeline writes its own transaction rows inside its DB transactions,
+   * this is for callers outside the pipeline.
    */
   async recordTransactionReference(
     userId: string,
@@ -100,9 +68,7 @@ export class TransactionService {
           metadata,
         },
       });
-
       logger.info({ userId, type, amount }, 'Transaction reference recorded');
-
       return tx;
     } catch (error) {
       logger.error(error, 'Failed to record transaction reference');
