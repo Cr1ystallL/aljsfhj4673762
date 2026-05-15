@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { X } from 'lucide-react';
 import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 
@@ -64,15 +65,22 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
 
               {/* Header */}
               <div className="relative flex items-center justify-between px-5 py-5 border-b border-white/10">
-                <span className="font-roobert text-frost-white text-[20px] font-normal leading-none">
-                  Игры
+                <span className="relative inline-block h-8 w-[112px]">
+                  <Image
+                    src="/MenuLogo.png"
+                    alt="Macvbet"
+                    fill
+                    sizes="112px"
+                    className="object-contain object-left"
+                    priority
+                  />
                 </span>
                 <button
                   onClick={onClose}
                   aria-label="Close"
-                  className="w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
+                  className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
                 >
-                  <X size={14} strokeWidth={1.8} />
+                  <X size={18} strokeWidth={1.8} />
                 </button>
               </div>
 
@@ -102,9 +110,15 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
               </div>
 
               {/* Footer */}
-              <div className="relative px-5 py-4 border-t border-white/10">
-                <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-                  Macvbet · monopo saigon
+              <div className="relative px-5 py-4 border-t border-white/10 flex items-center">
+                <span className="relative inline-block h-6 w-[88px]">
+                  <Image
+                    src="/SmallLogo.png"
+                    alt="Macvbet"
+                    fill
+                    sizes="88px"
+                    className="object-contain object-left"
+                  />
                 </span>
               </div>
             </div>

@@ -81,7 +81,7 @@ export function CrashStage({
     }
 
     // Layout padding so the curve doesn't kiss the edges.
-    const padX = 14;
+    const padX = 22;
     const padBottom = 22;
     const padTop = 28;
     const innerW = Math.max(1, w - padX * 2);
@@ -96,7 +96,7 @@ export function CrashStage({
     //
     //   * X axis: starts at 0 (the round began at t=0). Window grows with
     //     elapsed time — minimum 4s, then matches the round so the head
-    //     sits ~10% from the right edge regardless of round length.
+    //     sits ~20% from the right edge regardless of round length.
     //
     //   * Y axis: smooth headroom. We pick yMax such that the head sits
     //     at ~75% of the inner height. As the multiplier grows, yMax
@@ -106,9 +106,9 @@ export function CrashStage({
     const lastT = graphPoints[graphPoints.length - 1].time || 1;
     const lastM = graphPoints[graphPoints.length - 1].multiplier || 1;
 
-    // Window grows: at least 4s, otherwise round-length × 1.1 so the head
-    // never kisses the right wall.
-    const xWindow = Math.max(4000, lastT * 1.1);
+    // Window grows: at least 4s, otherwise round-length × 1.25 so the head
+    // never kisses the right wall — even on long high-multiplier rounds.
+    const xWindow = Math.max(4000, lastT * 1.25);
     const startT = 0;
 
     // Pick yMax so the head sits around ~75% height. Clamp the lower bound

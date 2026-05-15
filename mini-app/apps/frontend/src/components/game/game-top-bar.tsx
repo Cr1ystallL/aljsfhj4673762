@@ -1,14 +1,16 @@
 'use client';
 
+import Image from 'next/image';
 import { HelpCircle, type LucideIcon } from 'lucide-react';
 
 /**
  * Game Top Bar — Monopo Saigon Style
  *
- * Shared header used across all game screens. Hosts the title with its
- * brand glyph on the left and a "Как играть" pill on the right that
- * opens the rules modal. Intentionally minimal — no sound toggle, no
- * demo dot, nothing that would clutter the otherwise calm layout.
+ * Shared header used across all game screens. Hosts the brand mark
+ * (`/SmallLogo.png`) on the left, followed by the game title and its
+ * brand glyph, with a "Как играть" pill on the right that opens the
+ * rules modal. Intentionally minimal — no sound toggle, no demo dot,
+ * nothing that would clutter the otherwise calm layout.
  */
 interface GameTopBarProps {
   title: string;
@@ -26,6 +28,17 @@ export function GameTopBar({
   return (
     <div className="flex items-center justify-between px-1">
       <div className="flex items-center gap-2.5">
+        {/* Brand mark — small Macvbet logo to the left of the game title */}
+        <span className="relative w-7 h-7 shrink-0">
+          <Image
+            src="/SmallLogo.png"
+            alt="Macvbet"
+            fill
+            sizes="28px"
+            className="object-contain"
+            priority
+          />
+        </span>
         <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
           {title}
         </span>

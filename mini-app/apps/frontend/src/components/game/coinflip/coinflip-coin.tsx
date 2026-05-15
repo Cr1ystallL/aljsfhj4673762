@@ -1,9 +1,10 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { Rocket } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import type { CoinSide } from '@/lib/games/coinflip/types';
+import { cn } from '@/lib/utils';
 
 /**
  * Coin — Monopo Saigon Style
@@ -13,9 +14,9 @@ import type { CoinSide } from '@/lib/games/coinflip/types';
  *   - flipping (flipKey changes) → 8-rotation Y-axis spin then settles
  *                          on the resolved side.
  *
- * No emoji — the rocket head is the brand glyph, drawn in the brand
- * Deep Ocean wash. Tails uses a frosted-glass shield silhouette so the
- * two sides read clearly even at small sizes.
+ * Faces use the brand artwork shipped in `/public`:
+ *   - HEADS → /CoinFlip_Desert.png
+ *   - TAILS → /CoinFlip_Reshka.png
  *
  * The settled side is communicated via the `face` prop. When the parent
  * wants to play a flip animation, it bumps `flipKey` and updates `face`
@@ -71,59 +72,49 @@ export function CoinflipCoin({
         >
           {/* HEADS face — front */}
           <div
-            className="absolute inset-0 rounded-full flex items-center justify-center"
+            className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
             style={{
               backfaceVisibility: 'hidden',
-              background:
-                'linear-gradient(135deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 60%, rgb(165, 45, 37) 100%)',
               boxShadow:
-                'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.25), 0 4px 20px rgba(255,172,46,0.18)',
+                'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.18), 0 4px 24px rgba(255,172,46,0.20)',
             }}
           >
-            <span
-              className="absolute inset-2 rounded-full border border-white/20"
-              aria-hidden
+            <Image
+              src="/CoinFlip_Desert.png"
+              alt="Орёл"
+              fill
+              priority
+              sizes="160px"
+              className="object-contain"
             />
+            {/* Fallback glyph if the image is missing — invisible while
+                the PNG loads, only paints if Image fails */}
             <Rocket
               size={56}
               strokeWidth={1.6}
-              className="relative text-midnight-canvas"
-              style={{ transform: 'rotate(-30deg)' }}
+              className="absolute opacity-0"
+              aria-hidden
             />
           </div>
 
           {/* TAILS face — back */}
           <div
-            className="absolute inset-0 rounded-full flex items-center justify-center"
+            className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
             style={{
               transform: 'rotateY(180deg)',
               backfaceVisibility: 'hidden',
-              background:
-                'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.04) 100%)',
-              border: '1px solid rgba(255,255,255,0.25)',
               boxShadow:
                 'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.15)',
             }}
           >
-            <span
-              className="absolute inset-2 rounded-full border border-white/20"
-              aria-hidden
+            <Image
+              src="/CoinFlip_Reshka.png"
+              alt="Решка"
+              fill
+              priority
+              sizes="160px"
+              className="object-contain"
             />
-            {/* Stylised tails glyph: nested circles for the brand-neutral side */}
-            <svg
-              viewBox="0 0 64 64"
-              className="relative w-16 h-16 text-frost-white/85"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <circle cx="32" cy="32" r="22" />
-              <circle cx="32" cy="32" r="14" />
-              <circle cx="32" cy="32" r="6" />
-            </svg>
           </div>
         </motion.div>
       </AnimatePresence>
