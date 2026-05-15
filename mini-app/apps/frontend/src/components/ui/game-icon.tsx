@@ -2,12 +2,11 @@
 
 import {
   Bomb,
-  Circle,
-  CircleDot,
   Rocket,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
+import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -19,16 +18,100 @@ import { cn } from '@/lib/utils';
  *
  * Icons are restrained — minimal outlined glyphs, frost-white on a
  * frosted glass tile. No emoji, no rainbow accents.
+ *
+ * Plinko and Coinflip have custom SVGs (the lucide stand-ins were too
+ * generic — a circle and a circle-with-dot didn't read as the games).
  */
 
 export type GameKey = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'unknown';
 
+/**
+ * Plinko glyph — a peg pyramid with a ball about to drop. Three rows of
+ * dots sit below a single ball above, evoking the 16-row pin board.
+ */
+const PlinkoIcon: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
+  (
+    { color = 'currentColor', size = 24, strokeWidth = 1.6, className, ...rest },
+    ref
+  ) => (
+    <svg
+      ref={ref}
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...rest}
+    >
+      {/* Ball at top */}
+      <circle cx="12" cy="4" r="1.6" fill={color} />
+      {/* Row 1 — 1 peg */}
+      <circle cx="12" cy="9" r="1" />
+      {/* Row 2 — 2 pegs */}
+      <circle cx="9" cy="13" r="1" />
+      <circle cx="15" cy="13" r="1" />
+      {/* Row 3 — 3 pegs */}
+      <circle cx="6" cy="17" r="1" />
+      <circle cx="12" cy="17" r="1" />
+      <circle cx="18" cy="17" r="1" />
+      {/* Bucket floor */}
+      <path d="M3 21h18" />
+    </svg>
+  )
+);
+PlinkoIcon.displayName = 'PlinkoIcon';
+export { PlinkoIcon };
+
+/**
+ * Coinflip glyph — a tilted coin in motion. Outer ellipse hints at the
+ * spinning side-on view, inner circle plus a dollar-style mark reads as
+ * a coin face. Distinct from a plain circle.
+ */
+const CoinflipIcon: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
+  (
+    { color = 'currentColor', size = 24, strokeWidth = 1.6, className, ...rest },
+    ref
+  ) => (
+    <svg
+      ref={ref}
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...rest}
+    >
+      {/* Outer face */}
+      <circle cx="12" cy="12" r="9" />
+      {/* Inner ring */}
+      <circle cx="12" cy="12" r="6.2" />
+      {/* Centre M-shape (Macvbet hint) — two strokes meeting at apex */}
+      <path d="M9 14.5V10l3 3 3-3v4.5" />
+      {/* Motion lines suggesting a flip */}
+      <path d="M3 8.5h2" />
+      <path d="M3 15.5h2" />
+    </svg>
+  )
+);
+CoinflipIcon.displayName = 'CoinflipIcon';
+export { CoinflipIcon };
+
 const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   crash: { label: 'Crash', Icon: Rocket },
   mines: { label: 'Mines', Icon: Bomb },
-  plinko: { label: 'Plinko', Icon: CircleDot },
-  coinflip: { label: 'Coinflip', Icon: Circle },
-  unknown: { label: 'Игра', Icon: CircleDot },
+  plinko: { label: 'Plinko', Icon: PlinkoIcon },
+  coinflip: { label: 'Coinflip', Icon: CoinflipIcon },
+  unknown: { label: 'Игра', Icon: PlinkoIcon },
 };
 
 /**

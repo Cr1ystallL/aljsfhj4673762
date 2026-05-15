@@ -68,7 +68,7 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
                 <img
                   src="/MenuLogo.png"
                   alt="Macvbet"
-                  className="h-12 w-auto object-contain"
+                  className="h-24 w-auto object-contain"
                 />
                 <button
                   onClick={onClose}
@@ -105,12 +105,12 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
               </div>
 
               {/* Footer */}
-              <div className="relative px-5 py-4 border-t border-white/10 flex items-center">
+              <div className="relative px-5 py-4 border-t border-white/10 flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/SmallLogo.png"
                   alt="Macvbet"
-                  className="h-10 w-auto object-contain"
+                  className="h-20 w-auto object-contain"
                 />
               </div>
             </div>

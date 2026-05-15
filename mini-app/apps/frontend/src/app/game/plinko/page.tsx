@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleDot } from 'lucide-react';
-
 import { GameTopBar } from '@/components/game/game-top-bar';
+import { PlinkoIcon } from '@/components/ui/game-icon';
 import { PlinkoBoard, type PlinkoDrop } from '@/components/game/plinko/plinko-board';
 import { PlinkoMultiplierStrip } from '@/components/game/plinko/plinko-multiplier-strip';
 import { PlinkoRiskSelector } from '@/components/game/plinko/plinko-risk-selector';
@@ -316,7 +315,7 @@ export default function PlinkoGamePage() {
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-2">
         <GameTopBar
           title="Plinko"
-          Icon={CircleDot}
+          Icon={PlinkoIcon}
           onHowToPlay={() => setRulesOpen(true)}
         />
 

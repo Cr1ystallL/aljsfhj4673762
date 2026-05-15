@@ -26,15 +26,15 @@ export function GameTopBar({
 }: GameTopBarProps) {
   return (
     <div className="flex items-center justify-between px-1">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3">
         {/* Brand mark — small Macvbet logo to the left of the game title */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/SmallLogo.png"
           alt="Macvbet"
-          width={40}
-          height={40}
-          className="w-10 h-10 object-contain shrink-0"
+          width={80}
+          height={80}
+          className="w-20 h-20 object-contain shrink-0"
         />
         <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
           {title}

@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Coins } from 'lucide-react';
-
 import { GameTopBar } from '@/components/game/game-top-bar';
+import { CoinflipIcon } from '@/components/ui/game-icon';
 import { CoinflipCoin } from '@/components/game/coinflip/coinflip-coin';
 import { CoinflipMultiplierStrip } from '@/components/game/coinflip/coinflip-multiplier-strip';
 import { CoinflipSideButtons } from '@/components/game/coinflip/coinflip-side-buttons';
@@ -287,7 +286,7 @@ export default function CoinflipGamePage() {
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-3">
         <GameTopBar
           title="Coinflip"
-          Icon={Coins}
+          Icon={CoinflipIcon}
           onHowToPlay={() => setRulesOpen(true)}
         />
 
