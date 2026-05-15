@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { balanceService } from '../services/balance-service.js';
 import { transactionService } from '../services/transaction-service.js';
 import { logger } from '../utils/logger.js';
@@ -7,64 +7,154 @@ import type { Bet, BetState } from './types.js';
 /**
  * Unified Betting Pipeline
  * Handles bet processing, balance deduction, and payout distribution
- * 
- * CRITICAL: Server-authoritative, transactional, rollback-safe
+ *
+ * CRITICAL: Server-authoritative, transactional, rollback-safe.
+ *
+ * REAL MODE:
+ *   - All balance changes go through atomic SQL on the shared `balances` table
+ *     (same table the Python bot writes to via DatabasePostgres adapter).
+ *   - The deduct query uses `WHERE amount >= $bet` so concurrent calls cannot
+ *     overdraw the balance.
+ *   - Bet record is created in the same Prisma transaction as the balance
+ *     update, so we never have ghost bets without a debit.
+ *
+ * DEMO MODE:
+ *   - Operates on the same `balances` row but with `demo_mode = true`.
+ *   - Same atomic semantics as real mode.
  */
 
 const prisma = new PrismaClient();
 
+const TWO_DP = (n: number) => Math.round(n * 100) / 100;
+
 export class BettingPipeline {
   /**
-   * Process bet placement
-   * Deducts balance and creates bet record
+   * Atomically deduct funds from the user's balance.
+   * Returns the new balance, or null if there were insufficient funds.
    */
-  async processBet(bet: Bet, demoMode: boolean = false): Promise<void> {
-    try {
-      // Get current balance
-      const balance = await balanceService.getBalance(bet.userId, demoMode);
+  private async debitBalance(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    amount: number,
+    demoMode: boolean
+  ): Promise<number | null> {
+    // Conditional UPDATE - only succeeds if amount is sufficient.
+    // RETURNING gives us the new balance in one round-trip.
+    const rows = await tx.$queryRaw<Array<{ amount: string | number }>>(
+      Prisma.sql`
+        UPDATE balances
+        SET amount = amount - ${amount}::numeric,
+            updated_at = NOW(),
+            last_synced_at = NOW(),
+            version = version + 1
+        WHERE user_id = ${userId}
+          AND demo_mode = ${demoMode}
+          AND amount >= ${amount}::numeric
+        RETURNING amount
+      `
+    );
 
-      if (balance.amount < bet.amount) {
-        throw new Error('Insufficient balance');
-      }
+    if (rows.length === 0) return null;
+    return Number(rows[0].amount);
+  }
 
-      // Deduct bet amount
-      const newBalance = balance.amount - bet.amount;
+  /**
+   * Atomically credit funds to the user's balance.
+   * Creates the row if it doesn't exist (defensive, shouldn't happen for
+   * users that already placed a bet, but safe to be robust).
+   */
+  private async creditBalance(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    amount: number,
+    demoMode: boolean
+  ): Promise<number> {
+    const rows = await tx.$queryRaw<Array<{ amount: string | number }>>(
+      Prisma.sql`
+        UPDATE balances
+        SET amount = amount + ${amount}::numeric,
+            updated_at = NOW(),
+            last_synced_at = NOW(),
+            version = version + 1
+        WHERE user_id = ${userId}
+          AND demo_mode = ${demoMode}
+        RETURNING amount
+      `
+    );
 
-      if (demoMode) {
-        await balanceService.updateDemoBalance(bet.userId, newBalance);
-      } else {
-        // In real mode, this would sync with Python bot
-        // For now, just invalidate cache to force refresh
-        await balanceService.invalidateCache(bet.userId);
-      }
-
-      // Record transaction
-      await transactionService.recordTransactionReference(
-        bet.userId,
-        'bet',
-        -bet.amount,
-        {
-          betId: bet.id,
-          gameId: bet.gameId,
-          roundId: bet.roundId,
-        }
-      );
-
-      // Store bet in database
-      await prisma.bet.create({
+    if (rows.length === 0) {
+      // Row missing - create it. Shouldn't happen in normal flow.
+      const created = await tx.balance.create({
         data: {
-          id: bet.id,
-          userId: bet.userId,
-          gameType: bet.gameId.split('_')[0],
-          roundId: bet.roundId,
-          amount: bet.amount,
-          state: bet.state,
-          placedAt: new Date(bet.placedAt),
-          metadata: bet.metadata || {},
+          userId,
+          amount,
+          currency: 'USD',
+          demoMode,
         },
       });
+      return Number(created.amount);
+    }
 
-      logger.info({ betId: bet.id, userId: bet.userId, amount: bet.amount }, 'Bet processed');
+    return Number(rows[0].amount);
+  }
+
+  /**
+   * Process bet placement.
+   * Atomically: debits balance, creates bet record, records bet transaction.
+   * Throws 'Insufficient balance' if funds are not enough.
+   */
+  async processBet(bet: Bet, demoMode: boolean = false): Promise<void> {
+    const amount = TWO_DP(bet.amount);
+
+    try {
+      const newBalance = await prisma.$transaction(async (tx) => {
+        const updated = await this.debitBalance(tx, bet.userId, amount, demoMode);
+        if (updated === null) {
+          throw new Error('Insufficient balance');
+        }
+
+        await tx.bet.create({
+          data: {
+            id: bet.id,
+            userId: bet.userId,
+            gameType: bet.gameId.split('_')[0],
+            roundId: bet.roundId,
+            amount,
+            state: bet.state,
+            placedAt: new Date(bet.placedAt),
+            metadata: bet.metadata || {},
+          },
+        });
+
+        await tx.transaction.create({
+          data: {
+            userId: bet.userId,
+            type: 'bet',
+            amount: -amount,
+            balanceBefore: updated + amount,
+            balanceAfter: updated,
+            gameType: bet.gameId.split('_')[0],
+            gameRoundId: bet.roundId || null,
+            metadata: {
+              betId: bet.id,
+              gameId: bet.gameId,
+              roundId: bet.roundId,
+              demoMode,
+            },
+          },
+        });
+
+        return updated;
+      });
+
+      // Push fresh balance out to clients
+      await balanceService.invalidateCache(bet.userId);
+      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+
+      logger.info(
+        { betId: bet.id, userId: bet.userId, amount, newBalance, demoMode },
+        'Bet processed'
+      );
     } catch (error) {
       logger.error(error, 'Failed to process bet');
       throw error;
@@ -72,50 +162,74 @@ export class BettingPipeline {
   }
 
   /**
-   * Process bet payout
-   * Credits winnings to user balance
+   * Process bet payout.
+   * Credits payout (if any), updates bet record. Atomic.
+   * NOTE: payout is the GROSS amount returned to the player (e.g. bet 1$ at
+   * multiplier 2x => payout 2$). Multiplier < 1 still credits a partial
+   * payout (e.g. 0.5x => 0.5$) since plinko uses gross multipliers per bucket.
    */
   async processPayout(bet: Bet, payout: number, demoMode: boolean = false): Promise<void> {
+    const credit = TWO_DP(payout);
+
     try {
-      // Get current balance
-      const balance = await balanceService.getBalance(bet.userId, demoMode);
+      const newBalance = await prisma.$transaction(async (tx) => {
+        let balanceAfter = 0;
 
-      // Add payout
-      const newBalance = balance.amount + payout;
+        if (credit > 0) {
+          balanceAfter = await this.creditBalance(tx, bet.userId, credit, demoMode);
 
-      if (demoMode) {
-        await balanceService.updateDemoBalance(bet.userId, newBalance);
-      } else {
-        // In real mode, sync with Python bot
-        await balanceService.invalidateCache(bet.userId);
-      }
-
-      // Record transaction
-      await transactionService.recordTransactionReference(
-        bet.userId,
-        'win',
-        payout,
-        {
-          betId: bet.id,
-          gameId: bet.gameId,
-          roundId: bet.roundId,
-          multiplier: bet.multiplier,
+          await tx.transaction.create({
+            data: {
+              userId: bet.userId,
+              type: 'win',
+              amount: credit,
+              balanceBefore: balanceAfter - credit,
+              balanceAfter,
+              gameType: bet.gameId.split('_')[0],
+              gameRoundId: bet.roundId || null,
+              metadata: {
+                betId: bet.id,
+                gameId: bet.gameId,
+                roundId: bet.roundId,
+                multiplier: bet.multiplier,
+                demoMode,
+              },
+            },
+          });
+        } else {
+          // No payout - read current balance for return value
+          const b = await tx.balance.findFirst({
+            where: { userId: bet.userId, demoMode },
+            select: { amount: true },
+          });
+          balanceAfter = b ? Number(b.amount) : 0;
         }
-      );
 
-      // Update bet record
-      await prisma.bet.update({
-        where: { id: bet.id },
-        data: {
-          state: 'won',
-          payout,
-          multiplier: bet.multiplier,
-          resolvedAt: new Date(),
-        },
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: {
+            state: credit > 0 ? 'won' : 'lost',
+            payout: credit,
+            multiplier: bet.multiplier,
+            resolvedAt: new Date(),
+          },
+        });
+
+        return balanceAfter;
       });
 
+      await balanceService.invalidateCache(bet.userId);
+      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+
       logger.info(
-        { betId: bet.id, userId: bet.userId, payout, multiplier: bet.multiplier },
+        {
+          betId: bet.id,
+          userId: bet.userId,
+          payout: credit,
+          multiplier: bet.multiplier,
+          newBalance,
+          demoMode,
+        },
         'Payout processed'
       );
     } catch (error) {
@@ -125,8 +239,8 @@ export class BettingPipeline {
   }
 
   /**
-   * Process bet loss
-   * Updates bet state to lost
+   * Process bet loss (no payout).
+   * Sets state to 'lost' and timestamps it.
    */
   async processLoss(bet: Bet): Promise<void> {
     try {
@@ -134,10 +248,10 @@ export class BettingPipeline {
         where: { id: bet.id },
         data: {
           state: 'lost',
+          payout: 0,
           resolvedAt: new Date(),
         },
       });
-
       logger.info({ betId: bet.id, userId: bet.userId }, 'Bet lost');
     } catch (error) {
       logger.error(error, 'Failed to process loss');
@@ -146,8 +260,7 @@ export class BettingPipeline {
   }
 
   /**
-   * Process cashout
-   * Credits partial winnings and closes bet
+   * Process cashout - partial winnings credited, bet closed.
    */
   async processCashout(
     bet: Bet,
@@ -155,45 +268,49 @@ export class BettingPipeline {
     multiplier: number,
     demoMode: boolean = false
   ): Promise<void> {
+    const credit = TWO_DP(cashoutAmount);
+
     try {
-      // Get current balance
-      const balance = await balanceService.getBalance(bet.userId, demoMode);
+      const newBalance = await prisma.$transaction(async (tx) => {
+        const balanceAfter = await this.creditBalance(tx, bet.userId, credit, demoMode);
 
-      // Add cashout amount
-      const newBalance = balance.amount + cashoutAmount;
+        await tx.transaction.create({
+          data: {
+            userId: bet.userId,
+            type: 'cashout',
+            amount: credit,
+            balanceBefore: balanceAfter - credit,
+            balanceAfter,
+            gameType: bet.gameId.split('_')[0],
+            gameRoundId: bet.roundId || null,
+            metadata: {
+              betId: bet.id,
+              gameId: bet.gameId,
+              roundId: bet.roundId,
+              multiplier,
+              demoMode,
+            },
+          },
+        });
 
-      if (demoMode) {
-        await balanceService.updateDemoBalance(bet.userId, newBalance);
-      } else {
-        await balanceService.invalidateCache(bet.userId);
-      }
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: {
+            state: 'cashed_out',
+            payout: credit,
+            multiplier,
+            resolvedAt: new Date(),
+          },
+        });
 
-      // Record transaction
-      await transactionService.recordTransactionReference(
-        bet.userId,
-        'cashout',
-        cashoutAmount,
-        {
-          betId: bet.id,
-          gameId: bet.gameId,
-          roundId: bet.roundId,
-          multiplier,
-        }
-      );
-
-      // Update bet record
-      await prisma.bet.update({
-        where: { id: bet.id },
-        data: {
-          state: 'cashed_out',
-          payout: cashoutAmount,
-          multiplier,
-          resolvedAt: new Date(),
-        },
+        return balanceAfter;
       });
 
+      await balanceService.invalidateCache(bet.userId);
+      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+
       logger.info(
-        { betId: bet.id, userId: bet.userId, cashoutAmount, multiplier },
+        { betId: bet.id, userId: bet.userId, cashoutAmount: credit, multiplier, newBalance },
         'Cashout processed'
       );
     } catch (error) {
@@ -203,46 +320,53 @@ export class BettingPipeline {
   }
 
   /**
-   * Rollback bet (in case of error)
-   * Refunds bet amount to user
+   * Rollback bet - refunds bet amount.
+   * Used when an error occurs after the bet was debited but before resolution.
    */
   async rollbackBet(bet: Bet, demoMode: boolean = false): Promise<void> {
+    const refund = TWO_DP(bet.amount);
+
     try {
-      // Get current balance
-      const balance = await balanceService.getBalance(bet.userId, demoMode);
+      const newBalance = await prisma.$transaction(async (tx) => {
+        const balanceAfter = await this.creditBalance(tx, bet.userId, refund, demoMode);
 
-      // Refund bet amount
-      const newBalance = balance.amount + bet.amount;
+        await tx.transaction.create({
+          data: {
+            userId: bet.userId,
+            type: 'refund',
+            amount: refund,
+            balanceBefore: balanceAfter - refund,
+            balanceAfter,
+            gameType: bet.gameId.split('_')[0],
+            gameRoundId: bet.roundId || null,
+            metadata: {
+              betId: bet.id,
+              gameId: bet.gameId,
+              roundId: bet.roundId,
+              reason: 'rollback',
+              demoMode,
+            },
+          },
+        });
 
-      if (demoMode) {
-        await balanceService.updateDemoBalance(bet.userId, newBalance);
-      } else {
-        await balanceService.invalidateCache(bet.userId);
-      }
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: {
+            state: 'cancelled',
+            resolvedAt: new Date(),
+          },
+        });
 
-      // Record refund transaction
-      await transactionService.recordTransactionReference(
-        bet.userId,
-        'refund',
-        bet.amount,
-        {
-          betId: bet.id,
-          gameId: bet.gameId,
-          roundId: bet.roundId,
-          reason: 'rollback',
-        }
-      );
-
-      // Update bet record
-      await prisma.bet.update({
-        where: { id: bet.id },
-        data: {
-          state: 'cancelled',
-          resolvedAt: new Date(),
-        },
+        return balanceAfter;
       });
 
-      logger.info({ betId: bet.id, userId: bet.userId, amount: bet.amount }, 'Bet rolled back');
+      await balanceService.invalidateCache(bet.userId);
+      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+
+      logger.info(
+        { betId: bet.id, userId: bet.userId, amount: refund, newBalance },
+        'Bet rolled back'
+      );
     } catch (error) {
       logger.error(error, 'Failed to rollback bet');
       throw error;
@@ -250,7 +374,7 @@ export class BettingPipeline {
   }
 
   /**
-   * Get bet by ID
+   * Get bet by ID.
    */
   async getBet(betId: string): Promise<Bet | null> {
     try {
@@ -258,9 +382,7 @@ export class BettingPipeline {
         where: { id: betId },
       });
 
-      if (!bet) {
-        return null;
-      }
+      if (!bet) return null;
 
       return {
         id: bet.id,
@@ -268,7 +390,7 @@ export class BettingPipeline {
         gameId: bet.gameType,
         roundId: bet.roundId,
         amount: Number(bet.amount),
-        state: bet.state as any,
+        state: bet.state as BetState,
         placedAt: bet.placedAt.getTime(),
         resolvedAt: bet.resolvedAt?.getTime(),
         payout: bet.payout ? Number(bet.payout) : undefined,
@@ -282,20 +404,16 @@ export class BettingPipeline {
   }
 
   /**
-   * Get user's active bets
+   * Get user's active bets.
    */
   async getActiveBets(userId: string): Promise<Bet[]> {
     try {
       const bets = await prisma.bet.findMany({
         where: {
           userId,
-          state: {
-            in: ['pending', 'active'],
-          },
+          state: { in: ['pending', 'active'] },
         },
-        orderBy: {
-          placedAt: 'desc',
-        },
+        orderBy: { placedAt: 'desc' },
       });
 
       return bets.map((bet) => ({
