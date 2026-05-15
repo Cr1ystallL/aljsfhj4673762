@@ -1,8 +1,6 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
-import { Rocket } from 'lucide-react';
 import type { CoinSide } from '@/lib/games/coinflip/types';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +19,10 @@ import { cn } from '@/lib/utils';
  * The settled side is communicated via the `face` prop. When the parent
  * wants to play a flip animation, it bumps `flipKey` and updates `face`
  * to the final side; the component handles the spin internally.
+ *
+ * Note: we use plain `<img>` rather than `next/image` because the
+ * production server is not running Sharp, and `next/image` with `fill`
+ * inside a SSR-rendered component otherwise crashes the Next runtime.
  */
 
 interface CoinflipCoinProps {
@@ -79,21 +81,12 @@ export function CoinflipCoin({
                 'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.18), 0 4px 24px rgba(255,172,46,0.20)',
             }}
           >
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/CoinFlip_Desert.png"
               alt="Орёл"
-              fill
-              priority
-              sizes="160px"
-              className="object-contain"
-            />
-            {/* Fallback glyph if the image is missing — invisible while
-                the PNG loads, only paints if Image fails */}
-            <Rocket
-              size={56}
-              strokeWidth={1.6}
-              className="absolute opacity-0"
-              aria-hidden
+              className="w-full h-full object-contain"
+              draggable={false}
             />
           </div>
 
@@ -107,13 +100,12 @@ export function CoinflipCoin({
                 'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.15)',
             }}
           >
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/CoinFlip_Reshka.png"
               alt="Решка"
-              fill
-              priority
-              sizes="160px"
-              className="object-contain"
+              className="w-full h-full object-contain"
+              draggable={false}
             />
           </div>
         </motion.div>

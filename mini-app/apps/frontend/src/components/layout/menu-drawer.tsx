@@ -1,7 +1,6 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 import { X } from 'lucide-react';
 import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 
@@ -65,16 +64,12 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
 
               {/* Header */}
               <div className="relative flex items-center justify-between px-5 py-5 border-b border-white/10">
-                <span className="relative inline-block h-8 w-[112px]">
-                  <Image
-                    src="/MenuLogo.png"
-                    alt="Macvbet"
-                    fill
-                    sizes="112px"
-                    className="object-contain object-left"
-                    priority
-                  />
-                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/MenuLogo.png"
+                  alt="Macvbet"
+                  className="h-8 w-auto object-contain"
+                />
                 <button
                   onClick={onClose}
                   aria-label="Close"
@@ -111,15 +106,12 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
 
               {/* Footer */}
               <div className="relative px-5 py-4 border-t border-white/10 flex items-center">
-                <span className="relative inline-block h-6 w-[88px]">
-                  <Image
-                    src="/SmallLogo.png"
-                    alt="Macvbet"
-                    fill
-                    sizes="88px"
-                    className="object-contain object-left"
-                  />
-                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/SmallLogo.png"
+                  alt="Macvbet"
+                  className="h-6 w-auto object-contain"
+                />
               </div>
             </div>
           </motion.aside>

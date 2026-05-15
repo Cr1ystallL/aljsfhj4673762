@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { HelpCircle, type LucideIcon } from 'lucide-react';
 
 /**
@@ -29,16 +28,14 @@ export function GameTopBar({
     <div className="flex items-center justify-between px-1">
       <div className="flex items-center gap-2.5">
         {/* Brand mark — small Macvbet logo to the left of the game title */}
-        <span className="relative w-7 h-7 shrink-0">
-          <Image
-            src="/SmallLogo.png"
-            alt="Macvbet"
-            fill
-            sizes="28px"
-            className="object-contain"
-            priority
-          />
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/SmallLogo.png"
+          alt="Macvbet"
+          width={28}
+          height={28}
+          className="w-7 h-7 object-contain shrink-0"
+        />
         <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
           {title}
         </span>
