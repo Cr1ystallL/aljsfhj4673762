@@ -68,7 +68,8 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
                 <img
                   src="/MenuLogo.png"
                   alt="Macvbet"
-                  className="h-14 w-auto object-contain"
+                  style={{ height: '6.5rem', width: 'auto' }}
+                  className="object-contain"
                 />
                 <button
                   onClick={onClose}
@@ -110,7 +111,8 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
                 <img
                   src="/SmallLogo.png"
                   alt="Macvbet"
-                  className="h-12 w-auto object-contain"
+                  style={{ height: '80px', width: 'auto' }}
+                  className="object-contain"
                 />
               </div>
             </div>

@@ -80,7 +80,7 @@ export function BottomNavigation({
                         'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%)',
                     }}
                   />
-                  {/* Brand mark replaces the play triangle */}
+                  {/* Brand mark */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/ButtonLogo.png"
