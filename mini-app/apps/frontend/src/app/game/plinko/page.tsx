@@ -27,8 +27,15 @@ import type {
  *   1. POST /api/games/plinko/drop — server picks the bucket via
  *      provably-fair seed, debits the stake, credits the payout.
  *   2. Frontend animates the ball along the deterministic path returned
- *      by the server, then flashes the winning bucket pill.
- *   3. Live ticker pulls /api/games/plinko/history every few seconds.
+ *      by the server using a parabolic-arc physics simulation, then
+ *      flashes the winning bucket pill and emits the outcome SFX once
+ *      the ball actually arrives.
+ *   3. Live ticker pulls /api/games/plinko/history every few seconds,
+ *      sampled deterministically so we don't show every single drop.
+ *
+ * Auto mode: the user enables a checkbox; the page kicks off a drop,
+ * waits ~1.5 s, then kicks off the next, until the user disables it or
+ * the balance can no longer cover the stake.
  */
 
 const DEFAULT_CONFIG: PlinkoConfig = {
@@ -42,6 +49,9 @@ const DEFAULT_CONFIG: PlinkoConfig = {
   },
 };
 
+/** Delay between drops in auto mode (ms). */
+const AUTO_INTERVAL_MS = 1500;
+
 export default function PlinkoGamePage() {
   const { balance, fetchBalance } = useBalance();
 
@@ -49,15 +59,41 @@ export default function PlinkoGamePage() {
   const [risk, setRisk] = useState<PlinkoRisk>('medium');
   const [amount, setAmount] = useState(10);
   const [busy, setBusy] = useState(false);
+  const [autoEnabled, setAutoEnabled] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
 
   const [drops, setDrops] = useState<PlinkoDrop[]>([]);
   const [highlightedBucket, setHighlightedBucket] = useState<number | null>(null);
   const [lastResult, setLastResult] = useState<PlinkoDropResult | null>(null);
 
+  /**
+   * Pending results — keyed by drop id. We hold them in a ref (not in
+   * state) until the ball animation reports `onBallLanded`. Only then do
+   * we (a) reveal `lastResult`, (b) play SFX, (c) push to live feed.
+   */
+  const pendingByIdRef = useRef<Map<string, PlinkoDropResult>>(new Map());
+  const dropCounterRef = useRef(0);
+
   const [history, setHistory] = useState<PlinkoHistoryEntry[]>([]);
 
-  const dropCounterRef = useRef(0);
+  // For auto mode lifecycle.
+  const autoEnabledRef = useRef(false);
+  const balanceRef = useRef(0);
+  const amountRef = useRef(amount);
+  const riskRef = useRef(risk);
+
+  useEffect(() => {
+    autoEnabledRef.current = autoEnabled;
+  }, [autoEnabled]);
+  useEffect(() => {
+    balanceRef.current = balance?.amount ?? 0;
+  }, [balance?.amount]);
+  useEffect(() => {
+    amountRef.current = amount;
+  }, [amount]);
+  useEffect(() => {
+    riskRef.current = risk;
+  }, [risk]);
 
   // Sound init.
   useEffect(() => {
@@ -86,7 +122,7 @@ export default function PlinkoGamePage() {
 
     const fetchHist = async () => {
       try {
-        const res = await fetch('/api/games/plinko/history?limit=20', {
+        const res = await fetch('/api/games/plinko/history?limit=40', {
           credentials: 'include',
         });
         if (!alive || !res.ok) return;
@@ -108,10 +144,13 @@ export default function PlinkoGamePage() {
 
   /* ------------------------------------------------------------ actions */
 
+  /**
+   * Fire one drop. Resolves once the server replies (NOT once the ball
+   * lands) — this keeps auto-mode pacing predictable and lets the
+   * animation queue up multiple in-flight balls if requested.
+   */
   async function dropBall() {
-    if (busy) return;
     if (amount <= 0) return;
-    setBusy(true);
     try {
       const res = await fetch('/api/games/plinko/drop', {
         method: 'POST',
@@ -123,35 +162,96 @@ export default function PlinkoGamePage() {
       if (!res.ok) throw new Error(json?.message ?? 'Drop failed');
 
       const result = json.result as PlinkoDropResult;
-      setLastResult(result);
 
       const id = `drop_${Date.now()}_${dropCounterRef.current++}`;
+      pendingByIdRef.current.set(id, result);
+
       setDrops((prev) => [
         ...prev,
         { id, path: result.path, bucket: result.bucket },
       ]);
 
       soundManager.play('ui.click');
-      // Refresh balance immediately so the header pill reflects the
-      // post-drop figure even if the WebSocket push got dropped.
+      // Refresh balance so the header pill reflects the post-drop figure
+      // even if the WebSocket push got dropped.
       void fetchBalance();
     } catch (err) {
       console.error('plinko:drop', err);
+      throw err;
+    }
+  }
+
+  /** Manual single-shot drop (also serves as Auto Off → kick start). */
+  async function handleManualDrop() {
+    if (autoEnabled) {
+      // The CTA doubles as "stop auto" while auto is running.
+      setAutoEnabled(false);
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    try {
+      await dropBall();
     } finally {
-      // Keep the button responsive. Server is fast enough that we don't
-      // need to lock until the animation finishes.
       setBusy(false);
     }
   }
 
+  /* ----------------------------------------------------- auto mode loop */
+
+  useEffect(() => {
+    if (!autoEnabled) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      if (cancelled || !autoEnabledRef.current) return;
+      // Stop if we don't have funds for the next bet.
+      if (balanceRef.current < amountRef.current) {
+        setAutoEnabled(false);
+        return;
+      }
+      try {
+        await dropBall();
+      } catch {
+        // Server rejected — bail out of auto so we don't spam errors.
+        setAutoEnabled(false);
+        return;
+      }
+      if (cancelled || !autoEnabledRef.current) return;
+      timer = setTimeout(tick, AUTO_INTERVAL_MS);
+    };
+
+    // Start immediately, then keep going.
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEnabled]);
+
+  /* -------------------------------------------------- ball-landed event */
+
   /** Called by PlinkoBoard when a ball reaches its bucket. */
   function handleBallLanded(d: PlinkoDrop) {
+    const result = pendingByIdRef.current.get(d.id);
+    pendingByIdRef.current.delete(d.id);
+
     setHighlightedBucket(d.bucket);
     setTimeout(() => setHighlightedBucket(null), 600);
+
+    // Now is the right moment to reveal the outcome to the rest of the
+    // UI: the live last-multiplier pill and the SFX.
+    if (result) {
+      setLastResult(result);
+    }
+
     // Drop the ball from the active list so memory stays bounded.
     setDrops((prev) => prev.filter((x) => x.id !== d.id));
 
-    // Outcome SFX based on multiplier of the matching result.
     const m = config.multipliers[risk][d.bucket];
     if (m >= 5) soundManager.play('game.win');
     else if (m >= 1) soundManager.play('game.cashout');
@@ -168,6 +268,24 @@ export default function PlinkoGamePage() {
 
   const multipliers = config.multipliers[risk];
 
+  /**
+   * Sample the live feed — show only ~30% of recent drops + always keep
+   * notable ones (≥5x payout). Sampling is deterministic per row id so
+   * the UI doesn't flicker between renders.
+   */
+  const sampledHistory = useMemo(() => {
+    return history.filter((row) => {
+      if (row.multiplier >= 5) return true;
+      // FNV-1a 32-bit hash for stable sampling.
+      let h = 2166136261;
+      for (let i = 0; i < row.id.length; i++) {
+        h ^= row.id.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return ((h >>> 0) % 100) < 30;
+    });
+  }, [history]);
+
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-2">
@@ -179,7 +297,11 @@ export default function PlinkoGamePage() {
 
         {/* Risk + last-multiplier strip */}
         <div className="flex items-center justify-between gap-2">
-          <PlinkoRiskSelector value={risk} onChange={setRisk} disabled={busy} />
+          <PlinkoRiskSelector
+            value={risk}
+            onChange={setRisk}
+            disabled={busy || autoEnabled}
+          />
           {lastResult && (
             <span
               className="font-roobert text-[12px] tabular-nums px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md"
@@ -220,11 +342,13 @@ export default function PlinkoGamePage() {
           minBet={minBet}
           maxBet={maxBet}
           busy={busy}
-          onPrimary={dropBall}
+          autoEnabled={autoEnabled}
+          onAutoToggle={setAutoEnabled}
+          onPrimary={handleManualDrop}
         />
 
         {/* History */}
-        <PlinkoHistory entries={history} />
+        <PlinkoHistory entries={sampledHistory} />
       </div>
 
       <PlinkoRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
