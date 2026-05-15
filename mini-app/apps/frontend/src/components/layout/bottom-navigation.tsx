@@ -39,7 +39,7 @@ export function BottomNavigation({
           className="relative rounded-card border border-white/10 backdrop-blur-2xl"
           style={{ background: 'rgba(0, 0, 0, 0.55)' }}
         >
-          <div className="relative grid grid-cols-3 items-center px-2 py-2">
+          <div className="relative grid grid-cols-3 items-center px-2 py-1.5">
             <NavItem
               icon={<Menu size={18} strokeWidth={1.7} />}
               label="Меню"
@@ -65,7 +65,7 @@ export function BottomNavigation({
                 />
                 {/* Gradient pill — Deep Ocean as required by the brand */}
                 <span
-                  className="relative w-20 h-20 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
+                  className="relative w-14 h-14 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
                   style={{
                     background:
                       'linear-gradient(135deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
@@ -85,7 +85,7 @@ export function BottomNavigation({
                   <img
                     src="/ButtonLogo.png"
                     alt="Играть"
-                    className="relative w-16 h-16 object-contain"
+                    className="relative w-11 h-11 object-contain"
                     draggable={false}
                   />
                 </span>
