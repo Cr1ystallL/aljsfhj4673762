@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, Coins, Dice5, Trophy, Sparkles, ChevronRight, Wallet } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Coins,
+  Dice5,
+  Trophy,
+  Sparkles,
+  ChevronRight,
+  Wallet,
+} from 'lucide-react';
 
 import { PageTransition } from '@/components/ui/page-transition';
 import { GameIconTile, gameLabel, resolveGameKey } from '@/components/ui/game-icon';
@@ -20,9 +29,11 @@ import { useRouter } from 'next/navigation';
  * on the avatar plate, never as a flat surface.
  *
  * Sections, top → bottom:
- *   - Header pill row: title and balance pill.
+ *   - Header pill row: title.
  *   - Identity card: avatar plate over a soft Deep-Ocean halo, name,
- *     telegram id with copy-to-clipboard, registration date.
+ *     telegram id with copy-to-clipboard, balance pill. The displayed
+ *     balance comes from the live store so WebSocket pushes update it
+ *     in place after a bet resolves.
  *   - Stat tiles: total bets, total winnings, biggest win, biggest mult.
  *   - Recent bets: per-game icon + label + relative date + stake +
  *     payout. Amounts are normalised so we don't show "Ставка: -4.00 ₽".
@@ -31,31 +42,18 @@ import { useRouter } from 'next/navigation';
 export default function ProfilePage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { balance } = useBalance();
+  const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
-  const [realBalance, setRealBalance] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Pull a fresh balance on mount and again whenever the user navigates back
+  // to the profile screen — covers the case where a Mines / Crash round
+  // resolved while the user was on a different page and the WS push went
+  // stale.
   useEffect(() => {
-    fetchTransactions(20);
-  }, [fetchTransactions]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/balance?demo=false', { credentials: 'include' });
-        if (!res.ok) return;
-        const data = (await res.json()) as { balance: { amount: number } };
-        if (!cancelled) setRealBalance(data.balance.amount);
-      } catch {
-        if (!cancelled) setRealBalance(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void fetchBalance();
+    void fetchTransactions(20);
+  }, [fetchBalance, fetchTransactions]);
 
   const stats = useMemo(() => deriveStats(transactions), [transactions]);
 
@@ -71,7 +69,7 @@ export default function ProfilePage() {
   };
 
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
-  const balanceAmount = realBalance ?? balance?.amount ?? 0;
+  const balanceAmount = balance?.amount ?? 0;
 
   return (
     <PageTransition>

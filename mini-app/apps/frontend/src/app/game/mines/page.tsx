@@ -41,7 +41,7 @@ interface ServerState {
 }
 
 export default function MinesGamePage() {
-  const { balance } = useBalance();
+  const { balance, fetchBalance } = useBalance();
 
   const [server, setServer] = useState<ServerState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,9 +58,11 @@ export default function MinesGamePage() {
     soundManager.initialize();
   }, []);
 
-  // Resume any active round on mount.
+  // Resume any active round on mount + refresh the balance so the page
+  // never shows a stale figure if the WebSocket push was missed.
   useEffect(() => {
     let cancelled = false;
+    void fetchBalance();
     (async () => {
       try {
         const res = await fetch('/api/games/mines/state', {
@@ -80,27 +82,38 @@ export default function MinesGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function applyServer(next: ServerState) {
+  function applyServer(next: ServerState, knownHit?: number) {
     setServer(next);
 
-    // If the round just ended on a mine, find the cell that wasn't in
-    // `revealed` but is in `minePositions` — that's the hit cell. The
-    // server doesn't tag it explicitly so we infer.
     if (next.state === 'busted' && next.minePositions) {
-      // The hit position is the most recent click — but we don't have
-      // history here. Conservative approach: highlight the first mine
-      // that isn't revealed (functionally indistinguishable when there's
-      // exactly one bust per round).
-      const candidate = next.minePositions.find(
-        (p) => !next.revealed.includes(p)
-      );
-      setHitPosition(typeof candidate === 'number' ? candidate : null);
+      if (
+        typeof knownHit === 'number' &&
+        next.minePositions.includes(knownHit)
+      ) {
+        // The caller knew which cell ended the round (e.g. the reveal
+        // handler). Use that for an exact highlight.
+        setHitPosition(knownHit);
+      } else {
+        // Server doesn't tag the hit cell explicitly, so we fall back to
+        // the first mine that wasn't otherwise revealed. With one bust
+        // per round this is functionally identical.
+        const candidate = next.minePositions.find(
+          (p) => !next.revealed.includes(p)
+        );
+        setHitPosition(typeof candidate === 'number' ? candidate : null);
+      }
     } else {
       setHitPosition(null);
     }
 
     if (next.state === 'cashed') soundManager.play('game.cashout');
     if (next.state === 'busted') soundManager.play('game.lose');
+
+    // Whenever the authoritative state changes — round started (stake
+    // debited), busted (stake forfeit), or cashed (winnings credited) —
+    // pull a fresh balance. This keeps the header pill in sync even if
+    // the WebSocket broadcast was dropped.
+    void fetchBalance();
   }
 
   /* ------------------------------------------------------------ actions */
@@ -141,16 +154,8 @@ export default function MinesGamePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? 'Reveal failed');
       const next = json.state as ServerState;
-      // If we busted right now, the clicked position is the hit one —
-      // remember it before applyServer's heuristic kicks in.
-      if (next.state === 'busted') {
-        setServer(next);
-        setHitPosition(position);
-        soundManager.play('game.lose');
-      } else {
-        applyServer(next);
-        soundManager.play('ui.click');
-      }
+      applyServer(next, position);
+      if (next.state === 'active') soundManager.play('ui.click');
     } catch (err) {
       console.error('mines:reveal', err);
     } finally {

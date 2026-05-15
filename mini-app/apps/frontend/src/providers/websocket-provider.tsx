@@ -25,7 +25,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
+    // The frontend env var (NEXT_PUBLIC_WS_URL) may already include the
+    // trailing `/ws` path (as it does on production behind nginx). Append
+    // `/ws` only when it isn't there yet — same logic as useCrashLive.
+    const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
+    const base = baseRaw.replace(/\/$/, '');
+    const wsUrl = /\/ws$/.test(base) ? base : `${base}/ws`;
     const ws = createAuthenticatedWebSocket(wsUrl);
     wsRef.current = ws;
 
