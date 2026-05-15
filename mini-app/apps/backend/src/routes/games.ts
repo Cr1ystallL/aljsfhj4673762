@@ -85,7 +85,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       amount: number;
       slot?: number;
       autoCashout?: number | null;
-      demoMode?: boolean;
     };
   }>(
     '/crash/bet',
@@ -99,14 +98,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             amount: { type: 'number' },
             slot: { type: 'number' },
             autoCashout: { type: ['number', 'null'] },
-            demoMode: { type: 'boolean' },
           },
         },
       },
     },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const { amount, slot = 0, autoCashout = null, demoMode = false } = request.body;
+      const { amount, slot = 0, autoCashout = null } = request.body;
 
       if (!checkRateLimit(userId, 'crash:bet')) {
         return reply.code(429).send({
@@ -123,7 +121,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         }
 
         await ensureCrashUser(userId);
-        const bet = await engine.placeCrashBet(userId, slot, amount, autoCashout, demoMode);
+        const bet = await engine.placeCrashBet(userId, slot, amount, autoCashout, false);
 
         return reply.send({ success: true, bet });
       } catch (error) {
@@ -273,7 +271,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    * Start a new mines round.
    */
   app.post<{
-    Body: { amount: number; mineCount: number; demoMode?: boolean };
+    Body: { amount: number; mineCount: number };
   }>(
     '/mines/start',
     {
@@ -285,14 +283,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           properties: {
             amount: { type: 'number' },
             mineCount: { type: 'number' },
-            demoMode: { type: 'boolean' },
           },
         },
       },
     },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const { amount, mineCount, demoMode = false } = request.body;
+      const { amount, mineCount } = request.body;
 
       if (!checkRateLimit(userId, 'mines:start')) {
         return reply.code(429).send({
@@ -303,7 +300,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const state = await minesEngine.start(userId, amount, mineCount, demoMode);
+        const state = await minesEngine.start(userId, amount, mineCount, false);
         return reply.send({ success: true, state });
       } catch (error) {
         logger.error(error, 'Failed to start mines');

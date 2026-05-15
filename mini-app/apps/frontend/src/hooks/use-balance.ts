@@ -1,39 +1,30 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useBalanceStore } from '@/store/balance-store';
-import { useWebSocketStore } from '@/store/websocket-store';
 import { apiClient } from '@/lib/api/client';
-import type { WSMessage } from '@casino/shared';
 
 /**
- * Balance hook with real-time updates
- * 
- * CRITICAL: Server is source of truth
- * - Optimistic updates for UX
- * - Rollback on server rejection
- * - WebSocket sync for real-time
+ * Balance hook — single source of truth for the user's real-money balance.
+ *
+ * The same `balances` row is shared between the Python Telegram bot and
+ * the Node backend, so the figure rendered here always matches what the
+ * user sees in the bot. There is no demo balance.
  */
 export function useBalance() {
-  const { balance, isLoading, isDemoMode, setBalance, setLoading, updateBalance } = useBalanceStore();
+  const { balance, isLoading, setBalance, setLoading, updateBalance } =
+    useBalanceStore();
 
-  /**
-   * Fetch balance from server
-   */
-  const fetchBalance = useCallback(async (demo: boolean = false) => {
+  const fetchBalance = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.get<{
-        balance: {
-          amount: number;
-          currency: string;
-          demoMode: boolean;
-        };
-      }>(`/api/balance?demo=${demo}`);
+        balance: { amount: number; currency: string };
+      }>(`/api/balance`);
 
       setBalance({
-        userId: '', // Will be set by auth
+        userId: '',
         amount: response.balance.amount,
         currency: response.balance.currency,
-        demoMode: response.balance.demoMode,
+        demoMode: false,
         lastSyncedAt: new Date(),
       });
     } catch (error) {
@@ -44,23 +35,20 @@ export function useBalance() {
   }, [setBalance, setLoading]);
 
   /**
-   * Sync balance from Python bot
+   * Force a re-read from the shared DB. Useful right after the bot or the
+   * mini-app makes a write that we want reflected immediately.
    */
   const syncBalance = useCallback(async () => {
     try {
       const response = await apiClient.post<{
-        balance: {
-          amount: number;
-          currency: string;
-          demoMode: boolean;
-        };
+        balance: { amount: number; currency: string };
       }>('/api/balance/sync', {});
 
       setBalance({
         userId: '',
         amount: response.balance.amount,
         currency: response.balance.currency,
-        demoMode: response.balance.demoMode,
+        demoMode: false,
         lastSyncedAt: new Date(),
       });
     } catch (error) {
@@ -69,59 +57,22 @@ export function useBalance() {
   }, [setBalance]);
 
   /**
-   * Switch between demo and real mode
+   * Optimistic local-only adjustment. The WS broadcast or REST refresh
+   * will reconcile shortly.
    */
-  const switchMode = useCallback(async (demoMode: boolean) => {
-    try {
-      const response = await apiClient.post<{
-        balance: {
-          amount: number;
-          currency: string;
-          demoMode: boolean;
-        };
-      }>('/api/balance/mode', { demoMode });
-
-      setBalance({
-        userId: '',
-        amount: response.balance.amount,
-        currency: response.balance.currency,
-        demoMode: response.balance.demoMode,
-        lastSyncedAt: new Date(),
-      });
-    } catch (error) {
-      console.error('Failed to switch mode:', error);
-    }
-  }, [setBalance]);
-
-  /**
-   * Optimistic balance update
-   * Updates UI immediately, server confirms later
-   */
-  const optimisticUpdate = useCallback((delta: number) => {
-    if (!balance) return;
-
-    const newAmount = balance.amount + delta;
-    updateBalance(newAmount);
-
-    // Server will send confirmation via WebSocket
-    // If rejected, WebSocket will send correct balance
-  }, [balance, updateBalance]);
-
-  /**
-   * Listen for WebSocket balance updates
-   */
-  useEffect(() => {
-    // This will be connected in WebSocket provider
-    // For now, just set up the handler structure
-  }, []);
+  const optimisticUpdate = useCallback(
+    (delta: number) => {
+      if (!balance) return;
+      updateBalance(balance.amount + delta);
+    },
+    [balance, updateBalance]
+  );
 
   return {
     balance,
     isLoading,
-    isDemoMode,
     fetchBalance,
     syncBalance,
-    switchMode,
     optimisticUpdate,
   };
 }

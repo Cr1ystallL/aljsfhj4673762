@@ -5,156 +5,83 @@ import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Balance Routes
- * 
- * CRITICAL: All balance operations sync with Python bot
- * No independent balance modifications
+ * Balance Routes — single shared real-money balance.
+ *
+ * The same row is read/written by the Python Telegram bot and by the
+ * Node backend. Demo mode has been retired everywhere; the legacy
+ * `?demo=true` query param is silently ignored for source compat.
  */
 export async function balanceRoutes(app: FastifyInstance): Promise<void> {
   /**
    * GET /api/balance
-   * Get current balance (real or demo)
+   * Get the user's current real-money balance.
    */
-  app.get<{
-    Querystring: {
-      demo?: string;
-    };
-  }>(
-    '/',
-    {
-      preHandler: authenticate,
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const demoMode = request.query.demo === 'true';
+  app.get('/', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
 
-      try {
-        const balance = await balanceService.getBalance(userId, demoMode);
-
-        return reply.send({
-          balance: {
-            amount: balance.amount,
-            currency: balance.currency,
-            demoMode: balance.demoMode,
-          },
-        });
-      } catch (error) {
-        logger.error(error, 'Failed to get balance');
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to get balance',
-          code: 'GET_BALANCE_FAILED',
-        });
-      }
+    try {
+      const balance = await balanceService.getBalance(userId);
+      return reply.send({
+        balance: {
+          amount: balance.amount,
+          currency: balance.currency,
+          demoMode: false,
+        },
+      });
+    } catch (error) {
+      logger.error(error, 'Failed to get balance');
+      return reply.code(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to get balance',
+        code: 'GET_BALANCE_FAILED',
+      });
     }
-  );
+  });
 
   /**
    * POST /api/balance/sync
-   * Force sync balance from Python bot
+   * Force-refresh balance from the shared DB.
    */
-  app.post(
-    '/sync',
-    {
-      preHandler: authenticate,
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
+  app.post('/sync', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
 
-      try {
-        await balanceService.syncBalance(userId);
-        const balance = await balanceService.getBalance(userId, false);
+    try {
+      await balanceService.syncBalance(userId);
+      const balance = await balanceService.getBalance(userId);
 
-        return reply.send({
-          success: true,
-          balance: {
-            amount: balance.amount,
-            currency: balance.currency,
-            demoMode: balance.demoMode,
-          },
-        });
-      } catch (error) {
-        logger.error(error, 'Failed to sync balance');
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to sync balance',
-          code: 'SYNC_BALANCE_FAILED',
-        });
-      }
-    }
-  );
-
-  /**
-   * POST /api/balance/mode
-   * Switch between demo and real mode
-   */
-  app.post<{
-    Body: {
-      demoMode: boolean;
-    };
-  }>(
-    '/mode',
-    {
-      preHandler: authenticate,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['demoMode'],
-          properties: {
-            demoMode: { type: 'boolean' },
-          },
+      return reply.send({
+        success: true,
+        balance: {
+          amount: balance.amount,
+          currency: balance.currency,
+          demoMode: false,
         },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const { demoMode } = request.body;
-
-      try {
-        const balance = await balanceService.switchMode(userId, demoMode);
-
-        return reply.send({
-          success: true,
-          balance: {
-            amount: balance.amount,
-            currency: balance.currency,
-            demoMode: balance.demoMode,
-          },
-        });
-      } catch (error) {
-        logger.error(error, 'Failed to switch mode');
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to switch mode',
-          code: 'SWITCH_MODE_FAILED',
-        });
-      }
+      });
+    } catch (error) {
+      logger.error(error, 'Failed to sync balance');
+      return reply.code(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to sync balance',
+        code: 'SYNC_BALANCE_FAILED',
+      });
     }
-  );
+  });
 
   /**
    * GET /api/balance/transactions
-   * Get transaction history
+   * Get transaction history.
    */
   app.get(
     '/transactions',
-    {
-      preHandler: authenticate,
-    },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const limit = parseInt((request.query as any).limit || '50', 10);
+      const limit = parseInt((request.query as { limit?: string }).limit || '50', 10);
 
       try {
-        // Sync from Python bot first
         await transactionService.syncTransactions(userId, limit);
-
-        // Get from local cache
         const transactions = await transactionService.getTransactions(userId, limit);
-
-        return reply.send({
-          transactions,
-        });
+        return reply.send({ transactions });
       } catch (error) {
         logger.error(error, 'Failed to get transactions');
         return reply.code(500).send({
@@ -168,8 +95,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * POST /api/balance/webhook
-   * Webhook from Python bot for balance updates
-   * Called when Python bot processes transaction
+   * Webhook from the Python bot for balance updates.
    */
   app.post<{
     Body: {
@@ -199,7 +125,6 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { telegramId, amount, reason, transactionId, apiKey } = request.body;
 
-      // Verify API key
       if (apiKey !== process.env.PYTHON_BOT_API_KEY) {
         return reply.code(401).send({
           error: 'Unauthorized',
@@ -209,11 +134,13 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        await balanceService.handleBalanceUpdate(telegramId, amount, reason, transactionId);
-
-        return reply.send({
-          success: true,
-        });
+        await balanceService.handleBalanceUpdate(
+          telegramId,
+          amount,
+          reason,
+          transactionId
+        );
+        return reply.send({ success: true });
       } catch (error) {
         logger.error(error, 'Failed to handle balance webhook');
         return reply.code(500).send({

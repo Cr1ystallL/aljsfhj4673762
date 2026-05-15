@@ -3,37 +3,36 @@ import type { Balance } from '@casino/shared';
 
 /**
  * Balance state store
- * Manages user balance and demo mode
+ *
+ * Backed by the shared PostgreSQL `balances` table. The Python bot and the
+ * Node backend both write to the same row for each user, so the value
+ * here always reflects what the user sees in the bot too — no demo
+ * mode, no separate "play money" track.
  */
 
 interface BalanceState {
   balance: Balance | null;
   isLoading: boolean;
-  isDemoMode: boolean;
-  
-  // Actions
+
   setBalance: (balance: Balance) => void;
   updateBalance: (amount: number) => void;
-  setDemoMode: (isDemoMode: boolean) => void;
   setLoading: (loading: boolean) => void;
 }
 
 export const useBalanceStore = create<BalanceState>((set) => ({
   balance: null,
   isLoading: false,
-  isDemoMode: false,
-  
+
   setBalance: (balance) =>
     set({
       balance,
-      isDemoMode: balance.demoMode,
       isLoading: false,
     }),
-  
+
   updateBalance: (amount) =>
     set((state) => {
       if (!state.balance) return state;
-      
+
       return {
         balance: {
           ...state.balance,
@@ -42,10 +41,6 @@ export const useBalanceStore = create<BalanceState>((set) => ({
         },
       };
     }),
-  
-  setDemoMode: (isDemoMode) =>
-    set({ isDemoMode }),
-  
-  setLoading: (loading) =>
-    set({ isLoading: loading }),
+
+  setLoading: (loading) => set({ isLoading: loading }),
 }));

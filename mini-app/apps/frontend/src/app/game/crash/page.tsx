@@ -15,7 +15,6 @@ import { CrashPlayerFeed } from '@/components/game/crash/crash-player-feed';
 import { CrashRulesModal } from '@/components/game/crash/crash-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
-import { useDemoMode } from '@/store/demo-mode-store';
 import { useCrashLive } from '@/hooks/use-crash-live';
 import { soundManager } from '@/lib/sound/sound-manager';
 
@@ -53,7 +52,6 @@ const DEFAULT_SLOT: SlotConfig = {
 
 export default function CrashGamePage() {
   const { balance } = useBalance();
-  const { isDemoMode, setActiveBet } = useDemoMode();
   const { snapshot, userId } = useCrashLive();
 
   const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
@@ -123,14 +121,6 @@ export default function CrashGamePage() {
     }
   }, [snapshot.phase]);
 
-  // Surface "user has an active bet" to the demo-mode guard.
-  useEffect(() => {
-    const anyActive = runtime.some((r) =>
-      ['queued', 'locked', 'cashable'].includes(r.phase)
-    );
-    setActiveBet(anyActive);
-  }, [runtime, setActiveBet]);
-
   // Play short cues for round transitions.
   const prevPhaseRef = useRef(snapshot.phase);
   useEffect(() => {
@@ -164,7 +154,6 @@ export default function CrashGamePage() {
           autoCashout: cfg.autoCashoutEnabled
             ? cfg.autoCashoutMultiplier
             : null,
-          demoMode: isDemoMode,
         }),
       });
       if (!res.ok) {

@@ -11,7 +11,6 @@ import {
 } from '@/components/game/mines/mines-bet-panel';
 import { MinesRulesModal } from '@/components/game/mines/mines-rules-modal';
 import { useBalance } from '@/hooks/use-balance';
-import { useDemoMode } from '@/store/demo-mode-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 
 /**
@@ -43,7 +42,6 @@ interface ServerState {
 
 export default function MinesGamePage() {
   const { balance } = useBalance();
-  const { isDemoMode, setActiveBet } = useDemoMode();
 
   const [server, setServer] = useState<ServerState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,11 +80,6 @@ export default function MinesGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the demo-mode guard in sync with whether we have an active stake.
-  useEffect(() => {
-    setActiveBet(server?.state === 'active');
-  }, [server?.state, setActiveBet]);
-
   function applyServer(next: ServerState) {
     setServer(next);
 
@@ -121,7 +114,7 @@ export default function MinesGamePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ amount, mineCount, demoMode: isDemoMode }),
+        body: JSON.stringify({ amount, mineCount }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? 'Не удалось начать раунд');
