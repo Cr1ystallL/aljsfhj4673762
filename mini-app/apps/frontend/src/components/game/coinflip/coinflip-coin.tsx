@@ -41,7 +41,7 @@ export function CoinflipCoin({
   className,
 }: CoinflipCoinProps) {
   return (
-    <div className={cn('relative w-36 h-36 sm:w-40 sm:h-40', className)}>
+    <div className={cn('relative w-44 h-44 sm:w-52 sm:h-52', className)}>
       {/* Soft halo */}
       <div
         aria-hidden
@@ -85,7 +85,7 @@ export function CoinflipCoin({
             <img
               src="/CoinFlip_Desert.png"
               alt="Орёл"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover scale-[1.18]"
               draggable={false}
             />
           </div>
@@ -104,7 +104,7 @@ export function CoinflipCoin({
             <img
               src="/CoinFlip_Reshka.png"
               alt="Решка"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover scale-[1.18]"
               draggable={false}
             />
           </div>

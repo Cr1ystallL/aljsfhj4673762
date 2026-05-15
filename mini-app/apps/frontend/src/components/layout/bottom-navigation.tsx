@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Menu, Play, User } from 'lucide-react';
+import { Menu, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -65,7 +65,7 @@ export function BottomNavigation({
                 />
                 {/* Gradient pill — Deep Ocean as required by the brand */}
                 <span
-                  className="relative w-14 h-14 rounded-pill flex items-center justify-center border border-white/25"
+                  className="relative w-14 h-14 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
                   style={{
                     background:
                       'linear-gradient(135deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
@@ -80,11 +80,13 @@ export function BottomNavigation({
                         'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%)',
                     }}
                   />
-                  <Play
-                    size={20}
-                    fill="#0a0a0a"
-                    strokeWidth={0}
-                    className="relative ml-0.5 text-midnight-canvas"
+                  {/* Brand mark replaces the play triangle */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/ButtonLogo.png"
+                    alt="Играть"
+                    className="relative w-9 h-9 object-contain"
+                    draggable={false}
                   />
                 </span>
                 <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/70">

@@ -32,9 +32,9 @@ export function GameTopBar({
         <img
           src="/SmallLogo.png"
           alt="Macvbet"
-          width={28}
-          height={28}
-          className="w-7 h-7 object-contain shrink-0"
+          width={40}
+          height={40}
+          className="w-10 h-10 object-contain shrink-0"
         />
         <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
           {title}
