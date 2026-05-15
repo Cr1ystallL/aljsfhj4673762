@@ -2,6 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { CrashGameEngine } from '../games/crash/crash-engine.js';
 import { minesEngine } from '../games/mines/mines-engine.js';
+import {
+  plinkoEngine,
+  PLINKO_MULTIPLIERS,
+  type PlinkoRisk,
+} from '../games/plinko/plinko-engine.js';
 import { GameRoomManager } from '../game-engine/game-room-manager.js';
 import { logger } from '../utils/logger.js';
 
@@ -392,5 +397,138 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     minesEngine.forget(userId);
     return reply.send({ success: true });
   });
+
+  /* ------------------------------------------------------------- plinko */
+
+  /**
+   * GET /api/games/plinko/config
+   * Public-facing constants the UI needs to lay out the board (rows,
+   * bucket count) and the multiplier table per risk tier.
+   */
+  app.get('/plinko/config', { preHandler: authenticate }, async (_req, reply) => {
+    return reply.send({
+      rows: 16,
+      buckets: 17,
+      risks: ['low', 'medium', 'high'],
+      multipliers: PLINKO_MULTIPLIERS,
+    });
+  });
+
+  /**
+   * POST /api/games/plinko/drop
+   * Resolve a single drop server-side and return the deterministic path
+   * + bucket + payout. The frontend uses the path to animate the ball
+   * along the same trajectory the server already committed to.
+   */
+  app.post<{
+    Body: { amount: number; risk: PlinkoRisk };
+  }>(
+    '/plinko/drop',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'risk'],
+          properties: {
+            amount: { type: 'number' },
+            risk: { type: 'string', enum: ['low', 'medium', 'high'] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, risk } = request.body;
+
+      if (!checkRateLimit(userId, 'plinko:drop')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const result = await plinkoEngine.drop(userId, amount, risk);
+        return reply.send({ success: true, result });
+      } catch (error) {
+        logger.error(error, 'Failed to drop plinko ball');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'PLINKO_DROP_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/games/plinko/history
+   * Recent winning drops across all players (live ticker on the lobby).
+   */
+  app.get<{ Querystring: { limit?: string } }>(
+    '/plinko/history',
+    {
+      preHandler: authenticate,
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: { limit: { type: 'string' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
+      try {
+        const bets = await app.prisma.bet.findMany({
+          where: {
+            gameType: 'plinko',
+            payout: { not: null },
+            multiplier: { not: null },
+          },
+          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
+          take: limit,
+          select: {
+            id: true,
+            amount: true,
+            payout: true,
+            multiplier: true,
+            placedAt: true,
+            resolvedAt: true,
+            user: {
+              select: {
+                firstName: true,
+                username: true,
+                photoUrl: true,
+                telegramId: true,
+              },
+            },
+          },
+        });
+
+        const history = bets.map((b) => ({
+          id: b.id,
+          name:
+            b.user.firstName ||
+            b.user.username ||
+            `id${b.user.telegramId.toString().slice(-4)}`,
+          photoUrl: b.user.photoUrl ?? null,
+          betAmount: Number(b.amount),
+          multiplier: Number(b.multiplier),
+          payout: Number(b.payout),
+          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
+        }));
+
+        return reply.send({ success: true, history });
+      } catch (error) {
+        logger.error(error, 'Failed to fetch plinko history');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'history fetch failed',
+        });
+      }
+    }
+  );
 }
 

@@ -21,6 +21,7 @@ interface MenuDrawerProps {
 const games: Array<{ id: GameKey; name: string }> = [
   { id: 'crash', name: 'Crash' },
   { id: 'mines', name: 'Mines' },
+  { id: 'plinko', name: 'Plinko' },
 ];
 
 export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
