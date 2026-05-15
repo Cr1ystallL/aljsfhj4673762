@@ -1,6 +1,7 @@
 'use client';
 
 import { HelpCircle, type LucideIcon } from 'lucide-react';
+import { BrandLockup } from '@/components/ui/brand-mark';
 
 /**
  * Game Top Bar — Monopo Saigon Style
@@ -27,15 +28,8 @@ export function GameTopBar({
   return (
     <div className="flex items-center justify-between px-1">
       <div className="flex items-center gap-3">
-        {/* Brand mark — small Macvbet logo to the left of the game title */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/SmallLogo.png"
-          alt="Macvbet"
-          width={64}
-          height={64}
-          className="w-16 h-16 object-contain shrink-0"
-        />
+        {/* Brand lockup — gradient M sigil over "Macvbet" caption */}
+        <BrandLockup size={56} />
         <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
           {title}
         </span>

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Menu, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { BrandMark } from '@/components/ui/brand-mark';
 
 interface BottomNavigationProps {
   onMenuClick: () => void;
@@ -80,13 +81,12 @@ export function BottomNavigation({
                         'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%)',
                     }}
                   />
-                  {/* Brand mark */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/ButtonLogo.png"
-                    alt="Играть"
-                    className="relative w-11 h-11 object-contain"
-                    draggable={false}
+                  {/* Brand mark — paint dark on the bright pill */}
+                  <BrandMark
+                    variant="dark"
+                    size={44}
+                    title="Играть"
+                    className="relative"
                   />
                 </span>
                 <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/70">
