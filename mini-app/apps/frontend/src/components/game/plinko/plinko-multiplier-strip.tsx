@@ -53,7 +53,7 @@ export function PlinkoMultiplierStrip({
             }
             transition={{ duration: 0.5, ease: 'easeOut' }}
             className={cn(
-              'relative overflow-hidden rounded-pill border h-7 sm:h-8 flex items-center justify-center font-roobert text-[10px] sm:text-[11px] font-light tabular-nums',
+              'relative overflow-hidden rounded-pill border h-6 sm:h-7 flex items-center justify-center font-roobert text-[9px] sm:text-[10px] font-light tabular-nums',
               pillStyle(m),
               isHi && 'ring-1 ring-frost-white/60'
             )}

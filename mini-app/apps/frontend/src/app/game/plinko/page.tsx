@@ -170,7 +170,7 @@ export default function PlinkoGamePage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-2">
         <GameTopBar
           title="Plinko"
           Icon={CircleDot}
@@ -193,9 +193,9 @@ export default function PlinkoGamePage() {
           )}
         </div>
 
-        {/* Board */}
+        {/* Board — sized so pyramid + CTA fit on a single phone viewport */}
         <div className="relative rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
-          <div className="aspect-[3/3.4] sm:aspect-[3/3]">
+          <div className="aspect-[4/3] sm:aspect-[5/3]">
             <PlinkoBoard
               rows={config.rows}
               drops={drops}
@@ -205,7 +205,7 @@ export default function PlinkoGamePage() {
           </div>
 
           {/* Bucket multipliers sit just under the board, aligned with columns */}
-          <div className="px-2 pb-2 -mt-1">
+          <div className="px-1.5 pb-1.5 -mt-0.5">
             <PlinkoMultiplierStrip
               multipliers={multipliers}
               highlightedBucket={highlightedBucket}
