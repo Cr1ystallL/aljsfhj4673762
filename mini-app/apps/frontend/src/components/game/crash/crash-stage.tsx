@@ -86,44 +86,57 @@ export function CrashStage({
     }
 
     // Layout padding so the curve doesn't kiss the edges.
-    const padX = 22;
+    const padLeft = 22;
+    const padRight = 38;
     const padBottom = 22;
-    const padTop = 28;
-    const innerW = Math.max(1, w - padX * 2);
+    const padTop = 32;
+    const innerW = Math.max(1, w - padLeft - padRight);
     const innerH = Math.max(1, h - padTop - padBottom);
+
+    // ---- Defensive: trim leftovers from a previous round ----------------
+    //
+    // graphPoints occasionally carries a tail from the prior round when
+    // the new round's reset arrives a tick later than the first 'active'
+    // tick. Symptom on screen: the curve draws a near-vertical zig-zag
+    // from the old peak back down to (0, 1×). We detect the inversion
+    // (a point whose time is *less* than the previous one) and drop
+    // everything before it.
+    let firstIdx = 0;
+    for (let i = graphPoints.length - 1; i > 0; i--) {
+      if (graphPoints[i].time < graphPoints[i - 1].time) {
+        firstIdx = i;
+        break;
+      }
+    }
+    const points = firstIdx > 0 ? graphPoints.slice(firstIdx) : graphPoints;
+    if (points.length < 2) return;
 
     // ---- Reference scales -------------------------------------------------
     //
-    // The curve must visibly bend as the multiplier accelerates. Auto-scaling
-    // both axes to the leading point flattens the curve into a straight line
-    // (the head always sits at the same relative position). To preserve
-    // real exponential shape we anchor the axes:
+    // X axis: linear from t=0 to t=xWindow, where xWindow grows with the
+    // round so the head sits ~80% from the left.
     //
-    //   * X axis: starts at 0 (the round began at t=0). Window grows with
-    //     elapsed time — minimum 4s, then matches the round so the head
-    //     sits ~20% from the right edge regardless of round length.
-    //
-    //   * Y axis: smooth headroom. We pick yMax such that the head sits
-    //     at ~75% of the inner height. As the multiplier grows, yMax
-    //     follows continuously (no Fibonacci buckets, no snapping). This
-    //     keeps the curve organically bending instead of compressing.
+    // Y axis: LOGARITHMIC. A round can run from 1× to 1000×; on a linear
+    // Y axis the entire curve compresses into a vertical sliver in the
+    // top-right corner once the multiplier passes ~50×. A log scale keeps
+    // the curve readable at every magnitude — exponentials become
+    // straight-ish lines, organic and brand-on-message.
     // ---------------------------------------------------------------------
-    const lastT = graphPoints[graphPoints.length - 1].time || 1;
-    const lastM = graphPoints[graphPoints.length - 1].multiplier || 1;
+    const lastT = points[points.length - 1].time || 1;
+    const lastM = points[points.length - 1].multiplier || 1;
 
-    // Window grows: at least 4s, otherwise round-length × 1.25 so the head
-    // never kisses the right wall — even on long high-multiplier rounds.
+    // Window grows: at least 4s, otherwise round-length × 1.25.
     const xWindow = Math.max(4000, lastT * 1.25);
-    const startT = 0;
 
-    // Pick yMax so the head sits around ~75% height. Clamp the lower bound
-    // to 1.5 so the very first ticks of the round don't render a vertical
-    // wall.
-    const yMax = Math.max(1.5, 1 + (lastM - 1) / 0.75);
+    // Y in log space. log(1) = 0 sits on the bottom edge.
+    // We want log(lastM) to sit at ~75% of the inner height, regardless
+    // of how large lastM gets.
+    const yLogMax = Math.max(Math.log(1.5), Math.log(lastM) / 0.78);
 
     const project = (t: number, m: number) => {
-      const x = padX + ((t - startT) / xWindow) * innerW;
-      const y = h - padBottom - ((m - 1) / Math.max(0.001, yMax - 1)) * innerH;
+      const x = padLeft + (t / xWindow) * innerW;
+      const yFrac = Math.log(Math.max(1, m)) / yLogMax;
+      const y = h - padBottom - yFrac * innerH;
       return { x, y };
     };
 
@@ -145,7 +158,7 @@ export function CrashStage({
 
     ctx.beginPath();
     let first = true;
-    for (const p of graphPoints) {
+    for (const p of points) {
       const { x, y } = project(p.time, p.multiplier);
       if (first) {
         ctx.moveTo(x, y);
@@ -157,9 +170,9 @@ export function CrashStage({
     ctx.stroke();
 
     // ---- Filled area under curve -----------------------------------------
-    const lastPoint = graphPoints[graphPoints.length - 1];
+    const lastPoint = points[points.length - 1];
     const headProj = project(lastPoint.time, lastPoint.multiplier);
-    const startProj = project(graphPoints[0].time, 1);
+    const startProj = project(points[0].time, 1);
 
     ctx.lineTo(headProj.x, h - padBottom);
     ctx.lineTo(startProj.x, h - padBottom);
