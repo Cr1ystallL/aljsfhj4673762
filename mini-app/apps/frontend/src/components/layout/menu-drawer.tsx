@@ -67,26 +67,26 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
               className="relative h-full overflow-hidden border-r border-white/10 backdrop-blur-2xl flex flex-col"
               style={{ background: 'rgba(0, 0, 0, 0.82)' }}
             >
-              {/* Atmospheric orbs — gradient depth, no box-shadow */}
-              <motion.div
-                className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full"
+              {/* Atmospheric orbs — static radial gradients, no JS animation.
+                  framer-motion looping these on mobile costs ~30fps.
+                  `mobile-no-blur` strips the filter on touch devices. */}
+              <div
+                className="mobile-no-blur pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full"
                 style={{
                   background:
                     'radial-gradient(circle, rgba(160, 224, 171, 0.22) 0%, transparent 70%)',
                   filter: 'blur(50px)',
                 }}
-                animate={{ x: [0, 24, 0], y: [0, 18, 0] }}
-                transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+                aria-hidden
               />
-              <motion.div
-                className="pointer-events-none absolute -bottom-32 -right-20 w-80 h-80 rounded-full"
+              <div
+                className="mobile-no-blur pointer-events-none absolute -bottom-32 -right-20 w-80 h-80 rounded-full"
                 style={{
                   background:
                     'radial-gradient(circle, rgba(255, 172, 46, 0.20) 0%, rgba(165, 45, 37, 0.12) 50%, transparent 80%)',
                   filter: 'blur(60px)',
                 }}
-                animate={{ x: [0, -20, 0], y: [0, -22, 0] }}
-                transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+                aria-hidden
               />
 
               {/* Header */}

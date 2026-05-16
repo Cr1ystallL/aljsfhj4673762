@@ -138,65 +138,126 @@ export function PlinkoBoard({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    /**
+     * Layout cache + pre-rendered pin/wall layer.
+     *
+     * The pin grid and side walls are static — rebuilding their geometry
+     * every frame burns CPU on mobile. We rasterise them into an
+     * off-screen canvas once per resize and blit the cached bitmap into
+     * the live canvas each frame. The dynamic ball + halo + trail still
+     * paints on top.
+     */
+    let pinCache: HTMLCanvasElement | null = null;
+    let cachedW = 0;
+    let cachedH = 0;
+    let layout = {
+      padX: 16,
+      padTop: 22,
+      padBottom: 14,
+      gap: 0,
+      rowSpacing: 0,
+      pinRadius: 0,
+      ballRadius: 0,
+      cx: 0,
+      bucketLineY: 0,
+      innerW: 0,
     };
-    resize();
-    window.addEventListener('resize', resize);
 
-    const drawFrame = () => {
-      const rect = canvas.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
-      ctx.clearRect(0, 0, w, h);
-
-      // Layout
+    const computeLayout = (w: number, h: number) => {
       const padX = 16;
       const padTop = 22;
       const padBottom = 14;
       const innerW = w - padX * 2;
       const innerH = h - padTop - padBottom;
-      const gap = innerW / (rows + 2); // horizontal pin spacing
+      const gap = innerW / (rows + 2);
       const rowSpacing = innerH / (rows + 1);
-      const pinRadius = Math.max(1.6, Math.min(2.6, gap * 0.07));
-      const ballRadius = Math.max(4, Math.min(7, gap * 0.18));
-      const cx = w / 2;
+      layout = {
+        padX,
+        padTop,
+        padBottom,
+        innerW,
+        gap,
+        rowSpacing,
+        pinRadius: Math.max(1.6, Math.min(2.6, gap * 0.07)),
+        ballRadius: Math.max(4, Math.min(7, gap * 0.18)),
+        cx: w / 2,
+        bucketLineY: padTop + rowSpacing * rows + rowSpacing * 0.5,
+      };
+    };
 
+    const renderPinCache = (w: number, h: number, dpr: number) => {
+      const c = document.createElement('canvas');
+      c.width = Math.floor(w * dpr);
+      c.height = Math.floor(h * dpr);
+      const cctx = c.getContext('2d');
+      if (!cctx) return null;
+      cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const { padTop, gap, rowSpacing, pinRadius, cx } = layout;
       const pinY = (row: number) => padTop + (row + 1) * rowSpacing;
-      const bucketLineY = padTop + rowSpacing * rows + rowSpacing * 0.5;
 
-      // -- Decorative side walls (deep ocean accents) --
+      // Side walls
       const wallTopY = padTop;
       const wallBotY = pinY(rows - 1);
       const wallTopHalf = gap;
       const wallBotHalf = gap * (rows + 1) * 0.5;
       const drawWall = (sign: -1 | 1, color: string) => {
-        ctx.beginPath();
-        ctx.moveTo(cx + sign * wallTopHalf, wallTopY);
-        ctx.lineTo(cx + sign * wallBotHalf, wallBotY);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        cctx.beginPath();
+        cctx.moveTo(cx + sign * wallTopHalf, wallTopY);
+        cctx.lineTo(cx + sign * wallBotHalf, wallBotY);
+        cctx.strokeStyle = color;
+        cctx.lineWidth = 1;
+        cctx.stroke();
       };
       drawWall(-1, 'rgba(160, 224, 171, 0.22)');
       drawWall(1, 'rgba(255, 172, 46, 0.22)');
 
-      // -- Pins --
+      // Pins
+      cctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
       for (let row = 0; row < rows; row++) {
         const pinsInRow = row + 3;
         const y = pinY(row);
         for (let col = 0; col < pinsInRow; col++) {
           const x = cx + (col - (pinsInRow - 1) / 2) * gap;
-          ctx.beginPath();
-          ctx.arc(x, y, pinRadius, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-          ctx.fill();
+          cctx.beginPath();
+          cctx.arc(x, y, pinRadius, 0, Math.PI * 2);
+          cctx.fill();
         }
       }
+      return c;
+    };
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      // Cap DPR at 1.5 on touch devices — most phones report 3x which
+      // means we'd paint 9× the pixels. 1.5 is the sweet spot between
+      // crispness and battery.
+      const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cachedW = rect.width;
+      cachedH = rect.height;
+      computeLayout(cachedW, cachedH);
+      pinCache = renderPinCache(cachedW, cachedH, dpr);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const drawFrame = () => {
+      const w = cachedW;
+      const h = cachedH;
+      ctx.clearRect(0, 0, w, h);
+
+      // Blit cached pin layer
+      if (pinCache) ctx.drawImage(pinCache, 0, 0, w, h);
+
+      const { padX, gap, ballRadius, cx, bucketLineY, innerW } = layout;
+      const padTop = layout.padTop;
+      const padBottom = layout.padBottom;
+      const rowSpacing = layout.rowSpacing;
+      const pinY = (row: number) => padTop + (row + 1) * rowSpacing;
 
       // -- Balls --
       const now = performance.now();
@@ -204,6 +265,12 @@ export function PlinkoBoard({
       const bucketWidth = innerW / buckets;
 
       const totalDropDuration = SEG_DURATION_MS * rows + BUCKET_FALL_MS;
+
+      // Skip frame if no balls and no highlight — nothing changes.
+      if (ballsRef.current.size === 0 && highlightedBucket == null) {
+        animFrameRef.current = requestAnimationFrame(drawFrame);
+        return;
+      }
 
       for (const ball of ballsRef.current.values()) {
         const elapsed = now - ball.startedAt;
@@ -239,16 +306,12 @@ export function PlinkoBoard({
           const fallElapsed = elapsed - SEG_DURATION_MS * rows;
           const fallProgress = Math.min(1, fallElapsed / BUCKET_FALL_MS);
 
-          // Final pin position: cumulative shifts across all rows. We
-          // ended on pin row `rows` — i.e. just below the last pin row,
-          // which is the bucket centre.
+          // Final pin position: cumulative shifts across all rows.
           let finalX = cx;
           for (let i = 0; i < rows; i++) {
             finalX += (ball.path[i] === 1 ? 1 : -1) * (gap / 2);
           }
           const yStart = pinY(rows - 1);
-          // Free-fall y(τ) = y_start + g·τ² (no initial velocity, just gravity)
-          // Use a quadratic in normalised τ so motion accelerates downward.
           const dy = bucketLineY - yStart;
           by = yStart + dy * fallProgress * fallProgress;
           bx = finalX;

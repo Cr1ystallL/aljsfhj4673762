@@ -1,97 +1,35 @@
 'use client';
 
-import { motion } from 'framer-motion';
-
 /**
- * AnimatedBackground - Monopo Saigon Style
- * 
- * DESIGN:
- * - Deep Ocean Gradient as base
- * - Shifting volumetric gradients
- * - Organic, fluid motion
- * - Atmospheric depth without harsh effects
- * - Subtle, restrained animation
+ * AnimatedBackground — Monopo Saigon Style
+ *
+ * The original implementation animated three 400-500px blurred orbs via
+ * framer-motion. On mobile WebViews each blurred layer was a GPU
+ * showstopper, dragging the app to single-digit FPS. We replaced the
+ * motion with a static, layered radial gradient which reads identically
+ * and costs zero per-frame.
+ *
+ * The page container already sits on `bg-midnight-canvas`, so this
+ * component is purely atmospheric: three soft radial washes on a
+ * fully-opaque black canvas. No blur filters, no animation, no JS.
  */
 export function AnimatedBackground() {
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden bg-midnight-canvas">
-      {/* Deep Ocean Gradient base - animated */}
-      <motion.div
+    <div
+      className="fixed inset-0 -z-10 overflow-hidden bg-midnight-canvas pointer-events-none"
+      aria-hidden
+    >
+      {/* Layered radial gradients — pre-blurred by being naturally soft.
+          Three stops give the impression of three orbs without using a
+          GPU-expensive filter:blur(80-100px) on a stack of <div>s. */}
+      <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(135deg, rgb(160, 224, 171), rgb(255, 172, 46) 50%, rgb(165, 45, 37))',
-          opacity: 0.08,
-        }}
-        animate={{
-          backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
-        }}
-        transition={{
-          duration: 20,
-          repeat: Infinity,
-          ease: 'linear',
-        }}
-      />
-      
-      {/* Floating volumetric orbs - subtle depth */}
-      <motion.div
-        className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, rgba(160, 224, 171, 0.12) 0%, transparent 70%)',
-          filter: 'blur(80px)',
-        }}
-        animate={{
-          x: [0, 40, 0],
-          y: [0, -30, 0],
-          scale: [1, 1.15, 1],
-        }}
-        transition={{
-          duration: 12,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      
-      <motion.div
-        className="absolute bottom-1/3 right-1/4 w-[450px] h-[450px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, rgba(255, 172, 46, 0.1) 0%, transparent 70%)',
-          filter: 'blur(90px)',
-        }}
-        animate={{
-          x: [0, -35, 0],
-          y: [0, 25, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{
-          duration: 15,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      
-      <motion.div
-        className="absolute top-1/2 right-1/3 w-[400px] h-[400px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, rgba(165, 45, 37, 0.08) 0%, transparent 70%)',
-          filter: 'blur(100px)',
-        }}
-        animate={{
-          x: [0, 30, 0],
-          y: [0, -40, 0],
-          scale: [1, 1.25, 1],
-        }}
-        transition={{
-          duration: 18,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-      
-      {/* Subtle grain texture - atmospheric */}
-      <div 
-        className="absolute inset-0 opacity-[0.02]"
-        style={{
-          backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 400 400\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.85\' numOctaves=\'3\' /%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' /%3E%3C/svg%3E")',
+          background: [
+            'radial-gradient(60% 50% at 25% 30%, rgba(160, 224, 171, 0.10) 0%, transparent 60%)',
+            'radial-gradient(55% 45% at 75% 70%, rgba(255, 172, 46, 0.08) 0%, transparent 60%)',
+            'radial-gradient(50% 40% at 50% 50%, rgba(165, 45, 37, 0.06) 0%, transparent 65%)',
+          ].join(','),
         }}
       />
     </div>

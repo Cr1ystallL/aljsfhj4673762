@@ -67,7 +67,12 @@ export function CrashStage({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    // Cap DPR on touch devices — full 3× device-pixel-ratio on phones
+    // means painting 9× the pixels. 1.5× is the sweet spot.
+    const isTouch =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
     const rect = canvas.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
@@ -199,9 +204,10 @@ export function CrashStage({
         }}
       />
 
-      {/* Drifting orbs */}
+      {/* Drifting orbs — static on mobile (filter:blur is killed by the
+          `mobile-no-blur` rule), animated only on hover-capable devices. */}
       <motion.div
-        className="absolute -top-10 -left-10 w-48 h-48 rounded-full"
+        className="mobile-no-blur absolute -top-10 -left-10 w-48 h-48 rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(160, 224, 171, 0.25) 0%, transparent 70%)',
@@ -211,7 +217,7 @@ export function CrashStage({
         transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div
-        className="absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
+        className="mobile-no-blur absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(255, 172, 46, 0.22) 0%, transparent 70%)',
