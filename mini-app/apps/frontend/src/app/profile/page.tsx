@@ -241,10 +241,10 @@ export default function ProfilePage() {
 
           {/* Admin entry — rendered only after the covert /_x/probe returns
               200 for the current session. For everyone else this block
-              never paints and the URL `/_x/dashboard` is just a 404. */}
+              never paints and the URL is just a 404. */}
           {isAdmin && (
             <button
-              onClick={() => router.push('/_x/dashboard')}
+              onClick={() => router.push('/system/console')}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors mt-2"
             >
               <Shield size={14} strokeWidth={1.7} />
