@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 import type {
   GameType,
@@ -183,9 +184,9 @@ export abstract class BaseGameEngine extends EventEmitter {
       throw new Error('Player already has active bet');
     }
 
-    // Create bet
+    // Create bet (UUID prevents id collisions when same user double-clicks within one ms)
     const bet: Bet = {
-      id: `bet_${Date.now()}_${userId}`,
+      id: `bet_${Date.now()}_${randomUUID()}`,
       userId,
       gameId: this.gameId,
       roundId: this.room.currentRound?.id || '',

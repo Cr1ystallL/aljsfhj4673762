@@ -473,13 +473,64 @@ class DatabasePostgres:
         return False, 0.0
     
     def get_user_language(self, user_id: int) -> str:
+        """Получить язык пользователя — дефолт 'ru' если не установлен."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT bot_language FROM users WHERE telegram_id = %s',
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            if result and result[0]:
+                return result[0]
+        except Exception:
+            # If the column doesn't exist yet (pre-migration) we silently
+            # fall through to the default — the language picker will still
+            # work, the user just won't have it persisted until the next
+            # `set_user_language` call (which auto-creates the column).
+            pass
         return 'ru'
-    
+
     def get_user_language_raw(self, user_id: int) -> Optional[str]:
+        """Получить язык пользователя без дефолта — нужен для определения нового пользователя."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT bot_language FROM users WHERE telegram_id = %s',
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            if result:
+                return result[0]
+        except Exception:
+            pass
         return None
-    
+
     def set_user_language(self, user_id: int, language: str) -> None:
-        pass
+        """Сохранить выбранный язык пользователя.
+
+        Создаёт колонку `bot_language` лениво — это позволяет работать с
+        существующей Prisma-схемой, не требуя переката миграций.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            # Idempotent column creation — DDL is auto-committed in psycopg2
+            # default mode, so subsequent /start commands are cheap.
+            cursor.execute(
+                'ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_language TEXT'
+            )
+            cursor.execute(
+                'UPDATE users SET bot_language = %s WHERE telegram_id = %s',
+                (language, user_id)
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
 
 # Глобальный экземпляр базы данных PostgreSQL

@@ -4,6 +4,7 @@ import { authRoutes } from './auth.js';
 import { balanceRoutes } from './balance.js';
 import { websocketRoutes } from './websocket.js';
 import { gameRoutes } from './games.js';
+import { adminRoutes } from './admin.js';
 
 /**
  * Register all application routes
@@ -20,6 +21,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Games
   await app.register(gameRoutes, { prefix: '/api/games' });
+
+  // Admin (covert — see admin.ts for the security posture)
+  await app.register(adminRoutes, { prefix: '/api' });
 
   // WebSocket
   await app.register(websocketRoutes);

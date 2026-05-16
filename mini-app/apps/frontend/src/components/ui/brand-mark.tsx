@@ -98,7 +98,7 @@ export function BrandWordmark({
           marginLeft: -Math.round(size * 0.06),
         }}
       >
-        Bет
+        acvBet
       </span>
     </span>
   );
@@ -122,12 +122,12 @@ export function BrandLockup({
     <span
       className={cn('inline-flex flex-col items-center gap-1', className)}
     >
-      <BrandMark variant="gradient" size={size} title="Macvbet" />
+      <BrandMark variant="gradient" size={size} title="MacvBet" />
       <span
         className="font-roobert font-light text-frost-white tracking-[0.18em] uppercase"
         style={{ fontSize: Math.max(8, Math.round(size * 0.18)), lineHeight: 1 }}
       >
-        Macvbet
+        MacvBet
       </span>
     </span>
   );

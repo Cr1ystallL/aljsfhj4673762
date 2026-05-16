@@ -48,29 +48,35 @@ export function BottomNavigation({
       className="fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none"
       aria-hidden={isCollapsed}
     >
-      {/* Grip handle — only on hideable pages, only when collapsed */}
+      {/* Grip handle — only on hideable pages, only when collapsed.
+          Wrap in a centring layer so the pill sits squarely above the
+          safe-area inset regardless of viewport width. */}
       <AnimatePresence>
         {hideable && collapsed && (
-          <motion.button
-            key="handle"
-            type="button"
-            onClick={() => setCollapsed(false)}
+          <motion.div
+            key="handle-wrap"
+            className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-            drag="y"
-            dragConstraints={{ top: -80, bottom: 0 }}
-            dragElastic={0.2}
-            onDragEnd={(_, info) => {
-              if (info.offset.y < -16) setCollapsed(false);
-            }}
-            aria-label="Показать меню"
-            className="pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex flex-col items-center gap-1 px-4 py-1.5 rounded-pill border border-white/15 bg-black/60 backdrop-blur-md text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors touch-none"
           >
-            <ChevronUp size={14} strokeWidth={2} />
-            <span className="block w-7 h-[3px] rounded-full bg-frost-white/45" />
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              drag="y"
+              dragConstraints={{ top: -80, bottom: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(_, info) => {
+                if (info.offset.y < -16) setCollapsed(false);
+              }}
+              aria-label="Показать меню"
+              className="pointer-events-auto inline-flex flex-col items-center gap-1 px-5 py-2 rounded-pill border border-white/15 bg-black/60 backdrop-blur-md text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors touch-none"
+            >
+              <ChevronUp size={14} strokeWidth={2} />
+              <span className="block w-7 h-[3px] rounded-full bg-frost-white/45" />
+            </motion.button>
+          </motion.div>
         )}
       </AnimatePresence>
 

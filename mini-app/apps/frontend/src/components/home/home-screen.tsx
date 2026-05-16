@@ -1,63 +1,157 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Sparkles, Wallet } from 'lucide-react';
+import { ArrowRight, Send, Sparkles, Wallet } from 'lucide-react';
 import { BrandWordmark, BrandLockup } from '@/components/ui/brand-mark';
-import { GameIcon, type GameKey } from '@/components/ui/game-icon';
+import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
+import {
+  BasketballIcon,
+  BowlingIcon,
+  DartsIcon,
+  DiceCubeIcon,
+  FootballIcon,
+  RpsIcon,
+  SpiderIcon,
+} from '@/components/ui/bot-game-icons';
+import { useAuthStore } from '@/store/auth-store';
+import { useBalanceStore } from '@/store/balance-store';
+import { useBalance } from '@/hooks/use-balance';
 
 /**
  * Home Screen — Monopo Saigon Style
  *
- * Landing screen of the mini-app. Composition follows the brand's quiet,
- * editorial rhythm: a hero plate that introduces the brand and the
- * featured game, then a tight grid of in-app games, then a pair of
- * navigation cards (balance / bonuses) that surface the most common
- * non-game intents.
+ * Landing screen of the mini-app. Composition:
+ *   1. Top bar — wordmark on the left, balance pill + avatar on the right.
+ *   2. Featured hero — MacvJet plate.
+ *   3. In-app games grid (4 tiles).
+ *   4. Bot games rail — open Telegram with the matching command.
+ *   5. Quick actions — balance / bonuses.
+ *   6. Footer — brand lockup.
  *
- * No emoji, no rainbow accents. The Deep Ocean gradient appears only as
- * an atmospheric wash on the hero card and as the BrandMark fill.
+ * No emoji, no rainbow tints. Deep Ocean gradient appears as atmospheric
+ * washes only on the hero card, the per-tile accent and the BrandMark.
  */
 
 interface InAppGame {
   id: GameKey;
-  /** Display name on the tile. Coinflip stays English-cased on the card. */
   name: string;
-  caption: string;
   href: string;
 }
 
 const inAppGames: InAppGame[] = [
-  { id: 'crash', name: 'MacvJet', caption: 'Полёт до краха', href: '/game/crash' },
-  { id: 'mines', name: 'Mines', caption: 'Поле 5×5', href: '/game/mines' },
-  { id: 'plinko', name: 'Plinko', caption: 'Шар сквозь штифты', href: '/game/plinko' },
-  { id: 'coinflip', name: 'Coinflip', caption: 'Орёл или решка', href: '/game/coinflip' },
+  { id: 'crash', name: 'MacvJet', href: '/game/crash' },
+  { id: 'mines', name: 'Mines', href: '/game/mines' },
+  { id: 'plinko', name: 'Plinko', href: '/game/plinko' },
+  { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip' },
 ];
+
+const BOT_USERNAME =
+  process.env.NEXT_PUBLIC_BOT_USERNAME?.replace(/^@/, '') || 'macvbet_bot';
+
+const botGames = [
+  { id: 'cube', label: 'Кубики', command: 'cube', Icon: DiceCubeIcon },
+  { id: 'bowl', label: 'Боулинг', command: 'bowl', Icon: BowlingIcon },
+  { id: 'darts', label: 'Дартс', command: 'darts', Icon: DartsIcon },
+  { id: 'basket', label: 'Баскетбол', command: 'basket', Icon: BasketballIcon },
+  { id: 'foot', label: 'Футбол', command: 'foot', Icon: FootballIcon },
+  { id: 'knb', label: 'КНБ', command: 'knb', Icon: RpsIcon },
+  { id: 'spider', label: 'Spider', command: 'spider', Icon: SpiderIcon },
+];
+
+function openTelegram(url: string) {
+  if (typeof window === 'undefined') return;
+  const tg = (window as unknown as {
+    Telegram?: {
+      WebApp?: {
+        openTelegramLink?: (u: string) => void;
+        openLink?: (u: string) => void;
+      };
+    };
+  }).Telegram?.WebApp;
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(url);
+    return;
+  }
+  if (tg?.openLink) {
+    tg.openLink(url);
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 export function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const balance = useBalanceStore((s) => s.balance);
+  const { fetchBalance } = useBalance();
+
+  useEffect(() => {
+    void fetchBalance();
+  }, [fetchBalance]);
+
+  const balanceAmount = balance?.amount ?? 0;
+  const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-5 pb-32 flex flex-col gap-5">
-        {/* Brand wordmark */}
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
+        {/* Top bar — wordmark | balance + avatar */}
         <header className="flex items-center justify-between">
-          <BrandWordmark size={48} />
-          <button
-            onClick={() => router.push('/profile')}
-            className="font-roobert text-[12px] uppercase tracking-[0.2em] text-whisper-gray hover:text-frost-white transition-colors"
-          >
-            Профиль
-          </button>
+          <BrandWordmark size={44} />
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push('/balance')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
+              aria-label="Кошелёк"
+            >
+              <Wallet
+                size={13}
+                className="text-frost-white/70"
+                strokeWidth={1.8}
+              />
+              <span className="font-roobert text-frost-white text-[14px] tabular-nums leading-none">
+                {balanceAmount.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span className="font-roobert text-whisper-gray text-[11px] leading-none">
+                ₽
+              </span>
+            </button>
+
+            <button
+              onClick={() => router.push('/profile')}
+              aria-label="Профиль"
+              className="relative w-10 h-10 rounded-pill overflow-hidden border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors flex items-center justify-center"
+            >
+              {user?.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.photoUrl}
+                  alt={user.firstName || 'Профиль'}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  draggable={false}
+                />
+              ) : (
+                <span className="font-roobert text-[14px] text-frost-white">
+                  {initials}
+                </span>
+              )}
+            </button>
+          </div>
         </header>
 
-        {/* Hero plate — featured game */}
+        {/* Hero — featured game */}
         <motion.button
           onClick={() => router.push('/game/crash')}
           whileTap={{ scale: 0.99 }}
           className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] text-left"
         >
-          {/* Atmospheric Deep Ocean wash */}
           <div
             aria-hidden
             className="absolute inset-0 opacity-70"
@@ -71,13 +165,8 @@ export function HomeScreen() {
               Featured · provably fair
             </span>
             <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="font-roobert text-frost-white text-[40px] sm:text-[48px] font-light leading-none tracking-tight">
-                  MacvJet
-                </div>
-                <div className="mt-2 font-roobert text-[13px] text-whisper-gray">
-                  Взлетай и забирай выигрыш до краха
-                </div>
+              <div className="font-roobert text-frost-white text-[40px] sm:text-[48px] font-light leading-none tracking-tight">
+                MacvJet
               </div>
               <span className="shrink-0 w-11 h-11 rounded-pill border border-white/25 bg-white/[0.06] flex items-center justify-center">
                 <ArrowRight size={18} strokeWidth={1.6} />
@@ -86,17 +175,9 @@ export function HomeScreen() {
           </div>
         </motion.button>
 
-        {/* Section caption */}
-        <div className="flex items-baseline justify-between pt-1 px-1">
-          <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-            Игры
-          </span>
-          <span className="font-roobert text-[11px] text-whisper-gray">
-            {inAppGames.length}
-          </span>
-        </div>
+        {/* Section caption — Игры */}
+        <SectionLabel right={`${inAppGames.length}`}>Игры</SectionLabel>
 
-        {/* Games grid */}
         <div className="grid grid-cols-2 gap-3">
           {inAppGames.map((g, i) => (
             <motion.button
@@ -106,9 +187,8 @@ export function HomeScreen() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03 }}
               whileTap={{ scale: 0.98 }}
-              className="group relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] aspect-[4/5] text-left"
+              className="group relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] aspect-[5/6] text-left"
             >
-              {/* Per-tile soft wash */}
               <div
                 aria-hidden
                 className="absolute inset-0 opacity-50 group-hover:opacity-70 transition-opacity"
@@ -123,20 +203,46 @@ export function HomeScreen() {
                 <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center">
                   <GameIcon game={g.id} size={20} strokeWidth={1.5} />
                 </span>
-                <div>
-                  <div className="font-roobert text-[20px] leading-none text-frost-white">
-                    {g.name}
-                  </div>
-                  <div className="mt-1.5 font-roobert text-[11px] text-whisper-gray">
-                    {g.caption}
-                  </div>
+                <div className="font-roobert text-[20px] leading-none text-frost-white">
+                  {g.name}
                 </div>
               </div>
             </motion.button>
           ))}
         </div>
 
-        {/* Quick actions row */}
+        {/* Section caption — Bot games */}
+        <SectionLabel right={`${botGames.length}`}>Игры в боте</SectionLabel>
+
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+          {botGames.map((g, i) => (
+            <motion.button
+              key={g.id}
+              onClick={() =>
+                openTelegram(`https://t.me/${BOT_USERNAME}?start=${g.command}`)
+              }
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.025 }}
+              whileTap={{ scale: 0.97 }}
+              className="relative aspect-square rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors flex flex-col items-center justify-center gap-1.5"
+            >
+              <g.Icon
+                size={22}
+                strokeWidth={1.5}
+                className="text-frost-white/85"
+              />
+              <span className="font-roobert text-[11px] text-frost-white/85">
+                {g.label}
+              </span>
+              <span className="absolute top-1.5 right-1.5 text-frost-white/35">
+                <Send size={9} strokeWidth={1.8} />
+              </span>
+            </motion.button>
+          ))}
+        </div>
+
+        {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3 pt-2">
           <QuickAction
             icon={<Wallet size={18} strokeWidth={1.5} />}
@@ -158,6 +264,25 @@ export function HomeScreen() {
         </div>
       </div>
     </main>
+  );
+}
+
+function SectionLabel({
+  children,
+  right,
+}: {
+  children: React.ReactNode;
+  right?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between pt-1 px-1">
+      <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+        {children}
+      </span>
+      {right && (
+        <span className="font-roobert text-[11px] text-whisper-gray">{right}</span>
+      )}
+    </div>
   );
 }
 
@@ -192,3 +317,7 @@ function QuickAction({
     </motion.button>
   );
 }
+
+// Use gameLabel to satisfy the import (kept here for future expansion of
+// game tiles that need the resolved display name programmatically).
+void gameLabel;

@@ -19,6 +19,8 @@ import { useBalance } from '@/hooks/use-balance';
 import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
 import { useRouter } from 'next/navigation';
+import { useIsAdmin } from '@/lib/admin-probe';
+import { Shield } from 'lucide-react';
 
 /**
  * Profile Page — Monopo Saigon Style
@@ -45,6 +47,7 @@ export default function ProfilePage() {
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
   const [copied, setCopied] = useState(false);
+  const isAdmin = useIsAdmin();
 
   // Pull a fresh balance on mount and again whenever the user navigates back
   // to the profile screen — covers the case where a Mines / Crash round
@@ -235,6 +238,21 @@ export default function ProfilePage() {
               </div>
             )}
           </section>
+
+          {/* Admin entry — rendered only after the covert /_x/probe returns
+              200 for the current session. For everyone else this block
+              never paints and the URL `/_x/dashboard` is just a 404. */}
+          {isAdmin && (
+            <button
+              onClick={() => router.push('/_x/dashboard')}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors mt-2"
+            >
+              <Shield size={14} strokeWidth={1.7} />
+              <span className="font-roobert text-[12px] uppercase tracking-[0.22em] text-frost-white">
+                Админ
+              </span>
+            </button>
+          )}
         </div>
       </main>
     </PageTransition>

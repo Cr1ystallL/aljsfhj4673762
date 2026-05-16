@@ -4,11 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowUpRight,
   Bell,
-  Bot,
-  Dices,
-  Gem,
   Headphones,
-  Landmark,
   Send,
   Shield,
   Sparkles,
@@ -19,6 +15,15 @@ import {
 import { useRouter } from 'next/navigation';
 import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
 import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
+import {
+  BasketballIcon,
+  BowlingIcon,
+  DartsIcon,
+  DiceCubeIcon,
+  FootballIcon,
+  RpsIcon,
+  SpiderIcon,
+} from '@/components/ui/bot-game-icons';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -45,57 +50,45 @@ interface MenuDrawerProps {
  * globals.css) so the panel scrolls without GPU stutter.
  */
 
-interface SectionItem {
-  id: string;
-  label: string;
-  caption: string;
-  icon: LucideIcon | (() => React.ReactElement);
-  /** External: route via TG WebApp openLink. Internal: router.push. */
-  external?: boolean;
-  href: string;
-}
-
-const inAppGames: Array<{ id: GameKey; caption: string }> = [
-  { id: 'crash', caption: 'Полёт до краха' },
-  { id: 'mines', caption: 'Поле 5×5' },
-  { id: 'plinko', caption: 'Шар сквозь штифты' },
-  { id: 'coinflip', caption: 'Орёл или решка' },
+const inAppGames: Array<{ id: GameKey }> = [
+  { id: 'crash' },
+  { id: 'mines' },
+  { id: 'plinko' },
+  { id: 'coinflip' },
 ];
 
 const BOT_USERNAME =
   process.env.NEXT_PUBLIC_BOT_USERNAME?.replace(/^@/, '') || 'macvbet_bot';
 
-/** Bot games — name, caption, command. */
-const botGames: Array<{ id: string; label: string; caption: string; command: string }> = [
-  { id: 'cube', label: 'Кубики', caption: 'Кости в чате', command: 'cube' },
-  { id: 'bowl', label: 'Боулинг', caption: 'Сбей кегли', command: 'bowl' },
-  { id: 'darts', label: 'Дартс', caption: 'Попади в цель', command: 'darts' },
-  { id: 'basket', label: 'Баскетбол', caption: 'Заброс кольца', command: 'basket' },
-  { id: 'foot', label: 'Футбол', caption: 'Удар по воротам', command: 'foot' },
-  { id: 'knb', label: 'КНБ', caption: 'Камень-ножницы-бумага', command: 'knb' },
-  { id: 'spider', label: 'Spider', caption: 'Пасьянс на удачу', command: 'spider' },
+/** Bot games — name, command, custom icon. */
+const botGames: Array<{
+  id: string;
+  label: string;
+  command: string;
+  Icon: LucideIcon;
+}> = [
+  { id: 'cube', label: 'Кубики', command: 'cube', Icon: DiceCubeIcon },
+  { id: 'bowl', label: 'Боулинг', command: 'bowl', Icon: BowlingIcon },
+  { id: 'darts', label: 'Дартс', command: 'darts', Icon: DartsIcon },
+  { id: 'basket', label: 'Баскетбол', command: 'basket', Icon: BasketballIcon },
+  { id: 'foot', label: 'Футбол', command: 'foot', Icon: FootballIcon },
+  { id: 'knb', label: 'КНБ', command: 'knb', Icon: RpsIcon },
+  { id: 'spider', label: 'Spider', command: 'spider', Icon: SpiderIcon },
 ];
 
-const menuItems: SectionItem[] = [
-  {
-    id: 'balance',
-    label: 'Управление балансом',
-    caption: 'Пополнение и вывод',
-    icon: Wallet,
-    href: '/balance',
-  },
-  {
-    id: 'bonuses',
-    label: 'Бонусы',
-    caption: 'Промокоды и подарки',
-    icon: Sparkles,
-    href: '/bonuses',
-  },
+const menuItems: Array<{
+  id: string;
+  label: string;
+  Icon: LucideIcon;
+  href: string;
+  external?: boolean;
+}> = [
+  { id: 'balance', label: 'Управление балансом', Icon: Wallet, href: '/balance' },
+  { id: 'bonuses', label: 'Бонусы', Icon: Sparkles, href: '/bonuses' },
   {
     id: 'support',
     label: 'Поддержка',
-    caption: 'Связаться с командой',
-    icon: Headphones,
+    Icon: Headphones,
     href: `https://t.me/${BOT_USERNAME}?start=support`,
     external: true,
   },
@@ -210,7 +203,6 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
                         />
                       }
                       label={gameLabel(game.id)}
-                      caption={game.caption}
                       trailing={<ArrowUpRight size={16} strokeWidth={1.5} />}
                       divider={i < inAppGames.length - 1}
                     />
@@ -230,18 +222,13 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
                         openExternal(`https://t.me/${BOT_USERNAME}?start=${g.command}`);
                       }}
                       icon={
-                        <span className="text-frost-white/85">
-                          {g.id === 'cube' ? (
-                            <Dices size={22} strokeWidth={1.5} />
-                          ) : g.id === 'spider' ? (
-                            <Gem size={22} strokeWidth={1.5} />
-                          ) : (
-                            <Bot size={22} strokeWidth={1.5} />
-                          )}
-                        </span>
+                        <g.Icon
+                          size={22}
+                          strokeWidth={1.5}
+                          className="text-frost-white/85"
+                        />
                       }
                       label={g.label}
-                      caption={g.caption}
                       trailing={<Send size={14} strokeWidth={1.6} />}
                       divider={i < botGames.length - 1}
                     />
@@ -252,42 +239,36 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
 
                 <SectionLabel>Меню</SectionLabel>
                 <div className="px-3">
-                  {menuItems.map((item, i) => {
-                    const Icon = typeof item.icon === 'function' && 'displayName' in item.icon
-                      ? (item.icon as LucideIcon)
-                      : (item.icon as LucideIcon);
-                    return (
-                      <Row
-                        key={item.id}
-                        delay={i}
-                        onClick={() => {
-                          if (item.external) {
-                            onClose();
-                            openExternal(item.href);
-                          } else {
-                            goInternal(item.href);
-                          }
-                        }}
-                        icon={
-                          <Icon
-                            size={22}
-                            strokeWidth={1.5}
-                            className="text-frost-white/85"
-                          />
+                  {menuItems.map((item, i) => (
+                    <Row
+                      key={item.id}
+                      delay={i}
+                      onClick={() => {
+                        if (item.external) {
+                          onClose();
+                          openExternal(item.href);
+                        } else {
+                          goInternal(item.href);
                         }
-                        label={item.label}
-                        caption={item.caption}
-                        trailing={
-                          item.external ? (
-                            <Send size={14} strokeWidth={1.6} />
-                          ) : (
-                            <ArrowUpRight size={16} strokeWidth={1.5} />
-                          )
-                        }
-                        divider={i < menuItems.length - 1}
-                      />
-                    );
-                  })}
+                      }}
+                      icon={
+                        <item.Icon
+                          size={22}
+                          strokeWidth={1.5}
+                          className="text-frost-white/85"
+                        />
+                      }
+                      label={item.label}
+                      trailing={
+                        item.external ? (
+                          <Send size={14} strokeWidth={1.6} />
+                        ) : (
+                          <ArrowUpRight size={16} strokeWidth={1.5} />
+                        )
+                      }
+                      divider={i < menuItems.length - 1}
+                    />
+                  ))}
                 </div>
 
                 <Divider />
@@ -347,7 +328,6 @@ function Divider() {
 function Row({
   icon,
   label,
-  caption,
   trailing,
   onClick,
   delay = 0,
@@ -355,7 +335,6 @@ function Row({
 }: {
   icon: React.ReactNode;
   label: string;
-  caption: string;
   trailing?: React.ReactNode;
   onClick: () => void;
   delay?: number;
@@ -369,19 +348,14 @@ function Row({
     >
       <button
         onClick={onClick}
-        className="group w-full text-left rounded-card px-3 py-3 flex items-center gap-4 hover:bg-white/[0.04] transition-colors"
+        className="group w-full text-left rounded-card px-3 py-3.5 flex items-center gap-4 hover:bg-white/[0.04] transition-colors"
       >
         <span className="w-9 h-9 flex items-center justify-center shrink-0">
           {icon}
         </span>
-        <div className="flex-1 min-w-0">
-          <div className="font-roobert text-[16px] leading-tight text-frost-white">
-            {label}
-          </div>
-          <div className="mt-1 font-roobert text-[11px] tracking-[0.04em] text-whisper-gray">
-            {caption}
-          </div>
-        </div>
+        <span className="flex-1 min-w-0 font-roobert text-[16px] leading-tight text-frost-white truncate">
+          {label}
+        </span>
         {trailing && (
           <span className="text-frost-white/45 group-hover:text-frost-white/85 transition-colors">
             {trailing}
@@ -392,7 +366,3 @@ function Row({
     </motion.div>
   );
 }
-
-// Suppress Landmark / Bell unused-import warnings — they're staged for
-// future expansion of the Меню section but not all referenced yet.
-void Landmark;

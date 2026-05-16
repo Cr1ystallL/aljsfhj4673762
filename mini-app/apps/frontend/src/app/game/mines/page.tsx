@@ -10,6 +10,14 @@ import {
   type MinesPhase,
 } from '@/components/game/mines/mines-bet-panel';
 import { MinesRulesModal } from '@/components/game/mines/mines-rules-modal';
+import {
+  MinesRecentBets,
+  type MinesRecentBet,
+} from '@/components/game/mines/mines-recent-bets';
+import {
+  MinesHistory,
+  type MinesHistoryEntry,
+} from '@/components/game/mines/mines-history';
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 
@@ -53,16 +61,41 @@ export default function MinesGamePage() {
   /** The cell that ended the round, derived from server state. */
   const [hitPosition, setHitPosition] = useState<number | null>(null);
 
+  /** Player's last 5 completed bets — drives the horizontal recap strip. */
+  const [recentBets, setRecentBets] = useState<MinesRecentBet[]>([]);
+  /** Sampled live ticker — recent bets across all players. */
+  const [history, setHistory] = useState<MinesHistoryEntry[]>([]);
+
   // Sound init.
   useEffect(() => {
     soundManager.initialize();
   }, []);
+
+  // Load the player's recent history once on mount and again whenever a
+  // round wraps (handled inside applyServer below).
+  const refreshHistory = async () => {
+    try {
+      const [my, all] = await Promise.all([
+        fetch('/api/games/mines/my-history?limit=5', {
+          credentials: 'include',
+        }).then((r) => (r.ok ? r.json() : { history: [] })),
+        fetch('/api/games/mines/history?limit=20', {
+          credentials: 'include',
+        }).then((r) => (r.ok ? r.json() : { history: [] })),
+      ]);
+      setRecentBets(my.history ?? []);
+      setHistory(all.history ?? []);
+    } catch {
+      // best-effort
+    }
+  };
 
   // Resume any active round on mount + refresh the balance so the page
   // never shows a stale figure if the WebSocket push was missed.
   useEffect(() => {
     let cancelled = false;
     void fetchBalance();
+    void refreshHistory();
     (async () => {
       try {
         const res = await fetch('/api/games/mines/state', {
@@ -79,6 +112,15 @@ export default function MinesGamePage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Poll the global history every 8s so the live ticker stays warm.
+  useEffect(() => {
+    const id = setInterval(() => {
+      void refreshHistory();
+    }, 8000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -114,6 +156,10 @@ export default function MinesGamePage() {
     // pull a fresh balance. This keeps the header pill in sync even if
     // the WebSocket broadcast was dropped.
     void fetchBalance();
+    // Round just resolved → refresh the history strips.
+    if (next.state === 'cashed' || next.state === 'busted') {
+      void refreshHistory();
+    }
   }
 
   /* ------------------------------------------------------------ actions */
@@ -304,6 +350,9 @@ export default function MinesGamePage() {
           onPrimary={handlePrimary}
         />
 
+        {/* Player's last 5 completed rounds */}
+        <MinesRecentBets bets={recentBets} />
+
         {/* Provably-fair seed strip — visible only when round is over so the
             user can verify the result. */}
         {server?.serverSeedHash && (
@@ -328,6 +377,9 @@ export default function MinesGamePage() {
             )}
           </div>
         )}
+
+        {/* Live ticker — recent mines bets across all players */}
+        <MinesHistory entries={history} />
       </div>
 
       <MinesRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
