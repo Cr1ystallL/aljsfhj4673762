@@ -70,8 +70,10 @@ export function BrandMark({
 }
 
 /**
- * BrandWordmark — BrandMark followed by "acvbet" in Roobert. The SVG
- * stands in for the leading "M", so the composite reads as "Macvbet".
+ * BrandWordmark — BrandMark followed by "Bет" in Roobert. The SVG
+ * stands in for the leading "Macv", so the composite reads as
+ * "MacvBет" — bilingual logo blending the brand sigil with a Cyrillic
+ * tail.
  *
  * Used in the menu drawer header.
  */
@@ -87,7 +89,7 @@ export function BrandWordmark({
       className={cn('inline-flex items-center gap-1', className)}
       style={{ height: size }}
     >
-      <BrandMark variant="gradient" size={size} title="M" />
+      <BrandMark variant="gradient" size={size} title="Macv" />
       <span
         className="font-roobert font-light text-frost-white tracking-tight"
         style={{
@@ -96,7 +98,7 @@ export function BrandWordmark({
           marginLeft: -Math.round(size * 0.06),
         }}
       >
-        acvbet
+        Bет
       </span>
     </span>
   );

@@ -107,7 +107,7 @@ CoinflipIcon.displayName = 'CoinflipIcon';
 export { CoinflipIcon };
 
 const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
-  crash: { label: 'Crash', Icon: Rocket },
+  crash: { label: 'MacvJet', Icon: Rocket },
   mines: { label: 'Mines', Icon: Bomb },
   plinko: { label: 'Plinko', Icon: PlinkoIcon },
   coinflip: { label: 'Coinflip', Icon: CoinflipIcon },

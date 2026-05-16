@@ -250,7 +250,7 @@ export default function CrashGamePage() {
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
         <GameTopBar
-          title="Crash"
+          title="MacvJet"
           Icon={Rocket}
           iconRotate={-30}
           onHowToPlay={() => setRulesOpen(true)}
