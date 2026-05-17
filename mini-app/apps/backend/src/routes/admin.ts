@@ -1875,5 +1875,359 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ============================================================== Phase 5 */
+  /* ----------------------------------------------------------- broadcasts */
+
+  interface AudienceFilter {
+    all?: boolean;
+    minBalance?: number;
+    regAfter?: number; // ms epoch
+    regBefore?: number;
+    inactiveDays?: number;
+    telegramIds?: number[];
+  }
+
+  interface BroadcastButton {
+    text: string;
+    url: string;
+  }
+
+  /**
+   * Build the SQL `WHERE` clause for an audience filter. We never send
+   * to blocked accounts; that's an unconditional exclusion regardless
+   * of the filter the admin picked.
+   */
+  function audienceWhere(filter: AudienceFilter): Prisma.Sql {
+    const conds: Prisma.Sql[] = [Prisma.sql`is_blocked = false`];
+
+    if (filter.minBalance !== undefined && filter.minBalance > 0) {
+      conds.push(
+        Prisma.sql`id IN (SELECT user_id FROM balances WHERE demo_mode = false AND amount >= ${filter.minBalance}::numeric)`
+      );
+    }
+    if (filter.regAfter) {
+      conds.push(Prisma.sql`created_at >= ${new Date(filter.regAfter)}`);
+    }
+    if (filter.regBefore) {
+      conds.push(Prisma.sql`created_at <= ${new Date(filter.regBefore)}`);
+    }
+    if (filter.inactiveDays && filter.inactiveDays > 0) {
+      const cutoff = new Date(
+        Date.now() - filter.inactiveDays * 24 * 60 * 60 * 1000
+      );
+      conds.push(
+        Prisma.sql`id NOT IN (SELECT user_id FROM bets WHERE placed_at >= ${cutoff})`
+      );
+    }
+    if (filter.telegramIds && filter.telegramIds.length > 0) {
+      const ids = filter.telegramIds.map((n) => BigInt(n));
+      conds.push(Prisma.sql`telegram_id IN (${Prisma.join(ids)})`);
+    }
+
+    return Prisma.sql` WHERE ${Prisma.join(conds, ' AND ')}`;
+  }
+
+  /**
+   * POST /api/_x/broadcasts/preview
+   * Returns the count + a sample of 5 recipients for the supplied
+   * audience filter. Lets admins sanity-check before scheduling.
+   */
+  app.post<{ Body: { audience: AudienceFilter } }>(
+    '/_x/broadcasts/preview',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const audience = request.body?.audience ?? { all: true };
+      try {
+        const where = audienceWhere(audience);
+        const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
+        );
+        const sample = await app.prisma.$queryRaw<
+          Array<{
+            telegram_id: bigint;
+            first_name: string | null;
+            username: string | null;
+          }>
+        >(
+          Prisma.sql`
+            SELECT telegram_id, first_name, username
+            FROM users${where}
+            ORDER BY created_at DESC
+            LIMIT 5
+          `
+        );
+        return reply.send({
+          ok: true,
+          total: Number(countRows[0]?.c ?? 0),
+          sample: sample.map((s) => ({
+            telegramId: Number(s.telegram_id),
+            name:
+              s.first_name ||
+              s.username ||
+              `id${s.telegram_id.toString().slice(-4)}`,
+          })),
+        });
+      } catch (error) {
+        logger.error(error, 'Broadcast preview failed');
+        return reply.code(400).send({ error: 'Bad audience' });
+      }
+    }
+  );
+
+  /**
+   * GET /api/_x/broadcasts
+   * Lists recent broadcasts (newest first).
+   */
+  app.get<{ Querystring: { limit?: string; status?: string } }>(
+    '/_x/broadcasts',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const limit = Math.min(
+        100,
+        Math.max(10, parseInt(request.query.limit ?? '50', 10))
+      );
+      try {
+        const where = request.query.status
+          ? Prisma.sql` WHERE status = ${request.query.status}`
+          : Prisma.empty;
+        const rows = await app.prisma.$queryRaw<
+          Array<{
+            id: string;
+            status: string;
+            text: string;
+            parse_mode: string;
+            media_url: string | null;
+            buttons: unknown;
+            audience: unknown;
+            scheduled_at: Date | null;
+            total_targets: number;
+            delivered: number;
+            failed: number;
+            created_by_tg: bigint;
+            created_at: Date;
+            started_at: Date | null;
+            finished_at: Date | null;
+            error_message: string | null;
+          }>
+        >(Prisma.sql`
+          SELECT id, status, text, parse_mode, media_url, buttons, audience,
+                 scheduled_at, total_targets, delivered, failed,
+                 created_by_tg, created_at, started_at, finished_at, error_message
+          FROM broadcasts${where}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `);
+
+        return reply.send({
+          ok: true,
+          broadcasts: rows.map((r) => ({
+            id: r.id,
+            status: r.status,
+            text: r.text,
+            parseMode: r.parse_mode,
+            mediaUrl: r.media_url,
+            buttons: r.buttons,
+            audience: r.audience,
+            scheduledAt: r.scheduled_at?.getTime() ?? null,
+            totalTargets: r.total_targets,
+            delivered: r.delivered,
+            failed: r.failed,
+            createdByTg: Number(r.created_by_tg),
+            createdAt: r.created_at.getTime(),
+            startedAt: r.started_at?.getTime() ?? null,
+            finishedAt: r.finished_at?.getTime() ?? null,
+            errorMessage: r.error_message,
+          })),
+        });
+      } catch (error) {
+        logger.error(error, 'Broadcasts list failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/broadcasts
+   * Creates a broadcast. Body:
+   *   { text, parseMode?, mediaUrl?, buttons?, audience, scheduledAt?, reason }
+   *
+   * If `scheduledAt` is omitted or in the past, the broadcast is
+   * scheduled for "now" — the python worker polls every 10s and picks
+   * up due jobs.
+   */
+  app.post<{
+    Body: {
+      text: string;
+      parseMode?: 'HTML' | 'Markdown' | 'none';
+      mediaUrl?: string | null;
+      buttons?: BroadcastButton[];
+      audience: AudienceFilter;
+      scheduledAt?: number | null;
+      reason: string;
+    };
+  }>(
+    '/_x/broadcasts',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const body = request.body ?? ({} as typeof request.body);
+      const reason = (body.reason ?? '').trim();
+      const text = (body.text ?? '').trim();
+      const audience = body.audience ?? {};
+
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      if (!text || text.length < 1 || text.length > 4000) {
+        return reply.code(400).send({ error: 'Text must be 1-4000 chars' });
+      }
+      if (
+        body.parseMode &&
+        !['HTML', 'Markdown', 'none'].includes(body.parseMode)
+      ) {
+        return reply.code(400).send({ error: 'Bad parseMode' });
+      }
+      if (body.buttons && body.buttons.length > 3) {
+        return reply.code(400).send({ error: 'Max 3 buttons' });
+      }
+      const scheduledAt = body.scheduledAt
+        ? new Date(body.scheduledAt)
+        : new Date();
+
+      try {
+        // Compute total targets up-front so the UI shows the count.
+        const where = audienceWhere(audience);
+        const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
+        );
+        const totalTargets = Number(countRows[0]?.c ?? 0);
+
+        const id =
+          (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
+          `bc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+        await app.prisma.$executeRaw`
+          INSERT INTO broadcasts (
+            id, status, text, parse_mode, media_url, buttons, audience,
+            scheduled_at, total_targets, created_by, created_by_tg,
+            created_at, updated_at
+          ) VALUES (
+            ${id},
+            'scheduled',
+            ${text},
+            ${body.parseMode ?? 'HTML'},
+            ${body.mediaUrl ?? null},
+            ${body.buttons ? JSON.stringify(body.buttons) : null}::jsonb,
+            ${JSON.stringify(audience)}::jsonb,
+            ${scheduledAt},
+            ${totalTargets},
+            ${(request as AuthenticatedRequest).user.userId},
+            ${BigInt((request as AuthenticatedRequest).user.telegramId)},
+            NOW(), NOW()
+          )
+        `;
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'broadcast.create',
+          targetType: 'broadcast',
+          targetId: id,
+          payloadAfter: {
+            text: text.slice(0, 200),
+            audience,
+            scheduledAt: scheduledAt.getTime(),
+            totalTargets,
+          },
+          reason,
+        });
+
+        return reply.send({ ok: true, id, totalTargets });
+      } catch (error) {
+        logger.error(error, 'Broadcast create failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/broadcasts/:id/cancel
+   * Marks a not-yet-started broadcast as `cancelled`. If it's already
+   * in `sending`, the worker will see the flag on the next message
+   * and stop early.
+   */
+  app.post<{ Params: { id: string }; Body: { reason: string } }>(
+    '/_x/broadcasts/:id/cancel',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      try {
+        await app.prisma.$executeRaw`
+          UPDATE broadcasts
+          SET status = 'cancelled',
+              updated_at = NOW(),
+              finished_at = COALESCE(finished_at, NOW())
+          WHERE id = ${id}
+            AND status IN ('scheduled', 'sending')
+        `;
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'broadcast.cancel',
+          targetType: 'broadcast',
+          targetId: id,
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (error) {
+        logger.error(error, 'Broadcast cancel failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /**
+   * GET /api/_x/broadcasts/:id/recipients
+   * Per-recipient delivery log for one broadcast. Limited to 200 rows
+   * to keep the UI responsive; recent first.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/_x/broadcasts/:id/recipients',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const rows = await app.prisma.$queryRaw<
+          Array<{
+            telegram_id: bigint;
+            status: string;
+            error: string | null;
+            attempted_at: Date;
+          }>
+        >(Prisma.sql`
+          SELECT telegram_id, status, error, attempted_at
+          FROM broadcast_recipients
+          WHERE broadcast_id = ${id}
+          ORDER BY attempted_at DESC
+          LIMIT 200
+        `);
+        return reply.send({
+          ok: true,
+          recipients: rows.map((r) => ({
+            telegramId: Number(r.telegram_id),
+            status: r.status,
+            error: r.error,
+            attemptedAt: r.attempted_at.getTime(),
+          })),
+        });
+      } catch (error) {
+        logger.error(error, 'Broadcast recipients fetch failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
   void isAdminTelegramId;
 }

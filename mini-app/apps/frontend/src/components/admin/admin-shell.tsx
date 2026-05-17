@@ -9,6 +9,7 @@ import {
   Gamepad2,
   Gauge,
   KeyRound,
+  Megaphone,
   Network,
   ShieldAlert,
   ScrollText,
@@ -69,6 +70,12 @@ const links: AdminLink[] = [
     label: 'Кошелёк',
     Icon: CreditCard,
     href: '/system/console/wallet',
+  },
+  {
+    id: 'broadcasts',
+    label: 'Рассылки',
+    Icon: Megaphone,
+    href: '/system/console/broadcasts',
   },
   {
     id: 'alerts',
