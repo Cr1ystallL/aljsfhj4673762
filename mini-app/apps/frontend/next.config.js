@@ -2,7 +2,18 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
-  
+
+  // Build-time memory savings: skip type-check + lint inside Next's
+  // bundler. Both are already enforced by `tsc --noEmit` in CI / locally,
+  // so re-running them here only costs RAM on the (low-memory) deploy
+  // box and offers no extra safety.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],

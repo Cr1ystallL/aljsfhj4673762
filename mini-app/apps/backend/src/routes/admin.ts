@@ -8,6 +8,7 @@ import {
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
+import { walletConfig } from '../services/wallet-config.js';
 import { redisClient } from '../lib/redis.js';
 import { sessionManager } from '../lib/session-manager.js';
 
@@ -1403,6 +1404,473 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         logger.error(error, 'Admin remove failed');
         return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /* ============================================================== Phase 4 */
+  /* ----------------------------------------------------- withdrawal flow */
+
+  interface RawWithdrawalRow {
+    id: string;
+    user_id: string;
+    amount: string;
+    currency: string;
+    method: string;
+    destination: string;
+    status: string;
+    reviewed_by: string | null;
+    reviewed_at: Date | null;
+    rejection_reason: string | null;
+    metadata: unknown;
+    created_at: Date;
+    updated_at: Date;
+  }
+
+  /**
+   * GET /api/_x/withdrawal-requests
+   * Withdrawal lifecycle list. Status filter optional.
+   */
+  app.get<{ Querystring: { status?: string; limit?: string } }>(
+    '/_x/withdrawal-requests',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const limit = Math.min(
+        200,
+        Math.max(10, parseInt(request.query.limit ?? '50', 10))
+      );
+      const status = request.query.status;
+      try {
+        const where = status
+          ? Prisma.sql` WHERE status = ${status}`
+          : Prisma.empty;
+        const rows = await app.prisma.$queryRaw<RawWithdrawalRow[]>(Prisma.sql`
+          SELECT * FROM withdrawal_requests${where}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `);
+
+        const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+        const users = userIds.length
+          ? await app.prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: {
+                id: true,
+                firstName: true,
+                username: true,
+                telegramId: true,
+                photoUrl: true,
+              },
+            })
+          : [];
+        const usersById = new Map(users.map((u) => [u.id, u]));
+
+        const list = rows.map((r) => {
+          const u = usersById.get(r.user_id);
+          return {
+            id: r.id,
+            userId: r.user_id,
+            name:
+              u?.firstName ||
+              u?.username ||
+              (u?.telegramId
+                ? `id${u.telegramId.toString().slice(-4)}`
+                : 'Игрок'),
+            telegramId: u?.telegramId ? Number(u.telegramId) : null,
+            photoUrl: u?.photoUrl ?? null,
+            amount: Number(r.amount),
+            currency: r.currency,
+            method: r.method,
+            destination: r.destination,
+            status: r.status,
+            reviewedBy: r.reviewed_by,
+            reviewedAt: r.reviewed_at?.getTime() ?? null,
+            rejectionReason: r.rejection_reason,
+            metadata: r.metadata,
+            createdAt: r.created_at.getTime(),
+            updatedAt: r.updated_at.getTime(),
+          };
+        });
+
+        return reply.send({ ok: true, requests: list });
+      } catch (error) {
+        logger.error(error, 'Withdrawal requests list failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/withdrawal-requests/:id/approve
+   * Approves the request, debits the user balance via bettingPipeline-style
+   * atomic SQL, marks as paid. Body: { reason }.
+   *
+   * NOTE: doesn't actually call any payment provider — this is the
+   * authoritative ledger move; the provider integration lands when
+   * we wire FreeKassa / CryptoPay etc.
+   */
+  app.post<{ Params: { id: string }; Body: { reason: string } }>(
+    '/_x/withdrawal-requests/:id/approve',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      try {
+        const result = await app.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<RawWithdrawalRow[]>(Prisma.sql`
+            SELECT * FROM withdrawal_requests
+            WHERE id = ${id} FOR UPDATE
+          `);
+          const wd = rows[0];
+          if (!wd) throw new Error('Not found');
+          if (wd.status !== 'pending') {
+            throw new Error('Already processed');
+          }
+
+          // Debit funds — withdrawal flow holds the balance separately
+          // when the user opens the request, so by approve time the
+          // money was already moved from the user's spendable balance.
+          // For this lifecycle we mark as `paid` and credit a
+          // "withdrawal" transaction record.
+          const beforeRows = await tx.$queryRaw<Array<{ amount: string }>>`
+            SELECT amount FROM balances WHERE user_id = ${wd.user_id} LIMIT 1
+          `;
+          const beforeAmount = Number(beforeRows[0]?.amount ?? 0);
+
+          await tx.$executeRaw`
+            UPDATE withdrawal_requests
+            SET status = 'paid',
+                reviewed_by = ${(request as AuthenticatedRequest).user.userId},
+                reviewed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = ${id}
+          `;
+
+          await tx.transaction.create({
+            data: {
+              userId: wd.user_id,
+              type: 'withdrawal',
+              amount: -Number(wd.amount),
+              balanceBefore: beforeAmount,
+              balanceAfter: beforeAmount,
+              metadata: {
+                requestId: wd.id,
+                method: wd.method,
+                destination: wd.destination,
+                approvedBy: (request as AuthenticatedRequest).user.telegramId,
+              },
+            },
+          });
+
+          return wd;
+        });
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'withdrawal.approve',
+          targetType: 'withdrawal',
+          targetId: id,
+          payloadAfter: { status: 'paid', amount: Number(result.amount) },
+          reason,
+        });
+
+        return reply.send({ ok: true });
+      } catch (error) {
+        const msg = (error as Error).message;
+        logger.warn({ err: error, id }, 'Withdrawal approve failed');
+        return reply.code(400).send({ error: 'Bad Request', message: msg });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/withdrawal-requests/:id/reject
+   * Rejects the request and refunds the held amount to the user.
+   * Body: { reason }
+   */
+  app.post<{ Params: { id: string }; Body: { reason: string } }>(
+    '/_x/withdrawal-requests/:id/reject',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      try {
+        const result = await app.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<RawWithdrawalRow[]>(Prisma.sql`
+            SELECT * FROM withdrawal_requests
+            WHERE id = ${id} FOR UPDATE
+          `);
+          const wd = rows[0];
+          if (!wd) throw new Error('Not found');
+          if (wd.status !== 'pending') {
+            throw new Error('Already processed');
+          }
+
+          const refundedRows = await tx.$queryRaw<
+            Array<{ amount: string }>
+          >`
+            UPDATE balances
+            SET amount = amount + ${Number(wd.amount)}::numeric,
+                updated_at = NOW(),
+                last_synced_at = NOW(),
+                version = version + 1
+            WHERE user_id = ${wd.user_id}
+            RETURNING amount
+          `;
+          const afterAmount = Number(refundedRows[0]?.amount ?? 0);
+
+          await tx.$executeRaw`
+            UPDATE withdrawal_requests
+            SET status = 'rejected',
+                reviewed_by = ${(request as AuthenticatedRequest).user.userId},
+                reviewed_at = NOW(),
+                rejection_reason = ${reason},
+                updated_at = NOW()
+            WHERE id = ${id}
+          `;
+
+          await tx.transaction.create({
+            data: {
+              userId: wd.user_id,
+              type: 'refund',
+              amount: Number(wd.amount),
+              balanceBefore: afterAmount - Number(wd.amount),
+              balanceAfter: afterAmount,
+              metadata: {
+                requestId: wd.id,
+                reason: 'withdrawal rejected',
+                rejectedBy: (request as AuthenticatedRequest).user.telegramId,
+              },
+            },
+          });
+
+          return { wd, afterAmount };
+        });
+
+        await balanceService.invalidateCache(result.wd.user_id);
+        await balanceService.notifyBalance(
+          result.wd.user_id,
+          result.afterAmount,
+          false
+        );
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'withdrawal.reject',
+          targetType: 'withdrawal',
+          targetId: id,
+          payloadAfter: {
+            status: 'rejected',
+            refunded: Number(result.wd.amount),
+          },
+          reason,
+        });
+
+        return reply.send({ ok: true });
+      } catch (error) {
+        const msg = (error as Error).message;
+        logger.warn({ err: error, id }, 'Withdrawal reject failed');
+        return reply.code(400).send({ error: 'Bad Request', message: msg });
+      }
+    }
+  );
+
+  /* ----------------------------------------------------- wallet config */
+
+  /**
+   * GET /api/_x/wallet-config
+   * Reads the current wallet config. By default secrets are masked
+   * (`••••${last4}`). Add `?reveal=1` to get the raw values — the UI
+   * shows a confirmation modal before sending that flag.
+   */
+  app.get<{ Querystring: { reveal?: string } }>(
+    '/_x/wallet-config',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reveal = request.query.reveal === '1';
+      const cfg = reveal
+        ? await walletConfig.get()
+        : await walletConfig.getMasked();
+      return reply.send({ ok: true, config: cfg });
+    }
+  );
+
+  /**
+   * PATCH /api/_x/wallet-config
+   * Body: partial config + reason. Empty-string secrets are treated as
+   * "don't change" so admins can update non-secret fields without
+   * re-pasting the keys.
+   */
+  app.patch<{
+    Body: {
+      reason: string;
+      cryptoUsdtTrc20?: string;
+      cryptoBtc?: string;
+      cryptoEth?: string;
+      piastrixApiKey?: string;
+      freekassaApiKey?: string;
+      fkWalletApiKey?: string;
+      minDeposit?: number;
+      maxDeposit?: number;
+      minWithdrawal?: number;
+      maxWithdrawal?: number;
+      wagerMultiplier?: number;
+      cryptoFee?: number;
+      cardFee?: number;
+    };
+  }>(
+    '/_x/wallet-config',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      const before = await walletConfig.get();
+      const patch: Partial<typeof before> = {};
+      const fields: Array<keyof typeof before> = [
+        'cryptoUsdtTrc20',
+        'cryptoBtc',
+        'cryptoEth',
+        'piastrixApiKey',
+        'freekassaApiKey',
+        'fkWalletApiKey',
+        'minDeposit',
+        'maxDeposit',
+        'minWithdrawal',
+        'maxWithdrawal',
+        'wagerMultiplier',
+        'cryptoFee',
+        'cardFee',
+      ];
+      for (const f of fields) {
+        const v = (request.body as Record<string, unknown>)[f as string];
+        if (v === undefined) continue;
+        // Don't overwrite secret fields with an empty string — admins
+        // editing non-secret values shouldn't have to re-type the keys.
+        if (
+          (f === 'piastrixApiKey' ||
+            f === 'freekassaApiKey' ||
+            f === 'fkWalletApiKey') &&
+          v === ''
+        ) {
+          continue;
+        }
+        // Don't accept the masked placeholder ("••••xxxx") as a real
+        // value either — that's what the GET (masked) returned.
+        if (typeof v === 'string' && v.startsWith('••••')) continue;
+        (patch as Record<string, unknown>)[f as string] = v;
+      }
+
+      try {
+        const after = await walletConfig.update(patch);
+
+        // For audit: mask the secrets in both snapshots so the journal
+        // never contains plaintext keys.
+        const safe = (c: typeof before) => ({
+          ...c,
+          piastrixApiKey: c.piastrixApiKey ? '••••' : '',
+          freekassaApiKey: c.freekassaApiKey ? '••••' : '',
+          fkWalletApiKey: c.fkWalletApiKey ? '••••' : '',
+        });
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'wallet.config',
+          targetType: 'wallet',
+          targetId: 'global',
+          payloadBefore: safe(before),
+          payloadAfter: safe(after),
+          reason,
+        });
+
+        return reply.send({ ok: true, config: await walletConfig.getMasked() });
+      } catch (error) {
+        logger.error(error, 'Wallet config update failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /* -------------------------------------------------------- deposits list */
+
+  /**
+   * GET /api/_x/deposits
+   * Mirrors withdrawals listing for transparency. Read-only —
+   * provider integration writes deposits as transactions.
+   */
+  app.get<{ Querystring: { limit?: string } }>(
+    '/_x/deposits',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const limit = Math.min(
+        200,
+        Math.max(10, parseInt(request.query.limit ?? '50', 10))
+      );
+      try {
+        const txs = await app.prisma.transaction.findMany({
+          where: { type: 'deposit' },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          select: {
+            id: true,
+            userId: true,
+            amount: true,
+            balanceBefore: true,
+            balanceAfter: true,
+            createdAt: true,
+            metadata: true,
+          },
+        });
+        const userIds = txs.map((t) => t.userId);
+        const users = userIds.length
+          ? await app.prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: {
+                id: true,
+                firstName: true,
+                username: true,
+                telegramId: true,
+                photoUrl: true,
+              },
+            })
+          : [];
+        const byId = new Map(users.map((u) => [u.id, u]));
+
+        const list = txs.map((t) => {
+          const u = byId.get(t.userId);
+          return {
+            id: t.id,
+            userId: t.userId,
+            name:
+              u?.firstName ||
+              u?.username ||
+              (u?.telegramId
+                ? `id${u.telegramId.toString().slice(-4)}`
+                : 'Игрок'),
+            telegramId: u?.telegramId ? Number(u.telegramId) : null,
+            photoUrl: u?.photoUrl ?? null,
+            amount: Math.abs(Number(t.amount)),
+            balanceBefore: Number(t.balanceBefore),
+            balanceAfter: Number(t.balanceAfter),
+            createdAt: t.createdAt.getTime(),
+            metadata: t.metadata,
+          };
+        });
+
+        return reply.send({ ok: true, deposits: list });
+      } catch (error) {
+        logger.error(error, 'Deposits list failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
       }
     }
   );

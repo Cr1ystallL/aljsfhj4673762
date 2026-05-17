@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  ArrowDownToLine,
   ChevronLeft,
+  CreditCard,
   Gamepad2,
   Gauge,
   KeyRound,
@@ -51,10 +53,22 @@ const links: AdminLink[] = [
     href: '/system/console/games',
   },
   {
+    id: 'deposits',
+    label: 'Депозиты',
+    Icon: ArrowDownToLine,
+    href: '/system/console/deposits',
+  },
+  {
     id: 'withdrawals',
     label: 'Выводы',
     Icon: Wallet,
     href: '/system/console/withdrawals',
+  },
+  {
+    id: 'wallet',
+    label: 'Кошелёк',
+    Icon: CreditCard,
+    href: '/system/console/wallet',
   },
   {
     id: 'alerts',

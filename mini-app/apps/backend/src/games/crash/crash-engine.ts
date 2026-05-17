@@ -338,7 +338,10 @@ export class CrashGameEngine extends BaseGameEngine {
     this.currentServerSeedHash = provablyFair.hashServerSeed(serverSeed);
 
     const round: GameRound = {
-      id: `crash_${Date.now()}_${nonce}`,
+      // Use a UUID suffix instead of `nonce` so a backend restart that
+      // lands within the same millisecond as a previous round can't
+      // produce a duplicate id (Prisma P2002).
+      id: `crash_${Date.now()}_${randomUUID().slice(0, 8)}`,
       gameId: this.gameId,
       state: 'waiting',
       startedAt: Date.now(),
