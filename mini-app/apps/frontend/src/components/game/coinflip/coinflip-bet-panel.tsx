@@ -1,7 +1,8 @@
 'use client';
 
 import { ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import type { CoinflipMode } from '@/lib/games/coinflip/types';
 
@@ -15,6 +16,12 @@ import type { CoinflipMode } from '@/lib/games/coinflip/types';
  *
  * Mirrors the layout from the design reference but built entirely out
  * of frosted-glass pills — no off-palette accents.
+ *
+ * The mode dropdown is rendered via a React portal anchored to the
+ * trigger button. Sibling cards below the panel (history, multiplier
+ * strip) all have their own backdrop-blur stacking contexts, which
+ * silently steal pointer events from any z-indexed child of the panel.
+ * Portaling lifts the menu into <body> where nothing can paint over it.
  */
 
 const MODE_LABEL: Record<CoinflipMode, string> = {
@@ -44,11 +51,61 @@ export function CoinflipBetPanel({
   locked = false,
 }: CoinflipBetPanelProps) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menuRect, setMenuRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   const halve = () =>
     onAmountChange(Math.max(minBet, +(amount / 2 || minBet).toFixed(2)));
   const dbl = () =>
     onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
+
+  /** Recompute menu placement on open + on viewport changes. */
+  useEffect(() => {
+    if (!open) {
+      setMenuRect(null);
+      return;
+    }
+    const place = () => {
+      const t = triggerRef.current;
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      setMenuRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
+
+  /** Close on outside click / Escape. */
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const t = triggerRef.current;
+      if (!t) return;
+      if (t.contains(e.target as Node)) return;
+      // Anything else outside both the button and the menu — close.
+      const menu = document.getElementById('coinflip-mode-menu');
+      if (menu && menu.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   return (
     <div className="relative rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl">
@@ -96,11 +153,12 @@ export function CoinflipBetPanel({
         </div>
 
         {/* Mode */}
-        <div className="px-4 py-3 relative">
+        <div className="px-4 py-3">
           <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
             Режим игры
           </span>
           <button
+            ref={triggerRef}
             type="button"
             onClick={() => !locked && setOpen((v) => !v)}
             disabled={locked}
@@ -118,11 +176,22 @@ export function CoinflipBetPanel({
               className={cn('transition-transform', open && 'rotate-180')}
             />
           </button>
+        </div>
+      </div>
 
-          {open && !locked && (
+      {/* Portal-rendered menu — escapes any backdrop-blur stacking context */}
+      {open && !locked && menuRect && typeof document !== 'undefined'
+        ? createPortal(
             <div
-              className="absolute left-3 right-3 top-full mt-1 z-50 rounded-card border border-white/15 backdrop-blur-2xl overflow-hidden shadow-2xl"
-              style={{ background: 'rgba(10, 10, 10, 0.96)' }}
+              id="coinflip-mode-menu"
+              style={{
+                position: 'fixed',
+                top: menuRect.top,
+                left: menuRect.left,
+                width: menuRect.width,
+                background: 'rgba(10, 10, 10, 0.96)',
+              }}
+              className="z-[1000] rounded-card border border-white/15 backdrop-blur-2xl overflow-hidden shadow-2xl"
             >
               {(['multiply', 'quick'] as CoinflipMode[]).map((k) => (
                 <button
@@ -139,10 +208,10 @@ export function CoinflipBetPanel({
                   {MODE_LABEL[k]}
                 </button>
               ))}
-            </div>
-          )}
-        </div>
-      </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

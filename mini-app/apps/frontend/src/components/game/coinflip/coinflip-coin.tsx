@@ -42,16 +42,6 @@ export function CoinflipCoin({
 }: CoinflipCoinProps) {
   return (
     <div className={cn('relative w-44 h-44 sm:w-52 sm:h-52', className)}>
-      {/* Soft halo */}
-      <div
-        aria-hidden
-        className="absolute inset-0 rounded-full blur-2xl opacity-50"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(255,172,46,0.45) 0%, transparent 70%)',
-        }}
-      />
-
       <AnimatePresence mode="wait">
         <motion.div
           key={flipKey}
@@ -77,8 +67,6 @@ export function CoinflipCoin({
             className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
             style={{
               backfaceVisibility: 'hidden',
-              boxShadow:
-                'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.18), 0 4px 24px rgba(255,172,46,0.20)',
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -96,8 +84,6 @@ export function CoinflipCoin({
             style={{
               transform: 'rotateY(180deg)',
               backfaceVisibility: 'hidden',
-              boxShadow:
-                'inset 0 -6px 16px rgba(0,0,0,0.35), inset 0 4px 10px rgba(255,255,255,0.15)',
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
