@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
-import { HelpButton } from '@/components/admin/help-button';
+import { Plus, X } from 'lucide-react';import { HelpButton } from '@/components/admin/help-button';
 
 /**
  * Admin → Broadcasts list.
@@ -96,7 +94,7 @@ export default function BroadcastsListPage() {
   };
 
   return (
-    <AdminShell title="Рассылки">
+    <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
@@ -214,6 +212,6 @@ export default function BroadcastsListPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

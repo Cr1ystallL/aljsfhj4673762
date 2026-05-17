@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
@@ -76,7 +75,7 @@ export default function SessionsPage() {
   };
 
   return (
-    <AdminShell title="Сессии">
+    <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
@@ -125,11 +124,11 @@ export default function SessionsPage() {
                       src={s.photoUrl}
                       alt={s.name}
                       referrerPolicy="no-referrer"
-                      className="w-9 h-9 rounded-pill border border-white/10 object-cover"
+                      className="w-12 h-12 rounded-pill border border-white/10 object-cover"
                       draggable={false}
                     />
                   ) : (
-                    <span className="w-9 h-9 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[12px]">
+                    <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[15px]">
                       {s.name.charAt(0).toUpperCase()}
                     </span>
                   )}
@@ -165,6 +164,6 @@ export default function SessionsPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

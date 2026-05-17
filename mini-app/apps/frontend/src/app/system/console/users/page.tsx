@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, ShieldAlert, Lock, ChevronRight } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
@@ -83,7 +82,7 @@ export default function UsersListPage() {
   );
 
   return (
-    <AdminShell title="Игроки">
+    <>
       <div className="flex flex-col gap-4">
         {/* Search + filter */}
         <div className="flex items-center gap-2">
@@ -171,11 +170,11 @@ export default function UsersListPage() {
                     src={u.photoUrl}
                     alt={u.name}
                     referrerPolicy="no-referrer"
-                    className="w-9 h-9 rounded-pill border border-white/10 object-cover"
+                    className="w-12 h-12 rounded-pill border border-white/10 object-cover"
                     draggable={false}
                   />
                 ) : (
-                  <span className="w-9 h-9 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[12px] text-frost-white">
+                  <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[15px] text-frost-white">
                     {u.name.charAt(0).toUpperCase()}
                   </span>
                 )}
@@ -250,6 +249,6 @@ export default function UsersListPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

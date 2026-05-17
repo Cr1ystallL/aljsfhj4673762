@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, ShieldAlert, Activity } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
-import { HelpButton } from '@/components/admin/help-button';
+import { AlertTriangle, ShieldAlert, Activity } from 'lucide-react';import { HelpButton } from '@/components/admin/help-button';
 
 /**
  * Admin → Anti-fraud alerts.
@@ -57,7 +55,7 @@ export default function AlertsPage() {
   }, []);
 
   return (
-    <AdminShell title="Алерты">
+    <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
@@ -134,7 +132,7 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }
 

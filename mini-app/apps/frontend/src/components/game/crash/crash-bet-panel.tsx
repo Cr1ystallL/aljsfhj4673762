@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Minus, Plus } from 'lucide-react';
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -50,7 +51,7 @@ interface CrashBetPanelProps {
   busy?: boolean;
 }
 
-export function CrashBetPanel({
+export const CrashBetPanel = memo(function CrashBetPanel({
   amount,
   onAmountChange,
   autoCashoutEnabled,
@@ -105,7 +106,7 @@ export function CrashBetPanel({
     onAutoCashoutChange(+(autoCashoutMultiplier + 0.1).toFixed(2));
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
+    <div className="rounded-card border border-white/10 bg-white/[0.04] overflow-hidden">
       {/* Row 1 — Stake + Auto cashout */}
       <div className="grid grid-cols-2 items-stretch">
         {/* Stake */}
@@ -200,7 +201,6 @@ export function CrashBetPanel({
         <motion.button
           onClick={onPrimary}
           disabled={ctaDisabled}
-          whileHover={!ctaDisabled ? { scale: 1.01 } : undefined}
           whileTap={!ctaDisabled ? { scale: 0.99 } : undefined}
           className={cn(
             'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors',
@@ -215,4 +215,4 @@ export function CrashBetPanel({
       </div>
     </div>
   );
-}
+});

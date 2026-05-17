@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Menu, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useNavStore } from '@/store/nav-store';
@@ -16,23 +17,23 @@ interface BottomNavigationProps {
 /**
  * Bottom Navigation — Monopo Saigon Style
  *
- * Frosted-glass bar floating just above the safe-area inset. Three pills:
- *
+ * Frosted bar floating above the safe-area inset. Three pills:
  *   - Menu   (left)   → opens the games drawer.
  *   - Play   (center) → primary action, raised slightly and washed in
  *     the brand Deep Ocean Gradient.
  *   - Account (right) → profile screen.
  *
- * Auto-hide: on game / balance pages the nav can be collapsed. Users
- * see a small grip handle at the bottom that pulls the bar back up
- * (tap or swipe). The state is held in `useNavStore` so the page can
- * decide whether to hide.
+ * Auto-hide: on game / balance pages the nav can be collapsed via the
+ * grip handle. Tap toggles it back. We deliberately removed the drag
+ * gesture from the previous revision because framer-motion's pointer
+ * tracking on the bar itself caused noticeable input latency on
+ * Telegram WebView when scrolling page content (every touchmove
+ * propagated through the drag handler).
  *
- * Drag-to-toggle: the handle and the nav itself respond to vertical
- * drags so the panel feels physical — same gesture you'd expect from
- * a mobile bottom sheet.
+ * Memoised — stable parent props means this component only re-renders
+ * when collapse state actually changes.
  */
-export function BottomNavigation({
+export const BottomNavigation = memo(function BottomNavigation({
   onMenuClick,
   onPlayClick,
   onProfileClick,
@@ -40,7 +41,9 @@ export function BottomNavigation({
   const pathname = usePathname();
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
 
-  const { hideable, collapsed, setCollapsed } = useNavStore();
+  const hideable = useNavStore((s) => s.hideable);
+  const collapsed = useNavStore((s) => s.collapsed);
+  const setCollapsed = useNavStore((s) => s.setCollapsed);
   const isCollapsed = hideable && collapsed;
 
   return (
@@ -48,9 +51,7 @@ export function BottomNavigation({
       className="fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none"
       aria-hidden={isCollapsed}
     >
-      {/* Grip handle — only on hideable pages, only when collapsed.
-          Wrap in a centring layer so the pill sits squarely above the
-          safe-area inset regardless of viewport width. */}
+      {/* Grip handle — only on hideable pages, only when collapsed. */}
       <AnimatePresence>
         {hideable && collapsed && (
           <motion.div
@@ -61,21 +62,15 @@ export function BottomNavigation({
             exit={{ opacity: 0, y: 12 }}
             transition={{ type: 'spring', damping: 26, stiffness: 320 }}
           >
-            <motion.button
+            <button
               type="button"
               onClick={() => setCollapsed(false)}
-              drag="y"
-              dragConstraints={{ top: -80, bottom: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(_, info) => {
-                if (info.offset.y < -16) setCollapsed(false);
-              }}
               aria-label="Показать меню"
-              className="pointer-events-auto inline-flex flex-col items-center gap-1 px-5 py-2 rounded-pill border border-white/15 bg-black/60 backdrop-blur-md text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors touch-none"
+              className="pointer-events-auto inline-flex flex-col items-center gap-1 px-5 py-2 rounded-pill border border-white/15 bg-black/70 text-frost-white/85 active:scale-95 transition-transform"
             >
               <ChevronUp size={14} strokeWidth={2} />
               <span className="block w-7 h-[3px] rounded-full bg-frost-white/45" />
-            </motion.button>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -88,17 +83,12 @@ export function BottomNavigation({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 96, opacity: 0 }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-            drag={hideable ? 'y' : false}
-            dragConstraints={{ top: 0, bottom: 80 }}
-            dragElastic={0.2}
-            onDragEnd={(_, info) => {
-              if (hideable && info.offset.y > 24) setCollapsed(true);
-            }}
-            className="relative mx-3 mb-3 pointer-events-auto touch-none"
+            className="relative mx-3 mb-3 pointer-events-auto"
+            style={{ willChange: 'transform' }}
           >
             <div
-              className="relative rounded-card border border-white/10 backdrop-blur-2xl"
-              style={{ background: 'rgba(0, 0, 0, 0.55)' }}
+              className="relative rounded-card border border-white/10"
+              style={{ background: 'rgba(0, 0, 0, 0.78)' }}
             >
               <div className="relative grid grid-cols-3 items-center px-2 py-1.5">
                 <NavItem
@@ -109,22 +99,24 @@ export function BottomNavigation({
 
                 {/* Center action — raised pill */}
                 <div className="flex items-start justify-center">
-                  <motion.button
+                  <button
                     onClick={onPlayClick}
                     aria-label="Играть"
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    className="-mt-7 relative"
+                    className="-mt-7 relative active:scale-95 transition-transform"
+                    style={{ willChange: 'transform' }}
                   >
-                    {/* Soft brand halo */}
+                    {/* Soft brand halo (kept on desktop, suppressed on
+                        mobile via the `mobile-no-blur` rule). */}
                     <span
-                      className="absolute inset-0 rounded-pill blur-xl opacity-60"
+                      aria-hidden
+                      className="mobile-no-blur absolute inset-0 rounded-pill opacity-60"
                       style={{
                         background:
                           'linear-gradient(135deg, rgba(160, 224, 171, 0.55), rgba(255, 172, 46, 0.50) 55%, rgba(165, 45, 37, 0.45))',
+                        filter: 'blur(16px)',
                       }}
                     />
-                    {/* Gradient pill — Deep Ocean as required by the brand */}
+                    {/* Gradient pill — brand Deep Ocean. */}
                     <span
                       className="relative w-14 h-14 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
                       style={{
@@ -150,7 +142,7 @@ export function BottomNavigation({
                     <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/70">
                       Играть
                     </span>
-                  </motion.button>
+                  </button>
                 </div>
 
                 <NavItem
@@ -166,9 +158,9 @@ export function BottomNavigation({
       </AnimatePresence>
     </div>
   );
-}
+});
 
-function NavItem({
+const NavItem = memo(function NavItem({
   icon,
   label,
   onClick,
@@ -180,18 +172,17 @@ function NavItem({
   active?: boolean;
 }) {
   return (
-    <motion.button
+    <button
       onClick={onClick}
-      whileTap={{ scale: 0.95 }}
       className={cn(
-        'flex flex-col items-center gap-1 py-1 transition-colors',
-        active ? 'text-frost-white' : 'text-frost-white/60 hover:text-frost-white'
+        'flex flex-col items-center gap-1 py-1 transition-colors active:scale-95',
+        active ? 'text-frost-white' : 'text-frost-white/60'
       )}
     >
       {icon}
       <span className="font-roobert text-[10px] uppercase tracking-[0.18em]">
         {label}
       </span>
-    </motion.button>
+    </button>
   );
-}
+});

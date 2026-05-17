@@ -60,10 +60,22 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     font-size: var(--text-body);
     line-height: var(--leading-body);
+    /* Disable rubber-band scrolling on iOS to remove the parallax shudder
+     * when reaching the top/bottom of a page in the Telegram WebView. */
+    overscroll-behavior-y: contain;
+    /* Prevent iOS Safari double-tap zoom on buttons / pills. */
+    touch-action: manipulation;
+    /* Use the GPU for any text we paint over moving content. */
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
   }
-  
+
   html {
-    scroll-behavior: smooth;
+    /* Smooth scroll causes visible jitter on iOS WebView when programmatic
+     * scrollIntoView fires alongside layout — keep it instant. */
+    scroll-behavior: auto;
+    /* Let the GPU composite scrolling content. */
+    -webkit-overflow-scrolling: touch;
   }
   
   body, h1, h2, h3, h4, h5, h6, p {
@@ -215,6 +227,25 @@
   .mobile-no-blur * {
     filter: none !important;
   }
+
+  /* Disable the gradient-shift keyframe — purely decorative and burns
+   * GPU cycles on phones. */
+  .animate-gradient {
+    animation: none !important;
+  }
+
+  /* Eliminate :hover-only state rules that still allocate paint layers
+   * on iOS. Touch devices use :active styling exclusively. */
+  *:hover {
+    transition-duration: 0s !important;
+  }
+}
+
+/* On any platform, mark long-lived animated layers as their own
+ * compositing layer so they don't re-paint sibling content. */
+.gpu-layer {
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* Reduced motion users get a static UI — no looping orbs, no continuous

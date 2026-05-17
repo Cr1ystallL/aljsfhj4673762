@@ -14,36 +14,63 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  // Production performance flags.
+  productionBrowserSourceMaps: false,
+  poweredByHeader: false,
+  compress: true,
+  reactProductionProfiling: false,
+
+  // Modular imports — drops Lucide / framer-motion bundle weight by
+  // resolving each named import to its own module path so unused icons
+  // never reach the client. Lucide ships ~1k icons; we use ~50.
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+      preventFullImport: true,
+    },
+  },
+
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'framer-motion',
+      '@telegram-apps/sdk-react',
+    ],
+  },
+
   // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200],
   },
-  
+
   // Environment variables exposed to browser
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
     NEXT_PUBLIC_BOT_USERNAME: process.env.NEXT_PUBLIC_BOT_USERNAME,
   },
-  
-  // Headers for security
+
+  // Headers for security + cache.
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+      // Hashed Next.js static assets are immutable — let the WebView
+      // keep them forever so cold starts after backgrounding don't
+      // re-download chunks.
+      {
+        source: '/_next/static/:path*',
+        headers: [
           {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },

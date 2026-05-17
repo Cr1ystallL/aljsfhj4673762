@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
@@ -100,7 +99,7 @@ export default function WithdrawalsPage() {
   };
 
   return (
-    <AdminShell title="Выводы">
+    <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -172,11 +171,11 @@ export default function WithdrawalsPage() {
                       src={w.photoUrl}
                       alt={w.name}
                       referrerPolicy="no-referrer"
-                      className="w-9 h-9 rounded-pill border border-white/10 object-cover"
+                      className="w-12 h-12 rounded-pill border border-white/10 object-cover"
                       draggable={false}
                     />
                   ) : (
-                    <span className="w-9 h-9 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[12px]">
+                    <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[15px]">
                       {w.name.charAt(0).toUpperCase()}
                     </span>
                   )}
@@ -238,6 +237,6 @@ export default function WithdrawalsPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

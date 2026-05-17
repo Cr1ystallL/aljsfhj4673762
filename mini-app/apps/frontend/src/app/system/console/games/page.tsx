@@ -1,9 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Save } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
-import { HelpButton } from '@/components/admin/help-button';
+import { ChevronDown, ChevronUp, Save } from 'lucide-react';import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 
 /**
@@ -70,21 +68,21 @@ export default function GamesAdminPage() {
 
   if (error) {
     return (
-      <AdminShell title="Игры">
+      <>
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
           Не удалось загрузить настройки.
         </div>
-      </AdminShell>
+      </>
     );
   }
 
   if (!data) {
     return (
-      <AdminShell title="Игры">
+      <>
         <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
           <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
         </div>
-      </AdminShell>
+      </>
     );
   }
 
@@ -96,7 +94,7 @@ export default function GamesAdminPage() {
   );
 
   return (
-    <AdminShell title="Игры">
+    <>
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between px-1">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
@@ -133,7 +131,7 @@ export default function GamesAdminPage() {
           />
         ))}
       </div>
-    </AdminShell>
+    </>
   );
 }
 

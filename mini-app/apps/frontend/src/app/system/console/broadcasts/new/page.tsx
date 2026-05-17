@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Trash2, Plus } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
-import { HelpButton } from '@/components/admin/help-button';
+import { Send, Trash2, Plus } from 'lucide-react';import { HelpButton } from '@/components/admin/help-button';
 
 /**
  * Admin → Broadcast composer.
@@ -152,7 +150,7 @@ export default function NewBroadcastPage() {
   };
 
   return (
-    <AdminShell title="Новая рассылка">
+    <>
       <div className="flex flex-col gap-5">
         {/* Message */}
         <Section
@@ -478,7 +476,7 @@ export default function NewBroadcastPage() {
           </div>
         </div>
       </div>
-    </AdminShell>
+    </>
   );
 }
 

@@ -52,7 +52,7 @@ const DEFAULT_SLOT: SlotConfig = {
 
 export default function CrashGamePage() {
   const { balance } = useBalance();
-  const { snapshot, userId } = useCrashLive();
+  const { snapshot, stream, userId } = useCrashLive();
 
   const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
     { ...DEFAULT_SLOT },
@@ -259,14 +259,14 @@ export default function CrashGamePage() {
         <CrashHistoryStrip history={snapshot.history} />
 
         <CrashStage
+          stream={stream}
           phase={snapshot.phase}
-          multiplier={snapshot.displayMultiplier}
           countdown={snapshot.countdown}
           waitingEndsAt={snapshot.waitingEndsAt}
-          graphPoints={snapshot.graphPoints}
           serverSeedHash={snapshot.serverSeedHash}
           latencyMs={snapshot.latencyMs}
           connected={snapshot.connected}
+          lastCrashPoint={snapshot.lastCrashPoint}
         />
 
         <div className="flex flex-col gap-2.5">
@@ -298,7 +298,7 @@ export default function CrashGamePage() {
                 })
               }
               slotPhase={runtime[slot].phase}
-              multiplier={snapshot.displayMultiplier}
+              multiplier={snapshot.serverMultiplier}
               bettingClosed={bettingClosed}
               minBet={minBet}
               maxBet={maxBet}

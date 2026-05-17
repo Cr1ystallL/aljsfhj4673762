@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AdminShell } from '@/components/admin/admin-shell';
-import { HelpButton } from '@/components/admin/help-button';
+import { useEffect, useState } from 'react';import { HelpButton } from '@/components/admin/help-button';
 
 /**
  * Admin → Audit log.
@@ -62,7 +60,7 @@ export default function AuditPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / 50)) : 1;
 
   return (
-    <AdminShell title="Аудит">
+    <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
@@ -160,6 +158,6 @@ export default function AuditPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

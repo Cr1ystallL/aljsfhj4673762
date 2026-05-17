@@ -101,7 +101,7 @@ export default function ProfilePage() {
               }}
             />
             <div
-              className="pointer-events-none absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
+              className="mobile-no-blur pointer-events-none absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
               style={{
                 background:
                   'radial-gradient(circle, rgba(165, 45, 37, 0.22) 0%, transparent 70%)',
@@ -112,7 +112,7 @@ export default function ProfilePage() {
             <div className="relative px-5 pt-7 pb-5 flex flex-col items-center text-center">
               {/* Avatar */}
               <div className="relative">
-                <div className="absolute -inset-3 rounded-full opacity-50 blur-2xl"
+                <div className="mobile-no-blur absolute -inset-3 rounded-full opacity-50 blur-2xl"
                   style={{
                     background:
                       'radial-gradient(circle, rgba(160, 224, 171, 0.35) 0%, transparent 70%)',
@@ -158,7 +158,12 @@ export default function ProfilePage() {
                 </button>
               )}
 
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => router.push('/balance')}
+                aria-label="Открыть кошелёк"
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md hover:bg-white/[0.07] hover:border-white/25 active:scale-95 transition-all"
+              >
                 <Wallet
                   size={13}
                   className="text-frost-white/70"
@@ -173,7 +178,12 @@ export default function ProfilePage() {
                 <span className="text-whisper-gray text-[11px] font-roobert">
                   zł
                 </span>
-              </div>
+                <ChevronRight
+                  size={12}
+                  className="text-frost-white/50 -mr-0.5"
+                  strokeWidth={1.8}
+                />
+              </button>
             </div>
           </motion.section>
 

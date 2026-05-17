@@ -12,7 +12,6 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
 import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 
@@ -212,21 +211,21 @@ export default function UserDetailPage() {
 
   if (error) {
     return (
-      <AdminShell title="Игрок">
+      <>
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
           Игрок не найден.
         </div>
-      </AdminShell>
+      </>
     );
   }
 
   if (!data) {
     return (
-      <AdminShell title="Игрок">
+      <>
         <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
           <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
         </div>
-      </AdminShell>
+      </>
     );
   }
 
@@ -234,7 +233,7 @@ export default function UserDetailPage() {
   const initials = (u.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
-    <AdminShell title={u.firstName || u.username || 'Игрок'}>
+    <>
       <div className="flex flex-col gap-5">
         {/* Identity card */}
         <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
@@ -542,9 +541,10 @@ export default function UserDetailPage() {
                 </h3>
                 <button
                   onClick={() => !busy && setAction(null)}
-                  className="w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80"
+                  aria-label="Закрыть"
+                  className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform"
                 >
-                  <X size={14} strokeWidth={1.8} />
+                  <X size={18} strokeWidth={1.8} />
                 </button>
               </div>
 
@@ -593,7 +593,7 @@ export default function UserDetailPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </AdminShell>
+    </>
   );
 }
 

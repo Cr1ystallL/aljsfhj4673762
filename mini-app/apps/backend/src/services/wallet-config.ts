@@ -4,62 +4,41 @@ import { logger } from '../utils/logger.js';
 /**
  * Wallet / payments configuration.
  *
- * Stored in Redis. The actual provider keys aren't sent to the
- * frontend wholesale — we mask them on read (`••••${last4}`) and only
- * the `reveal=true` flag (admin-only) returns the full string.
+ * Persisted in Redis under the `wallet_config` key. Only operational
+ * knobs the operator actually needs to tune live in here:
+ *
+ *   - Deposit / withdrawal limits.
+ *   - Wager (turnover) multiplier — required play-through before a
+ *     withdrawal request is honoured.
+ *
+ * Crypto addresses, provider API keys and per-method commissions are
+ * not stored here — they were dropped from the admin UI on the user's
+ * request because they leaked credentials and confused operators. If
+ * a future provider integration needs a key, it goes into the .env
+ * file (or an HSM) — not the live config.
  */
-
 export interface WalletConfig {
-  // Crypto receive addresses
-  cryptoUsdtTrc20: string;
-  cryptoBtc: string;
-  cryptoEth: string;
-
-  // Provider API keys (encrypted at rest is a future enhancement —
-  // for now they sit in Redis behind the admin gate).
-  piastrixApiKey: string;
-  freekassaApiKey: string;
-  fkWalletApiKey: string;
-
-  // Limits
+  /** Minimum deposit per request. */
   minDeposit: number;
+  /** Maximum deposit per request. */
   maxDeposit: number;
+  /** Minimum withdrawal per request. */
   minWithdrawal: number;
+  /** Maximum withdrawal per request. */
   maxWithdrawal: number;
-
-  // Wager requirement multiplier — withdrawals refuse if turnover
-  // since last deposit < deposit × wagerMultiplier.
+  /** Required wager multiplier vs deposit before withdrawal. */
   wagerMultiplier: number;
-
-  // Comissions (percent, 0..1).
-  cryptoFee: number;
-  cardFee: number;
 }
 
 const DEFAULTS: WalletConfig = {
-  cryptoUsdtTrc20: '',
-  cryptoBtc: '',
-  cryptoEth: '',
-  piastrixApiKey: '',
-  freekassaApiKey: '',
-  fkWalletApiKey: '',
   minDeposit: 10,
   maxDeposit: 100000,
   minWithdrawal: 50,
   maxWithdrawal: 100000,
   wagerMultiplier: 1,
-  cryptoFee: 0,
-  cardFee: 0.025,
 };
 
 const KEY = 'wallet_config';
-
-/** Mask helpers — show only the last 4 chars of secrets. */
-function mask(value: string): string {
-  if (!value) return '';
-  if (value.length <= 4) return '••••';
-  return `••••${value.slice(-4)}`;
-}
 
 class WalletConfigService {
   async get(): Promise<WalletConfig> {
@@ -67,7 +46,16 @@ class WalletConfigService {
       const raw = await redisClient.getClient().get(KEY);
       if (!raw) return { ...DEFAULTS };
       const parsed = JSON.parse(raw) as Partial<WalletConfig>;
-      return { ...DEFAULTS, ...parsed };
+      // Strip any legacy fields that may still live in Redis from older
+      // deployments (cryptoUsdtTrc20, *ApiKey, *Fee). They're ignored
+      // server-side too; the spread just picks our known keys.
+      return {
+        minDeposit: numOr(parsed.minDeposit, DEFAULTS.minDeposit),
+        maxDeposit: numOr(parsed.maxDeposit, DEFAULTS.maxDeposit),
+        minWithdrawal: numOr(parsed.minWithdrawal, DEFAULTS.minWithdrawal),
+        maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
+        wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
+      };
     } catch (err) {
       logger.warn({ err }, 'Failed to read wallet config; using defaults');
       return { ...DEFAULTS };
@@ -75,18 +63,13 @@ class WalletConfigService {
   }
 
   /**
-   * Returns the config with all secret-flavoured fields masked. Use
-   * this for the "view" UI — `getRaw()` is reserved for the explicit
-   * "Раскрыть" admin action that pops a confirmation.
+   * Backwards-compatible alias for the masked-read entry point. There
+   * are no longer any secret-flavoured fields, so this returns the
+   * plain config — kept on the surface so the admin route stays
+   * unchanged.
    */
   async getMasked(): Promise<WalletConfig> {
-    const cfg = await this.get();
-    return {
-      ...cfg,
-      piastrixApiKey: mask(cfg.piastrixApiKey),
-      freekassaApiKey: mask(cfg.freekassaApiKey),
-      fkWalletApiKey: mask(cfg.fkWalletApiKey),
-    };
+    return this.get();
   }
 
   async update(patch: Partial<WalletConfig>): Promise<WalletConfig> {
@@ -102,10 +85,6 @@ class WalletConfigService {
     }
     if (next.wagerMultiplier < 0) next.wagerMultiplier = 0;
     if (next.wagerMultiplier > 100) next.wagerMultiplier = 100;
-    if (next.cryptoFee < 0) next.cryptoFee = 0;
-    if (next.cryptoFee > 0.5) next.cryptoFee = 0.5;
-    if (next.cardFee < 0) next.cardFee = 0;
-    if (next.cardFee > 0.5) next.cardFee = 0.5;
 
     try {
       await redisClient.getClient().set(KEY, JSON.stringify(next));
@@ -119,6 +98,11 @@ class WalletConfigService {
   defaults(): WalletConfig {
     return { ...DEFAULTS };
   }
+}
+
+function numOr(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 export const walletConfig = new WalletConfigService();

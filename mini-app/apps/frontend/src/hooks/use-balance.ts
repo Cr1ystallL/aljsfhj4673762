@@ -8,19 +8,24 @@ import { apiClient } from '@/lib/api/client';
  * The same `balances` row is shared between the Python Telegram bot and
  * the Node backend, so the figure rendered here always matches what the
  * user sees in the bot. There is no demo balance.
+ *
+ * Selector-aware: each callback uses `useBalanceStore.getState()` so this
+ * hook itself doesn't subscribe to the whole store. Pages that only need
+ * the balance value should select it explicitly via `useBalanceStore(
+ * (s) => s.balance)` to avoid re-rendering on `isLoading` flips.
  */
 export function useBalance() {
-  const { balance, isLoading, setBalance, setLoading, updateBalance } =
-    useBalanceStore();
+  const balance = useBalanceStore((s) => s.balance);
+  const isLoading = useBalanceStore((s) => s.isLoading);
 
   const fetchBalance = useCallback(async () => {
-    setLoading(true);
+    const store = useBalanceStore.getState();
+    store.setLoading(true);
     try {
       const response = await apiClient.get<{
         balance: { amount: number; currency: string };
       }>(`/api/balance`);
-
-      setBalance({
+      store.setBalance({
         userId: '',
         amount: response.balance.amount,
         currency: response.balance.currency,
@@ -30,21 +35,16 @@ export function useBalance() {
     } catch (error) {
       console.error('Failed to fetch balance:', error);
     } finally {
-      setLoading(false);
+      store.setLoading(false);
     }
-  }, [setBalance, setLoading]);
+  }, []);
 
-  /**
-   * Force a re-read from the shared DB. Useful right after the bot or the
-   * mini-app makes a write that we want reflected immediately.
-   */
   const syncBalance = useCallback(async () => {
     try {
       const response = await apiClient.post<{
         balance: { amount: number; currency: string };
       }>('/api/balance/sync', {});
-
-      setBalance({
+      useBalanceStore.getState().setBalance({
         userId: '',
         amount: response.balance.amount,
         currency: response.balance.currency,
@@ -54,19 +54,13 @@ export function useBalance() {
     } catch (error) {
       console.error('Failed to sync balance:', error);
     }
-  }, [setBalance]);
+  }, []);
 
-  /**
-   * Optimistic local-only adjustment. The WS broadcast or REST refresh
-   * will reconcile shortly.
-   */
-  const optimisticUpdate = useCallback(
-    (delta: number) => {
-      if (!balance) return;
-      updateBalance(balance.amount + delta);
-    },
-    [balance, updateBalance]
-  );
+  const optimisticUpdate = useCallback((delta: number) => {
+    const cur = useBalanceStore.getState().balance;
+    if (!cur) return;
+    useBalanceStore.getState().updateBalance(cur.amount + delta);
+  }, []);
 
   return {
     balance,

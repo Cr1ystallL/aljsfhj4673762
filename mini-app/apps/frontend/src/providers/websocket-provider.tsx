@@ -9,42 +9,49 @@ import type { WSMessage } from '@casino/shared';
 
 /**
  * WebSocket Provider
- * Manages WebSocket connection and real-time updates
- * 
- * CRITICAL: Handles balance sync and reconnection
+ *
+ * Manages a single shared WebSocket connection used for cross-page
+ * messages (balance updates etc). Per-game streams (e.g. crash live
+ * stream) own their own sockets — this one is just the catch-all.
+ *
+ * Optimisation note: previously the effect listed the entire `user`
+ * object plus several store actions in its dependency array, which made
+ * React tear down and recreate the connection any time auth-store mutated
+ * a single field. We now key purely on the immutable session id +
+ * primary key (user.id) and pull store actions imperatively via
+ * `getState()` so the connection survives unrelated re-renders.
  */
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
-  const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
+  const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(
+    null
+  );
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { user, isAuthenticated, sessionId } = useAuthStore();
-  const { setBalance } = useBalanceStore();
-  const { setStatus, setError, incrementReconnectAttempts, resetReconnectAttempts } = useWebSocketStore();
+
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const sessionId = useAuthStore((s) => s.sessionId);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
 
   useEffect(() => {
-    if (!isAuthenticated || !user || !sessionId) {
-      return;
-    }
+    if (!isAuthenticated || !sessionId || !userId) return;
 
-    // The frontend env var (NEXT_PUBLIC_WS_URL) may already include the
-    // trailing `/ws` path (as it does on production behind nginx). Append
-    // `/ws` only when it isn't there yet — same logic as useCrashLive.
     const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
     const base = baseRaw.replace(/\/$/, '');
     const wsUrl = /\/ws$/.test(base) ? base : `${base}/ws`;
     const ws = createAuthenticatedWebSocket(wsUrl);
     wsRef.current = ws;
 
-    // Connect and authenticate
-    const connect = async () => {
-      try {
-        setStatus('connecting');
-        
-        await ws.connectAuthenticated(sessionId);
-        setStatus('connected');
-        setError(null);
-        resetReconnectAttempts();
+    let cancelled = false;
 
-        // Listen for balance updates
+    const connect = async () => {
+      const wsStore = useWebSocketStore.getState();
+      try {
+        wsStore.setStatus('connecting');
+        await ws.connectAuthenticated(sessionId);
+        if (cancelled) return;
+        wsStore.setStatus('connected');
+        wsStore.setError(null);
+        wsStore.resetReconnectAttempts();
+
         ws.onMessage((message: WSMessage) => {
           if (message.type === 'balance_update') {
             const payload = message.payload as {
@@ -53,9 +60,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               demoMode: boolean;
               timestamp: number;
             };
-
-            setBalance({
-              userId: user.id,
+            useBalanceStore.getState().setBalance({
+              userId,
               amount: payload.amount,
               currency: payload.currency,
               demoMode: payload.demoMode,
@@ -64,41 +70,37 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-        // Handle disconnection
         ws.onDisconnect(() => {
-          setStatus('reconnecting');
-          incrementReconnectAttempts();
-          
-          // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
-          const delay = Math.min(1000 * Math.pow(2, useWebSocketStore.getState().reconnectAttempts), 30000);
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, delay);
+          if (cancelled) return;
+          const s = useWebSocketStore.getState();
+          s.setStatus('reconnecting');
+          s.incrementReconnectAttempts();
+          const attempts = useWebSocketStore.getState().reconnectAttempts;
+          const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
+          reconnectTimeoutRef.current = setTimeout(() => connect(), delay);
         });
       } catch (error) {
-        setStatus('error');
-        setError(error instanceof Error ? error.message : 'Connection failed');
-        incrementReconnectAttempts();
-        
-        // Retry with exponential backoff
-        const delay = Math.min(1000 * Math.pow(2, useWebSocketStore.getState().reconnectAttempts), 30000);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, delay);
+        if (cancelled) return;
+        const s = useWebSocketStore.getState();
+        s.setStatus('error');
+        s.setError(error instanceof Error ? error.message : 'Connection failed');
+        s.incrementReconnectAttempts();
+        const attempts = useWebSocketStore.getState().reconnectAttempts;
+        const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
+        reconnectTimeoutRef.current = setTimeout(() => connect(), delay);
       }
     };
 
     connect();
 
     return () => {
+      cancelled = true;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
       ws.disconnect();
     };
-  }, [isAuthenticated, user, sessionId, setBalance, setStatus, setError, incrementReconnectAttempts, resetReconnectAttempts]);
+  }, [isAuthenticated, sessionId, userId]);
 
   return <>{children}</>;
 }

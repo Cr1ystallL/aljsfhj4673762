@@ -46,9 +46,9 @@ export function HelpButton({
           'inline-flex items-center justify-center rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/65 hover:text-frost-white hover:border-white/25 transition-colors',
           className
         )}
-        style={{ width: size + 8, height: size + 8 }}
+        style={{ width: size + 12, height: size + 12 }}
       >
-        <HelpCircle size={size - 2} strokeWidth={1.7} />
+        <HelpCircle size={size} strokeWidth={1.7} />
       </button>
 
       <AnimatePresence>
@@ -81,12 +81,12 @@ export function HelpButton({
                 <button
                   onClick={() => setOpen(false)}
                   aria-label="Закрыть"
-                  className="w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors shrink-0"
+                  className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors shrink-0"
                 >
-                  <X size={14} strokeWidth={1.8} />
+                  <X size={18} strokeWidth={1.8} />
                 </button>
               </div>
-              <div className="font-roobert text-[13px] text-frost-white/85 leading-relaxed space-y-2">
+              <div className="font-roobert text-[14px] text-frost-white/85 leading-relaxed space-y-2">
                 {children}
               </div>
             </motion.div>

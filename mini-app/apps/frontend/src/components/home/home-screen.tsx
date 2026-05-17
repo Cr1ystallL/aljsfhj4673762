@@ -1,6 +1,5 @@
 ﻿'use client';
 
-import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Send, Sparkles, Wallet } from 'lucide-react';
@@ -147,10 +146,9 @@ export function HomeScreen() {
         </header>
 
         {/* Hero — featured game */}
-        <motion.button
+        <button
           onClick={() => router.push('/game/crash')}
-          whileTap={{ scale: 0.99 }}
-          className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] text-left"
+          className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] text-left active:scale-[0.99] transition-transform"
         >
           <div
             aria-hidden
@@ -173,21 +171,17 @@ export function HomeScreen() {
               </span>
             </div>
           </div>
-        </motion.button>
+        </button>
 
         {/* Section caption — Игры */}
         <SectionLabel right={`${inAppGames.length}`}>Игры</SectionLabel>
 
         <div className="grid grid-cols-2 gap-3">
           {inAppGames.map((g, i) => (
-            <motion.button
+            <button
               key={g.id}
               onClick={() => router.push(g.href)}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
-              whileTap={{ scale: 0.98 }}
-              className="group relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] aspect-[5/6] text-left"
+              className="group relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] aspect-[5/6] text-left active:scale-[0.98] transition-transform"
             >
               <div
                 aria-hidden
@@ -207,7 +201,7 @@ export function HomeScreen() {
                   {g.name}
                 </div>
               </div>
-            </motion.button>
+            </button>
           ))}
         </div>
 
@@ -215,17 +209,13 @@ export function HomeScreen() {
         <SectionLabel right={`${botGames.length}`}>Игры в боте</SectionLabel>
 
         <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-          {botGames.map((g, i) => (
-            <motion.button
+          {botGames.map((g) => (
+            <button
               key={g.id}
               onClick={() =>
                 openTelegram(`https://t.me/${BOT_USERNAME}?start=${g.command}`)
               }
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.025 }}
-              whileTap={{ scale: 0.97 }}
-              className="relative aspect-square rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors flex flex-col items-center justify-center gap-1.5"
+              className="relative aspect-square rounded-card border border-white/10 bg-white/[0.03] active:bg-white/[0.06] active:scale-[0.97] transition-all flex flex-col items-center justify-center gap-1.5"
             >
               <g.Icon
                 size={22}
@@ -238,7 +228,7 @@ export function HomeScreen() {
               <span className="absolute top-1.5 right-1.5 text-frost-white/35">
                 <Send size={9} strokeWidth={1.8} />
               </span>
-            </motion.button>
+            </button>
           ))}
         </div>
 
@@ -298,10 +288,9 @@ function QuickAction({
   onClick: () => void;
 }) {
   return (
-    <motion.button
+    <button
       onClick={onClick}
-      whileTap={{ scale: 0.98 }}
-      className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-4 text-left flex items-start gap-3"
+      className="rounded-card border border-white/10 bg-white/[0.03] active:bg-white/[0.06] active:scale-[0.98] transition-all px-4 py-4 text-left flex items-start gap-3"
     >
       <span className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85 shrink-0">
         {icon}
@@ -314,7 +303,7 @@ function QuickAction({
           {sublabel}
         </div>
       </div>
-    </motion.button>
+    </button>
   );
 }
 

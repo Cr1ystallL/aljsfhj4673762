@@ -33,25 +33,23 @@ export function ComingSoon({ game, title, description }: ComingSoonProps) {
             'radial-gradient(120% 100% at 50% 100%, rgba(165, 45, 37, 0.32) 0%, rgba(255, 172, 46, 0.16) 35%, rgba(160, 224, 171, 0.10) 65%, transparent 85%)',
         }}
       />
-      <motion.div
-        className="pointer-events-none absolute -top-20 -left-20 w-72 h-72 rounded-full"
+      <div
+        aria-hidden
+        className="mobile-no-blur pointer-events-none absolute -top-20 -left-20 w-72 h-72 rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(160, 224, 171, 0.22) 0%, transparent 70%)',
           filter: 'blur(60px)',
         }}
-        animate={{ x: [0, 24, 0], y: [0, 18, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
       />
-      <motion.div
-        className="pointer-events-none absolute -bottom-24 -right-20 w-80 h-80 rounded-full"
+      <div
+        aria-hidden
+        className="mobile-no-blur pointer-events-none absolute -bottom-24 -right-20 w-80 h-80 rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(255, 172, 46, 0.18) 0%, transparent 70%)',
           filter: 'blur(70px)',
         }}
-        animate={{ x: [0, -22, 0], y: [0, -18, 0] }}
-        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
       />
 
       <div className="relative mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-6">

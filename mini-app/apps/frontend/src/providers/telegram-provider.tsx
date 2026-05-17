@@ -6,20 +6,14 @@ import { useTelegramAuth } from '@/hooks/use-telegram-auth';
 
 /**
  * Telegram Mini Apps SDK Provider
- * Initializes Telegram WebApp SDK and provides context
+ *
+ * Initialises the Telegram WebApp SDK and propagates auth state through
+ * `useTelegramAuth`. We deliberately render children immediately on the
+ * server pass and rely on the SDK to attach on the client — the previous
+ * implementation gated the entire tree on a "mounted" flag which caused
+ * a visible flash of "Loading..." even on a warm cache.
  */
 export function TelegramProvider({ children }: { children: React.ReactNode }) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Prevent SSR issues
-  if (!isMounted) {
-    return <>{children}</>;
-  }
-
   return (
     <SDKProvider acceptCustomStyles>
       <TelegramInitializer>{children}</TelegramInitializer>
@@ -27,48 +21,43 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Initialize Telegram WebApp features
- */
 function TelegramInitializer({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState(false);
-  
-  // Initialize Telegram authentication
+  const [bootstrapped, setBootstrapped] = useState(false);
   const { isAuthenticating, error: authError } = useTelegramAuth();
 
   useEffect(() => {
-    // Initialize Telegram WebApp
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      const tg = window.Telegram.WebApp;
-      
-      // Expand to full height
-      tg.expand();
-      
-      // Enable closing confirmation
-      tg.enableClosingConfirmation();
-      
-      // Set header color
-      tg.setHeaderColor('#000000');
-      tg.setBackgroundColor('#000000');
-      
-      setIsReady(true);
-    } else {
-      // Development mode without Telegram
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Telegram WebApp not available - running in development mode');
+    if (typeof window === 'undefined') return;
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      try {
+        tg.expand();
+        tg.enableClosingConfirmation();
+        tg.setHeaderColor('#000000');
+        tg.setBackgroundColor('#000000');
+        tg.ready?.();
+      } catch {
+        // SDK methods occasionally throw on older clients — swallow
+        // because failure to enable closing confirmation should not
+        // gate the UI.
       }
-      setIsReady(true);
+    } else if (process.env.NODE_ENV === 'development') {
+      // Dev outside Telegram — keep going.
+      console.warn(
+        'Telegram WebApp not available — running without the SDK'
+      );
     }
+    setBootstrapped(true);
   }, []);
 
-  if (!isReady) {
+  if (!bootstrapped) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted">
-          {isAuthenticating ? 'Authenticating...' : 'Loading...'}
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2">
+        <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
         {authError && (
-          <div className="text-red-500 text-sm mt-2">{authError}</div>
+          <div className="text-red-500 text-xs">{authError}</div>
+        )}
+        {isAuthenticating && (
+          <div className="text-whisper-gray text-xs">Authenticating…</div>
         )}
       </div>
     );
@@ -77,7 +66,6 @@ function TelegramInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Extend Window interface for Telegram WebApp
 declare global {
   interface Window {
     Telegram?: {

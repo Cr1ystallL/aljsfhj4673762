@@ -5,15 +5,28 @@ import { EventEmitter } from 'events';
 /**
  * Crash Live Stream
  *
- * A self-contained WebSocket client for the live multiplayer crash game.
- * It handles:
- *   - Connecting & authenticating against the Fastify WS endpoint.
- *   - Joining the global crash room.
- *   - Measuring round-trip latency (pings every 1s — the "213 ms" pill).
- *   - Smooth 60fps multiplier interpolation between 100ms server ticks.
- *   - Aggregating round state (phase, multiplier, players, history, hash, …).
+ * Self-contained WebSocket client for the live multiplayer crash game.
+ * Owns:
+ *   - WS connect / authenticate / room-join.
+ *   - 1Hz round-trip latency probes.
+ *   - Smooth multiplier interpolation between 100ms server ticks.
+ *   - Reconciliation poll (REST snapshot every 2.5s as a safety net).
  *
- * Consumers subscribe via .on('state', cb) and receive an immutable snapshot.
+ * State is split into two channels to keep mobile WebViews at 60fps:
+ *
+ *   - SLOW snapshot (`getSnapshot()` + `'state'` event) — phase, history,
+ *     stats, players, hash, latency, connected. Updated only when one of
+ *     these actually changes. React subscribes here; an unchanged event
+ *     never re-renders the page.
+ *
+ *   - FAST snapshot (`getFast()` + `'tick'` event) — displayMultiplier
+ *     and graphPoints. Updated up to 60×/s during an active round, but
+ *     the canvas-drawing component reads it directly from `getFast()`
+ *     inside its own rAF loop. No React re-renders are triggered here.
+ *
+ * The split is the single largest win on iPhone / Android Telegram —
+ * before, every interpolation tick caused a full page re-render
+ * (CrashStage, both bet panels, player feed, stats, history strip).
  */
 
 export type CrashPhase =
@@ -42,14 +55,11 @@ export interface CrashLivePlayer {
   status: 'active' | 'cashed' | 'lost';
 }
 
+/** Slow-channel snapshot consumed by React. */
 export interface CrashLiveSnapshot {
   phase: CrashPhase;
-  /** Multiplier we render on screen (interpolated). */
-  displayMultiplier: number;
-  /** Last server-confirmed multiplier. */
+  /** Last server-confirmed multiplier (snapshot only — see `getFast()` for live). */
   serverMultiplier: number;
-  /** Curve points (time ms, mult). */
-  graphPoints: Array<{ time: number; multiplier: number }>;
   /** Countdown in seconds (during 'starting' phase). */
   countdown: number | null;
   /** End-of-betting timestamp during 'waiting' phase (ms epoch). */
@@ -66,8 +76,16 @@ export interface CrashLiveSnapshot {
   players: CrashLivePlayer[];
   /** Per-room totals: distinct players + total wagered. */
   stats: { playerCount: number; totalWagered: number; betsCount: number };
-  /** Crash multiplier announced by the server (only set in 'completed' phase). */
+  /** Crash multiplier announced by the server (only in 'completed' phase). */
   lastCrashPoint: number | null;
+}
+
+/** Fast-channel snapshot — read directly from animation loops. */
+export interface CrashLiveFastSnapshot {
+  /** Multiplier we render on screen (interpolated). */
+  displayMultiplier: number;
+  /** Curve points (time ms, mult). */
+  graphPoints: Array<{ time: number; multiplier: number }>;
 }
 
 const ROOM_ID = 'crash_main';
@@ -88,7 +106,8 @@ export class CrashLiveStream extends EventEmitter {
   private pendingPings: Map<number, number> = new Map();
   private latencySamples: number[] = [];
 
-  private snapshot: CrashLiveSnapshot = this.makeInitial();
+  private snapshot: CrashLiveSnapshot = this.makeInitialSlow();
+  private fast: CrashLiveFastSnapshot = { displayMultiplier: 1, graphPoints: [{ time: 0, multiplier: 1 }] };
 
   /** Anchor for client-side multiplier prediction during 'active'. */
   private activeStartedAt: number | null = null;
@@ -96,6 +115,9 @@ export class CrashLiveStream extends EventEmitter {
 
   constructor(url: string) {
     super();
+    // Default Node EventEmitter cap is 10; raise to silence warnings when
+    // multiple components subscribe simultaneously.
+    this.setMaxListeners(64);
     this.url = url;
   }
 
@@ -103,15 +125,19 @@ export class CrashLiveStream extends EventEmitter {
     return this.snapshot;
   }
 
+  /**
+   * Read the current fast snapshot (multiplier + graph points). Designed
+   * to be called from a `requestAnimationFrame` loop in the consumer —
+   * never returns a fresh object reference, so polling is allocation-free.
+   */
+  getFast(): CrashLiveFastSnapshot {
+    return this.fast;
+  }
+
   connect(sessionId: string): void {
     this.sessionId = sessionId;
     this.openSocket();
-    // Fire a REST snapshot immediately — independent of WS auth. This
-    // ensures the page never sits on "Подключение..." while we're still
-    // negotiating the socket; the snapshot reveals the live phase.
     void this.fetchInitialState();
-    // Start the reconciliation poll early too, so even if the WS never
-    // negotiates (e.g. nginx misconfig) the screen still updates.
     this.startPoll();
   }
 
@@ -139,13 +165,12 @@ export class CrashLiveStream extends EventEmitter {
     if (!this.sessionId) return;
     try {
       this.ws = new WebSocket(this.url);
-    } catch (err) {
+    } catch {
       this.scheduleReconnect();
       return;
     }
 
     this.ws.onopen = () => {
-      // 1. Authenticate
       this.send({
         type: 'auth',
         payload: { sessionId: this.sessionId },
@@ -156,9 +181,8 @@ export class CrashLiveStream extends EventEmitter {
     this.ws.onmessage = (ev) => this.handleMessage(ev);
 
     this.ws.onclose = () => {
-      this.update({ connected: false });
+      this.updateSlow({ connected: false });
       this.stopPings();
-      // Keep the poll running — REST is our fallback while we reconnect.
       this.scheduleReconnect();
     };
 
@@ -187,7 +211,6 @@ export class CrashLiveStream extends EventEmitter {
       const ts = Date.now();
       this.pendingPings.set(ts, ts);
       this.send({ type: 'ping', payload: {}, timestamp: ts });
-      // Garbage-collect stale pings to keep memory bounded.
       if (this.pendingPings.size > 10) {
         const cutoff = Date.now() - 30000;
         for (const t of Array.from(this.pendingPings.keys())) {
@@ -206,9 +229,6 @@ export class CrashLiveStream extends EventEmitter {
 
   private startPoll(): void {
     this.stopPoll();
-    // 2.5s is fast enough that any visual stall caused by a missed
-    // broadcast self-corrects within a single user-perceptible beat,
-    // while staying gentle on the server.
     this.pollTimer = setInterval(() => {
       void this.fetchInitialState();
     }, 2500);
@@ -221,11 +241,6 @@ export class CrashLiveStream extends EventEmitter {
     }
   }
 
-  /**
-   * Pull the current round state via REST so a late-joiner doesn't sit on
-   * a blank screen waiting for the next phase event. We only fill in the
-   * fields we don't already have from streamed events.
-   */
   private async fetchInitialState(): Promise<void> {
     try {
       const res = await fetch('/api/games/crash/state', {
@@ -237,7 +252,6 @@ export class CrashLiveStream extends EventEmitter {
       const s = json?.state;
       if (!s) return;
 
-      // Map server "GameState" → our public phase taxonomy.
       const phaseMap: Record<string, CrashPhase> = {
         idle: 'idle',
         waiting: 'waiting',
@@ -259,7 +273,6 @@ export class CrashLiveStream extends EventEmitter {
           }))
         : [];
 
-      // Cashed-out slots also surface in REST snapshot.
       if (Array.isArray(s.cashedOut)) {
         for (const c of s.cashedOut) {
           const key = `${c.userId}:${c.slot ?? 0}`;
@@ -290,26 +303,33 @@ export class CrashLiveStream extends EventEmitter {
       const serverSeedHash = s.serverSeedHash || this.snapshot.serverSeedHash;
       const serverMult = Number(s.multiplier) || 1;
 
-      // If we joined while the round is active, prime the prediction anchor
-      // so the curve continues smoothly.
       if (phase === 'active') {
         const elapsed = Number(s.elapsedTime) || 0;
         this.activeStartedAt = Date.now() - elapsed;
         this.activeStartMultiplier = 1;
         this.startAnim();
+
+        // Seed fast channel mid-flight.
+        if (this.fast.graphPoints.length < 2) {
+          this.fast = {
+            displayMultiplier: serverMult,
+            graphPoints: [
+              { time: 0, multiplier: 1 },
+              { time: elapsed || 1, multiplier: serverMult },
+            ],
+          };
+          this.emitTick();
+        }
+      } else if (phase === 'waiting' || phase === 'starting' || phase === 'idle') {
+        this.fast = { displayMultiplier: 1, graphPoints: [{ time: 0, multiplier: 1 }] };
+        this.emitTick();
       }
 
-      // Map authoritative phase end timestamp (server clock-aligned) into
-      // local UI fields: countdown for `starting`, waitingEndsAt for
-      // `waiting`. This is what survives lossy WS broadcasts.
       const phaseEndsAt = typeof s.phaseEndsAt === 'number' ? s.phaseEndsAt : null;
       let countdown: number | null = this.snapshot.countdown;
       let waitingEndsAt: number | null = this.snapshot.waitingEndsAt;
       if (phase === 'starting' && phaseEndsAt !== null) {
-        countdown = Math.max(
-          0,
-          Math.ceil((phaseEndsAt - Date.now()) / 1000)
-        );
+        countdown = Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000));
         waitingEndsAt = null;
       } else if (phase === 'waiting') {
         waitingEndsAt = phaseEndsAt;
@@ -319,33 +339,13 @@ export class CrashLiveStream extends EventEmitter {
         waitingEndsAt = null;
       }
 
-      this.update({
+      this.updateSlow({
         phase,
         players,
         history,
         stats,
         serverSeedHash,
         serverMultiplier: serverMult,
-        // Don't clobber the smoothed value mid-round; only resync if we're
-        // far behind or in a non-active phase.
-        displayMultiplier:
-          phase === 'active' && this.snapshot.phase === 'active'
-            ? Math.max(this.snapshot.displayMultiplier, serverMult)
-            : serverMult,
-        // Preserve the locally accumulated curve while the round is
-        // running. Only seed a fresh stub curve when we're entering the
-        // round mid-flight (phase transitioned to active right now) or
-        // there's nothing accumulated yet.
-        graphPoints:
-          phase === 'active' || phase === 'completed'
-            ? this.snapshot.phase === phase &&
-              this.snapshot.graphPoints.length > 1
-              ? this.snapshot.graphPoints
-              : [
-                  { time: 0, multiplier: 1 },
-                  { time: Number(s.elapsedTime) || 1, multiplier: serverMult },
-                ]
-            : [{ time: 0, multiplier: 1 }],
         countdown,
         waitingEndsAt,
         lastCrashPoint:
@@ -354,7 +354,7 @@ export class CrashLiveStream extends EventEmitter {
             : this.snapshot.lastCrashPoint,
       });
     } catch {
-      // Best-effort; the WS will catch us up on the next phase event.
+      // Best-effort.
     }
   }
 
@@ -371,27 +371,21 @@ export class CrashLiveStream extends EventEmitter {
 
     switch (raw.type) {
       case 'auth_success':
-        this.update({ connected: true });
-        // Join the global crash room and start ping loop.
+        this.updateSlow({ connected: true });
         this.send({
           type: 'game:join',
           payload: { roomId: ROOM_ID },
           timestamp: Date.now(),
         });
         this.startPings();
-        // The poll & initial snapshot are already running from connect().
-        // Refresh once more so we pick up the freshest state right after
-        // the socket is authenticated.
         void this.fetchInitialState();
         return;
 
       case 'auth_error':
-        // Bad session — let the React provider handle re-auth, just close.
-        this.update({ connected: false });
+        this.updateSlow({ connected: false });
         return;
 
       case 'pong': {
-        // Resolve the most recent pending ping.
         let oldestKey: number | null = null;
         for (const k of this.pendingPings.keys()) {
           if (oldestKey === null || k < oldestKey) oldestKey = k;
@@ -419,7 +413,12 @@ export class CrashLiveStream extends EventEmitter {
 
     switch (event.type) {
       case 'round:created': {
-        this.update({
+        this.fast = {
+          displayMultiplier: 1,
+          graphPoints: [{ time: 0, multiplier: 1 }],
+        };
+        this.emitTick();
+        this.updateSlow({
           serverSeedHash: p.serverSeedHash ?? this.snapshot.serverSeedHash,
           history: Array.isArray(p.history)
             ? p.history.map((h: any) => ({
@@ -429,9 +428,7 @@ export class CrashLiveStream extends EventEmitter {
             : this.snapshot.history,
           lastCrashPoint: null,
           players: [],
-          graphPoints: [{ time: 0, multiplier: 1 }],
           serverMultiplier: 1,
-          displayMultiplier: 1,
         });
         return;
       }
@@ -441,7 +438,12 @@ export class CrashLiveStream extends EventEmitter {
           typeof p.endsAt === 'number'
             ? p.endsAt
             : Date.now() + (p.duration ?? 0);
-        this.update({
+        this.fast = {
+          displayMultiplier: 1,
+          graphPoints: [{ time: 0, multiplier: 1 }],
+        };
+        this.emitTick();
+        this.updateSlow({
           phase: 'waiting',
           waitingEndsAt: endsAt,
           countdown: null,
@@ -454,9 +456,7 @@ export class CrashLiveStream extends EventEmitter {
             : this.snapshot.history,
           stats: p.stats ?? this.snapshot.stats,
           players: [],
-          graphPoints: [{ time: 0, multiplier: 1 }],
           serverMultiplier: 1,
-          displayMultiplier: 1,
           lastCrashPoint: null,
         });
         return;
@@ -464,34 +464,38 @@ export class CrashLiveStream extends EventEmitter {
 
       case 'phase:countdown': {
         const duration = p.duration ?? 3000;
-        this.update({
+        this.updateSlow({
           phase: 'starting',
           countdown: Math.max(1, Math.ceil(duration / 1000)),
           waitingEndsAt: null,
         });
-        // Tick down 1×/s
         const start = Date.now();
         const tick = () => {
+          if (this.snapshot.phase !== 'starting') return;
           const remaining = Math.max(0, duration - (Date.now() - start));
           const sec = Math.max(0, Math.ceil(remaining / 1000));
-          this.update({ countdown: sec });
-          if (this.snapshot.phase !== 'starting') return;
-          if (remaining > 0) setTimeout(tick, 200);
+          if (sec !== this.snapshot.countdown) {
+            this.updateSlow({ countdown: sec });
+          }
+          if (remaining > 0) setTimeout(tick, 250);
         };
-        setTimeout(tick, 200);
+        setTimeout(tick, 250);
         return;
       }
 
       case 'phase:active': {
         this.activeStartedAt = Date.now();
         this.activeStartMultiplier = 1;
-        this.update({
+        this.fast = {
+          displayMultiplier: 1,
+          graphPoints: [{ time: 0, multiplier: 1 }],
+        };
+        this.emitTick();
+        this.updateSlow({
           phase: 'active',
           countdown: null,
           waitingEndsAt: null,
-          graphPoints: [{ time: 0, multiplier: 1 }],
           serverMultiplier: 1,
-          displayMultiplier: 1,
         });
         this.startAnim();
         return;
@@ -500,14 +504,16 @@ export class CrashLiveStream extends EventEmitter {
       case 'multiplier:update': {
         const m = Number(p.multiplier) || 1;
         const t = Number(p.elapsedTime) || 0;
-        const next = [...this.snapshot.graphPoints, { time: t, multiplier: m }];
-        // Bound the buffer but keep enough headroom for the longest round.
-        // ~600 points at our push rate covers >30s of curve.
-        while (next.length > 600) next.shift();
-        // Anchor for client-side prediction so the curve keeps growing
-        // smoothly between 100ms server ticks.
+        // Mutate fast.graphPoints in place — no allocation per server tick.
+        const pts = this.fast.graphPoints;
+        pts.push({ time: t, multiplier: m });
+        while (pts.length > 600) pts.shift();
         this.activeStartedAt = Date.now() - t;
-        this.update({ serverMultiplier: m, graphPoints: next });
+        // Server multiplier on slow channel — at most ~10× per second so a
+        // single React render here is fine.
+        if (Math.abs(this.snapshot.serverMultiplier - m) > 0.01) {
+          this.updateSlow({ serverMultiplier: m });
+        }
         return;
       }
 
@@ -524,13 +530,13 @@ export class CrashLiveStream extends EventEmitter {
         const i = list.findIndex((x) => x.key === newPlayer.key);
         if (i === -1) list.push(newPlayer);
         else list[i] = newPlayer;
-        this.update({ players: list, stats: p.stats ?? this.snapshot.stats });
+        this.updateSlow({ players: list, stats: p.stats ?? this.snapshot.stats });
         return;
       }
 
       case 'bet:cancelled': {
         const key = `${p.userId}:${p.slot}`;
-        this.update({
+        this.updateSlow({
           players: this.snapshot.players.filter((x) => x.key !== key),
           stats: p.stats ?? this.snapshot.stats,
         });
@@ -550,7 +556,7 @@ export class CrashLiveStream extends EventEmitter {
               }
             : x
         );
-        this.update({ players: list });
+        this.updateSlow({ players: list });
         return;
       }
 
@@ -559,18 +565,23 @@ export class CrashLiveStream extends EventEmitter {
         const list = this.snapshot.players.map((x) =>
           x.key === key ? { ...x, status: 'lost' as const, user: p.user ?? x.user } : x
         );
-        this.update({ players: list });
+        this.updateSlow({ players: list });
         return;
       }
 
       case 'game:crashed': {
         this.activeStartedAt = null;
         this.stopAnim();
-        this.update({
+        const cp = Number(p.crashPoint);
+        this.fast = {
+          displayMultiplier: cp,
+          graphPoints: this.fast.graphPoints,
+        };
+        this.emitTick();
+        this.updateSlow({
           phase: 'completed',
-          serverMultiplier: Number(p.crashPoint),
-          displayMultiplier: Number(p.crashPoint),
-          lastCrashPoint: Number(p.crashPoint),
+          serverMultiplier: cp,
+          lastCrashPoint: cp,
         });
         return;
       }
@@ -581,7 +592,7 @@ export class CrashLiveStream extends EventEmitter {
           { crashPoint: cp, roundId: p.roundId },
           ...this.snapshot.history.filter((h) => h.roundId !== p.roundId),
         ].slice(0, 50);
-        this.update({ history: next });
+        this.updateSlow({ history: next });
         return;
       }
     }
@@ -611,9 +622,6 @@ export class CrashLiveStream extends EventEmitter {
   private tickAnim(deltaMs: number): void {
     if (this.snapshot.phase !== 'active') return;
 
-    // 1) Predict the current multiplier from the round's wall-clock anchor.
-    //    This is what keeps the head moving smoothly even when no fresh
-    //    server tick arrived in the last frame.
     let predicted = this.snapshot.serverMultiplier;
     let elapsed = 0;
     if (this.activeStartedAt !== null) {
@@ -621,33 +629,32 @@ export class CrashLiveStream extends EventEmitter {
       predicted = Math.exp(0.00006 * elapsed);
     }
 
-    // 2) Lerp the *displayed* multiplier toward the prediction. Quick but
-    //    not snap-instant so micro-jitter doesn't bleed through.
     const target = Math.max(this.snapshot.serverMultiplier, predicted);
-    const current = this.snapshot.displayMultiplier;
+    const current = this.fast.displayMultiplier;
     const lerpStep = Math.min(1, deltaMs / 60);
     const display = current + (target - current) * lerpStep;
 
-    // 3) Extend graphPoints with the freshly predicted head so the canvas
-    //    drawer has something to lerp the curve toward. We don't push
-    //    every frame (60fps × 200 points = blown buffer); instead we
-    //    push when ~50ms passed since the last point or the multiplier
-    //    advanced more than 0.5%.
-    let nextPoints = this.snapshot.graphPoints;
-    const last = nextPoints[nextPoints.length - 1];
+    // Push a curve point only when meaningfully different — keeps the
+    // graphPoints buffer compact. In place mutation = zero allocation.
+    const last = this.fast.graphPoints[this.fast.graphPoints.length - 1];
     if (
       last &&
       (elapsed - last.time > 50 ||
         Math.abs(target - last.multiplier) > last.multiplier * 0.005)
     ) {
-      nextPoints = [...nextPoints, { time: elapsed, multiplier: target }];
-      while (nextPoints.length > 600) nextPoints.shift();
+      this.fast.graphPoints.push({ time: elapsed, multiplier: target });
+      while (this.fast.graphPoints.length > 600) this.fast.graphPoints.shift();
     }
 
-    this.update({
-      displayMultiplier: display,
-      graphPoints: nextPoints,
-    });
+    // No allocation — just a numeric write. The fast snapshot object
+    // identity stays the same; consumers must read its fields, not
+    // rely on referential equality.
+    this.fast.displayMultiplier = display;
+    this.emitTick();
+  }
+
+  private emitTick(): void {
+    this.emit('tick');
   }
 
   /* ----------------------------------------------------------- latency */
@@ -658,17 +665,19 @@ export class CrashLiveStream extends EventEmitter {
     const avg =
       this.latencySamples.reduce((a, b) => a + b, 0) /
       this.latencySamples.length;
-    this.update({ latencyMs: Math.round(avg) });
+    const next = Math.round(avg);
+    // Emit only when it changed by 5ms+ — avoids re-renders for jitter.
+    if (Math.abs(next - this.snapshot.latencyMs) >= 5) {
+      this.updateSlow({ latencyMs: next });
+    }
   }
 
   /* ---------------------------------------------------------- snapshots */
 
-  private makeInitial(): CrashLiveSnapshot {
+  private makeInitialSlow(): CrashLiveSnapshot {
     return {
       phase: 'idle',
-      displayMultiplier: 1,
       serverMultiplier: 1,
-      graphPoints: [{ time: 0, multiplier: 1 }],
       countdown: null,
       waitingEndsAt: null,
       serverSeedHash: '',
@@ -681,7 +690,23 @@ export class CrashLiveStream extends EventEmitter {
     };
   }
 
-  private update(patch: Partial<CrashLiveSnapshot>): void {
+  /**
+   * Update the slow snapshot. Triggers a single React re-render via the
+   * 'state' event. Does NOT touch the fast channel.
+   */
+  private updateSlow(patch: Partial<CrashLiveSnapshot>): void {
+    let changed = false;
+    for (const k of Object.keys(patch) as Array<keyof CrashLiveSnapshot>) {
+      const next = patch[k];
+      if (
+        next !== undefined &&
+        (this.snapshot[k] as unknown) !== (next as unknown)
+      ) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
     this.snapshot = { ...this.snapshot, ...patch };
     this.emit('state', this.snapshot);
   }

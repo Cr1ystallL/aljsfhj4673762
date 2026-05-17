@@ -1,9 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, Eraser, RotateCcw } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
-import { HelpButton } from '@/components/admin/help-button';
+import { Activity, Eraser, RotateCcw } from 'lucide-react';import { HelpButton } from '@/components/admin/help-button';
 
 /**
  * Admin → System.
@@ -137,7 +135,7 @@ export default function SystemPage() {
   };
 
   return (
-    <AdminShell title="Система">
+    <>
       <div className="flex flex-col gap-5">
         {/* Service health */}
         <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
@@ -356,7 +354,7 @@ export default function SystemPage() {
           </div>
         </section>
       </div>
-    </AdminShell>
+    </>
   );
 }
 

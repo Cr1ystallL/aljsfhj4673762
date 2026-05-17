@@ -13,6 +13,7 @@ import { systemMonitor } from '../services/system-monitor.js';
 import { restartCrashEngine } from '../game-engine/crash-room-singleton.js';
 import { redisClient } from '../lib/redis.js';
 import { sessionManager } from '../lib/session-manager.js';
+import { rtpEngine } from '../services/rtp-engine.js';
 
 /**
  * Admin Routes — covert.
@@ -1260,10 +1261,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * GET /api/_x/admins
    *
    * Lists every Telegram ID currently admin'd, distinguishing seed
-   * (env-defined) from runtime (dynamically promoted via UI).
+   * (env-defined) from runtime (dynamically promoted via UI). Each
+   * runtime admin has a role:
+   *   - `full`       → unrestricted access (default).
+   *   - `withdrawal` → withdrawals-only operator (sees withdrawal
+   *                    queue but no other admin sections).
    *
-   * Runtime admins live in Redis set `admins:dynamic` (Telegram IDs
-   * as strings). Seed admins are read from `ADMIN_TELEGRAM_IDS`.
+   * Storage layout in Redis:
+   *   - `admins:dynamic`    set of Telegram IDs with full access.
+   *   - `admins:withdrawal` set of Telegram IDs with withdrawal-only
+   *                         access. Mutually exclusive with dynamic.
    */
   app.get('/_x/admins', { preHandler: adminOnly }, async (_req, reply) => {
     try {
@@ -1274,9 +1281,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         .filter(Boolean);
 
       const redis = redisClient.getClient();
-      const dynamicIds = await redis.smembers('admins:dynamic');
+      const [dynamicIds, withdrawalIds] = await Promise.all([
+        redis.smembers('admins:dynamic'),
+        redis.smembers('admins:withdrawal'),
+      ]);
 
-      const allIds = Array.from(new Set([...seedIds, ...dynamicIds]));
+      const allIds = Array.from(
+        new Set([...seedIds, ...dynamicIds, ...withdrawalIds])
+      );
       const users = allIds.length
         ? await app.prisma.user.findMany({
             where: {
@@ -1291,21 +1303,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             },
           })
         : [];
-      const byTg = new Map(
-        users.map((u) => [u.telegramId.toString(), u])
-      );
+      const byTg = new Map(users.map((u) => [u.telegramId.toString(), u]));
 
       const list = allIds.map((tg) => {
         const u = byTg.get(tg);
+        const isSeed = seedIds.includes(tg);
+        const isFull = isSeed || dynamicIds.includes(tg);
+        const role: 'full' | 'withdrawal' = isFull ? 'full' : 'withdrawal';
         return {
           telegramId: Number(tg),
-          name:
-            u?.firstName ||
-            u?.username ||
-            `id${tg.slice(-4)}`,
+          name: u?.firstName || u?.username || `id${tg.slice(-4)}`,
           username: u?.username ?? null,
           photoUrl: u?.photoUrl ?? null,
-          source: seedIds.includes(tg) ? 'seed' : 'dynamic',
+          source: isSeed ? 'seed' : 'dynamic',
+          role,
         };
       });
 
@@ -1318,24 +1329,34 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * POST /api/_x/admins
-   * Body: { telegramId: number, reason: string }
-   * Promotes a user to admin (runtime / dynamic). Seed admins must be
-   * managed via the env file; trying to add a seed id is a no-op.
+   * Body: { telegramId, reason, role? }
+   * Promotes a user to admin. `role`:
+   *   - `full` (default) → full admin powers.
+   *   - `withdrawal`     → withdrawal-only operator.
+   *
+   * Promotion to a role removes any prior membership in the other set,
+   * so the two roles stay mutually exclusive.
    */
   app.post<{
-    Body: { telegramId: number | string; reason: string };
+    Body: {
+      telegramId: number | string;
+      reason: string;
+      role?: 'full' | 'withdrawal';
+    };
   }>(
     '/_x/admins',
     { preHandler: adminOnly },
     async (request, reply) => {
       const tgRaw = request.body?.telegramId;
       const reason = (request.body?.reason ?? '').trim();
+      const role: 'full' | 'withdrawal' =
+        request.body?.role === 'withdrawal' ? 'withdrawal' : 'full';
       const tg =
         typeof tgRaw === 'number'
           ? String(tgRaw)
           : typeof tgRaw === 'string'
-          ? tgRaw.trim()
-          : '';
+            ? tgRaw.trim()
+            : '';
 
       if (!/^\d+$/.test(tg)) {
         return reply.code(400).send({ error: 'Bad telegramId' });
@@ -1346,14 +1367,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
       try {
         const redis = redisClient.getClient();
-        await redis.sadd('admins:dynamic', tg);
+        if (role === 'withdrawal') {
+          await redis.srem('admins:dynamic', tg);
+          await redis.sadd('admins:withdrawal', tg);
+        } else {
+          await redis.srem('admins:withdrawal', tg);
+          await redis.sadd('admins:dynamic', tg);
+        }
 
         await audit({
           request: request as AuthenticatedRequest,
           action: 'admin.add',
           targetType: 'admin',
           targetId: tg,
-          payloadAfter: { telegramId: Number(tg) },
+          payloadAfter: { telegramId: Number(tg), role },
           reason,
         });
         return reply.send({ ok: true });
@@ -1365,8 +1392,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
-   * DELETE /api/_x/admins/:telegramId
+   * POST /api/_x/admins/:telegramId/remove
    * Demote a runtime admin. Seed admins (env) cannot be removed via UI.
+   * Removes membership from both runtime sets to be safe.
    */
   app.post<{
     Params: { telegramId: string };
@@ -1394,6 +1422,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       try {
         const redis = redisClient.getClient();
         await redis.srem('admins:dynamic', tg);
+        await redis.srem('admins:withdrawal', tg);
         await audit({
           request: request as AuthenticatedRequest,
           action: 'admin.remove',
@@ -1707,26 +1736,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * PATCH /api/_x/wallet-config
-   * Body: partial config + reason. Empty-string secrets are treated as
-   * "don't change" so admins can update non-secret fields without
-   * re-pasting the keys.
+   * Body: partial config + reason. Only operational knobs are honoured;
+   * legacy fields (crypto addresses, provider API keys, per-method fees)
+   * are silently ignored for backwards compat with old admin UIs.
    */
   app.patch<{
     Body: {
       reason: string;
-      cryptoUsdtTrc20?: string;
-      cryptoBtc?: string;
-      cryptoEth?: string;
-      piastrixApiKey?: string;
-      freekassaApiKey?: string;
-      fkWalletApiKey?: string;
       minDeposit?: number;
       maxDeposit?: number;
       minWithdrawal?: number;
       maxWithdrawal?: number;
       wagerMultiplier?: number;
-      cryptoFee?: number;
-      cardFee?: number;
     };
   }>(
     '/_x/wallet-config',
@@ -1740,58 +1761,28 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const before = await walletConfig.get();
       const patch: Partial<typeof before> = {};
       const fields: Array<keyof typeof before> = [
-        'cryptoUsdtTrc20',
-        'cryptoBtc',
-        'cryptoEth',
-        'piastrixApiKey',
-        'freekassaApiKey',
-        'fkWalletApiKey',
         'minDeposit',
         'maxDeposit',
         'minWithdrawal',
         'maxWithdrawal',
         'wagerMultiplier',
-        'cryptoFee',
-        'cardFee',
       ];
       for (const f of fields) {
         const v = (request.body as Record<string, unknown>)[f as string];
         if (v === undefined) continue;
-        // Don't overwrite secret fields with an empty string — admins
-        // editing non-secret values shouldn't have to re-type the keys.
-        if (
-          (f === 'piastrixApiKey' ||
-            f === 'freekassaApiKey' ||
-            f === 'fkWalletApiKey') &&
-          v === ''
-        ) {
-          continue;
-        }
-        // Don't accept the masked placeholder ("••••xxxx") as a real
-        // value either — that's what the GET (masked) returned.
-        if (typeof v === 'string' && v.startsWith('••••')) continue;
         (patch as Record<string, unknown>)[f as string] = v;
       }
 
       try {
         const after = await walletConfig.update(patch);
 
-        // For audit: mask the secrets in both snapshots so the journal
-        // never contains plaintext keys.
-        const safe = (c: typeof before) => ({
-          ...c,
-          piastrixApiKey: c.piastrixApiKey ? '••••' : '',
-          freekassaApiKey: c.freekassaApiKey ? '••••' : '',
-          fkWalletApiKey: c.fkWalletApiKey ? '••••' : '',
-        });
-
         await audit({
           request: request as AuthenticatedRequest,
           action: 'wallet.config',
           targetType: 'wallet',
           targetId: 'global',
-          payloadBefore: safe(before),
-          payloadAfter: safe(after),
+          payloadBefore: before,
+          payloadAfter: after,
           reason,
         });
 
@@ -1803,14 +1794,92 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* -------------------------------------------------------- RTP engine */
+
+  /**
+   * GET /api/_x/rtp
+   * Read auto-RTP controller status. Used by the admin UI to show the
+   * current window, target, signal and operating mode.
+   */
+  app.get('/_x/rtp', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const status = await rtpEngine.getStatus();
+      return reply.send({ ok: true, status });
+    } catch (error) {
+      logger.error(error, 'rtp.getStatus failed');
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  /**
+   * PATCH /api/_x/rtp
+   * Update the auto-RTP controller config. Body:
+   *   - mode: 'off' | 'earn' | 'give'
+   *   - target: PLN target for the window (positive number — the engine
+   *             interprets sign by mode)
+   *   - windowMs: window duration in milliseconds
+   *   - intensity: 0..1 — strength of the bias (0 = controller does
+   *                nothing even when on, 1 = fully aggressive)
+   *   - reset: if true, wipe the current window and start fresh.
+   *   - reason: required (>=3 chars) for audit trail.
+   */
+  app.patch<{
+    Body: {
+      reason: string;
+      mode?: 'off' | 'earn' | 'give';
+      target?: number;
+      windowMs?: number;
+      intensity?: number;
+      reset?: boolean;
+    };
+  }>(
+    '/_x/rtp',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      try {
+        const before = await rtpEngine.getConfig();
+        const next = await rtpEngine.setConfig(
+          {
+            mode: request.body.mode,
+            target: request.body.target,
+            windowMs: request.body.windowMs,
+            intensity: request.body.intensity,
+          },
+          { reset: !!request.body.reset }
+        );
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'rtp.config',
+          targetType: 'rtp',
+          targetId: 'global',
+          payloadBefore: before,
+          payloadAfter: next,
+          reason,
+        });
+        const status = await rtpEngine.getStatus();
+        return reply.send({ ok: true, status });
+      } catch (error) {
+        logger.error(error, 'rtp.setConfig failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
   /* -------------------------------------------------------- deposits list */
 
   /**
    * GET /api/_x/deposits
-   * Mirrors withdrawals listing for transparency. Read-only —
-   * provider integration writes deposits as transactions.
+   * MacvPay-aware deposit list. Returns the live order status (pending,
+   * paid, cancelled, expired) for each request so the admin UI can show
+   * the lifecycle, not just confirmed deposits. Falls back to the
+   * `transaction.type='deposit'` rows for legacy deposits that pre-date
+   * the provider integration.
    */
-  app.get<{ Querystring: { limit?: string } }>(
+  app.get<{ Querystring: { limit?: string; status?: string } }>(
     '/_x/deposits',
     { preHandler: adminOnly },
     async (request, reply) => {
@@ -1818,22 +1887,44 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         200,
         Math.max(10, parseInt(request.query.limit ?? '50', 10))
       );
+      const statusFilter = request.query.status;
       try {
-        const txs = await app.prisma.transaction.findMany({
-          where: { type: 'deposit' },
-          orderBy: { createdAt: 'desc' },
-          take: limit,
-          select: {
-            id: true,
-            userId: true,
-            amount: true,
-            balanceBefore: true,
-            balanceAfter: true,
-            createdAt: true,
-            metadata: true,
-          },
-        });
-        const userIds = txs.map((t) => t.userId);
+        // ---- MacvPay orders ---------------------------------------------
+        // Raw query — table is created via the macvpay migration and may
+        // not exist in the Prisma client schema yet on every deployment.
+        interface MacvpayOrderRow {
+          id: string;
+          user_id: string;
+          provider_order_id: string;
+          amount: string;
+          unique_amount: string;
+          currency: string;
+          type: string;
+          status: string;
+          card: string | null;
+          recipient: string | null;
+          details: string | null;
+          expires_at: Date | null;
+          paid_at: Date | null;
+          created_at: Date;
+        }
+
+        const where = statusFilter
+          ? Prisma.sql` WHERE status = ${statusFilter}`
+          : Prisma.empty;
+        let orders: MacvpayOrderRow[] = [];
+        try {
+          orders = await app.prisma.$queryRaw<MacvpayOrderRow[]>(Prisma.sql`
+            SELECT * FROM macvpay_orders${where}
+            ORDER BY created_at DESC
+            LIMIT ${limit}
+          `);
+        } catch {
+          // Table missing — older deployment. Fall through with empty.
+          orders = [];
+        }
+
+        const userIds = Array.from(new Set(orders.map((o) => o.user_id)));
         const users = userIds.length
           ? await app.prisma.user.findMany({
               where: { id: { in: userIds } },
@@ -1848,11 +1939,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           : [];
         const byId = new Map(users.map((u) => [u.id, u]));
 
-        const list = txs.map((t) => {
-          const u = byId.get(t.userId);
+        const list = orders.map((o) => {
+          const u = byId.get(o.user_id);
+          const expiresAt = o.expires_at ? o.expires_at.getTime() : null;
+          // Compute live status: an order is "expired" once we passed
+          // expires_at while still in 'pending'.
+          let status = o.status;
+          if (status === 'pending' && expiresAt && expiresAt < Date.now()) {
+            status = 'expired';
+          }
           return {
-            id: t.id,
-            userId: t.userId,
+            id: o.id,
+            providerOrderId: o.provider_order_id,
+            userId: o.user_id,
             name:
               u?.firstName ||
               u?.username ||
@@ -1861,11 +1960,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                 : 'Игрок'),
             telegramId: u?.telegramId ? Number(u.telegramId) : null,
             photoUrl: u?.photoUrl ?? null,
-            amount: Math.abs(Number(t.amount)),
-            balanceBefore: Number(t.balanceBefore),
-            balanceAfter: Number(t.balanceAfter),
-            createdAt: t.createdAt.getTime(),
-            metadata: t.metadata,
+            amount: Number(o.amount),
+            uniqueAmount: Number(o.unique_amount),
+            currency: o.currency,
+            type: o.type,
+            status,
+            card: o.card,
+            recipient: o.recipient,
+            details: o.details,
+            expiresAt,
+            paidAt: o.paid_at ? o.paid_at.getTime() : null,
+            createdAt: o.created_at.getTime(),
           };
         });
 

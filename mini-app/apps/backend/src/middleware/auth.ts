@@ -207,6 +207,50 @@ async function isAdminTelegramIdAsync(telegramId: number): Promise<boolean> {
 }
 
 /**
+ * Cache for the withdrawal-only admin set. Same TTL as `admins:dynamic`.
+ * Members of `admins:withdrawal` can review withdrawal requests but
+ * have no powers anywhere else in the admin panel — useful for ops
+ * staff that should be able to pay out players without having full
+ * casino-config access.
+ */
+let withdrawalAdminCache: { ids: Set<number>; expiresAt: number } | null = null;
+
+async function getWithdrawalAdmins(): Promise<Set<number>> {
+  const now = Date.now();
+  if (withdrawalAdminCache && withdrawalAdminCache.expiresAt > now) {
+    return withdrawalAdminCache.ids;
+  }
+  try {
+    const { redisClient } = await import('../lib/redis.js');
+    const raw = await redisClient.getClient().smembers('admins:withdrawal');
+    const ids = new Set(
+      raw
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    );
+    withdrawalAdminCache = { ids, expiresAt: now + DYNAMIC_TTL_MS };
+    return ids;
+  } catch (err) {
+    logger.warn({ err }, 'Failed to read withdrawal admin set');
+    return new Set();
+  }
+}
+
+/**
+ * Resolve a Telegram ID's admin scope. Returns `'full'` for full admins
+ * (env list + dynamic set), `'withdrawal'` for withdrawal-only admins,
+ * or `null` for non-admins.
+ */
+export async function resolveAdminScope(
+  telegramId: number
+): Promise<'full' | 'withdrawal' | null> {
+  if (await isAdminTelegramIdAsync(telegramId)) return 'full';
+  const w = await getWithdrawalAdmins();
+  if (w.has(telegramId)) return 'withdrawal';
+  return null;
+}
+
+/**
  * Admin gate.
  *
  * SECURITY POSTURE: this guard is the *only* control that exposes admin
@@ -252,6 +296,54 @@ export async function adminOnly(
       logger.warn(
         { telegramId: decoded.telegramId, ip: request.ip, url: request.url },
         'Non-admin attempted admin endpoint'
+      );
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+    await sessionManager.updateActivity(decoded.sessionId);
+    (request as AuthenticatedRequest).user = {
+      userId: decoded.userId,
+      telegramId: decoded.telegramId,
+      sessionId: decoded.sessionId,
+    };
+  } catch {
+    return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+  }
+}
+
+/**
+ * Withdrawal-admin gate.
+ *
+ * Permits both full admins (`adminOnly`) AND withdrawal-only admins.
+ * Same 404-on-failure posture as `adminOnly`. Use on routes that pay
+ * out withdrawals so an ops account doesn't need full admin powers.
+ */
+export async function withdrawalAdminOnly(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  try {
+    const token = request.cookies.access_token;
+    if (!token) {
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+    const decoded = await request.server.jwt.verify<{
+      userId: string;
+      telegramId: number;
+      sessionId: string;
+      type: string;
+    }>(token);
+    if (decoded.type !== 'access') {
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+    const session = await sessionManager.getSession(decoded.sessionId);
+    if (!session || session.userId !== decoded.userId) {
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+    const scope = await resolveAdminScope(decoded.telegramId);
+    if (scope === null) {
+      logger.warn(
+        { telegramId: decoded.telegramId, ip: request.ip, url: request.url },
+        'Non-admin attempted withdrawal-admin endpoint'
       );
       return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
     }

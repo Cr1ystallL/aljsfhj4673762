@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { AdminShell } from '@/components/admin/admin-shell';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
@@ -18,6 +17,7 @@ interface AdminEntry {
   username: string | null;
   photoUrl: string | null;
   source: 'seed' | 'dynamic';
+  role: 'full' | 'withdrawal';
 }
 
 export default function AdminsPage() {
@@ -25,6 +25,7 @@ export default function AdminsPage() {
   const [adding, setAdding] = useState(false);
   const [tgInput, setTgInput] = useState('');
   const [reasonInput, setReasonInput] = useState('');
+  const [roleInput, setRoleInput] = useState<'full' | 'withdrawal'>('full');
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
@@ -66,6 +67,7 @@ export default function AdminsPage() {
         body: JSON.stringify({
           telegramId: tgInput.trim(),
           reason: reasonInput.trim(),
+          role: roleInput,
         }),
       });
       if (!res.ok) {
@@ -73,6 +75,7 @@ export default function AdminsPage() {
       } else {
         setTgInput('');
         setReasonInput('');
+        setRoleInput('full');
         setAdding(false);
         await reload();
       }
@@ -103,7 +106,7 @@ export default function AdminsPage() {
   };
 
   return (
-    <AdminShell title="Админы">
+    <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
@@ -148,14 +151,41 @@ export default function AdminsPage() {
                 value={tgInput}
                 onChange={(e) => setTgInput(e.target.value)}
                 placeholder="Telegram ID"
+                inputMode="numeric"
                 className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
               />
               <input
                 value={reasonInput}
                 onChange={(e) => setReasonInput(e.target.value)}
                 placeholder="Причина"
+                inputMode="text"
                 className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+                Роль:
+              </span>
+              <button
+                onClick={() => setRoleInput('full')}
+                className={`px-3 py-1.5 rounded-pill border font-roobert text-[11px] transition-colors ${
+                  roleInput === 'full'
+                    ? 'border-white/30 bg-white/[0.06] text-frost-white'
+                    : 'border-white/10 bg-white/[0.03] text-frost-white/65'
+                }`}
+              >
+                Полный доступ
+              </button>
+              <button
+                onClick={() => setRoleInput('withdrawal')}
+                className={`px-3 py-1.5 rounded-pill border font-roobert text-[11px] transition-colors ${
+                  roleInput === 'withdrawal'
+                    ? 'border-white/30 bg-white/[0.06] text-frost-white'
+                    : 'border-white/10 bg-white/[0.03] text-frost-white/65'
+                }`}
+              >
+                Только выводы
+              </button>
             </div>
             <div className="flex justify-end gap-2">
               <button
@@ -196,11 +226,11 @@ export default function AdminsPage() {
                     src={a.photoUrl}
                     alt={a.name}
                     referrerPolicy="no-referrer"
-                    className="w-9 h-9 rounded-pill border border-white/10 object-cover"
+                    className="w-12 h-12 rounded-pill border border-white/10 object-cover"
                     draggable={false}
                   />
                 ) : (
-                  <span className="w-9 h-9 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[12px]">
+                  <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[15px]">
                     {a.name.charAt(0).toUpperCase()}
                   </span>
                 )}
@@ -211,6 +241,8 @@ export default function AdminsPage() {
                   <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
                     #{a.telegramId}
                     {a.username ? ` · @${a.username}` : ''}
+                    {' · '}
+                    {a.role === 'withdrawal' ? 'только выводы' : 'полный доступ'}
                   </div>
                 </div>
                 <span
@@ -237,6 +269,6 @@ export default function AdminsPage() {
           </div>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

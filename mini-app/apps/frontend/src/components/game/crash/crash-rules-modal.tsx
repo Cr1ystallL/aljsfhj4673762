@@ -119,10 +119,10 @@ export function CrashRulesModal({ open, onClose }: CrashRulesModalProps) {
           >
             <button
               onClick={onClose}
-              className="absolute top-3 right-3 w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
+              className="absolute top-3 right-3 w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 active:scale-95 transition-all"
               aria-label="Close"
             >
-              <X size={14} strokeWidth={2} />
+              <X size={18} strokeWidth={1.8} />
             </button>
 
             <h2 className="font-roobert text-frost-white text-[22px] font-normal leading-tight pr-8">

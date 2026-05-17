@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Coins, Sparkles, TrendingUp, Users, Wallet } from 'lucide-react';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
-import { AdminShell } from '@/components/admin/admin-shell';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
@@ -98,7 +97,7 @@ export default function AdminDashboardPage() {
   }, []);
 
   return (
-    <AdminShell title="Сводка">
+    <>
       {error && (
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-4 text-center font-roobert text-[12px] text-whisper-gray">
           Не удалось загрузить статистику.
@@ -383,11 +382,11 @@ export default function AdminDashboardPage() {
                           src={p.photoUrl}
                           alt={p.name}
                           referrerPolicy="no-referrer"
-                          className="w-8 h-8 rounded-pill border border-white/10 object-cover"
+                          className="w-12 h-12 rounded-pill border border-white/10 object-cover"
                           draggable={false}
                         />
                       ) : (
-                        <span className="w-8 h-8 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center text-[12px] font-roobert">
+                        <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center text-[15px] font-roobert">
                           {p.name.charAt(0).toUpperCase()}
                         </span>
                       )}
@@ -428,7 +427,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
-    </AdminShell>
+    </>
   );
 }
 

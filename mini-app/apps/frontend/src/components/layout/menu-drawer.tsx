@@ -130,7 +130,7 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
             type="button"
             aria-label="Close menu"
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-midnight-canvas/85 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-midnight-canvas/85"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -143,27 +143,27 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+            style={{ willChange: 'transform' }}
           >
             <div
-              className="relative h-full overflow-hidden border-r border-white/10 backdrop-blur-2xl flex flex-col"
-              style={{ background: 'rgba(0, 0, 0, 0.86)' }}
+              className="relative h-full overflow-hidden border-r border-white/10 flex flex-col"
+              style={{ background: 'rgba(0, 0, 0, 0.92)' }}
             >
-              {/* Atmospheric orbs — static, killed on mobile via CSS */}
+              {/* Atmospheric orbs — pure CSS gradients, no filter:blur on
+                  mobile. Looks identical, costs zero per frame. */}
               <div
-                className="mobile-no-blur pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full"
+                className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full"
                 style={{
                   background:
-                    'radial-gradient(circle, rgba(160, 224, 171, 0.20) 0%, transparent 70%)',
-                  filter: 'blur(50px)',
+                    'radial-gradient(circle, rgba(160, 224, 171, 0.18) 0%, transparent 70%)',
                 }}
                 aria-hidden
               />
               <div
-                className="mobile-no-blur pointer-events-none absolute -bottom-32 -right-20 w-80 h-80 rounded-full"
+                className="pointer-events-none absolute -bottom-32 -right-20 w-80 h-80 rounded-full"
                 style={{
                   background:
-                    'radial-gradient(circle, rgba(255, 172, 46, 0.18) 0%, rgba(165, 45, 37, 0.10) 50%, transparent 80%)',
-                  filter: 'blur(60px)',
+                    'radial-gradient(circle, rgba(255, 172, 46, 0.16) 0%, rgba(165, 45, 37, 0.08) 50%, transparent 80%)',
                 }}
                 aria-hidden
               />
@@ -330,7 +330,6 @@ function Row({
   label,
   trailing,
   onClick,
-  delay = 0,
   divider = true,
 }: {
   icon: React.ReactNode;
@@ -341,14 +340,10 @@ function Row({
   divider?: boolean;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: delay * 0.03, duration: 0.28 }}
-    >
+    <>
       <button
         onClick={onClick}
-        className="group w-full text-left rounded-card px-3 py-3.5 flex items-center gap-4 hover:bg-white/[0.04] transition-colors"
+        className="group w-full text-left rounded-card px-3 py-3.5 flex items-center gap-4 active:bg-white/[0.06] transition-colors"
       >
         <span className="w-9 h-9 flex items-center justify-center shrink-0">
           {icon}
@@ -363,6 +358,6 @@ function Row({
         )}
       </button>
       {divider && <div className="mx-3 h-px bg-white/[0.06]" />}
-    </motion.div>
+    </>
   );
 }
