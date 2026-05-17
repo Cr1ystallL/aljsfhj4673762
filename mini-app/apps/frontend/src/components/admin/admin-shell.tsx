@@ -6,10 +6,13 @@ import {
   ChevronLeft,
   Gamepad2,
   Gauge,
-  Users,
-  Wallet,
+  KeyRound,
+  Network,
+  ShieldAlert,
   ScrollText,
   Shield,
+  Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -52,6 +55,24 @@ const links: AdminLink[] = [
     label: 'Выводы',
     Icon: Wallet,
     href: '/system/console/withdrawals',
+  },
+  {
+    id: 'alerts',
+    label: 'Алерты',
+    Icon: ShieldAlert,
+    href: '/system/console/alerts',
+  },
+  {
+    id: 'sessions',
+    label: 'Сессии',
+    Icon: Network,
+    href: '/system/console/sessions',
+  },
+  {
+    id: 'admins',
+    label: 'Админы',
+    Icon: KeyRound,
+    href: '/system/console/admins',
   },
   {
     id: 'audit',

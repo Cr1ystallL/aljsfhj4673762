@@ -146,8 +146,12 @@ export async function optionalAuth(
 /**
  * Parse the admin Telegram ID allow-list from the env. Comma-separated,
  * whitespace-tolerant, ignores blank entries. We compute it once at
- * module load — flipping admins live requires a backend restart, which
- * is intentional: the value should only ever change in deployment.
+ * module load — flipping seed admins live requires a backend restart,
+ * which is intentional: the .env value should only ever change in
+ * deployment.
+ *
+ * Runtime admins (added via the admin UI) live in Redis set
+ * `admins:dynamic` and are checked dynamically in `isAdminTelegramId`.
  */
 const ADMIN_TELEGRAM_IDS: ReadonlySet<number> = (() => {
   const raw = process.env.ADMIN_TELEGRAM_IDS ?? '';
@@ -160,8 +164,46 @@ const ADMIN_TELEGRAM_IDS: ReadonlySet<number> = (() => {
   return new Set(ids);
 })();
 
+/**
+ * Cache for runtime (Redis-backed) admin set. We avoid hitting Redis
+ * on every request by caching the set with a short TTL.
+ */
+let dynamicCache: { ids: Set<number>; expiresAt: number } | null = null;
+const DYNAMIC_TTL_MS = 5_000;
+
+async function getDynamicAdmins(): Promise<Set<number>> {
+  const now = Date.now();
+  if (dynamicCache && dynamicCache.expiresAt > now) return dynamicCache.ids;
+  try {
+    // Lazy import — avoids a circular dep with redis when the auth file
+    // is loaded before the redis client connects.
+    const { redisClient } = await import('../lib/redis.js');
+    const raw = await redisClient.getClient().smembers('admins:dynamic');
+    const ids = new Set(
+      raw
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    );
+    dynamicCache = { ids, expiresAt: now + DYNAMIC_TTL_MS };
+    return ids;
+  } catch (err) {
+    logger.warn({ err }, 'Failed to read dynamic admin set');
+    return new Set();
+  }
+}
+
 export function isAdminTelegramId(telegramId: number): boolean {
   return ADMIN_TELEGRAM_IDS.has(telegramId);
+}
+
+/**
+ * Async version that also consults the runtime Redis set. Called from
+ * the `adminOnly` guard.
+ */
+async function isAdminTelegramIdAsync(telegramId: number): Promise<boolean> {
+  if (ADMIN_TELEGRAM_IDS.has(telegramId)) return true;
+  const dyn = await getDynamicAdmins();
+  return dyn.has(telegramId);
 }
 
 /**
@@ -205,7 +247,7 @@ export async function adminOnly(
     if (!session || session.userId !== decoded.userId) {
       return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
     }
-    if (!isAdminTelegramId(decoded.telegramId)) {
+    if (!(await isAdminTelegramIdAsync(decoded.telegramId))) {
       // Log silently — this *can* be a probe — but never tell the caller.
       logger.warn(
         { telegramId: decoded.telegramId, ip: request.ip, url: request.url },

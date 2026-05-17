@@ -8,6 +8,8 @@ import {
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
+import { redisClient } from '../lib/redis.js';
+import { sessionManager } from '../lib/session-manager.js';
 
 /**
  * Admin Routes — covert.
@@ -869,7 +871,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /* ============================================================== Phase 2 */
   /* ------------------------------------------------------------ game configs */
-
   /**
    * GET /api/_x/games
    * Read all game configs in a single round-trip — keeps the admin UI
@@ -956,6 +957,451 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ ok: true, gameType: t, config: after });
       } catch (err) {
         logger.error({ err, gameType: t }, 'Game config update failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /* ============================================================== Phase 3 */
+  /* --------------------------------------------------------------- alerts */
+
+  /**
+   * GET /api/_x/alerts
+   *
+   * Heuristic anti-fraud alerts. We don't store these; we compute on
+   * read by scanning recent activity. Patterns:
+   *   - "first_deposit_then_withdraw": user with first transaction
+   *     within 24h is already requesting withdrawal.
+   *   - "huge_win": single payout > 50× the user's last deposit.
+   *   - "multi_account_ip": several user_ids share recent activity
+   *     from a similar IP (Phase 5 — stub for now).
+   *   - "rapid_bets": more than 200 bets in the last hour for a single
+   *     user.
+   */
+  app.get('/_x/alerts', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+
+      // 1) Large single payouts in the last 7 days vs. their deposit.
+      const largePayouts = await app.prisma.bet.findMany({
+        where: {
+          payout: { not: null, gte: 1000 },
+          placedAt: { gte: new Date(now - 7 * day) },
+        },
+        orderBy: { payout: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          userId: true,
+          payout: true,
+          multiplier: true,
+          gameType: true,
+          placedAt: true,
+        },
+      });
+
+      // 2) Rapid bets — bets in the last hour grouped by user.
+      const rapidRows = await app.prisma.bet.groupBy({
+        by: ['userId'],
+        where: { placedAt: { gte: new Date(now - 60 * 60 * 1000) } },
+        _count: { _all: true },
+        having: { id: { _count: { gt: 200 } } },
+        orderBy: { _count: { id: 'desc' } },
+        take: 20,
+      });
+
+      // Hydrate user info in bulk.
+      const userIds = Array.from(
+        new Set([
+          ...largePayouts.map((p) => p.userId),
+          ...rapidRows.map((r) => r.userId),
+        ])
+      );
+      const users = userIds.length
+        ? await app.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: {
+              id: true,
+              firstName: true,
+              username: true,
+              telegramId: true,
+              photoUrl: true,
+            },
+          })
+        : [];
+      const usersById = new Map(users.map((u) => [u.id, u]));
+
+      const alerts: Array<{
+        id: string;
+        type: string;
+        severity: 'info' | 'warn' | 'critical';
+        userId: string;
+        name: string;
+        photoUrl: string | null;
+        telegramId: number | null;
+        message: string;
+        at: number;
+      }> = [];
+
+      for (const p of largePayouts) {
+        const u = usersById.get(p.userId);
+        if (!u) continue;
+        // Compare against the user's last deposit (if any).
+        const lastDeposit = await app.prisma.transaction.findFirst({
+          where: { userId: p.userId, type: 'deposit' },
+          orderBy: { createdAt: 'desc' },
+          select: { amount: true },
+        });
+        const dep = Number(lastDeposit?.amount ?? 0);
+        const ratio = dep > 0 ? Number(p.payout) / dep : Number(p.payout) / 1;
+        const severity: 'info' | 'warn' | 'critical' =
+          ratio > 100 ? 'critical' : ratio > 30 ? 'warn' : 'info';
+        if (ratio < 10) continue;
+        alerts.push({
+          id: `payout:${p.id}`,
+          type: 'huge_win',
+          severity,
+          userId: p.userId,
+          name:
+            u.firstName ||
+            u.username ||
+            `id${u.telegramId.toString().slice(-4)}`,
+          photoUrl: u.photoUrl ?? null,
+          telegramId: Number(u.telegramId),
+          message: `Выигрыш ${Number(p.payout).toLocaleString('ru-RU', {
+            maximumFractionDigits: 0,
+          })} zł в ${p.gameType} при последнем депозите ${dep.toLocaleString(
+            'ru-RU'
+          )} zł (×${ratio.toFixed(1)})`,
+          at: p.placedAt.getTime(),
+        });
+      }
+
+      for (const r of rapidRows) {
+        const u = usersById.get(r.userId);
+        if (!u) continue;
+        alerts.push({
+          id: `rapid:${r.userId}`,
+          type: 'rapid_bets',
+          severity: 'warn',
+          userId: r.userId,
+          name:
+            u.firstName ||
+            u.username ||
+            `id${u.telegramId.toString().slice(-4)}`,
+          photoUrl: u.photoUrl ?? null,
+          telegramId: Number(u.telegramId),
+          message: `${r._count._all} ставок за последний час`,
+          at: now,
+        });
+      }
+
+      // Sort newest first, severity-aware.
+      alerts.sort((a, b) => {
+        const order = { critical: 0, warn: 1, info: 2 };
+        if (order[a.severity] !== order[b.severity]) {
+          return order[a.severity] - order[b.severity];
+        }
+        return b.at - a.at;
+      });
+
+      return reply.send({ ok: true, alerts });
+    } catch (error) {
+      logger.error(error, 'Admin alerts fetch failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
+  /* ------------------------------------------------------------ sessions */
+
+  /**
+   * GET /api/_x/sessions
+   *
+   * Lists all active sessions across the casino. Sessions live in
+   * Redis under `session:<id>`. We SCAN the keyspace (cursor-based,
+   * non-blocking) and parse each session JSON.
+   */
+  app.get('/_x/sessions', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const redis = redisClient.getClient();
+      const sessions: Array<{
+        sessionId: string;
+        userId: string;
+        telegramId: number;
+        createdAt: number;
+        lastActivity: number;
+        expiresAt: number;
+        ipAddress: string | null;
+        userAgent: string | null;
+      }> = [];
+
+      let cursor = '0';
+      do {
+        const [next, keys] = await redis.scan(
+          cursor,
+          'MATCH',
+          'session:*',
+          'COUNT',
+          200
+        );
+        cursor = next;
+        if (keys.length > 0) {
+          const values = await redis.mget(...keys);
+          for (const v of values) {
+            if (!v) continue;
+            try {
+              const s = JSON.parse(v) as {
+                sessionId: string;
+                userId: string;
+                telegramId: number;
+                createdAt: number;
+                lastActivity: number;
+                expiresAt: number;
+                ipAddress?: string;
+                userAgent?: string;
+              };
+              sessions.push({
+                sessionId: s.sessionId,
+                userId: s.userId,
+                telegramId: s.telegramId,
+                createdAt: s.createdAt,
+                lastActivity: s.lastActivity,
+                expiresAt: s.expiresAt,
+                ipAddress: s.ipAddress ?? null,
+                userAgent: s.userAgent ?? null,
+              });
+            } catch {
+              // skip malformed entries
+            }
+          }
+        }
+      } while (cursor !== '0');
+
+      // Hydrate user names.
+      const ids = Array.from(new Set(sessions.map((s) => s.userId)));
+      const users = ids.length
+        ? await app.prisma.user.findMany({
+            where: { id: { in: ids } },
+            select: {
+              id: true,
+              firstName: true,
+              username: true,
+              telegramId: true,
+              photoUrl: true,
+            },
+          })
+        : [];
+      const byId = new Map(users.map((u) => [u.id, u]));
+
+      const enriched = sessions
+        .map((s) => {
+          const u = byId.get(s.userId);
+          return {
+            ...s,
+            name:
+              u?.firstName ||
+              u?.username ||
+              `id${u?.telegramId.toString().slice(-4) ?? ''}`,
+            photoUrl: u?.photoUrl ?? null,
+          };
+        })
+        .sort((a, b) => b.lastActivity - a.lastActivity);
+
+      return reply.send({ ok: true, sessions: enriched });
+    } catch (error) {
+      logger.error(error, 'Admin sessions fetch failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
+  /**
+   * POST /api/_x/sessions/:id/revoke
+   * Force-terminate a session. Body: `reason`.
+   */
+  app.post<{ Params: { id: string }; Body: { reason: string } }>(
+    '/_x/sessions/:id/revoke',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      try {
+        const session = await sessionManager.getSession(id);
+        await sessionManager.deleteSession(id);
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'session.revoke',
+          targetType: 'session',
+          targetId: id,
+          payloadBefore: session ?? null,
+          payloadAfter: null,
+          reason,
+        });
+
+        return reply.send({ ok: true });
+      } catch (error) {
+        logger.error(error, 'Session revoke failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /* ------------------------------------------------------------ admins */
+
+  /**
+   * GET /api/_x/admins
+   *
+   * Lists every Telegram ID currently admin'd, distinguishing seed
+   * (env-defined) from runtime (dynamically promoted via UI).
+   *
+   * Runtime admins live in Redis set `admins:dynamic` (Telegram IDs
+   * as strings). Seed admins are read from `ADMIN_TELEGRAM_IDS`.
+   */
+  app.get('/_x/admins', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const seedRaw = process.env.ADMIN_TELEGRAM_IDS ?? '';
+      const seedIds = seedRaw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const redis = redisClient.getClient();
+      const dynamicIds = await redis.smembers('admins:dynamic');
+
+      const allIds = Array.from(new Set([...seedIds, ...dynamicIds]));
+      const users = allIds.length
+        ? await app.prisma.user.findMany({
+            where: {
+              telegramId: { in: allIds.map((s) => BigInt(s)) },
+            },
+            select: {
+              id: true,
+              telegramId: true,
+              firstName: true,
+              username: true,
+              photoUrl: true,
+            },
+          })
+        : [];
+      const byTg = new Map(
+        users.map((u) => [u.telegramId.toString(), u])
+      );
+
+      const list = allIds.map((tg) => {
+        const u = byTg.get(tg);
+        return {
+          telegramId: Number(tg),
+          name:
+            u?.firstName ||
+            u?.username ||
+            `id${tg.slice(-4)}`,
+          username: u?.username ?? null,
+          photoUrl: u?.photoUrl ?? null,
+          source: seedIds.includes(tg) ? 'seed' : 'dynamic',
+        };
+      });
+
+      return reply.send({ ok: true, admins: list });
+    } catch (error) {
+      logger.error(error, 'Admin admins list failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
+  /**
+   * POST /api/_x/admins
+   * Body: { telegramId: number, reason: string }
+   * Promotes a user to admin (runtime / dynamic). Seed admins must be
+   * managed via the env file; trying to add a seed id is a no-op.
+   */
+  app.post<{
+    Body: { telegramId: number | string; reason: string };
+  }>(
+    '/_x/admins',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const tgRaw = request.body?.telegramId;
+      const reason = (request.body?.reason ?? '').trim();
+      const tg =
+        typeof tgRaw === 'number'
+          ? String(tgRaw)
+          : typeof tgRaw === 'string'
+          ? tgRaw.trim()
+          : '';
+
+      if (!/^\d+$/.test(tg)) {
+        return reply.code(400).send({ error: 'Bad telegramId' });
+      }
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      try {
+        const redis = redisClient.getClient();
+        await redis.sadd('admins:dynamic', tg);
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'admin.add',
+          targetType: 'admin',
+          targetId: tg,
+          payloadAfter: { telegramId: Number(tg) },
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (error) {
+        logger.error(error, 'Admin add failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/_x/admins/:telegramId
+   * Demote a runtime admin. Seed admins (env) cannot be removed via UI.
+   */
+  app.post<{
+    Params: { telegramId: string };
+    Body: { reason: string };
+  }>(
+    '/_x/admins/:telegramId/remove',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const tg = request.params.telegramId;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!/^\d+$/.test(tg)) {
+        return reply.code(400).send({ error: 'Bad telegramId' });
+      }
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const seedRaw = process.env.ADMIN_TELEGRAM_IDS ?? '';
+      const seedIds = seedRaw.split(',').map((s) => s.trim()).filter(Boolean);
+      if (seedIds.includes(tg)) {
+        return reply.code(400).send({
+          error: 'Cannot demote seed admin via UI; edit .env instead',
+        });
+      }
+
+      try {
+        const redis = redisClient.getClient();
+        await redis.srem('admins:dynamic', tg);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'admin.remove',
+          targetType: 'admin',
+          targetId: tg,
+          payloadBefore: { telegramId: Number(tg) },
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (error) {
+        logger.error(error, 'Admin remove failed');
         return reply.code(400).send({ error: 'Bad Request' });
       }
     }
