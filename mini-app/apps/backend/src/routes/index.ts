@@ -5,6 +5,7 @@ import { balanceRoutes } from './balance.js';
 import { websocketRoutes } from './websocket.js';
 import { gameRoutes } from './games.js';
 import { adminRoutes } from './admin.js';
+import { macvpayRoutes } from './macvpay.js';
 
 /**
  * Register all application routes
@@ -21,6 +22,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Games
   await app.register(gameRoutes, { prefix: '/api/games' });
+
+  // MacvPay deposits
+  await app.register(macvpayRoutes, { prefix: '/api/macvpay' });
 
   // Admin (covert — see admin.ts for the security posture)
   await app.register(adminRoutes, { prefix: '/api' });

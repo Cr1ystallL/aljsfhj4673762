@@ -13,6 +13,10 @@ import {
   Building2,
   Smartphone,
   Banknote,
+  Copy,
+  Check,
+  Clock,
+  X,
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
 import { BrandLockup } from '@/components/ui/brand-mark';
@@ -20,14 +24,15 @@ import { BrandLockup } from '@/components/ui/brand-mark';
 /**
  * Balance Management — Monopo Saigon Style
  *
- * Two-tab plate (Пополнение / Вывод) with a grid of payment-method
- * placeholders. Methods are intentionally inert for now — when the
- * payment integrations land, each tile will route to its own flow.
+ * Deposit tab: Bank (MacvPay) and Revolut (MacvPay) are live.
+ * Other methods show a "Скоро" placeholder.
  *
- * The layout mirrors the spirit of typical casino "cashier" screens
- * (top balance pill, tabs, method grid, footer note) but rebuilt under
- * the brand's quiet aesthetic: frosted surfaces, hairline dividers,
- * Deep Ocean accents only on the active tab.
+ * Deposit flow:
+ *   1. User picks amount.
+ *   2. POST /api/macvpay/deposit → backend creates MacvPay order.
+ *   3. We show the unique amount + bank account to transfer to.
+ *   4. User transfers; MacvPay webhook credits the balance.
+ *   5. User can cancel the order (closes the payment window).
  */
 
 type Tab = 'deposit' | 'withdraw';
@@ -37,14 +42,26 @@ interface PaymentMethod {
   label: string;
   hint: string;
   icon: React.ReactNode;
+  live?: boolean;
+  macvpayType?: 'bank' | 'revolut';
 }
 
 const depositMethods: PaymentMethod[] = [
   {
-    id: 'card',
-    label: 'Банковская карта',
-    hint: 'Visa · Mastercard · МИР',
-    icon: <CreditCard size={20} strokeWidth={1.6} />,
+    id: 'bank',
+    label: 'Банковский перевод',
+    hint: 'Польский банк · MacvPay',
+    icon: <Building2 size={20} strokeWidth={1.6} />,
+    live: true,
+    macvpayType: 'bank',
+  },
+  {
+    id: 'revolut',
+    label: 'Revolut',
+    hint: 'По номеру телефона · MacvPay',
+    icon: <Smartphone size={20} strokeWidth={1.6} />,
+    live: true,
+    macvpayType: 'revolut',
   },
   {
     id: 'crypto',
@@ -53,22 +70,16 @@ const depositMethods: PaymentMethod[] = [
     icon: <Bitcoin size={20} strokeWidth={1.6} />,
   },
   {
-    id: 'sbp',
-    label: 'СБП',
-    hint: 'По номеру телефона',
-    icon: <Smartphone size={20} strokeWidth={1.6} />,
+    id: 'card',
+    label: 'Банковская карта',
+    hint: 'Visa · Mastercard · МИР',
+    icon: <CreditCard size={20} strokeWidth={1.6} />,
   },
   {
     id: 'wallet',
     label: 'Электронный кошелёк',
     hint: 'YooMoney · Qiwi',
     icon: <WalletIcon size={20} strokeWidth={1.6} />,
-  },
-  {
-    id: 'bank-transfer',
-    label: 'Банковский перевод',
-    hint: 'Расчётный счёт',
-    icon: <Building2 size={20} strokeWidth={1.6} />,
   },
   {
     id: 'cash',
@@ -105,13 +116,90 @@ const withdrawMethods: PaymentMethod[] = [
   },
 ];
 
+interface MacvPayOrder {
+  orderId: string;
+  uniqueAmount: number;
+  currency: string;
+  type: 'bank' | 'revolut';
+  card: string;
+  recipient: string;
+  details: string;
+  expiresInMinutes: number;
+}
+
 export default function BalancePage() {
   const router = useRouter();
   const balance = useBalanceStore((s) => s.balance);
   const amount = balance?.amount ?? 0;
   const [tab, setTab] = useState<Tab>('deposit');
 
+  // MacvPay deposit flow state
+  const [depositAmount, setDepositAmount] = useState<string>('100');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [order, setOrder] = useState<MacvPayOrder | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
   const methods = tab === 'deposit' ? depositMethods : withdrawMethods;
+
+  const startDeposit = async (method: PaymentMethod) => {
+    if (!method.live || !method.macvpayType) return;
+    const num = parseFloat(depositAmount);
+    if (!Number.isFinite(num) || num < 10) {
+      setError('Минимальная сумма 10 PLN');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    setSelectedMethod(method);
+    try {
+      const res = await fetch('/api/macvpay/deposit', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: num, type: method.macvpayType }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        setError(j.error ?? 'Ошибка создания заявки');
+        setSelectedMethod(null);
+      } else {
+        setOrder(j as MacvPayOrder);
+      }
+    } catch {
+      setError('Сетевая ошибка. Попробуйте позже.');
+      setSelectedMethod(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelDeposit = async () => {
+    if (!order) return;
+    try {
+      await fetch('/api/macvpay/cancel', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.orderId }),
+      });
+    } catch {
+      // best-effort
+    }
+    setOrder(null);
+    setSelectedMethod(null);
+  };
+
+  const copyText = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
@@ -154,62 +242,210 @@ export default function BalancePage() {
           </div>
         </section>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-2">
-          <TabButton
-            active={tab === 'deposit'}
-            onClick={() => setTab('deposit')}
-            icon={<ArrowDownToLine size={14} strokeWidth={1.8} />}
-            label="Пополнение"
-          />
-          <TabButton
-            active={tab === 'withdraw'}
-            onClick={() => setTab('withdraw')}
-            icon={<ArrowUpFromLine size={14} strokeWidth={1.8} />}
-            label="Вывод"
-          />
-        </div>
-
-        {/* Methods grid */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-            className="grid grid-cols-2 gap-3"
-          >
-            {methods.map((m) => (
-              <button
-                key={m.id}
-                disabled
-                className="text-left rounded-card border border-white/10 bg-white/[0.03] px-4 py-4 flex flex-col gap-3 opacity-90 cursor-not-allowed"
-              >
-                <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85">
-                  {m.icon}
-                </span>
-                <div>
-                  <div className="font-roobert text-[14px] leading-tight text-frost-white">
-                    {m.label}
-                  </div>
-                  <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
-                    {m.hint}
-                  </div>
-                </div>
-                <div className="mt-auto inline-flex items-center px-2 py-0.5 rounded-pill border border-white/10 self-start">
-                  <span className="font-roobert text-[9px] uppercase tracking-[0.22em] text-whisper-gray">
-                    Скоро
+        {/* MacvPay order — payment instructions */}
+        <AnimatePresence>
+          {order && (
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="relative overflow-hidden rounded-card border border-white/15 bg-white/[0.04]"
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(160,224,171,0.08), rgba(255,172,46,0.06))',
+              }}
+            >
+              <div className="px-5 py-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+                    Реквизиты для оплаты
                   </span>
+                  <button
+                    onClick={cancelDeposit}
+                    className="w-7 h-7 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white"
+                  >
+                    <X size={12} strokeWidth={1.8} />
+                  </button>
                 </div>
-              </button>
-            ))}
-          </motion.div>
+
+                {/* Unique amount — most important */}
+                <div className="rounded-card border border-white/15 bg-white/[0.04] px-4 py-3">
+                  <div className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray mb-1">
+                    Переведите ТОЧНО эту сумму
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-roobert text-[28px] font-light tabular-nums text-frost-white">
+                      {order.uniqueAmount.toFixed(2)}{' '}
+                      <span className="text-[18px] text-whisper-gray">
+                        {order.currency}
+                      </span>
+                    </span>
+                    <button
+                      onClick={() =>
+                        copyText(order.uniqueAmount.toFixed(2), 'amount')
+                      }
+                      className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80"
+                    >
+                      {copied === 'amount' ? (
+                        <Check size={13} strokeWidth={2} />
+                      ) : (
+                        <Copy size={13} strokeWidth={1.7} />
+                      )}
+                    </button>
+                  </div>
+                  <p className="mt-1.5 font-roobert text-[11px] text-[#ff8a76]/90">
+                    Сумма уникальна — другая сумма не будет зачтена
+                  </p>
+                </div>
+
+                {/* Account / phone */}
+                <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 flex flex-col gap-2">
+                  <Row
+                    label={order.type === 'bank' ? 'Номер счёта' : 'Телефон'}
+                    value={order.card}
+                    onCopy={() => copyText(order.card, 'card')}
+                    copied={copied === 'card'}
+                  />
+                  <Row
+                    label="Получатель"
+                    value={order.recipient}
+                    onCopy={() => copyText(order.recipient, 'recipient')}
+                    copied={copied === 'recipient'}
+                  />
+                </div>
+
+                {/* Timer */}
+                <div className="inline-flex items-center gap-1.5 font-roobert text-[11px] text-whisper-gray">
+                  <Clock size={12} strokeWidth={1.7} />
+                  Заявка действует {order.expiresInMinutes} минут
+                </div>
+
+                <p className="font-roobert text-[11px] text-whisper-gray leading-relaxed">
+                  После перевода баланс пополнится автоматически в течение
+                  нескольких минут. Если не пришло — обратитесь в поддержку
+                  с ID заявки: <span className="tabular-nums">{order.orderId.slice(0, 12)}…</span>
+                </p>
+              </div>
+            </motion.section>
+          )}
         </AnimatePresence>
 
+        {/* Tabs */}
+        {!order && (
+          <>
+            <div className="flex items-center gap-2">
+              <TabButton
+                active={tab === 'deposit'}
+                onClick={() => setTab('deposit')}
+                icon={<ArrowDownToLine size={14} strokeWidth={1.8} />}
+                label="Пополнение"
+              />
+              <TabButton
+                active={tab === 'withdraw'}
+                onClick={() => setTab('withdraw')}
+                icon={<ArrowUpFromLine size={14} strokeWidth={1.8} />}
+                label="Вывод"
+              />
+            </div>
+
+            {/* Amount input — only for deposit */}
+            {tab === 'deposit' && (
+              <div className="flex flex-col gap-1.5">
+                <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+                  Сумма пополнения, zł
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step={10}
+                    min={10}
+                    value={depositAmount}
+                    onChange={(e) => {
+                      setDepositAmount(e.target.value);
+                      setError(null);
+                    }}
+                    className="flex-1 bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[18px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
+                  />
+                  {[50, 100, 200, 500].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setDepositAmount(String(v))}
+                      className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 font-roobert text-[12px] text-frost-white/85 transition-colors"
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                {error && (
+                  <span className="font-roobert text-[12px] text-[#ff8a76]">
+                    {error}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Methods grid */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="grid grid-cols-2 gap-3"
+              >
+                {methods.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      if (m.live && tab === 'deposit') {
+                        void startDeposit(m);
+                      }
+                    }}
+                    disabled={loading && selectedMethod?.id === m.id}
+                    className={`text-left rounded-card border px-4 py-4 flex flex-col gap-3 transition-colors ${
+                      m.live && tab === 'deposit'
+                        ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/25 cursor-pointer'
+                        : 'border-white/10 bg-white/[0.03] opacity-90 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85">
+                      {m.icon}
+                    </span>
+                    <div>
+                      <div className="font-roobert text-[14px] leading-tight text-frost-white">
+                        {m.label}
+                      </div>
+                      <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
+                        {m.hint}
+                      </div>
+                    </div>
+                    {!m.live && (
+                      <div className="mt-auto inline-flex items-center px-2 py-0.5 rounded-pill border border-white/10 self-start">
+                        <span className="font-roobert text-[9px] uppercase tracking-[0.22em] text-whisper-gray">
+                          Скоро
+                        </span>
+                      </div>
+                    )}
+                    {m.live && loading && selectedMethod?.id === m.id && (
+                      <div className="mt-auto inline-flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+                        <span className="font-roobert text-[10px] text-whisper-gray">
+                          Создание заявки…
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </>
+        )}
+
         <p className="font-roobert text-[11px] text-whisper-gray text-center px-4 leading-relaxed">
-          Способы оплаты появятся в ближайшее время. Лимиты, комиссии и
-          подтверждение операций будут отображаться здесь.
+          {tab === 'deposit'
+            ? 'Выберите способ пополнения. Банковский перевод и Revolut доступны прямо сейчас.'
+            : 'Способы вывода появятся в ближайшее время.'}
         </p>
 
         <div className="pt-2 flex items-center justify-center">
@@ -251,5 +487,40 @@ function TabButton({
       {icon}
       <span className="font-roobert text-[13px]">{label}</span>
     </button>
+  );
+}
+
+function Row({
+  label,
+  value,
+  onCopy,
+  copied,
+}: {
+  label: string;
+  value: string;
+  onCopy: () => void;
+  copied: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <div className="font-roobert text-[10px] uppercase tracking-[0.18em] text-whisper-gray">
+          {label}
+        </div>
+        <div className="font-roobert text-[14px] text-frost-white tabular-nums truncate">
+          {value}
+        </div>
+      </div>
+      <button
+        onClick={onCopy}
+        className="w-8 h-8 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white shrink-0"
+      >
+        {copied ? (
+          <Check size={12} strokeWidth={2} />
+        ) : (
+          <Copy size={12} strokeWidth={1.7} />
+        )}
+      </button>
+    </div>
   );
 }
