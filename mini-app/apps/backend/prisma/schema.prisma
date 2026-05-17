@@ -52,7 +52,7 @@ model Balance {
   id           String   @id @default(uuid())
   userId       String   @unique @map("user_id")
   amount       Decimal  @default(0) @db.Decimal(20, 2)
-  currency     String   @default("USD")
+  currency     String   @default("PLN")
   demoMode     Boolean  @default(false) @map("demo_mode")
   lastSyncedAt DateTime @default(now()) @map("last_synced_at")
   version      Int      @default(0) // Optimistic locking

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
@@ -35,7 +35,7 @@ function tintFor(seed: string): string {
   return TINTS[Math.abs(h) % TINTS.length];
 }
 
-export function CoinflipHistory({ entries, currency = '₽' }: CoinflipHistoryProps) {
+export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryProps) {
   const [tab, setTab] = useState<'all' | 'rare'>('all');
   const visible =
     tab === 'rare' ? entries.filter((e) => e.multiplier >= 5) : entries;

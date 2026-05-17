@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Coins, Trophy } from 'lucide-react';
 
@@ -18,7 +18,7 @@ interface CrashStatsBarProps {
 export function CrashStatsBar({
   playerCount,
   totalBets,
-  currency = '₽',
+  currency = 'zł',
 }: CrashStatsBarProps) {
   return (
     <div className="grid grid-cols-2 gap-2">

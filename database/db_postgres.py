@@ -87,7 +87,7 @@ class DatabasePostgres:
         if cursor.rowcount == 0:
             cursor.execute('''
                 INSERT INTO balances (id, user_id, amount, currency, demo_mode, created_at, updated_at)
-                SELECT gen_random_uuid(), id, %s, 'USD', false, NOW(), NOW()
+                SELECT gen_random_uuid(), id, %s, 'PLN', false, NOW(), NOW()
                 FROM users WHERE telegram_id = %s
             ''', (amount, user_id))
         
@@ -174,7 +174,7 @@ class DatabasePostgres:
             # Создаем баланс
             cursor.execute('''
                 INSERT INTO balances (id, user_id, amount, currency, demo_mode, created_at, updated_at)
-                VALUES (gen_random_uuid(), %s, %s, 'USD', false, NOW(), NOW())
+                VALUES (gen_random_uuid(), %s, %s, 'PLN', false, NOW(), NOW())
             ''', (user_uuid, initial_balance))
             
             conn.commit()
@@ -514,13 +514,14 @@ class DatabasePostgres:
         """Сохранить выбранный язык пользователя.
 
         Создаёт колонку `bot_language` лениво — это позволяет работать с
-        существующей Prisma-схемой, не требуя переката миграций.
+        существующей Prisma-схемой, не требуя переката миграций. DDL
+        запускается с autocommit, чтобы не зависеть от состояния
+        транзакции и гарантированно отрабатывать на каждом вызове.
         """
         conn = self._get_connection()
-        cursor = conn.cursor()
         try:
-            # Idempotent column creation — DDL is auto-committed in psycopg2
-            # default mode, so subsequent /start commands are cheap.
+            conn.autocommit = True
+            cursor = conn.cursor()
             cursor.execute(
                 'ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_language TEXT'
             )
@@ -528,7 +529,6 @@ class DatabasePostgres:
                 'UPDATE users SET bot_language = %s WHERE telegram_id = %s',
                 (language, user_id)
             )
-            conn.commit()
         finally:
             conn.close()
 

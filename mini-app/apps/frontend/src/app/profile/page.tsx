@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -38,7 +38,7 @@ import { Shield } from 'lucide-react';
  *     in place after a bet resolves.
  *   - Stat tiles: total bets, total winnings, biggest win, biggest mult.
  *   - Recent bets: per-game icon + label + relative date + stake +
- *     payout. Amounts are normalised so we don't show "Ставка: -4.00 ₽".
+ *     payout. Amounts are normalised so we don't show "Ставка: -4.00 zł".
  */
 
 export default function ProfilePage() {
@@ -171,7 +171,7 @@ export default function ProfilePage() {
                   })}
                 </span>
                 <span className="text-whisper-gray text-[11px] font-roobert">
-                  ₽
+                  zł
                 </span>
               </div>
             </div>
@@ -190,7 +190,7 @@ export default function ProfilePage() {
               value={`${stats.totalWon.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
-              })} ₽`}
+              })} zł`}
             />
             <StatTile
               icon={<Trophy size={13} className="text-frost-white/60" strokeWidth={1.8} />}
@@ -198,7 +198,7 @@ export default function ProfilePage() {
               value={`${stats.maxWin.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
-              })} ₽`}
+              })} zł`}
             />
             <StatTile
               icon={<Sparkles size={13} className="text-frost-white/60" strokeWidth={1.8} />}
@@ -403,7 +403,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
       : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString('ru-RU', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2,
-        })} ₽`;
+        })} zł`;
 
   return (
     <motion.div
@@ -424,7 +424,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
             minimumFractionDigits: 0,
             maximumFractionDigits: 2,
           })}{' '}
-          ₽
+          zł
         </div>
       </div>
 

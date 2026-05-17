@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
@@ -36,7 +36,7 @@ function tintFor(seed: string): string {
   return TINTS[Math.abs(h) % TINTS.length];
 }
 
-export function PlinkoHistory({ entries, currency = '₽' }: PlinkoHistoryProps) {
+export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps) {
   const [tab, setTab] = useState<'all' | 'rare'>('all');
   const visible = tab === 'rare' ? entries.filter((e) => e.multiplier >= 5) : entries;
 

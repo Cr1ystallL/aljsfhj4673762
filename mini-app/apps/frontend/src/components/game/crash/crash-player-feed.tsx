@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
@@ -79,7 +79,7 @@ function PlayerAvatar({ player }: { player: CrashLivePlayer }) {
 export function CrashPlayerFeed({
   players,
   currentUserId,
-  currency = '₽',
+  currency = 'zł',
 }: CrashPlayerFeedProps) {
   // Sort: cashed-out first (highest multiplier), then active (highest stake), then lost.
   const sorted = [...players].sort((a, b) => {

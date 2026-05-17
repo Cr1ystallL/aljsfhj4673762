@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -149,7 +149,7 @@ export default function BalancePage() {
               <span className="font-roobert text-[44px] font-light leading-none tabular-nums text-frost-white">
                 {amount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
               </span>
-              <span className="font-roobert text-[18px] text-whisper-gray">₽</span>
+              <span className="font-roobert text-[18px] text-whisper-gray">zł</span>
             </div>
           </div>
         </section>

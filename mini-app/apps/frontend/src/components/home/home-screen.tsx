@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
@@ -119,7 +119,7 @@ export function HomeScreen() {
                 })}
               </span>
               <span className="font-roobert text-whisper-gray text-[11px] leading-none">
-                ₽
+                zł
               </span>
             </button>
 

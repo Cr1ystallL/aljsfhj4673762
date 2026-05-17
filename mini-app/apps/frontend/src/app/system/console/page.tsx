@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -186,19 +186,19 @@ export default function AdminDashboardPage() {
               <Kpi
                 icon={<Wallet size={14} strokeWidth={1.6} />}
                 label="Обязательства"
-                value={`${formatRub(data.balances.totalLiability)} ₽`}
+                value={`${formatRub(data.balances.totalLiability)} zł`}
                 hint={`${data.balances.accounts} счетов`}
               />
               <Kpi
                 icon={<Coins size={14} strokeWidth={1.6} />}
                 label="Оборот"
-                value={`${formatRub(data.bets.totalWagered)} ₽`}
+                value={`${formatRub(data.bets.totalWagered)} zł`}
                 hint={`${data.bets.count.toLocaleString('ru-RU')} ставок`}
               />
               <Kpi
                 icon={<TrendingUp size={14} strokeWidth={1.6} />}
                 label="GGR"
-                value={`${formatRub(data.bets.ggr)} ₽`}
+                value={`${formatRub(data.bets.ggr)} zł`}
                 hint={`RTP ${(data.bets.rtp * 100).toFixed(2)}%`}
                 accent={data.bets.ggr >= 0 ? 'good' : 'warn'}
               />
@@ -239,7 +239,7 @@ export default function AdminDashboardPage() {
                       Крупнейший выигрыш
                     </div>
                     <div className="font-roobert text-[20px] font-light text-frost-white tabular-nums">
-                      {formatRub(data.biggestWin.payout)} ₽
+                      {formatRub(data.biggestWin.payout)} zł
                       <span className="ml-2 text-whisper-gray text-[14px]">
                         x{data.biggestWin.multiplier.toFixed(2)}
                       </span>
@@ -365,7 +365,7 @@ export default function AdminDashboardPage() {
                       </div>
                       <div className="text-right">
                         <div className="font-roobert text-[13px] tabular-nums text-frost-white">
-                          {formatRub(p.wagered)} ₽
+                          {formatRub(p.wagered)} zł
                         </div>
                         <div
                           className={`font-roobert text-[10px] tabular-nums ${

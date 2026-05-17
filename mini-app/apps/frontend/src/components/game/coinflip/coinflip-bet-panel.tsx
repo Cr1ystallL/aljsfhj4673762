@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import type { CoinflipMode } from '@/lib/games/coinflip/types';
  * Coinflip Bet Panel — Monopo Saigon Style
  *
  * Two columns:
- *   - Stake (left): ₽ input with halve / double pills.
+ *   - Stake (left): zł input with halve / double pills.
  *   - Mode (right): dropdown selecting "С умножением" (multiply) /
  *     "Быстрая игра" (quick).
  *
@@ -134,7 +134,7 @@ export function CoinflipBetPanel({
             </div>
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-whisper-gray text-[12px] font-roobert">₽</span>
+            <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
             <input
               type="number"
               value={amount}

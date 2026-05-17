@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { HelpCircle, Wallet, type LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -90,7 +90,7 @@ export function GameTopBar({
             })}
           </span>
           <span className="font-roobert text-whisper-gray text-[10px] leading-none">
-            ₽
+            zł
           </span>
         </button>
 

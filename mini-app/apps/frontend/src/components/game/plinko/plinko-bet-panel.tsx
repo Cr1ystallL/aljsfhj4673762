@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
  * One compact card that fits on the first viewport with the board:
  *
  *   ┌─ stake row ─────────────────────────┐
- *   │  ½  ₽ amount  ×2     [Авто  ON]     │
+ *   │  ½  zł amount  ×2     [Авто  ON]     │
  *   └─────────────────────────────────────┘
  *   ┌─ primary CTA ───────────────────────┐
  *   │           Сбросить                  │
@@ -73,7 +73,7 @@ export function PlinkoBetPanel({
           </button>
 
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <span className="text-whisper-gray text-[12px] font-roobert">₽</span>
+            <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
             <input
               type="number"
               value={amount}

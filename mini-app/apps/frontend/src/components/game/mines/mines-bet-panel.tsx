@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion } from 'framer-motion';
 import { Bomb, Gem, Minus, Plus } from 'lucide-react';
@@ -109,7 +109,7 @@ export function MinesBetPanel({
             </div>
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-whisper-gray text-[12px] font-roobert">₽</span>
+            <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
             <input
               type="number"
               value={amount}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { History } from 'lucide-react';
@@ -26,7 +26,7 @@ interface MinesRecentBetsProps {
   currency?: string;
 }
 
-export function MinesRecentBets({ bets, currency = '₽' }: MinesRecentBetsProps) {
+export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps) {
   return (
     <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">

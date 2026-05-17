@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -412,7 +412,7 @@ export default function CoinflipGamePage() {
                 ? lastQuick.payout
                 : lastQuick.betAmount
               ).toLocaleString('ru-RU')}{' '}
-              ₽
+              zł
             </span>
           </div>
         )}
@@ -438,7 +438,7 @@ export default function CoinflipGamePage() {
               {multi.status === 'busted'
                 ? 'Новая ставка'
                 : multi.status === 'cashed'
-                ? `Забрано · +${(multi.payout ?? 0).toLocaleString('ru-RU')} ₽`
+                ? `Забрано · +${(multi.payout ?? 0).toLocaleString('ru-RU')} zł`
                 : 'Серия идёт…'}
             </button>
           </div>
