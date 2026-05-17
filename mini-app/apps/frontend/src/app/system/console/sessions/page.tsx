@@ -124,11 +124,11 @@ export default function SessionsPage() {
                       src={s.photoUrl}
                       alt={s.name}
                       referrerPolicy="no-referrer"
-                      className="w-14 h-14 rounded-pill border border-white/10 object-cover"
+                      className="w-10 h-10 rounded-pill border border-white/10 object-cover"
                       draggable={false}
                     />
                   ) : (
-                    <span className="w-14 h-14 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[18px]">
+                    <span className="w-10 h-10 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[14px]">
                       {s.name.charAt(0).toUpperCase()}
                     </span>
                   )}
