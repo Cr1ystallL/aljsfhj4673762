@@ -7,6 +7,7 @@ import {
 } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
+import { gameConfig, type GameType } from '../services/game-config.js';
 
 /**
  * Admin Routes — covert.
@@ -15,18 +16,46 @@ import { balanceService } from '../services/balance-service.js';
  * 404s for non-admins, and the only authoritative check is the
  * Telegram ID in the verified JWT vs the `ADMIN_TELEGRAM_IDS` env var.
  *
- * All mutating endpoints write to `admin_audit_log` so every action is
- * attributable. The log is append-only — there is no UI to remove rows.
+ * Implementation note: many queries here use `prisma.$queryRaw` /
+ * `$executeRaw` for fields that may not exist on the generated client
+ * yet (Phase 1 added `users.is_blocked` / `users.withdrawal_locked` /
+ * `admin_audit_log` via SQL migration). Once `prisma generate` has
+ * caught up everywhere, these can be migrated to typed Prisma calls.
  */
+
+interface RawUserRow {
+  id: string;
+  telegram_id: bigint;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  language_code: string | null;
+  photo_url: string | null;
+  is_premium: boolean;
+  is_blocked: boolean;
+  withdrawal_locked: boolean;
+  admin_note: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface RawAuditRow {
+  id: string;
+  admin_user_id: string;
+  admin_telegram_id: bigint;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  payload_before: unknown;
+  payload_after: unknown;
+  reason: string | null;
+  ip_address: string | null;
+  created_at: Date;
+}
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   /* -------------------------------------------------------------- helpers */
 
-  /**
-   * Append a row to the audit log. Failures are logged but do not abort
-   * the parent operation — losing audit entries is bad, but losing
-   * legitimate admin actions because of an audit bug is worse.
-   */
   async function audit(params: {
     request: AuthenticatedRequest;
     action: string;
@@ -37,25 +66,27 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     reason?: string;
   }) {
     try {
-      await app.prisma.adminAuditLog.create({
-        data: {
-          adminUserId: params.request.user.userId,
-          adminTelegramId: BigInt(params.request.user.telegramId),
-          action: params.action,
-          targetType: params.targetType,
-          targetId: params.targetId ?? null,
-          payloadBefore:
-            params.payloadBefore === undefined
-              ? Prisma.JsonNull
-              : (params.payloadBefore as Prisma.InputJsonValue),
-          payloadAfter:
-            params.payloadAfter === undefined
-              ? Prisma.JsonNull
-              : (params.payloadAfter as Prisma.InputJsonValue),
-          reason: params.reason ?? null,
-          ipAddress: params.request.ip ?? null,
-        },
-      });
+      const id = (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
+        `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await app.prisma.$executeRaw`
+        INSERT INTO admin_audit_log (
+          id, admin_user_id, admin_telegram_id, action,
+          target_type, target_id, payload_before, payload_after,
+          reason, ip_address, created_at
+        ) VALUES (
+          ${id},
+          ${params.request.user.userId},
+          ${BigInt(params.request.user.telegramId)},
+          ${params.action},
+          ${params.targetType},
+          ${params.targetId ?? null},
+          ${params.payloadBefore !== undefined ? JSON.stringify(params.payloadBefore) : null}::jsonb,
+          ${params.payloadAfter !== undefined ? JSON.stringify(params.payloadAfter) : null}::jsonb,
+          ${params.reason ?? null},
+          ${params.request.ip ?? null},
+          NOW()
+        )
+      `;
     } catch (err) {
       logger.error({ err, params }, 'Failed to record admin audit log');
     }
@@ -63,13 +94,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /* ---------------------------------------------------------------- probe */
 
-  /**
-   * GET /api/_x/probe
-   *
-   * Discoverability check. The frontend hits this once after auth and
-   * decides whether to render the "Админ" button. Non-admins get a 404
-   * via the middleware.
-   */
   app.get('/_x/probe', { preHandler: adminOnly }, async (_req, reply) => {
     return reply.send({ ok: true });
   });
@@ -262,10 +286,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /* ---------------------------------------------------------------- users */
 
-  /**
-   * GET /api/_x/users
-   * Paged list of all users with their balance, totals, and flags.
-   */
   app.get<{
     Querystring: { q?: string; page?: string; limit?: string; flag?: string };
   }>(
@@ -276,55 +296,64 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
       const limit = Math.min(100, Math.max(10, parseInt(request.query.limit ?? '50', 10)));
       const skip = (page - 1) * limit;
-
-      // Build a Prisma `where` filter. Search supports name, username
-      // and Telegram ID. Numeric input matches by TG id; text input
-      // matches case-insensitive substring on first/last name + username.
-      const where: Prisma.UserWhereInput = {};
-      if (q) {
-        const numeric = /^\d+$/.test(q) ? BigInt(q) : null;
-        where.OR = [
-          { firstName: { contains: q, mode: 'insensitive' } },
-          { lastName: { contains: q, mode: 'insensitive' } },
-          { username: { contains: q, mode: 'insensitive' } },
-          ...(numeric ? [{ telegramId: numeric }] : []),
-        ];
-      }
-      if (request.query.flag === 'blocked') where.isBlocked = true;
-      if (request.query.flag === 'locked') where.withdrawalLocked = true;
+      const flag = request.query.flag;
 
       try {
-        const [total, rows] = await Promise.all([
-          app.prisma.user.count({ where }),
-          app.prisma.user.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            skip,
-            take: limit,
-            select: {
-              id: true,
-              telegramId: true,
-              username: true,
-              firstName: true,
-              lastName: true,
-              photoUrl: true,
-              isBlocked: true,
-              withdrawalLocked: true,
-              createdAt: true,
-              balance: { select: { amount: true } },
-              _count: { select: { bets: true } },
-            },
-          }),
-        ]);
+        // Build conditional where clause via raw SQL fragments — keeps
+        // the field reference (`is_blocked`) decoupled from whether the
+        // generated Prisma client knows about it yet.
+        const conds: Prisma.Sql[] = [];
+        if (q) {
+          if (/^\d+$/.test(q)) {
+            conds.push(Prisma.sql`telegram_id = ${BigInt(q)}`);
+          } else {
+            const like = `%${q}%`;
+            conds.push(
+              Prisma.sql`(first_name ILIKE ${like} OR last_name ILIKE ${like} OR username ILIKE ${like})`
+            );
+          }
+        }
+        if (flag === 'blocked') conds.push(Prisma.sql`is_blocked = true`);
+        if (flag === 'locked') conds.push(Prisma.sql`withdrawal_locked = true`);
+        const where =
+          conds.length > 0
+            ? Prisma.sql` WHERE ${Prisma.join(conds, ' AND ')}`
+            : Prisma.empty;
 
-        // Pull aggregates separately — Prisma doesn't expose
-        // sum(bet.amount) on relation count, so a small batch query.
+        const totalRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
+        );
+        const total = Number(totalRows[0]?.c ?? 0);
+
+        const rows = await app.prisma.$queryRaw<RawUserRow[]>(
+          Prisma.sql`
+            SELECT id, telegram_id, username, first_name, last_name,
+                   language_code, photo_url, is_premium,
+                   is_blocked, withdrawal_locked, admin_note,
+                   created_at, updated_at
+            FROM users${where}
+            ORDER BY created_at DESC
+            LIMIT ${limit} OFFSET ${skip}
+          `
+        );
+
         const userIds = rows.map((r) => r.id);
+        const balances = userIds.length
+          ? await app.prisma.balance.findMany({
+              where: { userId: { in: userIds } },
+              select: { userId: true, amount: true },
+            })
+          : [];
+        const balById = new Map(
+          balances.map((b) => [b.userId, Number(b.amount)])
+        );
+
         const aggs = userIds.length
           ? await app.prisma.bet.groupBy({
               by: ['userId'],
               where: { userId: { in: userIds } },
               _sum: { amount: true, payout: true },
+              _count: { _all: true },
             })
           : [];
         const aggsById = new Map(aggs.map((a) => [a.userId, a]));
@@ -335,20 +364,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           const paid = Number(a?._sum.payout ?? 0);
           return {
             id: u.id,
-            telegramId: Number(u.telegramId),
+            telegramId: Number(u.telegram_id),
             name:
-              u.firstName ||
+              u.first_name ||
               u.username ||
-              `id${u.telegramId.toString().slice(-4)}`,
+              `id${u.telegram_id.toString().slice(-4)}`,
             username: u.username,
-            firstName: u.firstName,
-            lastName: u.lastName,
-            photoUrl: u.photoUrl,
-            isBlocked: u.isBlocked,
-            withdrawalLocked: u.withdrawalLocked,
-            createdAt: u.createdAt.getTime(),
-            balance: Number(u.balance?.amount ?? 0),
-            bets: u._count.bets,
+            firstName: u.first_name,
+            lastName: u.last_name,
+            photoUrl: u.photo_url,
+            isBlocked: u.is_blocked,
+            withdrawalLocked: u.withdrawal_locked,
+            createdAt: u.created_at.getTime(),
+            balance: balById.get(u.id) ?? 0,
+            bets: a?._count._all ?? 0,
             wagered,
             ggr: wagered - paid,
           };
@@ -362,47 +391,31 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  /**
-   * GET /api/_x/users/:id
-   * Detailed view of a single user, including balance, recent bets,
-   * recent transactions, and admin actions taken on this account.
-   */
   app.get<{ Params: { id: string } }>(
     '/_x/users/:id',
     { preHandler: adminOnly },
     async (request, reply) => {
       const { id } = request.params;
       try {
-        const user = await app.prisma.user.findUnique({
-          where: { id },
-          select: {
-            id: true,
-            telegramId: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            languageCode: true,
-            photoUrl: true,
-            isPremium: true,
-            isBlocked: true,
-            withdrawalLocked: true,
-            adminNote: true,
-            createdAt: true,
-            updatedAt: true,
-            balance: {
-              select: {
-                amount: true,
-                currency: true,
-                lastSyncedAt: true,
-              },
-            },
-          },
-        });
-        if (!user) {
+        const userRows = await app.prisma.$queryRaw<RawUserRow[]>(
+          Prisma.sql`
+            SELECT id, telegram_id, username, first_name, last_name,
+                   language_code, photo_url, is_premium,
+                   is_blocked, withdrawal_locked, admin_note,
+                   created_at, updated_at
+            FROM users WHERE id = ${id} LIMIT 1
+          `
+        );
+        const u = userRows[0];
+        if (!u) {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const [betsAgg, bets, txs, adminLog] = await Promise.all([
+        const [balance, betsAgg, bets, txs, adminLog] = await Promise.all([
+          app.prisma.balance.findUnique({
+            where: { userId: id },
+            select: { amount: true, currency: true, lastSyncedAt: true },
+          }),
           app.prisma.bet.aggregate({
             where: { userId: id },
             _count: { _all: true },
@@ -439,11 +452,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               metadata: true,
             },
           }),
-          app.prisma.adminAuditLog.findMany({
-            where: { targetType: 'user', targetId: id },
-            orderBy: { createdAt: 'desc' },
-            take: 30,
-          }),
+          app.prisma.$queryRaw<RawAuditRow[]>(Prisma.sql`
+            SELECT * FROM admin_audit_log
+            WHERE target_type = 'user' AND target_id = ${id}
+            ORDER BY created_at DESC
+            LIMIT 30
+          `),
         ]);
 
         const wagered = Number(betsAgg._sum.amount ?? 0);
@@ -452,21 +466,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({
           ok: true,
           user: {
-            id: user.id,
-            telegramId: Number(user.telegramId),
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            languageCode: user.languageCode,
-            photoUrl: user.photoUrl,
-            isPremium: user.isPremium,
-            isBlocked: user.isBlocked,
-            withdrawalLocked: user.withdrawalLocked,
-            adminNote: user.adminNote,
-            createdAt: user.createdAt.getTime(),
-            updatedAt: user.updatedAt.getTime(),
-            balance: user.balance ? Number(user.balance.amount) : 0,
-            currency: user.balance?.currency ?? 'PLN',
+            id: u.id,
+            telegramId: Number(u.telegram_id),
+            username: u.username,
+            firstName: u.first_name,
+            lastName: u.last_name,
+            languageCode: u.language_code,
+            photoUrl: u.photo_url,
+            isPremium: u.is_premium,
+            isBlocked: u.is_blocked,
+            withdrawalLocked: u.withdrawal_locked,
+            adminNote: u.admin_note,
+            createdAt: u.created_at.getTime(),
+            updatedAt: u.updated_at.getTime(),
+            balance: balance ? Number(balance.amount) : 0,
+            currency: balance?.currency ?? 'PLN',
           },
           stats: {
             totalBets: betsAgg._count._all,
@@ -499,11 +513,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           adminLog: adminLog.map((a) => ({
             id: a.id,
             action: a.action,
-            adminTelegramId: Number(a.adminTelegramId),
-            payloadBefore: a.payloadBefore,
-            payloadAfter: a.payloadAfter,
+            adminTelegramId: Number(a.admin_telegram_id),
+            payloadBefore: a.payload_before,
+            payloadAfter: a.payload_after,
             reason: a.reason,
-            createdAt: a.createdAt.getTime(),
+            createdAt: a.created_at.getTime(),
           })),
         });
       } catch (error) {
@@ -513,15 +527,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  /**
-   * POST /api/_x/users/:id/balance
-   *
-   * Adjust a user's balance. The new balance is computed atomically
-   * inside a transaction so concurrent bets cannot race the admin.
-   * Body:
-   *   - delta: +/- amount in PLN
-   *   - reason: free-text required for audit
-   */
+  /* ----------------------------------------------------- balance adjust */
+
   app.post<{
     Params: { id: string };
     Body: { delta: number; reason: string };
@@ -538,7 +545,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (!reason || reason.length < 3) {
         return reply.code(400).send({ error: 'Reason required' });
       }
-      // Cap arbitrary moves at PLN 1,000,000 per call to limit fat-finger risk.
       if (Math.abs(delta) > 1_000_000) {
         return reply.code(400).send({ error: 'Amount too large' });
       }
@@ -551,14 +557,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           });
           const beforeAmount = Number(before?.amount ?? 0);
 
-          // We allow negative balances only as a deliberate clawback —
-          // i.e. the admin can "go below zero" if they explicitly debit
-          // more than the user has. Prevent silent corruption otherwise.
-          if (delta < 0 && beforeAmount + delta < 0) {
-            // Allow but cap to zero unless reason explicitly says clawback.
-            if (!/clawback|claw-back|откат/i.test(reason)) {
-              throw new Error('Insufficient balance — add "clawback" to reason');
-            }
+          if (
+            delta < 0 &&
+            beforeAmount + delta < 0 &&
+            !/clawback|claw-back|откат/i.test(reason)
+          ) {
+            throw new Error('Insufficient balance — add "clawback" to reason');
           }
 
           const updated = await tx.balance.upsert({
@@ -621,15 +625,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  /**
-   * POST /api/_x/users/:id/flags
-   *
-   * Toggle moderation flags. Body:
-   *   - isBlocked?: boolean
-   *   - withdrawalLocked?: boolean
-   *   - adminNote?: string
-   *   - reason: required string
-   */
+  /* ------------------------------------------------------------- flags */
+
   app.post<{
     Params: { id: string };
     Body: {
@@ -647,42 +644,60 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (!reason || reason.length < 3) {
         return reply.code(400).send({ error: 'Reason required' });
       }
-      const data: Prisma.UserUpdateInput = {};
-      if (typeof request.body.isBlocked === 'boolean') {
-        data.isBlocked = request.body.isBlocked;
-      }
-      if (typeof request.body.withdrawalLocked === 'boolean') {
-        data.withdrawalLocked = request.body.withdrawalLocked;
-      }
-      if (request.body.adminNote !== undefined) {
-        data.adminNote = request.body.adminNote;
-      }
-      if (Object.keys(data).length === 0) {
-        return reply.code(400).send({ error: 'Nothing to update' });
-      }
 
       try {
-        const before = await app.prisma.user.findUnique({
-          where: { id },
-          select: {
-            isBlocked: true,
-            withdrawalLocked: true,
-            adminNote: true,
-          },
-        });
+        const beforeRows = await app.prisma.$queryRaw<
+          Array<{
+            is_blocked: boolean;
+            withdrawal_locked: boolean;
+            admin_note: string | null;
+          }>
+        >`
+          SELECT is_blocked, withdrawal_locked, admin_note
+          FROM users WHERE id = ${id} LIMIT 1
+        `;
+        const before = beforeRows[0];
         if (!before) {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const after = await app.prisma.user.update({
-          where: { id },
-          data,
-          select: {
-            isBlocked: true,
-            withdrawalLocked: true,
-            adminNote: true,
-          },
-        });
+        const setFragments: Prisma.Sql[] = [];
+        if (typeof request.body.isBlocked === 'boolean') {
+          setFragments.push(
+            Prisma.sql`is_blocked = ${request.body.isBlocked}`
+          );
+        }
+        if (typeof request.body.withdrawalLocked === 'boolean') {
+          setFragments.push(
+            Prisma.sql`withdrawal_locked = ${request.body.withdrawalLocked}`
+          );
+        }
+        if (request.body.adminNote !== undefined) {
+          setFragments.push(
+            Prisma.sql`admin_note = ${request.body.adminNote}`
+          );
+        }
+        if (setFragments.length === 0) {
+          return reply.code(400).send({ error: 'Nothing to update' });
+        }
+
+        await app.prisma.$executeRaw(Prisma.sql`
+          UPDATE users
+          SET ${Prisma.join(setFragments, ', ')}
+          WHERE id = ${id}
+        `);
+
+        const afterRows = await app.prisma.$queryRaw<
+          Array<{
+            is_blocked: boolean;
+            withdrawal_locked: boolean;
+            admin_note: string | null;
+          }>
+        >`
+          SELECT is_blocked, withdrawal_locked, admin_note
+          FROM users WHERE id = ${id} LIMIT 1
+        `;
+        const after = afterRows[0];
 
         await audit({
           request: request as AuthenticatedRequest,
@@ -694,7 +709,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           reason,
         });
 
-        return reply.send({ ok: true, user: after });
+        return reply.send({
+          ok: true,
+          user: {
+            isBlocked: after.is_blocked,
+            withdrawalLocked: after.withdrawal_locked,
+            adminNote: after.admin_note,
+          },
+        });
       } catch (error) {
         logger.error(error, 'Admin flag update failed');
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
@@ -704,10 +726,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /* ----------------------------------------------------------- audit log */
 
-  /**
-   * GET /api/_x/audit
-   * Paged audit-log viewer. Supports filtering by admin, target, action.
-   */
   app.get<{
     Querystring: {
       page?: string;
@@ -724,21 +742,32 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const limit = Math.min(200, Math.max(10, parseInt(request.query.limit ?? '50', 10)));
       const skip = (page - 1) * limit;
 
-      const where: Prisma.AdminAuditLogWhereInput = {};
-      if (request.query.adminUserId) where.adminUserId = request.query.adminUserId;
-      if (request.query.targetId) where.targetId = request.query.targetId;
-      if (request.query.action) where.action = request.query.action;
-
       try {
-        const [total, rows] = await Promise.all([
-          app.prisma.adminAuditLog.count({ where }),
-          app.prisma.adminAuditLog.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            skip,
-            take: limit,
-          }),
-        ]);
+        const conds: Prisma.Sql[] = [];
+        if (request.query.adminUserId) {
+          conds.push(Prisma.sql`admin_user_id = ${request.query.adminUserId}`);
+        }
+        if (request.query.targetId) {
+          conds.push(Prisma.sql`target_id = ${request.query.targetId}`);
+        }
+        if (request.query.action) {
+          conds.push(Prisma.sql`action = ${request.query.action}`);
+        }
+        const where =
+          conds.length > 0
+            ? Prisma.sql` WHERE ${Prisma.join(conds, ' AND ')}`
+            : Prisma.empty;
+
+        const totalRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM admin_audit_log${where}`
+        );
+        const total = Number(totalRows[0]?.c ?? 0);
+
+        const rows = await app.prisma.$queryRaw<RawAuditRow[]>(Prisma.sql`
+          SELECT * FROM admin_audit_log${where}
+          ORDER BY created_at DESC
+          LIMIT ${limit} OFFSET ${skip}
+        `);
 
         return reply.send({
           ok: true,
@@ -747,16 +776,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           limit,
           entries: rows.map((r) => ({
             id: r.id,
-            adminUserId: r.adminUserId,
-            adminTelegramId: Number(r.adminTelegramId),
+            adminUserId: r.admin_user_id,
+            adminTelegramId: Number(r.admin_telegram_id),
             action: r.action,
-            targetType: r.targetType,
-            targetId: r.targetId,
-            payloadBefore: r.payloadBefore,
-            payloadAfter: r.payloadAfter,
+            targetType: r.target_type,
+            targetId: r.target_id,
+            payloadBefore: r.payload_before,
+            payloadAfter: r.payload_after,
             reason: r.reason,
-            ipAddress: r.ipAddress,
-            createdAt: r.createdAt.getTime(),
+            ipAddress: r.ip_address,
+            createdAt: r.created_at.getTime(),
           })),
         });
       } catch (error) {
@@ -768,14 +797,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /* ------------------------------------------------------------ withdrawals */
 
-  /**
-   * GET /api/_x/withdrawals
-   *
-   * Lists transactions of type `withdrawal` / `withdraw_request`. The
-   * mini-app doesn't yet have a withdrawal flow — this endpoint is
-   * already wired so the UI can render an empty list, and so the bot
-   * (which records withdrawals as transactions) can be reviewed here.
-   */
   app.get<{ Querystring: { status?: string; limit?: string } }>(
     '/_x/withdrawals',
     { preHandler: adminOnly },
@@ -842,6 +863,100 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         logger.error(error, 'Admin withdrawals fetch failed');
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /* ============================================================== Phase 2 */
+  /* ------------------------------------------------------------ game configs */
+
+  /**
+   * GET /api/_x/games
+   * Read all game configs in a single round-trip — keeps the admin UI
+   * snappy.
+   */
+  app.get('/_x/games', { preHandler: adminOnly }, async (_req, reply) => {
+    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip'];
+    const configs = await Promise.all(
+      types.map(async (t) => ({ gameType: t, config: await gameConfig.get(t) }))
+    );
+    return reply.send({
+      ok: true,
+      games: configs,
+      defaults: gameConfig.defaults(),
+    });
+  });
+
+  /**
+   * GET /api/_x/games/:type
+   */
+  app.get<{ Params: { type: string } }>(
+    '/_x/games/:type',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const t = request.params.type as GameType;
+      if (!['crash', 'mines', 'plinko', 'coinflip'].includes(t)) {
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+      const config = await gameConfig.get(t);
+      return reply.send({ ok: true, gameType: t, config });
+    }
+  );
+
+  /**
+   * PATCH /api/_x/games/:type
+   * Body — partial GameConfig. Required: `reason`.
+   */
+  app.patch<{
+    Params: { type: string };
+    Body: {
+      paused?: boolean;
+      minBet?: number;
+      maxBet?: number;
+      houseEdge?: number;
+      extras?: Record<string, unknown>;
+      reason: string;
+    };
+  }>(
+    '/_x/games/:type',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const t = request.params.type as GameType;
+      if (!['crash', 'mines', 'plinko', 'coinflip'].includes(t)) {
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      const before = await gameConfig.get(t);
+      const patch: Partial<typeof before> = {};
+      if (typeof request.body.paused === 'boolean') patch.paused = request.body.paused;
+      if (typeof request.body.minBet === 'number') patch.minBet = request.body.minBet;
+      if (typeof request.body.maxBet === 'number') patch.maxBet = request.body.maxBet;
+      if (typeof request.body.houseEdge === 'number') {
+        patch.houseEdge = request.body.houseEdge;
+      }
+      if (request.body.extras && typeof request.body.extras === 'object') {
+        patch.extras = request.body.extras;
+      }
+
+      try {
+        const after = await gameConfig.update(t, patch);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'game.config',
+          targetType: 'game',
+          targetId: t,
+          payloadBefore: before,
+          payloadAfter: after,
+          reason,
+        });
+        return reply.send({ ok: true, gameType: t, config: after });
+      } catch (err) {
+        logger.error({ err, gameType: t }, 'Game config update failed');
+        return reply.code(400).send({ error: 'Bad Request' });
       }
     }
   );

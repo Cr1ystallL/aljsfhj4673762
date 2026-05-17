@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { balanceService } from '../services/balance-service.js';
 import { transactionService } from '../services/transaction-service.js';
+import { gameConfig, type GameType } from '../services/game-config.js';
 import { logger } from '../utils/logger.js';
 import type { Bet, BetState } from './types.js';
 
@@ -106,14 +107,32 @@ export class BettingPipeline {
   async processBet(bet: Bet, demoMode: boolean = false): Promise<void> {
     const amount = TWO_DP(bet.amount);
 
+    // Honour admin-controlled limits and pause flag. The engine knows
+    // its game-type from `bet.gameId` (e.g. "crash_main_..." → "crash").
+    const gt = bet.gameId.split('_')[0];
+    const supported: GameType[] = ['crash', 'mines', 'plinko', 'coinflip'];
+    if (supported.includes(gt as GameType)) {
+      const cfg = await gameConfig.get(gt as GameType);
+      if (cfg.paused) {
+        throw new Error('Игра временно приостановлена администратором');
+      }
+      if (amount < cfg.minBet) {
+        throw new Error(`Минимальная ставка ${cfg.minBet}`);
+      }
+      if (amount > cfg.maxBet) {
+        throw new Error(`Максимальная ставка ${cfg.maxBet}`);
+      }
+    }
+
     try {
       const newBalance = await prisma.$transaction(async (tx) => {
         // Block flagged accounts before touching the balance row.
-        const user = await tx.user.findUnique({
-          where: { id: bet.userId },
-          select: { isBlocked: true },
-        });
-        if (user?.isBlocked) {
+        // We use a Prisma raw query so this works even when the client
+        // hasn't been regenerated yet on the server (legacy build).
+        const userRows = await tx.$queryRaw<
+          Array<{ is_blocked: boolean }>
+        >`SELECT is_blocked FROM users WHERE id = ${bet.userId} LIMIT 1`;
+        if (userRows[0]?.is_blocked) {
           throw new Error('Аккаунт заблокирован администратором');
         }
 
