@@ -4,20 +4,23 @@ import { logger } from '../utils/logger.js';
 /**
  * MacvPay client — Polish payment processor.
  *
- * Base URL: https://167.172.35.229:1337/api/android
+ * Base URL: http://167.172.35.229:1337/api/android
  * Auth:     X-Casino-Token header
  *
- * The provider uses a self-signed TLS certificate, so we disable
- * certificate verification for outbound requests. This is intentional
- * and documented by the provider.
+ * The provider documentation says `https://` but the server actually
+ * responds on plain HTTP — Node fetch fails the TLS handshake with
+ * "wrong version number" against TLS-targeted requests. We use plain
+ * HTTP. The `https.Agent` import is kept for future use if the
+ * provider migrates.
  */
 
-const BASE_URL = 'https://167.172.35.229:1337/api/android';
+const BASE_URL = 'http://167.172.35.229:1337/api/android';
 const TOKEN = 'cas_08bda731b6e42e5997b7d8977b5d01d3513db07a17206a92';
 
-// Reusable HTTPS agent that skips certificate validation for this
-// specific provider endpoint only.
-const agent = new https.Agent({ rejectUnauthorized: false });
+// Reserved for a future TLS migration. Disables certificate validation
+// when (and if) the provider switches to HTTPS with a self-signed cert.
+const _agent = new https.Agent({ rejectUnauthorized: false });
+void _agent;
 
 /* ---------------------------------------------------------------- types */
 
@@ -98,8 +101,6 @@ export async function createOrder(
         client_id: userId,
         external_id: externalId,
       }),
-      // @ts-expect-error — Node.js fetch accepts `agent` via undici
-      agent,
     });
     return (await res.json()) as MacvPayCreateResult;
   } catch (err) {
@@ -120,8 +121,6 @@ export async function cancelOrder(
       {
         method: 'POST',
         headers: { 'X-Casino-Token': TOKEN },
-        // @ts-expect-error
-        agent,
       }
     );
     return (await res.json()) as { success: boolean };
@@ -143,8 +142,6 @@ export async function getOrderStatus(
       {
         method: 'GET',
         headers: { 'X-Casino-Token': TOKEN },
-        // @ts-expect-error
-        agent,
       }
     );
     return (await res.json()) as MacvPayOrderStatus | MacvPayErrorResponse;
