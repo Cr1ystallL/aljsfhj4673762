@@ -20,6 +20,13 @@ model User {
   languageCode String?  @map("language_code")
   photoUrl     String?  @map("photo_url")
   isPremium    Boolean  @default(false) @map("is_premium")
+  // Admin moderation flags. `isBlocked` blocks the user from playing
+  // and from withdrawing; `withdrawalLocked` lets them play but
+  // prevents withdrawals while a case is investigated.
+  isBlocked    Boolean  @default(false) @map("is_blocked")
+  withdrawalLocked Boolean @default(false) @map("withdrawal_locked")
+  // Free-text moderation note set by admins.
+  adminNote    String?  @map("admin_note") @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -29,6 +36,7 @@ model User {
   transactions Transaction[]
 
   @@index([telegramId])
+  @@index([isBlocked])
   @@map("users")
 }
 
@@ -129,4 +137,35 @@ model Bet {
   @@index([state])
   @@index([placedAt])
   @@map("bets")
+}
+
+// Admin audit log — every mutating admin action is recorded here.
+//
+// SECURITY: this is append-only. There is no UI to delete rows, and
+// every endpoint that records here uses `prisma.adminAuditLog.create`
+// directly — never raw SQL. The log lives forever; we cap visibility
+// in the UI with paging, but the rows are never trimmed automatically.
+model AdminAuditLog {
+  id              String   @id @default(uuid())
+  // The admin who performed the action.
+  adminUserId     String   @map("admin_user_id")
+  adminTelegramId BigInt   @map("admin_telegram_id")
+  // Free-form action verb, e.g. "user.block", "balance.credit".
+  action          String
+  // Type / id of the entity that was modified.
+  targetType      String   @map("target_type")
+  targetId        String?  @map("target_id")
+  // Snapshots before / after for diff'ing in the audit viewer.
+  payloadBefore   Json?    @map("payload_before")
+  payloadAfter    Json?    @map("payload_after")
+  // Free-text reason supplied by the admin (mandatory for balance ops).
+  reason          String?  @db.Text
+  ipAddress       String?  @map("ip_address")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([adminUserId])
+  @@index([targetType, targetId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_audit_log")
 }

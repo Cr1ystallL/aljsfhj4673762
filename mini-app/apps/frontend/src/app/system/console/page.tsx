@@ -1,35 +1,23 @@
 ﻿'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import {
-  ChevronLeft,
-  Shield,
-  Users,
-  Wallet,
-  Coins,
-  Sparkles,
-  TrendingUp,
-} from 'lucide-react';
-import { checkIsAdmin } from '@/lib/admin-probe';
+import { Coins, Sparkles, TrendingUp, Users, Wallet } from 'lucide-react';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
+import { AdminShell } from '@/components/admin/admin-shell';
+import { HelpButton } from '@/components/admin/help-button';
 
 /**
- * Admin Dashboard — covert.
+ * Admin → Dashboard.
  *
- * The page is gated client-side by an early `checkIsAdmin()` probe and
- * server-side by every endpoint it consumes (the `/api/_x/...` routes
- * return 404 for non-admins). If a non-admin somehow lands here — e.g.
- * by guessing the URL — they see a flat 404 placeholder rather than any
- * hint that admin functionality exists.
+ * Read-only summary of the entire casino. Fed by `/api/_x/stats`.
  *
  * Layout:
- *   - Top bar: title + back arrow.
- *   - KPI tiles: users, GGR, total liability, biggest win.
- *   - Timeline chart: 14-day GGR (SVG, no library).
- *   - Per-game table: count, wagered, paid out, GGR, max mult.
- *   - Top players: top 10 by total wagered.
+ *   - 4 KPI tiles (each with `?` help): users, liability, turnover, GGR.
+ *   - 14-day GGR timeline (inline SVG, no chart library).
+ *   - Biggest single payout ever recorded.
+ *   - Per-game breakdown (count, turnover, GGR).
+ *   - Top 10 players by turnover.
  */
 
 interface AdminStats {
@@ -83,26 +71,10 @@ interface AdminStats {
 }
 
 export default function AdminDashboardPage() {
-  const router = useRouter();
-  const [authorised, setAuthorised] = useState<boolean | null>(null);
   const [data, setData] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Gate the entire page behind the probe. While the probe is in flight
-  // we render nothing — visiting non-admins see the same blank as a 404.
   useEffect(() => {
-    let cancelled = false;
-    void checkIsAdmin().then((ok) => {
-      if (cancelled) return;
-      setAuthorised(ok);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (authorised !== true) return;
     let cancelled = false;
     (async () => {
       try {
@@ -123,280 +95,344 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [authorised]);
-
-  // Render nothing for non-admins — same outward effect as a 404.
-  if (authorised === null) return null;
-  if (authorised === false) {
-    return (
-      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-        <div className="mx-auto max-w-[480px] px-4 pt-24 text-center">
-          <h1 className="font-roobert text-[28px] text-frost-white">404</h1>
-          <p className="mt-2 font-roobert text-[12px] text-whisper-gray">
-            This page could not be found.
-          </p>
-        </div>
-      </main>
-    );
-  }
+  }, []);
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-        {/* Top bar */}
-        <header className="flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            aria-label="Назад"
-            className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80"
-          >
-            <ChevronLeft size={18} strokeWidth={1.8} />
-          </button>
-          <div className="inline-flex items-center gap-2">
-            <Shield size={14} strokeWidth={1.7} />
-            <span className="font-roobert text-[14px] uppercase tracking-[0.28em] text-whisper-gray">
-              Админ
-            </span>
-          </div>
-          <span className="w-10 h-10" />
-        </header>
+    <AdminShell title="Сводка">
+      {error && (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-4 text-center font-roobert text-[12px] text-whisper-gray">
+          Не удалось загрузить статистику.
+        </div>
+      )}
 
-        {error && (
-          <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-4 text-center font-roobert text-[12px] text-whisper-gray">
-            Не удалось загрузить статистику.
-          </div>
-        )}
+      {!data && !error && (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+        </div>
+      )}
 
-        {!data && !error && (
-          <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
-            <div className="w-7 h-7 rounded-full border border-white/20 border-t-frost-white animate-spin" />
-          </div>
-        )}
+      {data && (
+        <div className="flex flex-col gap-5">
+          {/* KPI grid */}
+          <section className="grid grid-cols-2 gap-3">
+            <Kpi
+              icon={<Users size={14} strokeWidth={1.6} />}
+              label="Игроки"
+              value={data.users.total.toLocaleString('ru-RU')}
+              hint={`+${data.users.new24h} за 24ч · +${data.users.new7d} за неделю`}
+              help={{
+                title: 'Игроки',
+                body: (
+                  <>
+                    <p>
+                      Общее количество зарегистрированных пользователей —
+                      все, кто хоть раз открыл мини-приложение и прошёл
+                      Telegram-аутентификацию.
+                    </p>
+                    <p>
+                      Подсказка снизу показывает прирост за 24 часа и
+                      неделю — это маркер активности привлечения и
+                      возвращающихся игроков.
+                    </p>
+                  </>
+                ),
+              }}
+            />
+            <Kpi
+              icon={<Wallet size={14} strokeWidth={1.6} />}
+              label="Обязательства"
+              value={`${formatPln(data.balances.totalLiability)} zł`}
+              hint={`${data.balances.accounts} счетов`}
+              help={{
+                title: 'Обязательства казино',
+                body: (
+                  <>
+                    <p>
+                      Сумма реальных балансов всех игроков. Это деньги,
+                      которые казино потенциально <strong>должно</strong>{' '}
+                      выплатить, если все игроки одновременно решат
+                      вывести.
+                    </p>
+                    <p>
+                      Чем больше число — тем больше депозитов осело на
+                      счетах. Резкий рост может означать что игроки не
+                      выводят выигрыши; резкое падение — много выводов
+                      или серия больших проигрышей.
+                    </p>
+                  </>
+                ),
+              }}
+            />
+            <Kpi
+              icon={<Coins size={14} strokeWidth={1.6} />}
+              label="Оборот"
+              value={`${formatPln(data.bets.totalWagered)} zł`}
+              hint={`${data.bets.count.toLocaleString('ru-RU')} ставок`}
+              help={{
+                title: 'Оборот',
+                body: (
+                  <>
+                    <p>
+                      Сумма всех ставок за всё время — независимо от
+                      того, выиграл игрок или проиграл. Это базовый
+                      показатель «активности» казино.
+                    </p>
+                    <p>
+                      Большой оборот при низком GGR = низкая маржа
+                      (игроки часто выигрывают). Большой оборот при
+                      высоком GGR = здоровая прибыль.
+                    </p>
+                  </>
+                ),
+              }}
+            />
+            <Kpi
+              icon={<TrendingUp size={14} strokeWidth={1.6} />}
+              label="GGR"
+              value={`${formatPln(data.bets.ggr)} zł`}
+              hint={`RTP ${(data.bets.rtp * 100).toFixed(2)}%`}
+              accent={data.bets.ggr >= 0 ? 'good' : 'warn'}
+              help={{
+                title: 'GGR и RTP',
+                body: (
+                  <>
+                    <p>
+                      <strong>GGR</strong> — Gross Gaming Revenue, или
+                      «оборот минус выплаты». Если положительный — казино
+                      в прибыли; если отрицательный — в этом периоде
+                      казино платит больше чем получает (это нормально
+                      на коротких отрезках при больших выигрышах одного
+                      игрока).
+                    </p>
+                    <p>
+                      <strong>RTP</strong> — Return To Player, процент
+                      выплат от ставок (=выплаты ÷ ставки). Целевое
+                      значение по нашей конфигурации ~99%, на длинной
+                      дистанции ровно столько и должно быть.
+                    </p>
+                  </>
+                ),
+              }}
+            />
+          </section>
 
-        {data && (
-          <>
-            {/* KPI grid */}
-            <section className="grid grid-cols-2 gap-3">
-              <Kpi
-                icon={<Users size={14} strokeWidth={1.6} />}
-                label="Игроки"
-                value={data.users.total.toLocaleString('ru-RU')}
-                hint={`+${data.users.new24h} за 24ч · +${data.users.new7d} за неделю`}
-              />
-              <Kpi
-                icon={<Wallet size={14} strokeWidth={1.6} />}
-                label="Обязательства"
-                value={`${formatRub(data.balances.totalLiability)} zł`}
-                hint={`${data.balances.accounts} счетов`}
-              />
-              <Kpi
-                icon={<Coins size={14} strokeWidth={1.6} />}
-                label="Оборот"
-                value={`${formatRub(data.bets.totalWagered)} zł`}
-                hint={`${data.bets.count.toLocaleString('ru-RU')} ставок`}
-              />
-              <Kpi
-                icon={<TrendingUp size={14} strokeWidth={1.6} />}
-                label="GGR"
-                value={`${formatRub(data.bets.ggr)} zł`}
-                hint={`RTP ${(data.bets.rtp * 100).toFixed(2)}%`}
-                accent={data.bets.ggr >= 0 ? 'good' : 'warn'}
-              />
-            </section>
-
-            {/* Timeline */}
-            <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-                  GGR · 14 дней
-                </span>
+          {/* Timeline */}
+          <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+                GGR · 14 дней
+              </span>
+              <div className="inline-flex items-center gap-2">
                 <span className="font-roobert text-[11px] text-whisper-gray">
                   {data.timeline.length} точек
                 </span>
+                <HelpButton title="График GGR за 14 дней">
+                  <p>
+                    Каждый столбик — один день. Высота равна модулю
+                    дневного GGR. Зелёно-оранжевые столбики вверх — день
+                    в плюс для казино, красные вниз — в минус.
+                  </p>
+                  <p>
+                    Тонкая горизонтальная линия посередине = ноль. Если
+                    видите много красных подряд — стоит проверить
+                    конкретные раунды и крупные выигрыши.
+                  </p>
+                </HelpButton>
               </div>
-              <div className="px-4 py-4">
-                <TimelineChart points={data.timeline} />
-              </div>
-            </section>
+            </div>
+            <div className="px-4 py-4">
+              <TimelineChart points={data.timeline} />
+            </div>
+          </section>
 
-            {/* Biggest win */}
-            {data.biggestWin && (
-              <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
-                <div
-                  aria-hidden
-                  className="absolute inset-0 opacity-50"
-                  style={{
-                    background:
-                      'radial-gradient(120% 110% at 80% 110%, rgba(255, 172, 46, 0.20) 0%, rgba(160, 224, 171, 0.10) 50%, transparent 80%)',
-                  }}
-                />
-                <div className="relative px-5 py-4 flex items-center gap-4">
-                  <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center">
-                    <Sparkles size={16} strokeWidth={1.6} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-                      Крупнейший выигрыш
-                    </div>
-                    <div className="font-roobert text-[20px] font-light text-frost-white tabular-nums">
-                      {formatRub(data.biggestWin.payout)} zł
-                      <span className="ml-2 text-whisper-gray text-[14px]">
-                        x{data.biggestWin.multiplier.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="font-roobert text-[11px] text-whisper-gray truncate">
-                      {data.biggestWin.name} ·{' '}
-                      {gameLabel(resolveGameKey(data.biggestWin.gameType))}
-                    </div>
+          {/* Biggest win */}
+          {data.biggestWin && (
+            <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-50"
+                style={{
+                  background:
+                    'radial-gradient(120% 110% at 80% 110%, rgba(255, 172, 46, 0.20) 0%, rgba(160, 224, 171, 0.10) 50%, transparent 80%)',
+                }}
+              />
+              <div className="relative px-5 py-4 flex items-center gap-4">
+                <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center">
+                  <Sparkles size={16} strokeWidth={1.6} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+                    Крупнейший выигрыш
+                  </div>
+                  <div className="font-roobert text-[20px] font-light text-frost-white tabular-nums">
+                    {formatPln(data.biggestWin.payout)} zł
+                    <span className="ml-2 text-whisper-gray text-[14px]">
+                      x{data.biggestWin.multiplier.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="font-roobert text-[11px] text-whisper-gray truncate">
+                    {data.biggestWin.name} ·{' '}
+                    {gameLabel(resolveGameKey(data.biggestWin.gameType))}
                   </div>
                 </div>
-              </section>
-            )}
-
-            {/* Per-game */}
-            <section>
-              <div className="flex items-baseline justify-between px-1 mb-2">
-                <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-                  Игры
-                </span>
-              </div>
-              <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-                {data.perGame.length === 0 ? (
-                  <div className="px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
-                    Нет данных.
-                  </div>
-                ) : (
-                  data.perGame
-                    .slice()
-                    .sort((a, b) => b.wagered - a.wagered)
-                    .map((g, i) => (
-                      <div
-                        key={g.gameType}
-                        className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${
-                          i > 0 ? 'border-t border-white/5' : ''
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="font-roobert text-[14px] text-frost-white">
-                            {gameLabel(resolveGameKey(g.gameType))}
-                          </div>
-                          <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                            {g.count.toLocaleString('ru-RU')} ставок · max
-                            x{g.maxMultiplier.toFixed(2)}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-roobert text-[11px] uppercase tracking-[0.18em] text-whisper-gray">
-                            Оборот
-                          </div>
-                          <div className="font-roobert text-[14px] tabular-nums">
-                            {formatRub(g.wagered)}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-roobert text-[11px] uppercase tracking-[0.18em] text-whisper-gray">
-                            GGR
-                          </div>
-                          <div
-                            className={`font-roobert text-[14px] tabular-nums ${
-                              g.ggr >= 0
-                                ? 'text-frost-white'
-                                : 'text-[#ff8a76]'
-                            }`}
-                          >
-                            {formatRub(g.ggr)}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                )}
               </div>
             </section>
+          )}
 
-            {/* Top players */}
-            <section>
-              <div className="flex items-baseline justify-between px-1 mb-2">
-                <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-                  Топ игроков
-                </span>
-                <span className="font-roobert text-[11px] text-whisper-gray">
-                  по обороту
-                </span>
-              </div>
-              <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-                {data.topPlayers.length === 0 ? (
-                  <div className="px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
-                    Нет данных.
-                  </div>
-                ) : (
-                  data.topPlayers.map((p, i) => (
+          {/* Per-game */}
+          <section>
+            <div className="flex items-baseline justify-between px-1 mb-2">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+                Игры
+              </span>
+              <HelpButton title="Разбивка по играм" size={12}>
+                <p>
+                  По каждой игре: количество ставок (count), оборот
+                  (сумма всех ставок), GGR (оборот минус выплаты),
+                  максимальный коэффициент.
+                </p>
+                <p>
+                  Помогает понять какие игры приносят прибыль, какие —
+                  слив. Если у игры GGR долго в минусе — проверьте RTP в
+                  настройках игры (Фаза 2).
+                </p>
+              </HelpButton>
+            </div>
+            <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+              {data.perGame.length === 0 ? (
+                <div className="px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
+                  Нет данных.
+                </div>
+              ) : (
+                data.perGame
+                  .slice()
+                  .sort((a, b) => b.wagered - a.wagered)
+                  .map((g, i) => (
                     <div
-                      key={p.userId}
-                      className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 ${
+                      key={g.gameType}
+                      className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${
                         i > 0 ? 'border-t border-white/5' : ''
                       }`}
                     >
-                      <span className="w-6 text-right font-roobert text-[12px] text-whisper-gray tabular-nums">
-                        {i + 1}
-                      </span>
-                      <div className="flex items-center gap-3 min-w-0">
-                        {p.photoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={p.photoUrl}
-                            alt={p.name}
-                            referrerPolicy="no-referrer"
-                            className="w-8 h-8 rounded-pill border border-white/10 object-cover"
-                            draggable={false}
-                          />
-                        ) : (
-                          <span className="w-8 h-8 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center text-[12px] font-roobert">
-                            {p.name.charAt(0).toUpperCase()}
-                          </span>
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-roobert text-[13px] text-frost-white truncate">
-                            {p.name}
-                          </div>
-                          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                            {p.bets.toLocaleString('ru-RU')} ставок
-                          </div>
+                      <div className="min-w-0">
+                        <div className="font-roobert text-[14px] text-frost-white">
+                          {gameLabel(resolveGameKey(g.gameType))}
+                        </div>
+                        <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+                          {g.count.toLocaleString('ru-RU')} ставок · max
+                          x{g.maxMultiplier.toFixed(2)}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-roobert text-[13px] tabular-nums text-frost-white">
-                          {formatRub(p.wagered)} zł
+                        <div className="font-roobert text-[11px] uppercase tracking-[0.18em] text-whisper-gray">
+                          Оборот
+                        </div>
+                        <div className="font-roobert text-[14px] tabular-nums">
+                          {formatPln(g.wagered)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-roobert text-[11px] uppercase tracking-[0.18em] text-whisper-gray">
+                          GGR
                         </div>
                         <div
-                          className={`font-roobert text-[10px] tabular-nums ${
-                            p.ggr >= 0 ? 'text-whisper-gray' : 'text-[#ff8a76]'
+                          className={`font-roobert text-[14px] tabular-nums ${
+                            g.ggr >= 0 ? 'text-frost-white' : 'text-[#ff8a76]'
                           }`}
                         >
-                          GGR {formatRub(p.ggr)}
+                          {formatPln(g.ggr)}
                         </div>
                       </div>
                     </div>
                   ))
-                )}
-              </div>
-            </section>
-
-            <div className="text-center font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-              обновлено{' '}
-              {new Date(data.generatedAt).toLocaleTimeString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-              })}
+              )}
             </div>
-          </>
-        )}
-      </div>
-    </main>
+          </section>
+
+          {/* Top players */}
+          <section>
+            <div className="flex items-baseline justify-between px-1 mb-2">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+                Топ игроков
+              </span>
+              <span className="font-roobert text-[11px] text-whisper-gray">
+                по обороту
+              </span>
+            </div>
+            <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+              {data.topPlayers.length === 0 ? (
+                <div className="px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
+                  Нет данных.
+                </div>
+              ) : (
+                data.topPlayers.map((p, i) => (
+                  <a
+                    key={p.userId}
+                    href={`/system/console/users/${p.userId}`}
+                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors ${
+                      i > 0 ? 'border-t border-white/5' : ''
+                    }`}
+                  >
+                    <span className="w-6 text-right font-roobert text-[12px] text-whisper-gray tabular-nums">
+                      {i + 1}
+                    </span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {p.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.photoUrl}
+                          alt={p.name}
+                          referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-pill border border-white/10 object-cover"
+                          draggable={false}
+                        />
+                      ) : (
+                        <span className="w-8 h-8 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center text-[12px] font-roobert">
+                          {p.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-roobert text-[13px] text-frost-white truncate">
+                          {p.name}
+                        </div>
+                        <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+                          {p.bets.toLocaleString('ru-RU')} ставок
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-roobert text-[13px] tabular-nums text-frost-white">
+                        {formatPln(p.wagered)} zł
+                      </div>
+                      <div
+                        className={`font-roobert text-[10px] tabular-nums ${
+                          p.ggr >= 0 ? 'text-whisper-gray' : 'text-[#ff8a76]'
+                        }`}
+                      >
+                        GGR {formatPln(p.ggr)}
+                      </div>
+                    </div>
+                  </a>
+                ))
+              )}
+            </div>
+          </section>
+
+          <div className="text-center font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+            обновлено{' '}
+            {new Date(data.generatedAt).toLocaleTimeString('ru-RU', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
+          </div>
+        </div>
+      )}
+    </AdminShell>
   );
 }
 
-function formatRub(v: number): string {
+function formatPln(v: number): string {
   return v.toLocaleString('ru-RU', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
@@ -409,12 +445,14 @@ function Kpi({
   value,
   hint,
   accent,
+  help,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
   accent?: 'good' | 'warn';
+  help?: { title: string; body: React.ReactNode };
 }) {
   return (
     <motion.div
@@ -422,12 +460,19 @@ function Kpi({
       animate={{ opacity: 1, y: 0 }}
       className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3.5 flex flex-col gap-1.5"
     >
-      <span className="inline-flex items-center gap-1.5 text-frost-white/65">
-        {icon}
-        <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-          {label}
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-frost-white/65">
+          {icon}
+          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+            {label}
+          </span>
         </span>
-      </span>
+        {help && (
+          <HelpButton title={help.title} size={12}>
+            {help.body}
+          </HelpButton>
+        )}
+      </div>
       <div
         className={`font-roobert text-[22px] font-light leading-none tabular-nums ${
           accent === 'warn'
@@ -448,17 +493,7 @@ function Kpi({
   );
 }
 
-/**
- * Lightweight inline timeline chart. Avoids a chart library so the
- * admin bundle stays small. Renders a 14-bar GGR series on a tinted
- * baseline; bars below 0 paint red, above 0 paint frost-white over a
- * Deep-Ocean tint.
- */
-function TimelineChart({
-  points,
-}: {
-  points: AdminStats['timeline'];
-}) {
+function TimelineChart({ points }: { points: AdminStats['timeline'] }) {
   const w = 640;
   const h = 140;
   const padX = 8;
@@ -472,18 +507,13 @@ function TimelineChart({
   const barWidth = innerW / n;
 
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className="w-full h-32"
-    >
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-32">
       <defs>
         <linearGradient id="gtl-pos" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="rgb(160, 224, 171)" stopOpacity="0.7" />
           <stop offset="100%" stopColor="rgb(255, 172, 46)" stopOpacity="0.4" />
         </linearGradient>
       </defs>
-      {/* Zero baseline */}
       <line
         x1={padX}
         x2={w - padX}
@@ -500,16 +530,15 @@ function TimelineChart({
         const y = value >= 0 ? padY + half - heightRaw : padY + half;
         const positive = value >= 0;
         return (
-          <g key={p.date}>
-            <rect
-              x={x}
-              y={y}
-              width={Math.max(1, barWidth - 2)}
-              height={heightRaw}
-              fill={positive ? 'url(#gtl-pos)' : 'rgba(165, 45, 37, 0.55)'}
-              rx={1.5}
-            />
-          </g>
+          <rect
+            key={p.date}
+            x={x}
+            y={y}
+            width={Math.max(1, barWidth - 2)}
+            height={heightRaw}
+            fill={positive ? 'url(#gtl-pos)' : 'rgba(165, 45, 37, 0.55)'}
+            rx={1.5}
+          />
         );
       })}
     </svg>

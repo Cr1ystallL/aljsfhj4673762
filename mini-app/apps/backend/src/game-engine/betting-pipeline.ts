@@ -88,7 +88,7 @@ export class BettingPipeline {
         data: {
           userId,
           amount,
-          currency: 'USD',
+          currency: 'PLN',
           demoMode,
         },
       });
@@ -108,6 +108,15 @@ export class BettingPipeline {
 
     try {
       const newBalance = await prisma.$transaction(async (tx) => {
+        // Block flagged accounts before touching the balance row.
+        const user = await tx.user.findUnique({
+          where: { id: bet.userId },
+          select: { isBlocked: true },
+        });
+        if (user?.isBlocked) {
+          throw new Error('Аккаунт заблокирован администратором');
+        }
+
         const updated = await this.debitBalance(tx, bet.userId, amount, demoMode);
         if (updated === null) {
           throw new Error('Insufficient balance');
