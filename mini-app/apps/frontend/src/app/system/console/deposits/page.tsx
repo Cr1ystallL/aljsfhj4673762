@@ -70,7 +70,7 @@ export default function DepositsPage() {
     })();
     const id = setInterval(() => {
       void load();
-    }, 6000);
+    }, 10000);
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       cancelled = true;
@@ -199,11 +199,11 @@ function DepositRow({
           src={deposit.photoUrl}
           alt={deposit.name}
           referrerPolicy="no-referrer"
-          className="w-12 h-12 rounded-pill border border-white/10 object-cover"
+          className="w-14 h-14 rounded-pill border border-white/10 object-cover"
           draggable={false}
         />
       ) : (
-        <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[15px]">
+        <span className="w-14 h-14 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[18px]">
           {deposit.name.charAt(0).toUpperCase()}
         </span>
       )}
@@ -241,15 +241,22 @@ function DepositRow({
           )}
         >
           {deposit.status === 'paid' ? '+' : ''}
-          {deposit.amount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}{' '}
-          {deposit.currency}
+          {fmt(deposit.amount)} {deposit.currency}
         </div>
-        <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-          → {deposit.uniqueAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
-        </div>
+        {deposit.uniqueAmount > 0 && (
+          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+            → {fmt(deposit.uniqueAmount)}
+          </div>
+        )}
       </div>
     </button>
   );
+}
+
+function fmt(n: number | null | undefined): string {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0';
+  return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 }
 
 function StatusChip({ status }: { status: Deposit['status'] }) {

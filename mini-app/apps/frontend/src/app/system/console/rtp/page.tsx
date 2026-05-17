@@ -45,29 +45,38 @@ export default function RtpPage() {
   const [reset, setReset] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  // Once the user has edited any control we stop letting the polled
+  // status overwrite the form. The status card itself keeps refreshing
+  // independently — only the form controls are pinned.
+  const [dirty, setDirty] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/_x/rtp', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      const j = await res.json();
-      const s = j.status as RtpStatus;
-      setStatus(s);
-      setMode(s.mode);
-      setTarget(String(s.target));
-      setWindowMs(s.windowMs);
-      setIntensity(s.intensity);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const load = useCallback(
+    async (syncForm: boolean) => {
+      try {
+        const res = await fetch('/api/_x/rtp', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const j = await res.json();
+        const s = j.status as RtpStatus;
+        setStatus(s);
+        if (syncForm) {
+          setMode(s.mode);
+          setTarget(String(s.target));
+          setWindowMs(s.windowMs);
+          setIntensity(s.intensity);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    void load();
-    const id = setInterval(() => void load(), 5000);
+    void load(true);
+    const id = setInterval(() => void load(false), 10000);
     return () => clearInterval(id);
   }, [load]);
 
@@ -96,9 +105,10 @@ export default function RtpPage() {
       } else {
         setReason('');
         setReset(false);
+        setDirty(false);
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 1500);
-        await load();
+        await load(true);
       }
     } finally {
       setBusy(false);
@@ -239,23 +249,38 @@ export default function RtpPage() {
           <div className="grid grid-cols-3 gap-2">
             <ModeChip
               active={mode === 'off'}
-              onClick={() => setMode('off')}
+              onClick={() => {
+                setMode('off');
+                setDirty(true);
+              }}
               title="Выключен"
               hint="Только базовый edge"
             />
             <ModeChip
               active={mode === 'earn'}
-              onClick={() => setMode('earn')}
+              onClick={() => {
+                setMode('earn');
+                setDirty(true);
+              }}
               title="Заработать"
               hint="Прибыль казино"
             />
             <ModeChip
               active={mode === 'give'}
-              onClick={() => setMode('give')}
+              onClick={() => {
+                setMode('give');
+                setDirty(true);
+              }}
               title="Отдать"
               hint="Игрокам в плюс"
             />
           </div>
+          {dirty && (
+            <p className="mt-3 font-roobert text-[11px] text-[#ff8a76]/85">
+              Изменения не сохранены. Чтобы они вступили в силу, заполните
+              причину ниже и нажмите «Сохранить».
+            </p>
+          )}
         </Section>
 
         {/* Target & window */}
@@ -275,7 +300,10 @@ export default function RtpPage() {
               <input
                 type="number"
                 value={target}
-                onChange={(e) => setTarget(e.target.value)}
+                onChange={(e) => {
+                  setTarget(e.target.value);
+                  setDirty(true);
+                }}
                 disabled={mode === 'off'}
                 className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[14px] tabular-nums text-frost-white focus:outline-none focus:border-white/30 disabled:opacity-50"
               />
@@ -289,7 +317,10 @@ export default function RtpPage() {
                 {WINDOW_PRESETS.map((p) => (
                   <button
                     key={p.label}
-                    onClick={() => setWindowMs(p.ms)}
+                    onClick={() => {
+                      setWindowMs(p.ms);
+                      setDirty(true);
+                    }}
                     className={cn(
                       'px-3 py-1.5 rounded-pill border font-roobert text-[12px] transition-colors',
                       windowMs === p.ms
@@ -317,7 +348,10 @@ export default function RtpPage() {
               max={1}
               step={0.05}
               value={intensity}
-              onChange={(e) => setIntensity(Number(e.target.value))}
+              onChange={(e) => {
+                setIntensity(Number(e.target.value));
+                setDirty(true);
+              }}
               className="flex-1"
             />
             <span className="w-12 text-right font-roobert text-[14px] tabular-nums text-frost-white">
@@ -368,6 +402,20 @@ export default function RtpPage() {
               <span className="inline-flex items-center px-2 py-0.5 rounded-pill border border-emerald-400/40 bg-emerald-400/10 font-roobert text-[10px] uppercase tracking-[0.18em] text-emerald-200">
                 Сохранено
               </span>
+            )}
+            {dirty && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDirty(false);
+                  void load(true);
+                  setReason('');
+                  setReset(false);
+                }}
+                className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] uppercase tracking-[0.18em] text-frost-white/85"
+              >
+                Отменить
+              </button>
             )}
             <button
               onClick={save}

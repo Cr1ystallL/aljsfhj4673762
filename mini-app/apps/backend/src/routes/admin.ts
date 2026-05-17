@@ -1895,11 +1895,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         interface MacvpayOrderRow {
           id: string;
           user_id: string;
-          provider_order_id: string;
-          amount: string;
-          unique_amount: string;
+          external_id: string;
+          requested_amount: string;
+          unique_amount: string | null;
           currency: string;
-          type: string;
+          payment_type: string;
           status: string;
           card: string | null;
           recipient: string | null;
@@ -1915,12 +1915,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         let orders: MacvpayOrderRow[] = [];
         try {
           orders = await app.prisma.$queryRaw<MacvpayOrderRow[]>(Prisma.sql`
-            SELECT * FROM macvpay_orders${where}
-            ORDER BY created_at DESC
-            LIMIT ${limit}
+            SELECT id, user_id, external_id, requested_amount, unique_amount,
+                   currency, payment_type, status, card, recipient, details,
+                   expires_at, paid_at, created_at
+              FROM macvpay_orders${where}
+             ORDER BY created_at DESC
+             LIMIT ${limit}
           `);
-        } catch {
-          // Table missing — older deployment. Fall through with empty.
+        } catch (err) {
+          // Table missing on older deployments — fall through with empty.
+          logger.warn({ err }, 'macvpay_orders read failed; returning empty');
           orders = [];
         }
 
@@ -1950,7 +1954,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           }
           return {
             id: o.id,
-            providerOrderId: o.provider_order_id,
+            providerOrderId: o.id,
+            externalId: o.external_id,
             userId: o.user_id,
             name:
               u?.firstName ||
@@ -1960,10 +1965,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                 : 'Игрок'),
             telegramId: u?.telegramId ? Number(u.telegramId) : null,
             photoUrl: u?.photoUrl ?? null,
-            amount: Number(o.amount),
-            uniqueAmount: Number(o.unique_amount),
+            amount: Number(o.requested_amount ?? 0),
+            uniqueAmount: o.unique_amount != null ? Number(o.unique_amount) : 0,
             currency: o.currency,
-            type: o.type,
+            type: o.payment_type,
             status,
             card: o.card,
             recipient: o.recipient,

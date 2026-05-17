@@ -35,7 +35,7 @@ export const config = {
   pythonBotApiKey: process.env.PYTHON_BOT_API_KEY || '',
   
   // Rate Limiting
-  rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '600', 10),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   
   // CORS
