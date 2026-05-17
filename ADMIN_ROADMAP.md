@@ -544,8 +544,28 @@ confirmed / failed / refunded), txid.
   и одобренные выводы пока работают только как ledger-записи без
   реальной отправки денег.
 
+**Фаза 6 — Технические инструменты:**
+- **Сервисный мониторинг** (`/system/console/system`):
+  - Health-карточки: backend (всегда up если страница загрузилась),
+    postgres (`SELECT 1` ping), redis (`PING`), bot (heartbeat),
+    frontend (unknown — cross-host probe не делаем).
+  - Каждый health-чек обёрнут в 1.5с-таймаут чтобы зависший Redis /
+    Postgres не вешал админку.
+  - Process stats: PID, RSS, heap used / total, uptime, Node version.
+- **Просмотр логов**:
+  - Tail последних 200 строк PM2 stdout backend / frontend / bot.
+  - Сервис из строгого whitelist — нельзя прочитать произвольный файл
+    через API.
+  - Fallback на `/var/log/macvbet-*.log` если PM2-пути не существуют.
+- **Maintenance actions**:
+  - «Перезапустить движок Crash» — через singleton `crash-room-singleton.ts`,
+    deleteRoom + createRoom без рестарта Node-процесса. Текущие
+    in-flight ставки теряются (admin сначала проверяет «Сессии»).
+  - «Очистить кэш конфигов» — Redis SCAN по `game_config:*` + DEL.
+- Все mutating действия пишутся в audit log.
+
 ### ⛔ Не реализовано
-- Фаза 6 (системный мониторинг).
+*Все 6 фаз реализованы.*
 
 ### 🚫 Намеренно не делаем
 Пока — потому что соответствующих механик нет в мини-аппе:

@@ -6,6 +6,7 @@ import {
   ArrowDownToLine,
   ChevronLeft,
   CreditCard,
+  Cpu,
   Gamepad2,
   Gauge,
   KeyRound,
@@ -100,6 +101,12 @@ const links: AdminLink[] = [
     label: 'Аудит',
     Icon: ScrollText,
     href: '/system/console/audit',
+  },
+  {
+    id: 'system',
+    label: 'Система',
+    Icon: Cpu,
+    href: '/system/console/system',
   },
 ];
 

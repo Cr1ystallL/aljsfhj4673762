@@ -9,6 +9,8 @@ import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { walletConfig } from '../services/wallet-config.js';
+import { systemMonitor } from '../services/system-monitor.js';
+import { restartCrashEngine } from '../game-engine/crash-room-singleton.js';
 import { redisClient } from '../lib/redis.js';
 import { sessionManager } from '../lib/session-manager.js';
 
@@ -2226,6 +2228,98 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         logger.error(error, 'Broadcast recipients fetch failed');
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
       }
+    }
+  );
+
+  /* ============================================================== Phase 6 */
+  /* ----------------------------------------------------------- system */
+
+  /**
+   * GET /api/_x/system/status
+   * Snapshot of service health + the backend's own process stats.
+   */
+  app.get('/_x/system/status', { preHandler: adminOnly }, async (_req, reply) => {
+    const services = await systemMonitor.getServiceStatuses(app.prisma);
+    const proc = systemMonitor.getProcessStats();
+    return reply.send({ ok: true, services, process: proc });
+  });
+
+  /**
+   * GET /api/_x/system/logs?service=backend|frontend|bot&lines=200
+   * Tails the requested service's PM2 log. Service name is whitelisted
+   * so an admin can't read arbitrary files.
+   */
+  app.get<{
+    Querystring: { service?: string; lines?: string };
+  }>(
+    '/_x/system/logs',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const service = request.query.service ?? 'backend';
+      if (!['backend', 'frontend', 'bot'].includes(service)) {
+        return reply.code(400).send({ error: 'Bad service' });
+      }
+      const lines = parseInt(request.query.lines ?? '200', 10);
+      const result = await systemMonitor.tailLogs(
+        service as 'backend' | 'frontend' | 'bot',
+        Number.isFinite(lines) ? lines : 200
+      );
+      return reply.send({ ok: true, ...result });
+    }
+  );
+
+  /**
+   * POST /api/_x/system/restart-crash
+   * Spins down and back up the Crash engine in-place. Body: { reason }.
+   */
+  app.post<{ Body: { reason: string } }>(
+    '/_x/system/restart-crash',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      try {
+        restartCrashEngine();
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'system.crash_restart',
+          targetType: 'system',
+          targetId: 'crash_main',
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (error) {
+        logger.error(error, 'Crash restart failed');
+        return reply.code(500).send({ error: 'Restart failed' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/system/clear-cache
+   * Drops `game_config:*` keys so the next bet re-reads from defaults.
+   * Body: { reason }.
+   */
+  app.post<{ Body: { reason: string } }>(
+    '/_x/system/clear-cache',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const removed = await systemMonitor.clearGameConfigCache();
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'system.clear_cache',
+        targetType: 'system',
+        targetId: 'redis_cache',
+        payloadAfter: { removedKeys: removed },
+        reason,
+      });
+      return reply.send({ ok: true, removedKeys: removed });
     }
   );
 

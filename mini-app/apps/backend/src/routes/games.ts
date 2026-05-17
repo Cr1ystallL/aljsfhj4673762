@@ -11,7 +11,7 @@ import {
   coinflipEngine,
   type CoinSide,
 } from '../games/coinflip/coinflip-engine.js';
-import { GameRoomManager } from '../game-engine/game-room-manager.js';
+import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -51,13 +51,9 @@ function checkRateLimit(userId: string, action: string): boolean {
   return true;
 }
 
-// Game room managers
-const crashManager = new GameRoomManager('crash');
-
-// Initialize default rooms
-const crashEngine = new CrashGameEngine('crash_main');
-crashEngine.start();
-crashManager.createRoom('crash_main', crashEngine);
+// Game room manager + default crash room are imported from
+// `crash-room-singleton.ts` so the admin "Restart engine" action can
+// rebuild the room without bouncing the whole Node process.
 
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
   /**
