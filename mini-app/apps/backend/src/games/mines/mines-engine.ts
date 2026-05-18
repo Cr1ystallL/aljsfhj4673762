@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import type { Bet } from '../../game-engine/types.js';
@@ -128,10 +129,15 @@ class MinesEngine {
     const clientSeed = provablyFair.generateClientSeed();
     const nonce = 0;
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
+    // Pre-fact tilt: the controller may push mines toward the centre
+    // (where humans click first) when the casino is lagging the earn
+    // target, or toward the corners when we want to give back.
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
     const minePositions = provablyFair.generateMinesPositions(
       hash,
       5,
-      mineCount
+      mineCount,
+      bias
     );
 
     const roundId = `mines_${Date.now()}_${randomUUID()}`;

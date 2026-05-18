@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import type { Bet } from '../../game-engine/types.js';
@@ -81,7 +82,11 @@ export class PlinkoEngine {
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
     // 2. Path: 16 binary decisions L (0) / R (1). Bucket = sum of rights.
-    const path = provablyFair.generatePlinkoPins(hash, PLINKO_ROWS);
+    //    Pre-fact tilt — positive bias herds the path toward the centre
+    //    (low-multiplier buckets), negative bias toward the edges
+    //    (high-multiplier buckets). Multiplier table itself is unchanged.
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const path = provablyFair.generatePlinkoPins(hash, PLINKO_ROWS, bias);
     const bucket = path.reduce((acc, x) => acc + x, 0);
     const multiplier = PLINKO_MULTIPLIERS[risk][bucket];
     const payout = +(amount * multiplier).toFixed(2);

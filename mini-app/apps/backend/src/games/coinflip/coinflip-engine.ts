@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import type { Bet } from '../../game-engine/types.js';
@@ -149,7 +150,10 @@ class CoinflipEngine {
     const clientSeed = provablyFair.generateClientSeed();
     const hash = provablyFair.generateResult(serverSeed, clientSeed, 0);
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
-    const outcome: CoinSide = provablyFair.hashToFloat(hash) < 0.5 ? 'heads' : 'tails';
+    // Pre-fact tilt — bias > 0 makes the user lose more often, bias < 0
+    // makes them win more often. Capped to ±20pp shift in the win rate.
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const outcome: CoinSide = provablyFair.coinflipOutcome(hash, choice, bias);
     const won = outcome === choice;
 
     const roundId = `coinflip_${Date.now()}_${randomUUID()}`;
@@ -293,7 +297,8 @@ class CoinflipEngine {
     this.rooms.set(userId, state);
 
     // Resolve the first toss right away.
-    const outcome = this.resolveRoundOutcome(state);
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const outcome = this.resolveRoundOutcome(state, firstChoice, bias);
     const won = outcome === firstChoice;
     if (won) {
       state.currentMultiplier = +(STEP_MULTIPLIER ** state.round).toFixed(2);
@@ -330,7 +335,8 @@ class CoinflipEngine {
     g.pendingChoice = choice;
     g.awaiting = 'flipResult';
 
-    const outcome = this.resolveRoundOutcome(g);
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const outcome = this.resolveRoundOutcome(g, choice, bias);
     const won = outcome === choice;
 
     g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
@@ -378,16 +384,16 @@ class CoinflipEngine {
 
   /**
    * Compute the toss outcome for the current round, deterministically
-   * from the seed pair + round nonce. We chain via sha256 so the same
-   * (server, client) pair gives a sequence rather than a single byte.
+   * from the seed pair + round nonce, with optional bias toward / away
+   * from the user's choice.
    */
-  private resolveRoundOutcome(g: MultiplyState): CoinSide {
+  private resolveRoundOutcome(g: MultiplyState, choice: CoinSide, bias: number): CoinSide {
     const hash = provablyFair.generateResult(
       g.serverSeed,
       g.clientSeed,
       g.round
     );
-    return provablyFair.hashToFloat(hash) < 0.5 ? 'heads' : 'tails';
+    return provablyFair.coinflipOutcome(hash, choice, bias);
   }
 
   /**

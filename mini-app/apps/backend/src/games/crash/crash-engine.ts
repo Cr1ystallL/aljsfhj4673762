@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { BaseGameEngine } from '../../game-engine/base-game-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { provablyFair } from '../../game-engine/provably-fair.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import type {
@@ -331,7 +332,11 @@ export class CrashGameEngine extends BaseGameEngine {
     const clientSeed = provablyFair.generateClientSeed();
     const nonce = (this.room.currentRound?.nonce || 0) + 1;
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
-    const crashPoint = provablyFair.generateCrashMultiplier(hash);
+    // Crash is multiplayer — every player in this round shares the same
+    // crashPoint. We apply only the global controller bias (no per-user
+    // component), and only the bias snapshot at round-creation time.
+    const bias = await rtpEngine.getGlobalBias().catch(() => 0);
+    const crashPoint = provablyFair.generateCrashMultiplier(hash, bias);
 
     this.crashState = this.makeInitialCrashState();
     this.crashState.crashPoint = crashPoint;

@@ -2,64 +2,99 @@ import { redisClient } from '../lib/redis.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Auto-RTP Engine
+ * Auto-RTP Engine — pre-fact outcome bias controller.
  *
- * Closed-loop controller that nudges per-player house edge so the
- * casino's net profit / loss tracks an admin-configured target over a
- * window of time.
+ * Drives a single number — `bias` ∈ [-1, +1] — that game engines apply
+ * BEFORE generating an outcome. Engines see this number through
+ * `getBiasFor(userId)` right before they hash a seed into a result; they
+ * shift the result distribution accordingly. The hash itself is still
+ * verifiable; only the distribution it samples from is shifted.
  *
- * Inputs:
- *   - `target` — desired casino net profit over the window (positive
- *     to take from players, negative to give back).
- *   - `windowMs` — duration of the window. After it expires the
- *     controller resets and starts a new window with the same target.
+ *   bias > 0  — round is biased toward casino winning (rounds bust
+ *               earlier, mines cluster on common picks, etc.)
+ *   bias < 0  — round is biased toward player winning (rounds last
+ *               longer, mines cluster on the edges, etc.)
  *
- * Loop:
- *   1. Every settled bet calls `recordOutcome(stake, payout)`. The
- *      delta `stake - payout` is what the casino actually took.
- *   2. The accumulator stores per-window totals in Redis under
- *      `rtp:window` (single hash, atomic via HINCRBYFLOAT).
- *   3. When a bet is about to be paid out, `getEdgeBias(userId)`
- *      returns a number in [-0.45, 0.45] that is *added* to the
- *      configured house edge before computing the credit. Bias is
- *      smoothly weighted by:
- *        a) Global error  → casino is below target → bias positive
- *           (more edge for everyone)
- *           casino is above target → bias negative (relax)
- *        b) Per-user net  → players who are deep in profit get a
- *           harder edge, players who are deep in loss get relief.
- *           This is cumulative since the window opened.
+ * No payouts are touched after the fact. A winner gets their full
+ * computed multiplier — bias affects how often someone wins, not how
+ * much they get when they do.
  *
- *   4. The bias is bounded so a single tilt can never make a game
- *      pay 0% RTP — the cap is 0.45, leaving at minimum 5% of the
- *      computed profit going to the player.
+ * ─────────────────────────────────────────────────────────────────────
+ * MODES
+ * ─────────────────────────────────────────────────────────────────────
+ *  off    — bias = 0 always.
+ *  earn   — admin sets `target` PLN the casino should earn over `windowMs`.
+ *           Engine applies positive bias when actual P&L lags pace,
+ *           negative when it overshoots. Once target is hit, controller
+ *           releases (bias → 0) for the rest of the window.
+ *  give   — admin sets `target` PLN the casino should pay back over
+ *           `windowMs`. Negative bias to make wins more frequent. Each
+ *           winning round is also CAPPED so a single player can't burn
+ *           the whole budget on one ×1000 plinko hit. Once paid out,
+ *           releases.
  *
- * The mechanism is deliberately simple. It is NOT a "rigging" system —
- * each game still produces a provably-fair outcome from the random
- * seed. The bias only changes the *amount paid out on a win*, so the
- * stream of wins/losses remains random. From the player's perspective
- * it looks like a slightly tighter or looser slot machine for the
- * duration of the window.
+ * ─────────────────────────────────────────────────────────────────────
+ * PACING
+ * ─────────────────────────────────────────────────────────────────────
+ * The window has an "expected" P&L curve linear in time:
+ *
+ *     expected(t) = target * (t / windowMs)         for earn
+ *     expected(t) = -target * (t / windowMs)        for give
+ *
+ * Error = expected - actual. Bias is proportional to error normalised by
+ * `target`, scaled by `intensity`, clamped to [-1, +1]:
+ *
+ *     bias_raw  = (error / target) * intensity * 1.0
+ *     bias      = clamp(bias_raw, -1, +1)
+ *
+ * If we're already past target (in the favourable direction) we send 0
+ * bias — the controller does not "punish" overshoot in earn mode by
+ * giving back, nor does it stop giving in give mode if we've already
+ * given enough.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * PER-USER COOLDOWN
+ * ─────────────────────────────────────────────────────────────────────
+ * To avoid hammering the same player repeatedly, each user has a
+ * "load" counter that decays exponentially with time. Every biased
+ * outcome adds to the load. When a user's load is high we damp the
+ * bias they personally see — so the global tilt gets distributed across
+ * the active player base instead of crushing one unlucky person.
+ *
+ * Implemented as a Redis hash `rtp:user:<id>` with two fields:
+ *   - load          (float): exponentially-decaying biased-rounds count
+ *   - load_updated  (ms epoch): last time we updated load
+ *
+ * Decay constant: half-life 5 minutes. So a user that took heavy bias
+ * 5 minutes ago is back to half their previous damping.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * PER-BET PAYOUT CAP (give mode)
+ * ─────────────────────────────────────────────────────────────────────
+ * Engines call `capPayoutForGive(userId, stake, grossPayout)` BEFORE
+ * crediting the player. In `give` mode this returns a clamped payout if
+ * the natural payout would consume more than a fair share of the
+ * remaining give-budget. The clamp is applied by NOT crediting the
+ * "spilled" portion — engines should treat the result as the new
+ * effective payout and possibly downgrade the multiplier they show.
+ *
+ * In `earn` and `off` modes this is a no-op pass-through.
  *
  * Storage:
- *   - `rtp:config`           hash with mode/target/windowMs.
- *   - `rtp:window`           hash with windowStart, profit, totalStake.
- *   - `rtp:user:<id>`        hash with profit (net since window open).
+ *   rtp:config           hash with mode/target/windowMs/intensity
+ *   rtp:window           hash with windowStart, profit, totalStake
+ *   rtp:user:<id>        hash with load, load_updated, profit
  */
 
 export type RtpMode = 'off' | 'earn' | 'give';
 
 export interface RtpConfig {
-  /** off = engine inactive (only flat houseEdge applies).
-   *  earn = engine pushes the casino toward `target` profit.
-   *  give = engine pushes the casino toward `target` loss (rewards).
-   */
   mode: RtpMode;
-  /** Target profit (earn) or pay-out (give) over the window, in PLN. */
+  /** Target (PLN). For earn: how much casino should win. For give:
+   *  how much casino should pay back. Always positive. */
   target: number;
-  /** Window length in milliseconds. */
   windowMs: number;
-  /** Strength of the bias adjustment (0..1). Higher = more aggressive. */
+  /** 0..1, how strongly bias is applied. */
   intensity: number;
 }
 
@@ -68,8 +103,10 @@ export interface RtpStatus extends RtpConfig {
   windowEnd: number;
   windowProfit: number;
   windowStake: number;
-  /** -1..+1, error vs target (>0 means casino is behind target). */
+  /** Pacing error normalised to target ∈ [-1, +1]. */
   signal: number;
+  /** True when controller is intentionally idle because target reached. */
+  released: boolean;
 }
 
 const CONFIG_KEY = 'rtp:config';
@@ -78,14 +115,21 @@ const WINDOW_KEY = 'rtp:window';
 const DEFAULT_CONFIG: RtpConfig = {
   mode: 'off',
   target: 0,
-  windowMs: 24 * 60 * 60 * 1000, // 24h
+  windowMs: 24 * 60 * 60 * 1000,
   intensity: 0.5,
 };
 
-const MAX_BIAS = 0.45;
+const MAX_BIAS = 1.0;
+/** Per-user load half-life: 5 min. */
+const LOAD_HALF_LIFE_MS = 5 * 60 * 1000;
+/** Above this load value we start damping a user's personal bias. */
+const LOAD_DAMP_THRESHOLD = 6;
 
 class RtpEngine {
-  /** Read current config from Redis (or defaults). */
+  /* -----------------------------------------------------------------
+   * Config + window state
+   * ---------------------------------------------------------------- */
+
   async getConfig(): Promise<RtpConfig> {
     try {
       const r = redisClient.getClient();
@@ -104,54 +148,10 @@ class RtpEngine {
     }
   }
 
-  /** Read current operating window. Resets if expired. */
-  async getStatus(): Promise<RtpStatus> {
-    const cfg = await this.getConfig();
-    const r = redisClient.getClient();
-    let raw = await r.hgetall(WINDOW_KEY);
-    let windowStart = Number(raw?.windowStart ?? 0);
-    const now = Date.now();
-    if (!windowStart || now - windowStart > cfg.windowMs) {
-      // Reset
-      windowStart = now;
-      await r.del(WINDOW_KEY);
-      await r.hset(WINDOW_KEY, {
-        windowStart: String(windowStart),
-        profit: '0',
-        stake: '0',
-      });
-      // Also wipe all per-user accumulators to keep memory bounded.
-      await this.clearUserAccumulators();
-      raw = await r.hgetall(WINDOW_KEY);
-    }
-
-    const profit = numOr(raw?.profit, 0);
-    const stake = numOr(raw?.stake, 0);
-
-    // Signal in [-1, +1]: +1 = far below target, -1 = far above.
-    let signal = 0;
-    if (cfg.mode === 'earn') {
-      const expected = cfg.target * elapsedFraction(windowStart, cfg.windowMs);
-      signal = clamp((expected - profit) / Math.max(1, cfg.target), -1, 1);
-    } else if (cfg.mode === 'give') {
-      // Target here is "amount we want to give back" — positive number.
-      const expectedLoss = cfg.target * elapsedFraction(windowStart, cfg.windowMs);
-      // We are "behind" if profit is *higher* than -expectedLoss.
-      signal = clamp(((-expectedLoss) - profit) / Math.max(1, cfg.target), -1, 1);
-    }
-
-    return {
-      ...cfg,
-      windowStart,
-      windowEnd: windowStart + cfg.windowMs,
-      windowProfit: profit,
-      windowStake: stake,
-      signal,
-    };
-  }
-
-  /** Update the config (admin action). */
-  async setConfig(patch: Partial<RtpConfig>, opts: { reset?: boolean } = {}): Promise<RtpConfig> {
+  async setConfig(
+    patch: Partial<RtpConfig>,
+    opts: { reset?: boolean } = {}
+  ): Promise<RtpConfig> {
     const current = await this.getConfig();
     const next: RtpConfig = {
       mode:
@@ -176,43 +176,183 @@ class RtpEngine {
     return next;
   }
 
+  async getStatus(): Promise<RtpStatus> {
+    const cfg = await this.getConfig();
+    const r = redisClient.getClient();
+    let raw = await r.hgetall(WINDOW_KEY);
+    let windowStart = Number(raw?.windowStart ?? 0);
+    const now = Date.now();
+    if (!windowStart || now - windowStart > cfg.windowMs) {
+      // Window expired — open a fresh one.
+      windowStart = now;
+      await r.del(WINDOW_KEY);
+      await r.hset(WINDOW_KEY, {
+        windowStart: String(windowStart),
+        profit: '0',
+        stake: '0',
+      });
+      await this.clearUserAccumulators();
+      raw = await r.hgetall(WINDOW_KEY);
+    }
+    const profit = numOr(raw?.profit, 0);
+    const stake = numOr(raw?.stake, 0);
+
+    const t = cfg.windowMs > 0 ? (now - windowStart) / cfg.windowMs : 0;
+    const elapsed = clamp(t, 0, 1);
+
+    let signal = 0;
+    let released = false;
+    if (cfg.mode === 'earn') {
+      const expected = cfg.target * elapsed;
+      // Released once we've reached or exceeded the goal.
+      if (profit >= cfg.target) {
+        released = true;
+      } else if (cfg.target > 0) {
+        signal = clamp((expected - profit) / cfg.target, -1, 1);
+      }
+    } else if (cfg.mode === 'give') {
+      const expected = -cfg.target * elapsed;
+      if (-profit >= cfg.target) {
+        // Already given the budget away.
+        released = true;
+      } else if (cfg.target > 0) {
+        signal = clamp((expected - profit) / cfg.target, -1, 1);
+      }
+    }
+
+    return {
+      ...cfg,
+      windowStart,
+      windowEnd: windowStart + cfg.windowMs,
+      windowProfit: profit,
+      windowStake: stake,
+      signal,
+      released,
+    };
+  }
+
+  /* -----------------------------------------------------------------
+   * Bias resolution
+   * ---------------------------------------------------------------- */
+
   /**
-   * Compute the per-user edge bias to apply on the *next* payout.
-   * Returns a number in [-MAX_BIAS, MAX_BIAS] that callers add to the
-   * configured house edge before paying out.
+   * Compute the per-user pre-fact bias to apply to the NEXT outcome.
+   * Engines call this right before generating their result.
+   *
+   * Bias direction:
+   *   earn mode + casino lagging  → +bias (casino-favouring)
+   *   give mode + budget lagging  → -bias (player-favouring)
+   *
+   * The bias is dampened by:
+   *   - intensity (admin slider)
+   *   - per-user load (cooldown)
+   * and clamped to [-1, +1].
    */
-  async getEdgeBias(userId: string): Promise<number> {
+  async getBiasFor(userId: string): Promise<number> {
     const cfg = await this.getConfig();
     if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
 
     const status = await this.getStatus();
-    const userProfit = await this.getUserProfit(userId);
+    if (status.released) return 0;
 
-    // Two-component bias.
-    // Component A — global signal: when the casino is behind on its
-    // target we tilt towards higher edge (positive); when ahead we
-    // tilt down. `signal` is already in [-1, +1].
-    const globalA = status.signal;
+    // signal is already in [-1, +1] aligned so positive == casino is
+    // behind. The intensity scale is [0, 1].
+    const raw = status.signal * cfg.intensity * MAX_BIAS;
 
-    // Component B — per-user: a player whose net is far in the green
-    // gets a harder edge; one in the red gets relief. Normalise by a
-    // soft scale of 200 PLN so no single bet flip fires the cap.
-    const userB = clamp(userProfit / 200, -1, 1);
+    // Damp by per-user load.
+    const load = await this.peekLoad(userId);
+    const damp = load > LOAD_DAMP_THRESHOLD
+      ? LOAD_DAMP_THRESHOLD / load
+      : 1;
 
-    const combined = clamp(
-      cfg.intensity * (0.6 * globalA + 0.4 * userB),
-      -MAX_BIAS,
-      MAX_BIAS
-    );
-
-    return combined;
+    return clamp(raw * damp, -MAX_BIAS, MAX_BIAS);
   }
 
   /**
-   * Record a settled bet outcome. Casino profit = stake - grossPayout.
-   * Called from BettingPipeline.processPayout / processCashout.
+   * Like `getBiasFor` but with no per-user component. Used by
+   * multiplayer rounds (e.g. crash) where the round-level outcome
+   * applies to every player in the round and therefore can't be
+   * personalised.
    */
-  async recordOutcome(userId: string, stake: number, grossPayout: number): Promise<void> {
+  async getGlobalBias(): Promise<number> {
+    const cfg = await this.getConfig();
+    if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
+    const status = await this.getStatus();
+    if (status.released) return 0;
+    return clamp(
+      status.signal * cfg.intensity * MAX_BIAS,
+      -MAX_BIAS,
+      MAX_BIAS
+    );
+  }
+
+  /**
+   * Per-bet payout cap for `give` mode.
+   *
+   * Returns a possibly-reduced gross payout. Engines should use the
+   * return value as the actual credit, and may downgrade the displayed
+   * multiplier accordingly. In `off` and `earn` modes this is a pass-
+   * through.
+   *
+   * Cap formula (give mode):
+   *   remaining = target - alreadyGiven
+   *   maxPayout = max(stake, remaining / expectedPlayers)
+   *
+   * Where `expectedPlayers` is a soft estimate: the number of distinct
+   * users seen in the current window so far, floored at 5 so a quiet
+   * window doesn't let the first big winner take everything. This is a
+   * conservative cap that limits a single payout to at most 1/5 of the
+   * remaining budget while still letting the player walk with at least
+   * their stake back (so they don't see a "win" turn into a loss).
+   */
+  async capPayoutForGive(
+    userId: string,
+    stake: number,
+    grossPayout: number
+  ): Promise<number> {
+    const cfg = await this.getConfig();
+    if (cfg.mode !== 'give' || cfg.intensity <= 0) return grossPayout;
+
+    const status = await this.getStatus();
+    if (status.released) return grossPayout;
+
+    const alreadyGiven = Math.max(0, -status.windowProfit);
+    const remaining = Math.max(0, cfg.target - alreadyGiven);
+    if (remaining <= 0) {
+      // We've already given everything; let nature take its course but
+      // also return a floor of just-the-stake so the player at least
+      // doesn't see a phantom loss.
+      return Math.max(stake, Math.min(grossPayout, stake));
+    }
+
+    // Guess a reasonable per-bet share. We scan how many users actually
+    // bet in this window through `windowStake` ÷ a typical avg bet (50 PLN);
+    // floor it at 5 so the very first winner doesn't take the lot.
+    const distinctUsers = Math.max(5, Math.floor(status.windowStake / 50));
+    const cap = Math.max(stake, remaining / distinctUsers);
+
+    return Math.min(grossPayout, cap);
+  }
+
+  /* -----------------------------------------------------------------
+   * Outcome reporting (called from BettingPipeline)
+   * ---------------------------------------------------------------- */
+
+  /**
+   * Record the casino-side P&L of one settled bet. Called from
+   * `BettingPipeline.processPayout/processCashout/processLoss`.
+   *
+   *   profit = stake - grossPayout
+   *
+   * Positive profit means the casino kept money; negative means it paid
+   * out more than the stake. Per-user load is incremented based on the
+   * absolute movement scaled to stake — large bets contribute more.
+   */
+  async recordOutcome(
+    userId: string,
+    stake: number,
+    grossPayout: number
+  ): Promise<void> {
     const profitDelta = stake - grossPayout;
     try {
       const r = redisClient.getClient();
@@ -221,19 +361,37 @@ class RtpEngine {
       const tx = r.multi();
       tx.hincrbyfloat(WINDOW_KEY, 'profit', String(profitDelta));
       tx.hincrbyfloat(WINDOW_KEY, 'stake', String(stake));
+      // Bump the user's load proportional to bet size, but bounded.
+      const loadInc = Math.min(2, 0.4 + Math.log10(Math.max(1, stake)) * 0.4);
+      tx.hincrbyfloat(`rtp:user:${userId}`, 'load', String(loadInc));
+      tx.hset(`rtp:user:${userId}`, 'load_updated', String(Date.now()));
       tx.hincrbyfloat(`rtp:user:${userId}`, 'profit', String(-profitDelta));
-      tx.expire(`rtp:user:${userId}`, Math.ceil((await this.getConfig()).windowMs / 1000) + 60);
+      const cfg = await this.getConfig();
+      tx.expire(`rtp:user:${userId}`, Math.ceil(cfg.windowMs / 1000) + 60);
       await tx.exec();
     } catch (err) {
       logger.warn({ err }, 'rtp.recordOutcome failed');
     }
   }
 
-  private async getUserProfit(userId: string): Promise<number> {
+  /* -----------------------------------------------------------------
+   * Internals
+   * ---------------------------------------------------------------- */
+
+  /** Return the user's *decayed* load value without writing it back. */
+  private async peekLoad(userId: string): Promise<number> {
     try {
       const r = redisClient.getClient();
-      const v = await r.hget(`rtp:user:${userId}`, 'profit');
-      return numOr(v, 0);
+      const raw = await r.hmget(
+        `rtp:user:${userId}`,
+        'load',
+        'load_updated'
+      );
+      const load = numOr(raw[0], 0);
+      const updated = numOr(raw[1], Date.now());
+      const dt = Math.max(0, Date.now() - updated);
+      const decay = Math.pow(0.5, dt / LOAD_HALF_LIFE_MS);
+      return load * decay;
     } catch {
       return 0;
     }
@@ -242,13 +400,8 @@ class RtpEngine {
   private async clearUserAccumulators(): Promise<void> {
     try {
       const r = redisClient.getClient();
-      // SCAN — KEYS is fine here because the cardinality is bounded by
-      // active players in the last window. For very large casinos we'd
-      // switch to a separate list of dirty userIds.
       const keys = await r.keys('rtp:user:*');
-      if (keys.length > 0) {
-        await r.del(...keys);
-      }
+      if (keys.length > 0) await r.del(...keys);
     } catch (err) {
       logger.warn({ err }, 'rtp.clearUserAccumulators failed');
     }
@@ -262,11 +415,6 @@ function numOr(v: unknown, fallback: number): number {
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
-}
-
-function elapsedFraction(start: number, duration: number): number {
-  const f = (Date.now() - start) / duration;
-  return clamp(f, 0, 1);
 }
 
 export const rtpEngine = new RtpEngine();
