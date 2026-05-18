@@ -368,8 +368,10 @@ export default function PlinkoGamePage() {
             />
           </div>
 
-          {/* Bucket multipliers sit just under the board, aligned with columns */}
-          <div className="px-1.5 pb-1.5 -mt-0.5">
+          {/* Bucket multipliers sit just under the board, full-bleed so
+              the cells line up edge-to-edge with the outermost pins
+              (which the board now anchors at padX = 2). */}
+          <div className="px-0.5 pb-1 -mt-0.5">
             <PlinkoMultiplierStrip
               multipliers={multipliers}
               highlightedBucket={highlightedBucket}

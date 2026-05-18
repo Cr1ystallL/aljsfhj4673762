@@ -164,12 +164,21 @@ export function PlinkoBoard({
     };
 
     const computeLayout = (w: number, h: number) => {
-      const padX = 16;
+      // Canvas-side padding. Kept tiny — the wall lines need 2 px to
+      // breathe but anything bigger and the outer pins would no longer
+      // sit above the leftmost / rightmost buckets.
+      const padX = 2;
       const padTop = 22;
       const padBottom = 14;
       const innerW = w - padX * 2;
       const innerH = h - padTop - padBottom;
-      const gap = innerW / (rows + 2);
+      // Pin spacing — chosen so the LAST row's pins span the full
+      // inner width. Last row has `rows + 2` pins (i.e. 18 for rows=16),
+      // which yields `rows + 1` = 17 inter-pin slots. Setting
+      // `gap = innerW / (rows + 1)` makes one inter-pin slot equal to
+      // one bucket width — so a ball finishing at "bucket k" lands
+      // exactly above the centre of the strip's k-th cell.
+      const gap = innerW / (rows + 1);
       const rowSpacing = innerH / (rows + 1);
       layout = {
         padX,
