@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,7 +12,6 @@ import {
   CreditCard,
   Copy,
   Check,
-  Clock,
   X,
   AlertTriangle,
   Sparkles,
@@ -396,25 +395,14 @@ function DepositForm({
         <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
           Сумма пополнения, zł
         </span>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            step={10}
-            min={10}
-            value={amount}
-            onChange={(e) => onAmountChange(e.target.value)}
-            className="flex-1 bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[18px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
-          />
-          {[50, 100, 200, 500].map((v) => (
-            <button
-              key={v}
-              onClick={() => onAmountChange(String(v))}
-              className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 font-roobert text-[12px] text-frost-white/85 transition-colors active:scale-95"
-            >
-              {v}
-            </button>
-          ))}
-        </div>
+        <input
+          type="number"
+          step={10}
+          min={10}
+          value={amount}
+          onChange={(e) => onAmountChange(e.target.value)}
+          className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[18px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
+        />
         {error && (
           <span className="font-roobert text-[12px] text-[#ff8a76]">{error}</span>
         )}
@@ -534,7 +522,7 @@ function PaymentDetails({
           </p>
         </div>
 
-        {/* Account / phone & recipient */}
+        {/* Account / phone — provider-issued banking details */}
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 flex flex-col gap-3">
           <CopyRow
             label={order.type === 'bank' ? 'Номер счёта / BLIK' : 'Телефон'}
@@ -543,33 +531,10 @@ function PaymentDetails({
             copied={copied}
             onCopy={onCopy}
           />
-          <div className="h-px bg-white/8" />
-          <CopyRow
-            label="Получатель"
-            value={order.recipient}
-            keyId="recipient"
-            copied={copied}
-            onCopy={onCopy}
-          />
-          {order.details ? (
-            <>
-              <div className="h-px bg-white/8" />
-              <CopyRow
-                label="Назначение / комментарий"
-                value={order.details}
-                keyId="details"
-                copied={copied}
-                onCopy={onCopy}
-              />
-            </>
-          ) : null}
         </div>
 
-        {/* Timer */}
-        <div className="inline-flex items-center gap-1.5 font-roobert text-[12px] text-whisper-gray">
-          <Clock size={13} strokeWidth={1.7} />
-          Заявка действует {order.expiresInMinutes} минут
-        </div>
+        {/* Countdown timer — animated, GPU-friendly */}
+        <CountdownTimer minutes={order.expiresInMinutes} />
 
         {/* Help block with FULL order id */}
         <div className="rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 flex flex-col gap-1.5">
@@ -642,6 +607,106 @@ function CopyRow({
       </button>
     </div>
   );
+}
+
+/* ---------------------------- CountdownTimer ---------------------------- */
+/**
+ * Big legible MM:SS counter with a circular progress ring around it.
+ * Counts down from the full window — when it hits zero we keep showing
+ * 00:00 and rely on the parent to pick up the cancelled / expired
+ * transition via REST. Pure CSS animation: a stroke-dasharray on an
+ * SVG circle, redrawn on each one-second tick. The ring uses the
+ * brand Deep Ocean gradient so it stays on-brand without any heavy
+ * effects.
+ */
+function CountdownTimer({ minutes }: { minutes: number }) {
+  const total = Math.max(60, Math.floor(minutes * 60)); // seconds
+  const [endsAt] = useState(() => Date.now() + total * 1000);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  const remaining = Math.max(0, Math.floor((endsAt - now) / 1000));
+  const mm = Math.floor(remaining / 60);
+  const ss = remaining % 60;
+  const frac = total > 0 ? remaining / total : 0;
+
+  // Ring geometry
+  const size = 100;
+  const stroke = 6;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const dash = c * frac;
+
+  return (
+    <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-4 flex items-center gap-4">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id="cd-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgb(160, 224, 171)" />
+              <stop offset="50%" stopColor="rgb(255, 172, 46)" />
+              <stop offset="100%" stopColor="rgb(165, 45, 37)" />
+            </linearGradient>
+          </defs>
+          {/* Track */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="rgba(255,255,255,0.10)"
+            strokeWidth={stroke}
+          />
+          {/* Progress */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="url(#cd-grad)"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${c - dash}`}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: 'stroke-dasharray 0.5s linear' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="font-roobert text-[20px] font-light tabular-nums text-frost-white leading-none">
+            {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+          </span>
+          <span className="mt-0.5 font-roobert text-[8px] uppercase tracking-[0.22em] text-whisper-gray">
+            осталось
+          </span>
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+          Время на оплату
+        </div>
+        <p className="mt-1 font-roobert text-[12px] text-frost-white/85 leading-relaxed">
+          После перевода баланс пополнится автоматически. Если время
+          истекло — заявка закроется, средства не спишутся.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function _CopyRow_unused() {
+  // Removed in favour of the inlined CopyRow above. Retained as a
+  // no-op placeholder so the linter doesn't flag a dangling import
+  // during the transition; will be deleted in a follow-up.
+  return null;
 }
 
 /* ------------------------------ WithdrawForm ------------------------------ */

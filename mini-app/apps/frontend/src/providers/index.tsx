@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TelegramProvider } from './telegram-provider';
 import { WebSocketProvider } from './websocket-provider';
+import { BalanceSyncProvider } from './balance-sync-provider';
 import { useState } from 'react';
 
 /**
@@ -26,7 +27,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TelegramProvider>
         <WebSocketProvider>
-          {children}
+          <BalanceSyncProvider>{children}</BalanceSyncProvider>
         </WebSocketProvider>
       </TelegramProvider>
     </QueryClientProvider>

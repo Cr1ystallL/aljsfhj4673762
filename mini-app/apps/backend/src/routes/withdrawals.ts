@@ -1,20 +1,29 @@
 import type { FastifyInstance } from 'fastify';
-import { Prisma } from '@prisma/client';
-import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { randomUUID } from 'crypto';
+import {
+  authenticate,
+  type AuthenticatedRequest,
+} from '../middleware/auth.js';
 import { balanceService } from '../services/balance-service.js';
 import { logger } from '../utils/logger.js';
 
 /**
  * User-facing Withdrawal Routes.
  *
- * Players submit a withdrawal request (BLIK or bank card). The amount
- * is debited atomically from the shared balance and a row is inserted
- * into `withdrawal_requests` with status='pending'. Admins later mark
- * it `paid` or `rejected` from /system/console/withdrawals.
+ * Players submit a withdrawal request (BLIK or bank card). The amount is
+ * debited atomically from the shared balance and a row is inserted into
+ * `withdrawal_requests` with status='pending'. Admins later mark it
+ * `paid` or `rejected` from /system/console/withdrawals.
  *
- * The conservative SQL ensures the user can never overdraft: the
- * UPDATE only succeeds when balance >= amount, otherwise the request
- * is rejected before the row is inserted.
+ * Idempotency note: the `user_id` column on `users` and `balances` is
+ * `TEXT` (Prisma `String @id`), NOT `uuid`. An earlier revision cast it
+ * to `::uuid` which produced a Postgres error and a 500 from this
+ * route. The cast has been removed; we let Postgres compare TEXT
+ * directly. Same applies to `withdrawal_requests.user_id` (TEXT).
+ *
+ * The conservative SQL ensures the user can never overdraft: the UPDATE
+ * only succeeds when balance >= amount, otherwise the request is
+ * rejected before the request row is inserted.
  */
 
 interface BlikBody {
@@ -55,9 +64,10 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
           .send({ ok: false, error: `Минимальная сумма — ${MIN_AMOUNT} zł` });
       }
       if (amount > MAX_AMOUNT) {
-        return reply
-          .code(400)
-          .send({ ok: false, error: `Максимум за одну заявку — ${MAX_AMOUNT} zł` });
+        return reply.code(400).send({
+          ok: false,
+          error: `Максимум за одну заявку — ${MAX_AMOUNT} zł`,
+        });
       }
 
       // ---- Method-specific destination + metadata ------------------------
@@ -69,9 +79,10 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
         const bank = String(body.bank ?? '').trim();
         const holder = String(body.holder ?? '').trim();
         if (!phone || !bank || !holder) {
-          return reply
-            .code(400)
-            .send({ ok: false, error: 'Заполните номер телефона, банк и имя получателя' });
+          return reply.code(400).send({
+            ok: false,
+            error: 'Заполните номер телефона, банк и имя получателя',
+          });
         }
         method = 'blik';
         destination = `${phone} (${bank})`;
@@ -80,9 +91,10 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
         const card = String(body.card ?? '').trim();
         const holder = String(body.holder ?? '').trim();
         if (!card || !holder) {
-          return reply
-            .code(400)
-            .send({ ok: false, error: 'Заполните номер карты и имя владельца' });
+          return reply.code(400).send({
+            ok: false,
+            error: 'Заполните номер карты и имя владельца',
+          });
         }
         method = 'card';
         destination = `${card.replace(/\s+/g, '')} (${holder})`;
@@ -93,61 +105,68 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
           .send({ ok: false, error: 'Неизвестный метод вывода' });
       }
 
-      // ---- Block flag check ----------------------------------------------
+      // ---- Optional block-flag check ---------------------------------
+      // The `withdrawal_locked` column is added by the admin Phase 1
+      // migration. If it isn't there yet on a particular deployment
+      // we just skip the check rather than blowing up.
       try {
         const userRow = await app.prisma.$queryRaw<
           { withdrawal_locked: boolean }[]
-        >`SELECT withdrawal_locked FROM users WHERE id = ${userId}::uuid`;
+        >`SELECT withdrawal_locked FROM users WHERE id = ${userId} LIMIT 1`;
         if (userRow[0]?.withdrawal_locked) {
-          return reply
-            .code(403)
-            .send({ ok: false, error: 'Вывод временно заблокирован администратором' });
+          return reply.code(403).send({
+            ok: false,
+            error: 'Вывод временно заблокирован администратором',
+          });
         }
       } catch {
-        // Column may not exist on older deployments — fall through.
+        // Column missing — older deployment. Skip the check.
       }
 
-      // ---- Atomic debit + request insert in a single transaction ---------
+      // ---- Atomic debit + request insert ----------------------------
       try {
+        const requestId = `wd_${Date.now()}_${randomUUID().slice(0, 8)}`;
+        const metadataJson = JSON.stringify(metadata);
+
         const result = await app.prisma.$transaction(async (tx) => {
           // Conditional debit. Only succeeds when there are enough funds.
           const debited = await tx.$executeRaw`
             UPDATE balances
             SET amount = amount - ${amount}::numeric,
                 updated_at = NOW()
-            WHERE user_id = ${userId}::uuid
+            WHERE user_id = ${userId}
               AND demo_mode = FALSE
               AND amount >= ${amount}::numeric
           `;
           if (debited !== 1) {
-            return { ok: false as const, reason: 'insufficient' as const };
+            return { ok: false as const };
           }
 
-          // Read fresh balance for transaction record.
           const after = await tx.$queryRaw<{ amount: string }[]>`
             SELECT amount FROM balances
-            WHERE user_id = ${userId}::uuid AND demo_mode = FALSE
+            WHERE user_id = ${userId} AND demo_mode = FALSE
           `;
           const balanceAfter = Number(after[0]?.amount ?? 0);
           const balanceBefore = balanceAfter + amount;
 
-          // Insert pending request.
-          const inserted = await tx.$queryRaw<{ id: string }[]>`
+          // Insert pending request — id is generated client-side because
+          // the table's PRIMARY KEY has no DEFAULT.
+          await tx.$executeRaw`
             INSERT INTO withdrawal_requests
-              (user_id, amount, currency, method, destination, status, metadata)
+              (id, user_id, amount, currency, method, destination, status, metadata)
             VALUES
-              (${userId}::uuid,
+              (${requestId},
+               ${userId},
                ${amount}::numeric,
                'PLN',
                ${method},
                ${destination},
                'pending',
-               ${Prisma.sql`${JSON.stringify(metadata)}::jsonb`})
-            RETURNING id
+               ${metadataJson}::jsonb)
           `;
-          const requestId = inserted[0]?.id;
 
-          // Mirror as a transaction row so it shows up in user history.
+          // Mirror as a transaction row so it shows up in the user's
+          // history. `metadata` here is the Prisma-typed JSON column.
           await tx.transaction.create({
             data: {
               userId,
@@ -164,7 +183,7 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
             },
           });
 
-          return { ok: true as const, requestId, balanceAfter };
+          return { ok: true as const, balanceAfter };
         });
 
         if (!result.ok) {
@@ -178,7 +197,7 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
 
         return reply.send({
           ok: true,
-          requestId: result.requestId,
+          requestId,
           status: 'pending',
         });
       } catch (error) {
