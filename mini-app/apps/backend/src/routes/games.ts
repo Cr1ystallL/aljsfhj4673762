@@ -585,6 +585,43 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
+   * POST /api/games/plinko/settle
+   * Phase 2 of the plinko flow — credits the payout once the client
+   * has finished animating the ball into its bucket. Idempotent: a
+   * client that has already settled a roundId gets `alreadySettled:
+   * true` and the previously-credited payout, no double-credit.
+   */
+  app.post<{ Body: { roundId: string } }>(
+    '/plinko/settle',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['roundId'],
+          properties: { roundId: { type: 'string', minLength: 8 } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { roundId } = request.body;
+
+      try {
+        const result = await plinkoEngine.settle(userId, roundId);
+        return reply.send({ success: true, ...result });
+      } catch (error) {
+        logger.error(error, 'Failed to settle plinko round');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'PLINKO_SETTLE_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
    * GET /api/games/plinko/history
    * Recent winning drops across all players (live ticker on the lobby).
    */

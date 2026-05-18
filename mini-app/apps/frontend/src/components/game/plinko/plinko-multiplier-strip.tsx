@@ -4,22 +4,28 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 /**
- * Plinko Multiplier Strip — Monopo Saigon Style
+ * Plinko Multiplier Strip — Monopo Saigon Style v2.
  *
- * Row of bucket markers aligned with the columns of the board. We use a
- * shield/badge silhouette instead of a hard pill so 4-character labels
- * (`1000x`, `130x`) fit comfortably even on a 360 px viewport. The
- * shield is drawn purely with rounded-corner CSS — no SVG — so it scales
- * gracefully and inherits the parent grid's column width.
+ * Row of "buckets" sitting beneath the pyramid. Each bucket is a chunky
+ * 3D-feeling slab with:
+ *   - A glossy top edge (thin highlight strip).
+ *   - A solid body whose colour intensity tracks the multiplier tier.
+ *   - A darker base strip that catches a soft inset shadow — the ball
+ *     visually "drops into" this slot.
+ *   - A subtle scaling pulse on impact, plus a brief upwards squash so
+ *     the slot looks like it absorbs the ball.
  *
- * Tints stay restricted to the brand Deep Ocean palette:
- *   - >=10x  → strong amber/red wash (rare, high reward)
- *   - 2..10x → neutral amber tint
- *   - 1..2x  → frosted white (par)
- *   - <1x    → dim red (loss-leaning)
+ * Tiers (using the brand Deep Ocean palette + dark base):
+ *   ≥100x → deep red (rare, jackpot)
+ *   ≥10x  → amber-red gradient
+ *   ≥2x   → solid amber
+ *   ≥1x   → frosted white (par)
+ *   <1x   → muted graphite (loss-leaning)
  *
- * The currently winning bucket gets a brief flash via the
- * `highlightedBucket` prop driven by the page state.
+ * Optimisation: the multiplier strip can have 17 cells × per-frame
+ * paint cost. Each cell renders as a plain `<div>` with CSS gradients —
+ * no SVG, no backdrop-filter — so the GPU can composite the whole row
+ * in a single rectangle pass.
  */
 
 interface PlinkoMultiplierStripProps {
@@ -27,52 +33,60 @@ interface PlinkoMultiplierStripProps {
   highlightedBucket?: number | null;
 }
 
-function tier(value: number) {
+interface Tier {
+  body: string; // CSS background for the body
+  base: string; // CSS background for the bottom slab strip
+  border: string;
+  text: string;
+  glow: string;
+}
+
+function tier(value: number): Tier {
   if (value >= 100) {
     return {
-      bg: 'linear-gradient(180deg, rgba(165,45,37,0.42) 0%, rgba(165,45,37,0.22) 100%)',
-      border: 'rgba(165,45,37,0.55)',
+      body: 'linear-gradient(180deg, rgb(176, 60, 50) 0%, rgb(140, 32, 26) 100%)',
+      base: 'linear-gradient(180deg, rgb(120, 28, 22) 0%, rgb(86, 18, 14) 100%)',
+      border: 'rgba(255, 138, 118, 0.55)',
       text: '#ffffff',
+      glow: 'rgba(165, 45, 37, 0.55)',
     };
   }
   if (value >= 10) {
     return {
-      bg: 'linear-gradient(180deg, rgba(255,172,46,0.32) 0%, rgba(165,45,37,0.20) 100%)',
-      border: 'rgba(255,172,46,0.50)',
+      body: 'linear-gradient(180deg, rgb(232, 150, 64) 0%, rgb(190, 78, 44) 100%)',
+      base: 'linear-gradient(180deg, rgb(160, 64, 38) 0%, rgb(112, 44, 26) 100%)',
+      border: 'rgba(255, 200, 120, 0.5)',
       text: '#ffffff',
+      glow: 'rgba(255, 172, 46, 0.45)',
     };
   }
   if (value >= 2) {
     return {
-      bg: 'linear-gradient(180deg, rgba(255,172,46,0.20) 0%, rgba(255,172,46,0.06) 100%)',
-      border: 'rgba(255,172,46,0.42)',
+      body: 'linear-gradient(180deg, rgb(220, 162, 76) 0%, rgb(188, 124, 50) 100%)',
+      base: 'linear-gradient(180deg, rgb(150, 96, 36) 0%, rgb(112, 70, 24) 100%)',
+      border: 'rgba(255, 200, 120, 0.4)',
       text: '#ffffff',
+      glow: 'rgba(255, 172, 46, 0.30)',
     };
   }
   if (value >= 1) {
     return {
-      bg: 'linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 100%)',
+      body: 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 100%)',
+      base: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
       border: 'rgba(255,255,255,0.18)',
-      text: 'rgba(255,255,255,0.88)',
+      text: 'rgba(255,255,255,0.92)',
+      glow: 'rgba(255,255,255,0.18)',
     };
   }
   return {
-    bg: 'linear-gradient(180deg, rgba(165,45,37,0.18) 0%, rgba(165,45,37,0.04) 100%)',
-    border: 'rgba(165,45,37,0.35)',
-    text: 'rgba(255,138,118,0.85)',
+    body: 'linear-gradient(180deg, rgba(40,40,40,0.55) 0%, rgba(28,28,28,0.55) 100%)',
+    base: 'linear-gradient(180deg, rgba(20,20,20,0.7) 0%, rgba(10,10,10,0.7) 100%)',
+    border: 'rgba(255,255,255,0.10)',
+    text: 'rgba(220,220,220,0.75)',
+    glow: 'rgba(0,0,0,0.45)',
   };
 }
 
-/**
- * Format a multiplier so it stays compact:
- *   1000   → "1k"
- *   110    → "110"
- *   1.4    → "1.4"
- *   0.5    → "0.5"
- *
- * "x" suffix is omitted on small viewports where space is tight; the
- * surrounding context is enough.
- */
 function formatMult(m: number): string {
   if (m >= 1000) {
     const k = m / 1000;
@@ -89,7 +103,7 @@ export function PlinkoMultiplierStrip({
 }: PlinkoMultiplierStripProps) {
   return (
     <div
-      className="grid gap-[3px]"
+      className="grid gap-[3px] px-1"
       style={{
         gridTemplateColumns: `repeat(${multipliers.length}, minmax(0, 1fr))`,
       }}
@@ -102,26 +116,56 @@ export function PlinkoMultiplierStrip({
             key={i}
             animate={
               isHi
-                ? { scale: [1, 1.15, 1], y: [0, -2, 0], opacity: [1, 0.95, 1] }
-                : { scale: 1, y: 0, opacity: 1 }
+                ? {
+                    scale: [1, 0.92, 1.06, 1],
+                    y: [0, 4, -2, 0],
+                  }
+                : { scale: 1, y: 0 }
             }
-            transition={{ duration: 0.5, ease: 'easeOut' }}
+            transition={{ duration: 0.55, ease: [0.25, 0.46, 0.45, 0.94] }}
             className={cn(
-              'relative flex items-center justify-center h-7 sm:h-8 font-roobert font-light tabular-nums select-none',
-              isHi && 'ring-1 ring-frost-white/60'
+              'relative h-9 sm:h-10 select-none flex flex-col overflow-hidden',
+              'rounded-md sm:rounded-lg'
             )}
             style={{
-              // Shield silhouette: rounded top, mild taper at bottom via
-              // border-radius. No SVG so this stays responsive.
-              borderRadius: '6px 6px 9px 9px',
-              background: t.bg,
               border: `1px solid ${t.border}`,
-              color: t.text,
+              boxShadow: isHi
+                ? `0 0 16px 2px ${t.glow}, 0 2px 0 rgba(0,0,0,0.45) inset`
+                : `0 1px 0 rgba(255,255,255,0.06) inset, 0 -2px 0 rgba(0,0,0,0.30) inset`,
             }}
           >
-            <span className="text-[9px] sm:text-[10px] leading-none tracking-tight">
-              {formatMult(m)}
-            </span>
+            {/* Glossy top edge highlight */}
+            <span
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-[2px] rounded-t-[6px]"
+              style={{
+                background:
+                  'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                opacity: 0.7,
+              }}
+            />
+            {/* Body */}
+            <div
+              className="flex-1 flex items-center justify-center"
+              style={{ background: t.body }}
+            >
+              <span
+                className="font-roobert font-medium tabular-nums leading-none text-[10px] sm:text-[11px]"
+                style={{
+                  color: t.text,
+                  textShadow:
+                    'rgba(0,0,0,0.35) 0px 1px 0px, rgba(255,255,255,0.06) 0px -1px 0px',
+                }}
+              >
+                {formatMult(m)}
+              </span>
+            </div>
+            {/* Base strip — gives the bucket a "slot" feel */}
+            <div
+              aria-hidden
+              className="h-[3px] sm:h-[4px]"
+              style={{ background: t.base }}
+            />
           </motion.div>
         );
       })}

@@ -196,7 +196,25 @@ export function PlinkoBoard({
       const { padTop, gap, rowSpacing, pinRadius, cx } = layout;
       const pinY = (row: number) => padTop + (row + 1) * rowSpacing;
 
-      // Side walls
+      // ----- Backdrop atmosphere -----
+      // Soft Deep Ocean halo behind the pyramid — gives the board depth
+      // without backdrop-filter (mobile WebView doesn't pay for inline
+      // gradients). Painted into the cache so we don't redo it 60×/s.
+      const atmos = cctx.createRadialGradient(
+        cx,
+        padTop + (rowSpacing * rows) / 2,
+        gap,
+        cx,
+        padTop + (rowSpacing * rows) / 2,
+        Math.max(w, h) * 0.6
+      );
+      atmos.addColorStop(0, 'rgba(160, 224, 171, 0.06)');
+      atmos.addColorStop(0.5, 'rgba(255, 172, 46, 0.04)');
+      atmos.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      cctx.fillStyle = atmos;
+      cctx.fillRect(0, 0, w, h);
+
+      // ----- Side walls — angled brand-tinted rails -----
       const wallTopY = padTop;
       const wallBotY = pinY(rows - 1);
       const wallTopHalf = gap;
@@ -206,22 +224,52 @@ export function PlinkoBoard({
         cctx.moveTo(cx + sign * wallTopHalf, wallTopY);
         cctx.lineTo(cx + sign * wallBotHalf, wallBotY);
         cctx.strokeStyle = color;
-        cctx.lineWidth = 1;
+        cctx.lineWidth = 1.4;
+        cctx.shadowColor = color;
+        cctx.shadowBlur = 6;
         cctx.stroke();
+        cctx.shadowBlur = 0;
       };
-      drawWall(-1, 'rgba(160, 224, 171, 0.22)');
-      drawWall(1, 'rgba(255, 172, 46, 0.22)');
+      drawWall(-1, 'rgba(160, 224, 171, 0.32)');
+      drawWall(1, 'rgba(255, 172, 46, 0.32)');
 
-      // Pins
-      cctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+      // ----- Pins — soft 3D dome look -----
+      // Each pin is a tiny radial-gradient sphere with a thin rim and
+      // a subtle drop-shadow underneath. We pre-render once and blit
+      // the whole layer in the live loop.
       for (let row = 0; row < rows; row++) {
         const pinsInRow = row + 3;
         const y = pinY(row);
         for (let col = 0; col < pinsInRow; col++) {
           const x = cx + (col - (pinsInRow - 1) / 2) * gap;
+
+          // Drop shadow
+          cctx.beginPath();
+          cctx.arc(x, y + pinRadius * 0.6, pinRadius * 1.05, 0, Math.PI * 2);
+          cctx.fillStyle = 'rgba(0,0,0,0.45)';
+          cctx.fill();
+
+          // Body
+          const grad = cctx.createRadialGradient(
+            x - pinRadius * 0.25,
+            y - pinRadius * 0.35,
+            0,
+            x,
+            y,
+            pinRadius * 1.25
+          );
+          grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+          grad.addColorStop(0.55, 'rgba(220, 220, 220, 0.85)');
+          grad.addColorStop(1, 'rgba(120, 120, 120, 0.55)');
+          cctx.fillStyle = grad;
           cctx.beginPath();
           cctx.arc(x, y, pinRadius, 0, Math.PI * 2);
           cctx.fill();
+
+          // Rim
+          cctx.lineWidth = 0.6;
+          cctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          cctx.stroke();
         }
       }
       return c;
@@ -327,26 +375,62 @@ export function PlinkoBoard({
           const a = (i + 1) / ball.trail.length;
           ctx.beginPath();
           ctx.arc(p.x, p.y, ballRadius * 0.55 * a, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 255, 255, ${0.12 * a})`;
+          // Trail picks up the ball's amber tint, fades to transparent.
+          ctx.fillStyle = `rgba(255, 200, 120, ${0.18 * a})`;
           ctx.fill();
         }
 
-        // Halo
-        const grad = ctx.createRadialGradient(bx, by, 0, bx, by, ballRadius * 2.4);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = grad;
+        // Outer halo (warmer)
+        const halo = ctx.createRadialGradient(
+          bx,
+          by,
+          0,
+          bx,
+          by,
+          ballRadius * 2.6
+        );
+        halo.addColorStop(0, 'rgba(255, 200, 120, 0.55)');
+        halo.addColorStop(0.5, 'rgba(255, 172, 46, 0.18)');
+        halo.addColorStop(1, 'rgba(255, 172, 46, 0)');
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(bx, by, ballRadius * 2.4, 0, Math.PI * 2);
+        ctx.arc(bx, by, ballRadius * 2.6, 0, Math.PI * 2);
         ctx.fill();
 
-        // Ball
+        // Ball — amber/cream sphere with a small specular highlight.
+        const body = ctx.createRadialGradient(
+          bx - ballRadius * 0.35,
+          by - ballRadius * 0.45,
+          ballRadius * 0.1,
+          bx,
+          by,
+          ballRadius
+        );
+        body.addColorStop(0, 'rgba(255, 248, 220, 1)');
+        body.addColorStop(0.4, 'rgba(255, 220, 150, 1)');
+        body.addColorStop(1, 'rgba(220, 140, 60, 1)');
         ctx.beginPath();
         ctx.arc(bx, by, ballRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = body;
         ctx.fill();
+
+        // Specular hot-spot
+        ctx.beginPath();
+        ctx.arc(
+          bx - ballRadius * 0.35,
+          by - ballRadius * 0.45,
+          ballRadius * 0.32,
+          0,
+          Math.PI * 2
+        );
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fill();
+
+        // Rim
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(160, 224, 171, 0.6)';
+        ctx.strokeStyle = 'rgba(180, 100, 40, 0.85)';
+        ctx.beginPath();
+        ctx.arc(bx, by, ballRadius, 0, Math.PI * 2);
         ctx.stroke();
 
         // Notify on landing — once.
@@ -366,14 +450,29 @@ export function PlinkoBoard({
         }
       }
 
-      // -- Highlighted bucket marker --
+      // -- Highlighted bucket marker — upward burst when a ball lands -- //
       if (highlightedBucket != null) {
         const i = highlightedBucket;
         const bx = padX + bucketWidth * i + bucketWidth / 2;
-        const by = h - padBottom - 4;
+        const by = h - padBottom - 2;
+        // Vertical burst rays — short lines fanning up from the slot.
+        ctx.lineWidth = 1.2;
+        for (let k = -2; k <= 2; k++) {
+          const angle = (Math.PI / 2) + k * 0.18;
+          const len = 14 - Math.abs(k) * 2.5;
+          ctx.beginPath();
+          ctx.moveTo(bx, by);
+          ctx.lineTo(bx + Math.cos(angle - Math.PI) * len, by - Math.sin(angle) * len);
+          ctx.strokeStyle = `rgba(255, 200, 120, ${0.55 - Math.abs(k) * 0.1})`;
+          ctx.stroke();
+        }
+        // Soft glow puddle
+        const puddle = ctx.createRadialGradient(bx, by, 0, bx, by, bucketWidth * 0.7);
+        puddle.addColorStop(0, 'rgba(255, 200, 120, 0.55)');
+        puddle.addColorStop(1, 'rgba(255, 200, 120, 0)');
+        ctx.fillStyle = puddle;
         ctx.beginPath();
-        ctx.arc(bx, by, bucketWidth * 0.18, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 172, 46, 0.45)';
+        ctx.arc(bx, by, bucketWidth * 0.7, 0, Math.PI * 2);
         ctx.fill();
       }
 

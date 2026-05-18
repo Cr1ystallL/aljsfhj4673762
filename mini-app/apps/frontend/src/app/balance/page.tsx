@@ -7,11 +7,13 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronLeft,
+  ChevronRight,
   Building2,
   Smartphone,
   CreditCard,
   Copy,
   Check,
+  History,
   X,
   AlertTriangle,
   Sparkles,
@@ -217,6 +219,25 @@ export default function BalancePage() {
 
         {/* Balance plate */}
         <BalancePlate amount={amount} />
+
+        {/* History link */}
+        <button
+          onClick={() => router.push('/balance/history')}
+          className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] active:scale-[0.99] transition-all px-4 py-3 flex items-center gap-3 text-left"
+        >
+          <span className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85">
+            <History size={15} strokeWidth={1.7} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="font-roobert text-[14px] leading-tight text-frost-white">
+              История платежей
+            </div>
+            <div className="mt-0.5 font-roobert text-[11px] text-whisper-gray">
+              Пополнения, выводы и их статусы
+            </div>
+          </div>
+          <ChevronRight size={14} className="text-frost-white/55" strokeWidth={1.7} />
+        </button>
 
         {/* Order overrides everything else */}
         <AnimatePresence mode="wait">

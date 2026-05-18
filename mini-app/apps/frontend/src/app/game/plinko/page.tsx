@@ -268,6 +268,24 @@ export default function PlinkoGamePage() {
     // UI: the live last-multiplier pill and the SFX.
     if (result) {
       setLastResult(result);
+      // Phase 2 — credit the payout server-side. We do this BEFORE
+      // refreshing the balance pill so the next /api/balance call
+      // already reflects the new amount.
+      void (async () => {
+        try {
+          await fetch('/api/games/plinko/settle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ roundId: result.roundId }),
+          });
+        } catch {
+          // The server has a 60s auto-settle safety net, so a network
+          // blip here doesn't cost the player anything.
+        } finally {
+          void fetchBalance();
+        }
+      })();
     }
 
     // Drop the ball from the active list so memory stays bounded.
