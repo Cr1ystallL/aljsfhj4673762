@@ -9,8 +9,8 @@ import type { CoinflipHistoryEntry } from '@/lib/games/coinflip/types';
  * Coinflip History — Monopo Saigon Style
  *
  * Live ticker of recent coinflip results. Two filter tabs:
- *   - Все ставки      — every recent flip
- *   - Редкие выигрыши — only multiplier ≥ 5x
+ *   - All bets        — every recent flip
+ *   - Rare wins       — only multiplier ≥ 5x
  *
  * Same visual language as the Plinko history but reused so we don't
  * fork another component.
@@ -44,8 +44,8 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
     <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
         {[
-          { key: 'all', label: 'Все ставки' },
-          { key: 'rare', label: 'Редкие выигрыши' },
+          { key: 'all', label: 'All bets' },
+          { key: 'rare', label: 'Rare wins' },
         ].map((t) => {
           const active = t.key === tab;
           return (
@@ -101,7 +101,7 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
                   {row.name}
                 </div>
                 <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                  {row.betAmount.toLocaleString('ru-RU', {
+                  {row.betAmount.toLocaleString('en-US', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -133,7 +133,7 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
                 )}
               >
                 {row.payout >= row.betAmount ? '+' : ''}
-                {row.payout.toLocaleString('ru-RU', {
+                {row.payout.toLocaleString('en-US', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 2,
                 })}{' '}
@@ -146,8 +146,8 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
         {visible.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
             {tab === 'rare'
-              ? 'Пока нет редких выигрышей. Ваш будет первым.'
-              : 'Здесь будут отображаться все ставки в реальном времени.'}
+              ? 'No rare wins yet. Yours could be first.'
+              : 'Live bets will stream in here.'}
           </div>
         )}
       </div>

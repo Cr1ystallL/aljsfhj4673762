@@ -72,7 +72,7 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
           ))}
           {history.length === 0 && (
             <span className="text-whisper-gray text-[11px] font-roobert">
-              История появится после первого раунда
+              History will appear after the first round
             </span>
           )}
         </div>

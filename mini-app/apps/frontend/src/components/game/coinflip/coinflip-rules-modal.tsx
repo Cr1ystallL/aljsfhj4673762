@@ -42,40 +42,38 @@ export function CoinflipRulesModal({ open, onClose }: CoinflipRulesModalProps) {
             </button>
 
             <h2 className="font-roobert text-frost-white text-[22px] font-normal leading-tight pr-8">
-              Как играть в Coinflip
+              How to play Coinflip
             </h2>
 
             <div className="mt-4 space-y-3">
               <p className="font-roobert text-[14px] text-frost-white/85 leading-snug">
-                Сделайте ставку, выберите режим и сторону монеты. Если
-                угадали — выигрываете.
+                Place a bet, pick a mode, choose heads or tails. Guess
+                right — you win.
               </p>
 
               <div className="rounded-card border border-white/10 bg-white/[0.04] p-3">
                 <p className="font-roobert text-[12px] uppercase tracking-[0.18em] text-whisper-gray">
-                  Быстрая игра
+                  Quick
                 </p>
                 <p className="mt-1 font-roobert text-[13px] text-frost-white/85">
-                  Один бросок, выплата 1.94×. Если ошиблись — ставка
-                  сгорает.
+                  One toss, payout 1.94×. Wrong call — stake is lost.
                 </p>
               </div>
 
               <div className="rounded-card border border-white/10 bg-white/[0.04] p-3">
                 <p className="font-roobert text-[12px] uppercase tracking-[0.18em] text-whisper-gray">
-                  С умножением
+                  Multiply
                 </p>
                 <p className="mt-1 font-roobert text-[13px] text-frost-white/85">
-                  Каждый успешный угад умножает банк ~1.94×. Можно
-                  забрать выигрыш в любой момент. Один промах — и весь
-                  банк сгорает.
+                  Each correct call multiplies the bank by ~1.94×. Cash
+                  out any time. One miss and the whole bank is lost.
                 </p>
               </div>
             </div>
 
             <p className="mt-3 font-roobert text-[11px] text-whisper-gray leading-snug">
-              RTP 97% на каждый бросок. Результат проверяемый —
-              хеш сервера показывается до раунда.
+              RTP 97% per toss. Provably fair — server hash shown
+              before the round.
             </p>
 
             <div className="mt-5 flex justify-end">
@@ -83,7 +81,7 @@ export function CoinflipRulesModal({ open, onClose }: CoinflipRulesModalProps) {
                 onClick={onClose}
                 className="inline-flex items-center px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
               >
-                Понятно
+                Got it
               </button>
             </div>
           </motion.div>

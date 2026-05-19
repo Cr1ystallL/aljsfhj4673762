@@ -160,12 +160,12 @@ export default function CoinflipGamePage() {
     if (mode === 'quick') {
       const have = balance?.amount ?? 0;
       if (amount <= 0) {
-        toast.warn('Укажите сумму ставки');
+        toast.warn('Enter a bet amount');
         return;
       }
       if (amount > have) {
         toast.warn(
-          `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+          `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
         );
         return;
       }
@@ -179,7 +179,7 @@ export default function CoinflipGamePage() {
         });
         const json = await res.json();
         if (!res.ok) {
-          reportApiError(res, json, 'Не удалось бросить монетку');
+          reportApiError(res, json, 'Could not toss the coin');
           throw new Error(json?.message ?? 'Quick toss failed');
         }
         const result = json.result as CoinflipQuickResult;
@@ -198,13 +198,13 @@ export default function CoinflipGamePage() {
       if (!multi || multi.status !== 'awaiting') {
         const have = balance?.amount ?? 0;
         if (amount <= 0) {
-          toast.warn('Укажите сумму ставки');
+          toast.warn('Enter a bet amount');
           setBusy(false);
           return;
         }
         if (amount > have) {
           toast.warn(
-            `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+            `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
           );
           setBusy(false);
           return;
@@ -217,7 +217,7 @@ export default function CoinflipGamePage() {
         });
         const json = await res.json();
         if (!res.ok) {
-          reportApiError(res, json, 'Не удалось начать раунд');
+          reportApiError(res, json, 'Could not start round');
           throw new Error(json?.message ?? 'Start failed');
         }
         startSpin(json.outcome as CoinSide, {
@@ -232,7 +232,7 @@ export default function CoinflipGamePage() {
         });
         const json = await res.json();
         if (!res.ok) {
-          reportApiError(res, json, 'Не удалось бросить монетку');
+          reportApiError(res, json, 'Could not toss the coin');
           throw new Error(json?.message ?? 'Flip failed');
         }
         startSpin(json.outcome as CoinSide, {
@@ -249,7 +249,7 @@ export default function CoinflipGamePage() {
   async function cashout() {
     if (busy || flipping) return;
     if (!multi || multi.status !== 'awaiting' || multi.currentMultiplier <= 1) {
-      toast.warn('Сначала выиграйте хотя бы один раунд');
+      toast.warn('Win at least one round first');
       return;
     }
     setBusy(true);
@@ -260,12 +260,12 @@ export default function CoinflipGamePage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось забрать выигрыш');
+        reportApiError(res, json, 'Could not cash out');
         throw new Error(json?.message ?? 'Cashout failed');
       }
       setMulti(json.state as CoinflipMultiplyState);
       soundManager.play('game.cashout');
-      toast.success('Выигрыш забран');
+      toast.success('Cashed out');
       void fetchBalance();
     } catch (err) {
       console.error('coinflip:cashout', err);
@@ -358,11 +358,11 @@ export default function CoinflipGamePage() {
             <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5">
               <span className="font-roobert text-frost-white text-[18px] font-light tabular-nums leading-none">
                 {mode === 'multiply'
-                  ? `${Math.max(0, currentRound - 1)} из ${maxRounds}`
+                  ? `${Math.max(0, currentRound - 1)} of ${maxRounds}`
                   : '—'}
               </span>
               <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-                раунд
+                round
               </div>
             </div>
             <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5 text-right">
@@ -374,7 +374,7 @@ export default function CoinflipGamePage() {
                 x{currentMultiplier.toFixed(2)}
               </span>
               <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-                множитель
+                multiplier
               </div>
             </div>
           </div>
@@ -391,7 +391,7 @@ export default function CoinflipGamePage() {
           {/* Insufficient-balance hint */}
           {!sessionActive && !canAfford && (
             <span className="relative font-roobert text-[11px] text-[#ff8a76]/85">
-              Недостаточно средств для ставки
+              Insufficient balance for this bet
             </span>
           )}
 
@@ -434,14 +434,14 @@ export default function CoinflipGamePage() {
           >
             <div className="flex items-center gap-2">
               <span className="font-roobert text-[12px] uppercase tracking-[0.2em] text-whisper-gray">
-                Результат
+                Result
               </span>
               <span
                 className={`font-roobert text-[14px] tabular-nums ${
                   lastQuick.won ? 'text-frost-white' : 'text-[#ff8a76]'
                 }`}
               >
-                {lastQuick.outcome === 'heads' ? 'Орёл' : 'Решка'}
+                {lastQuick.outcome === 'heads' ? 'Heads' : 'Tails'}
               </span>
             </div>
             <span
@@ -453,7 +453,7 @@ export default function CoinflipGamePage() {
               {(lastQuick.won
                 ? lastQuick.payout
                 : lastQuick.betAmount
-              ).toLocaleString('ru-RU')}{' '}
+              ).toLocaleString('en-US')}{' '}
               zł
             </span>
           </div>
@@ -469,7 +469,7 @@ export default function CoinflipGamePage() {
               }
               className="h-11 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] uppercase tracking-[0.2em] text-frost-white hover:border-white/30 disabled:opacity-50 transition-colors"
             >
-              Забрать
+              Cash Out
               {multi.currentMultiplier > 1 ? ` · x${multi.currentMultiplier.toFixed(2)}` : ''}
             </button>
             <button
@@ -478,10 +478,10 @@ export default function CoinflipGamePage() {
               className="h-11 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {multi.status === 'busted'
-                ? 'Новая ставка'
+                ? 'New bet'
                 : multi.status === 'cashed'
-                ? `Забрано · +${(multi.payout ?? 0).toLocaleString('ru-RU')} zł`
-                : 'Серия идёт…'}
+                ? `Cashed Out · +${(multi.payout ?? 0).toLocaleString('en-US')} zł`
+                : 'Streak running…'}
             </button>
           </div>
         )}

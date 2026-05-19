@@ -72,7 +72,7 @@ export function CoinflipCoin({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/CoinFlip_Desert.png"
-              alt="Орёл"
+              alt="Heads"
               className="w-full h-full object-cover scale-[1.18]"
               draggable={false}
             />
@@ -89,7 +89,7 @@ export function CoinflipCoin({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/CoinFlip_Reshka.png"
-              alt="Решка"
+              alt="Tails"
               className="w-full h-full object-cover scale-[1.18]"
               draggable={false}
             />

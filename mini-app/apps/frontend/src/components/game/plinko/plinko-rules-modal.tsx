@@ -42,19 +42,19 @@ export function PlinkoRulesModal({ open, onClose }: PlinkoRulesModalProps) {
             </button>
 
             <h2 className="font-roobert text-frost-white text-[22px] font-normal leading-tight pr-8">
-              Как играть в Plinko
+              How to play Plinko
             </h2>
 
             <p className="mt-4 font-roobert text-[14px] text-frost-white/85 leading-snug">
-              Выберите ставку и уровень риска, затем сбросьте шарик. Он
-              отскакивает от пинов и попадает в одну из ячеек снизу — её
-              множитель и определит выигрыш.
+              Pick a stake and a risk tier, then drop the ball. It bounces
+              off the pins and lands in one of the buckets at the bottom —
+              that bucket's multiplier decides the payout.
             </p>
 
             <p className="mt-3 font-roobert text-[12px] text-whisper-gray leading-snug">
-              Чем выше уровень риска, тем больше потенциальный множитель
-              в крайних ячейках, но и в среднем меньше шансов попасть в
-              них. RTP 99% на всех уровнях.
+              The higher the risk, the bigger the multipliers in the outer
+              buckets, but also the lower the average chance of landing
+              there. RTP is 99% on every tier.
             </p>
 
             <div className="mt-5 flex justify-end">
@@ -62,7 +62,7 @@ export function PlinkoRulesModal({ open, onClose }: PlinkoRulesModalProps) {
                 onClick={onClose}
                 className="inline-flex items-center px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
               >
-                Понятно
+                Got it
               </button>
             </div>
           </motion.div>

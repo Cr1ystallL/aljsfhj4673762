@@ -7,7 +7,7 @@ import type { CoinSide } from '@/lib/games/coinflip/types';
 /**
  * Coinflip Side Buttons — Monopo Saigon Style
  *
- * Two big pill buttons "Орёл" / "Решка". Used both as the "place a
+ * Two big pill buttons "Heads" / "Tails". Used both as the "place a
  * single bet on this side" CTA in quick mode and as the "pick next
  * round side" CTA in multiply mode.
  *
@@ -34,7 +34,7 @@ export function CoinflipSideButtons({
   return (
     <div className="grid grid-cols-2 gap-2">
       <SideButton
-        label="Орёл"
+        label="Heads"
         caption={captions?.heads}
         active={selected === 'heads'}
         disabled={disabled}
@@ -42,7 +42,7 @@ export function CoinflipSideButtons({
         accent="primary"
       />
       <SideButton
-        label="Решка"
+        label="Tails"
         caption={captions?.tails}
         active={selected === 'tails'}
         disabled={disabled}

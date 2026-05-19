@@ -6,9 +6,9 @@ import { X } from 'lucide-react';
 /**
  * Crash Rules Modal — Monopo Saigon Style
  *
- * Triggered from the "Как играть" pill in the top bar. Shows a small
+ * Triggered from the "How to play" pill in the top bar. Shows a small
  * code-rendered crash illustration (no external image) and the short
- * Russian rules description.
+ * rules description.
  */
 
 interface CrashRulesModalProps {
@@ -126,7 +126,7 @@ export function CrashRulesModal({ open, onClose }: CrashRulesModalProps) {
             </button>
 
             <h2 className="font-roobert text-frost-white text-[22px] font-normal leading-tight pr-8">
-              Как играть в Crash
+              How to play Crash
             </h2>
 
             <div className="mt-4 rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
@@ -134,9 +134,9 @@ export function CrashRulesModal({ open, onClose }: CrashRulesModalProps) {
             </div>
 
             <p className="mt-4 font-roobert text-[14px] text-frost-white/85 leading-snug">
-              В Crash надо предугадать до какой высоты дойдёт кривая перед тем
-              как произойдёт Краш. Чем дольше остаёшься в игре, тем больше
-              потенциальный выигрыш.
+              Predict how high the curve will go before it crashes. The
+              longer you stay in, the bigger the multiplier — but bail
+              out before it crashes or you lose your stake.
             </p>
 
             <div className="mt-5 flex justify-end">
@@ -144,7 +144,7 @@ export function CrashRulesModal({ open, onClose }: CrashRulesModalProps) {
                 onClick={onClose}
                 className="inline-flex items-center px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
               >
-                Понятно
+                Got it
               </button>
             </div>
           </motion.div>

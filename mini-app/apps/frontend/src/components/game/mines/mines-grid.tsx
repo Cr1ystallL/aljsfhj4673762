@@ -111,7 +111,7 @@ const Cell = memo(function Cell({
           'relative aspect-square rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-md flex items-center justify-center font-roobert font-light tabular-nums select-none text-frost-white/55 transition-colors active:bg-white/[0.08]',
           !isClickable && 'cursor-default'
         )}
-        aria-label={`Клетка ${index + 1}`}
+        aria-label={`Cell ${index + 1}`}
       >
         <span className="relative text-[14px]">{index + 1}</span>
       </button>
@@ -139,7 +139,7 @@ const Cell = memo(function Cell({
         state === 'mine-shown' &&
           'border-[rgba(165,45,37,0.25)] bg-[rgba(165,45,37,0.10)] text-[#ff8a76]'
       )}
-      aria-label={`Клетка ${index + 1}`}
+      aria-label={`Cell ${index + 1}`}
     >
       {state === 'revealed' && (
         <span

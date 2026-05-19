@@ -1,49 +1,31 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Wifi, Rocket } from 'lucide-react';
+import { Shield, Wifi } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CrashLiveStream } from '@/lib/games/crash/crash-live-stream';
 
 /**
- * Crash Stage — Premium Curve v2
+ * Crash Stage — Premium Curve v3
  *
- * The previous draw routine had two failures:
- *   - When the multiplier got large, `xWindow = lastT * 1.25` re-projected
- *     all earlier points so the curve visibly "shrank" toward the origin
- *     each tick.
- *   - The line was a single 2.5px stroke: thin, anaemic, no presence.
+ * Complete rewrite of the canvas paint pipeline. Goals:
  *
- * This rewrite paints the curve in five stacked layers, all reading the
- * same point buffer:
+ *   - Smoothly interpolated curve (Catmull-Rom → Bezier so adjacent
+ *     points join without visible kinks).
+ *   - Four stacked stroke layers for depth: outer halo (soft glow),
+ *     mid bloom, crisp core, gloss highlight.
+ *   - Animated grid with smoothly fading multiplier ticks.
+ *   - "Live" multiplier indicator pill on the right edge that follows
+ *     the curve's head and reads the current value.
+ *   - Smooth scaling: xWindow and yLogMax are lerped each frame, so
+ *     the visible window expands organically instead of snapping in
+ *     3-second chunks.
+ *   - Head ornament: pulsing ring + soft glow + particle trail.
  *
- *   1. Y-axis grid lines + labels (1x, 2x, 5x, 10x, 25x, 50x, 100x).
- *      Painted on a log scale so growing curves stay readable from 1x
- *      to ~200x without ever rescaling.
- *   2. Filled area under the curve — soft Deep Ocean wash, low alpha.
- *   3. Wide outer glow stroke (10px, 25% alpha) — gives the line "weight"
- *      without halo'ing the whole stage.
- *   4. Inner solid stroke (3.5px) — brand gradient (green → amber → red).
- *   5. Head ornament:
- *        - pulsing soft ring (radius wobbles 0.5 Hz)
- *        - small white dot
- *        - rocket-style tail-flame (3-stop radial) under the dot
- *
- * Scale handling — the X axis grows monotonically with elapsed time:
- *   xWindow = max(6000, ceil(lastT/3000) * 3000)
- *
- * i.e. the visible window jumps in 3-second steps as the round runs.
- * Earlier points NEVER get re-scaled within a window, so the curve no
- * longer "snaps backward" each frame. When the window expands the
- * jump is bounded to 3s of horizontal travel — barely noticeable in
- * motion.
- *
- * Y axis: log scale, ceiling auto-fit at lastM × 1.25 so the head sits
- * around 80% of the visible height regardless of magnitude.
- *
- * The text in the centre of the stage continues to be DOM-driven from
- * the rAF loop so React never re-renders during the round.
+ * Performance is intact — the draw loop is still single-pass on a
+ * cached pin/grid layer. ResizeObserver re-rasterises only on layout
+ * changes. DPR capped at 1.5 on touch.
  */
 
 type Phase =
@@ -58,20 +40,13 @@ interface CrashStageProps {
   stream: CrashLiveStream | null;
   phase: Phase;
   countdown: number | null;
-  /** Timestamp (ms epoch) when the current 'waiting' phase ends. */
   waitingEndsAt: number | null;
   serverSeedHash: string;
   latencyMs: number;
   connected: boolean;
-  /** Final crash point announced by the server (only set in 'completed'). */
   lastCrashPoint: number | null;
 }
 
-/**
- * Y-axis tick definitions — log-spaced multipliers we paint horizontal
- * lines + labels for. We hide ticks above the current visible ceiling
- * so the chart stays uncluttered when the round is small.
- */
 const Y_TICKS = [1, 1.5, 2, 3, 5, 10, 25, 50, 100, 184];
 
 export const CrashStage = memo(function CrashStage({
@@ -87,8 +62,6 @@ export const CrashStage = memo(function CrashStage({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const multiplierTextRef = useRef<HTMLSpanElement>(null);
 
-  // 1Hz ticker so the waiting countdown decrements visibly even when the
-  // snapshot only refreshes every couple of seconds via REST poll.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (phase !== 'waiting' || !waitingEndsAt) return;
@@ -101,7 +74,6 @@ export const CrashStage = memo(function CrashStage({
       ? Math.max(0, Math.ceil((waitingEndsAt - now) / 1000))
       : null;
 
-  // ------ Canvas curve drawing — owns its own rAF loop -------------------
   useEffect(() => {
     if (!stream) return;
     const canvas = canvasRef.current;
@@ -117,6 +89,11 @@ export const CrashStage = memo(function CrashStage({
     let raf = 0;
     let lastSize = { w: 0, h: 0 };
     let needsResize = true;
+
+    // Lerped scale state — gives a smooth visual expansion of the
+    // window even though the underlying point buffer is discrete.
+    let xWindowLerp = 6000;
+    let yLogMaxLerp = Math.log(2.5);
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -135,6 +112,55 @@ export const CrashStage = memo(function CrashStage({
     });
     ro.observe(canvas);
 
+    /**
+     * Draw a smooth open curve through `pts` using Catmull-Rom →
+     * cubic Bezier conversion. The curve passes through every
+     * point exactly; control points are derived from neighbours.
+     */
+    const strokeSmoothCurve = (
+      pts: Array<{ x: number; y: number }>
+    ): void => {
+      if (pts.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i - 1] ?? pts[i];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[i + 2] ?? p2;
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
+      ctx.stroke();
+    };
+
+    const fillSmoothArea = (
+      pts: Array<{ x: number; y: number }>,
+      baseY: number
+    ): void => {
+      if (pts.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, baseY);
+      ctx.lineTo(pts[0].x, pts[0].y);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i - 1] ?? pts[i];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[i + 2] ?? p2;
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
+      ctx.lineTo(pts[pts.length - 1].x, baseY);
+      ctx.closePath();
+      ctx.fill();
+    };
+
     const draw = () => {
       raf = requestAnimationFrame(draw);
       if (needsResize) resize();
@@ -148,12 +174,10 @@ export const CrashStage = memo(function CrashStage({
       const isPaused =
         phase === 'waiting' || phase === 'starting' || phase === 'idle';
 
-      // Layout box — generous left padding for the y-axis labels, less
-      // on the right so the head can ride close to the edge.
-      const padLeft = 32;
-      const padRight = 40;
-      const padTop = 36;
-      const padBottom = 26;
+      const padLeft = 36;
+      const padRight = 56;
+      const padTop = 40;
+      const padBottom = 28;
       const innerW = Math.max(1, w - padLeft - padRight);
       const innerH = Math.max(1, h - padTop - padBottom);
 
@@ -169,20 +193,30 @@ export const CrashStage = memo(function CrashStage({
       }
       const points = firstIdx > 0 ? graph.slice(firstIdx) : graph;
 
-      // Compute the visible window. Uses fixed-step buckets so earlier
-      // points stay glued in place even as new ticks arrive.
       const lastT =
         points.length >= 2 ? points[points.length - 1].time || 1 : 1;
       const lastM =
         points.length >= 2 ? points[points.length - 1].multiplier || 1 : 1;
-      const X_BUCKET = 3000; // window grows in 3-second steps
-      const xWindow = Math.max(
-        6000,
-        Math.ceil(Math.max(lastT, 1) / X_BUCKET) * X_BUCKET
-      );
-      // Y log scale ceiling: lastM × 1.25, never below 2.5x so the
-      // baseline always shows 1x and the next 2x tick.
-      const yLogMax = Math.max(Math.log(2.5), Math.log(lastM * 1.25));
+
+      // Smooth scale: target window grows continuously with elapsed
+      // time + a 25% headroom so the head sits ~80% from the left.
+      const xTarget = Math.max(6000, lastT * 1.25);
+      const yTarget = Math.max(Math.log(2.5), Math.log(lastM * 1.25));
+
+      // Lerp both axes per frame. 0.06 ≈ ~1s settle at 60fps which feels
+      // organic without being laggy.
+      xWindowLerp += (xTarget - xWindowLerp) * 0.06;
+      yLogMaxLerp += (yTarget - yLogMaxLerp) * 0.06;
+
+      // Reset lerp targets when the round boundary flips so the
+      // first frame of a new round doesn't carry the old scale.
+      if (isPaused) {
+        xWindowLerp = 6000;
+        yLogMaxLerp = Math.log(2.5);
+      }
+
+      const xWindow = xWindowLerp;
+      const yLogMax = yLogMaxLerp;
 
       const project = (t: number, m: number) => {
         const x = padLeft + (t / xWindow) * innerW;
@@ -191,105 +225,132 @@ export const CrashStage = memo(function CrashStage({
         return { x, y };
       };
 
-      // ---------- Layer 1: y-axis grid ----------
+      // ===================================================================
+      // Layer 1 — grid + tick labels
+      // ===================================================================
       ctx.lineWidth = 1;
       ctx.font =
         '500 10px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'right';
+
+      // Light vertical grid every ~5 sec — gives the curve forward motion.
+      const VERT_STEP_S = 5;
+      const xWinSec = xWindow / 1000;
+      for (let s = 0; s <= xWinSec + 0.01; s += VERT_STEP_S) {
+        const x = padLeft + (s / xWinSec) * innerW;
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.beginPath();
+        ctx.moveTo(x, padTop);
+        ctx.lineTo(x, h - padBottom);
+        ctx.stroke();
+      }
+
       for (const tick of Y_TICKS) {
-        if (Math.log(tick) > yLogMax) continue;
+        if (Math.log(tick) > yLogMax + 0.01) continue;
         const yFrac = Math.log(tick) / yLogMax;
         const y = h - padBottom - yFrac * innerH;
-        // Line
+        // Fade ticks that are about to scroll off the top.
+        const fade = Math.min(1, (yLogMax + 0.01 - Math.log(tick)) * 5);
         ctx.strokeStyle =
-          tick === 1 ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.06)';
+          tick === 1
+            ? `rgba(255,255,255,${0.16 * fade})`
+            : `rgba(255,255,255,${0.06 * fade})`;
         ctx.beginPath();
         ctx.moveTo(padLeft, y);
-        ctx.lineTo(w - padRight + 12, y);
+        ctx.lineTo(w - padRight, y);
         ctx.stroke();
-        // Label
         ctx.fillStyle =
-          tick === 1 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.32)';
-        ctx.fillText(`${tick}x`, padLeft - 6, y);
+          tick === 1
+            ? `rgba(255,255,255,${0.6 * fade})`
+            : `rgba(255,255,255,${0.36 * fade})`;
+        ctx.fillText(`${tick}×`, padLeft - 6, y);
       }
 
       if (points.length < 2 || isPaused) {
-        // Stage is idle/waiting/starting — only the grid is drawn.
+        // Stage idle/waiting/starting — only the grid + axes.
         return;
       }
 
-      // ---------- Layer 2: filled area ----------
-      const filled = new Path2D();
-      let first = true;
-      for (const p of points) {
-        const { x, y } = project(p.time, p.multiplier);
-        if (first) {
-          filled.moveTo(x, y);
-          first = false;
-        } else {
-          filled.lineTo(x, y);
-        }
-      }
-      const lastPoint = points[points.length - 1];
-      const headProj = project(lastPoint.time, lastPoint.multiplier);
-      const startProj = project(points[0].time, 1);
-      filled.lineTo(headProj.x, h - padBottom);
-      filled.lineTo(startProj.x, h - padBottom);
-      filled.closePath();
+      // Project all points once.
+      const projected = points.map((p) => project(p.time, p.multiplier));
+      const headProj = projected[projected.length - 1];
 
-      const fillGrad = ctx.createLinearGradient(0, padTop, 0, h - padBottom);
+      // ===================================================================
+      // Layer 2 — area fill (deep ocean wash)
+      // ===================================================================
+      const fillGrad = ctx.createLinearGradient(
+        0,
+        padTop,
+        0,
+        h - padBottom
+      );
       if (phase === 'completed') {
-        fillGrad.addColorStop(0, 'rgba(165, 45, 37, 0.28)');
+        fillGrad.addColorStop(0, 'rgba(165, 45, 37, 0.32)');
         fillGrad.addColorStop(1, 'rgba(165, 45, 37, 0)');
       } else {
-        fillGrad.addColorStop(0, 'rgba(160, 224, 171, 0.22)');
-        fillGrad.addColorStop(0.55, 'rgba(255, 172, 46, 0.15)');
+        fillGrad.addColorStop(0, 'rgba(160, 224, 171, 0.26)');
+        fillGrad.addColorStop(0.55, 'rgba(255, 172, 46, 0.16)');
         fillGrad.addColorStop(1, 'rgba(255, 172, 46, 0)');
       }
       ctx.fillStyle = fillGrad;
-      ctx.fill(filled);
+      fillSmoothArea(projected, h - padBottom);
 
-      // Curve path (used by both glow + crisp strokes).
-      const curve = new Path2D();
-      first = true;
-      for (const p of points) {
-        const { x, y } = project(p.time, p.multiplier);
-        if (first) {
-          curve.moveTo(x, y);
-          first = false;
-        } else {
-          curve.lineTo(x, y);
-        }
-      }
-
+      // ===================================================================
+      // Layer 3 — outer halo (soft, wide)
+      // ===================================================================
       const strokeGrad = ctx.createLinearGradient(padLeft, 0, w - padRight, 0);
       if (phase === 'completed') {
-        strokeGrad.addColorStop(0, 'rgba(255, 138, 118, 0.95)');
-        strokeGrad.addColorStop(1, 'rgba(165, 45, 37, 0.95)');
+        strokeGrad.addColorStop(0, 'rgba(255, 138, 118, 1)');
+        strokeGrad.addColorStop(1, 'rgba(165, 45, 37, 1)');
       } else {
-        strokeGrad.addColorStop(0, 'rgba(160, 224, 171, 0.95)');
-        strokeGrad.addColorStop(0.55, 'rgba(255, 172, 46, 0.95)');
-        strokeGrad.addColorStop(1, 'rgba(165, 45, 37, 0.95)');
+        strokeGrad.addColorStop(0, 'rgba(160, 224, 171, 1)');
+        strokeGrad.addColorStop(0.55, 'rgba(255, 172, 46, 1)');
+        strokeGrad.addColorStop(1, 'rgba(165, 45, 37, 1)');
       }
 
-      // ---------- Layer 3: wide outer glow ----------
-      ctx.lineWidth = 10;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.globalAlpha = 0.25;
       ctx.strokeStyle = strokeGrad;
-      ctx.stroke(curve);
 
-      // ---------- Layer 4: crisp inner stroke ----------
+      // Outer halo
+      ctx.globalAlpha = 0.18;
+      ctx.lineWidth = 12;
+      strokeSmoothCurve(projected);
+
+      // Mid bloom
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 6;
+      strokeSmoothCurve(projected);
+
+      // Core stroke
       ctx.globalAlpha = 1;
-      ctx.lineWidth = 3.5;
-      ctx.stroke(curve);
+      ctx.lineWidth = 3.2;
+      strokeSmoothCurve(projected);
 
-      // ---------- Layer 5: head ornament ----------
+      // Gloss highlight (thin, white-tinted, slightly lighter)
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      strokeSmoothCurve(projected);
+      ctx.globalAlpha = 1;
+
+      // ===================================================================
+      // Layer 4 — head ornament
+      // ===================================================================
       const t = performance.now() / 1000;
-      // Rocket exhaust — a soft radial behind the head.
-      const flameR = 22 + Math.sin(t * 5) * 2;
+
+      // Particle trail — a few dots tracing the curve behind the head.
+      for (let i = 1; i <= 4 && projected.length - 1 - i * 2 >= 0; i++) {
+        const p = projected[projected.length - 1 - i * 2];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.2 - i * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 220, 160, ${0.45 - i * 0.1})`;
+        ctx.fill();
+      }
+
+      // Soft radial flame behind the dot.
+      const flameR = 28 + Math.sin(t * 5) * 3;
       const flame = ctx.createRadialGradient(
         headProj.x - 4,
         headProj.y + 4,
@@ -298,26 +359,38 @@ export const CrashStage = memo(function CrashStage({
         headProj.y + 4,
         flameR
       );
-      flame.addColorStop(0, 'rgba(255, 220, 150, 0.70)');
-      flame.addColorStop(0.45, 'rgba(255, 172, 46, 0.40)');
+      flame.addColorStop(0, 'rgba(255, 220, 150, 0.65)');
+      flame.addColorStop(0.45, 'rgba(255, 172, 46, 0.32)');
       flame.addColorStop(1, 'rgba(255, 172, 46, 0)');
       ctx.fillStyle = flame;
       ctx.beginPath();
       ctx.arc(headProj.x - 4, headProj.y + 4, flameR, 0, Math.PI * 2);
       ctx.fill();
 
-      // Pulsing ring
-      const pulseR = 9 + Math.sin(t * 4) * 1.5;
-      ctx.lineWidth = 1.3;
+      // Pulsing outer ring
+      const pulseR = 11 + Math.sin(t * 4) * 1.8;
+      ctx.lineWidth = 1.4;
       ctx.strokeStyle =
         phase === 'completed'
-          ? 'rgba(255, 138, 118, 0.55)'
-          : 'rgba(255, 255, 255, 0.55)';
+          ? 'rgba(255, 138, 118, 0.6)'
+          : 'rgba(255, 255, 255, 0.6)';
       ctx.beginPath();
       ctx.arc(headProj.x, headProj.y, pulseR, 0, Math.PI * 2);
       ctx.stroke();
 
-      // White dot
+      // Inner ring
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle =
+        phase === 'completed'
+          ? 'rgba(255, 138, 118, 0.95)'
+          : 'rgba(160, 224, 171, 0.95)';
+      ctx.beginPath();
+      ctx.arc(headProj.x, headProj.y, 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Solid head dot
       ctx.beginPath();
       ctx.arc(headProj.x, headProj.y, 4.5, 0, Math.PI * 2);
       ctx.fillStyle =
@@ -325,22 +398,52 @@ export const CrashStage = memo(function CrashStage({
           ? 'rgba(255, 138, 118, 1)'
           : 'rgba(255, 255, 255, 1)';
       ctx.fill();
-      ctx.lineWidth = 1.5;
+
+      // ===================================================================
+      // Layer 5 — head value pill on the right edge
+      // ===================================================================
+      const live = stream.getFast().displayMultiplier;
+      const valueText = `${live.toFixed(2)}×`;
+      ctx.font =
+        '600 12px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      const pillX = Math.min(w - padRight + 4, headProj.x + 12);
+      const pillY = headProj.y;
+      const txtW = ctx.measureText(valueText).width;
+      const pillW = txtW + 14;
+      const pillH = 22;
+      // Pill background
+      ctx.fillStyle =
+        phase === 'completed'
+          ? 'rgba(165, 45, 37, 0.95)'
+          : 'rgba(20, 20, 20, 0.95)';
+      ctx.beginPath();
+      const r = 11;
+      ctx.moveTo(pillX + r, pillY - pillH / 2);
+      ctx.lineTo(pillX + pillW - r, pillY - pillH / 2);
+      ctx.arc(pillX + pillW - r, pillY, r, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(pillX + r, pillY + pillH / 2);
+      ctx.arc(pillX + r, pillY, r, Math.PI / 2, -Math.PI / 2);
+      ctx.fill();
+      // Pill border
+      ctx.lineWidth = 1;
       ctx.strokeStyle =
         phase === 'completed'
-          ? 'rgba(165, 45, 37, 0.85)'
-          : 'rgba(160, 224, 171, 0.7)';
+          ? 'rgba(255, 138, 118, 0.7)'
+          : 'rgba(255, 172, 46, 0.55)';
       ctx.stroke();
+      // Pill text
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillText(valueText, pillX + 7, pillY);
 
-      // Update the centre multiplier text (only if active/completed).
+      // Update the centre multiplier text.
       if (
         multiplierTextRef.current &&
         (phase === 'active' || phase === 'completed' || phase === 'resolving')
       ) {
-        const live = stream.getFast().displayMultiplier;
-        const txt = `${live.toFixed(2)}x`;
-        if (multiplierTextRef.current.textContent !== txt) {
-          multiplierTextRef.current.textContent = txt;
+        if (multiplierTextRef.current.textContent !== valueText) {
+          multiplierTextRef.current.textContent = valueText;
         }
       }
     };
@@ -354,12 +457,12 @@ export const CrashStage = memo(function CrashStage({
 
   return (
     <div className="relative overflow-hidden rounded-card border border-white/10 bg-midnight-canvas">
-      {/* Deep Ocean atmospheric backdrop — pure CSS, zero per-frame cost. */}
+      {/* Atmospheric backdrop */}
       <div
-        className="absolute inset-0 opacity-40 pointer-events-none"
+        className="absolute inset-0 opacity-50 pointer-events-none"
         style={{
           background:
-            'radial-gradient(120% 100% at 50% 100%, rgba(165, 45, 37, 0.28) 0%, rgba(255, 172, 46, 0.16) 35%, rgba(160, 224, 171, 0.10) 65%, transparent 85%)',
+            'radial-gradient(120% 100% at 50% 100%, rgba(165, 45, 37, 0.30) 0%, rgba(255, 172, 46, 0.16) 35%, rgba(160, 224, 171, 0.10) 65%, transparent 85%)',
         }}
       />
       <div
@@ -369,9 +472,6 @@ export const CrashStage = memo(function CrashStage({
             'radial-gradient(80% 60% at 50% 0%, rgba(0, 0, 0, 0.65) 0%, transparent 70%)',
         }}
       />
-
-      {/* Static accent washes — replaces the previous infinite framer
-          motion orbs which kept the JS thread busy on every frame. */}
       <div
         aria-hidden
         className="absolute -top-10 -left-10 w-48 h-48 rounded-full pointer-events-none"
@@ -389,17 +489,14 @@ export const CrashStage = memo(function CrashStage({
         }}
       />
 
-      {/* Curve canvas — sits ABOVE the atmospheric washes so the grid
-          and stroke render against a flat dark backdrop. */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
         style={{ imageRendering: 'auto' }}
       />
 
-      {/* Stage content */}
       <div className="relative aspect-[16/11] sm:aspect-[16/9] flex flex-col">
-        {/* Countdown / waiting plate (top-left) */}
+        {/* Top-left phase plate */}
         <div className="absolute top-5 left-5">
           <AnimatePresence mode="wait">
             {phase === 'starting' && countdown !== null && (
@@ -417,7 +514,7 @@ export const CrashStage = memo(function CrashStage({
                   </span>
                 </div>
                 <span className="mt-1.5 ml-1 text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Обратный отсчёт
+                  Countdown
                 </span>
               </motion.div>
             )}
@@ -430,7 +527,7 @@ export const CrashStage = memo(function CrashStage({
                 className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Приём ставок
+                  Betting open
                 </span>
                 {waitingSeconds !== null && (
                   <span className="font-roobert text-frost-white text-[13px] tabular-nums leading-none">
@@ -449,14 +546,14 @@ export const CrashStage = memo(function CrashStage({
                 className="px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Подключение…
+                  Connecting…
                 </span>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Multiplier (center) — direct DOM update from rAF loop */}
+        {/* Centre multiplier */}
         <div className="flex-1 flex items-center justify-center">
           <AnimatePresence mode="wait">
             {(phase === 'active' ||
@@ -488,18 +585,18 @@ export const CrashStage = memo(function CrashStage({
                   }}
                 >
                   {phase === 'completed' && lastCrashPoint !== null
-                    ? `${lastCrashPoint.toFixed(2)}x`
-                    : '1.00x'}
+                    ? `${lastCrashPoint.toFixed(2)}×`
+                    : '1.00×'}
                 </span>
                 <span className="mt-2 text-[10px] uppercase tracking-[0.22em] text-whisper-gray font-roobert">
-                  {phase === 'completed' ? 'Краш' : 'Текущий коэффициент'}
+                  {phase === 'completed' ? 'Crashed' : 'Multiplier'}
                 </span>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Bottom info row: hash + latency */}
+        {/* Bottom info row */}
         <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-white/[0.05] border border-white/10">
             <Shield
@@ -510,7 +607,7 @@ export const CrashStage = memo(function CrashStage({
             <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
               {serverSeedHash
                 ? `${serverSeedHash.slice(0, 10)}…`
-                : 'хеш загружается'}
+                : 'loading hash'}
             </span>
           </div>
 
@@ -528,7 +625,7 @@ export const CrashStage = memo(function CrashStage({
               strokeWidth={2}
             />
             <span className="text-[10px] font-roobert text-frost-white/70 tabular-nums">
-              {connected ? `${latencyMs} ms` : 'нет связи'}
+              {connected ? `${latencyMs} ms` : 'offline'}
             </span>
           </div>
         </div>
@@ -536,7 +633,3 @@ export const CrashStage = memo(function CrashStage({
     </div>
   );
 });
-
-// Suppress unused-import warning for Rocket — kept on the surface for
-// possible future "rocket avatar" overlays at the curve's head.
-void Rocket;

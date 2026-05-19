@@ -9,10 +9,10 @@ import { cn } from '@/lib/utils';
  * One compact card that fits on the first viewport with the board:
  *
  *   ┌─ stake row ─────────────────────────┐
- *   │  ½  zł amount  ×2     [Авто  ON]     │
+ *   │  ½  zł amount  ×2     [Auto  ON]     │
  *   └─────────────────────────────────────┘
  *   ┌─ primary CTA ───────────────────────┐
- *   │           Сбросить                  │
+ *   │             Drop                    │
  *   └─────────────────────────────────────┘
  *
  * Auto toggle is owned by the parent page; this component only renders
@@ -52,12 +52,12 @@ export function PlinkoBetPanel({
     onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
 
   const ctaLabel = autoEnabled
-    ? 'Остановить'
+    ? 'Stop'
     : busy
     ? '…'
     : !canAfford
-    ? 'Недостаточно средств'
-    : 'Сбросить';
+    ? 'Insufficient balance'
+    : 'Drop';
 
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
@@ -110,7 +110,7 @@ export function PlinkoBetPanel({
               : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
           )}
         >
-          Авто
+          Auto
           <span
             className={cn(
               'text-[9px] tracking-[0.16em]',

@@ -28,13 +28,13 @@ export const CrashStatsBar = memo(function CrashStatsBar({
     <div className="grid grid-cols-2 gap-2">
       <Tile
         icon={<Trophy size={13} className="text-frost-white/55" strokeWidth={2} />}
-        label="Игроки"
-        value={playerCount.toLocaleString('ru-RU')}
+        label="Players"
+        value={playerCount.toLocaleString('en-US')}
       />
       <Tile
         icon={<Coins size={13} className="text-frost-white/55" strokeWidth={2} />}
-        label="Ставки"
-        value={`${totalBets.toLocaleString('ru-RU', {
+        label="Stakes"
+        value={`${totalBets.toLocaleString('en-US', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })} ${currency}`}

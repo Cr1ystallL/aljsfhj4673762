@@ -60,7 +60,7 @@ export function ComingSoon({ game, title, description }: ComingSoonProps) {
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
           >
             <ArrowLeft size={12} strokeWidth={1.8} />
-            <span className="font-roobert text-[12px]">Назад</span>
+            <span className="font-roobert text-[12px]">Back</span>
           </button>
 
           <span className="font-roobert text-frost-white text-[16px] font-normal leading-none">
@@ -102,7 +102,7 @@ export function ComingSoon({ game, title, description }: ComingSoonProps) {
             </h1>
 
             <p className="mt-3 font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-              Скоро вернётся
+              Coming back soon
             </p>
 
             {description && (
@@ -115,7 +115,7 @@ export function ComingSoon({ game, title, description }: ComingSoonProps) {
               onClick={() => router.push('/game/crash')}
               className="mt-8 inline-flex items-center gap-1.5 px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
             >
-              Сыграть в Crash
+              Play Crash
             </button>
           </div>
         </motion.section>

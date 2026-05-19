@@ -11,17 +11,31 @@ import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 
 /**
- * Wheel of Fortune — live multiplayer.
+ * Wheel of Fortune — premium redesign.
  *
- * Layout: 25 segments around a circle, multipliers 1 / 2 / 3 / 5 / 30.
- * Players bet on a SINGLE multiplier. Round flow:
+ * Visual stack (drawn into canvas, single-pass per frame):
  *
- *   waiting (~9 s) → spinning (5 s, deterministic landing) → completed
- *   (3 s viewing) → next waiting.
+ *   1. Atmospheric background — radial wash, brand-tinted.
+ *   2. Outer rim (decorative ring) with subtle glow.
+ *   3. Tick studs — small bright dots evenly spaced around the rim,
+ *      so the wheel reads as a real fortune wheel.
+ *   4. Sector body — flat tier colour, no gradient (cleaner read at
+ *      small sizes). Soft inner shadow on the back-to-front edge for
+ *      depth.
+ *   5. Sector divider strokes — thin black/dark, gives crisp segment
+ *      boundaries.
+ *   6. Sector labels — bold, tabular, large.
+ *   7. Central hub — concentric rings (outer ring + inner darker ring
+ *      + brass dot in the middle).
+ *   8. Top pointer — premium downward triangle with a tiny "anvil"
+ *      base, white body, dark border, soft shadow.
  *
- * The page polls /wheel/state every 1.5 s while idle and every 250 ms
- * during the spin so the visual rotation lands precisely on the
- * server-confirmed segment.
+ * Animation:
+ *   - Idle drift in waiting phase.
+ *   - Cubic-out spin tied to the server's spin window (5s).
+ *   - On completed phase the wheel parks on the resolved segment.
+ *
+ * UI text in English throughout.
  */
 
 type Phase = 'waiting' | 'spinning' | 'completed';
@@ -52,26 +66,43 @@ interface Snapshot {
   stats: { playerCount: number; totalWagered: number };
 }
 
-const SEGMENT_COLOURS: Record<number, { fill: string; rim: string }> = {
+/**
+ * Single solid colour per multiplier — the rim ring + label + history
+ * chip all share these.
+ */
+const SEG_COLOR: Record<
+  number,
+  { base: string; rim: string; light: string; deep: string }
+> = {
   1: {
-    fill: 'rgba(120, 120, 120, 0.55)',
-    rim: 'rgba(180, 180, 180, 0.9)',
+    base: '#3a3a3a',
+    rim: 'rgba(180, 180, 180, 0.7)',
+    light: '#5a5a5a',
+    deep: '#222222',
   },
   2: {
-    fill: 'rgba(160, 224, 171, 0.65)',
-    rim: 'rgba(160, 224, 171, 1)',
+    base: '#4a8b62',
+    rim: 'rgba(160, 224, 171, 0.85)',
+    light: '#5fb37d',
+    deep: '#2f5a3f',
   },
   3: {
-    fill: 'rgba(255, 200, 110, 0.65)',
-    rim: 'rgba(255, 200, 110, 1)',
+    base: '#bb8a44',
+    rim: 'rgba(255, 200, 110, 0.85)',
+    light: '#dca654',
+    deep: '#7a5a2a',
   },
   5: {
-    fill: 'rgba(255, 130, 56, 0.75)',
-    rim: 'rgba(255, 150, 80, 1)',
+    base: '#c46a3a',
+    rim: 'rgba(255, 150, 80, 0.9)',
+    light: '#e88550',
+    deep: '#7a4020',
   },
   30: {
-    fill: 'rgba(220, 60, 50, 0.85)',
-    rim: 'rgba(255, 100, 90, 1)',
+    base: '#b03a30',
+    rim: 'rgba(255, 100, 90, 0.95)',
+    light: '#d65043',
+    deep: '#6e2018',
   },
 };
 
@@ -113,7 +144,6 @@ export default function WheelPage() {
     return () => clearInterval(id);
   }, [load, fetchBalance, snap?.phase]);
 
-  // Phase transition SFX + balance refresh.
   useEffect(() => {
     if (!snap) return;
     if (lastPhaseRef.current && lastPhaseRef.current !== snap.phase) {
@@ -129,18 +159,18 @@ export default function WheelPage() {
   const placeBet = async () => {
     if (busy) return;
     if (amount <= 0) {
-      toast.warn('Укажите сумму ставки');
+      toast.warn('Enter a bet amount');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
     if (snap?.phase !== 'waiting') {
-      toast.warn('Приём ставок закрыт');
+      toast.warn('Betting closed');
       return;
     }
     setBusy(true);
@@ -153,7 +183,7 @@ export default function WheelPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Не удалось поставить');
+        reportApiError(res, j, 'Could not place bet');
         throw new Error(j?.message ?? 'bet failed');
       }
       soundManager.play('ui.click');
@@ -177,9 +207,7 @@ export default function WheelPage() {
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
         <GameTopBar title="Wheel" Icon={Disc3} />
 
-        {snap && (
-          <HistoryStrip history={snap.history.slice(0, 12)} />
-        )}
+        {snap && <HistoryStrip history={snap.history.slice(0, 12)} />}
 
         {/* Wheel stage */}
         <div className="relative rounded-card border border-white/10 bg-midnight-canvas overflow-hidden">
@@ -187,45 +215,41 @@ export default function WheelPage() {
             className="absolute inset-0 opacity-40 pointer-events-none"
             style={{
               background:
-                'radial-gradient(120% 100% at 50% 100%, rgba(165, 45, 37, 0.28) 0%, rgba(255, 172, 46, 0.16) 35%, rgba(160, 224, 171, 0.10) 65%, transparent 85%)',
+                'radial-gradient(120% 100% at 50% 100%, rgba(165, 45, 37, 0.22) 0%, rgba(255, 172, 46, 0.14) 35%, rgba(160, 224, 171, 0.10) 65%, transparent 85%)',
             }}
           />
-          <div className="relative aspect-[4/3] flex items-center justify-center">
-            <Wheel
-              layout={layout}
-              snap={snap}
-            />
+          <div className="relative aspect-[1/1] sm:aspect-[4/3] flex items-center justify-center">
+            <Wheel layout={layout} snap={snap} />
           </div>
         </div>
 
-        {/* Phase pill */}
         <PhasePill snap={snap} />
 
         {/* Pick chips */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
           {PICKS.map((p) => {
-            const tier = SEGMENT_COLOURS[p];
+            const c = SEG_COLOR[p];
             const active = pick === p;
             return (
               <button
                 key={p}
                 onClick={() => setPick(p)}
                 className={cn(
-                  'shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-pill border font-roobert font-semibold tabular-nums text-[13px] transition-colors',
+                  'shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-pill border font-roobert font-semibold tabular-nums text-[13px] transition-all active:scale-[0.97]',
                   active
-                    ? 'text-frost-white'
+                    ? 'text-frost-white shadow-[0_0_18px_rgba(255,172,46,0.18)]'
                     : 'text-frost-white/85 border-white/10 bg-white/[0.03]'
                 )}
                 style={
                   active
                     ? {
-                        borderColor: tier.rim,
-                        background: tier.fill,
+                        borderColor: c.rim,
+                        background: `${c.base}55`,
                       }
                     : undefined
                 }
               >
-                x{p}
+                ×{p}
               </button>
             );
           })}
@@ -236,7 +260,7 @@ export default function WheelPage() {
           <div className="grid grid-cols-2 items-center">
             <div className="px-4 py-3 border-r border-white/10">
               <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                Ставка
+                Bet
               </div>
               <div className="mt-1.5 flex items-center gap-2">
                 <input
@@ -256,10 +280,10 @@ export default function WheelPage() {
             </div>
             <div className="px-4 py-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                Возможный выигрыш
+                Potential win
               </div>
               <div className="mt-1.5 font-roobert text-[20px] font-light tabular-nums text-frost-white">
-                {(amount * pick).toLocaleString('ru-RU', {
+                {(amount * pick).toLocaleString('en-US', {
                   maximumFractionDigits: 2,
                 })}{' '}
                 <span className="text-[12px] text-whisper-gray">zł</span>
@@ -271,22 +295,21 @@ export default function WheelPage() {
               onClick={placeBet}
               disabled={busy || snap?.phase !== 'waiting'}
               className={cn(
-                'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors active:scale-[0.99]',
+                'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-all active:scale-[0.99]',
                 snap?.phase === 'waiting' && !busy
-                  ? 'bg-frost-white text-midnight-canvas'
+                  ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/95 shadow-[0_4px_18px_rgba(255,255,255,0.18)]'
                   : 'bg-white/[0.06] text-frost-white/65 border border-white/15 cursor-not-allowed'
               )}
             >
               {snap?.phase === 'waiting'
-                ? `Поставить на x${pick}`
+                ? `Bet on ×${pick}`
                 : snap?.phase === 'spinning'
-                  ? 'Wheel крутится…'
-                  : 'Раунд завершён'}
+                  ? 'Spinning…'
+                  : 'Round ended'}
             </button>
           </div>
         </div>
 
-        {/* Live bets feed */}
         {snap && (
           <BetsFeed bets={snap.bets} stats={snap.stats} phase={snap.phase} />
         )}
@@ -323,7 +346,7 @@ function PhasePill({ snap }: { snap: Snapshot | null }) {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10"
           >
             <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-              Приём ставок
+              Place your bets
             </span>
             {remaining !== null && (
               <span className="font-roobert text-frost-white text-[13px] tabular-nums leading-none">
@@ -341,7 +364,7 @@ function PhasePill({ snap }: { snap: Snapshot | null }) {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.06] border border-white/15"
           >
             <span className="text-[11px] uppercase tracking-[0.18em] text-frost-white font-roobert">
-              Вращение
+              Spinning
             </span>
           </motion.div>
         )}
@@ -353,15 +376,15 @@ function PhasePill({ snap }: { snap: Snapshot | null }) {
             exit={{ opacity: 0 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill border"
             style={{
-              background: SEGMENT_COLOURS[snap.multiplier].fill,
-              borderColor: SEGMENT_COLOURS[snap.multiplier].rim,
+              background: `${SEG_COLOR[snap.multiplier].base}55`,
+              borderColor: SEG_COLOR[snap.multiplier].rim,
             }}
           >
             <span className="text-[11px] uppercase tracking-[0.18em] text-frost-white font-roobert">
-              Выпало
+              Result
             </span>
             <span className="font-roobert font-semibold text-frost-white text-[14px] tabular-nums">
-              x{snap.multiplier}
+              ×{snap.multiplier}
             </span>
           </motion.div>
         )}
@@ -372,7 +395,7 @@ function PhasePill({ snap }: { snap: Snapshot | null }) {
         <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
           {snap.serverSeedHash
             ? `${snap.serverSeedHash.slice(0, 10)}…`
-            : 'хеш загружается'}
+            : 'loading hash'}
         </span>
       </div>
     </div>
@@ -388,22 +411,22 @@ function HistoryStrip({
     <div className="rounded-card bg-white/[0.04] border border-white/10 px-3 py-2.5 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
       {history.length === 0 ? (
         <span className="text-whisper-gray text-[11px] font-roobert">
-          История появится после первого раунда
+          History will appear after the first round
         </span>
       ) : (
         history.map((h, i) => {
-          const t = SEGMENT_COLOURS[h.multiplier];
+          const c = SEG_COLOR[h.multiplier];
           return (
             <span
               key={i}
               className="shrink-0 inline-flex items-center justify-center px-2.5 py-1 rounded-pill border font-roobert text-[11px] font-semibold tabular-nums"
               style={{
-                background: t.fill,
-                borderColor: t.rim,
+                background: `${c.base}66`,
+                borderColor: c.rim,
                 color: '#fff',
               }}
             >
-              x{h.multiplier}
+              ×{h.multiplier}
             </span>
           );
         })
@@ -427,11 +450,11 @@ function BetsFeed({
       <div className="grid grid-cols-3 gap-2 px-3 py-2 border-b border-white/10">
         <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em]">
           <Users size={10} strokeWidth={2} />
-          Игроки {stats.playerCount}
+          {stats.playerCount} players
         </div>
         <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em] justify-center">
           <Coins size={10} strokeWidth={2} />
-          {stats.totalWagered.toLocaleString('ru-RU', {
+          {stats.totalWagered.toLocaleString('en-US', {
             maximumFractionDigits: 0,
           })}{' '}
           zł
@@ -444,11 +467,11 @@ function BetsFeed({
       <div className="max-h-[260px] overflow-y-auto scrollbar-hide divide-y divide-white/5">
         {sorted.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-            Игроки появятся здесь, как только сделают ставки
+            Players will appear here as soon as they place a bet
           </div>
         )}
         {sorted.map((b) => {
-          const tier = SEGMENT_COLOURS[b.pick];
+          const c = SEG_COLOR[b.pick];
           return (
             <div
               key={b.userId + ':' + b.pick}
@@ -472,10 +495,10 @@ function BetsFeed({
                   {b.name}
                 </div>
                 <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                  {b.amount.toLocaleString('ru-RU', {
+                  {b.amount.toLocaleString('en-US', {
                     maximumFractionDigits: 2,
                   })}{' '}
-                  zł · ставка x{b.pick}
+                  zł · ×{b.pick}
                 </div>
               </div>
               <div
@@ -484,16 +507,16 @@ function BetsFeed({
                   color:
                     phase === 'completed'
                       ? b.won
-                        ? tier.rim
+                        ? c.rim
                         : 'rgba(255,138,118,0.8)'
                       : 'rgba(255,255,255,0.7)',
                 }}
               >
                 {phase === 'completed'
                   ? b.won && b.payout != null
-                    ? `+${b.payout.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}`
+                    ? `+${b.payout.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
                     : '—'
-                  : `x${b.pick}`}
+                  : `×${b.pick}`}
               </div>
             </div>
           );
@@ -521,7 +544,6 @@ function Wheel({
 
   useEffect(() => {
     if (!layout || !snap) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -552,25 +574,21 @@ function Wheel({
     });
     ro.observe(canvas);
 
-    // Compute target rotation when phase / segment changes.
     if (snap.phase === 'spinning' && snap.spinStartedAt) {
       const seg = snap.segmentIndex;
       if (seg != null) {
-        // We want segment `seg` to land at the top (-π/2). Each segment
-        // covers (2π/25) radians starting from 0 = top. Add ~5 turns.
         const segmentSpan = (2 * Math.PI) / layout.length;
-        const targetAngle =
+        targetRotationRef.current =
           5 * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2;
-        targetRotationRef.current = targetAngle;
       }
     } else if (snap.phase === 'completed' && snap.segmentIndex != null) {
       const segmentSpan = (2 * Math.PI) / layout.length;
-      const targetAngle =
+      const target =
         5 * 2 * Math.PI -
         snap.segmentIndex * segmentSpan -
         segmentSpan / 2;
-      targetRotationRef.current = targetAngle;
-      rotationRef.current = targetAngle; // freeze on result
+      targetRotationRef.current = target;
+      rotationRef.current = target;
     }
 
     const spinStart = snap.spinStartedAt ?? null;
@@ -585,8 +603,6 @@ function Wheel({
 
       ctx.clearRect(0, 0, w, h);
 
-      // Animate rotation toward target with cubic-out easing tied to
-      // the server's spin window so client + server lock together.
       if (snap.phase === 'spinning' && spinStart) {
         const t = Math.min(
           1,
@@ -595,83 +611,199 @@ function Wheel({
         const ease = 1 - Math.pow(1 - t, 3);
         rotationRef.current = ease * targetRotationRef.current;
       } else if (snap.phase === 'waiting') {
-        rotationRef.current += 0.003; // gentle idle drift
+        rotationRef.current += 0.0025;
       }
 
       const cx = w / 2;
       const cy = h / 2;
       const radius = Math.min(w, h) * 0.42;
+      const segments = layout.length;
+      const span = (2 * Math.PI) / segments;
+      const time = performance.now() / 1000;
 
-      // Outer rim glow
-      const rim = ctx.createRadialGradient(cx, cy, radius * 0.7, cx, cy, radius * 1.05);
-      rim.addColorStop(0, 'rgba(255, 200, 110, 0)');
-      rim.addColorStop(1, 'rgba(255, 172, 46, 0.18)');
-      ctx.fillStyle = rim;
+      // ---- Drop shadow under the wheel -------------------------------
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.08, 0, Math.PI * 2);
+      ctx.ellipse(
+        cx,
+        cy + radius * 0.95,
+        radius * 0.85,
+        radius * 0.12,
+        0,
+        0,
+        Math.PI * 2
+      );
+      const shadow = ctx.createRadialGradient(
+        cx,
+        cy + radius * 0.95,
+        0,
+        cx,
+        cy + radius * 0.95,
+        radius * 0.85
+      );
+      shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
+      shadow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = shadow;
       ctx.fill();
 
-      // Wheel body
+      // ---- Outer glow ring -------------------------------------------
+      const glow = ctx.createRadialGradient(
+        cx,
+        cy,
+        radius * 0.9,
+        cx,
+        cy,
+        radius * 1.18
+      );
+      glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
+      glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.10)');
+      glow.addColorStop(1, 'rgba(255, 172, 46, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ---- Outer rim (decorative ring just outside the segments) -----
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.04, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.06, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 172, 46, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // ---- Segments + labels ----------------------------------------
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(rotationRef.current - Math.PI / 2);
-      const segments = layout.length;
-      const span = (2 * Math.PI) / segments;
+
       for (let i = 0; i < segments; i++) {
         const a0 = i * span;
         const a1 = (i + 1) * span;
         const m = layout[i];
-        const c = SEGMENT_COLOURS[m];
+        const c = SEG_COLOR[m];
 
+        // Segment body
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.arc(0, 0, radius, a0, a1);
         ctx.closePath();
-        ctx.fillStyle = c.fill;
+        ctx.fillStyle = c.base;
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+      }
+
+      // Sector divider lines (drawn over the body for crispness)
+      for (let i = 0; i < segments; i++) {
+        const a = i * span;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
         ctx.lineWidth = 1;
         ctx.stroke();
+      }
 
-        // Label
+      // Labels — large, bold, white, positioned at 70% of radius.
+      ctx.fillStyle = '#fff';
+      ctx.font =
+        '700 14px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < segments; i++) {
+        const a0 = i * span;
+        const a1 = (i + 1) * span;
+        const m = layout[i];
         const aMid = (a0 + a1) / 2;
         const lx = Math.cos(aMid) * radius * 0.72;
         const ly = Math.sin(aMid) * radius * 0.72;
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(aMid + Math.PI / 2);
+        // Tiny shadow for legibility on lighter sectors.
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillText(`×${m}`, 0, 1);
         ctx.fillStyle = '#fff';
-        ctx.font = '600 12px Roobert, system-ui';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`x${m}`, 0, 0);
+        ctx.fillText(`×${m}`, 0, 0);
         ctx.restore();
       }
-      // Hub
+
+      // Inner ring (separates segments from hub)
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.32, 0, Math.PI * 2);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 172, 46, 0.45)';
+      ctx.stroke();
+
+      // Brass dot in the center
+      const hubGrad = ctx.createRadialGradient(
+        -radius * 0.06,
+        -radius * 0.06,
+        0,
+        0,
+        0,
+        radius * 0.18
+      );
+      hubGrad.addColorStop(0, 'rgba(255, 220, 150, 1)');
+      hubGrad.addColorStop(0.5, 'rgba(220, 170, 80, 1)');
+      hubGrad.addColorStop(1, 'rgba(120, 80, 30, 1)');
       ctx.beginPath();
       ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2);
-      const hub = ctx.createRadialGradient(-radius * 0.05, -radius * 0.05, 0, 0, 0, radius * 0.18);
-      hub.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
-      hub.addColorStop(1, 'rgba(120, 120, 120, 0.85)');
-      ctx.fillStyle = hub;
+      ctx.fillStyle = hubGrad;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
+
+      // Highlight wedge on the hub
+      ctx.beginPath();
+      ctx.arc(-radius * 0.05, -radius * 0.05, radius * 0.06, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fill();
+
       ctx.restore();
 
-      // Pointer (top, fixed)
+      // ---- Tick studs around the rim (24 evenly-spaced bright dots)
+      // These don't rotate with the wheel — they live on the bezel.
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const sx = cx + Math.cos(a) * radius * 1.085;
+        const sy = cy + Math.sin(a) * radius * 1.085;
+        // Pulse the studs nearest the pointer for a "live" feel.
+        const pulse = 0.5 + 0.5 * Math.sin(time * 3 + i * 0.4);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 220, 150, ${0.35 + pulse * 0.45})`;
+        ctx.fill();
+      }
+
+      // ---- Top pointer ------------------------------------------------
       const px = cx;
-      const py = cy - radius - 6;
+      const py = cy - radius * 1.04;
+      // Soft shadow
       ctx.beginPath();
-      ctx.moveTo(px, py + 14);
-      ctx.lineTo(px - 9, py - 4);
-      ctx.lineTo(px + 9, py - 4);
-      ctx.closePath();
-      ctx.fillStyle = '#fff';
+      ctx.arc(px, py + 6, 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+
+      // Pointer body — downward triangle with a small "anvil" base
+      ctx.beginPath();
+      ctx.moveTo(px - 11, py - 8);
+      ctx.lineTo(px + 11, py - 8);
+      ctx.lineTo(px + 8, py - 1);
+      ctx.lineTo(px, py + 16);
+      ctx.lineTo(px - 8, py - 1);
+      ctx.closePath();
+      const pGrad = ctx.createLinearGradient(px, py - 8, px, py + 16);
+      pGrad.addColorStop(0, '#ffffff');
+      pGrad.addColorStop(1, '#cccccc');
+      ctx.fillStyle = pGrad;
+      ctx.fill();
       ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.stroke();
     };
 

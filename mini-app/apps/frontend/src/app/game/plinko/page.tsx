@@ -174,13 +174,13 @@ export default function PlinkoGamePage() {
    */
   async function dropBall() {
     if (amount <= 0) {
-      toast.warn('Укажите сумму ставки');
+      toast.warn('Enter a bet amount');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
@@ -193,7 +193,7 @@ export default function PlinkoGamePage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось бросить шарик');
+        reportApiError(res, json, 'Could not drop the ball');
         throw new Error(json?.message ?? 'Drop failed');
       }
 

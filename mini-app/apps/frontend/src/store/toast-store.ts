@@ -50,8 +50,8 @@ export const useToastStore = create<ToastState>((set) => ({
  * callbacks, websocket message handlers). Does not require a hook
  * subscription.
  *
- *   toast.error('Недостаточно средств для ставки');
- *   toast.success('Заявка принята', { title: 'Готово' });
+ *   toast.error('Insufficient balance for this bet');
+ *   toast.success('Request accepted', { title: 'Done' });
  */
 export const toast = {
   show(message: string, opts: Partial<Omit<Toast, 'id' | 'message'>> = {}) {

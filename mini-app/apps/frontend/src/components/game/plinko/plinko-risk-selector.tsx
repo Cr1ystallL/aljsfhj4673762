@@ -10,9 +10,9 @@ import type { PlinkoRisk } from '@/lib/games/plinko/types';
  * active tier is filled with frost white, the others stay frosted.
  */
 const TIERS: Array<{ key: PlinkoRisk; label: string }> = [
-  { key: 'low', label: 'Низкий' },
-  { key: 'medium', label: 'Средний' },
-  { key: 'high', label: 'Высокий' },
+  { key: 'low', label: 'Low' },
+  { key: 'medium', label: 'Medium' },
+  { key: 'high', label: 'High' },
 ];
 
 interface PlinkoRiskSelectorProps {

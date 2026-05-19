@@ -32,13 +32,13 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
         <History size={12} className="text-frost-white/65" strokeWidth={1.6} />
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-          Последние ставки
+          Recent bets
         </span>
       </div>
 
       {bets.length === 0 ? (
         <div className="px-3 py-3 text-center font-roobert text-[12px] text-whisper-gray">
-          Здесь появятся ваши последние раунды.
+          Your recent rounds will appear here.
         </div>
       ) : (
         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-3">
@@ -71,7 +71,7 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
                         : 'border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.16)] text-[#ff8a76]'
                     )}
                   >
-                    {won ? `x${b.multiplier.toFixed(2)}` : 'Бомба'}
+                    {won ? `x${b.multiplier.toFixed(2)}` : 'Bomb'}
                   </div>
                   <div
                     className={cn(
@@ -83,15 +83,15 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
                     {(won
                       ? b.payout
                       : b.betAmount
-                    ).toLocaleString('ru-RU', {
+                    ).toLocaleString('en-US', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}
                     {currency}
                   </div>
                   <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                    ставка{' '}
-                    {b.betAmount.toLocaleString('ru-RU', {
+                    bet{' '}
+                    {b.betAmount.toLocaleString('en-US', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}

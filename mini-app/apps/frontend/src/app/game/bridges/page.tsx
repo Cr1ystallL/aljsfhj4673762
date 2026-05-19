@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Footprints, RotateCcw, Flame, ChevronUp } from 'lucide-react';
+import {
+  Footprints,
+  RotateCcw,
+  Flame,
+  ChevronUp,
+  Minus,
+  Plus,
+  Repeat,
+  Play,
+} from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -11,44 +20,27 @@ import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 
 /**
- * Bridges — fully redesigned.
+ * Bridges — premium redesign with a proper betting panel.
  *
- * Visual concept: a 5-step bridge over a dark gulf. Each step is a row
- * of 4 wooden planks; some planks are rotten (broken). The player
- * climbs from the near bank up to the far bank, picking one plank per
- * step. The screen reads top-to-bottom because that's how a vertical
- * climb naturally maps to a phone viewport.
+ * Layout (mobile-first):
+ *   1. Top bar.
+ *   2. Difficulty pills.
+ *   3. Headline plate (current/potential payout + ×N badge).
+ *   4. Bridge field (5 rows × 4 planks, top-down).
+ *   5. Betting panel — the centrepiece.
+ *      Two columns:
+ *        - Stake input with `−` / `÷2` / `×2` / `+` buttons + quick
+ *          chips for common amounts.
+ *        - Auto-bet toggle + auto-bet count input.
+ *      One full-width gradient CTA "Start Round".
+ *   6. Cashout / new round CTA replaces panel during active round.
  *
- * Layout:
+ * Auto-bet runs locally: keeps re-firing /start at the configured
+ * difficulty, but only when the user is OUT of an active round AND
+ * has at least `amount` balance. A counter shows remaining auto-bet
+ * runs; setting it to 0 means infinite.
  *
- *   ╔═══════════════════════════════════════════╗
- *   ║         CURRENT MULTIPLIER PLATE          ║   ← potential payout
- *   ╠═══════════════════════════════════════════╣
- *   ║   row 5   ▓▓ ▓▓ ▓▓ ▓▓     × 4.16          ║   ← top step
- *   ║   row 4   ▓▓ ▓▓ ▓▓ ▓▓     × 3.12          ║
- *   ║   row 3   ▓▓ ▓▓ ▓▓ ▓▓     × 2.34          ║   ← active row glows
- *   ║   row 2   ▓▓ ▓▓ ✓  ▓▓     × 1.76          ║   ← past = green trail
- *   ║   row 1   ▓▓ ✓  ▓▓ ▓▓     × 1.32          ║
- *   ╚═══════════════════════════════════════════╝
- *
- * Visual rules:
- *   - Active row outlined in amber + faint glow.
- *   - Cleared planks marked with a green ✓ + amber wood gradient stays.
- *   - On bust, the broken plank flashes red with ✕; revealed broken
- *     cells in OTHER rows fade in as muted red ✕ so the player sees
- *     where the trap was.
- *   - The right side ladder shows row × multiplier badges, the active
- *     and cleared ones brand-coloured.
- *   - Difficulty pills sit above the field, disabled mid-round.
- *   - The single bottom CTA is contextual:
- *       no game     → "Начать раунд"
- *       active+0    → "Сделайте первый шаг"
- *       active+>0   → "Забрать N zł · xM"
- *       cashed/bust → "Новый раунд"
- *
- * Pure CSS — no canvas. Each plank is a div with a wood gradient + two
- * grain lines via inset box-shadow. GPU composites the whole field in
- * one pass, no per-frame rerender.
+ * All UI text in English.
  */
 
 type Level = 'easy' | 'medium' | 'hard';
@@ -72,11 +64,13 @@ interface PublicState {
   bustedAt?: { row: number; col: number };
 }
 
-const LEVEL_LABEL: Record<Level, { ru: string; broken: string }> = {
-  easy: { ru: 'Easy', broken: '1 ловушка / ряд' },
-  medium: { ru: 'Medium', broken: '2 ловушки / ряд' },
-  hard: { ru: 'Hard', broken: '3 ловушки / ряд' },
+const LEVEL_LABEL: Record<Level, { en: string; sub: string }> = {
+  easy: { en: 'Easy', sub: '1 trap per row' },
+  medium: { en: 'Medium', sub: '2 traps per row' },
+  hard: { en: 'Hard', sub: '3 traps per row' },
 };
+
+const QUICK_AMOUNTS = [10, 50, 100, 500];
 
 export default function BridgesPage() {
   const { balance, fetchBalance } = useBalance();
@@ -84,6 +78,11 @@ export default function BridgesPage() {
   const [busy, setBusy] = useState(false);
   const [amount, setAmount] = useState(10);
   const [level, setLevel] = useState<Level>('easy');
+
+  // Auto-bet config.
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [autoCount, setAutoCount] = useState<number>(0); // 0 = infinite
+  const [autoRemaining, setAutoRemaining] = useState<number>(0);
 
   useEffect(() => {
     soundManager.initialize();
@@ -106,16 +105,35 @@ export default function BridgesPage() {
     void fetchBalance();
   }, [fetchBalance]);
 
+  // Auto-bet driver: when no active round + autoEnabled, kick off /start.
+  useEffect(() => {
+    if (!autoEnabled) return;
+    if (state?.state === 'active') return;
+    if (autoCount > 0 && autoRemaining <= 0) {
+      setAutoEnabled(false);
+      return;
+    }
+    const have = balance?.amount ?? 0;
+    if (amount > have || amount <= 0) {
+      setAutoEnabled(false);
+      toast.warn('Auto-bet stopped — insufficient balance');
+      return;
+    }
+    const id = setTimeout(() => void start(), 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEnabled, state?.state, balance?.amount, autoRemaining]);
+
   const start = async () => {
     if (busy) return;
     if (amount <= 0) {
-      toast.warn('Укажите сумму ставки');
+      toast.warn('Enter a bet amount');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
@@ -129,14 +147,18 @@ export default function BridgesPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Не удалось начать раунд');
+        reportApiError(res, j, 'Could not start round');
         throw new Error(j?.message ?? 'start failed');
       }
       setState(j.state);
       soundManager.play('ui.click');
       void fetchBalance();
+      if (autoEnabled && autoCount > 0) {
+        setAutoRemaining((c) => Math.max(0, c - 1));
+      }
     } catch (err) {
       console.error('bridges:start', err);
+      setAutoEnabled(false);
     } finally {
       setBusy(false);
     }
@@ -154,7 +176,7 @@ export default function BridgesPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Шаг невозможен');
+        reportApiError(res, j, 'Cannot step here');
         throw new Error(j?.message ?? 'step failed');
       }
       const next = j.state as PublicState;
@@ -175,7 +197,7 @@ export default function BridgesPage() {
   const cashout = async () => {
     if (busy || !state || state.state !== 'active') return;
     if (state.picks.length === 0) {
-      toast.warn('Сначала пройдите хотя бы один ряд');
+      toast.warn('Cross at least one row before cashing out');
       return;
     }
     setBusy(true);
@@ -186,11 +208,11 @@ export default function BridgesPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Не удалось забрать выигрыш');
+        reportApiError(res, j, 'Could not cash out');
         throw new Error(j?.message ?? 'cashout failed');
       }
       setState(j.state);
-      toast.success('Выигрыш забран');
+      toast.success('Cashed out');
       soundManager.play('game.cashout');
       void fetchBalance();
     } catch (err) {
@@ -220,7 +242,7 @@ export default function BridgesPage() {
 
   const isActive = state?.state === 'active';
   const ladder = state?.ladder ?? previewLadder(level);
-  const currentRowIndex = state ? state.picks.length : -1; // -1 = no game
+  const currentRowIndex = state ? state.picks.length : -1;
   const potentialPayout =
     state && state.picks.length > 0
       ? state.betAmount * state.currentMultiplier
@@ -231,7 +253,7 @@ export default function BridgesPage() {
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
         <GameTopBar title="Bridges" Icon={Footprints} />
 
-        {/* Difficulty picker */}
+        {/* Difficulty pills */}
         <div className="grid grid-cols-3 gap-2">
           {(['easy', 'medium', 'hard'] as Level[]).map((lv) => {
             const active = state ? state.level === lv : level === lv;
@@ -242,31 +264,29 @@ export default function BridgesPage() {
                 disabled={dis}
                 onClick={() => !dis && setLevel(lv)}
                 className={cn(
-                  'rounded-card border px-3 py-2.5 text-left transition-colors disabled:opacity-50',
+                  'rounded-card border px-3 py-2.5 text-left transition-colors disabled:opacity-50 active:scale-[0.99]',
                   active
                     ? 'border-white/30 bg-white/[0.06] text-frost-white'
                     : 'border-white/10 bg-white/[0.03] text-frost-white/85'
                 )}
               >
                 <div className="font-roobert text-[14px] font-semibold">
-                  {LEVEL_LABEL[lv].ru}
+                  {LEVEL_LABEL[lv].en}
                 </div>
                 <div className="font-roobert text-[10px] text-whisper-gray">
-                  {LEVEL_LABEL[lv].broken}
+                  {LEVEL_LABEL[lv].sub}
                 </div>
               </button>
             );
           })}
         </div>
 
-        {/* Headline plate */}
         <HeadlinePlate
           state={state}
           potentialPayout={potentialPayout}
           level={level}
         />
 
-        {/* Bridge field */}
         <BridgeField
           state={state}
           ladder={ladder}
@@ -275,7 +295,6 @@ export default function BridgesPage() {
           busy={busy}
         />
 
-        {/* Bottom CTA */}
         {!state && (
           <BetPanel
             amount={amount}
@@ -284,6 +303,15 @@ export default function BridgesPage() {
             maxBet={maxBet}
             onStart={start}
             busy={busy}
+            autoEnabled={autoEnabled}
+            setAutoEnabled={(v) => {
+              setAutoEnabled(v);
+              if (v) setAutoRemaining(autoCount);
+            }}
+            autoCount={autoCount}
+            setAutoCount={setAutoCount}
+            autoRemaining={autoRemaining}
+            balanceAmount={balance?.amount ?? 0}
           />
         )}
 
@@ -292,27 +320,27 @@ export default function BridgesPage() {
             onClick={cashout}
             disabled={busy || state.picks.length === 0}
             className={cn(
-              'w-full h-12 rounded-pill font-roobert text-[13px] uppercase tracking-[0.2em] transition-colors active:scale-[0.99]',
+              'w-full h-14 rounded-pill font-roobert text-[14px] font-semibold uppercase tracking-[0.18em] transition-all active:scale-[0.99]',
               state.picks.length > 0
-                ? 'bg-frost-white text-midnight-canvas'
+                ? 'bg-frost-white text-midnight-canvas shadow-[0_4px_24px_rgba(255,255,255,0.18)] hover:bg-frost-white/95'
                 : 'bg-white/[0.06] text-frost-white/65 border border-white/15'
             )}
           >
             {state.picks.length > 0
-              ? `Забрать ${potentialPayout.toLocaleString('ru-RU', {
+              ? `Cash Out · ${potentialPayout.toLocaleString('en-US', {
                   maximumFractionDigits: 2,
-                })} zł · x${state.currentMultiplier}`
-              : 'Сделайте первый шаг'}
+                })} zł`
+              : 'Step on the bridge'}
           </button>
         )}
 
         {state && !isActive && (
           <button
             onClick={dismiss}
-            className="w-full h-12 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[13px] uppercase tracking-[0.2em] active:scale-[0.99] inline-flex items-center justify-center gap-2"
+            className="w-full h-14 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[14px] font-semibold uppercase tracking-[0.18em] active:scale-[0.99] inline-flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(255,255,255,0.18)]"
           >
-            <RotateCcw size={14} strokeWidth={1.8} />
-            Новый раунд
+            <RotateCcw size={15} strokeWidth={1.8} />
+            New Round
           </button>
         )}
       </div>
@@ -349,27 +377,27 @@ function HeadlinePlate({
         <div className="min-w-0">
           <div className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
             {status === 'active'
-              ? 'Текущий выигрыш'
+              ? 'Current Win'
               : status === 'cashed'
-                ? 'Забрано'
+                ? 'Cashed Out'
                 : status === 'busted'
-                  ? 'Раунд проигран'
-                  : 'Старт'}
+                  ? 'Round Lost'
+                  : 'Ready'}
           </div>
           <div className="mt-1 font-roobert text-[28px] font-light tabular-nums text-frost-white leading-none">
             {state?.state === 'cashed'
-              ? `+${(state.finalPayout ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}`
+              ? `+${(state.finalPayout ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
               : state?.state === 'busted'
                 ? '0.00'
-                : potentialPayout.toLocaleString('ru-RU', {
+                : potentialPayout.toLocaleString('en-US', {
                     maximumFractionDigits: 2,
                   })}{' '}
             <span className="text-[14px] text-whisper-gray">zł</span>
           </div>
           <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
             {state
-              ? `Сложность: ${LEVEL_LABEL[state.level].ru} · ставка ${state.betAmount.toLocaleString('ru-RU')} zł`
-              : `Сложность: ${LEVEL_LABEL[level].ru}`}
+              ? `${LEVEL_LABEL[state.level].en} · stake ${state.betAmount.toLocaleString('en-US')} zł`
+              : `${LEVEL_LABEL[level].en}`}
           </div>
         </div>
 
@@ -395,7 +423,7 @@ function HeadlinePlate({
                   : state?.currentMultiplier ?? 1}
             </div>
             <div className="mt-1 text-[8px] uppercase tracking-[0.18em] text-whisper-gray">
-              множитель
+              multiplier
             </div>
           </div>
         </div>
@@ -430,13 +458,12 @@ function BridgeField({
 
   return (
     <div
-      className="relative rounded-card border border-white/10 bg-white/[0.03] overflow-hidden"
+      className="relative rounded-card border border-white/10 overflow-hidden"
       style={{
         background:
           'linear-gradient(180deg, rgba(20,30,28,0.55) 0%, rgba(10,12,16,0.85) 100%)',
       }}
     >
-      {/* Side rails — deep-ocean tinted */}
       <div
         aria-hidden
         className="absolute inset-y-0 left-0 w-[3px] pointer-events-none"
@@ -466,7 +493,6 @@ function BridgeField({
               key={row}
               className="grid grid-cols-[1fr_auto] items-center gap-2"
             >
-              {/* Plank row */}
               <div
                 className={cn(
                   'relative grid grid-cols-4 gap-1.5 px-2 py-2 rounded-card transition-colors',
@@ -500,7 +526,6 @@ function BridgeField({
                   );
                 })}
 
-                {/* Active-row indicator on the left edge */}
                 {isCurrent && (
                   <motion.span
                     aria-hidden
@@ -513,7 +538,6 @@ function BridgeField({
                 )}
               </div>
 
-              {/* Multiplier badge */}
               <RowBadge
                 value={m}
                 row={row}
@@ -525,7 +549,6 @@ function BridgeField({
         })}
       </div>
 
-      {/* Status banner */}
       <AnimatePresence>
         {state?.state === 'cashed' && state.finalMultiplier && (
           <motion.div
@@ -534,9 +557,9 @@ function BridgeField({
             exit={{ opacity: 0 }}
             className="px-4 py-2.5 mx-3 mb-3 rounded-card border border-[rgba(160,224,171,0.45)] bg-[rgba(160,224,171,0.10)] text-center font-roobert text-[12px] text-frost-white"
           >
-            Победа · x{state.finalMultiplier} ·{' '}
+            Win · ×{state.finalMultiplier} ·{' '}
             +
-            {(state.finalPayout ?? 0).toLocaleString('ru-RU', {
+            {(state.finalPayout ?? 0).toLocaleString('en-US', {
               maximumFractionDigits: 2,
             })}{' '}
             zł
@@ -550,7 +573,7 @@ function BridgeField({
             className="px-4 py-2.5 mx-3 mb-3 rounded-card border border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.10)] text-center font-roobert text-[12px] text-[#ff8a76] inline-flex items-center justify-center gap-1.5"
           >
             <Flame size={13} strokeWidth={1.8} />
-            Поражение · ставка списана
+            Lost — stake forfeited
           </motion.div>
         )}
       </AnimatePresence>
@@ -581,8 +604,6 @@ function Plank({
   untouched: boolean;
   currentRow: boolean;
 }) {
-  // Determine visual state.
-  // Order matters — bust > broken-reveal > picked > current > cleared > untouched.
   let style: 'bust' | 'broken' | 'picked' | 'current' | 'cleared' | 'untouched';
   if (bustHere) style = 'bust';
   else if (brokenReveal) style = 'broken';
@@ -591,8 +612,10 @@ function Plank({
   else if (cleared) style = 'cleared';
   else style = 'untouched';
 
-  // Wood plank colour palette per state.
-  const STYLES: Record<typeof style, { bg: string; border: string; text: string; glow?: string }> = {
+  const STYLES: Record<
+    typeof style,
+    { bg: string; border: string; text: string; glow?: string }
+  > = {
     bust: {
       bg: 'linear-gradient(180deg, rgb(176, 60, 50) 0%, rgb(120, 30, 22) 100%)',
       border: 'rgba(255,138,118,0.7)',
@@ -653,7 +676,6 @@ function Plank({
           : 'inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -2px 0 rgba(0,0,0,0.40)',
       }}
     >
-      {/* Wood grain — two horizontal lines */}
       <span
         aria-hidden
         className="absolute inset-0 pointer-events-none"
@@ -662,15 +684,8 @@ function Plank({
             'repeating-linear-gradient(180deg, transparent 0 6px, rgba(0,0,0,0.10) 6px 7px)',
         }}
       />
-      {/* Plank symbol */}
       <span className="relative">
-        {bustHere ? (
-          '✕'
-        ) : brokenReveal ? (
-          '✕'
-        ) : pickedHere ? (
-          '✓'
-        ) : null}
+        {bustHere ? '✕' : brokenReveal ? '✕' : pickedHere ? '✓' : null}
       </span>
     </motion.button>
   );
@@ -706,7 +721,7 @@ function RowBadge({
         ×{formatMult(value)}
       </span>
       <span className="font-roobert text-[9px] uppercase tracking-[0.18em] text-whisper-gray tabular-nums">
-        ряд {row + 1}
+        Row {row + 1}
       </span>
     </div>
   );
@@ -723,7 +738,7 @@ function formatMult(m: number): string {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Bet panel                                                                  */
+/* BetPanel — premium                                                         */
 /* -------------------------------------------------------------------------- */
 
 function BetPanel({
@@ -733,6 +748,12 @@ function BetPanel({
   maxBet,
   onStart,
   busy,
+  autoEnabled,
+  setAutoEnabled,
+  autoCount,
+  setAutoCount,
+  autoRemaining,
+  balanceAmount,
 }: {
   amount: number;
   setAmount: (v: number) => void;
@@ -740,43 +761,181 @@ function BetPanel({
   maxBet: number;
   onStart: () => void;
   busy: boolean;
+  autoEnabled: boolean;
+  setAutoEnabled: (v: boolean) => void;
+  autoCount: number;
+  setAutoCount: (v: number) => void;
+  autoRemaining: number;
+  balanceAmount: number;
 }) {
+  const clamp = (v: number) => Math.max(minBet, Math.min(maxBet, v));
+
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.04] overflow-hidden">
-      <div className="px-4 py-3 border-b border-white/10">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-          Ставка
+      {/* Stake row */}
+      <div className="px-4 pt-3.5 pb-3 flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+            Bet amount
+          </span>
+          <span className="font-roobert text-[10px] tabular-nums text-whisper-gray">
+            Balance{' '}
+            {balanceAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
+            zł
+          </span>
         </div>
-        <div className="mt-1.5">
-          <input
-            type="number"
-            step={1}
-            min={minBet}
-            max={maxBet}
-            value={amount}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              if (Number.isFinite(v))
-                setAmount(Math.max(minBet, Math.min(maxBet, v)));
-            }}
-            className="w-full bg-transparent text-frost-white font-roobert text-[24px] font-light tabular-nums focus:outline-none"
-          />
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAmount(clamp(Math.max(minBet, amount - 1)))}
+            className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
+            aria-label="Decrease"
+          >
+            <Minus size={14} strokeWidth={2.2} />
+          </button>
+          <button
+            onClick={() => setAmount(clamp(Math.max(minBet, +(amount / 2).toFixed(2))))}
+            className="px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
+          >
+            ½
+          </button>
+          <div className="flex-1 inline-flex items-center justify-center min-w-0 px-3 h-11 rounded-pill border border-white/15 bg-white/[0.03]">
+            <input
+              type="number"
+              step={1}
+              min={minBet}
+              max={maxBet}
+              value={amount}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (Number.isFinite(v)) setAmount(clamp(v));
+              }}
+              className="w-full bg-transparent text-frost-white font-roobert text-[20px] font-light tabular-nums focus:outline-none text-center"
+            />
+            <span className="font-roobert text-[12px] text-whisper-gray ml-1.5">
+              zł
+            </span>
+          </div>
+          <button
+            onClick={() => setAmount(clamp(Math.max(minBet, +(amount * 2).toFixed(2))))}
+            className="px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
+          >
+            ×2
+          </button>
+          <button
+            onClick={() => setAmount(clamp(amount + 1))}
+            className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
+            aria-label="Increase"
+          >
+            <Plus size={14} strokeWidth={2.2} />
+          </button>
+        </div>
+
+        {/* Quick chips */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
+          {QUICK_AMOUNTS.map((q) => (
+            <button
+              key={q}
+              onClick={() => setAmount(clamp(q))}
+              className={cn(
+                'shrink-0 px-3 h-8 rounded-pill border font-roobert font-medium tabular-nums text-[12px] transition-all active:scale-95',
+                amount === q
+                  ? 'border-white/30 bg-white/[0.08] text-frost-white'
+                  : 'border-white/10 bg-white/[0.03] text-frost-white/75 hover:border-white/20'
+              )}
+            >
+              {q}
+            </button>
+          ))}
+          <button
+            onClick={() => setAmount(clamp(maxBet))}
+            className="shrink-0 px-3 h-8 rounded-pill border border-white/15 bg-white/[0.04] font-roobert font-medium uppercase tracking-[0.16em] text-[10px] text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
+          >
+            Max
+          </button>
         </div>
       </div>
-      <div className="px-3 pb-3 pt-1">
+
+      <div className="h-px bg-white/[0.06]" />
+
+      {/* Auto-bet row */}
+      <div className="px-4 py-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+        <Repeat
+          size={14}
+          strokeWidth={1.7}
+          className={cn(autoEnabled ? 'text-[#ffac2e]' : 'text-frost-white/55')}
+        />
+        <div className="min-w-0">
+          <div className="font-roobert text-[12px] text-frost-white">
+            Auto-bet
+          </div>
+          <div className="font-roobert text-[10px] text-whisper-gray">
+            {autoEnabled
+              ? autoCount > 0
+                ? `${autoRemaining} of ${autoCount} runs left`
+                : 'Running until you stop'
+              : 'Off'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={9999}
+            value={autoCount}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              setAutoCount(Number.isFinite(v) ? Math.max(0, Math.min(9999, v)) : 0);
+            }}
+            placeholder="∞"
+            disabled={autoEnabled}
+            className="w-16 h-9 px-2 rounded-pill border border-white/15 bg-white/[0.03] font-roobert text-[13px] tabular-nums text-frost-white text-center focus:outline-none focus:border-white/30 disabled:opacity-50"
+          />
+          <button
+            onClick={() => setAutoEnabled(!autoEnabled)}
+            className={cn(
+              'shrink-0 inline-flex items-center justify-center px-3 h-9 rounded-pill border font-roobert text-[11px] uppercase tracking-[0.18em] transition-all active:scale-95',
+              autoEnabled
+                ? 'border-[#ffac2e]/55 bg-[#ffac2e]/15 text-frost-white'
+                : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25'
+            )}
+          >
+            {autoEnabled ? 'Stop' : 'Start'}
+          </button>
+        </div>
+      </div>
+
+      {/* Primary CTA — large premium button */}
+      <div className="px-3 pb-3 pt-1 relative">
+        {/* Halo glow */}
+        <span
+          aria-hidden
+          className="hidden md:block absolute inset-x-3 inset-y-1 rounded-pill opacity-50 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(160,224,171,0.65), rgba(255,172,46,0.55) 50%, rgba(165,45,37,0.55))',
+            filter: 'blur(18px)',
+          }}
+        />
         <button
           onClick={onStart}
           disabled={busy}
-          className="w-full h-12 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[13px] uppercase tracking-[0.2em] active:scale-[0.99] disabled:opacity-50"
+          className="relative w-full h-14 rounded-pill font-roobert font-semibold text-[14px] uppercase tracking-[0.18em] text-midnight-canvas active:scale-[0.99] disabled:opacity-50 transition-transform inline-flex items-center justify-center gap-2"
+          style={{
+            background:
+              'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 50%, rgb(165, 45, 37) 100%)',
+            boxShadow:
+              '0 6px 24px rgba(255, 172, 46, 0.30), inset 0 1px 0 rgba(255,255,255,0.40), inset 0 -2px 0 rgba(0,0,0,0.20)',
+          }}
         >
-          Начать раунд
+          <Play size={14} strokeWidth={2.2} fill="currentColor" />
+          Start Round
         </button>
       </div>
     </div>
   );
 }
 
-/** Ladder constants mirror the backend, used while no round is live. */
 function previewLadder(level: Level): number[] {
   if (level === 'easy') return [1.32, 1.76, 2.34, 3.12, 4.16];
   if (level === 'medium') return [1.97, 3.95, 7.89, 15.78, 31.56];

@@ -169,13 +169,13 @@ export default function MinesGamePage() {
   async function startRound() {
     if (busy) return;
     if (amount <= 0) {
-      toast.warn('Укажите сумму ставки');
+      toast.warn('Enter a bet amount');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
@@ -189,8 +189,8 @@ export default function MinesGamePage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось начать раунд');
-        throw new Error(json?.message ?? 'Не удалось начать раунд');
+        reportApiError(res, json, 'Could not start round');
+        throw new Error(json?.message ?? 'Could not start round');
       }
       applyServer(json.state as ServerState);
       soundManager.play('ui.click');
@@ -214,7 +214,7 @@ export default function MinesGamePage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось открыть клетку');
+        reportApiError(res, json, 'Could not reveal cell');
         throw new Error(json?.message ?? 'Reveal failed');
       }
       const next = json.state as ServerState;
@@ -231,7 +231,7 @@ export default function MinesGamePage() {
     if (busy) return;
     if (server?.state !== 'active') return;
     if (server.revealed.length === 0) {
-      toast.warn('Откройте хотя бы одну клетку перед выводом');
+      toast.warn('Reveal at least one cell first');
       return;
     }
     setBusy(true);
@@ -242,11 +242,11 @@ export default function MinesGamePage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось забрать выигрыш');
+        reportApiError(res, json, 'Could not cash out');
         throw new Error(json?.message ?? 'Cashout failed');
       }
       applyServer(json.state as ServerState);
-      toast.success('Выигрыш забран');
+      toast.success('Cashed out');
     } catch (err) {
       console.error('mines:cashout', err);
     } finally {
@@ -331,19 +331,19 @@ export default function MinesGamePage() {
           )}
           <div className="relative">
             <Stat
-              label="Открыто"
+              label="Revealed"
               value={`${safeRevealed} / ${25 - displayMineCount}`}
             />
           </div>
           <div className="relative">
             <Stat
-              label="Текущий"
+              label="Current"
               value={`x${currentMult.toFixed(2)}`}
               emphasis
             />
           </div>
           <div className="relative">
-            <Stat label="Следующий" value={`x${nextMult.toFixed(2)}`} muted />
+            <Stat label="Next" value={`x${nextMult.toFixed(2)}`} muted />
           </div>
         </div>
 
@@ -384,7 +384,7 @@ export default function MinesGamePage() {
           <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-                Хеш сида
+                Server seed hash
               </span>
               <span className="font-roobert text-[11px] text-frost-white/80 tabular-nums">
                 {server.serverSeedHash.slice(0, 16)}…
@@ -393,7 +393,7 @@ export default function MinesGamePage() {
             {server.serverSeed && (
               <div className="mt-1.5 flex items-center justify-between gap-2">
                 <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-                  Сид раунда
+                  Round seed
                 </span>
                 <span className="font-roobert text-[11px] text-frost-white/80 tabular-nums">
                   {server.serverSeed.slice(0, 16)}…

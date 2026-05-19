@@ -11,8 +11,8 @@ import type { CoinflipMode } from '@/lib/games/coinflip/types';
  *
  * Two columns:
  *   - Stake (left): zł input with halve / double pills.
- *   - Mode (right): dropdown selecting "С умножением" (multiply) /
- *     "Быстрая игра" (quick).
+ *   - Mode (right): dropdown selecting "Multiplier" (multiply) /
+ *     "Quick play" (quick).
  *
  * Mirrors the layout from the design reference but built entirely out
  * of frosted-glass pills — no off-palette accents.
@@ -25,8 +25,8 @@ import type { CoinflipMode } from '@/lib/games/coinflip/types';
  */
 
 const MODE_LABEL: Record<CoinflipMode, string> = {
-  multiply: 'С умножением',
-  quick: 'Быстрая игра',
+  multiply: 'Multiplier',
+  quick: 'Quick play',
 };
 
 interface CoinflipBetPanelProps {
@@ -114,7 +114,7 @@ export function CoinflipBetPanel({
         <div className="px-4 py-3 border-r border-white/10">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-              Ставка
+              Bet
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -155,7 +155,7 @@ export function CoinflipBetPanel({
         {/* Mode */}
         <div className="px-4 py-3">
           <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-            Режим игры
+            Mode
           </span>
           <button
             ref={triggerRef}

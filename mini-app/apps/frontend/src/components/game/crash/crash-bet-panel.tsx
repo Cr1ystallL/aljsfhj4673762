@@ -18,12 +18,12 @@ import { cn } from '@/lib/utils';
  * on every device.
  *
  * CTA labels per phase:
- *   - idle (open betting)        → "Играть"            (place bet)
- *   - idle (round in progress)   → "Раунд идёт"        (disabled)
- *   - queued / locked            → "Отменить"          (refund)
- *   - cashable (round active)    → "Забрать · x1.32"   (cashout)
- *   - finished_won               → "Забрано"           (terminal)
- *   - finished_lost              → "Проиграно"         (terminal)
+ *   - idle (open betting)        → "Play"            (place bet)
+ *   - idle (round in progress)   → "Round in progress"        (disabled)
+ *   - queued / locked            → "Cancel"          (refund)
+ *   - cashable (round active)    → "Cash Out · x1.32"   (cashout)
+ *   - finished_won               → "Cashed Out"           (terminal)
+ *   - finished_lost              → "Lost"         (terminal)
  */
 
 export type BetSlotPhase =
@@ -71,16 +71,16 @@ export const CrashBetPanel = memo(function CrashBetPanel({
   const ctaLabel = (() => {
     switch (slotPhase) {
       case 'idle':
-        return bettingClosed ? 'Раунд идёт' : 'Играть';
+        return bettingClosed ? 'Round in progress' : 'Play';
       case 'queued':
       case 'locked':
-        return 'Отменить';
+        return 'Cancel';
       case 'cashable':
-        return `Забрать · x${multiplier.toFixed(2)}`;
+        return `Cash Out · x${multiplier.toFixed(2)}`;
       case 'finished_won':
-        return 'Забрано';
+        return 'Cashed Out';
       case 'finished_lost':
-        return 'Проиграно';
+        return 'Lost';
     }
   })();
 
@@ -112,14 +112,14 @@ export const CrashBetPanel = memo(function CrashBetPanel({
         {/* Stake */}
         <div className="px-4 py-3 border-r border-white/10">
           <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-            Ставка
+            Bet
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
             <button
               onClick={decAmount}
               disabled={inputsLocked}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Уменьшить ставку"
+              aria-label="Decrease bet"
             >
               <Minus size={12} strokeWidth={2.2} />
             </button>
@@ -141,7 +141,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
               onClick={incAmount}
               disabled={inputsLocked}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Увеличить ставку"
+              aria-label="Increase bet"
             >
               <Plus size={12} strokeWidth={2.2} />
             </button>
@@ -152,7 +152,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
         <div className="px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert truncate">
-              Авто-вывод
+              Auto-cashout
             </span>
             <button
               onClick={() => onAutoCashoutToggle(!autoCashoutEnabled)}
@@ -172,7 +172,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
               onClick={decAuto}
               disabled={inputsLocked || !autoCashoutEnabled}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Уменьшить множитель"
+              aria-label="Decrease multiplier"
             >
               <Minus size={12} strokeWidth={2.2} />
             </button>
@@ -188,7 +188,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
               onClick={incAuto}
               disabled={inputsLocked || !autoCashoutEnabled}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Увеличить множитель"
+              aria-label="Increase multiplier"
             >
               <Plus size={12} strokeWidth={2.2} />
             </button>

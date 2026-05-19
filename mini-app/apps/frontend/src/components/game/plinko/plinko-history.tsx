@@ -9,8 +9,8 @@ import type { PlinkoHistoryEntry } from '@/lib/games/plinko/types';
  * Plinko History — Monopo Saigon Style
  *
  * Live ticker of recent drops. Two filter tabs:
- *   - Все ставки      — every recent drop
- *   - Редкие выигрыши — only multiplier ≥ 5x
+ *   - All Bets       — every recent drop
+ *   - Big Wins       — only multiplier ≥ 5x
  *
  * Each row: avatar (Telegram photo or initial), name, stake, multiplier
  * pill, payout. Frosted glass surface that lets the dark backdrop show
@@ -45,8 +45,8 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
       {/* Tabs */}
       <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
         {[
-          { key: 'all', label: 'Все ставки' },
-          { key: 'rare', label: 'Редкие выигрыши' },
+          { key: 'all', label: 'All Bets' },
+          { key: 'rare', label: 'Big Wins' },
         ].map((t) => {
           const active = t.key === tab;
           return (
@@ -104,7 +104,7 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
                   {row.name}
                 </div>
                 <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                  {row.betAmount.toLocaleString('ru-RU', {
+                  {row.betAmount.toLocaleString('en-US', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -134,7 +134,7 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
                 )}
               >
                 {row.payout >= row.betAmount ? '+' : ''}
-                {row.payout.toLocaleString('ru-RU', {
+                {row.payout.toLocaleString('en-US', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 2,
                 })}{' '}
@@ -147,8 +147,8 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
         {visible.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
             {tab === 'rare'
-              ? 'Пока нет редких выигрышей. Ваш будет первым.'
-              : 'Здесь будут отображаться все ставки в реальном времени.'}
+              ? 'No big wins yet. Yours will be the first.'
+              : 'Recent bets will appear here in real time.'}
           </div>
         )}
       </div>
