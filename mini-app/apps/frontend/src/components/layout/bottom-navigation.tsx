@@ -105,11 +105,15 @@ export const BottomNavigation = memo(function BottomNavigation({
                     className="-mt-7 relative active:scale-95 transition-transform"
                     style={{ willChange: 'transform' }}
                   >
-                    {/* Soft brand halo (kept on desktop, suppressed on
-                        mobile via the `mobile-no-blur` rule). */}
+                    {/* Soft brand halo — desktop only. On mobile we
+                        kill `filter: blur` for performance, which left
+                        the gradient layer visible as a second flat
+                        circle around the Play button (looked like two
+                        stacked buttons). Hiding it on coarse-pointer
+                        devices is the cleanest fix. */}
                     <span
                       aria-hidden
-                      className="mobile-no-blur absolute inset-0 rounded-pill opacity-60"
+                      className="hidden md:block absolute inset-0 rounded-pill opacity-60"
                       style={{
                         background:
                           'linear-gradient(135deg, rgba(160, 224, 171, 0.55), rgba(255, 172, 46, 0.50) 55%, rgba(165, 45, 37, 0.45))',
