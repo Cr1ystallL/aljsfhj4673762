@@ -3,6 +3,7 @@ import { BaseGameEngine } from '../../game-engine/base-game-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { rtpEngine } from '../../services/rtp-engine.js';
+import { gameConfig } from '../../services/game-config.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import type {
@@ -81,8 +82,13 @@ export class CrashGameEngine extends BaseGameEngine {
   private playerDemoMode: Map<string, boolean> = new Map();
 
   private readonly MAX_HISTORY = 50;
-  private readonly WAITING_TIME = 9000; // betting open
-  private readonly COUNTDOWN_TIME = 3000; // betting locked, lift-off countdown
+
+  // Phase durations are pulled from gameConfig.extras at the start of
+  // each round so an admin can change them live (15 sec waiting, 3 sec
+  // countdown) without restarting the worker. Defaults fall back to a
+  // reasonable 9s / 3s.
+  private waitingTimeMs = 9000;
+  private countdownTimeMs = 3000;
 
   private waitingTimeout?: NodeJS.Timeout;
   private countdownTimeout?: NodeJS.Timeout;
@@ -328,6 +334,31 @@ export class CrashGameEngine extends BaseGameEngine {
    * ----------------------------------------------------------------------*/
 
   protected async createRound(): Promise<GameRound> {
+    // Pull live phase durations from gameConfig.extras — admin's
+    // настройки в `/system/console/games` влияют на следующий раунд.
+    try {
+      const cfg = await gameConfig.get('crash');
+      const extras = (cfg.extras ?? {}) as {
+        waitingPhaseSeconds?: number;
+        countdownSeconds?: number;
+      };
+      // Hard floors so the engine can never crash-loop with a 0-second
+      // phase. Hard ceilings so a fat-finger admin can't halt the room
+      // for an hour.
+      const ws = Number(extras.waitingPhaseSeconds);
+      const cs = Number(extras.countdownSeconds);
+      this.waitingTimeMs =
+        Number.isFinite(ws) && ws > 0
+          ? Math.max(3, Math.min(120, ws)) * 1000
+          : 9000;
+      this.countdownTimeMs =
+        Number.isFinite(cs) && cs > 0
+          ? Math.max(1, Math.min(15, cs)) * 1000
+          : 3000;
+    } catch {
+      // Best-effort: keep last-known values.
+    }
+
     const serverSeed = provablyFair.generateServerSeed();
     const clientSeed = provablyFair.generateClientSeed();
     const nonce = (this.room.currentRound?.nonce || 0) + 1;
@@ -336,7 +367,53 @@ export class CrashGameEngine extends BaseGameEngine {
     // crashPoint. We apply only the global controller bias (no per-user
     // component), and only the bias snapshot at round-creation time.
     const bias = await rtpEngine.getGlobalBias().catch(() => 0);
-    const crashPoint = provablyFair.generateCrashMultiplier(hash, bias);
+    let crashPoint = provablyFair.generateCrashMultiplier(hash, bias);
+
+    // ---- Hard ceiling -------------------------------------------------
+    // Random per-round between 120x and 184x. The natural Bustabit
+    // distribution very rarely produces these, but when it does it
+    // wrecks the casino's bankroll on a single player who happens to
+    // auto-cashout high. Capping at a per-round random ceiling smooths
+    // payouts without making the cap visible to the player.
+    const ceilingHash = provablyFair
+      .hashServerSeed(`${serverSeed}:cap`)
+      .substring(0, 8);
+    const ceilingInt = parseInt(ceilingHash, 16);
+    const ceiling =
+      120 + ((ceilingInt >>> 0) / 0xffffffff) * (184 - 120);
+    crashPoint = Math.min(crashPoint, +ceiling.toFixed(2));
+
+    // ---- Budget-aware further cap ------------------------------------
+    // If everyone in the room held until `crashPoint`, total payout
+    // would be `sum(stake_i) * crashPoint`. We don't want a single
+    // round to liquidate a meaningful chunk of the casino's bankroll,
+    // so we shrink the crashPoint until that scenario stays under
+    // `BUDGET_FRACTION` of the rolling 24h profit. This is a soft
+    // safety net — the controller (rtp-engine) already does the
+    // primary smoothing.
+    try {
+      const status = await rtpEngine.getStatus();
+      const totalStake = Array.from(this.crashState.slotBets.values()).reduce(
+        (sum, b) => sum + b.amount,
+        0
+      );
+      // Bankroll proxy: 10x today's actual profit so target=0 doesn't
+      // trip every round. Floor at 1000 PLN so empty windows still
+      // allow some payout.
+      const bankroll = Math.max(1000, status.windowProfit * 10);
+      const BUDGET_FRACTION = 0.6;
+      if (totalStake > 0) {
+        const maxAffordableMult = (bankroll * BUDGET_FRACTION) / totalStake;
+        if (Number.isFinite(maxAffordableMult) && maxAffordableMult >= 1.5) {
+          crashPoint = Math.min(crashPoint, +maxAffordableMult.toFixed(2));
+        }
+      }
+    } catch {
+      // best-effort, fall through
+    }
+
+    // Final floor so we never produce a sub-1.01 crash.
+    crashPoint = Math.max(1.01, crashPoint);
 
     this.crashState = this.makeInitialCrashState();
     this.crashState.crashPoint = crashPoint;
@@ -365,7 +442,15 @@ export class CrashGameEngine extends BaseGameEngine {
 
     setTimeout(() => this.startWaitingPhase(), 50);
 
-    logger.info({ roundId: round.id }, 'Crash round created');
+    logger.info(
+      {
+        roundId: round.id,
+        crashPoint,
+        waitingMs: this.waitingTimeMs,
+        countdownMs: this.countdownTimeMs,
+      },
+      'Crash round created'
+    );
     return round;
   }
 
@@ -473,10 +558,10 @@ export class CrashGameEngine extends BaseGameEngine {
   private startWaitingPhase(): void {
     this.clearTimeouts();
     this.room.state = 'waiting';
-    const endsAt = Date.now() + this.WAITING_TIME;
+    const endsAt = Date.now() + this.waitingTimeMs;
     this.currentPhaseEndsAt = endsAt;
     this.emitEvent('phase:waiting', {
-      duration: this.WAITING_TIME,
+      duration: this.waitingTimeMs,
       endsAt,
       roundId: this.room.currentRound?.id ?? null,
       serverSeedHash: this.currentServerSeedHash,
@@ -485,22 +570,22 @@ export class CrashGameEngine extends BaseGameEngine {
     });
     this.waitingTimeout = setTimeout(
       () => this.startCountdown(),
-      this.WAITING_TIME
+      this.waitingTimeMs
     );
   }
 
   private startCountdown(): void {
     this.clearTimeouts();
     this.room.state = 'starting';
-    const endsAt = Date.now() + this.COUNTDOWN_TIME;
+    const endsAt = Date.now() + this.countdownTimeMs;
     this.currentPhaseEndsAt = endsAt;
     this.emitEvent('phase:countdown', {
-      duration: this.COUNTDOWN_TIME,
+      duration: this.countdownTimeMs,
       endsAt,
     });
     this.countdownTimeout = setTimeout(
       () => this.activateRound(),
-      this.COUNTDOWN_TIME
+      this.countdownTimeMs
     );
   }
 

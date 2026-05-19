@@ -3,6 +3,8 @@
 import {
   Bomb,
   Rocket,
+  Disc3,
+  Footprints,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
@@ -23,7 +25,14 @@ import { cn } from '@/lib/utils';
  * generic — a circle and a circle-with-dot didn't read as the games).
  */
 
-export type GameKey = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'unknown';
+export type GameKey =
+  | 'crash'
+  | 'mines'
+  | 'plinko'
+  | 'coinflip'
+  | 'wheel'
+  | 'bridges'
+  | 'unknown';
 
 /**
  * Plinko glyph — a peg pyramid with a ball about to drop. Three rows of
@@ -111,6 +120,8 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   mines: { label: 'Mines', Icon: Bomb },
   plinko: { label: 'Plinko', Icon: PlinkoIcon },
   coinflip: { label: 'Coinflip', Icon: CoinflipIcon },
+  wheel: { label: 'Колесо', Icon: Disc3 },
+  bridges: { label: 'Мосты', Icon: Footprints },
   unknown: { label: 'Игра', Icon: PlinkoIcon },
 };
 
@@ -126,6 +137,8 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('mines')) return 'mines';
   if (v.startsWith('plinko')) return 'plinko';
   if (v.startsWith('coinflip')) return 'coinflip';
+  if (v.startsWith('wheel')) return 'wheel';
+  if (v.startsWith('bridges')) return 'bridges';
   return 'unknown';
 }
 

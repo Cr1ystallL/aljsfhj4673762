@@ -37,6 +37,12 @@ async function start() {
     // Register routes
     await registerRoutes(app as any);
 
+    // Bootstrap singletons that own perpetual game rooms — Wheel
+    // engine is loaded eagerly here so it starts its round loop on
+    // worker start. Crash engine is bootstrapped through a separate
+    // singleton imported by the routes module.
+    await import('./games/wheel/wheel-singleton.js');
+
     // Start server
     await app.listen({
       port: config.port,

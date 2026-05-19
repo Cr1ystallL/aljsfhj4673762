@@ -11,6 +11,17 @@ import {
   coinflipEngine,
   type CoinSide,
 } from '../games/coinflip/coinflip-engine.js';
+import {
+  wheelEngine,
+  WHEEL_LAYOUT,
+  WHEEL_VALUES,
+  type WheelMultiplier,
+} from '../games/wheel/wheel-engine.js';
+import {
+  bridgesEngine,
+  BRIDGES_LEVELS,
+  type BridgesLevel,
+} from '../games/bridges/bridges-engine.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 
@@ -1021,5 +1032,187 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /* ================================================================ Wheel */
+
+  /**
+   * GET /api/games/wheel/state — live snapshot used by the page.
+   * Polled every 1 s while waiting / completed, every 250 ms while
+   * spinning so the wheel locks onto its segment crisply.
+   */
+  app.get('/wheel/state', { preHandler: authenticate }, async (_req, reply) => {
+    return reply.send({
+      success: true,
+      state: wheelEngine.getSnapshot(),
+      layout: WHEEL_LAYOUT,
+      values: WHEEL_VALUES,
+    });
+  });
+
+  /**
+   * POST /api/games/wheel/bet — pick a multiplier slot for the round.
+   * Body: { amount: number; pick: 1 | 2 | 3 | 5 | 30 }
+   */
+  app.post<{ Body: { amount: number; pick: WheelMultiplier } }>(
+    '/wheel/bet',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'pick'],
+          properties: {
+            amount: { type: 'number' },
+            pick: { type: 'number', enum: [1, 2, 3, 5, 30] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, pick } = request.body;
+
+      if (!checkRateLimit(userId, 'wheel:bet')) {
+        return reply.code(429).send({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+        });
+      }
+
+      try {
+        const u = await app.prisma.user.findUnique({
+          where: { id: userId },
+          select: { firstName: true, username: true, photoUrl: true },
+        });
+        const out = await wheelEngine.placeBet(userId, amount, pick, u);
+        return reply.send({ success: true, ...out });
+      } catch (error) {
+        logger.error(error, 'wheel:bet failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'WHEEL_BET_FAILED',
+        });
+      }
+    }
+  );
+
+  /* ============================================================== Bridges */
+
+  /**
+   * GET /api/games/bridges/state — current per-user round, if any.
+   */
+  app.get('/bridges/state', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    return reply.send({ success: true, state: bridgesEngine.getState(userId) });
+  });
+
+  /**
+   * POST /api/games/bridges/start — begin a new round at the given level.
+   * Body: { amount: number; level: 'easy' | 'medium' | 'hard' }
+   */
+  app.post<{ Body: { amount: number; level: BridgesLevel } }>(
+    '/bridges/start',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'level'],
+          properties: {
+            amount: { type: 'number' },
+            level: { type: 'string', enum: BRIDGES_LEVELS },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, level } = request.body;
+      if (!checkRateLimit(userId, 'bridges:start')) {
+        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+      }
+      try {
+        const state = await bridgesEngine.start(userId, amount, level);
+        return reply.send({ success: true, state });
+      } catch (error) {
+        logger.error(error, 'bridges:start failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'BRIDGES_START_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/bridges/step — pick a cell in the current row.
+   * Body: { col: 0..3 }
+   */
+  app.post<{ Body: { col: number } }>(
+    '/bridges/step',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['col'],
+          properties: { col: { type: 'integer', minimum: 0, maximum: 3 } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { col } = request.body;
+      if (!checkRateLimit(userId, 'bridges:step')) {
+        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+      }
+      try {
+        const state = await bridgesEngine.step(userId, col);
+        return reply.send({ success: true, state });
+      } catch (error) {
+        logger.error(error, 'bridges:step failed');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: (error as Error).message,
+          code: 'BRIDGES_STEP_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/bridges/cashout — bank the current multiplier.
+   * Disabled until at least one row has been crossed.
+   */
+  app.post('/bridges/cashout', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    if (!checkRateLimit(userId, 'bridges:cashout')) {
+      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+    }
+    try {
+      const state = await bridgesEngine.cashout(userId);
+      return reply.send({ success: true, state });
+    } catch (error) {
+      logger.error(error, 'bridges:cashout failed');
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: (error as Error).message,
+        code: 'BRIDGES_CASHOUT_FAILED',
+      });
+    }
+  });
+
+  /**
+   * POST /api/games/bridges/dismiss — clear a finished round so the
+   * UI can start a fresh one.
+   */
+  app.post('/bridges/dismiss', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    bridgesEngine.forget(userId);
+    return reply.send({ success: true });
+  });
 }
 

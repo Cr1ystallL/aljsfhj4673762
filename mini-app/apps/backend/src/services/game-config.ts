@@ -16,7 +16,7 @@ import { logger } from '../utils/logger.js';
  * round.
  */
 
-export type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip';
+export type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve
@@ -75,6 +75,26 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     extras: {
       stepMultiplier: 1.94,
       maxRounds: 20,
+    },
+  },
+  wheel: {
+    paused: false,
+    minBet: 1,
+    maxBet: 10000,
+    houseEdge: 0.0, // baked into the slot distribution
+    extras: {
+      waitingPhaseSeconds: 9,
+    },
+  },
+  bridges: {
+    paused: false,
+    minBet: 1,
+    maxBet: 10000,
+    houseEdge: 0.01,
+    extras: {
+      // 5 rows × 4 cells, broken cells per row by difficulty.
+      rows: 5,
+      cells: 4,
     },
   },
 };

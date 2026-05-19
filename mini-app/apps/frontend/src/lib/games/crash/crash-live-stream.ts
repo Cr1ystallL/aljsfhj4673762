@@ -321,7 +321,26 @@ export class CrashLiveStream extends EventEmitter {
           this.emitTick();
         }
       } else if (phase === 'waiting' || phase === 'starting' || phase === 'idle') {
+        // Hard reset — clears any runaway prediction left over from a
+        // sleeping tab. Without this, returning to the game after a
+        // long pause would print whatever the prediction loop reached
+        // until the next active tick comes in.
+        this.activeStartedAt = null;
+        this.stopAnim();
         this.fast = { displayMultiplier: 1, graphPoints: [{ time: 0, multiplier: 1 }] };
+        this.emitTick();
+      } else if (phase === 'completed' || phase === 'resolving') {
+        // Snap to the announced crash point and stop predicting.
+        this.activeStartedAt = null;
+        this.stopAnim();
+        const cp =
+          typeof s.crashPointPreview === 'number'
+            ? Number(s.crashPointPreview)
+            : serverMult;
+        this.fast = {
+          displayMultiplier: cp,
+          graphPoints: this.fast.graphPoints,
+        };
         this.emitTick();
       }
 
@@ -622,17 +641,35 @@ export class CrashLiveStream extends EventEmitter {
   private tickAnim(deltaMs: number): void {
     if (this.snapshot.phase !== 'active') return;
 
+    // Predicted multiplier from elapsed wall-clock anchor. We deliberately
+    // cap this so a long network silence (laptop slept, WS dead) can't
+    // run the figure into the millions before the next server tick
+    // arrives. The hard ceiling matches the server's per-round cap of
+    // 184x; we add a safety buffer of 1.2x so an in-flight tick that
+    // overshoots by a fraction still reads.
+    const HARD_CEILING = 220;
     let predicted = this.snapshot.serverMultiplier;
     let elapsed = 0;
     if (this.activeStartedAt !== null) {
       elapsed = Date.now() - this.activeStartedAt;
       predicted = Math.exp(0.00006 * elapsed);
     }
+    predicted = Math.min(HARD_CEILING, predicted);
+
+    // If our prediction has run away from the last known server value
+    // (5x or more), assume the WS is silent and freeze on the server's
+    // last figure. Better to look stuck for a second than to print 22M.
+    if (
+      this.snapshot.serverMultiplier > 1.05 &&
+      predicted > this.snapshot.serverMultiplier * 5
+    ) {
+      predicted = this.snapshot.serverMultiplier;
+    }
 
     const target = Math.max(this.snapshot.serverMultiplier, predicted);
     const current = this.fast.displayMultiplier;
     const lerpStep = Math.min(1, deltaMs / 60);
-    const display = current + (target - current) * lerpStep;
+    const display = Math.min(HARD_CEILING, current + (target - current) * lerpStep);
 
     // Push a curve point only when meaningfully different — keeps the
     // graphPoints buffer compact. In place mutation = zero allocation.
