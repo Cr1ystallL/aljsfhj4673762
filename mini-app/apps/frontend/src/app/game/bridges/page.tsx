@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Footprints, Hand, RotateCcw } from 'lucide-react';
+import { Footprints, RotateCcw, Flame, ChevronUp } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -11,16 +11,44 @@ import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 
 /**
- * Bridges — single-player. 5 rows × 4 cells. Cross from bottom up.
+ * Bridges — fully redesigned.
  *
- * UI:
- *   - Difficulty pills at the top (Лёгкий / Средний / Сложный) — one
- *     broken cell per row / two / three.
- *   - The bridge is rendered top-down (row 4 at top, row 0 at bottom)
- *     so the user "climbs". Active row glows. Below the bridge: the
- *     ladder of multipliers per row.
- *   - Bet panel + a single CTA that flips between "Начать" → "Шаг"
- *     prompts → "Забрать выигрыш".
+ * Visual concept: a 5-step bridge over a dark gulf. Each step is a row
+ * of 4 wooden planks; some planks are rotten (broken). The player
+ * climbs from the near bank up to the far bank, picking one plank per
+ * step. The screen reads top-to-bottom because that's how a vertical
+ * climb naturally maps to a phone viewport.
+ *
+ * Layout:
+ *
+ *   ╔═══════════════════════════════════════════╗
+ *   ║         CURRENT MULTIPLIER PLATE          ║   ← potential payout
+ *   ╠═══════════════════════════════════════════╣
+ *   ║   row 5   ▓▓ ▓▓ ▓▓ ▓▓     × 4.16          ║   ← top step
+ *   ║   row 4   ▓▓ ▓▓ ▓▓ ▓▓     × 3.12          ║
+ *   ║   row 3   ▓▓ ▓▓ ▓▓ ▓▓     × 2.34          ║   ← active row glows
+ *   ║   row 2   ▓▓ ▓▓ ✓  ▓▓     × 1.76          ║   ← past = green trail
+ *   ║   row 1   ▓▓ ✓  ▓▓ ▓▓     × 1.32          ║
+ *   ╚═══════════════════════════════════════════╝
+ *
+ * Visual rules:
+ *   - Active row outlined in amber + faint glow.
+ *   - Cleared planks marked with a green ✓ + amber wood gradient stays.
+ *   - On bust, the broken plank flashes red with ✕; revealed broken
+ *     cells in OTHER rows fade in as muted red ✕ so the player sees
+ *     where the trap was.
+ *   - The right side ladder shows row × multiplier badges, the active
+ *     and cleared ones brand-coloured.
+ *   - Difficulty pills sit above the field, disabled mid-round.
+ *   - The single bottom CTA is contextual:
+ *       no game     → "Начать раунд"
+ *       active+0    → "Сделайте первый шаг"
+ *       active+>0   → "Забрать N zł · xM"
+ *       cashed/bust → "Новый раунд"
+ *
+ * Pure CSS — no canvas. Each plank is a div with a wood gradient + two
+ * grain lines via inset box-shadow. GPU composites the whole field in
+ * one pass, no per-frame rerender.
  */
 
 type Level = 'easy' | 'medium' | 'hard';
@@ -45,9 +73,9 @@ interface PublicState {
 }
 
 const LEVEL_LABEL: Record<Level, { ru: string; broken: string }> = {
-  easy: { ru: 'Лёгкий', broken: '1 ловушка в ряду' },
-  medium: { ru: 'Средний', broken: '2 ловушки в ряду' },
-  hard: { ru: 'Сложный', broken: '3 ловушки в ряду' },
+  easy: { ru: 'Easy', broken: '1 ловушка / ряд' },
+  medium: { ru: 'Medium', broken: '2 ловушки / ряд' },
+  hard: { ru: 'Hard', broken: '3 ловушки / ряд' },
 };
 
 export default function BridgesPage() {
@@ -57,7 +85,6 @@ export default function BridgesPage() {
   const [amount, setAmount] = useState(10);
   const [level, setLevel] = useState<Level>('easy');
 
-  // Fetch existing round (resume after refresh).
   useEffect(() => {
     soundManager.initialize();
     void (async () => {
@@ -191,12 +218,20 @@ export default function BridgesPage() {
     [balance]
   );
 
+  const isActive = state?.state === 'active';
+  const ladder = state?.ladder ?? previewLadder(level);
+  const currentRowIndex = state ? state.picks.length : -1; // -1 = no game
+  const potentialPayout =
+    state && state.picks.length > 0
+      ? state.betAmount * state.currentMultiplier
+      : 0;
+
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <GameTopBar title="Мосты" Icon={Footprints} />
+        <GameTopBar title="Bridges" Icon={Footprints} />
 
-        {/* Difficulty picker — disabled mid-round */}
+        {/* Difficulty picker */}
         <div className="grid grid-cols-3 gap-2">
           {(['easy', 'medium', 'hard'] as Level[]).map((lv) => {
             const active = state ? state.level === lv : level === lv;
@@ -213,7 +248,7 @@ export default function BridgesPage() {
                     : 'border-white/10 bg-white/[0.03] text-frost-white/85'
                 )}
               >
-                <div className="font-roobert text-[14px]">
+                <div className="font-roobert text-[14px] font-semibold">
                   {LEVEL_LABEL[lv].ru}
                 </div>
                 <div className="font-roobert text-[10px] text-whisper-gray">
@@ -224,16 +259,35 @@ export default function BridgesPage() {
           })}
         </div>
 
+        {/* Headline plate */}
+        <HeadlinePlate
+          state={state}
+          potentialPayout={potentialPayout}
+          level={level}
+        />
+
         {/* Bridge field */}
         <BridgeField
           state={state}
-          previewLevel={level}
+          ladder={ladder}
+          currentRow={currentRowIndex}
           onStep={step}
           busy={busy}
         />
 
-        {/* CTA */}
-        {state && state.state === 'active' ? (
+        {/* Bottom CTA */}
+        {!state && (
+          <BetPanel
+            amount={amount}
+            setAmount={setAmount}
+            minBet={minBet}
+            maxBet={maxBet}
+            onStart={start}
+            busy={busy}
+          />
+        )}
+
+        {state && isActive && (
           <button
             onClick={cashout}
             disabled={busy || state.picks.length === 0}
@@ -245,12 +299,14 @@ export default function BridgesPage() {
             )}
           >
             {state.picks.length > 0
-              ? `Забрать ${(state.betAmount * state.currentMultiplier).toLocaleString('ru-RU', {
+              ? `Забрать ${potentialPayout.toLocaleString('ru-RU', {
                   maximumFractionDigits: 2,
                 })} zł · x${state.currentMultiplier}`
               : 'Сделайте первый шаг'}
           </button>
-        ) : state && state.state !== 'active' ? (
+        )}
+
+        {state && !isActive && (
           <button
             onClick={dismiss}
             className="w-full h-12 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[13px] uppercase tracking-[0.2em] active:scale-[0.99] inline-flex items-center justify-center gap-2"
@@ -258,21 +314,416 @@ export default function BridgesPage() {
             <RotateCcw size={14} strokeWidth={1.8} />
             Новый раунд
           </button>
-        ) : (
-          <BetPanel
-            amount={amount}
-            setAmount={setAmount}
-            minBet={minBet}
-            maxBet={maxBet}
-            onStart={start}
-            busy={busy}
-          />
         )}
       </div>
     </main>
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* Headline plate                                                             */
+/* -------------------------------------------------------------------------- */
+
+function HeadlinePlate({
+  state,
+  potentialPayout,
+  level,
+}: {
+  state: PublicState | null;
+  potentialPayout: number;
+  level: Level;
+}) {
+  const status = state?.state ?? 'idle';
+
+  return (
+    <div className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-50 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(110% 90% at 100% 0%, rgba(160, 224, 171, 0.18) 0%, rgba(255, 172, 46, 0.10) 50%, transparent 75%)',
+        }}
+      />
+      <div className="relative px-5 py-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+            {status === 'active'
+              ? 'Текущий выигрыш'
+              : status === 'cashed'
+                ? 'Забрано'
+                : status === 'busted'
+                  ? 'Раунд проигран'
+                  : 'Старт'}
+          </div>
+          <div className="mt-1 font-roobert text-[28px] font-light tabular-nums text-frost-white leading-none">
+            {state?.state === 'cashed'
+              ? `+${(state.finalPayout ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}`
+              : state?.state === 'busted'
+                ? '0.00'
+                : potentialPayout.toLocaleString('ru-RU', {
+                    maximumFractionDigits: 2,
+                  })}{' '}
+            <span className="text-[14px] text-whisper-gray">zł</span>
+          </div>
+          <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
+            {state
+              ? `Сложность: ${LEVEL_LABEL[state.level].ru} · ставка ${state.betAmount.toLocaleString('ru-RU')} zł`
+              : `Сложность: ${LEVEL_LABEL[level].ru}`}
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            'shrink-0 inline-flex items-center justify-center w-16 h-16 rounded-card border font-roobert font-light tabular-nums',
+            status === 'active'
+              ? 'border-[#ffac2e]/45 bg-[#ffac2e]/10 text-frost-white'
+              : status === 'cashed'
+                ? 'border-[#a0e0ab]/45 bg-[#a0e0ab]/10 text-frost-white'
+                : status === 'busted'
+                  ? 'border-[#ff8a76]/45 bg-[#ff8a76]/10 text-[#ff8a76]'
+                  : 'border-white/15 bg-white/[0.04] text-frost-white/85'
+          )}
+        >
+          <div className="text-center leading-none">
+            <div className="text-[18px] font-semibold">
+              ×
+              {state?.state === 'cashed'
+                ? state.finalMultiplier
+                : state?.state === 'busted'
+                  ? '0'
+                  : state?.currentMultiplier ?? 1}
+            </div>
+            <div className="mt-1 text-[8px] uppercase tracking-[0.18em] text-whisper-gray">
+              множитель
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Bridge field                                                               */
+/* -------------------------------------------------------------------------- */
+
+function BridgeField({
+  state,
+  ladder,
+  currentRow,
+  onStep,
+  busy,
+}: {
+  state: PublicState | null;
+  ladder: number[];
+  currentRow: number;
+  onStep: (col: number) => void;
+  busy: boolean;
+}) {
+  const ROWS = 5;
+  const COLS = 4;
+  const rowsTopDown = Array.from({ length: ROWS }, (_, i) => ROWS - 1 - i);
+  const isFinished = state && state.state !== 'active';
+  const broken = state?.broken;
+  const isActive = state?.state === 'active';
+
+  return (
+    <div
+      className="relative rounded-card border border-white/10 bg-white/[0.03] overflow-hidden"
+      style={{
+        background:
+          'linear-gradient(180deg, rgba(20,30,28,0.55) 0%, rgba(10,12,16,0.85) 100%)',
+      }}
+    >
+      {/* Side rails — deep-ocean tinted */}
+      <div
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-[3px] pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(160,224,171,0.55), rgba(160,224,171,0.05) 65%, transparent)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-y-0 right-0 w-[3px] pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,172,46,0.55), rgba(255,172,46,0.05) 65%, transparent)',
+        }}
+      />
+
+      <div className="relative p-3 flex flex-col gap-2">
+        {rowsTopDown.map((row) => {
+          const isCurrent = isActive && row === currentRow;
+          const isCleared = state ? row < currentRow : false;
+          const isUntouched = !state || row > currentRow;
+          const m = ladder[row];
+
+          return (
+            <div
+              key={row}
+              className="grid grid-cols-[1fr_auto] items-center gap-2"
+            >
+              {/* Plank row */}
+              <div
+                className={cn(
+                  'relative grid grid-cols-4 gap-1.5 px-2 py-2 rounded-card transition-colors',
+                  isCurrent &&
+                    'bg-[rgba(255,172,46,0.06)] ring-1 ring-[rgba(255,172,46,0.45)]'
+                )}
+              >
+                {Array.from({ length: COLS }, (_, col) => {
+                  const pickedHere = state?.picks[row] === col;
+                  const isBrokenReveal =
+                    isFinished && broken?.[row]?.includes(col);
+                  const isBustHere =
+                    state?.state === 'busted' &&
+                    state.bustedAt?.row === row &&
+                    state.bustedAt.col === col;
+                  const interactive =
+                    isCurrent && !busy && state?.state === 'active';
+
+                  return (
+                    <Plank
+                      key={col}
+                      onClick={() => interactive && onStep(col)}
+                      interactive={interactive}
+                      pickedHere={pickedHere}
+                      brokenReveal={!!isBrokenReveal}
+                      bustHere={isBustHere ?? false}
+                      cleared={isCleared}
+                      untouched={isUntouched}
+                      currentRow={isCurrent}
+                    />
+                  );
+                })}
+
+                {/* Active-row indicator on the left edge */}
+                {isCurrent && (
+                  <motion.span
+                    aria-hidden
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="absolute -left-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-5 h-5 rounded-pill bg-[#ffac2e] text-midnight-canvas"
+                  >
+                    <ChevronUp size={12} strokeWidth={2.4} />
+                  </motion.span>
+                )}
+              </div>
+
+              {/* Multiplier badge */}
+              <RowBadge
+                value={m}
+                row={row}
+                cleared={isCleared}
+                current={isCurrent}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Status banner */}
+      <AnimatePresence>
+        {state?.state === 'cashed' && state.finalMultiplier && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="px-4 py-2.5 mx-3 mb-3 rounded-card border border-[rgba(160,224,171,0.45)] bg-[rgba(160,224,171,0.10)] text-center font-roobert text-[12px] text-frost-white"
+          >
+            Победа · x{state.finalMultiplier} ·{' '}
+            +
+            {(state.finalPayout ?? 0).toLocaleString('ru-RU', {
+              maximumFractionDigits: 2,
+            })}{' '}
+            zł
+          </motion.div>
+        )}
+        {state?.state === 'busted' && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="px-4 py-2.5 mx-3 mb-3 rounded-card border border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.10)] text-center font-roobert text-[12px] text-[#ff8a76] inline-flex items-center justify-center gap-1.5"
+          >
+            <Flame size={13} strokeWidth={1.8} />
+            Поражение · ставка списана
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Plank                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function Plank({
+  onClick,
+  interactive,
+  pickedHere,
+  brokenReveal,
+  bustHere,
+  cleared,
+  untouched,
+  currentRow,
+}: {
+  onClick: () => void;
+  interactive: boolean;
+  pickedHere: boolean;
+  brokenReveal: boolean;
+  bustHere: boolean;
+  cleared: boolean;
+  untouched: boolean;
+  currentRow: boolean;
+}) {
+  // Determine visual state.
+  // Order matters — bust > broken-reveal > picked > current > cleared > untouched.
+  let style: 'bust' | 'broken' | 'picked' | 'current' | 'cleared' | 'untouched';
+  if (bustHere) style = 'bust';
+  else if (brokenReveal) style = 'broken';
+  else if (pickedHere) style = 'picked';
+  else if (currentRow) style = 'current';
+  else if (cleared) style = 'cleared';
+  else style = 'untouched';
+
+  // Wood plank colour palette per state.
+  const STYLES: Record<typeof style, { bg: string; border: string; text: string; glow?: string }> = {
+    bust: {
+      bg: 'linear-gradient(180deg, rgb(176, 60, 50) 0%, rgb(120, 30, 22) 100%)',
+      border: 'rgba(255,138,118,0.7)',
+      text: '#fff',
+      glow: 'rgba(165,45,37,0.55)',
+    },
+    broken: {
+      bg: 'linear-gradient(180deg, rgba(120, 30, 22, 0.55) 0%, rgba(80, 20, 14, 0.55) 100%)',
+      border: 'rgba(255,138,118,0.4)',
+      text: 'rgba(255,138,118,0.95)',
+    },
+    picked: {
+      bg: 'linear-gradient(180deg, rgb(120, 78, 34) 0%, rgb(82, 50, 22) 100%)',
+      border: 'rgba(160,224,171,0.55)',
+      text: '#fff',
+    },
+    current: {
+      bg: 'linear-gradient(180deg, rgb(110, 72, 32) 0%, rgb(70, 44, 18) 100%)',
+      border: 'rgba(255,172,46,0.7)',
+      text: 'rgba(255,255,255,0.95)',
+    },
+    cleared: {
+      bg: 'linear-gradient(180deg, rgba(60, 38, 18, 0.6) 0%, rgba(38, 24, 12, 0.6) 100%)',
+      border: 'rgba(160,224,171,0.25)',
+      text: 'rgba(220,220,220,0.55)',
+    },
+    untouched: {
+      bg: 'linear-gradient(180deg, rgba(70, 44, 22, 0.45) 0%, rgba(44, 28, 14, 0.45) 100%)',
+      border: 'rgba(255,255,255,0.10)',
+      text: 'rgba(220,220,220,0.45)',
+    },
+  };
+  const s = STYLES[style];
+
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={!interactive}
+      whileTap={interactive ? { scale: 0.94 } : undefined}
+      animate={
+        bustHere
+          ? { scale: [1, 0.92, 1.05, 1] }
+          : pickedHere
+            ? { scale: [0.92, 1.04, 1] }
+            : { scale: 1 }
+      }
+      transition={{ duration: 0.45, ease: 'easeOut' }}
+      className={cn(
+        'relative aspect-[4/3] rounded-md border flex items-center justify-center font-roobert font-semibold text-[14px] tabular-nums select-none overflow-hidden',
+        interactive && 'cursor-pointer'
+      )}
+      style={{
+        background: s.bg,
+        borderColor: s.border,
+        color: s.text,
+        boxShadow: s.glow
+          ? `0 0 14px 1px ${s.glow}, inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -2px 0 rgba(0,0,0,0.45)`
+          : 'inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -2px 0 rgba(0,0,0,0.40)',
+      }}
+    >
+      {/* Wood grain — two horizontal lines */}
+      <span
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'repeating-linear-gradient(180deg, transparent 0 6px, rgba(0,0,0,0.10) 6px 7px)',
+        }}
+      />
+      {/* Plank symbol */}
+      <span className="relative">
+        {bustHere ? (
+          '✕'
+        ) : brokenReveal ? (
+          '✕'
+        ) : pickedHere ? (
+          '✓'
+        ) : null}
+      </span>
+    </motion.button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Row badge                                                                  */
+/* -------------------------------------------------------------------------- */
+
+function RowBadge({
+  value,
+  row,
+  cleared,
+  current,
+}: {
+  value: number;
+  row: number;
+  cleared: boolean;
+  current: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-end gap-0.5 w-16">
+      <span
+        className={cn(
+          'inline-flex items-center justify-center px-2 py-0.5 rounded-pill border font-roobert font-semibold tabular-nums text-[11px]',
+          cleared
+            ? 'border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.15)] text-frost-white'
+            : current
+              ? 'border-[rgba(255,172,46,0.55)] bg-[rgba(255,172,46,0.15)] text-frost-white'
+              : 'border-white/10 bg-white/[0.03] text-whisper-gray'
+        )}
+      >
+        ×{formatMult(value)}
+      </span>
+      <span className="font-roobert text-[9px] uppercase tracking-[0.18em] text-whisper-gray tabular-nums">
+        ряд {row + 1}
+      </span>
+    </div>
+  );
+}
+
+function formatMult(m: number): string {
+  if (m >= 1000) {
+    const k = m / 1000;
+    return k % 1 === 0 ? `${k.toFixed(0)}K` : `${k.toFixed(1)}K`;
+  }
+  if (m >= 100) return m.toFixed(0);
+  if (m >= 10) return m.toFixed(1);
+  return m.toFixed(2);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Bet panel                                                                  */
 /* -------------------------------------------------------------------------- */
 
 function BetPanel({
@@ -325,157 +776,7 @@ function BetPanel({
   );
 }
 
-function BridgeField({
-  state,
-  previewLevel,
-  onStep,
-  busy,
-}: {
-  state: PublicState | null;
-  previewLevel: Level;
-  onStep: (col: number) => void;
-  busy: boolean;
-}) {
-  const ROWS = 5;
-  const COLS = 4;
-  const ladder = state
-    ? state.ladder
-    : previewLadder(previewLevel);
-
-  // Render rows top → bottom (so visually row 4 is at the top).
-  const rowsTopDown = Array.from({ length: ROWS }, (_, i) => ROWS - 1 - i);
-
-  // Where the player currently stands.
-  const currentRow = state ? state.picks.length : 0;
-  const isFinished = state && state.state !== 'active';
-  const broken = state?.broken; // revealed only on finish
-
-  return (
-    <div className="relative rounded-card border border-white/10 bg-white/[0.03] p-3 flex flex-col gap-1.5">
-      {rowsTopDown.map((row) => {
-        const isCurrent = state && state.state === 'active' && row === currentRow;
-        const isCleared = state && row < currentRow;
-        const m = ladder[row];
-        return (
-          <div
-            key={row}
-            className="grid grid-cols-[44px_1fr_44px] items-center gap-2"
-          >
-            {/* Left badge: row number */}
-            <div className="font-roobert text-[10px] text-whisper-gray text-center tabular-nums">
-              {row + 1}/{ROWS}
-            </div>
-
-            {/* Cells */}
-            <div className="grid grid-cols-4 gap-1.5">
-              {Array.from({ length: COLS }, (_, col) => {
-                const pickedHere = state?.picks[row] === col;
-                const isBrokenReveal =
-                  isFinished && broken?.[row]?.includes(col);
-                const isBustHere =
-                  state?.state === 'busted' &&
-                  state.bustedAt?.row === row &&
-                  state.bustedAt.col === col;
-                const interactive =
-                  isCurrent && !busy && state?.state === 'active';
-
-                return (
-                  <motion.button
-                    key={col}
-                    onClick={() => interactive && onStep(col)}
-                    disabled={!interactive}
-                    animate={
-                      isBustHere
-                        ? { scale: [1, 0.94, 1.04, 1] }
-                        : pickedHere
-                          ? { scale: [0.95, 1.02, 1] }
-                          : { scale: 1 }
-                    }
-                    transition={{ duration: 0.45, ease: 'easeOut' }}
-                    className={cn(
-                      'relative aspect-square rounded-card border flex items-center justify-center font-roobert text-[12px] tabular-nums select-none transition-colors',
-                      isBustHere
-                        ? 'border-[rgba(165,45,37,0.7)] bg-[rgba(165,45,37,0.45)] text-frost-white'
-                        : isBrokenReveal
-                          ? 'border-[rgba(165,45,37,0.35)] bg-[rgba(165,45,37,0.18)] text-[#ff8a76]'
-                          : pickedHere
-                            ? 'border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.20)] text-frost-white'
-                            : isCurrent
-                              ? 'border-white/30 bg-white/[0.10] text-frost-white hover:bg-white/[0.16]'
-                              : isCleared
-                                ? 'border-white/10 bg-white/[0.03] text-whisper-gray/50'
-                                : 'border-white/10 bg-white/[0.04] text-frost-white/40'
-                    )}
-                  >
-                    {isBustHere
-                      ? '✕'
-                      : isBrokenReveal
-                        ? '✕'
-                        : pickedHere
-                          ? '✓'
-                          : null}
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            {/* Right badge: row multiplier */}
-            <div
-              className={cn(
-                'rounded-pill border px-2 py-0.5 text-center font-roobert text-[11px] tabular-nums font-semibold',
-                isCleared
-                  ? 'border-[rgba(160,224,171,0.45)] bg-[rgba(160,224,171,0.15)] text-frost-white'
-                  : isCurrent
-                    ? 'border-white/30 bg-white/[0.06] text-frost-white'
-                    : 'border-white/10 bg-white/[0.03] text-whisper-gray'
-              )}
-            >
-              x{m}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Status banner */}
-      <AnimatePresence>
-        {state?.state === 'cashed' && state.finalMultiplier && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mt-2 rounded-card border border-[rgba(160,224,171,0.45)] bg-[rgba(160,224,171,0.10)] px-3 py-2.5 text-center font-roobert text-[12px] text-frost-white"
-          >
-            Победа · x{state.finalMultiplier} ·{' '}
-            +{(state.finalPayout ?? 0).toLocaleString('ru-RU', {
-              maximumFractionDigits: 2,
-            })}{' '}
-            zł
-          </motion.div>
-        )}
-        {state?.state === 'busted' && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mt-2 rounded-card border border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.10)] px-3 py-2.5 text-center font-roobert text-[12px] text-[#ff8a76]"
-          >
-            Поражение · ставка списана
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Hint at the bottom */}
-      {state?.state === 'active' && state.picks.length > 0 && (
-        <p className="mt-1 font-roobert text-[11px] text-whisper-gray inline-flex items-center justify-center gap-1.5">
-          <Hand size={11} strokeWidth={1.7} />
-          Следующий ряд: x{state.nextMultiplier}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Same multiplier ladder constants as the backend, for the preview. */
+/** Ladder constants mirror the backend, used while no round is live. */
 function previewLadder(level: Level): number[] {
   if (level === 'easy') return [1.32, 1.76, 2.34, 3.12, 4.16];
   if (level === 'medium') return [1.97, 3.95, 7.89, 15.78, 31.56];

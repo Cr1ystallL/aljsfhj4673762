@@ -120,9 +120,9 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   mines: { label: 'Mines', Icon: Bomb },
   plinko: { label: 'Plinko', Icon: PlinkoIcon },
   coinflip: { label: 'Coinflip', Icon: CoinflipIcon },
-  wheel: { label: 'Колесо', Icon: Disc3 },
-  bridges: { label: 'Мосты', Icon: Footprints },
-  unknown: { label: 'Игра', Icon: PlinkoIcon },
+  wheel: { label: 'Wheel', Icon: Disc3 },
+  bridges: { label: 'Bridges', Icon: Footprints },
+  unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 
 /**

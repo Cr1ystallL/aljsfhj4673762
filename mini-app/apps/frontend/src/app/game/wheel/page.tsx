@@ -175,7 +175,7 @@ export default function WheelPage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <GameTopBar title="Колесо" Icon={Disc3} />
+        <GameTopBar title="Wheel" Icon={Disc3} />
 
         {snap && (
           <HistoryStrip history={snap.history.slice(0, 12)} />
@@ -280,7 +280,7 @@ export default function WheelPage() {
               {snap?.phase === 'waiting'
                 ? `Поставить на x${pick}`
                 : snap?.phase === 'spinning'
-                  ? 'Колесо крутится…'
+                  ? 'Wheel крутится…'
                   : 'Раунд завершён'}
             </button>
           </div>

@@ -44,8 +44,8 @@ const inAppGames: InAppGame[] = [
   { id: 'mines', name: 'Mines', href: '/game/mines' },
   { id: 'plinko', name: 'Plinko', href: '/game/plinko' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip' },
-  { id: 'wheel', name: 'Колесо', href: '/game/wheel' },
-  { id: 'bridges', name: 'Мосты', href: '/game/bridges' },
+  { id: 'wheel', name: 'Wheel', href: '/game/wheel' },
+  { id: 'bridges', name: 'Bridges', href: '/game/bridges' },
 ];
 
 const BOT_USERNAME =
