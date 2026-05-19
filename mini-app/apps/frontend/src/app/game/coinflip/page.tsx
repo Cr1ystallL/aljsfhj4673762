@@ -12,6 +12,8 @@ import { CoinflipRulesModal } from '@/components/game/coinflip/coinflip-rules-mo
 
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { reportApiError } from '@/lib/api/errors';
+import { toast } from '@/store/toast-store';
 import type {
   CoinSide,
   CoinflipMode,
@@ -156,6 +158,17 @@ export default function CoinflipGamePage() {
     if (busy || flipping) return;
 
     if (mode === 'quick') {
+      const have = balance?.amount ?? 0;
+      if (amount <= 0) {
+        toast.warn('Укажите сумму ставки');
+        return;
+      }
+      if (amount > have) {
+        toast.warn(
+          `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        );
+        return;
+      }
       setBusy(true);
       try {
         const res = await fetch('/api/games/coinflip/quick', {
@@ -165,7 +178,10 @@ export default function CoinflipGamePage() {
           body: JSON.stringify({ amount, choice: side }),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.message ?? 'Quick toss failed');
+        if (!res.ok) {
+          reportApiError(res, json, 'Не удалось бросить монетку');
+          throw new Error(json?.message ?? 'Quick toss failed');
+        }
         const result = json.result as CoinflipQuickResult;
         startSpin(result.outcome, { quick: result });
       } catch (err) {
@@ -180,6 +196,19 @@ export default function CoinflipGamePage() {
     setBusy(true);
     try {
       if (!multi || multi.status !== 'awaiting') {
+        const have = balance?.amount ?? 0;
+        if (amount <= 0) {
+          toast.warn('Укажите сумму ставки');
+          setBusy(false);
+          return;
+        }
+        if (amount > have) {
+          toast.warn(
+            `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+          );
+          setBusy(false);
+          return;
+        }
         const res = await fetch('/api/games/coinflip/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -187,7 +216,10 @@ export default function CoinflipGamePage() {
           body: JSON.stringify({ amount, choice: side }),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.message ?? 'Start failed');
+        if (!res.ok) {
+          reportApiError(res, json, 'Не удалось начать раунд');
+          throw new Error(json?.message ?? 'Start failed');
+        }
         startSpin(json.outcome as CoinSide, {
           state: json.state as CoinflipMultiplyState,
         });
@@ -199,7 +231,10 @@ export default function CoinflipGamePage() {
           body: JSON.stringify({ choice: side }),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.message ?? 'Flip failed');
+        if (!res.ok) {
+          reportApiError(res, json, 'Не удалось бросить монетку');
+          throw new Error(json?.message ?? 'Flip failed');
+        }
         startSpin(json.outcome as CoinSide, {
           state: json.state as CoinflipMultiplyState,
         });
@@ -213,7 +248,10 @@ export default function CoinflipGamePage() {
 
   async function cashout() {
     if (busy || flipping) return;
-    if (!multi || multi.status !== 'awaiting' || multi.currentMultiplier <= 1) return;
+    if (!multi || multi.status !== 'awaiting' || multi.currentMultiplier <= 1) {
+      toast.warn('Сначала выиграйте хотя бы один раунд');
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/games/coinflip/cashout', {
@@ -221,9 +259,13 @@ export default function CoinflipGamePage() {
         credentials: 'include',
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? 'Cashout failed');
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось забрать выигрыш');
+        throw new Error(json?.message ?? 'Cashout failed');
+      }
       setMulti(json.state as CoinflipMultiplyState);
       soundManager.play('game.cashout');
+      toast.success('Выигрыш забран');
       void fetchBalance();
     } catch (err) {
       console.error('coinflip:cashout', err);

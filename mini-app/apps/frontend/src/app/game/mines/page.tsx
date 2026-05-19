@@ -20,6 +20,8 @@ import {
 } from '@/components/game/mines/mines-history';
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { reportApiError } from '@/lib/api/errors';
+import { toast } from '@/store/toast-store';
 
 /**
  * Mines Game Page — Monopo Saigon Theme
@@ -166,7 +168,17 @@ export default function MinesGamePage() {
 
   async function startRound() {
     if (busy) return;
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      toast.warn('Укажите сумму ставки');
+      return;
+    }
+    const have = balance?.amount ?? 0;
+    if (amount > have) {
+      toast.warn(
+        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+      );
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/games/mines/start', {
@@ -176,7 +188,10 @@ export default function MinesGamePage() {
         body: JSON.stringify({ amount, mineCount }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? 'Не удалось начать раунд');
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось начать раунд');
+        throw new Error(json?.message ?? 'Не удалось начать раунд');
+      }
       applyServer(json.state as ServerState);
       soundManager.play('ui.click');
     } catch (err) {
@@ -198,7 +213,10 @@ export default function MinesGamePage() {
         body: JSON.stringify({ position }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? 'Reveal failed');
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось открыть клетку');
+        throw new Error(json?.message ?? 'Reveal failed');
+      }
       const next = json.state as ServerState;
       applyServer(next, position);
       if (next.state === 'active') soundManager.play('ui.click');
@@ -212,7 +230,10 @@ export default function MinesGamePage() {
   async function cashout() {
     if (busy) return;
     if (server?.state !== 'active') return;
-    if (server.revealed.length === 0) return;
+    if (server.revealed.length === 0) {
+      toast.warn('Откройте хотя бы одну клетку перед выводом');
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/games/mines/cashout', {
@@ -220,8 +241,12 @@ export default function MinesGamePage() {
         credentials: 'include',
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? 'Cashout failed');
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось забрать выигрыш');
+        throw new Error(json?.message ?? 'Cashout failed');
+      }
       applyServer(json.state as ServerState);
+      toast.success('Выигрыш забран');
     } catch (err) {
       console.error('mines:cashout', err);
     } finally {

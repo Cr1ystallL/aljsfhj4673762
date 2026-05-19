@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
 import { BrandLockup } from '@/components/ui/brand-mark';
+import { toast } from '@/store/toast-store';
+import { reportApiError } from '@/lib/api/errors';
 
 /**
  * Balance Management — Monopo Saigon Style
@@ -80,6 +82,7 @@ export default function BalancePage() {
     const num = parseFloat(depositAmount);
     if (!Number.isFinite(num) || num < 10) {
       setError('Минимальная сумма 10 zł');
+      toast.warn('Минимальная сумма пополнения — 10 zł');
       return;
     }
     setError(null);
@@ -93,12 +96,15 @@ export default function BalancePage() {
       });
       const j = await res.json();
       if (!res.ok || !j.ok) {
-        setError(j.error ?? 'Не удалось создать заявку');
+        const msg = reportApiError(res, j, 'Не удалось создать заявку');
+        setError(msg);
       } else {
         setOrder(j as MacvPayOrder);
+        toast.success('Заявка создана. Переведите указанную сумму.');
       }
     } catch {
       setError('Сетевая ошибка. Попробуйте позже.');
+      toast.error('Сетевая ошибка. Проверьте подключение.');
     } finally {
       setLoading(false);
     }
@@ -134,21 +140,29 @@ export default function BalancePage() {
   const submitWithdraw = useCallback(async () => {
     const num = parseFloat(wAmount);
     if (!Number.isFinite(num) || num < 50) {
-      setWMsg({ ok: false, text: 'Минимальная сумма для вывода — 50 zł' });
+      const text = 'Минимальная сумма для вывода — 50 zł';
+      setWMsg({ ok: false, text });
+      toast.warn(text);
       return;
     }
     if (num > amount) {
-      setWMsg({ ok: false, text: 'Недостаточно средств на балансе' });
+      const text = 'Недостаточно средств на балансе';
+      setWMsg({ ok: false, text });
+      toast.warn(text);
       return;
     }
     if (wKind === 'blik') {
       if (!wPhone.trim() || !wBank.trim() || !wHolder.trim()) {
-        setWMsg({ ok: false, text: 'Заполните номер телефона, банк и имя получателя' });
+        const text = 'Заполните номер телефона, банк и имя получателя';
+        setWMsg({ ok: false, text });
+        toast.warn(text);
         return;
       }
     } else if (wKind === 'card') {
       if (!wCard.trim() || !wHolder.trim()) {
-        setWMsg({ ok: false, text: 'Заполните номер карты и имя получателя' });
+        const text = 'Заполните номер карты и имя получателя';
+        setWMsg({ ok: false, text });
+        toast.warn(text);
         return;
       }
     }
@@ -178,12 +192,12 @@ export default function BalancePage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) {
-        setWMsg({ ok: false, text: j.error ?? 'Не удалось отправить заявку' });
+        const msg = reportApiError(res, j, 'Не удалось отправить заявку');
+        setWMsg({ ok: false, text: msg });
       } else {
-        setWMsg({
-          ok: true,
-          text: 'Заявка принята. Обработка занимает до 24 часов.',
-        });
+        const ok = 'Заявка принята. Обработка занимает до 24 часов.';
+        setWMsg({ ok: true, text: ok });
+        toast.success(ok, { title: 'Заявка отправлена' });
         setWAmount('100');
         setWPhone('');
         setWBank('');
@@ -191,7 +205,9 @@ export default function BalancePage() {
         setWHolder('');
       }
     } catch {
-      setWMsg({ ok: false, text: 'Сетевая ошибка. Попробуйте позже.' });
+      const text = 'Сетевая ошибка. Попробуйте позже.';
+      setWMsg({ ok: false, text });
+      toast.error(text);
     } finally {
       setWSubmitting(false);
     }

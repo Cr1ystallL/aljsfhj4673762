@@ -17,6 +17,8 @@ import { CrashRulesModal } from '@/components/game/crash/crash-rules-modal';
 import { useBalance } from '@/hooks/use-balance';
 import { useCrashLive } from '@/hooks/use-crash-live';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { reportApiError } from '@/lib/api/errors';
+import { toast } from '@/store/toast-store';
 
 /**
  * Crash Game Page — Live Multiplayer
@@ -135,7 +137,19 @@ export default function CrashGamePage() {
 
   async function placeSlotBet(slot: 0 | 1) {
     const cfg = slots[slot];
-    if (cfg.amount <= 0) return;
+    if (cfg.amount <= 0) {
+      toast.warn('Укажите сумму ставки');
+      return;
+    }
+    // Pre-flight balance check — stops the round-trip when we already
+    // know it'll fail. Server still rechecks atomically.
+    const have = balance?.amount ?? 0;
+    if (cfg.amount > have) {
+      toast.warn(
+        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+      );
+      return;
+    }
 
     setRuntime((prev) => {
       const out = [...prev] as [SlotRuntime, SlotRuntime];
@@ -158,6 +172,7 @@ export default function CrashGamePage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        reportApiError(res, data, 'Не удалось поставить');
         throw new Error(data.message || 'Failed to place bet');
       }
       soundManager.play('ui.click');
@@ -187,6 +202,7 @@ export default function CrashGamePage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        reportApiError(res, data, 'Не удалось отменить ставку');
         throw new Error(data.message || 'Cancel failed');
       }
       soundManager.play('ui.click');
@@ -216,9 +232,11 @@ export default function CrashGamePage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        reportApiError(res, data, 'Не удалось забрать выигрыш');
         throw new Error(data.message || 'Cashout failed');
       }
       soundManager.play('game.cashout');
+      toast.success('Выигрыш забран');
     } catch (err) {
       console.error('Cashout failed:', err);
       setRuntime((prev) => {

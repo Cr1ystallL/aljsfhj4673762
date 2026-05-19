@@ -16,6 +16,8 @@ import { PlinkoRulesModal } from '@/components/game/plinko/plinko-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { reportApiError } from '@/lib/api/errors';
+import { toast } from '@/store/toast-store';
 import type {
   PlinkoConfig,
   PlinkoDropResult,
@@ -171,7 +173,17 @@ export default function PlinkoGamePage() {
    * animation queue up multiple in-flight balls if requested.
    */
   async function dropBall() {
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      toast.warn('Укажите сумму ставки');
+      return;
+    }
+    const have = balance?.amount ?? 0;
+    if (amount > have) {
+      toast.warn(
+        `Недостаточно средств. На балансе ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+      );
+      return;
+    }
     try {
       const res = await fetch('/api/games/plinko/drop', {
         method: 'POST',
@@ -180,7 +192,10 @@ export default function PlinkoGamePage() {
         body: JSON.stringify({ amount, risk }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? 'Drop failed');
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось бросить шарик');
+        throw new Error(json?.message ?? 'Drop failed');
+      }
 
       const result = json.result as PlinkoDropResult;
 
