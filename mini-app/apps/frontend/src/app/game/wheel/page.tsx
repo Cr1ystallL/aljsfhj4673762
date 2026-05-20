@@ -627,9 +627,13 @@ function Wheel({
         const u = (Math.sin(snap.spinStartedAt) * 9301 + 49297) % 233280;
         const r = (u / 233280) * 2 - 1; // -1..1
         const overshoot = r * segmentSpan * 0.35;
-        // 8 full revs + center → seg → wedge offset.
+        // Number of full revolutions scales with the spin duration so
+        // an 8s spin and a 15s spin both feel like the wheel is moving
+        // throughout — roughly one revolution per 1.4s.
+        const revs = Math.max(5, Math.round(snap.spinDurationMs / 1400));
+        // Total target rotation: full revs + center on seg + overshoot.
         const target =
-          8 * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
+          revs * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
         settleStartRotationRef.current = rotationRef.current;
         spinLockRef.current = {
           startedAt: snap.spinStartedAt,
@@ -667,31 +671,48 @@ function Wheel({
           1,
           Math.max(0, (Date.now() - lock.startedAt) / lock.durationMs)
         );
-        // Two-phase ease for the "casino tease":
-        //   phase 1 (0..0.85) → ease-out to a slight overshoot beyond
-        //                       the resting target (~3% extra arc).
-        //   phase 2 (0.85..1) → soft elastic settle back to target.
-        // This makes the pointer slide past the chosen wedge edge
-        // and tug back, rather than coming to a clean stop on a
-        // sector divider.
+        // Three-phase casino easing — keeps the wheel visibly moving
+        // for most of the spin instead of asymptoting in the first
+        // few seconds (which is what cubic ease-out does):
+        //
+        //   phase 1  t ∈ [0, 0.70)  → linear cruise, covers 78% of total
+        //                              rotation at constant angular speed
+        //   phase 2  t ∈ [0.70, 0.92) → cubic ease-out brake, covers next
+        //                                17% as the wheel decelerates
+        //   phase 3  t ∈ [0.92, 1.0)  → elastic settle around the target
+        //                                with the per-spin overshoot, so
+        //                                the pointer slips past the wedge
+        //                                edge and tugs back instead of
+        //                                snapping to a divider.
+        //
+        // The piecewise function is C0-continuous (no value jumps) and
+        // the velocity discontinuities are small enough to read as a
+        // natural deceleration on the wheel.
         const segmentSpan = (2 * Math.PI) / layout.length;
         const settleStart = settleStartRotationRef.current;
+        const totalArc = lock.target - settleStart;
+        const overshootArc = segmentSpan * 0.18;
         let value: number;
-        if (t < 0.85) {
-          const tt = t / 0.85;
+        if (t < 0.7) {
+          // Linear cruise, covers 78% of the arc.
+          const portion = (t / 0.7) * 0.78;
+          value = settleStart + totalArc * portion;
+        } else if (t < 0.92) {
+          // Cubic ease-out, finishing the remaining 22% in 22% of time.
+          const tt = (t - 0.7) / 0.22;
           const ease = 1 - Math.pow(1 - tt, 3);
-          // Overshoot is a fixed fraction of one wedge span, in the
-          // direction of travel.
-          const overshootArc = segmentSpan * 0.18;
-          const peak = lock.target + overshootArc;
-          value = settleStart + (peak - settleStart) * ease;
+          // Cover 0.78 → 1.0 + overshootArc/totalArc.
+          const startPortion = 0.78;
+          const overshootPortion = overshootArc / Math.max(1e-6, totalArc);
+          const endPortion = 1 + overshootPortion;
+          const portion = startPortion + (endPortion - startPortion) * ease;
+          value = settleStart + totalArc * portion;
         } else {
-          const tt = (t - 0.85) / 0.15;
-          // Damped sine for the elastic settle.
-          const elastic = Math.sin(tt * Math.PI) * (1 - tt) * 0.04;
-          const overshootArc = segmentSpan * 0.18;
-          value =
-            lock.target + overshootArc * (1 - tt) - elastic * segmentSpan;
+          // Elastic settle: damped sine pulling back from overshoot.
+          const tt = (t - 0.92) / 0.08;
+          const damp = (1 - tt) * (1 - tt);
+          const wave = Math.sin(tt * Math.PI * 1.5) * damp;
+          value = lock.target + overshootArc * (1 - tt) - wave * overshootArc * 0.4;
         }
         rotationRef.current = value;
       } else if (snap.phase === 'waiting') {
