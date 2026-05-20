@@ -2433,5 +2433,781 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ============================================================== Phase 7 */
+  /* ----------------------------------------------------------- bonuses */
+  //
+  // Bonuses admin surface — promo codes (CRUD + redemption stats),
+  // contests (CRUD + draw winners + ban participant), Lucky Wheel
+  // settings (read-only summary for now).
+  //
+  // All endpoints obey the same 404-on-failure posture as the rest
+  // of `/_x/*` and require the audit reason on mutating calls.
+
+  /* ----- promo codes --------------------------------------------------- */
+
+  /**
+   * GET /api/_x/bonuses/promos
+   * List promo codes with redemption count and total amount paid out.
+   */
+  app.get('/_x/bonuses/promos', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const rows = await app.prisma.$queryRaw<
+        Array<{
+          id: string;
+          code: string;
+          amount: string;
+          currency: string;
+          max_redemptions: number | null;
+          per_user_limit: number;
+          expires_at: Date | null;
+          active: boolean;
+          note: string | null;
+          created_at: Date;
+          redemptions: bigint;
+          paid_out: string;
+        }>
+      >`
+        SELECT p.id, p.code, p.amount::text, p.currency,
+               p.max_redemptions, p.per_user_limit, p.expires_at,
+               p.active, p.note, p.created_at,
+               COUNT(r.id)::bigint AS redemptions,
+               COALESCE(SUM(r.amount), 0)::text AS paid_out
+          FROM promo_codes p
+          LEFT JOIN promo_redemptions r ON r.promo_code_id = p.id
+         GROUP BY p.id
+         ORDER BY p.created_at DESC
+         LIMIT 200`;
+      return reply.send({
+        ok: true,
+        promos: rows.map((r) => ({
+          id: r.id,
+          code: r.code,
+          amount: Number(r.amount),
+          currency: r.currency,
+          maxRedemptions: r.max_redemptions,
+          perUserLimit: r.per_user_limit,
+          expiresAt: r.expires_at?.getTime() ?? null,
+          active: r.active,
+          note: r.note,
+          createdAt: r.created_at.getTime(),
+          redemptions: Number(r.redemptions),
+          paidOut: Number(r.paid_out),
+        })),
+      });
+    } catch (err) {
+      logger.error(err, 'Admin promos list failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
+  /**
+   * POST /api/_x/bonuses/promos
+   * Body: { code, amount, perUserLimit, maxRedemptions?, expiresAt?, note?, reason }
+   */
+  app.post<{
+    Body: {
+      code?: string;
+      amount?: number;
+      perUserLimit?: number;
+      maxRedemptions?: number | null;
+      expiresAt?: number | null;
+      note?: string | null;
+      reason?: string;
+    };
+  }>('/_x/bonuses/promos', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = (request.body?.reason ?? '').trim();
+    if (!reason || reason.length < 3) {
+      return reply.code(400).send({ error: 'Reason required' });
+    }
+    const code = (request.body?.code ?? '').trim().toUpperCase();
+    const amount = Number(request.body?.amount);
+    const perUserLimit = Math.max(1, Number(request.body?.perUserLimit ?? 1));
+    const maxRedemptions =
+      typeof request.body?.maxRedemptions === 'number' &&
+      request.body.maxRedemptions > 0
+        ? Math.floor(request.body.maxRedemptions)
+        : null;
+    const expiresAt =
+      typeof request.body?.expiresAt === 'number' && request.body.expiresAt > 0
+        ? new Date(request.body.expiresAt)
+        : null;
+    const note = (request.body?.note ?? null) || null;
+
+    if (!/^[A-Z0-9_-]{2,32}$/.test(code)) {
+      return reply.code(400).send({ error: 'Invalid code format' });
+    }
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 10000) {
+      return reply.code(400).send({ error: 'Invalid amount' });
+    }
+    try {
+      const id = (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
+        `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await app.prisma.$executeRaw`
+        INSERT INTO promo_codes (id, code, amount, currency, max_redemptions,
+                                  per_user_limit, expires_at, created_by_user_id,
+                                  active, note, created_at, updated_at)
+        VALUES (${id}, ${code}, ${amount}::numeric, 'PLN', ${maxRedemptions},
+                ${perUserLimit}, ${expiresAt}, ${(request as AuthenticatedRequest).user.userId},
+                TRUE, ${note}, NOW(), NOW())`;
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'promo.create',
+        targetType: 'promo',
+        targetId: id,
+        payloadAfter: { code, amount, perUserLimit, maxRedemptions, expiresAt, note },
+        reason,
+      });
+      return reply.send({ ok: true, id });
+    } catch (err) {
+      const msg = (err as { code?: string }).code === '23505' ? 'Code already exists' : 'Bad Request';
+      logger.warn({ err }, 'Promo create failed');
+      return reply.code(400).send({ error: msg });
+    }
+  });
+
+  /**
+   * PATCH /api/_x/bonuses/promos/:id
+   * Body: { active?, perUserLimit?, maxRedemptions?, expiresAt?, note?, reason }
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: {
+      active?: boolean;
+      perUserLimit?: number;
+      maxRedemptions?: number | null;
+      expiresAt?: number | null;
+      note?: string | null;
+      reason?: string;
+    };
+  }>('/_x/bonuses/promos/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = (request.body?.reason ?? '').trim();
+    if (!reason || reason.length < 3) {
+      return reply.code(400).send({ error: 'Reason required' });
+    }
+    const { id } = request.params;
+    const fragments: Prisma.Sql[] = [];
+    if (typeof request.body.active === 'boolean') {
+      fragments.push(Prisma.sql`active = ${request.body.active}`);
+    }
+    if (typeof request.body.perUserLimit === 'number') {
+      fragments.push(Prisma.sql`per_user_limit = ${Math.max(1, request.body.perUserLimit)}`);
+    }
+    if (request.body.maxRedemptions !== undefined) {
+      fragments.push(
+        Prisma.sql`max_redemptions = ${
+          request.body.maxRedemptions === null ? null : Math.max(1, request.body.maxRedemptions)
+        }`
+      );
+    }
+    if (request.body.expiresAt !== undefined) {
+      fragments.push(
+        Prisma.sql`expires_at = ${
+          request.body.expiresAt === null ? null : new Date(request.body.expiresAt)
+        }`
+      );
+    }
+    if (request.body.note !== undefined) {
+      fragments.push(Prisma.sql`note = ${request.body.note ?? null}`);
+    }
+    if (fragments.length === 0) {
+      return reply.code(400).send({ error: 'Nothing to update' });
+    }
+    fragments.push(Prisma.sql`updated_at = NOW()`);
+    try {
+      await app.prisma.$executeRaw(Prisma.sql`
+        UPDATE promo_codes SET ${Prisma.join(fragments, ', ')} WHERE id = ${id}
+      `);
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'promo.update',
+        targetType: 'promo',
+        targetId: id,
+        payloadAfter: request.body,
+        reason,
+      });
+      return reply.send({ ok: true });
+    } catch (err) {
+      logger.error(err, 'Promo update failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
+  /**
+   * GET /api/_x/bonuses/promos/:id
+   * Detail card — includes recent redemptions + per-user breakdown.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/_x/bonuses/promos/:id',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const promoRows = await app.prisma.$queryRaw<
+          Array<{
+            id: string;
+            code: string;
+            amount: string;
+            currency: string;
+            max_redemptions: number | null;
+            per_user_limit: number;
+            expires_at: Date | null;
+            active: boolean;
+            note: string | null;
+            created_at: Date;
+          }>
+        >`SELECT id, code, amount::text, currency, max_redemptions,
+                  per_user_limit, expires_at, active, note, created_at
+            FROM promo_codes WHERE id = ${id} LIMIT 1`;
+        const promo = promoRows[0];
+        if (!promo) {
+          return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+        }
+        const redemptions = await app.prisma.$queryRaw<
+          Array<{
+            id: string;
+            user_id: string;
+            amount: string;
+            created_at: Date;
+            first_name: string | null;
+            username: string | null;
+          }>
+        >`SELECT r.id, r.user_id, r.amount::text, r.created_at,
+                  u.first_name, u.username
+            FROM promo_redemptions r
+            LEFT JOIN users u ON u.id = r.user_id
+           WHERE r.promo_code_id = ${id}
+           ORDER BY r.created_at DESC
+           LIMIT 100`;
+        return reply.send({
+          ok: true,
+          promo: {
+            id: promo.id,
+            code: promo.code,
+            amount: Number(promo.amount),
+            currency: promo.currency,
+            maxRedemptions: promo.max_redemptions,
+            perUserLimit: promo.per_user_limit,
+            expiresAt: promo.expires_at?.getTime() ?? null,
+            active: promo.active,
+            note: promo.note,
+            createdAt: promo.created_at.getTime(),
+          },
+          redemptions: redemptions.map((r) => ({
+            id: r.id,
+            userId: r.user_id,
+            name: r.first_name || r.username || `id${r.user_id.slice(0, 4)}`,
+            amount: Number(r.amount),
+            createdAt: r.created_at.getTime(),
+          })),
+        });
+      } catch (err) {
+        logger.error(err, 'Promo detail failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /* ----- contests ------------------------------------------------------ */
+
+  app.get('/_x/bonuses/contests', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const rows = await app.prisma.$queryRaw<
+        Array<{
+          id: string;
+          title: string;
+          visibility: string;
+          prize_pool: string;
+          winners_count: number;
+          starts_at: Date;
+          ends_at: Date;
+          state: string;
+          participants: bigint;
+          created_at: Date;
+        }>
+      >`
+        SELECT c.id, c.title, c.visibility, c.prize_pool::text,
+               c.winners_count, c.starts_at, c.ends_at, c.state,
+               (SELECT COUNT(*)::bigint FROM contest_participants p
+                 WHERE p.contest_id = c.id) AS participants,
+               c.created_at
+          FROM contests c
+         ORDER BY c.created_at DESC
+         LIMIT 200`;
+      return reply.send({
+        ok: true,
+        contests: rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          visibility: r.visibility,
+          prizePool: Number(r.prize_pool),
+          winnersCount: r.winners_count,
+          startsAt: r.starts_at.getTime(),
+          endsAt: r.ends_at.getTime(),
+          state: r.state,
+          participants: Number(r.participants),
+          createdAt: r.created_at.getTime(),
+        })),
+      });
+    } catch (err) {
+      logger.error(err, 'Admin contests list failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
+  /**
+   * POST /api/_x/bonuses/contests
+   * Body: title, description?, visibility, prizePool, winnersCount,
+   *        prizeShares (array | "equal"), rules (array), startsAt, endsAt, reason
+   */
+  app.post<{
+    Body: {
+      title?: string;
+      description?: string | null;
+      visibility?: 'public' | 'private';
+      prizePool?: number;
+      winnersCount?: number;
+      prizeShares?: unknown;
+      rules?: unknown;
+      startsAt?: number;
+      endsAt?: number;
+      reason?: string;
+    };
+  }>('/_x/bonuses/contests', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = (request.body?.reason ?? '').trim();
+    if (!reason || reason.length < 3) {
+      return reply.code(400).send({ error: 'Reason required' });
+    }
+    const title = (request.body?.title ?? '').trim();
+    const visibility = request.body?.visibility === 'private' ? 'private' : 'public';
+    const prizePool = Number(request.body?.prizePool);
+    const winnersCount = Math.floor(Number(request.body?.winnersCount));
+    const startsAt = request.body?.startsAt;
+    const endsAt = request.body?.endsAt;
+    if (
+      !title ||
+      !Number.isFinite(prizePool) ||
+      prizePool <= 0 ||
+      !Number.isFinite(winnersCount) ||
+      winnersCount < 1 ||
+      !startsAt ||
+      !endsAt ||
+      endsAt <= startsAt
+    ) {
+      return reply.code(400).send({ error: 'Invalid contest payload' });
+    }
+
+    let prizeShares = request.body?.prizeShares;
+    if (prizeShares === 'equal' || !Array.isArray(prizeShares)) {
+      const each = +(prizePool / winnersCount).toFixed(2);
+      prizeShares = Array.from({ length: winnersCount }, (_, i) => ({
+        place: i + 1,
+        amount: each,
+      }));
+    }
+    const rules = Array.isArray(request.body?.rules) ? request.body.rules : [];
+
+    try {
+      const id = (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
+        `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await app.prisma.$executeRaw`
+        INSERT INTO contests (id, title, description, visibility, prize_pool,
+                               winners_count, prize_shares, rules,
+                               starts_at, ends_at, state,
+                               created_by_user_id, created_at, updated_at)
+        VALUES (${id}, ${title}, ${request.body?.description ?? null},
+                ${visibility}, ${prizePool}::numeric, ${winnersCount},
+                ${JSON.stringify(prizeShares)}::jsonb,
+                ${JSON.stringify(rules)}::jsonb,
+                ${new Date(startsAt)}, ${new Date(endsAt)},
+                ${startsAt > Date.now() ? 'scheduled' : 'live'},
+                ${(request as AuthenticatedRequest).user.userId},
+                NOW(), NOW())`;
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'contest.create',
+        targetType: 'contest',
+        targetId: id,
+        payloadAfter: { title, visibility, prizePool, winnersCount },
+        reason,
+      });
+      return reply.send({ ok: true, id });
+    } catch (err) {
+      logger.error(err, 'Contest create failed');
+      return reply.code(400).send({ error: 'Bad Request' });
+    }
+  });
+
+  /**
+   * GET /api/_x/bonuses/contests/:id
+   * Card data — includes participant list, current preview of likely
+   * winners (random pick from non-banned participants), and resolved
+   * winners once drawn.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/_x/bonuses/contests/:id',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const rows = await app.prisma.$queryRaw<
+          Array<{
+            id: string;
+            title: string;
+            description: string | null;
+            visibility: string;
+            prize_pool: string;
+            winners_count: number;
+            prize_shares: unknown;
+            rules: unknown;
+            starts_at: Date;
+            ends_at: Date;
+            state: string;
+            resolved_winners: unknown;
+            created_at: Date;
+          }>
+        >`SELECT id, title, description, visibility, prize_pool::text,
+                  winners_count, prize_shares, rules, starts_at, ends_at,
+                  state, resolved_winners, created_at
+            FROM contests WHERE id = ${id} LIMIT 1`;
+        const c = rows[0];
+        if (!c) {
+          return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+        }
+        const participants = await app.prisma.$queryRaw<
+          Array<{
+            id: string;
+            user_id: string;
+            banned: boolean;
+            joined_at: Date;
+            first_name: string | null;
+            username: string | null;
+            photo_url: string | null;
+          }>
+        >`SELECT p.id, p.user_id, p.banned, p.joined_at,
+                  u.first_name, u.username, u.photo_url
+            FROM contest_participants p
+            LEFT JOIN users u ON u.id = p.user_id
+           WHERE p.contest_id = ${id}
+           ORDER BY p.joined_at DESC`;
+
+        return reply.send({
+          ok: true,
+          contest: {
+            id: c.id,
+            title: c.title,
+            description: c.description,
+            visibility: c.visibility,
+            prizePool: Number(c.prize_pool),
+            winnersCount: c.winners_count,
+            prizeShares: c.prize_shares,
+            rules: c.rules,
+            startsAt: c.starts_at.getTime(),
+            endsAt: c.ends_at.getTime(),
+            state: c.state,
+            resolvedWinners: c.resolved_winners,
+            createdAt: c.created_at.getTime(),
+          },
+          participants: participants.map((p) => ({
+            id: p.id,
+            userId: p.user_id,
+            name: p.first_name || p.username || `id${p.user_id.slice(0, 4)}`,
+            photoUrl: p.photo_url,
+            banned: p.banned,
+            joinedAt: p.joined_at.getTime(),
+          })),
+        });
+      } catch (err) {
+        logger.error(err, 'Contest detail failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/bonuses/contests/:id/participants/:userId/ban
+   * Body: { banned, reason }
+   */
+  app.post<{
+    Params: { id: string; userId: string };
+    Body: { banned?: boolean; reason?: string };
+  }>(
+    '/_x/bonuses/contests/:id/participants/:userId/ban',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const banned = !!request.body?.banned;
+      const { id, userId } = request.params;
+      try {
+        await app.prisma.$executeRaw`
+          UPDATE contest_participants SET banned = ${banned}
+           WHERE contest_id = ${id} AND user_id = ${userId}`;
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: banned ? 'contest.ban_user' : 'contest.unban_user',
+          targetType: 'contest',
+          targetId: id,
+          payloadAfter: { userId },
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (err) {
+        logger.error(err, 'Contest ban failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/bonuses/contests/:id/draw
+   * Resolves winners. Picks `winnersCount` random non-banned
+   * participants, applies the prize-share distribution, credits each
+   * winner's balance + writes a transaction, persists `resolved_winners`
+   * and flips state to 'paid'. Idempotent: if state is already 'paid'
+   * the call is a no-op.
+   *
+   * Body: { reason }
+   */
+  app.post<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/bonuses/contests/:id/draw',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const { id } = request.params;
+      try {
+        const result = await app.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<
+            Array<{
+              id: string;
+              winners_count: number;
+              prize_shares: unknown;
+              state: string;
+            }>
+          >`SELECT id, winners_count, prize_shares, state
+              FROM contests WHERE id = ${id} LIMIT 1 FOR UPDATE`;
+          const c = rows[0];
+          if (!c) throw new Error('Contest not found');
+          if (c.state === 'paid') return { winners: [], alreadyPaid: true };
+
+          const eligible = await tx.$queryRaw<
+            Array<{ user_id: string }>
+          >`SELECT user_id FROM contest_participants
+             WHERE contest_id = ${id} AND banned = FALSE`;
+          if (eligible.length === 0) {
+            throw new Error('No eligible participants');
+          }
+          // Random pick winners_count without replacement.
+          const pool = eligible.map((e) => e.user_id);
+          const winnersCount = Math.min(c.winners_count, pool.length);
+          const picks: string[] = [];
+          for (let i = 0; i < winnersCount; i++) {
+            const idx = Math.floor(Math.random() * pool.length);
+            picks.push(pool.splice(idx, 1)[0]);
+          }
+          const shares = Array.isArray(c.prize_shares) ? c.prize_shares : [];
+          const winners = picks.map((uid, i) => {
+            const share = (shares as Array<{ amount?: number }>)[i] ?? shares[shares.length - 1] ?? { amount: 0 };
+            return { userId: uid, place: i + 1, amount: Number(share.amount ?? 0) };
+          });
+
+          // Credit winners.
+          for (const w of winners) {
+            const balRows = await tx.$queryRaw<
+              Array<{ amount: string }>
+            >`SELECT amount::text FROM balances
+                WHERE user_id = ${w.userId} LIMIT 1 FOR UPDATE`;
+            const before = Number(balRows[0]?.amount ?? 0);
+            const after = +(before + w.amount).toFixed(2);
+            await tx.$executeRaw`
+              UPDATE balances SET amount = ${after}::numeric,
+                                  version = version + 1,
+                                  last_synced_at = NOW(),
+                                  updated_at = NOW()
+                WHERE user_id = ${w.userId}`;
+            await tx.$executeRaw`
+              INSERT INTO transactions (id, user_id, type, amount,
+                                         balance_before, balance_after,
+                                         metadata, created_at)
+              VALUES (
+                ${(globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`},
+                ${w.userId}, 'bonus', ${w.amount}::numeric,
+                ${before}::numeric, ${after}::numeric,
+                ${JSON.stringify({
+                  kind: 'contest',
+                  contestId: id,
+                  place: w.place,
+                })}::jsonb, NOW())`;
+          }
+
+          await tx.$executeRaw`
+            UPDATE contests SET resolved_winners = ${JSON.stringify(winners)}::jsonb,
+                                state = 'paid',
+                                updated_at = NOW()
+              WHERE id = ${id}`;
+          return { winners, alreadyPaid: false };
+        });
+
+        if (!result.alreadyPaid) {
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: 'contest.draw',
+            targetType: 'contest',
+            targetId: id,
+            payloadAfter: { winners: result.winners },
+            reason,
+          });
+        }
+        return reply.send({ ok: true, ...result });
+      } catch (err) {
+        const msg = (err as Error).message ?? 'Bad Request';
+        logger.error({ err }, 'Contest draw failed');
+        return reply.code(400).send({ error: msg });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/bonuses/contests/:id/replace-winner
+   * Body: { place, reason } — re-rolls one slot in `resolved_winners`,
+   * picks a new random non-banned participant who is not already a
+   * winner, refunds the old winner's bonus and credits the new one.
+   *
+   * Use case: admin notices a winner is suspicious and wants to
+   * substitute without redoing the entire draw.
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { place?: number; reason?: string };
+  }>(
+    '/_x/bonuses/contests/:id/replace-winner',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const place = Math.floor(Number(request.body?.place));
+      if (!Number.isFinite(place) || place < 1) {
+        return reply.code(400).send({ error: 'Invalid place' });
+      }
+      const { id } = request.params;
+      try {
+        const result = await app.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<
+            Array<{ resolved_winners: unknown; state: string }>
+          >`SELECT resolved_winners, state FROM contests
+             WHERE id = ${id} LIMIT 1 FOR UPDATE`;
+          const c = rows[0];
+          if (!c || !Array.isArray(c.resolved_winners)) {
+            throw new Error('Contest not drawn yet');
+          }
+          const winners = c.resolved_winners as Array<{
+            userId: string;
+            place: number;
+            amount: number;
+          }>;
+          const idx = winners.findIndex((w) => w.place === place);
+          if (idx === -1) throw new Error('Place not found');
+          const old = winners[idx];
+
+          const eligible = await tx.$queryRaw<
+            Array<{ user_id: string }>
+          >`SELECT user_id FROM contest_participants
+             WHERE contest_id = ${id} AND banned = FALSE`;
+          const taken = new Set(winners.map((w) => w.userId));
+          const pool = eligible.map((e) => e.user_id).filter((uid) => !taken.has(uid));
+          if (pool.length === 0) throw new Error('No replacement available');
+          const newUserId = pool[Math.floor(Math.random() * pool.length)];
+
+          // Refund old winner.
+          {
+            const balRows = await tx.$queryRaw<
+              Array<{ amount: string }>
+            >`SELECT amount::text FROM balances
+                WHERE user_id = ${old.userId} LIMIT 1 FOR UPDATE`;
+            const before = Number(balRows[0]?.amount ?? 0);
+            const after = +(before - old.amount).toFixed(2);
+            await tx.$executeRaw`
+              UPDATE balances SET amount = ${after}::numeric,
+                                  version = version + 1,
+                                  last_synced_at = NOW(),
+                                  updated_at = NOW()
+                WHERE user_id = ${old.userId}`;
+            await tx.$executeRaw`
+              INSERT INTO transactions (id, user_id, type, amount,
+                                         balance_before, balance_after,
+                                         metadata, created_at)
+              VALUES (
+                ${(globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`},
+                ${old.userId}, 'bonus_clawback', ${-old.amount}::numeric,
+                ${before}::numeric, ${after}::numeric,
+                ${JSON.stringify({
+                  kind: 'contest_replace',
+                  contestId: id,
+                  place,
+                })}::jsonb, NOW())`;
+          }
+          // Credit new winner.
+          {
+            const balRows = await tx.$queryRaw<
+              Array<{ amount: string }>
+            >`SELECT amount::text FROM balances
+                WHERE user_id = ${newUserId} LIMIT 1 FOR UPDATE`;
+            const before = Number(balRows[0]?.amount ?? 0);
+            const after = +(before + old.amount).toFixed(2);
+            await tx.$executeRaw`
+              UPDATE balances SET amount = ${after}::numeric,
+                                  version = version + 1,
+                                  last_synced_at = NOW(),
+                                  updated_at = NOW()
+                WHERE user_id = ${newUserId}`;
+            await tx.$executeRaw`
+              INSERT INTO transactions (id, user_id, type, amount,
+                                         balance_before, balance_after,
+                                         metadata, created_at)
+              VALUES (
+                ${(globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`},
+                ${newUserId}, 'bonus', ${old.amount}::numeric,
+                ${before}::numeric, ${after}::numeric,
+                ${JSON.stringify({
+                  kind: 'contest_replace',
+                  contestId: id,
+                  place,
+                })}::jsonb, NOW())`;
+          }
+
+          winners[idx] = { ...old, userId: newUserId };
+          await tx.$executeRaw`
+            UPDATE contests SET resolved_winners = ${JSON.stringify(winners)}::jsonb,
+                                updated_at = NOW()
+              WHERE id = ${id}`;
+          return { old, newUserId };
+        });
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'contest.replace_winner',
+          targetType: 'contest',
+          targetId: id,
+          payloadBefore: { place, oldUserId: result.old.userId },
+          payloadAfter: { place, newUserId: result.newUserId },
+          reason,
+        });
+        return reply.send({ ok: true, ...result });
+      } catch (err) {
+        const msg = (err as Error).message ?? 'Bad Request';
+        logger.error({ err }, 'Contest replace winner failed');
+        return reply.code(400).send({ error: msg });
+      }
+    }
+  );
+
   void isAdminTelegramId;
 }

@@ -1,0 +1,487 @@
+import type { FastifyInstance } from 'fastify';
+import { randomUUID, randomBytes } from 'crypto';
+import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
+
+/**
+ * Bonuses — user-facing routes.
+ *
+ * Three pillars:
+ *   - Promo codes:  POST /api/bonuses/promo/redeem
+ *   - Lucky Wheel:  GET  /api/bonuses/wheel/state
+ *                    POST /api/bonuses/wheel/spin
+ *   - Contests:     GET  /api/bonuses/contests
+ *                    GET  /api/bonuses/contests/:id
+ *                    POST /api/bonuses/contests/:id/join  (private contests)
+ *
+ * Implementation note: the bonuses tables (`promo_codes`, `promo_redemptions`,
+ * `bonus_wheel_spins`, `contests`, `contest_participants`) are created via
+ * SQL migration; the generated Prisma client may not have them yet on a
+ * given build, so we use raw SQL throughout. Once Prisma is regenerated
+ * site-wide the file can be migrated to typed calls.
+ */
+
+/* ============================================================== Lucky Wheel */
+
+/**
+ * Sector pool — drawn proportionally to weight so the expected payout
+ * per spin sits around 0.20 zł. Configurable per-spin floor 0.05 / cap
+ * 1.00. Sum of weights = 100, no need to normalise.
+ */
+const LUCKY_SECTORS: ReadonlyArray<{ amount: number; weight: number }> = [
+  { amount: 0.05, weight: 36 },
+  { amount: 0.1, weight: 28 },
+  { amount: 0.25, weight: 18 },
+  { amount: 0.5, weight: 11 },
+  { amount: 0.75, weight: 5 },
+  { amount: 1.0, weight: 2 },
+];
+
+const SPIN_DAILY_CAP = 10;
+const SPIN_COOLDOWN_MS = 20 * 60 * 1000;
+
+function pickSector(): { amount: number; index: number } {
+  const total = LUCKY_SECTORS.reduce((s, x) => s + x.weight, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < LUCKY_SECTORS.length; i++) {
+    r -= LUCKY_SECTORS[i].weight;
+    if (r <= 0) return { amount: LUCKY_SECTORS[i].amount, index: i };
+  }
+  return { amount: LUCKY_SECTORS[0].amount, index: 0 };
+}
+
+/* ================================================================ Routes */
+
+export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
+  /* ----------------------------------------------------- promo codes */
+
+  /**
+   * POST /api/bonuses/promo/redeem
+   * Body: { code: string }
+   *
+   * Looks up the code, validates limits, credits the bonus and writes
+   * a redemption row + balance transaction in a single transaction.
+   */
+  app.post<{ Body: { code?: string } }>(
+    '/promo/redeem',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const code = (request.body?.code ?? '').trim().toUpperCase();
+      if (!code || code.length < 2 || code.length > 32) {
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: 'Enter a valid promo code',
+          code: 'INVALID_CODE',
+        });
+      }
+
+      try {
+        const result = await app.prisma.$transaction(async (tx) => {
+          // Lock the row so concurrent redemptions can't double-spend
+          // the per-user limit or the global cap.
+          const rows = await tx.$queryRaw<
+            Array<{
+              id: string;
+              code: string;
+              amount: string;
+              currency: string;
+              max_redemptions: number | null;
+              per_user_limit: number;
+              expires_at: Date | null;
+              active: boolean;
+            }>
+          >`SELECT id, code, amount::text, currency, max_redemptions,
+                   per_user_limit, expires_at, active
+              FROM promo_codes WHERE code = ${code} LIMIT 1 FOR UPDATE`;
+          const promo = rows[0];
+          if (!promo) {
+            throw new HttpError(404, 'PROMO_NOT_FOUND', 'Promo code not found');
+          }
+          if (!promo.active) {
+            throw new HttpError(403, 'PROMO_INACTIVE', 'Promo code is no longer active');
+          }
+          if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {
+            throw new HttpError(403, 'PROMO_EXPIRED', 'Promo code has expired');
+          }
+
+          // Per-user usage
+          const own = await tx.$queryRaw<Array<{ n: bigint }>>`
+            SELECT COUNT(*)::bigint AS n FROM promo_redemptions
+             WHERE promo_code_id = ${promo.id} AND user_id = ${userId}`;
+          const ownCount = Number(own[0]?.n ?? 0n);
+          if (ownCount >= promo.per_user_limit) {
+            throw new HttpError(409, 'PROMO_USED', 'You have already redeemed this code');
+          }
+          // Global cap
+          if (promo.max_redemptions !== null) {
+            const total = await tx.$queryRaw<Array<{ n: bigint }>>`
+              SELECT COUNT(*)::bigint AS n FROM promo_redemptions
+               WHERE promo_code_id = ${promo.id}`;
+            const totalCount = Number(total[0]?.n ?? 0n);
+            if (totalCount >= promo.max_redemptions) {
+              throw new HttpError(
+                409,
+                'PROMO_EXHAUSTED',
+                'Promo code has reached its limit'
+              );
+            }
+          }
+
+          const amount = Number(promo.amount);
+          if (!Number.isFinite(amount) || amount <= 0) {
+            throw new HttpError(500, 'PROMO_BROKEN', 'Promo code is misconfigured');
+          }
+
+          // Credit balance + record txn + redemption row.
+          const balRows = await tx.$queryRaw<
+            Array<{ amount: string; version: number }>
+          >`SELECT amount::text, version FROM balances
+              WHERE user_id = ${userId} LIMIT 1 FOR UPDATE`;
+          const before = Number(balRows[0]?.amount ?? 0);
+          const after = +(before + amount).toFixed(2);
+          await tx.$executeRaw`
+            UPDATE balances SET amount = ${after}::numeric,
+                                version = version + 1,
+                                last_synced_at = NOW(),
+                                updated_at = NOW()
+              WHERE user_id = ${userId}`;
+          await tx.$executeRaw`
+            INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                       balance_after, game_type, metadata, created_at)
+            VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
+                    ${before}::numeric, ${after}::numeric, NULL,
+                    ${JSON.stringify({
+                      kind: 'promo',
+                      code: promo.code,
+                      promoCodeId: promo.id,
+                    })}::jsonb, NOW())`;
+          await tx.$executeRaw`
+            INSERT INTO promo_redemptions (id, promo_code_id, user_id, amount, created_at)
+            VALUES (${randomUUID()}, ${promo.id}, ${userId}, ${amount}::numeric, NOW())`;
+
+          return { amount, balance: after };
+        });
+
+        return reply.send({
+          ok: true,
+          amount: result.amount,
+          balance: result.balance,
+        });
+      } catch (err) {
+        if (err instanceof HttpError) {
+          return reply.code(err.status).send({
+            error: err.code,
+            message: err.message,
+            code: err.code,
+          });
+        }
+        logger.error(err, 'Promo redeem failed');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to redeem promo code',
+          code: 'PROMO_FAILED',
+        });
+      }
+    }
+  );
+
+  /* ------------------------------------------------------ lucky wheel */
+
+  /**
+   * GET /api/bonuses/wheel/state
+   * Returns daily quota left, cooldown progress, sector list and recent
+   * spins for the live ticker.
+   */
+  app.get(
+    '/wheel/state',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      try {
+        const sinceMidnight = new Date();
+        sinceMidnight.setHours(0, 0, 0, 0);
+        const todayRows = await app.prisma.$queryRaw<
+          Array<{ n: bigint; last: Date | null }>
+        >`SELECT COUNT(*)::bigint AS n, MAX(created_at) AS last
+            FROM bonus_wheel_spins
+           WHERE user_id = ${userId} AND created_at >= ${sinceMidnight}`;
+        const usedToday = Number(todayRows[0]?.n ?? 0n);
+        const lastAt = todayRows[0]?.last
+          ? new Date(todayRows[0].last).getTime()
+          : null;
+        const cooldownEndsAt =
+          lastAt !== null ? lastAt + SPIN_COOLDOWN_MS : null;
+
+        // Recent ticker — last 12 spins across all users, masked names.
+        const ticker = await app.prisma.$queryRaw<
+          Array<{
+            amount: string;
+            created_at: Date;
+            user_id: string;
+            first_name: string | null;
+            username: string | null;
+            photo_url: string | null;
+          }>
+        >`SELECT s.amount::text, s.created_at, s.user_id,
+                 u.first_name, u.username, u.photo_url
+            FROM bonus_wheel_spins s
+            LEFT JOIN users u ON u.id = s.user_id
+           ORDER BY s.created_at DESC
+           LIMIT 12`;
+
+        return reply.send({
+          ok: true,
+          sectors: LUCKY_SECTORS.map((s) => s.amount),
+          dailyCap: SPIN_DAILY_CAP,
+          cooldownMs: SPIN_COOLDOWN_MS,
+          usedToday,
+          remaining: Math.max(0, SPIN_DAILY_CAP - usedToday),
+          cooldownEndsAt,
+          ticker: ticker.map((t) => ({
+            amount: Number(t.amount),
+            at: t.created_at.getTime(),
+            name:
+              t.first_name?.trim() ||
+              t.username?.trim() ||
+              `id${t.user_id.slice(0, 4)}`,
+            photoUrl: t.photo_url,
+          })),
+        });
+      } catch (err) {
+        logger.error(err, 'Wheel state failed');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to load wheel state',
+          code: 'WHEEL_STATE_FAILED',
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/bonuses/wheel/spin
+   * Validates cooldown + daily quota, picks a sector, credits the
+   * payout to the user's main balance.
+   */
+  app.post('/wheel/spin', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    try {
+      const result = await app.prisma.$transaction(async (tx) => {
+        const sinceMidnight = new Date();
+        sinceMidnight.setHours(0, 0, 0, 0);
+        const today = await tx.$queryRaw<
+          Array<{ n: bigint; last: Date | null }>
+        >`SELECT COUNT(*)::bigint AS n, MAX(created_at) AS last
+            FROM bonus_wheel_spins
+           WHERE user_id = ${userId} AND created_at >= ${sinceMidnight}`;
+        const usedToday = Number(today[0]?.n ?? 0n);
+        if (usedToday >= SPIN_DAILY_CAP) {
+          throw new HttpError(429, 'DAILY_CAP', 'No more spins today, come back tomorrow');
+        }
+        const lastAt = today[0]?.last ? new Date(today[0].last).getTime() : null;
+        if (lastAt !== null && Date.now() - lastAt < SPIN_COOLDOWN_MS) {
+          const remaining = Math.ceil(
+            (SPIN_COOLDOWN_MS - (Date.now() - lastAt)) / 1000
+          );
+          throw new HttpError(
+            429,
+            'COOLDOWN',
+            `Wait ${Math.ceil(remaining / 60)} minute(s) before the next spin`
+          );
+        }
+
+        const { amount, index } = pickSector();
+
+        // Credit balance + write txn + spin row.
+        const balRows = await tx.$queryRaw<
+          Array<{ amount: string; version: number }>
+        >`SELECT amount::text, version FROM balances
+            WHERE user_id = ${userId} LIMIT 1 FOR UPDATE`;
+        const before = Number(balRows[0]?.amount ?? 0);
+        const after = +(before + amount).toFixed(2);
+        await tx.$executeRaw`
+          UPDATE balances SET amount = ${after}::numeric,
+                              version = version + 1,
+                              last_synced_at = NOW(),
+                              updated_at = NOW()
+            WHERE user_id = ${userId}`;
+        await tx.$executeRaw`
+          INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                     balance_after, game_type, metadata, created_at)
+          VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
+                  ${before}::numeric, ${after}::numeric, NULL,
+                  ${JSON.stringify({ kind: 'lucky_wheel', sector: index })}::jsonb,
+                  NOW())`;
+        await tx.$executeRaw`
+          INSERT INTO bonus_wheel_spins (id, user_id, amount, created_at)
+          VALUES (${randomUUID()}, ${userId}, ${amount}::numeric, NOW())`;
+
+        return { amount, index, balance: after, usedToday: usedToday + 1 };
+      });
+
+      return reply.send({
+        ok: true,
+        amount: result.amount,
+        sectorIndex: result.index,
+        balance: result.balance,
+        remaining: Math.max(0, SPIN_DAILY_CAP - result.usedToday),
+        cooldownEndsAt: Date.now() + SPIN_COOLDOWN_MS,
+      });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.status).send({
+          error: err.code,
+          message: err.message,
+          code: err.code,
+        });
+      }
+      logger.error(err, 'Wheel spin failed');
+      return reply.code(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to spin the wheel',
+        code: 'WHEEL_SPIN_FAILED',
+      });
+    }
+  });
+
+  /* -------------------------------------------------------- contests */
+
+  /**
+   * GET /api/bonuses/contests
+   * Lists public contests that are scheduled or live, plus any private
+   * contests the current user has joined.
+   */
+  app.get('/contests', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    try {
+      const rows = await app.prisma.$queryRaw<
+        Array<{
+          id: string;
+          title: string;
+          description: string | null;
+          visibility: string;
+          prize_pool: string;
+          winners_count: number;
+          prize_shares: unknown;
+          rules: unknown;
+          starts_at: Date;
+          ends_at: Date;
+          state: string;
+          joined: boolean;
+          participant_count: bigint;
+        }>
+      >`
+        SELECT c.id, c.title, c.description, c.visibility,
+               c.prize_pool::text, c.winners_count, c.prize_shares,
+               c.rules, c.starts_at, c.ends_at, c.state,
+               EXISTS (
+                 SELECT 1 FROM contest_participants p
+                  WHERE p.contest_id = c.id AND p.user_id = ${userId}
+               ) AS joined,
+               (
+                 SELECT COUNT(*)::bigint FROM contest_participants p
+                  WHERE p.contest_id = c.id
+               ) AS participant_count
+          FROM contests c
+         WHERE c.state IN ('scheduled', 'live')
+           AND (
+             c.visibility = 'public'
+             OR EXISTS (
+               SELECT 1 FROM contest_participants p
+                WHERE p.contest_id = c.id AND p.user_id = ${userId}
+             )
+           )
+         ORDER BY c.ends_at ASC
+         LIMIT 30`;
+      return reply.send({
+        ok: true,
+        contests: rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          visibility: r.visibility,
+          prizePool: Number(r.prize_pool),
+          winnersCount: r.winners_count,
+          prizeShares: r.prize_shares,
+          rules: r.rules,
+          startsAt: r.starts_at.getTime(),
+          endsAt: r.ends_at.getTime(),
+          state: r.state,
+          joined: !!r.joined,
+          participantCount: Number(r.participant_count),
+        })),
+      });
+    } catch (err) {
+      logger.error(err, 'List contests failed');
+      return reply.code(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to load contests',
+        code: 'CONTESTS_FAILED',
+      });
+    }
+  });
+
+  /**
+   * POST /api/bonuses/contests/:id/join
+   * Enrolls the user. Public contests can be joined freely; private
+   * contests require the bot-issued token in the body (see ContestToken
+   * note in admin.ts). For now both visibilities accept the call so
+   * players can opt in from the page.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/contests/:id/join',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const id = request.params.id;
+      try {
+        const rows = await app.prisma.$queryRaw<
+          Array<{ id: string; state: string }>
+        >`SELECT id, state FROM contests WHERE id = ${id} LIMIT 1`;
+        const contest = rows[0];
+        if (!contest) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: 'Contest not found',
+            code: 'NOT_FOUND',
+          });
+        }
+        if (contest.state !== 'scheduled' && contest.state !== 'live') {
+          return reply.code(409).send({
+            error: 'Conflict',
+            message: 'Contest is closed',
+            code: 'CONTEST_CLOSED',
+          });
+        }
+        await app.prisma.$executeRaw`
+          INSERT INTO contest_participants (id, contest_id, user_id, banned, joined_at)
+          VALUES (${randomUUID()}, ${id}, ${userId}, FALSE, NOW())
+          ON CONFLICT (contest_id, user_id) DO NOTHING`;
+        return reply.send({ ok: true });
+      } catch (err) {
+        logger.error(err, 'Contest join failed');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to join contest',
+          code: 'JOIN_FAILED',
+        });
+      }
+    }
+  );
+}
+
+/* ================================================================ helpers */
+
+class HttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+// suppress unused — helper kept for future ref-link issuance
+void randomBytes;

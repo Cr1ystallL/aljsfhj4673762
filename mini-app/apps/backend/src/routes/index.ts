@@ -7,6 +7,7 @@ import { gameRoutes } from './games.js';
 import { adminRoutes } from './admin.js';
 import { macvpayRoutes } from './macvpay.js';
 import { withdrawalRoutes } from './withdrawals.js';
+import { bonusesRoutes } from './bonuses.js';
 
 /**
  * Register all application routes
@@ -29,6 +30,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // User withdrawal requests (admin-reviewed)
   await app.register(withdrawalRoutes, { prefix: '/api/withdrawals' });
+
+  // Bonuses (promo codes, lucky wheel, contests)
+  await app.register(bonusesRoutes, { prefix: '/api/bonuses' });
 
   // Admin (covert — see admin.ts for the security posture)
   await app.register(adminRoutes, { prefix: '/api' });

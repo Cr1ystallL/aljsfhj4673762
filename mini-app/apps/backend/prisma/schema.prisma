@@ -169,3 +169,141 @@ model AdminAuditLog {
   @@index([createdAt])
   @@map("admin_audit_log")
 }
+
+// =====================================================================
+// Bonuses subsystem
+// =====================================================================
+//
+// Three pillars:
+//   1. Promo codes — admin-created codes a player redeems for a fixed
+//      bonus amount. Each code has a usage cap (per-user + total).
+//   2. Lucky Wheel — daily free spins, payout 0.05..1.00 PLN. Cooldown
+//      between spins is enforced.
+//   3. Contests — admins create a pool with eligibility rules; the
+//      winners are picked at end-of-window from the qualifying set.
+//
+// All bonus payouts go to the user's main balance (no separate bonus
+// wallet) — keeps accounting simple and matches what the user
+// requested.
+
+/// Promo code definition. Created by admins; redeemed by users.
+model PromoCode {
+  id              String   @id @default(uuid())
+  /// Display code in upper-case (e.g. "WELCOME10"). Unique.
+  code            String   @unique
+  /// Bonus amount credited per redemption.
+  amount          Decimal  @db.Decimal(20, 2)
+  currency        String   @default("PLN")
+  /// Max total redemptions across all users. NULL = unlimited.
+  maxRedemptions  Int?     @map("max_redemptions")
+  /// Max redemptions per single user. Default 1.
+  perUserLimit    Int      @default(1) @map("per_user_limit")
+  /// Optional expiry. Past this timestamp the code becomes invalid.
+  expiresAt       DateTime? @map("expires_at")
+  /// Admin who created it.
+  createdByUserId String   @map("created_by_user_id")
+  /// Soft-disable without deleting. Admin can re-enable later.
+  active          Boolean  @default(true)
+  /// Free-text comment so the admin remembers what the code was for.
+  note            String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  redemptions PromoRedemption[]
+
+  @@index([code])
+  @@index([active])
+  @@map("promo_codes")
+}
+
+/// One row per (user, promo code) redemption.
+model PromoRedemption {
+  id          String   @id @default(uuid())
+  promoCodeId String   @map("promo_code_id")
+  userId      String   @map("user_id")
+  amount      Decimal  @db.Decimal(20, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  promoCode PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+
+  @@index([promoCodeId])
+  @@index([userId])
+  @@unique([promoCodeId, userId, createdAt], map: "promo_redemptions_promocode_user_at_uq")
+  @@map("promo_redemptions")
+}
+
+/// Each Lucky-Wheel spin a user makes. Used to enforce the 10/day +
+/// 20-min cooldown rules and to feed the recent-spin ticker.
+model BonusWheelSpin {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  /// Amount won, 0.05..1.00 PLN.
+  amount    Decimal  @db.Decimal(20, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("bonus_wheel_spins")
+}
+
+/// Contest definition. Eligibility rules are stored as JSON so we can
+/// add new rule types without a migration.
+model Contest {
+  id              String   @id @default(uuid())
+  title           String
+  description     String?  @db.Text
+  /// "public" — visible on the bonuses page; "private" — joinable
+  /// only via a referral link served by the bot.
+  visibility      String   @default("public")
+  /// Total prize pool in PLN.
+  prizePool       Decimal  @map("prize_pool") @db.Decimal(20, 2)
+  /// Number of winners selected at the end. Must be >= 1.
+  winnersCount    Int      @map("winners_count")
+  /// Per-place distribution. Array of `{ place: number, amount: number }`
+  /// summing to `prizePool`. If the array length is shorter than
+  /// `winnersCount`, the remainder splits the last entry equally.
+  prizeShares     Json     @map("prize_shares")
+  /// Eligibility rules. Array of rule objects, all must pass:
+  ///   { type: 'deposit_window', amount: number, days: number }
+  ///   { type: 'wagered_window', amount: number, days: number }
+  ///   { type: 'deposit_total',  amount: number }
+  ///   { type: 'referrals',      count: number }
+  ///   { type: 'registered_after', date: ISO-8601 }
+  rules           Json
+  startsAt        DateTime @map("starts_at")
+  endsAt          DateTime @map("ends_at")
+  /// Filled in by `/draw`: array of `{ userId, amount, place }` once
+  /// winners are picked. Null while pending.
+  resolvedWinners Json?    @map("resolved_winners")
+  /// State machine: 'scheduled', 'live', 'closed', 'paid'.
+  state           String   @default("scheduled")
+  createdByUserId String   @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  participants ContestParticipant[]
+
+  @@index([visibility, state])
+  @@index([endsAt])
+  @@map("contests")
+}
+
+/// Per-user participation record. For private contests, written when
+/// the bot redirects the user with the contest's referral token. For
+/// public contests, written lazily once the user opens the page (so
+/// the leaderboard shows current totals against rules).
+model ContestParticipant {
+  id        String   @id @default(uuid())
+  contestId String   @map("contest_id")
+  userId    String   @map("user_id")
+  /// True when the admin disqualifies the user — they stay listed but
+  /// can no longer be picked as a winner. Set via the contest card.
+  banned    Boolean  @default(false)
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, userId])
+  @@index([userId])
+  @@map("contest_participants")
+}
