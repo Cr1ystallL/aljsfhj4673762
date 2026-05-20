@@ -10,6 +10,13 @@ import { logger } from '../utils/logger.js';
  * - Verifies session exists in Redis
  * - Updates session activity
  * - Attaches user data to request
+ *
+ * BLOCKED USERS:
+ * - After auth succeeds, we look up `is_blocked` for the user. If true,
+ *   the request is rejected with a 401 + `code: 'BLOCKED'`. The frontend
+ *   detects that flag and silently dismisses the WebApp without ever
+ *   rendering a "you are blocked" message — same posture as the admin
+ *   gate (information about the block is not leaked back to the client).
  */
 
 export interface AuthenticatedRequest extends FastifyRequest {
@@ -18,6 +25,34 @@ export interface AuthenticatedRequest extends FastifyRequest {
     telegramId: number;
     sessionId: string;
   };
+}
+
+/**
+ * Look up `is_blocked` for a user via raw SQL — kept in raw form so a
+ * stale generated Prisma client (without the column) doesn't break this
+ * check. Cached in memory for 5s per user to avoid hammering Postgres.
+ */
+const BLOCK_CACHE_TTL_MS = 5_000;
+const blockCache = new Map<string, { blocked: boolean; expiresAt: number }>();
+
+async function isUserBlocked(
+  request: FastifyRequest,
+  userId: string
+): Promise<boolean> {
+  const now = Date.now();
+  const cached = blockCache.get(userId);
+  if (cached && cached.expiresAt > now) return cached.blocked;
+  try {
+    const rows = await (request.server as unknown as { prisma: { $queryRaw: <T>(s: TemplateStringsArray, ...vals: unknown[]) => Promise<T> } }).prisma.$queryRaw<
+      Array<{ is_blocked: boolean }>
+    >`SELECT is_blocked FROM users WHERE id = ${userId} LIMIT 1`;
+    const blocked = !!rows[0]?.is_blocked;
+    blockCache.set(userId, { blocked, expiresAt: now + BLOCK_CACHE_TTL_MS });
+    return blocked;
+  } catch (err) {
+    logger.warn({ err, userId }, 'Failed to check blocked flag — allowing');
+    return false;
+  }
 }
 
 /**
@@ -81,6 +116,16 @@ export async function authenticate(
 
     // Update session activity
     await sessionManager.updateActivity(decoded.sessionId);
+
+    // Block check — never reveal a textual reason. Admins bypass this
+    // through `adminOnly`, which has its own auth flow.
+    if (await isUserBlocked(request, decoded.userId)) {
+      return reply.code(401).send({
+        error: 'Unauthorized',
+        message: 'Access denied',
+        code: 'BLOCKED',
+      });
+    }
 
     // Attach user to request
     (request as AuthenticatedRequest).user = {

@@ -204,10 +204,18 @@ class WheelEngine extends EventEmitter {
       : [];
     return {
       phase: this.phase,
+      // Authoritative segment is exposed during the spin too — without
+      // it the client has nothing to anchor the rotation on and the
+      // wheel sits still until phase flips to completed. The seed and
+      // hash are still hidden until completion (provably fair).
       segmentIndex:
-        this.phase === 'completed' ? this.round?.segmentIndex ?? null : null,
+        this.phase === 'spinning' || this.phase === 'completed'
+          ? this.round?.segmentIndex ?? null
+          : null,
       multiplier:
-        this.phase === 'completed' ? this.round?.multiplier ?? null : null,
+        this.phase === 'spinning' || this.phase === 'completed'
+          ? this.round?.multiplier ?? null
+          : null,
       bets,
       history: this.history.slice(0, HISTORY_CAP),
       waitingEndsAt: this.phase === 'waiting' ? this.waitingEndsAt : null,

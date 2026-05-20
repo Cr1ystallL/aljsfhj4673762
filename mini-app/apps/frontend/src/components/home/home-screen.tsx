@@ -37,13 +37,15 @@ interface InAppGame {
   id: GameKey;
   name: string;
   href: string;
+  /** Optional background image overlay (path under /public). */
+  bg?: string;
 }
 
 const inAppGames: InAppGame[] = [
-  { id: 'crash', name: 'MacvJet', href: '/game/crash' },
-  { id: 'mines', name: 'Mines', href: '/game/mines' },
-  { id: 'plinko', name: 'Plinko', href: '/game/plinko' },
-  { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip' },
+  { id: 'crash', name: 'MacvJet', href: '/game/crash', bg: '/MacvJet.png' },
+  { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
+  { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
+  { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges' },
 ];
@@ -52,13 +54,13 @@ const BOT_USERNAME =
   process.env.NEXT_PUBLIC_BOT_USERNAME?.replace(/^@/, '') || 'macvbet_bot';
 
 const botGames = [
-  { id: 'cube', label: 'Кубики', command: 'cube', Icon: DiceCubeIcon },
-  { id: 'bowl', label: 'Боулинг', command: 'bowl', Icon: BowlingIcon },
-  { id: 'darts', label: 'Дартс', command: 'darts', Icon: DartsIcon },
-  { id: 'basket', label: 'Баскетбол', command: 'basket', Icon: BasketballIcon },
-  { id: 'foot', label: 'Футбол', command: 'foot', Icon: FootballIcon },
-  { id: 'knb', label: 'КНБ', command: 'knb', Icon: RpsIcon },
-  { id: 'spider', label: 'Spider', command: 'spider', Icon: SpiderIcon },
+  { id: 'cube', label: 'Кубики', command: 'cube', Icon: DiceCubeIcon, bg: '/%D0%9A%D1%83%D0%B1%D0%B8%D0%BA%D0%B8.png' },
+  { id: 'bowl', label: 'Боулинг', command: 'bowl', Icon: BowlingIcon, bg: '/%D0%91%D0%BE%D1%83%D0%BB%D0%B8%D0%BD%D0%B3.png' },
+  { id: 'darts', label: 'Дартс', command: 'darts', Icon: DartsIcon, bg: '/%D0%94%D0%B0%D1%80%D1%82%D1%81.png' },
+  { id: 'basket', label: 'Баскетбол', command: 'basket', Icon: BasketballIcon, bg: '/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB.png' },
+  { id: 'foot', label: 'Футбол', command: 'foot', Icon: FootballIcon, bg: '/%D0%A4%D1%83%D1%82%D0%B1%D0%BE%D0%BB.png' },
+  { id: 'knb', label: 'КНБ', command: 'knb', Icon: RpsIcon, bg: '/%D0%9A%D0%9D%D0%91.png' },
+  { id: 'spider', label: 'Spider', command: 'spider', Icon: SpiderIcon, bg: '/Spider.png' },
 ];
 
 function openTelegram(url: string) {
@@ -150,25 +152,45 @@ export function HomeScreen() {
         {/* Hero — featured game */}
         <button
           onClick={() => router.push('/game/crash')}
-          className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] text-left active:scale-[0.99] transition-transform"
+          className="relative overflow-hidden rounded-card border border-white/10 bg-midnight-canvas text-left active:scale-[0.99] transition-transform"
         >
+          {/* Background art — MacvJet.png blended into the deep ocean wash. */}
           <div
             aria-hidden
-            className="absolute inset-0 opacity-70"
+            className="absolute inset-0 opacity-45"
+            style={{
+              backgroundImage: 'url(/MacvJet.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'right center',
+              backgroundRepeat: 'no-repeat',
+              filter: 'saturate(1.05)',
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-80"
             style={{
               background:
-                'radial-gradient(120% 110% at 80% 110%, rgba(165, 45, 37, 0.45) 0%, rgba(255, 172, 46, 0.25) 35%, rgba(160, 224, 171, 0.15) 65%, transparent 85%)',
+                'linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.20) 100%)',
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-65 mix-blend-screen"
+            style={{
+              background:
+                'radial-gradient(120% 110% at 80% 110%, rgba(165, 45, 37, 0.40) 0%, rgba(255, 172, 46, 0.22) 35%, rgba(160, 224, 171, 0.12) 65%, transparent 85%)',
             }}
           />
           <div className="relative px-5 py-6 sm:px-6 sm:py-7 flex flex-col gap-5">
             <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-              Featured · provably fair
+              Featured · Signature Game
             </span>
             <div className="flex items-end justify-between gap-4">
               <div className="font-roobert text-frost-white text-[40px] sm:text-[48px] font-light leading-none tracking-tight">
                 MacvJet
               </div>
-              <span className="shrink-0 w-11 h-11 rounded-pill border border-white/25 bg-white/[0.06] flex items-center justify-center">
+              <span className="shrink-0 w-11 h-11 rounded-pill border border-white/25 bg-white/[0.06] flex items-center justify-center backdrop-blur-md">
                 <ArrowRight size={18} strokeWidth={1.6} />
               </span>
             </div>
@@ -183,23 +205,45 @@ export function HomeScreen() {
             <button
               key={g.id}
               onClick={() => router.push(g.href)}
-              className="group relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] aspect-[5/6] text-left active:scale-[0.98] transition-transform"
+              className="group relative overflow-hidden rounded-card border border-white/10 bg-midnight-canvas aspect-[5/6] text-left active:scale-[0.98] transition-transform"
             >
+              {/* Background art — only when an asset is available. */}
+              {g.bg && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 opacity-30 group-hover:opacity-45 transition-opacity"
+                  style={{
+                    backgroundImage: `url(${g.bg})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                  }}
+                />
+              )}
+              {/* Vignette so the title stays readable against the art. */}
               <div
                 aria-hidden
-                className="absolute inset-0 opacity-50 group-hover:opacity-70 transition-opacity"
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.85) 100%)',
+                }}
+              />
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-50 group-hover:opacity-65 transition-opacity mix-blend-screen"
                 style={{
                   background:
                     i % 2 === 0
-                      ? 'radial-gradient(110% 90% at 100% 100%, rgba(160, 224, 171, 0.25) 0%, transparent 70%)'
-                      : 'radial-gradient(110% 90% at 0% 100%, rgba(255, 172, 46, 0.22) 0%, transparent 70%)',
+                      ? 'radial-gradient(110% 90% at 100% 100%, rgba(160, 224, 171, 0.22) 0%, transparent 70%)'
+                      : 'radial-gradient(110% 90% at 0% 100%, rgba(255, 172, 46, 0.20) 0%, transparent 70%)',
                 }}
               />
               <div className="relative h-full w-full p-4 flex flex-col justify-between">
-                <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center">
+                <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.10] backdrop-blur-md flex items-center justify-center">
                   <GameIcon game={g.id} size={20} strokeWidth={1.5} />
                 </span>
-                <div className="font-roobert text-[20px] leading-none text-frost-white">
+                <div className="font-roobert text-[20px] leading-none text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
                   {g.name}
                 </div>
               </div>
@@ -217,19 +261,42 @@ export function HomeScreen() {
               onClick={() =>
                 openTelegram(`https://t.me/${BOT_USERNAME}?start=${g.command}`)
               }
-              className="relative aspect-square rounded-card border border-white/10 bg-white/[0.03] active:bg-white/[0.06] active:scale-[0.97] transition-all flex flex-col items-center justify-center gap-1.5"
+              className="group relative aspect-square overflow-hidden rounded-card border border-white/10 bg-midnight-canvas active:scale-[0.97] transition-all"
             >
-              <g.Icon
-                size={22}
-                strokeWidth={1.5}
-                className="text-frost-white/85"
+              {/* Background art per game (Cyrillic filenames URL-encoded). */}
+              {g.bg && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 opacity-35 group-active:opacity-55 transition-opacity"
+                  style={{
+                    backgroundImage: `url(${g.bg})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                  }}
+                />
+              )}
+              <div
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.70) 100%)',
+                }}
               />
-              <span className="font-roobert text-[11px] text-frost-white/85">
-                {g.label}
-              </span>
-              <span className="absolute top-1.5 right-1.5 text-frost-white/35">
-                <Send size={9} strokeWidth={1.8} />
-              </span>
+              <div className="relative h-full w-full flex flex-col items-center justify-center gap-1.5">
+                <g.Icon
+                  size={22}
+                  strokeWidth={1.5}
+                  className="text-frost-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                />
+                <span className="font-roobert text-[11px] text-frost-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                  {g.label}
+                </span>
+                <span className="absolute top-1.5 right-1.5 text-frost-white/55">
+                  <Send size={9} strokeWidth={1.8} />
+                </span>
+              </div>
             </button>
           ))}
         </div>
