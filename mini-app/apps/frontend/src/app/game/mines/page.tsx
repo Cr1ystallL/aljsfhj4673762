@@ -245,8 +245,9 @@ export default function MinesGamePage() {
         reportApiError(res, json, 'Could not cash out');
         throw new Error(json?.message ?? 'Cashout failed');
       }
-      applyServer(json.state as ServerState);
-      toast.success('Cashed out');
+      const next = json.state as ServerState;
+      applyServer(next);
+      toast.cashout(next.currentMultiplier ?? 0, 'Cashed out');
     } catch (err) {
       console.error('mines:cashout', err);
     } finally {

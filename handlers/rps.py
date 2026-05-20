@@ -52,7 +52,8 @@ async def show_rps_game(callback: CallbackQuery):
     text = get_text(lang, 'rps_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
     
     from keyboards.inline import get_rps_menu
-    await callback.bot.send_message(user_id, text, reply_markup=get_rps_menu(lang))
+    from utils.game_photos import send_game_message
+    await send_game_message(callback.bot, user_id, 'knb', text, reply_markup=get_rps_menu(lang))
     await callback.answer()
 
 

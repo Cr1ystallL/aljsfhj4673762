@@ -129,7 +129,8 @@ async def show_spider_game(callback: CallbackQuery):
     text = get_text(lang, 'spider_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
     
     from keyboards.inline import get_spider_menu
-    await callback.bot.send_message(user_id, text, reply_markup=get_spider_menu(lang))
+    from utils.game_photos import send_game_message
+    await send_game_message(callback.bot, user_id, 'spider', text, reply_markup=get_spider_menu(lang))
     await callback.answer()
 
 

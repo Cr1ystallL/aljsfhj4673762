@@ -193,6 +193,10 @@ export default function ProfilePage() {
               icon={<Dice5 size={13} className="text-frost-white/60" strokeWidth={1.8} />}
               label="Всего ставок"
               value={stats.totalBets.toLocaleString('ru-RU')}
+              suffix={`(${stats.totalWagered.toLocaleString('ru-RU', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })} zł)`}
             />
             <StatTile
               icon={<Coins size={13} className="text-frost-white/60" strokeWidth={1.8} />}
@@ -285,6 +289,7 @@ interface BetRowData {
 
 interface DerivedStats {
   totalBets: number;
+  totalWagered: number;
   totalWon: number;
   maxWin: number;
   maxMultiplier: number;
@@ -366,6 +371,7 @@ function deriveStats(transactions: Array<any>): DerivedStats {
 
   return {
     totalBets: bets.length,
+    totalWagered: bets.reduce((acc, b) => acc + b.stake, 0),
     totalWon,
     maxWin,
     maxMultiplier,
@@ -379,10 +385,12 @@ function StatTile({
   icon,
   label,
   value,
+  suffix,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  suffix?: string;
 }) {
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-3 py-2.5">
@@ -394,6 +402,11 @@ function StatTile({
       </div>
       <div className="mt-1 font-roobert text-[18px] font-light text-frost-white tabular-nums">
         {value}
+        {suffix && (
+          <span className="ml-1.5 font-roobert text-[12px] text-whisper-gray tabular-nums">
+            {suffix}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -38,12 +38,15 @@ async def show_dice_game(callback: CallbackQuery):
     
     text = get_text(lang, 'dice_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
     
-    # Отправляем текстовое сообщение без фото
+    # Отправляем фото с подписью — фон берётся из mini-app/public.
     from keyboards.inline import get_dice_menu
-    await callback.bot.send_message(
-        chat_id=user_id,
-        text=text,
-        reply_markup=get_dice_menu(lang)
+    from utils.game_photos import send_game_message
+    await send_game_message(
+        callback.bot,
+        user_id,
+        'cube',
+        text,
+        reply_markup=get_dice_menu(lang),
     )
     await callback.answer()
 

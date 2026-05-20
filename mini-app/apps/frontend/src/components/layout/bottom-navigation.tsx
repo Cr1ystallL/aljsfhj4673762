@@ -1,12 +1,94 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp, Megaphone, Menu, Sparkles, User } from 'lucide-react';
+import { ChevronUp, Menu, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useNavStore } from '@/store/nav-store';
+
+/* ---------------------------------------------------------------- glyphs */
+
+/**
+ * Shiny coin glyph for the Bonuses tab. Animated highlight sweeps
+ * across the face every couple of seconds — implemented via a small
+ * SVG mask that rotates an offset gradient. The whole symbol is
+ * pure-SVG so it scales crisply on retina + telegram WebViews.
+ */
+function ShinyCoinGlyph({ active }: { active: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={20}
+      height={20}
+      className={cn('drop-shadow-[0_1px_4px_rgba(255,210,120,0.45)]', active ? 'opacity-100' : 'opacity-90')}
+    >
+      <defs>
+        <radialGradient id="coinFace" cx="40%" cy="32%" r="80%">
+          <stop offset="0%" stopColor="#fff7d8" />
+          <stop offset="55%" stopColor="#f6c54a" />
+          <stop offset="100%" stopColor="#9b6a18" />
+        </radialGradient>
+        <linearGradient id="coinShine" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+          <stop offset="48%" stopColor="rgba(255,255,255,0.85)" />
+          <stop offset="56%" stopColor="rgba(255,255,255,0.85)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="9.5" fill="url(#coinFace)" stroke="rgba(0,0,0,0.45)" strokeWidth="0.7" />
+      <circle cx="12" cy="12" r="7.2" fill="none" stroke="rgba(255,240,180,0.55)" strokeWidth="0.6" />
+      {/* M-shape mark */}
+      <path
+        d="M 8 15.5 L 8 9.5 L 12 13.5 L 16 9.5 L 16 15.5"
+        fill="none"
+        stroke="rgba(60,30,0,0.85)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Animated sweep */}
+      <g style={{ mixBlendMode: 'overlay' }}>
+        <rect x="-12" y="-2" width="24" height="28" fill="url(#coinShine)" transform="translate(12 12) rotate(20)">
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values="-6 -8; 26 14"
+            dur="2.6s"
+            repeatCount="indefinite"
+          />
+        </rect>
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * Megaphone glyph for the Partner tab. Cleaner take than the lucide
+ * default — the cone is drawn as a single arc-ended shape, the handle
+ * is a small rounded square, and there are two outgoing sound waves.
+ */
+function MegaphoneGlyph({ active }: { active: boolean }) {
+  const stroke = active ? '#ffffff' : 'rgba(255,255,255,0.65)';
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none">
+      {/* Cone */}
+      <path
+        d="M 4 10 L 4 14 L 7 14 L 18 18 L 18 6 L 7 10 Z"
+        fill={active ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)'}
+        stroke={stroke}
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      {/* Handle */}
+      <rect x="3" y="11" width="2" height="2" rx="0.6" fill={stroke} opacity="0.7" />
+      {/* Sound waves */}
+      <path d="M 20 9 Q 22 12 20 15" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <path d="M 21.5 7 Q 24.5 12 21.5 17" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" fill="none" opacity="0.7" />
+    </svg>
+  );
+}
 
 interface BottomNavigationProps {
   onMenuClick: () => void;
@@ -103,34 +185,35 @@ export const BottomNavigation = memo(function BottomNavigation({
                   onClick={onMenuClick}
                 />
                 <NavItem
-                  icon={<Megaphone size={18} strokeWidth={1.7} />}
-                  label="Партнёрка"
-                  onClick={onPartnerClick}
-                  active={isPartnerActive}
+                  icon={<ShinyCoinGlyph active={isBonusesActive} />}
+                  label="Бонусы"
+                  onClick={onBonusesClick}
+                  active={isBonusesActive}
                 />
 
-                {/* Center action — raised pill (column 3 of 5, true center) */}
+                {/* Center action — bigger raised pill (column 3 of 5) */}
                 <div className="flex items-start justify-center -mt-px">
                   <button
                     onClick={onPlayClick}
                     aria-label="Играть"
-                    className="-mt-7 relative active:scale-95 transition-transform"
+                    className="-mt-9 relative active:scale-95 transition-transform"
                     style={{ willChange: 'transform' }}
                   >
                     <span
                       aria-hidden
-                      className="hidden md:block absolute inset-0 rounded-pill opacity-60"
+                      className="hidden md:block absolute -inset-2 rounded-pill opacity-65"
                       style={{
                         background:
-                          'linear-gradient(135deg, rgba(160, 224, 171, 0.55), rgba(255, 172, 46, 0.50) 55%, rgba(165, 45, 37, 0.45))',
-                        filter: 'blur(16px)',
+                          'linear-gradient(135deg, rgba(160, 224, 171, 0.55), rgba(255, 172, 46, 0.55) 55%, rgba(165, 45, 37, 0.50))',
+                        filter: 'blur(20px)',
                       }}
                     />
                     <span
-                      className="relative w-12 h-12 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
+                      className="relative w-16 h-16 rounded-pill flex items-center justify-center border border-white/30 overflow-hidden"
                       style={{
                         background:
                           'linear-gradient(135deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
+                        boxShadow: '0 8px 22px rgba(255, 172, 46, 0.35), inset 0 1px 0 rgba(255,255,255,0.40)',
                       }}
                     >
                       <span
@@ -138,27 +221,27 @@ export const BottomNavigation = memo(function BottomNavigation({
                         className="absolute inset-0 rounded-pill"
                         style={{
                           background:
-                            'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%)',
+                            'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%)',
                         }}
                       />
                       <BrandMark
                         variant="dark"
-                        size={36}
+                        size={48}
                         title="Играть"
                         className="relative"
                       />
                     </span>
-                    <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/70">
+                    <span className="block mt-1 text-center font-roobert text-[10px] uppercase tracking-[0.2em] text-frost-white/80">
                       Играть
                     </span>
                   </button>
                 </div>
 
                 <NavItem
-                  icon={<Sparkles size={18} strokeWidth={1.7} />}
-                  label="Бонусы"
-                  onClick={onBonusesClick}
-                  active={isBonusesActive}
+                  icon={<MegaphoneGlyph active={isPartnerActive} />}
+                  label="Партнёрка"
+                  onClick={onPartnerClick}
+                  active={isPartnerActive}
                 />
                 <NavItem
                   icon={<User size={18} strokeWidth={1.7} />}

@@ -33,10 +33,13 @@ async def show_darts_game(callback: CallbackQuery):
     text = get_text(lang, 'darts_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
     
     from keyboards.inline import get_darts_menu
-    await callback.bot.send_message(
+    from utils.game_photos import send_game_message
+    await send_game_message(
+        callback.bot,
         user_id,
+        'darts',
         text,
-        reply_markup=get_darts_menu(lang)
+        reply_markup=get_darts_menu(lang),
     )
     await callback.answer()
 

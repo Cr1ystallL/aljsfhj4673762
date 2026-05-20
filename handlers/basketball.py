@@ -32,10 +32,13 @@ async def show_basketball_game(callback: CallbackQuery):
     text = get_text(lang, 'basketball_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
     
     from keyboards.inline import get_basketball_menu
-    await callback.bot.send_message(
+    from utils.game_photos import send_game_message
+    await send_game_message(
+        callback.bot,
         user_id,
+        'basket',
         text,
-        reply_markup=get_basketball_menu(lang)
+        reply_markup=get_basketball_menu(lang),
     )
     await callback.answer()
 

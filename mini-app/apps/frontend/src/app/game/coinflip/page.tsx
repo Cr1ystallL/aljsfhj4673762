@@ -263,9 +263,10 @@ export default function CoinflipGamePage() {
         reportApiError(res, json, 'Could not cash out');
         throw new Error(json?.message ?? 'Cashout failed');
       }
-      setMulti(json.state as CoinflipMultiplyState);
+      const nextState = json.state as CoinflipMultiplyState;
+      setMulti(nextState);
       soundManager.play('game.cashout');
-      toast.success('Cashed out');
+      toast.cashout(nextState.currentMultiplier ?? 0, 'Cashed out');
       void fetchBalance();
     } catch (err) {
       console.error('coinflip:cashout', err);

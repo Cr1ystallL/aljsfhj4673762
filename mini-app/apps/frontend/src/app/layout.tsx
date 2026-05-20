@@ -4,9 +4,10 @@ import './globals.css';
 import { Providers } from '@/providers';
 import { AnimatedBackground } from '@/components/ui/animated-background';
 import { AppShell } from '@/components/layout/app-shell';
+import { DynamicTitle } from '@/components/loading/dynamic-title';
 
 export const metadata: Metadata = {
-  title: 'Casino Mini App',
+  title: 'MacvBet',
   description: 'Premium Telegram Casino Mini App',
 };
 
@@ -34,6 +35,7 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <Providers>
+          <DynamicTitle />
           <AnimatedBackground />
           <AppShell>{children}</AppShell>
         </Providers>

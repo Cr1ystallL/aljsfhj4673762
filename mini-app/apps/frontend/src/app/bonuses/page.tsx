@@ -228,40 +228,105 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
 
 function Gem() {
   return (
-    <svg
+    <motion.svg
       viewBox="0 0 80 80"
-      className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_4px_20px_rgba(255,172,46,0.35)]"
+      className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_4px_22px_rgba(160,224,171,0.45)]"
+      animate={{ rotate: [-3, 3, -3] }}
+      transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
     >
       <defs>
-        <linearGradient id="gemFace" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(255, 220, 150)" />
-          <stop offset="55%" stopColor="rgb(255, 172, 46)" />
-          <stop offset="100%" stopColor="rgb(165, 45, 37)" />
+        {/* Brilliant-cut diamond gradient: white-to-icy-blue with
+            a green-tinted bottom that hints at our brand palette. */}
+        <linearGradient id="diaCrown" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="55%" stopColor="#dff7ff" />
+          <stop offset="100%" stopColor="#9ec7d6" />
         </linearGradient>
-        <linearGradient id="gemTop" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
-          <stop offset="100%" stopColor="rgba(255,210,140,0.4)" />
+        <linearGradient id="diaPavilion" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#9ec7d6" />
+          <stop offset="55%" stopColor="#7da7c0" />
+          <stop offset="100%" stopColor="#3b6478" />
         </linearGradient>
+        <linearGradient id="diaTable" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#cdeaf6" />
+        </linearGradient>
+        <radialGradient id="diaSparkle" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
+          <stop offset="60%" stopColor="rgba(255,255,255,0.4)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </radialGradient>
       </defs>
+
+      {/* Pavilion (lower V) */}
       <polygon
-        points="40,8 64,28 56,68 24,68 16,28"
-        fill="url(#gemFace)"
+        points="14,28 66,28 40,72"
+        fill="url(#diaPavilion)"
         stroke="rgba(0,0,0,0.45)"
-        strokeWidth="1.2"
+        strokeWidth="1"
       />
+      {/* Crown (upper trapezoid) */}
       <polygon
-        points="40,8 64,28 16,28"
-        fill="url(#gemTop)"
-        opacity="0.85"
+        points="14,28 66,28 56,12 24,12"
+        fill="url(#diaCrown)"
+        stroke="rgba(0,0,0,0.45)"
+        strokeWidth="1"
       />
-      <line x1="40" y1="8" x2="40" y2="68" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" />
-      <line x1="16" y1="28" x2="40" y2="68" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" />
-      <line x1="64" y1="28" x2="40" y2="68" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" />
+      {/* Table (centre flat) */}
       <polygon
-        points="36,12 30,26 38,16"
-        fill="rgba(255,255,255,0.5)"
+        points="24,12 56,12 50,20 30,20"
+        fill="url(#diaTable)"
+        stroke="rgba(0,0,0,0.30)"
+        strokeWidth="0.8"
       />
-    </svg>
+
+      {/* Facet seams */}
+      <line x1="14" y1="28" x2="40" y2="72" stroke="rgba(0,0,0,0.30)" strokeWidth="0.7" />
+      <line x1="66" y1="28" x2="40" y2="72" stroke="rgba(0,0,0,0.30)" strokeWidth="0.7" />
+      <line x1="24" y1="12" x2="14" y2="28" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
+      <line x1="56" y1="12" x2="66" y2="28" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
+      <line x1="30" y1="20" x2="14" y2="28" stroke="rgba(0,0,0,0.20)" strokeWidth="0.5" />
+      <line x1="50" y1="20" x2="66" y2="28" stroke="rgba(0,0,0,0.20)" strokeWidth="0.5" />
+      <line x1="40" y1="20" x2="40" y2="72" stroke="rgba(0,0,0,0.20)" strokeWidth="0.5" />
+      <line x1="14" y1="28" x2="66" y2="28" stroke="rgba(0,0,0,0.30)" strokeWidth="0.6" />
+
+      {/* Animated sparkles — three white-to-transparent dots that
+          fade in and out at staggered intervals so the diamond reads
+          as actually catching light. */}
+      <motion.circle
+        cx="32"
+        cy="16"
+        r="2.5"
+        fill="url(#diaSparkle)"
+        animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.circle
+        cx="48"
+        cy="32"
+        r="1.8"
+        fill="url(#diaSparkle)"
+        animate={{ opacity: [0, 1, 0], scale: [0.4, 1.1, 0.4] }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.7 }}
+      />
+      <motion.circle
+        cx="40"
+        cy="50"
+        r="1.4"
+        fill="url(#diaSparkle)"
+        animate={{ opacity: [0, 0.9, 0], scale: [0.3, 1, 0.3] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 1.4 }}
+      />
+
+      {/* Table-top hot highlight — a small swooshing glint along the
+          flat top of the diamond. */}
+      <motion.polygon
+        points="32,14 38,13 36,18 30,18"
+        fill="rgba(255,255,255,0.85)"
+        animate={{ opacity: [0.2, 0.95, 0.2] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+    </motion.svg>
   );
 }
 
@@ -348,7 +413,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
       spinRef.current = {
         startedAt: Date.now(),
-        durationMs: 4500,
+        durationMs: 6000,
         targetIndex: target,
         initialRotation: idleRotationRef.current,
       };
@@ -366,7 +431,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         if (cur) useBalanceStore.getState().updateBalance(Number(json.balance ?? cur.amount));
         onWin();
         void load();
-      }, 4500);
+      }, 6000);
     } catch {
       toast.error('Network error, try again');
     } finally {
@@ -423,47 +488,46 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
       <div className="relative px-3 pb-3 pt-3">
         <div
-          className="relative w-full"
-          style={{ aspectRatio: '2 / 1.15' }}
+          className="relative w-full max-w-[360px] mx-auto"
+          style={{ aspectRatio: '1 / 1' }}
         >
-          <HalfWheelCanvas
+          <FullWheelCanvas
             spinRef={spinRef}
             idleRotationRef={idleRotationRef}
           />
-          {/* Spin button anchored where the hub would be, just below
-              center of the half-circle. */}
-          <div className="absolute inset-x-0 bottom-2 flex justify-center pointer-events-none">
-            <button
-              onClick={spin}
-              disabled={!canSpin}
-              className={cn(
-                'pointer-events-auto h-11 px-7 rounded-pill font-roobert font-semibold text-[13px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition-all active:scale-[0.98]',
-                canSpin
-                  ? 'text-midnight-canvas'
-                  : 'bg-white/[0.08] text-frost-white/55 border border-white/15 cursor-not-allowed'
-              )}
-              style={
-                canSpin
-                  ? {
-                      background:
-                        'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(207, 224, 127) 100%)',
-                      boxShadow:
-                        '0 6px 18px rgba(160, 224, 171, 0.40), inset 0 1px 0 rgba(255,255,255,0.40)',
-                    }
-                  : undefined
-              }
-            >
-              {onCooldown
-                ? `Wait ${Math.ceil(cooldownLeftMs / 1000)}s`
-                : noSpins
-                  ? 'Come back tomorrow'
-                  : 'Spin'}
-              {canSpin && <ChevronRight size={13} strokeWidth={2.2} />}
-            </button>
-          </div>
         </div>
 
-        <div className="mt-1 text-center font-roobert text-[11px] text-whisper-gray tabular-nums">
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={spin}
+            disabled={!canSpin}
+            className={cn(
+              'h-12 px-9 rounded-pill font-roobert font-semibold text-[14px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition-all active:scale-[0.98]',
+              canSpin
+                ? 'text-midnight-canvas'
+                : 'bg-white/[0.08] text-frost-white/55 border border-white/15 cursor-not-allowed'
+            )}
+            style={
+              canSpin
+                ? {
+                    background:
+                      'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(207, 224, 127) 100%)',
+                    boxShadow:
+                      '0 6px 22px rgba(160, 224, 171, 0.42), inset 0 1px 0 rgba(255,255,255,0.45)',
+                  }
+                : undefined
+            }
+          >
+            {onCooldown
+              ? `Wait ${Math.ceil(cooldownLeftMs / 1000)}s`
+              : noSpins
+                ? 'Come back tomorrow'
+                : 'Spin'}
+            {canSpin && <ChevronRight size={14} strokeWidth={2.2} />}
+          </button>
+        </div>
+
+        <div className="mt-2 text-center font-roobert text-[11px] text-whisper-gray tabular-nums">
           {state ? `${state.remaining} of ${state.dailyCap} spins left` : '—'}
         </div>
       </div>
@@ -502,7 +566,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
   );
 }
 
-function HalfWheelCanvas({
+function FullWheelCanvas({
   spinRef,
   idleRotationRef,
 }: {
@@ -551,12 +615,14 @@ function HalfWheelCanvas({
     const SECTORS = WHEEL_SECTORS_12;
     const N = SECTORS.length;
     /**
-     * The half-wheel covers the lower 180° of a circle, but each
-     * "sector" only occupies a 30° wedge (180/12). The center of the
-     * wheel sits at the bottom of the canvas; the rim touches the top.
-     * Sector 0 occupies the leftmost wedge and goes clockwise.
+     * Full-circle wheel — 12 sectors of 30° each. Sector 0 is centred
+     * straight up under the pointer when rotation = 0; subsequent
+     * sectors fan clockwise. Computing landing rotation:
+     *   sector i centre canvas-angle (no rotation) = -PI/2 + i * arc
+     *   we want it under the pointer at angle -PI/2, so rotation =
+     *   -i * arc (modulo 2PI).
      */
-    const ARC_PER_SECTOR = Math.PI / N;
+    const ARC = (2 * Math.PI) / N;
 
     let lastFrame = performance.now();
 
@@ -571,30 +637,24 @@ function HalfWheelCanvas({
 
       ctx.clearRect(0, 0, w, h);
 
-      // Compute current rotation. For half-wheels, "rotation" rotates
-      // the sector strip relative to the pointer at the top.
       let rotation = idleRotationRef.current;
       if (spinRef.current) {
         const lock = spinRef.current;
         const t = Math.min(1, (Date.now() - lock.startedAt) / lock.durationMs);
-        // Pointer sits at the top of the half-wheel (angle = -PI/2 in
-        // canvas coordinates). To land sector `targetIndex` under it,
-        // we want sector center at angle -PI/2.
-        // Sector i center sits at angle (i + 0.5) * ARC_PER_SECTOR
-        // from the leftmost rim — i.e. +PI + (i+0.5)*ARC_PER_SECTOR
-        // measured clockwise from canvas 0°. We want to rotate so that
-        // becomes -PI/2 ≡ 3PI/2.
-        const targetAngle =
-          -Math.PI / 2 - ((lock.targetIndex + 0.5) * ARC_PER_SECTOR + Math.PI);
-        // Add 4 full rotations so the user sees movement.
+        // Land the chosen sector under the top pointer:
+        const targetAngle = -lock.targetIndex * ARC;
+        // Six full revolutions before settling — feels rich at 6s.
         const totalRotation =
-          4 * 2 * Math.PI + targetAngle - lock.initialRotation;
+          6 * 2 * Math.PI + targetAngle - lock.initialRotation;
+        // Three-phase ease: linear cruise → cubic brake → micro-settle.
         let progressed: number;
-        if (t < 0.7) progressed = (t / 0.7) * 0.78;
-        else if (t < 0.92) {
-          const tt = (t - 0.7) / 0.22;
-          progressed = 0.78 + (1 - 0.78) * (1 - Math.pow(1 - tt, 3));
+        if (t < 0.65) progressed = (t / 0.65) * 0.72;
+        else if (t < 0.93) {
+          const tt = (t - 0.65) / 0.28;
+          progressed = 0.72 + (1 - 0.72) * (1 - Math.pow(1 - tt, 3));
         } else {
+          // Tiny elastic settle (no overshoot beyond 1 — the lock
+          // already bakes the desired final angle exactly).
           progressed = 1;
         }
         rotation = lock.initialRotation + totalRotation * progressed;
@@ -603,122 +663,199 @@ function HalfWheelCanvas({
         rotation = idleRotationRef.current;
       }
 
-      // Wheel center anchored at the bottom of the canvas, slightly
-      // below the visible area so only the upper half-circle shows.
       const cx = w / 2;
-      const cy = h * 0.95;
-      const radius = Math.min(w * 0.46, h * 0.92);
+      const cy = h / 2;
+      const radius = Math.min(w, h) * 0.46;
 
-      // Outer glow ring beneath the wheel
-      const glow = ctx.createRadialGradient(
-        cx,
-        cy,
-        radius * 0.7,
-        cx,
-        cy,
-        radius * 1.18
+      // Drop shadow under the wheel
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + radius * 0.95, radius * 0.85, radius * 0.12, 0, 0, Math.PI * 2);
+      const shadow = ctx.createRadialGradient(
+        cx, cy + radius * 0.95, 0,
+        cx, cy + radius * 0.95, radius * 0.85
       );
-      glow.addColorStop(0, 'rgba(160, 224, 171, 0)');
-      glow.addColorStop(0.55, 'rgba(255, 172, 46, 0.22)');
+      shadow.addColorStop(0, 'rgba(0,0,0,0.6)');
+      shadow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = shadow;
+      ctx.fill();
+
+      // Outer atmospheric glow ring
+      const glow = ctx.createRadialGradient(cx, cy, radius * 0.95, cx, cy, radius * 1.18);
+      glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
+      glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.18)');
       glow.addColorStop(1, 'rgba(255, 172, 46, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.2, Math.PI, 2 * Math.PI);
-      ctx.closePath();
+      ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
       ctx.fill();
+
+      // Decorative outer rim — two concentric strokes
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.05, 0, Math.PI * 2);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.07, 0, Math.PI * 2);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 172, 46, 0.40)';
+      ctx.stroke();
 
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(rotation);
+      // Pointer is at -PI/2 (top). Sector 0 centred at -PI/2 means we
+      // need to rotate the sector strip by `rotation - PI/2 - ARC/2`
+      // so that drawing sector i in [-ARC/2 + i*ARC, ARC/2 + i*ARC]
+      // works out. Simpler: orient the canvas so 0° = pointer, sector
+      // 0 spans [-ARC/2, ARC/2].
+      ctx.rotate(rotation - Math.PI / 2);
 
-      // Sectors fill — only render the visible upper half (angles
-      // from PI to 2*PI = -PI..0). Without rotation, sector i covers
-      // [PI + i*arc, PI + (i+1)*arc] in canvas coords.
+      // Sector bodies + highlight + dividers + labels.
       for (let i = 0; i < N; i++) {
-        const a0 = Math.PI + i * ARC_PER_SECTOR;
-        const a1 = Math.PI + (i + 1) * ARC_PER_SECTOR;
-        const inner = radius * 0.46;
-        const outer = radius * 0.95;
-
-        // Soft 3D gradient — bright lime/orange tier color with
-        // shading toward the inner edge.
+        const a0 = -ARC / 2 + i * ARC;
+        const a1 = ARC / 2 + i * ARC;
         const tier = SECTOR_TIER_COLOR[SECTORS[i]] ?? '#a0e0ab';
+
+        // Wedge body — rich radial gradient: dark hub side, bright rim.
+        const inner = radius * 0.28;
+        const outer = radius * 0.97;
         const grad = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.05, tier);
-        grad.addColorStop(0.95, tier);
-        grad.addColorStop(1, shade(tier, -0.15));
+        grad.addColorStop(0, shade(tier, -0.18));
+        grad.addColorStop(0.55, tier);
+        grad.addColorStop(1, shade(tier, -0.08));
         ctx.fillStyle = grad;
 
         ctx.beginPath();
-        ctx.arc(0, 0, outer, a0 + 0.018, a1 - 0.018); // small gap = pill look
-        ctx.arc(0, 0, inner, a1 - 0.018, a0 + 0.018, true);
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, outer, a0, a1);
         ctx.closePath();
         ctx.fill();
 
-        // Outer rim highlight
+        // Wedge inner glossy highlight on the upper half — gives the
+        // tile a slightly waxy/casino-disc look.
+        const gloss = ctx.createLinearGradient(0, -outer, 0, 0);
+        gloss.addColorStop(0, 'rgba(255,255,255,0.40)');
+        gloss.addColorStop(0.5, 'rgba(255,255,255,0.10)');
+        gloss.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gloss;
         ctx.beginPath();
-        ctx.arc(0, 0, outer + 0.5, a0 + 0.018, a1 - 0.018);
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-        ctx.stroke();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, outer, a0, a1);
+        ctx.closePath();
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
 
-        // Label — payout amount, arranged along the wedge midline
+        // Label — large, white, centred on the wedge midline. Slight
+        // drop shadow keeps it readable on lighter sectors.
         const aMid = (a0 + a1) / 2;
-        const lr = (inner + outer) / 2;
+        const lr = (inner + outer) * 0.58;
         const lx = Math.cos(aMid) * lr;
         const ly = Math.sin(aMid) * lr;
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(aMid + Math.PI / 2);
-        ctx.font = '700 11px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
+        ctx.font = '700 13px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 1);
         ctx.fillStyle = '#0a0a0a';
         ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 0);
         ctx.restore();
       }
 
+      // Sector dividers — drawn over the bodies for crisp edges.
+      for (let i = 0; i < N; i++) {
+        const a = -ARC / 2 + i * ARC;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * radius * 0.97, Math.sin(a) * radius * 0.97);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.stroke();
+      }
+
+      // Centre hub — brass-like radial dot
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
+      const hubGrad = ctx.createRadialGradient(
+        -radius * 0.06, -radius * 0.06, 0,
+        0, 0, radius * 0.22
+      );
+      hubGrad.addColorStop(0, 'rgba(255, 230, 170, 1)');
+      hubGrad.addColorStop(0.5, 'rgba(220, 170, 80, 1)');
+      hubGrad.addColorStop(1, 'rgba(120, 80, 30, 1)');
+      ctx.fillStyle = hubGrad;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.stroke();
+      // Inner dark ring
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.16, 0, Math.PI * 2);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 172, 46, 0.55)';
+      ctx.stroke();
+
       ctx.restore();
 
-      // Pointer at the top — short pill with a notch. We render it in
-      // unrotated coords so it stays put while the wheel spins under
-      // it. The pointer points toward the wheel center (downward).
+      // Tick studs on the bezel (24 pulsing dots) — they don't rotate.
+      const time = performance.now() / 1000;
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const sx = cx + Math.cos(a) * radius * 1.085;
+        const sy = cy + Math.sin(a) * radius * 1.085;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.5);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 220, 150, ${0.3 + pulse * 0.5})`;
+        ctx.fill();
+      }
+
+      // Top pointer — pill with downward notch
       const ptCx = cx;
-      const ptCy = cy - radius * 0.99;
+      const ptCy = cy - radius * 1.05;
       ctx.save();
       ctx.translate(ptCx, ptCy);
-      // Soft halo
+      // Halo
       ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
       ctx.fill();
       // Pill
-      const pillW = 36;
-      const pillH = 12;
+      const pillW = 38;
+      const pillH = 14;
       ctx.beginPath();
       ctx.moveTo(-pillW / 2, -pillH / 2);
-      ctx.arcTo(-pillW / 2 - 3, -pillH / 2, -pillW / 2 - 3, pillH / 2, pillH / 2);
-      ctx.arcTo(-pillW / 2 - 3, pillH / 2, -pillW / 2, pillH / 2, pillH / 2);
+      ctx.arcTo(-pillW / 2 - 4, -pillH / 2, -pillW / 2 - 4, pillH / 2, pillH / 2);
+      ctx.arcTo(-pillW / 2 - 4, pillH / 2, -pillW / 2, pillH / 2, pillH / 2);
       ctx.lineTo(pillW / 2, pillH / 2);
-      ctx.arcTo(pillW / 2 + 3, pillH / 2, pillW / 2 + 3, -pillH / 2, pillH / 2);
-      ctx.arcTo(pillW / 2 + 3, -pillH / 2, pillW / 2, -pillH / 2, pillH / 2);
+      ctx.arcTo(pillW / 2 + 4, pillH / 2, pillW / 2 + 4, -pillH / 2, pillH / 2);
+      ctx.arcTo(pillW / 2 + 4, -pillH / 2, pillW / 2, -pillH / 2, pillH / 2);
       ctx.closePath();
       const pGrad = ctx.createLinearGradient(0, -pillH / 2, 0, pillH / 2);
       pGrad.addColorStop(0, '#ffffff');
-      pGrad.addColorStop(1, '#d0d0d0');
+      pGrad.addColorStop(1, '#cccccc');
       ctx.fillStyle = pGrad;
       ctx.fill();
-      // Notch (small triangle pointing down at the wheel)
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.stroke();
+      // Notch (triangle pointing down at the wheel rim)
       ctx.beginPath();
-      ctx.moveTo(-5, pillH / 2);
-      ctx.lineTo(0, pillH / 2 + 7);
-      ctx.lineTo(5, pillH / 2);
+      ctx.moveTo(-6, pillH / 2);
+      ctx.lineTo(0, pillH / 2 + 9);
+      ctx.lineTo(6, pillH / 2);
       ctx.closePath();
-      ctx.fillStyle = '#ffffff';
+      const nGrad = ctx.createLinearGradient(0, pillH / 2, 0, pillH / 2 + 9);
+      nGrad.addColorStop(0, '#ffffff');
+      nGrad.addColorStop(1, '#bbbbbb');
+      ctx.fillStyle = nGrad;
       ctx.fill();
+      ctx.stroke();
       ctx.restore();
     };
 
@@ -970,11 +1107,11 @@ function describeRule(r: unknown): string | null {
   const o = r as Record<string, unknown>;
   switch (o.type) {
     case 'deposit_window':
-      return `Deposit ≥ ${o.amount} zł in last ${o.days}d`;
+      return `Deposits ≥ ${o.amount} zł in last ${o.days}d`;
     case 'wagered_window':
-      return `Wager ≥ ${o.amount} zł in last ${o.days}d`;
+      return `Wagered ≥ ${o.amount} zł in last ${o.days}d`;
     case 'deposit_total':
-      return `Lifetime deposit ≥ ${o.amount} zł`;
+      return `Lifetime deposits ≥ ${o.amount} zł`;
     case 'referrals':
       return `${o.count}+ referrals`;
     case 'registered_after':

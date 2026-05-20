@@ -214,7 +214,7 @@ export default function BridgesPage() {
         throw new Error(j?.message ?? 'cashout failed');
       }
       setState(j.state);
-      toast.success('Cashed out');
+      toast.cashout((j.state as PublicState)?.currentMultiplier ?? 0, 'Cashed out');
       soundManager.play('game.cashout');
       void fetchBalance();
     } catch (err) {

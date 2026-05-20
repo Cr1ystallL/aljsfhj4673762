@@ -51,7 +51,7 @@ interface PromoRow {
 interface ContestRow {
   id: string;
   title: string;
-  visibility: 'public' | 'private';
+  visibility: 'public' | 'private' | 'global' | string;
   prizePool: number;
   winnersCount: number;
   startsAt: number;
@@ -59,6 +59,7 @@ interface ContestRow {
   state: string;
   participants: number;
   createdAt: number;
+  bannerUrl?: string | null;
 }
 
 export default function AdminBonusesPage() {
@@ -626,6 +627,8 @@ function ContestsTab() {
   const [list, setList] = useState<ContestRow[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -644,6 +647,20 @@ function ContestsTab() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const removeContest = async (id: string) => {
+    const reason = prompt('Причина удаления конкурса:');
+    if (!reason || reason.trim().length < 3) return;
+    if (!confirm('Удалить конкурс? Список участников исчезнет.')) return;
+    await fetch(`/api/_x/bonuses/contests/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason.trim() }),
+    });
+    setContextMenu(null);
+    void reload();
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -665,33 +682,43 @@ function ContestsTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {list.map((c) => (
-            <button
+            <ContestRowCard
               key={c.id}
-              onClick={() => setOpenId(c.id)}
-              className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-3 text-left flex flex-col gap-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-                  <Trophy size={11} strokeWidth={1.7} />
-                  {c.visibility === 'public' ? 'Публичный' : 'Приватный'}
-                </span>
-                <StateBadge state={c.state} />
-              </div>
-              <div className="font-roobert text-[15px] text-frost-white truncate">
-                {c.title}
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <Mini label="Пул" value={`${c.prizePool.toFixed(0)} zł`} />
-                <Mini label="Победителей" value={String(c.winnersCount)} />
-                <Mini label="Участников" value={String(c.participants)} />
-              </div>
-              <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                {new Date(c.startsAt).toLocaleDateString('ru-RU')} →{' '}
-                {new Date(c.endsAt).toLocaleDateString('ru-RU')}
-              </div>
-            </button>
+              contest={c}
+              onOpen={() => setOpenId(c.id)}
+              onContext={(x, y) => setContextMenu({ id: c.id, x, y })}
+            />
           ))}
         </div>
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: 'Открыть',
+              onClick: () => {
+                setOpenId(contextMenu.id);
+                setContextMenu(null);
+              },
+            },
+            {
+              label: 'Редактировать',
+              onClick: () => {
+                setEditId(contextMenu.id);
+                setContextMenu(null);
+              },
+            },
+            {
+              label: 'Удалить',
+              danger: true,
+              onClick: () => removeContest(contextMenu.id),
+            },
+          ]}
+        />
       )}
 
       <AnimatePresence>
@@ -711,8 +738,88 @@ function ContestsTab() {
             onChanged={() => void reload()}
           />
         )}
+        {editId && (
+          <ContestEditModal
+            id={editId}
+            onClose={() => setEditId(null)}
+            onSaved={() => {
+              setEditId(null);
+              void reload();
+            }}
+          />
+        )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function ContestRowCard({
+  contest: c,
+  onOpen,
+  onContext,
+}: {
+  contest: ContestRow;
+  onOpen: () => void;
+  onContext: (x: number, y: number) => void;
+}) {
+  const longPressRef = useRef<{ timeout: number | null; fired: boolean }>({
+    timeout: null,
+    fired: false,
+  });
+  const start = (x: number, y: number) => {
+    longPressRef.current.fired = false;
+    longPressRef.current.timeout = window.setTimeout(() => {
+      longPressRef.current.fired = true;
+      onContext(x, y);
+    }, 480);
+  };
+  const cancel = () => {
+    if (longPressRef.current.timeout) {
+      window.clearTimeout(longPressRef.current.timeout);
+      longPressRef.current.timeout = null;
+    }
+  };
+
+  return (
+    <button
+      onClick={() => {
+        if (longPressRef.current.fired) return;
+        onOpen();
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContext(e.clientX, e.clientY);
+      }}
+      onPointerDown={(e) => start(e.clientX, e.clientY)}
+      onPointerUp={cancel}
+      onPointerLeave={cancel}
+      onPointerCancel={cancel}
+      className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-3 text-left flex flex-col gap-2"
+    >
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+          <Trophy size={11} strokeWidth={1.7} />
+          {c.visibility === 'public'
+            ? 'Публичный'
+            : c.visibility === 'private'
+              ? 'Приватный'
+              : 'Глобальный'}
+        </span>
+        <StateBadge state={c.state} />
+      </div>
+      <div className="font-roobert text-[15px] text-frost-white truncate">
+        {c.title}
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <Mini label="Пул" value={`${c.prizePool.toFixed(0)} zł`} />
+        <Mini label="Победителей" value={String(c.winnersCount)} />
+        <Mini label="Участников" value={String(c.participants)} />
+      </div>
+      <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+        {new Date(c.startsAt).toLocaleDateString('ru-RU')} →{' '}
+        {new Date(c.endsAt).toLocaleDateString('ru-RU')}
+      </div>
+    </button>
   );
 }
 
@@ -962,9 +1069,9 @@ function RulesEditor({
           defaultValue=""
         >
           <option value="">+ добавить</option>
-          <option value="deposit_window">Депозиты за период</option>
-          <option value="wagered_window">Оборот за период</option>
-          <option value="deposit_total">Депозиты всего</option>
+          <option value="deposit_window">Сумма депозитов за период</option>
+          <option value="wagered_window">Сумма оборота за период</option>
+          <option value="deposit_total">Сумма депозитов всего</option>
           <option value="referrals">Рефералы</option>
           <option value="registered_after">Регистрация после</option>
         </select>
@@ -1033,16 +1140,189 @@ function RulesEditor({
 function ruleLabel(type: RuleDraft['type']): string {
   switch (type) {
     case 'deposit_window':
-      return 'Депозиты ≥';
-    case 'wagered_window':
-      return 'Оборот ≥';
-    case 'deposit_total':
       return 'Сумма депозитов ≥';
+    case 'wagered_window':
+      return 'Сумма оборота ≥';
+    case 'deposit_total':
+      return 'Сумма депозитов всего ≥';
     case 'referrals':
       return 'Рефералов ≥';
     case 'registered_after':
       return 'Регистрация после';
   }
+}
+
+function ContestEditModal({
+  id,
+  onClose,
+  onSaved,
+}: {
+  id: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private' | 'global'>('public');
+  const [prizePool, setPrizePool] = useState(0);
+  const [winnersCount, setWinnersCount] = useState(1);
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch(`/api/_x/bonuses/contests/${id}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const c = j.contest;
+      setTitle(c.title);
+      setDescription(c.description ?? '');
+      setBannerUrl((c.bannerUrl as string | null) ?? '');
+      setVisibility(c.visibility ?? 'public');
+      setPrizePool(c.prizePool);
+      setWinnersCount(c.winnersCount);
+      setStartsAt(toLocalIso(c.startsAt));
+      setEndsAt(toLocalIso(c.endsAt));
+      setLoaded(true);
+    })();
+  }, [id]);
+
+  const submit = async () => {
+    if (reason.trim().length < 3) {
+      setErr('Причина обязательна');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/_x/bonuses/contests/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || null,
+          bannerUrl: bannerUrl.trim() || null,
+          visibility,
+          prizePool: Number(prizePool),
+          winnersCount: Number(winnersCount),
+          startsAt: new Date(startsAt).getTime(),
+          endsAt: new Date(endsAt).getTime(),
+          reason: reason.trim(),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(json.error || 'Ошибка');
+        return;
+      }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Редактирование конкурса" wide>
+      {!loaded ? (
+        <Spinner />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Название" colSpan={2}>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+              />
+            </Field>
+            <Field label="Описание" colSpan={2}>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
+              />
+            </Field>
+            <Field label="Фото-фон (URL)" colSpan={2}>
+              <input
+                value={bannerUrl}
+                onChange={(e) => setBannerUrl(e.target.value)}
+                placeholder="https://example.com/banner.jpg"
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+              />
+            </Field>
+            <Field label="Видимость">
+              <select
+                value={visibility}
+                onChange={(e) =>
+                  setVisibility(e.target.value as 'public' | 'private' | 'global')
+                }
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+              >
+                <option value="public">Публичный</option>
+                <option value="private">Приватный</option>
+                <option value="global">Глобальный (авто-участие)</option>
+              </select>
+            </Field>
+            <Field label="Призовой пул (zł)">
+              <NumInput value={prizePool} step={50} min={1} onChange={setPrizePool} />
+            </Field>
+            <Field label="Победителей">
+              <NumInput value={winnersCount} step={1} min={1} onChange={setWinnersCount} />
+            </Field>
+            <Field label="Старт">
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+              />
+            </Field>
+            <Field label="Окончание">
+              <input
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+              />
+            </Field>
+          </div>
+          <ReasonField reason={reason} onChange={setReason} />
+          {err && <div className="font-roobert text-[12px] text-[#ff8a76]">{err}</div>}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={submit}
+              disabled={busy}
+              className="px-4 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] disabled:opacity-50"
+            >
+              {busy ? 'Сохранение…' : 'Сохранить'}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function toLocalIso(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function ContestDetailModal({

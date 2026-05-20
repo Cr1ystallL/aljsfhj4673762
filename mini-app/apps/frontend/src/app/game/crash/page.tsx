@@ -236,7 +236,7 @@ export default function CrashGamePage() {
         throw new Error(data.message || 'Cashout failed');
       }
       soundManager.play('game.cashout');
-      toast.success('Cashed out');
+      toast.cashout(snapshot.serverMultiplier, 'Cashed out');
     } catch (err) {
       console.error('Cashout failed:', err);
       setRuntime((prev) => {

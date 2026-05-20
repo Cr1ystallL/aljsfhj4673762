@@ -211,7 +211,7 @@ export function HomeScreen() {
               {g.bg && (
                 <div
                   aria-hidden
-                  className="absolute inset-0 opacity-30 group-hover:opacity-45 transition-opacity"
+                  className="absolute inset-0 opacity-55 group-hover:opacity-70 transition-opacity"
                   style={{
                     backgroundImage: `url(${g.bg})`,
                     backgroundSize: 'cover',
@@ -226,7 +226,7 @@ export function HomeScreen() {
                 className="absolute inset-0"
                 style={{
                   background:
-                    'linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.85) 100%)',
+                    'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 75%, rgba(0,0,0,0.70) 100%)',
                 }}
               />
               <div
@@ -267,7 +267,7 @@ export function HomeScreen() {
               {g.bg && (
                 <div
                   aria-hidden
-                  className="absolute inset-0 opacity-35 group-active:opacity-55 transition-opacity"
+                  className="absolute inset-0 opacity-60 group-active:opacity-75 transition-opacity"
                   style={{
                     backgroundImage: `url(${g.bg})`,
                     backgroundSize: 'cover',
@@ -281,7 +281,7 @@ export function HomeScreen() {
                 className="absolute inset-0"
                 style={{
                   background:
-                    'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.70) 100%)',
+                    'linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.55) 100%)',
                 }}
               />
               <div className="relative h-full w-full flex flex-col items-center justify-center gap-1.5">

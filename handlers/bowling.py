@@ -35,10 +35,13 @@ async def show_bowling_game(callback: CallbackQuery):
     text = get_text(lang, 'bowling_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
     
     from keyboards.inline import get_bowling_menu
-    await callback.bot.send_message(
+    from utils.game_photos import send_game_message
+    await send_game_message(
+        callback.bot,
         user_id,
+        'bowl',
         text,
-        reply_markup=get_bowling_menu(lang)
+        reply_markup=get_bowling_menu(lang),
     )
     await callback.answer()
 

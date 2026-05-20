@@ -10,7 +10,7 @@ import { create } from 'zustand';
  * when several events fire close together.
  */
 
-export type ToastKind = 'info' | 'success' | 'warn' | 'error';
+export type ToastKind = 'info' | 'success' | 'warn' | 'error' | 'bigwin';
 
 export interface Toast {
   id: string;
@@ -73,6 +73,32 @@ export const toast = {
   },
   error(message: string, opts: Partial<Omit<Toast, 'id' | 'message' | 'kind'>> = {}) {
     return useToastStore.getState().push({ kind: 'error', message, ...opts });
+  },
+  /**
+   * Celebrate a multiplier ≥ 50× cashout. The toast itself uses a
+   * dedicated `bigwin` kind so the renderer can apply a brand-tinted
+   * gradient + bigger title — see toast-host.tsx. Auto-dismisses
+   * after 7s instead of the default 4s so the player has time to
+   * read the headline.
+   */
+  bigWin(multiplier: number, opts: Partial<Omit<Toast, 'id' | 'message' | 'kind'>> = {}) {
+    return useToastStore.getState().push({
+      kind: 'bigwin',
+      title: 'МаcvBetнулся',
+      message: `Поздравляем, вы выиграли ставку с множителем ×${multiplier.toFixed(2)}! Так держать.`,
+      ttl: 7000,
+      ...opts,
+    });
+  },
+  /**
+   * Convenience: surface a `bigWin` toast iff the multiplier crosses
+   * the 50× threshold. Otherwise behaves like the regular `success`.
+   */
+  cashout(multiplier: number, fallback: string) {
+    if (Number.isFinite(multiplier) && multiplier >= 50) {
+      return this.bigWin(multiplier);
+    }
+    return this.success(fallback);
   },
   dismiss(id: string) {
     useToastStore.getState().dismiss(id);

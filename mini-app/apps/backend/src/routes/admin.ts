@@ -2947,22 +2947,41 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         if (!c) {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
-        const participants = await app.prisma.$queryRaw<
-          Array<{
-            id: string;
-            user_id: string;
-            banned: boolean;
-            joined_at: Date;
-            first_name: string | null;
-            username: string | null;
-            photo_url: string | null;
-          }>
-        >`SELECT p.id, p.user_id, p.banned, p.joined_at,
-                  u.first_name, u.username, u.photo_url
-            FROM contest_participants p
-            LEFT JOIN users u ON u.id = p.user_id
-           WHERE p.contest_id = ${id}
-           ORDER BY p.joined_at DESC`;
+        let participants: Array<{
+          id: string;
+          user_id: string;
+          banned: boolean;
+          joined_at: Date;
+          first_name: string | null;
+          username: string | null;
+          photo_url: string | null;
+        }>;
+
+        if (c.visibility === 'global') {
+          // Global contest — every user who passes the eligibility rules
+          // is implicitly a participant. We compute the set on the fly
+          // so the admin sees exactly who's qualified right now,
+          // including those who only just met the threshold.
+          // Bans are still respected via the contest_participants table:
+          // an admin can disqualify an otherwise-eligible user with the
+          // /participants/:userId/ban endpoint, which inserts a banned
+          // row that we then exclude from this list.
+          participants = await collectGlobalContestParticipants(
+            app,
+            id,
+            c.rules,
+            c.starts_at
+          );
+        } else {
+          participants = await app.prisma.$queryRaw<
+            typeof participants
+          >`SELECT p.id, p.user_id, p.banned, p.joined_at,
+                    u.first_name, u.username, u.photo_url
+              FROM contest_participants p
+              LEFT JOIN users u ON u.id = p.user_id
+             WHERE p.contest_id = ${id}
+             ORDER BY p.joined_at DESC`;
+        }
 
         return reply.send({
           ok: true,
@@ -3061,27 +3080,44 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               winners_count: number;
               prize_shares: unknown;
               state: string;
+              visibility: string;
+              rules: unknown;
+              starts_at: Date;
             }>
-          >`SELECT id, winners_count, prize_shares, state
+          >`SELECT id, winners_count, prize_shares, state, visibility,
+                    rules, starts_at
               FROM contests WHERE id = ${id} LIMIT 1 FOR UPDATE`;
           const c = rows[0];
           if (!c) throw new Error('Contest not found');
           if (c.state === 'paid') return { winners: [], alreadyPaid: true };
 
-          const eligible = await tx.$queryRaw<
-            Array<{ user_id: string }>
-          >`SELECT user_id FROM contest_participants
-             WHERE contest_id = ${id} AND banned = FALSE`;
-          if (eligible.length === 0) {
+          let pool: string[];
+          if (c.visibility === 'global') {
+            const eligible = await collectGlobalContestParticipants(
+              app,
+              id,
+              c.rules,
+              c.starts_at
+            );
+            pool = eligible.filter((e) => !e.banned).map((e) => e.user_id);
+          } else {
+            const eligible = await tx.$queryRaw<
+              Array<{ user_id: string }>
+            >`SELECT user_id FROM contest_participants
+               WHERE contest_id = ${id} AND banned = FALSE`;
+            pool = eligible.map((e) => e.user_id);
+          }
+
+          if (pool.length === 0) {
             throw new Error('No eligible participants');
           }
           // Random pick winners_count without replacement.
-          const pool = eligible.map((e) => e.user_id);
           const winnersCount = Math.min(c.winners_count, pool.length);
           const picks: string[] = [];
+          const draftPool = [...pool];
           for (let i = 0; i < winnersCount; i++) {
-            const idx = Math.floor(Math.random() * pool.length);
-            picks.push(pool.splice(idx, 1)[0]);
+            const idx = Math.floor(Math.random() * draftPool.length);
+            picks.push(draftPool.splice(idx, 1)[0]);
           }
           const shares = Array.isArray(c.prize_shares) ? c.prize_shares : [];
           const winners = picks.map((uid, i) => {
@@ -3281,5 +3317,260 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ----- contest delete ------------------------------------------- */
+
+  /**
+   * DELETE /api/_x/bonuses/contests/:id
+   * Body: { reason }. Removes the contest along with its
+   * `contest_participants` rows (CASCADE). Resolved/paid contests can
+   * be deleted too — that's the admin's call.
+   */
+  app.delete<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/bonuses/contests/:id',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const { id } = request.params;
+      try {
+        await app.prisma.$executeRaw`DELETE FROM contests WHERE id = ${id}`;
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'contest.delete',
+          targetType: 'contest',
+          targetId: id,
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (err) {
+        logger.error(err, 'Contest delete failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * PATCH /api/_x/bonuses/contests/:id
+   * Edit common contest fields. Body: any subset of
+   *   title, description, bannerUrl, prizePool, winnersCount,
+   *   prizeShares, rules, startsAt, endsAt, visibility.
+   *
+   * Doesn't allow flipping state directly — that's owned by `/draw`.
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: {
+      title?: string;
+      description?: string | null;
+      bannerUrl?: string | null;
+      prizePool?: number;
+      winnersCount?: number;
+      prizeShares?: unknown;
+      rules?: unknown;
+      startsAt?: number;
+      endsAt?: number;
+      visibility?: 'public' | 'private' | 'global';
+      reason?: string;
+    };
+  }>('/_x/bonuses/contests/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = (request.body?.reason ?? '').trim();
+    if (!reason || reason.length < 3) {
+      return reply.code(400).send({ error: 'Reason required' });
+    }
+    const { id } = request.params;
+    const fragments: Prisma.Sql[] = [];
+    const b = request.body;
+    if (typeof b.title === 'string') fragments.push(Prisma.sql`title = ${b.title.trim()}`);
+    if (b.description !== undefined) fragments.push(Prisma.sql`description = ${b.description}`);
+    if (b.bannerUrl !== undefined)
+      fragments.push(Prisma.sql`banner_url = ${b.bannerUrl?.trim() || null}`);
+    if (typeof b.prizePool === 'number')
+      fragments.push(Prisma.sql`prize_pool = ${b.prizePool}::numeric`);
+    if (typeof b.winnersCount === 'number')
+      fragments.push(Prisma.sql`winners_count = ${Math.max(1, Math.floor(b.winnersCount))}`);
+    if (b.prizeShares !== undefined)
+      fragments.push(Prisma.sql`prize_shares = ${JSON.stringify(b.prizeShares)}::jsonb`);
+    if (b.rules !== undefined)
+      fragments.push(Prisma.sql`rules = ${JSON.stringify(Array.isArray(b.rules) ? b.rules : [])}::jsonb`);
+    if (typeof b.startsAt === 'number')
+      fragments.push(Prisma.sql`starts_at = ${new Date(b.startsAt)}`);
+    if (typeof b.endsAt === 'number')
+      fragments.push(Prisma.sql`ends_at = ${new Date(b.endsAt)}`);
+    if (b.visibility) fragments.push(Prisma.sql`visibility = ${b.visibility}`);
+    if (fragments.length === 0)
+      return reply.code(400).send({ error: 'Nothing to update' });
+    fragments.push(Prisma.sql`updated_at = NOW()`);
+
+    try {
+      await app.prisma.$executeRaw(Prisma.sql`
+        UPDATE contests SET ${Prisma.join(fragments, ', ')} WHERE id = ${id}
+      `);
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'contest.update',
+        targetType: 'contest',
+        targetId: id,
+        payloadAfter: b,
+        reason,
+      });
+      return reply.send({ ok: true });
+    } catch (err) {
+      logger.error(err, 'Contest update failed');
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+    }
+  });
+
   void isAdminTelegramId;
+}
+
+
+/* ===========================================================================
+ * Global-contest helper
+ * ===========================================================================
+ *
+ * Computes the participant set for a global-visibility contest. Players
+ * are eligible if they pass every rule from `contests.rules` (same set
+ * of types as promo activation conditions). The function returns the
+ * full participant rows in the same shape as a regular query against
+ * `contest_participants` so the contest detail UI can treat both
+ * visibility kinds uniformly.
+ *
+ * Rules currently supported:
+ *   { type: 'deposit_window', amount, days } - sum of deposits in last N days
+ *   { type: 'wagered_window', amount, days } - sum of bets in last N days
+ *   { type: 'deposit_total',  amount       } - lifetime deposits sum
+ *   { type: 'registered_after', date       } - account created after date
+ *   { type: 'referrals',      count        } - skipped (no referral system yet)
+ *
+ * Bans on a global contest are stored as a banned=true row in
+ * `contest_participants`. Any user whose id is banned is still
+ * returned in the list (so the admin sees them) but with banned=true,
+ * so /draw can exclude them.
+ */
+async function collectGlobalContestParticipants(
+  app: FastifyInstance,
+  contestId: string,
+  rules: unknown,
+  startsAt: Date
+): Promise<
+  Array<{
+    id: string;
+    user_id: string;
+    banned: boolean;
+    joined_at: Date;
+    first_name: string | null;
+    username: string | null;
+    photo_url: string | null;
+  }>
+> {
+  const ruleArr = Array.isArray(rules) ? (rules as Array<Record<string, unknown>>) : [];
+
+  // Read every user once and filter in JS — sub-1000-user accounts on
+  // this casino make this trivially cheap, and the rule set spans
+  // multiple disparate aggregates which is awkward to express as one
+  // SQL statement.
+  type UserRow = {
+    id: string;
+    first_name: string | null;
+    username: string | null;
+    photo_url: string | null;
+    created_at: Date;
+  };
+  const users = await app.prisma.$queryRaw<UserRow[]>`
+    SELECT id, first_name, username, photo_url, created_at
+      FROM users WHERE is_blocked = FALSE
+     ORDER BY created_at DESC LIMIT 5000`;
+
+  // Pre-compute aggregates we'll need.
+  const wagerSums = new Map<string, number>();
+  const depositSums = new Map<string, number>();
+  const depositSumsLifetime = new Map<string, number>();
+
+  // Find the longest window we care about so we can issue one SQL pass.
+  const maxWindowDays = ruleArr.reduce<number>((max, r) => {
+    if (
+      (r.type === 'deposit_window' || r.type === 'wagered_window') &&
+      typeof r.days === 'number' &&
+      r.days > max
+    ) {
+      return r.days;
+    }
+    return max;
+  }, 0);
+
+  if (maxWindowDays > 0) {
+    const since = new Date(Date.now() - maxWindowDays * 24 * 60 * 60 * 1000);
+    type AggRow = { user_id: string; type: string; sum: string };
+    const aggRows = await app.prisma.$queryRaw<AggRow[]>`
+      SELECT user_id, type, COALESCE(SUM(amount), 0)::text AS sum
+        FROM transactions
+       WHERE type IN ('deposit', 'bet') AND created_at >= ${since}
+       GROUP BY user_id, type`;
+    for (const r of aggRows) {
+      const v = Math.abs(Number(r.sum));
+      if (r.type === 'deposit') depositSums.set(r.user_id, v);
+      else if (r.type === 'bet') wagerSums.set(r.user_id, v);
+    }
+  }
+  if (ruleArr.some((r) => r.type === 'deposit_total')) {
+    type AggRow = { user_id: string; sum: string };
+    const aggRows = await app.prisma.$queryRaw<AggRow[]>`
+      SELECT user_id, COALESCE(SUM(amount), 0)::text AS sum
+        FROM transactions WHERE type = 'deposit'
+       GROUP BY user_id`;
+    for (const r of aggRows) {
+      depositSumsLifetime.set(r.user_id, Number(r.sum));
+    }
+  }
+
+  const passes = (u: UserRow): boolean => {
+    for (const r of ruleArr) {
+      const t = r.type;
+      if (t === 'deposit_window') {
+        const need = Number(r.amount);
+        if (!Number.isFinite(need)) continue;
+        if ((depositSums.get(u.id) ?? 0) < need) return false;
+      } else if (t === 'wagered_window') {
+        const need = Number(r.amount);
+        if (!Number.isFinite(need)) continue;
+        if ((wagerSums.get(u.id) ?? 0) < need) return false;
+      } else if (t === 'deposit_total') {
+        const need = Number(r.amount);
+        if (!Number.isFinite(need)) continue;
+        if ((depositSumsLifetime.get(u.id) ?? 0) < need) return false;
+      } else if (t === 'registered_after') {
+        const date = typeof r.date === 'string' ? new Date(r.date).getTime() : NaN;
+        if (!Number.isFinite(date)) continue;
+        if (u.created_at.getTime() < date) return false;
+      }
+      // 'referrals' currently passes — referral system isn't shipped.
+    }
+    // Auto-include users who registered before the contest starts and
+    // pass every rule. Restricting to "registered after startsAt" is a
+    // separate `registered_after` rule the admin can add explicitly.
+    void startsAt;
+    return true;
+  };
+
+  // Bans recorded in contest_participants for this contest.
+  type BanRow = { user_id: string; id: string; joined_at: Date; banned: boolean };
+  const banRows = await app.prisma.$queryRaw<BanRow[]>`
+    SELECT id, user_id, joined_at, banned FROM contest_participants
+     WHERE contest_id = ${contestId}`;
+  const bans = new Map(banRows.map((b) => [b.user_id, b]));
+
+  return users.filter(passes).map((u) => {
+    const ban = bans.get(u.id);
+    return {
+      id: ban?.id ?? `auto_${u.id}`,
+      user_id: u.id,
+      banned: !!ban?.banned,
+      joined_at: ban?.joined_at ?? u.created_at,
+      first_name: u.first_name,
+      username: u.username,
+      photo_url: u.photo_url,
+    };
+  });
 }
