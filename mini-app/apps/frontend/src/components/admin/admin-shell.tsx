@@ -24,6 +24,7 @@ import {
   ScrollText,
   Shield,
   Sliders,
+  Sparkles,
   Users,
   Wallet,
   type LucideIcon,
@@ -88,6 +89,12 @@ const links: AdminLink[] = [
     label: 'Кошелёк',
     Icon: CreditCard,
     href: '/system/console/wallet',
+  },
+  {
+    id: 'bonuses',
+    label: 'Бонусы',
+    Icon: Sparkles,
+    href: '/system/console/bonuses',
   },
   {
     id: 'broadcasts',
