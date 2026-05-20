@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Gift,
   Sparkles,
   Ticket,
-  Users,
   Trophy,
+  Users,
   ArrowRight,
+  ChevronRight,
 } from 'lucide-react';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
@@ -20,17 +20,22 @@ import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 
 /**
- * Bonuses Page — Monopo Saigon Style
+ * Bonuses Page — Monopo Saigon Style, redesigned.
  *
- * Three sections:
- *   1. Promo code redemption — single input + active indicator.
- *   2. Lucky Wheel — daily free spins, sectors 0.05..1.00 zł, 10/day,
- *      20-min cooldown. The wheel idle-spins gently while waiting,
- *      mirroring the in-game `Wheel` page so the surface stays alive.
- *   3. Contests — list of public + joined-private contests with prize
- *      pool, deadline, eligibility and join CTA.
+ * Layout (mobile-first):
+ *   1. Top strip with brand + balance pill.
+ *   2. Promo code hero — gem icon, gradient backdrop, single input,
+ *      pill CTA. Mirrors the reference shot but in our brand palette.
+ *   3. Lucky Wheel hero card — half-circle wheel (12 sectors) anchored
+ *      at the bottom of the card, pointer is a glowing pill. The wheel
+ *      sits inside the card so the surface reads as a single self-
+ *      contained surface, not a separate widget. 10 spins/day, 20 min
+ *      cooldown, 0.05..1.00 zł payouts. Idle drift while no spin runs.
+ *   4. Recent winners ticker.
+ *   5. Contests rail.
  *
- * Visual identity stays Midnight Canvas + Deep Ocean gradient + Roobert.
+ * Brand palette — Midnight Canvas, Frost White, Whisper Gray, Deep
+ * Ocean gradient (green→amber→red). No external blues.
  */
 
 interface WheelStateResponse {
@@ -53,7 +58,7 @@ interface ContestRow {
   id: string;
   title: string;
   description: string | null;
-  visibility: 'public' | 'private';
+  visibility: 'public' | 'private' | 'global';
   prizePool: number;
   winnersCount: number;
   prizeShares: unknown;
@@ -63,6 +68,7 @@ interface ContestRow {
   state: string;
   joined: boolean;
   participantCount: number;
+  bannerUrl?: string | null;
 }
 
 export default function BonusesPage() {
@@ -74,31 +80,23 @@ export default function BonusesPage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-        {/* Top bar — same identity strip as in-game pages */}
+        {/* Top bar */}
         <div className="flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={() => router.push('/')}
-              aria-label="Home"
-              className="rounded-card transition-opacity hover:opacity-80"
-            >
-              <BrandLockup size={48} />
-            </button>
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="font-roobert text-frost-white text-[22px] font-normal leading-none truncate">
-                Bonuses
-              </span>
-              <Sparkles size={16} className="text-frost-white/85 shrink-0" strokeWidth={1.6} />
-            </div>
-          </div>
-
           <button
-            onClick={() => router.push('/balance')}
-            aria-label="Wallet"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
+            type="button"
+            onClick={() => router.push('/')}
+            aria-label="Home"
+            className="rounded-card transition-opacity hover:opacity-80"
           >
-            <Gift size={12} className="text-frost-white/70" strokeWidth={1.8} />
+            <BrandLockup size={48} />
+          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-roobert text-frost-white text-[22px] font-normal leading-none truncate">
+              Bonuses
+            </span>
+            <Sparkles size={16} className="text-frost-white/85 shrink-0" strokeWidth={1.6} />
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill border border-white/15 bg-white/[0.04]">
             <span className="font-roobert text-frost-white text-[12px] tabular-nums leading-none">
               {(balance?.amount ?? 0).toLocaleString('en-US', {
                 minimumFractionDigits: 0,
@@ -106,12 +104,12 @@ export default function BonusesPage() {
               })}
             </span>
             <span className="font-roobert text-whisper-gray text-[10px] leading-none">zł</span>
-          </button>
+          </div>
         </div>
 
-        <PromoCodeCard onRedeemed={() => void fetchBalance()} />
+        <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 
-        <LuckyWheelCard onWin={() => void fetchBalance()} />
+        <LuckyWheelHero onWin={() => void fetchBalance()} />
 
         <ContestsList currentUserId={user?.id ?? null} />
       </div>
@@ -120,10 +118,10 @@ export default function BonusesPage() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Promo code                                                                 */
+/* Promo code hero                                                            */
 /* -------------------------------------------------------------------------- */
 
-function PromoCodeCard({ onRedeemed }: { onRedeemed: () => void }) {
+function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -151,6 +149,9 @@ function PromoCodeCard({ onRedeemed }: { onRedeemed: () => void }) {
         { title: 'Promo applied' }
       );
       setCode('');
+      // Update store immediately + double-check via fetch.
+      const balance = useBalanceStore.getState().balance;
+      if (balance) useBalanceStore.getState().updateBalance(Number(json.balance ?? balance.amount));
       onRedeemed();
     } catch {
       toast.error('Network error, try again');
@@ -160,77 +161,140 @@ function PromoCodeCard({ onRedeemed }: { onRedeemed: () => void }) {
   };
 
   return (
-    <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
+    <section className="relative overflow-hidden rounded-card border border-white/10">
+      {/* Atmospheric backdrop — Deep Ocean tint, brighter on the right */}
       <div
         aria-hidden
-        className="absolute inset-0 opacity-55 pointer-events-none"
+        className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(120% 110% at 0% 0%, rgba(160, 224, 171, 0.22) 0%, rgba(255, 172, 46, 0.12) 45%, transparent 75%)',
+            'linear-gradient(135deg, rgba(160, 224, 171, 0.10) 0%, rgba(255, 172, 46, 0.18) 55%, rgba(165, 45, 37, 0.22) 100%), #0a0a0a',
         }}
       />
-      <div className="relative px-5 py-5 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-            Promo code
+      <div
+        aria-hidden
+        className="absolute -top-12 -left-10 w-44 h-44 rounded-full pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(255, 220, 150, 0.30) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }}
+      />
+
+      <div className="relative grid grid-cols-[1fr_auto] gap-3 px-5 py-5 sm:px-6 sm:py-6 items-center">
+        <div className="flex flex-col gap-1">
+          <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+            <Ticket size={11} strokeWidth={1.7} />
+            Promo
           </span>
-          <Ticket size={12} className="text-frost-white/55" strokeWidth={1.7} />
+          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
+            Activate code,
+            <br />
+            claim a bonus
+          </h2>
         </div>
-        <div className="font-roobert text-frost-white text-[20px] sm:text-[22px] leading-tight">
-          Redeem a code, claim your bonus
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="ENTER CODE"
-            maxLength={32}
-            className="flex-1 min-w-0 h-11 px-4 rounded-pill border border-white/15 bg-white/[0.06] font-roobert text-[14px] tracking-[0.18em] text-frost-white placeholder:text-whisper-gray focus:outline-none focus:border-white/30"
-          />
-          <button
-            onClick={submit}
-            disabled={busy}
-            className={cn(
-              'h-11 px-4 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-all active:scale-[0.97]',
-              busy
-                ? 'bg-white/[0.06] text-frost-white/60 cursor-not-allowed'
-                : 'bg-frost-white text-midnight-canvas hover:bg-frost-white/95'
-            )}
-          >
-            Apply
-          </button>
-        </div>
+        <Gem />
+      </div>
+
+      <div className="relative px-5 pb-5 sm:px-6 sm:pb-6 flex items-center gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="ENTER CODE"
+          maxLength={32}
+          className="flex-1 min-w-0 h-11 px-4 rounded-pill border border-white/20 bg-black/40 backdrop-blur-md font-roobert text-[14px] tracking-[0.2em] text-frost-white placeholder:text-whisper-gray focus:outline-none focus:border-white/40"
+        />
+        <button
+          onClick={submit}
+          disabled={busy}
+          className={cn(
+            'h-11 px-5 rounded-pill font-roobert font-semibold text-[12px] uppercase tracking-[0.18em] text-midnight-canvas transition-all active:scale-[0.97] inline-flex items-center gap-1.5',
+            busy && 'opacity-60 cursor-not-allowed'
+          )}
+          style={{
+            background:
+              'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 100%)',
+            boxShadow: '0 4px 14px rgba(255, 172, 46, 0.30)',
+          }}
+        >
+          Apply
+          <ArrowRight size={12} strokeWidth={2} />
+        </button>
       </div>
     </section>
   );
 }
 
+function Gem() {
+  return (
+    <svg
+      viewBox="0 0 80 80"
+      className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_4px_20px_rgba(255,172,46,0.35)]"
+    >
+      <defs>
+        <linearGradient id="gemFace" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgb(255, 220, 150)" />
+          <stop offset="55%" stopColor="rgb(255, 172, 46)" />
+          <stop offset="100%" stopColor="rgb(165, 45, 37)" />
+        </linearGradient>
+        <linearGradient id="gemTop" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
+          <stop offset="100%" stopColor="rgba(255,210,140,0.4)" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points="40,8 64,28 56,68 24,68 16,28"
+        fill="url(#gemFace)"
+        stroke="rgba(0,0,0,0.45)"
+        strokeWidth="1.2"
+      />
+      <polygon
+        points="40,8 64,28 16,28"
+        fill="url(#gemTop)"
+        opacity="0.85"
+      />
+      <line x1="40" y1="8" x2="40" y2="68" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" />
+      <line x1="16" y1="28" x2="40" y2="68" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" />
+      <line x1="64" y1="28" x2="40" y2="68" stroke="rgba(0,0,0,0.25)" strokeWidth="0.8" />
+      <polygon
+        points="36,12 30,26 38,16"
+        fill="rgba(255,255,255,0.5)"
+      />
+    </svg>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
-/* Lucky Wheel                                                                */
+/* Lucky Wheel hero — half-circle, 12 sectors, brand palette                  */
 /* -------------------------------------------------------------------------- */
 
-const SECTOR_COLORS = [
-  '#a0e0ab', // 0.05
-  '#cfe07f', // 0.10
-  '#ffac2e', // 0.25
-  '#ff8a3a', // 0.50
-  '#e85a3a', // 0.75
-  '#a52d25', // 1.00
+const WHEEL_SECTORS_12 = [
+  0.05, 0.1, 0.5, 0.05, 0.25, 0.1,
+  1.0, 0.05, 0.5, 0.1, 0.25, 0.05,
 ];
 
-function LuckyWheelCard({ onWin }: { onWin: () => void }) {
+const SECTOR_TIER_COLOR: Record<number, string> = {
+  0.05: '#a0e0ab',
+  0.1: '#a0e0ab',
+  0.25: '#cfe07f',
+  0.5: '#ffac2e',
+  0.75: '#ff8a3a',
+  1.0: '#ff5a3a',
+};
+
+function LuckyWheelHero({ onWin }: { onWin: () => void }) {
   const [state, setState] = useState<WheelStateResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  /** Spin lock while the animation runs. */
+  const [, forceTick] = useState(0);
   const spinRef = useRef<{
     startedAt: number;
     durationMs: number;
     targetIndex: number;
     initialRotation: number;
   } | null>(null);
-  const [, forceTick] = useState(0);
+  const idleRotationRef = useRef(0);
 
   const load = useCallback(async () => {
     try {
@@ -242,7 +306,7 @@ function LuckyWheelCard({ onWin }: { onWin: () => void }) {
       const json: WheelStateResponse = await res.json();
       setState(json);
     } catch {
-      // best-effort
+      // ignore
     }
   }, []);
 
@@ -255,7 +319,6 @@ function LuckyWheelCard({ onWin }: { onWin: () => void }) {
   const cooldownLeftMs = state?.cooldownEndsAt
     ? Math.max(0, state.cooldownEndsAt - now)
     : 0;
-
   const onCooldown = cooldownLeftMs > 0;
   const noSpins = (state?.remaining ?? 0) <= 0;
   const canSpin = !!state && !busy && !onCooldown && !noSpins && spinRef.current === null;
@@ -273,22 +336,34 @@ function LuckyWheelCard({ onWin }: { onWin: () => void }) {
         reportApiError(res, json, 'Could not spin');
         return;
       }
-      // Lock spin and let the animation play out.
-      const sectorIndex = Number(json.sectorIndex);
+      // Convert backend sector index (0..5 over the 6-tier list) to a
+      // half-wheel landing slot — pick the sector whose payout matches.
+      const sectorAmount = Number(json.amount);
+      const candidates = WHEEL_SECTORS_12
+        .map((amt, i) => ({ amt, i }))
+        .filter((s) => s.amt === sectorAmount);
+      const target = candidates.length
+        ? candidates[Math.floor(Math.random() * candidates.length)].i
+        : 0;
+
       spinRef.current = {
         startedAt: Date.now(),
         durationMs: 4500,
-        targetIndex: sectorIndex,
+        targetIndex: target,
         initialRotation: idleRotationRef.current,
       };
       forceTick((n) => n + 1);
       setTimeout(() => {
         toast.success(
-          `+${Number(json.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`,
+          `+${sectorAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`,
           { title: 'Lucky spin' }
         );
         spinRef.current = null;
         forceTick((n) => n + 1);
+        // Push immediate balance update from the response so the pill
+        // refreshes instantly without waiting for /api/balance roundtrip.
+        const cur = useBalanceStore.getState().balance;
+        if (cur) useBalanceStore.getState().updateBalance(Number(json.balance ?? cur.amount));
         onWin();
         void load();
       }, 4500);
@@ -299,69 +374,106 @@ function LuckyWheelCard({ onWin }: { onWin: () => void }) {
     }
   };
 
-  // Idle rotation accumulates while the user hasn't spun yet — reads
-  // from the canvas tick so it matches the Wheel game's idle drift.
-  const idleRotationRef = useRef(0);
-
   return (
-    <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-      <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
-        <div className="flex items-center gap-1.5">
-          <Sparkles size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
-          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-            Lucky Wheel
-          </span>
-        </div>
-        <span className="font-roobert text-[11px] text-frost-white/85 tabular-nums">
-          {state ? `${state.remaining}/${state.dailyCap}` : '—/—'} spins
+    <section className="relative overflow-hidden rounded-card border border-white/10">
+      {/* Deep Ocean radial — replaces the reference's purple */}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(20, 20, 26, 1) 0%, rgba(10, 12, 16, 1) 100%)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-60"
+        style={{
+          background:
+            'radial-gradient(120% 90% at 50% 110%, rgba(255, 172, 46, 0.30) 0%, rgba(165, 45, 37, 0.18) 35%, transparent 75%)',
+        }}
+      />
+      {/* Sun-rays pattern */}
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-25 pointer-events-none"
+        style={{
+          background: `repeating-conic-gradient(from 220deg at 50% 110%, rgba(255,172,46,0.35) 0deg, rgba(255,172,46,0.35) 8deg, transparent 8deg, transparent 18deg)`,
+          maskImage: 'radial-gradient(120% 90% at 50% 110%, black 30%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(120% 90% at 50% 110%, black 30%, transparent 75%)',
+        }}
+      />
+
+      <div className="relative px-5 pt-5 sm:px-6 sm:pt-6 flex flex-col gap-1">
+        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+          Lucky Wheel
         </span>
+        <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
+          Spin up to{' '}
+          <span className="text-[#a0e0ab] underline underline-offset-4 decoration-[#a0e0ab]/60">
+            10
+          </span>{' '}
+          times a day, win up to{' '}
+          <span className="text-[#ffac2e] underline underline-offset-4 decoration-[#ffac2e]/60">
+            1.00 zł
+          </span>{' '}
+          on your balance
+        </h2>
       </div>
 
-      <div className="relative px-4 pt-4 pb-4">
-        <div className="relative aspect-square max-w-[320px] mx-auto">
-          <LuckyCanvas spinRef={spinRef} idleRotationRef={idleRotationRef} />
-        </div>
-
-        <div className="mt-3 flex items-center justify-center">
-          {onCooldown ? (
-            <div className="font-roobert text-[12px] text-whisper-gray tabular-nums">
-              Next spin in {Math.ceil(cooldownLeftMs / 1000)}s
-            </div>
-          ) : noSpins ? (
-            <div className="font-roobert text-[12px] text-whisper-gray">
-              Come back tomorrow for more
-            </div>
-          ) : (
+      <div className="relative px-3 pb-3 pt-3">
+        <div
+          className="relative w-full"
+          style={{ aspectRatio: '2 / 1.15' }}
+        >
+          <HalfWheelCanvas
+            spinRef={spinRef}
+            idleRotationRef={idleRotationRef}
+          />
+          {/* Spin button anchored where the hub would be, just below
+              center of the half-circle. */}
+          <div className="absolute inset-x-0 bottom-2 flex justify-center pointer-events-none">
             <button
               onClick={spin}
               disabled={!canSpin}
               className={cn(
-                'h-11 px-6 rounded-pill font-roobert text-[12px] uppercase tracking-[0.22em] transition-all active:scale-[0.99]',
+                'pointer-events-auto h-11 px-7 rounded-pill font-roobert font-semibold text-[13px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition-all active:scale-[0.98]',
                 canSpin
-                  ? 'text-midnight-canvas shadow-[0_4px_18px_rgba(255,172,46,0.30)]'
-                  : 'bg-white/[0.06] text-frost-white/60 cursor-not-allowed'
+                  ? 'text-midnight-canvas'
+                  : 'bg-white/[0.08] text-frost-white/55 border border-white/15 cursor-not-allowed'
               )}
               style={
                 canSpin
                   ? {
                       background:
-                        'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 50%, rgb(165, 45, 37) 100%)',
+                        'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(207, 224, 127) 100%)',
+                      boxShadow:
+                        '0 6px 18px rgba(160, 224, 171, 0.40), inset 0 1px 0 rgba(255,255,255,0.40)',
                     }
                   : undefined
               }
             >
-              Spin
+              {onCooldown
+                ? `Wait ${Math.ceil(cooldownLeftMs / 1000)}s`
+                : noSpins
+                  ? 'Come back tomorrow'
+                  : 'Spin'}
+              {canSpin && <ChevronRight size={13} strokeWidth={2.2} />}
             </button>
-          )}
+          </div>
+        </div>
+
+        <div className="mt-1 text-center font-roobert text-[11px] text-whisper-gray tabular-nums">
+          {state ? `${state.remaining} of ${state.dailyCap} spins left` : '—'}
         </div>
       </div>
 
       {state && state.ticker.length > 0 && (
-        <div className="border-t border-white/10 px-3 py-2 overflow-x-auto scrollbar-hide flex items-center gap-2">
-          {state.ticker.slice(0, 8).map((t, i) => (
+        <div className="relative border-t border-white/10 px-3 py-2 overflow-x-auto scrollbar-hide flex items-center gap-2">
+          {state.ticker.slice(0, 12).map((t, i) => (
             <div
               key={i}
-              className="shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill border border-white/10 bg-white/[0.03]"
+              className="shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill border border-white/10 bg-white/[0.04]"
             >
               {t.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -376,7 +488,7 @@ function LuckyWheelCard({ onWin }: { onWin: () => void }) {
                   {t.name.charAt(0).toUpperCase()}
                 </span>
               )}
-              <span className="font-roobert text-[10px] text-frost-white/85 truncate max-w-[60px]">
+              <span className="font-roobert text-[10px] text-frost-white/85 truncate max-w-[64px]">
                 {t.name}
               </span>
               <span className="font-roobert text-[10px] tabular-nums text-[#a0e0ab]">
@@ -390,7 +502,7 @@ function LuckyWheelCard({ onWin }: { onWin: () => void }) {
   );
 }
 
-function LuckyCanvas({
+function HalfWheelCanvas({
   spinRef,
   idleRotationRef,
 }: {
@@ -436,8 +548,15 @@ function LuckyCanvas({
     });
     ro.observe(canvas);
 
-    const SECTORS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0];
-    const SEG = (2 * Math.PI) / SECTORS.length;
+    const SECTORS = WHEEL_SECTORS_12;
+    const N = SECTORS.length;
+    /**
+     * The half-wheel covers the lower 180° of a circle, but each
+     * "sector" only occupies a 30° wedge (180/12). The center of the
+     * wheel sits at the bottom of the canvas; the rim touches the top.
+     * Sector 0 occupies the leftmost wedge and goes clockwise.
+     */
+    const ARC_PER_SECTOR = Math.PI / N;
 
     let lastFrame = performance.now();
 
@@ -452,15 +571,24 @@ function LuckyCanvas({
 
       ctx.clearRect(0, 0, w, h);
 
-      // Compute current rotation.
+      // Compute current rotation. For half-wheels, "rotation" rotates
+      // the sector strip relative to the pointer at the top.
       let rotation = idleRotationRef.current;
       if (spinRef.current) {
         const lock = spinRef.current;
         const t = Math.min(1, (Date.now() - lock.startedAt) / lock.durationMs);
-        const targetCenter = -lock.targetIndex * SEG - SEG / 2;
+        // Pointer sits at the top of the half-wheel (angle = -PI/2 in
+        // canvas coordinates). To land sector `targetIndex` under it,
+        // we want sector center at angle -PI/2.
+        // Sector i center sits at angle (i + 0.5) * ARC_PER_SECTOR
+        // from the leftmost rim — i.e. +PI + (i+0.5)*ARC_PER_SECTOR
+        // measured clockwise from canvas 0°. We want to rotate so that
+        // becomes -PI/2 ≡ 3PI/2.
+        const targetAngle =
+          -Math.PI / 2 - ((lock.targetIndex + 0.5) * ARC_PER_SECTOR + Math.PI);
+        // Add 4 full rotations so the user sees movement.
         const totalRotation =
-          5 * 2 * Math.PI + targetCenter - lock.initialRotation;
-        // Three-phase ease: linear cruise → ease-out brake → settle.
+          4 * 2 * Math.PI + targetAngle - lock.initialRotation;
         let progressed: number;
         if (t < 0.7) progressed = (t / 0.7) * 0.78;
         else if (t < 0.92) {
@@ -471,151 +599,127 @@ function LuckyCanvas({
         }
         rotation = lock.initialRotation + totalRotation * progressed;
       } else {
-        // Gentle idle drift while no spin is running.
-        idleRotationRef.current += dt * 0.0004;
+        idleRotationRef.current += dt * 0.0003;
         rotation = idleRotationRef.current;
       }
 
+      // Wheel center anchored at the bottom of the canvas, slightly
+      // below the visible area so only the upper half-circle shows.
       const cx = w / 2;
-      const cy = h / 2;
-      const radius = Math.min(w, h) * 0.42;
+      const cy = h * 0.95;
+      const radius = Math.min(w * 0.46, h * 0.92);
 
-      // Drop shadow under wheel
-      ctx.beginPath();
-      ctx.ellipse(
-        cx,
-        cy + radius * 0.95,
-        radius * 0.85,
-        radius * 0.12,
-        0,
-        0,
-        Math.PI * 2
-      );
-      const shadow = ctx.createRadialGradient(
-        cx,
-        cy + radius * 0.95,
-        0,
-        cx,
-        cy + radius * 0.95,
-        radius * 0.85
-      );
-      shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
-      shadow.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = shadow;
-      ctx.fill();
-
-      // Outer glow
+      // Outer glow ring beneath the wheel
       const glow = ctx.createRadialGradient(
         cx,
         cy,
-        radius * 0.9,
+        radius * 0.7,
         cx,
         cy,
         radius * 1.18
       );
-      glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
-      glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.10)');
+      glow.addColorStop(0, 'rgba(160, 224, 171, 0)');
+      glow.addColorStop(0.55, 'rgba(255, 172, 46, 0.22)');
       glow.addColorStop(1, 'rgba(255, 172, 46, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, radius * 1.2, Math.PI, 2 * Math.PI);
+      ctx.closePath();
       ctx.fill();
-
-      // Outer rim
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.04, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
 
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(rotation - Math.PI / 2);
+      ctx.rotate(rotation);
 
-      // Sector bodies
-      for (let i = 0; i < SECTORS.length; i++) {
-        const a0 = i * SEG;
-        const a1 = (i + 1) * SEG;
+      // Sectors fill — only render the visible upper half (angles
+      // from PI to 2*PI = -PI..0). Without rotation, sector i covers
+      // [PI + i*arc, PI + (i+1)*arc] in canvas coords.
+      for (let i = 0; i < N; i++) {
+        const a0 = Math.PI + i * ARC_PER_SECTOR;
+        const a1 = Math.PI + (i + 1) * ARC_PER_SECTOR;
+        const inner = radius * 0.46;
+        const outer = radius * 0.95;
+
+        // Soft 3D gradient — bright lime/orange tier color with
+        // shading toward the inner edge.
+        const tier = SECTOR_TIER_COLOR[SECTORS[i]] ?? '#a0e0ab';
+        const grad = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.05, tier);
+        grad.addColorStop(0.95, tier);
+        grad.addColorStop(1, shade(tier, -0.15));
+        ctx.fillStyle = grad;
+
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, radius, a0, a1);
+        ctx.arc(0, 0, outer, a0 + 0.018, a1 - 0.018); // small gap = pill look
+        ctx.arc(0, 0, inner, a1 - 0.018, a0 + 0.018, true);
         ctx.closePath();
-        ctx.fillStyle = SECTOR_COLORS[i];
         ctx.fill();
-      }
-      // Sector dividers
-      for (let i = 0; i < SECTORS.length; i++) {
-        const a = i * SEG;
+
+        // Outer rim highlight
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.lineWidth = 1;
+        ctx.arc(0, 0, outer + 0.5, a0 + 0.018, a1 - 0.018);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
         ctx.stroke();
-      }
-      // Labels
-      ctx.font = '700 13px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      for (let i = 0; i < SECTORS.length; i++) {
-        const a0 = i * SEG;
-        const a1 = (i + 1) * SEG;
+
+        // Label — payout amount, arranged along the wedge midline
         const aMid = (a0 + a1) / 2;
-        const lx = Math.cos(aMid) * radius * 0.7;
-        const ly = Math.sin(aMid) * radius * 0.7;
+        const lr = (inner + outer) / 2;
+        const lx = Math.cos(aMid) * lr;
+        const ly = Math.sin(aMid) * lr;
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(aMid + Math.PI / 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.font = '700 11px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 1);
         ctx.fillStyle = '#0a0a0a';
         ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 0);
         ctx.restore();
       }
-      // Hub
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2);
-      const hubGrad = ctx.createRadialGradient(
-        -radius * 0.06,
-        -radius * 0.06,
-        0,
-        0,
-        0,
-        radius * 0.18
-      );
-      hubGrad.addColorStop(0, 'rgba(255, 220, 150, 1)');
-      hubGrad.addColorStop(0.5, 'rgba(220, 170, 80, 1)');
-      hubGrad.addColorStop(1, 'rgba(120, 80, 30, 1)');
-      ctx.fillStyle = hubGrad;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
+
       ctx.restore();
 
-      // Top pointer
-      const px = cx;
-      const py = cy - radius * 1.04;
+      // Pointer at the top — short pill with a notch. We render it in
+      // unrotated coords so it stays put while the wheel spins under
+      // it. The pointer points toward the wheel center (downward).
+      const ptCx = cx;
+      const ptCy = cy - radius * 0.99;
+      ctx.save();
+      ctx.translate(ptCx, ptCy);
+      // Soft halo
       ctx.beginPath();
-      ctx.arc(px, py + 6, 8, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
       ctx.fill();
-
+      // Pill
+      const pillW = 36;
+      const pillH = 12;
       ctx.beginPath();
-      ctx.moveTo(px - 11, py - 8);
-      ctx.lineTo(px + 11, py - 8);
-      ctx.lineTo(px + 8, py - 1);
-      ctx.lineTo(px, py + 16);
-      ctx.lineTo(px - 8, py - 1);
+      ctx.moveTo(-pillW / 2, -pillH / 2);
+      ctx.arcTo(-pillW / 2 - 3, -pillH / 2, -pillW / 2 - 3, pillH / 2, pillH / 2);
+      ctx.arcTo(-pillW / 2 - 3, pillH / 2, -pillW / 2, pillH / 2, pillH / 2);
+      ctx.lineTo(pillW / 2, pillH / 2);
+      ctx.arcTo(pillW / 2 + 3, pillH / 2, pillW / 2 + 3, -pillH / 2, pillH / 2);
+      ctx.arcTo(pillW / 2 + 3, -pillH / 2, pillW / 2, -pillH / 2, pillH / 2);
       ctx.closePath();
-      const pGrad = ctx.createLinearGradient(px, py - 8, px, py + 16);
+      const pGrad = ctx.createLinearGradient(0, -pillH / 2, 0, pillH / 2);
       pGrad.addColorStop(0, '#ffffff');
-      pGrad.addColorStop(1, '#cccccc');
+      pGrad.addColorStop(1, '#d0d0d0');
       ctx.fillStyle = pGrad;
       ctx.fill();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.stroke();
+      // Notch (small triangle pointing down at the wheel)
+      ctx.beginPath();
+      ctx.moveTo(-5, pillH / 2);
+      ctx.lineTo(0, pillH / 2 + 7);
+      ctx.lineTo(5, pillH / 2);
+      ctx.closePath();
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
     };
 
     rafRef.current = requestAnimationFrame(draw);
@@ -632,6 +736,18 @@ function LuckyCanvas({
       style={{ imageRendering: 'auto' }}
     />
   );
+}
+
+/** Lighten/darken a hex color by a percentage. */
+function shade(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  let r = (num >> 16) & 0xff;
+  let g = (num >> 8) & 0xff;
+  let b = num & 0xff;
+  r = Math.max(0, Math.min(255, Math.round(r + 255 * percent)));
+  g = Math.max(0, Math.min(255, Math.round(g + 255 * percent)));
+  b = Math.max(0, Math.min(255, Math.round(b + 255 * percent)));
+  return `rgb(${r},${g},${b})`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -731,11 +847,31 @@ function ContestCard({
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]"
+      className="relative overflow-hidden rounded-card border border-white/10"
     >
+      {/* Banner art (admin-uploaded) — falls back to the gradient wash */}
+      {contest.bannerUrl ? (
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-45"
+          style={{
+            backgroundImage: `url(${contest.bannerUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      ) : null}
       <div
         aria-hidden
-        className="absolute inset-0 opacity-50 pointer-events-none"
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.85) 100%)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-50 mix-blend-screen pointer-events-none"
         style={{
           background:
             'radial-gradient(110% 90% at 100% 100%, rgba(255, 172, 46, 0.20) 0%, rgba(160, 224, 171, 0.10) 50%, transparent 80%)',
@@ -745,13 +881,17 @@ function ContestCard({
         <div className="flex items-center gap-2">
           <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-            {contest.visibility === 'public' ? 'Public contest' : 'Private contest'}
+            {contest.visibility === 'public'
+              ? 'Public contest'
+              : contest.visibility === 'private'
+                ? 'Private contest'
+                : 'Global contest'}
           </span>
         </div>
 
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] leading-tight truncate">
+            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] leading-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
               {contest.title}
             </div>
             {contest.description && (
@@ -761,7 +901,7 @@ function ContestCard({
             )}
           </div>
           <div className="text-right shrink-0">
-            <div className="font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums">
+            <div className="font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
               {contest.prizePool.toLocaleString('en-US', { maximumFractionDigits: 0 })}{' '}
               <span className="text-[12px] text-whisper-gray">zł</span>
             </div>
@@ -783,7 +923,11 @@ function ContestCard({
               ends in {remaining}
             </span>
           </div>
-          {contest.joined ? (
+          {contest.visibility === 'global' ? (
+            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85">
+              Auto-entry
+            </span>
+          ) : contest.joined ? (
             <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-pill border border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.10)] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white">
               Joined
             </span>
@@ -851,4 +995,4 @@ function formatRemaining(ms: number): string {
   return `${m}m`;
 }
 
-void AnimatePresence; // referenced in case we add modals later
+void AnimatePresence;

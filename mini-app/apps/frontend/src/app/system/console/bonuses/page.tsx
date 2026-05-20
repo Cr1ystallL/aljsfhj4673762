@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
  * of the admin panel.
  */
 
-type Tab = 'promo' | 'contests' | 'wheel';
+type Tab = 'promo' | 'contests';
 
 interface PromoRow {
   id: string;
@@ -42,6 +42,7 @@ interface PromoRow {
   expiresAt: number | null;
   active: boolean;
   note: string | null;
+  rules?: unknown;
   createdAt: number;
   redemptions: number;
   paidOut: number;
@@ -74,7 +75,6 @@ export default function AdminBonusesPage() {
             [
               { id: 'promo' as const, label: 'Промокоды' },
               { id: 'contests' as const, label: 'Конкурсы' },
-              { id: 'wheel' as const, label: 'Колесо' },
             ]
           ).map((t) => (
             <button
@@ -95,7 +95,6 @@ export default function AdminBonusesPage() {
 
       {tab === 'promo' && <PromoTab />}
       {tab === 'contests' && <ContestsTab />}
-      {tab === 'wheel' && <WheelTab />}
     </div>
   );
 }
@@ -106,6 +105,7 @@ function PromoTab() {
   const [list, setList] = useState<PromoRow[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -124,6 +124,33 @@ function PromoTab() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const removePromo = async (id: string) => {
+    const reason = prompt('Причина удаления промокода:');
+    if (!reason || reason.trim().length < 3) return;
+    if (!confirm('Удалить промокод? История активаций тоже исчезнет.')) return;
+    await fetch(`/api/_x/bonuses/promos/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason.trim() }),
+    });
+    setContextMenu(null);
+    void reload();
+  };
+
+  const toggleActiveQuick = async (id: string, next: boolean) => {
+    const reason = prompt(next ? 'Включить промокод. Причина:' : 'Выключить промокод. Причина:');
+    if (!reason || reason.trim().length < 3) return;
+    await fetch(`/api/_x/bonuses/promos/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: next, reason: reason.trim() }),
+    });
+    setContextMenu(null);
+    void reload();
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -147,40 +174,48 @@ function PromoTab() {
       ) : (
         <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
           {list.map((p, i) => (
-            <button
+            <PromoRow
               key={p.id}
-              onClick={() => setOpenId(p.id)}
-              className={cn(
-                'w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.04] transition-colors',
-                i > 0 && 'border-t border-white/5'
-              )}
-            >
-              <span
-                className={cn(
-                  'inline-flex items-center justify-center w-9 h-9 rounded-pill border',
-                  p.active
-                    ? 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10'
-                    : 'border-white/15 bg-white/[0.04]'
-                )}
-              >
-                <Ticket size={14} strokeWidth={1.7} />
-              </span>
-              <div className="min-w-0">
-                <div className="font-roobert text-[14px] text-frost-white tracking-[0.16em] tabular-nums">
-                  {p.code}
-                </div>
-                <div className="font-roobert text-[11px] text-whisper-gray">
-                  {p.amount.toFixed(2)} {p.currency} · {p.redemptions} редемов
-                  {p.maxRedemptions !== null && ` / ${p.maxRedemptions}`} ·{' '}
-                  {p.active ? 'активен' : 'выключен'}
-                </div>
-              </div>
-              <span className="font-roobert text-[12px] text-frost-white/85 tabular-nums">
-                {p.paidOut.toFixed(0)} {p.currency}
-              </span>
-            </button>
+              row={p}
+              first={i === 0}
+              onOpen={() => setOpenId(p.id)}
+              onContext={(x, y) => setContextMenu({ id: p.id, x, y })}
+            />
           ))}
         </div>
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: 'Открыть',
+              onClick: () => {
+                setOpenId(contextMenu.id);
+                setContextMenu(null);
+              },
+            },
+            {
+              label:
+                list?.find((p) => p.id === contextMenu.id)?.active === false
+                  ? 'Включить'
+                  : 'Выключить',
+              onClick: () =>
+                toggleActiveQuick(
+                  contextMenu.id,
+                  list?.find((p) => p.id === contextMenu.id)?.active === false
+                ),
+            },
+            {
+              label: 'Удалить',
+              danger: true,
+              onClick: () => removePromo(contextMenu.id),
+            },
+          ]}
+        />
       )}
 
       <AnimatePresence>
@@ -205,6 +240,129 @@ function PromoTab() {
   );
 }
 
+function PromoRow({
+  row: p,
+  first,
+  onOpen,
+  onContext,
+}: {
+  row: PromoRow;
+  first: boolean;
+  onOpen: () => void;
+  onContext: (x: number, y: number) => void;
+}) {
+  const longPressRef = useRef<{ timeout: number | null; fired: boolean }>({
+    timeout: null,
+    fired: false,
+  });
+
+  const startLongPress = (x: number, y: number) => {
+    longPressRef.current.fired = false;
+    longPressRef.current.timeout = window.setTimeout(() => {
+      longPressRef.current.fired = true;
+      onContext(x, y);
+    }, 480);
+  };
+  const cancelLongPress = () => {
+    if (longPressRef.current.timeout) {
+      window.clearTimeout(longPressRef.current.timeout);
+      longPressRef.current.timeout = null;
+    }
+  };
+
+  return (
+    <button
+      onClick={() => {
+        if (longPressRef.current.fired) return;
+        onOpen();
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContext(e.clientX, e.clientY);
+      }}
+      onPointerDown={(e) => startLongPress(e.clientX, e.clientY)}
+      onPointerUp={cancelLongPress}
+      onPointerLeave={cancelLongPress}
+      onPointerCancel={cancelLongPress}
+      className={cn(
+        'w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.04] transition-colors',
+        !first && 'border-t border-white/5'
+      )}
+    >
+      <span
+        className={cn(
+          'inline-flex items-center justify-center w-9 h-9 rounded-pill border',
+          p.active
+            ? 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10'
+            : 'border-white/15 bg-white/[0.04]'
+        )}
+      >
+        <Ticket size={14} strokeWidth={1.7} />
+      </span>
+      <div className="min-w-0">
+        <div className="font-roobert text-[14px] text-frost-white tracking-[0.16em] tabular-nums">
+          {p.code}
+        </div>
+        <div className="font-roobert text-[11px] text-whisper-gray">
+          {p.amount.toFixed(2)} {p.currency} · {p.redemptions} активаций
+          {p.maxRedemptions !== null && ` / ${p.maxRedemptions}`} ·{' '}
+          {p.active ? 'активен' : 'выключен'}
+        </div>
+      </div>
+      <span className="font-roobert text-[12px] text-frost-white/85 tabular-nums">
+        {p.paidOut.toFixed(0)} {p.currency}
+      </span>
+    </button>
+  );
+}
+
+function ContextMenu({
+  x,
+  y,
+  items,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  items: Array<{ label: string; onClick: () => void; danger?: boolean }>;
+  onClose: () => void;
+}) {
+  // Clamp inside the viewport.
+  const left = Math.min(x, typeof window !== 'undefined' ? window.innerWidth - 200 : x);
+  const top = Math.min(y, typeof window !== 'undefined' ? window.innerHeight - 180 : y);
+  return (
+    <div
+      className="fixed inset-0 z-50"
+      onClick={onClose}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      <div
+        className="absolute rounded-card border border-white/15 bg-midnight-canvas shadow-2xl py-1 min-w-[180px]"
+        style={{ left, top }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {items.map((it, i) => (
+          <button
+            key={i}
+            onClick={() => {
+              it.onClick();
+            }}
+            className={cn(
+              'w-full px-3 py-2 text-left font-roobert text-[12px] hover:bg-white/[0.06] transition-colors',
+              it.danger ? 'text-[#ff8a76]' : 'text-frost-white/90'
+            )}
+          >
+            {it.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PromoCreateModal({
   onClose,
   onCreated,
@@ -214,10 +372,10 @@ function PromoCreateModal({
 }) {
   const [code, setCode] = useState('');
   const [amount, setAmount] = useState(10);
-  const [perUserLimit, setPerUserLimit] = useState(1);
-  const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
+  const [maxRedemptions, setMaxRedemptions] = useState<number>(-1);
   const [expiresAt, setExpiresAt] = useState<string>('');
-  const [note, setNote] = useState('');
+  const [withRules, setWithRules] = useState(false);
+  const [rules, setRules] = useState<RuleDraft[]>([]);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -225,6 +383,10 @@ function PromoCreateModal({
   const submit = async () => {
     if (reason.trim().length < 3) {
       setErr('Причина обязательна');
+      return;
+    }
+    if (!code.trim() || amount <= 0) {
+      setErr('Код и сумма обязательны');
       return;
     }
     setBusy(true);
@@ -237,10 +399,14 @@ function PromoCreateModal({
         body: JSON.stringify({
           code: code.trim().toUpperCase(),
           amount: Number(amount),
-          perUserLimit: Number(perUserLimit),
-          maxRedemptions: maxRedemptions === '' ? null : Number(maxRedemptions),
+          // Отрицательное значение = безлимитное число активаций (на стороне
+          // бэка пишется NULL).
+          maxRedemptions: maxRedemptions < 0 ? null : Number(maxRedemptions),
+          // По умолчанию каждый пользователь может активировать промо один раз.
+          // Если админу нужны множественные активации, увеличит через PATCH.
+          perUserLimit: 1,
           expiresAt: expiresAt ? new Date(expiresAt).getTime() : null,
-          note: note.trim() || null,
+          rules: withRules ? rules.map(serializeRule).filter((r): r is object => !!r) : [],
           reason: reason.trim(),
         }),
       });
@@ -258,7 +424,7 @@ function PromoCreateModal({
   return (
     <Modal onClose={onClose} title="Новый промокод">
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Код">
+        <Field label="Код" colSpan={2}>
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -269,21 +435,10 @@ function PromoCreateModal({
         <Field label="Сумма (zł)">
           <NumInput value={amount} step={1} onChange={setAmount} />
         </Field>
-        <Field label="На одного игрока">
-          <NumInput value={perUserLimit} step={1} min={1} onChange={setPerUserLimit} />
+        <Field label="Кол-во активаций (отриц = ∞)">
+          <NumInput value={maxRedemptions} step={1} onChange={setMaxRedemptions} />
         </Field>
-        <Field label="Всего активаций">
-          <input
-            type="number"
-            value={maxRedemptions}
-            onChange={(e) =>
-              setMaxRedemptions(e.target.value === '' ? '' : Number(e.target.value))
-            }
-            placeholder="∞"
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
-          />
-        </Field>
-        <Field label="Истекает">
+        <Field label="Истекает" colSpan={2}>
           <input
             type="datetime-local"
             value={expiresAt}
@@ -291,15 +446,22 @@ function PromoCreateModal({
             className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
           />
         </Field>
-        <Field label="Заметка">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="например, рассылка"
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
-        </Field>
       </div>
+
+      <label className="inline-flex items-center gap-2 px-1 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={withRules}
+          onChange={(e) => setWithRules(e.target.checked)}
+          className="accent-frost-white"
+        />
+        <span className="font-roobert text-[12px] text-frost-white/85">
+          Условия активации
+        </span>
+      </label>
+
+      {withRules && <RulesEditor rules={rules} onChange={setRules} />}
+
       <ReasonField reason={reason} onChange={setReason} />
       {err && (
         <div className="font-roobert text-[12px] text-[#ff8a76]">{err}</div>
@@ -563,7 +725,8 @@ function ContestCreateModal({
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [visibility, setVisibility] = useState<'public' | 'private' | 'global'>('public');
+  const [bannerUrl, setBannerUrl] = useState('');
   const [prizePool, setPrizePool] = useState(2000);
   const [winnersCount, setWinnersCount] = useState(20);
   const [shareMode, setShareMode] = useState<'equal' | 'custom'>('equal');
@@ -607,6 +770,7 @@ function ContestCreateModal({
           title: title.trim(),
           description: description.trim() || null,
           visibility,
+          bannerUrl: bannerUrl.trim() || null,
           prizePool: Number(prizePool),
           winnersCount: Number(winnersCount),
           prizeShares,
@@ -645,14 +809,23 @@ function ContestCreateModal({
             className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
           />
         </Field>
+        <Field label="Фото-фон (URL)" colSpan={2}>
+          <input
+            value={bannerUrl}
+            onChange={(e) => setBannerUrl(e.target.value)}
+            placeholder="https://example.com/banner.jpg"
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
         <Field label="Видимость">
           <select
             value={visibility}
-            onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
+            onChange={(e) => setVisibility(e.target.value as 'public' | 'private' | 'global')}
             className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
           >
             <option value="public">Публичный</option>
             <option value="private">Приватный</option>
+            <option value="global">Глобальный (авто-участие)</option>
           </select>
         </Field>
         <Field label="Призовой пул (zł)">
@@ -1143,29 +1316,7 @@ function ContestDetailModal({
   );
 }
 
-/* ============================================================== Wheel */
-
-function WheelTab() {
-  return (
-    <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-5 flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Sparkles size={14} className="text-[#ffac2e]" strokeWidth={1.7} />
-        <span className="font-roobert text-[14px] text-frost-white">Lucky Wheel</span>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Stat label="Дневной лимит" value="10 круток" />
-        <Stat label="Кулдаун" value="20 минут" />
-        <Stat label="Минимум" value="0.05 zł" />
-        <Stat label="Максимум" value="1.00 zł" />
-      </div>
-      <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 font-roobert text-[12px] text-whisper-gray">
-        Сектора и веса захардкожены в коде (sector 0.05 — 36 %, 0.10 — 28 %, 0.25 — 18 %,
-        0.50 — 11 %, 0.75 — 5 %, 1.00 — 2 %). EV ≈ 0.20 zł за крутку. Если
-        нужны другие веса — отредактируйте `LUCKY_SECTORS` в `routes/bonuses.ts`.
-      </div>
-    </div>
-  );
-}
+/* ============================================================== Wheel removed */
 
 /* ============================================================== shared */
 

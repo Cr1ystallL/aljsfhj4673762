@@ -287,3 +287,26 @@
     border-color: var(--color-frost-white);
   }
 }
+
+
+/* ---- form controls ---------------------------------------------------- */
+
+/*
+ * Native <option> elements inherit OS background colors by default. On
+ * dark backgrounds that means white-on-white text in the dropdown list
+ * popup. Forcing both background-color and color on every option keeps
+ * them readable inside the brand-dark surfaces.
+ *
+ * `select` itself stays styled inline through Tailwind utilities — the
+ * issue is only the OS-rendered popup list which we cannot style with
+ * background utility classes.
+ */
+option {
+  background-color: #0a0a0a;
+  color: #ffffff;
+}
+option:checked,
+option:hover {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}

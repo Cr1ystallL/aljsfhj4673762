@@ -739,13 +739,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       adminUserId?: string;
       targetId?: string;
       action?: string;
+      q?: string;
     };
   }>(
     '/_x/audit',
     { preHandler: adminOnly },
     async (request, reply) => {
       const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
-      const limit = Math.min(200, Math.max(10, parseInt(request.query.limit ?? '50', 10)));
+      const limit = Math.min(200, Math.max(5, parseInt(request.query.limit ?? '10', 10)));
       const skip = (page - 1) * limit;
 
       try {
@@ -758,6 +759,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         }
         if (request.query.action) {
           conds.push(Prisma.sql`action = ${request.query.action}`);
+        }
+        // Free-text search across action, target_id, reason — case-
+        // insensitive substring match. Convenient when an admin only
+        // remembers a fragment of the row they need to inspect.
+        const q = (request.query.q ?? '').trim();
+        if (q) {
+          const like = `%${q}%`;
+          conds.push(
+            Prisma.sql`(action ILIKE ${like} OR target_id ILIKE ${like} OR reason ILIKE ${like})`
+          );
         }
         const where =
           conds.length > 0
@@ -2462,6 +2473,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           expires_at: Date | null;
           active: boolean;
           note: string | null;
+          rules: unknown;
           created_at: Date;
           redemptions: bigint;
           paid_out: string;
@@ -2469,7 +2481,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       >`
         SELECT p.id, p.code, p.amount::text, p.currency,
                p.max_redemptions, p.per_user_limit, p.expires_at,
-               p.active, p.note, p.created_at,
+               p.active, p.note, p.rules, p.created_at,
                COUNT(r.id)::bigint AS redemptions,
                COALESCE(SUM(r.amount), 0)::text AS paid_out
           FROM promo_codes p
@@ -2489,6 +2501,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           expiresAt: r.expires_at?.getTime() ?? null,
           active: r.active,
           note: r.note,
+          rules: r.rules,
           createdAt: r.created_at.getTime(),
           redemptions: Number(r.redemptions),
           paidOut: Number(r.paid_out),
@@ -2502,7 +2515,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * POST /api/_x/bonuses/promos
-   * Body: { code, amount, perUserLimit, maxRedemptions?, expiresAt?, note?, reason }
+   * Body: { code, amount, perUserLimit, maxRedemptions?, expiresAt?, note?, rules?, reason }
    */
   app.post<{
     Body: {
@@ -2512,6 +2525,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       maxRedemptions?: number | null;
       expiresAt?: number | null;
       note?: string | null;
+      rules?: unknown;
       reason?: string;
     };
   }>('/_x/bonuses/promos', { preHandler: adminOnly }, async (request, reply) => {
@@ -2521,17 +2535,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
     const code = (request.body?.code ?? '').trim().toUpperCase();
     const amount = Number(request.body?.amount);
-    const perUserLimit = Math.max(1, Number(request.body?.perUserLimit ?? 1));
+    // perUserLimit < 1 → unlimited (stored as 0).
+    const rawPerUser = Number(request.body?.perUserLimit ?? 1);
+    const perUserLimit = !Number.isFinite(rawPerUser) || rawPerUser < 1 ? 0 : Math.floor(rawPerUser);
+    // maxRedemptions: negative or null/undef → ∞ (NULL in DB).
+    const rawMax = request.body?.maxRedemptions;
     const maxRedemptions =
-      typeof request.body?.maxRedemptions === 'number' &&
-      request.body.maxRedemptions > 0
-        ? Math.floor(request.body.maxRedemptions)
-        : null;
+      typeof rawMax === 'number' && rawMax > 0 ? Math.floor(rawMax) : null;
     const expiresAt =
       typeof request.body?.expiresAt === 'number' && request.body.expiresAt > 0
         ? new Date(request.body.expiresAt)
         : null;
     const note = (request.body?.note ?? null) || null;
+    const rules = Array.isArray(request.body?.rules) ? request.body.rules : [];
 
     if (!/^[A-Z0-9_-]{2,32}$/.test(code)) {
       return reply.code(400).send({ error: 'Invalid code format' });
@@ -2545,17 +2561,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       await app.prisma.$executeRaw`
         INSERT INTO promo_codes (id, code, amount, currency, max_redemptions,
                                   per_user_limit, expires_at, created_by_user_id,
-                                  active, note, created_at, updated_at)
+                                  active, note, rules, created_at, updated_at)
         VALUES (${id}, ${code}, ${amount}::numeric, 'PLN', ${maxRedemptions},
                 ${perUserLimit}, ${expiresAt}, ${(request as AuthenticatedRequest).user.userId},
-                TRUE, ${note}, NOW(), NOW())`;
+                TRUE, ${note}, ${JSON.stringify(rules)}::jsonb, NOW(), NOW())`;
 
       await audit({
         request: request as AuthenticatedRequest,
         action: 'promo.create',
         targetType: 'promo',
         targetId: id,
-        payloadAfter: { code, amount, perUserLimit, maxRedemptions, expiresAt, note },
+        payloadAfter: { code, amount, perUserLimit, maxRedemptions, expiresAt, note, rules },
         reason,
       });
       return reply.send({ ok: true, id });
@@ -2565,6 +2581,40 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: msg });
     }
   });
+
+  /**
+   * DELETE /api/_x/bonuses/promos/:id
+   * Body: { reason }
+   *
+   * Hard-deletes the promo code and its redemptions cascade. Used from
+   * the admin context menu when a promo was created by mistake. Active
+   * promos can be deleted too — admins know what they're doing.
+   */
+  app.delete<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/bonuses/promos/:id',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const { id } = request.params;
+      try {
+        await app.prisma.$executeRaw`DELETE FROM promo_codes WHERE id = ${id}`;
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'promo.delete',
+          targetType: 'promo',
+          targetId: id,
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (err) {
+        logger.error(err, 'Promo delete failed');
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
 
   /**
    * PATCH /api/_x/bonuses/promos/:id
@@ -2578,6 +2628,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       maxRedemptions?: number | null;
       expiresAt?: number | null;
       note?: string | null;
+      rules?: unknown;
       reason?: string;
     };
   }>('/_x/bonuses/promos/:id', { preHandler: adminOnly }, async (request, reply) => {
@@ -2591,12 +2642,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       fragments.push(Prisma.sql`active = ${request.body.active}`);
     }
     if (typeof request.body.perUserLimit === 'number') {
-      fragments.push(Prisma.sql`per_user_limit = ${Math.max(1, request.body.perUserLimit)}`);
+      const v = request.body.perUserLimit;
+      const stored = !Number.isFinite(v) || v < 1 ? 0 : Math.floor(v);
+      fragments.push(Prisma.sql`per_user_limit = ${stored}`);
     }
     if (request.body.maxRedemptions !== undefined) {
       fragments.push(
         Prisma.sql`max_redemptions = ${
-          request.body.maxRedemptions === null ? null : Math.max(1, request.body.maxRedemptions)
+          request.body.maxRedemptions === null || request.body.maxRedemptions < 1
+            ? null
+            : Math.floor(request.body.maxRedemptions)
         }`
       );
     }
@@ -2609,6 +2664,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
     if (request.body.note !== undefined) {
       fragments.push(Prisma.sql`note = ${request.body.note ?? null}`);
+    }
+    if (request.body.rules !== undefined) {
+      fragments.push(
+        Prisma.sql`rules = ${JSON.stringify(
+          Array.isArray(request.body.rules) ? request.body.rules : []
+        )}::jsonb`
+      );
     }
     if (fragments.length === 0) {
       return reply.code(400).send({ error: 'Nothing to update' });
@@ -2764,7 +2826,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     Body: {
       title?: string;
       description?: string | null;
-      visibility?: 'public' | 'private';
+      visibility?: 'public' | 'private' | 'global';
+      bannerUrl?: string | null;
       prizePool?: number;
       winnersCount?: number;
       prizeShares?: unknown;
@@ -2779,7 +2842,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Reason required' });
     }
     const title = (request.body?.title ?? '').trim();
-    const visibility = request.body?.visibility === 'private' ? 'private' : 'public';
+    const visibility =
+      request.body?.visibility === 'private'
+        ? 'private'
+        : request.body?.visibility === 'global'
+          ? 'global'
+          : 'public';
+    const bannerUrl =
+      typeof request.body?.bannerUrl === 'string' && request.body.bannerUrl.trim()
+        ? request.body.bannerUrl.trim()
+        : null;
     const prizePool = Number(request.body?.prizePool);
     const winnersCount = Math.floor(Number(request.body?.winnersCount));
     const startsAt = request.body?.startsAt;
@@ -2811,12 +2883,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const id = (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
         `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       await app.prisma.$executeRaw`
-        INSERT INTO contests (id, title, description, visibility, prize_pool,
+        INSERT INTO contests (id, title, description, visibility, banner_url, prize_pool,
                                winners_count, prize_shares, rules,
                                starts_at, ends_at, state,
                                created_by_user_id, created_at, updated_at)
         VALUES (${id}, ${title}, ${request.body?.description ?? null},
-                ${visibility}, ${prizePool}::numeric, ${winnersCount},
+                ${visibility}, ${bannerUrl}, ${prizePool}::numeric, ${winnersCount},
                 ${JSON.stringify(prizeShares)}::jsonb,
                 ${JSON.stringify(rules)}::jsonb,
                 ${new Date(startsAt)}, ${new Date(endsAt)},

@@ -13,7 +13,7 @@ import { useNavStore } from '@/store/nav-store';
  * game / balance routes the nav becomes hideable so the page can claim
  * the full viewport; the home and profile screens always show it.
  */
-const HIDEABLE_PREFIXES = ['/game/', '/balance', '/bonuses'];
+const HIDEABLE_PREFIXES = ['/game/', '/balance', '/bonuses', '/partner'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -47,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onPlayClick={handlePlayClick}
         onProfileClick={handleProfileClick}
         onBonusesClick={() => router.push('/bonuses')}
+        onPartnerClick={() => router.push('/partner')}
       />
 
       <MenuDrawer

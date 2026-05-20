@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID, randomBytes } from 'crypto';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { balanceService } from '../services/balance-service.js';
 
 /**
  * Bonuses — user-facing routes.
@@ -90,9 +91,10 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
               per_user_limit: number;
               expires_at: Date | null;
               active: boolean;
+              rules: unknown;
             }>
           >`SELECT id, code, amount::text, currency, max_redemptions,
-                   per_user_limit, expires_at, active
+                   per_user_limit, expires_at, active, rules
               FROM promo_codes WHERE code = ${code} LIMIT 1 FOR UPDATE`;
           const promo = rows[0];
           if (!promo) {
@@ -105,16 +107,35 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
             throw new HttpError(403, 'PROMO_EXPIRED', 'Promo code has expired');
           }
 
-          // Per-user usage
-          const own = await tx.$queryRaw<Array<{ n: bigint }>>`
-            SELECT COUNT(*)::bigint AS n FROM promo_redemptions
-             WHERE promo_code_id = ${promo.id} AND user_id = ${userId}`;
-          const ownCount = Number(own[0]?.n ?? 0n);
-          if (ownCount >= promo.per_user_limit) {
-            throw new HttpError(409, 'PROMO_USED', 'You have already redeemed this code');
+          // Activation rules — same shape as contests' eligibility list.
+          // Empty array (default) means "no conditions". Failure returns
+          // a generic message; the rule label is included so the user
+          // knows which gate they didn't pass.
+          if (Array.isArray(promo.rules) && promo.rules.length > 0) {
+            const failed = await checkActivationRules(
+              tx,
+              userId,
+              promo.rules as Array<Record<string, unknown>>
+            );
+            if (failed) {
+              throw new HttpError(403, 'PROMO_INELIGIBLE', failed);
+            }
           }
-          // Global cap
-          if (promo.max_redemptions !== null) {
+
+          // Per-user usage —
+          // perUserLimit < 1 means "unlimited" (admin opt-in).
+          if (promo.per_user_limit > 0) {
+            const own = await tx.$queryRaw<Array<{ n: bigint }>>`
+              SELECT COUNT(*)::bigint AS n FROM promo_redemptions
+               WHERE promo_code_id = ${promo.id} AND user_id = ${userId}`;
+            const ownCount = Number(own[0]?.n ?? 0n);
+            if (ownCount >= promo.per_user_limit) {
+              throw new HttpError(409, 'PROMO_USED', 'You have already redeemed this code');
+            }
+          }
+          // Global cap — values < 1 mean "unlimited" (sentinel from
+          // the admin form, where -1 is the human input for ∞).
+          if (promo.max_redemptions !== null && promo.max_redemptions > 0) {
             const total = await tx.$queryRaw<Array<{ n: bigint }>>`
               SELECT COUNT(*)::bigint AS n FROM promo_redemptions
                WHERE promo_code_id = ${promo.id}`;
@@ -162,6 +183,12 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
 
           return { amount, balance: after };
         });
+
+        // Invalidate the balance cache + push WS notification so the
+        // frontend store updates immediately rather than waiting up to
+        // 60s for the next stale-cache hit.
+        await balanceService.invalidateCache(userId);
+        await balanceService.notifyBalance(userId, result.balance, false);
 
         return reply.send({
           ok: true,
@@ -320,6 +347,11 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         return { amount, index, balance: after, usedToday: usedToday + 1 };
       });
 
+      // Push fresh balance to the WS subscriber so the home pill and
+      // the bonuses page header update without polling.
+      await balanceService.invalidateCache(userId);
+      await balanceService.notifyBalance(userId, result.balance, false);
+
       return reply.send({
         ok: true,
         amount: result.amount,
@@ -368,13 +400,14 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           starts_at: Date;
           ends_at: Date;
           state: string;
+          banner_url: string | null;
           joined: boolean;
           participant_count: bigint;
         }>
       >`
         SELECT c.id, c.title, c.description, c.visibility,
                c.prize_pool::text, c.winners_count, c.prize_shares,
-               c.rules, c.starts_at, c.ends_at, c.state,
+               c.rules, c.starts_at, c.ends_at, c.state, c.banner_url,
                EXISTS (
                  SELECT 1 FROM contest_participants p
                   WHERE p.contest_id = c.id AND p.user_id = ${userId}
@@ -386,7 +419,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           FROM contests c
          WHERE c.state IN ('scheduled', 'live')
            AND (
-             c.visibility = 'public'
+             c.visibility IN ('public', 'global')
              OR EXISTS (
                SELECT 1 FROM contest_participants p
                 WHERE p.contest_id = c.id AND p.user_id = ${userId}
@@ -408,6 +441,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           startsAt: r.starts_at.getTime(),
           endsAt: r.ends_at.getTime(),
           state: r.state,
+          bannerUrl: r.banner_url,
           joined: !!r.joined,
           participantCount: Number(r.participant_count),
         })),
@@ -481,6 +515,80 @@ class HttpError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * Run promo activation rules — same shape as contest eligibility:
+ *   { type: 'deposit_window', amount: number, days: number }
+ *   { type: 'wagered_window', amount: number, days: number }
+ *   { type: 'deposit_total',  amount: number }
+ *   { type: 'referrals',      count: number }
+ *   { type: 'registered_after', date: ISO-8601 }
+ *
+ * Returns null if the user passes every rule, or a human message
+ * describing the first rule the user failed.
+ */
+async function checkActivationRules(
+  tx: { $queryRaw: <T>(s: TemplateStringsArray, ...vals: unknown[]) => Promise<T> },
+  userId: string,
+  rules: Array<Record<string, unknown>>
+): Promise<string | null> {
+  for (const r of rules) {
+    if (!r || typeof r !== 'object') continue;
+    if (r.type === 'deposit_window' || r.type === 'wagered_window') {
+      const amount = Number(r.amount);
+      const days = Number(r.days);
+      if (!Number.isFinite(amount) || !Number.isFinite(days) || days <= 0) continue;
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const txType =
+        r.type === 'deposit_window'
+          ? 'deposit'
+          : 'bet';
+      const rows = await tx.$queryRaw<Array<{ s: string }>>`
+        SELECT COALESCE(SUM(amount), 0)::text AS s FROM transactions
+         WHERE user_id = ${userId}
+           AND type = ${txType}
+           AND created_at >= ${since}`;
+      const total = Math.abs(Number(rows[0]?.s ?? 0));
+      if (total < amount) {
+        return r.type === 'deposit_window'
+          ? `Need at least ${amount} zł deposited in ${days} days`
+          : `Need at least ${amount} zł wagered in ${days} days`;
+      }
+    } else if (r.type === 'deposit_total') {
+      const amount = Number(r.amount);
+      if (!Number.isFinite(amount)) continue;
+      const rows = await tx.$queryRaw<Array<{ s: string }>>`
+        SELECT COALESCE(SUM(amount), 0)::text AS s FROM transactions
+         WHERE user_id = ${userId} AND type = 'deposit'`;
+      const total = Number(rows[0]?.s ?? 0);
+      if (total < amount) {
+        return `Need at least ${amount} zł deposited overall`;
+      }
+    } else if (r.type === 'referrals') {
+      // Referral system isn't shipped yet — treat as always-fail so
+      // admins can't accidentally lock a code behind a non-existent
+      // gate.
+      const count = Number(r.count);
+      if (!Number.isFinite(count) || count <= 0) continue;
+      // TODO: replace with real referral lookup when partner/affiliate
+      // ships. Keep the check skipped (pass) to avoid blocking promos.
+      void count;
+    } else if (r.type === 'registered_after') {
+      const date =
+        typeof r.date === 'string' ? new Date(r.date).getTime() : NaN;
+      if (!Number.isFinite(date)) continue;
+      const rows = await tx.$queryRaw<Array<{ created_at: Date }>>`
+        SELECT created_at FROM users WHERE id = ${userId} LIMIT 1`;
+      const createdAt = rows[0]?.created_at?.getTime() ?? 0;
+      if (createdAt < date) {
+        return `Only available to accounts registered after ${new Date(date)
+          .toISOString()
+          .slice(0, 10)}`;
+      }
+    }
+  }
+  return null;
 }
 
 // suppress unused — helper kept for future ref-link issuance
