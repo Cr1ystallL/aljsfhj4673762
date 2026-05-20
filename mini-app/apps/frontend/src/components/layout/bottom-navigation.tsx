@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp, Menu, User } from 'lucide-react';
+import { ChevronUp, Menu, Sparkles, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,7 @@ interface BottomNavigationProps {
   onMenuClick: () => void;
   onPlayClick: () => void;
   onProfileClick: () => void;
+  onBonusesClick: () => void;
 }
 
 /**
@@ -37,9 +38,11 @@ export const BottomNavigation = memo(function BottomNavigation({
   onMenuClick,
   onPlayClick,
   onProfileClick,
+  onBonusesClick,
 }: BottomNavigationProps) {
   const pathname = usePathname();
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
+  const isBonusesActive = pathname?.startsWith('/bonuses') ?? false;
 
   const hideable = useNavStore((s) => s.hideable);
   const collapsed = useNavStore((s) => s.collapsed);
@@ -90,27 +93,28 @@ export const BottomNavigation = memo(function BottomNavigation({
               className="relative rounded-card border border-white/10"
               style={{ background: 'rgba(0, 0, 0, 0.78)' }}
             >
-              <div className="relative grid grid-cols-3 items-center px-2 py-1.5">
+              <div className="relative grid grid-cols-4 items-center px-2 py-1.5">
                 <NavItem
                   icon={<Menu size={18} strokeWidth={1.7} />}
                   label="Меню"
                   onClick={onMenuClick}
                 />
+                <NavItem
+                  icon={<Sparkles size={18} strokeWidth={1.7} />}
+                  label="Бонусы"
+                  onClick={onBonusesClick}
+                  active={isBonusesActive}
+                />
 
-                {/* Center action — raised pill */}
-                <div className="flex items-start justify-center">
+                {/* Center action — raised pill (column 3 of 4) */}
+                <div className="flex items-start justify-center -mt-px">
                   <button
                     onClick={onPlayClick}
                     aria-label="Играть"
                     className="-mt-7 relative active:scale-95 transition-transform"
                     style={{ willChange: 'transform' }}
                   >
-                    {/* Soft brand halo — desktop only. On mobile we
-                        kill `filter: blur` for performance, which left
-                        the gradient layer visible as a second flat
-                        circle around the Play button (looked like two
-                        stacked buttons). Hiding it on coarse-pointer
-                        devices is the cleanest fix. */}
+                    {/* Soft brand halo — desktop only. */}
                     <span
                       aria-hidden
                       className="hidden md:block absolute inset-0 rounded-pill opacity-60"
@@ -122,7 +126,7 @@ export const BottomNavigation = memo(function BottomNavigation({
                     />
                     {/* Gradient pill — brand Deep Ocean. */}
                     <span
-                      className="relative w-14 h-14 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
+                      className="relative w-12 h-12 rounded-pill flex items-center justify-center border border-white/25 overflow-hidden"
                       style={{
                         background:
                           'linear-gradient(135deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
@@ -138,7 +142,7 @@ export const BottomNavigation = memo(function BottomNavigation({
                       />
                       <BrandMark
                         variant="dark"
-                        size={44}
+                        size={36}
                         title="Играть"
                         className="relative"
                       />

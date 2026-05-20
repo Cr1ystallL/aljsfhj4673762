@@ -312,7 +312,7 @@ export function HomeScreen() {
           <QuickAction
             icon={<Sparkles size={18} strokeWidth={1.5} />}
             label="Бонусы"
-            sublabel="Скоро"
+            sublabel="Промокоды и колесо удачи"
             onClick={() => router.push('/bonuses')}
           />
         </div>

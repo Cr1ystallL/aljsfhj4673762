@@ -46,6 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onMenuClick={() => setIsMenuOpen(true)}
         onPlayClick={handlePlayClick}
         onProfileClick={handleProfileClick}
+        onBonusesClick={() => router.push('/bonuses')}
       />
 
       <MenuDrawer
