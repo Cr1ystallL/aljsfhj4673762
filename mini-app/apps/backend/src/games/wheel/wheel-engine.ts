@@ -145,7 +145,10 @@ interface CurrentRound {
   startedAt: number;
 }
 
-const SPIN_DURATION_MS = 5000;
+const SPIN_DURATION_MIN_MS = 8000;
+const SPIN_DURATION_MAX_MS = 15000;
+/** Default exposed for legacy snapshots; superseded by per-round value. */
+const SPIN_DURATION_MS = 12000;
 const HISTORY_CAP = 30;
 
 class WheelEngine extends EventEmitter {
@@ -158,6 +161,7 @@ class WheelEngine extends EventEmitter {
   private serverSeedHash = '';
   private waitingTimer: ReturnType<typeof setTimeout> | null = null;
   private spinTimer: ReturnType<typeof setTimeout> | null = null;
+  private currentSpinDurationMs = SPIN_DURATION_MS;
 
   constructor() {
     super();
@@ -212,7 +216,7 @@ class WheelEngine extends EventEmitter {
           ? this.serverSeedHash
           : this.round?.serverSeedHash ?? '',
       spinStartedAt: this.phase === 'spinning' ? this.spinStartedAt : null,
-      spinDurationMs: SPIN_DURATION_MS,
+      spinDurationMs: this.currentSpinDurationMs,
       stats: this.getStats(),
     };
   }
@@ -226,19 +230,27 @@ class WheelEngine extends EventEmitter {
     user: WheelBetRow['user']
   ): Promise<{ betId: string }> {
     if (this.phase !== 'waiting' || !this.round) {
-      throw new Error('Приём ставок закрыт');
+      throw new Error('Betting closed');
     }
     if (!WHEEL_VALUES.includes(pick)) {
-      throw new Error('Неверный множитель');
+      throw new Error('Invalid multiplier');
     }
     if (!Number.isFinite(amount) || amount < 1 || amount > 10000) {
-      throw new Error('Ставка от 1 до 10000');
+      throw new Error('Bet must be between 1 and 10000');
     }
 
     // One bet per user per round per pick to prevent griefing the feed.
     const key = `${userId}:${pick}`;
     if (this.round.bets.has(key)) {
-      throw new Error('Уже есть ставка на этот множитель в раунде');
+      throw new Error('You already bet on this multiplier');
+    }
+
+    // Per-round cap: at most 2 different multipliers per user per round.
+    const ownPickCount = Array.from(this.round.bets.values()).filter(
+      (b) => b.userId === userId
+    ).length;
+    if (ownPickCount >= 2) {
+      throw new Error('Limit reached — max 2 bets per round');
     }
 
     const bet: Bet = {
@@ -359,13 +371,22 @@ class WheelEngine extends EventEmitter {
     this.phase = 'spinning';
     this.spinStartedAt = Date.now();
     this.waitingEndsAt = null;
+    // Random spin duration between 8 and 15 seconds — keeps players
+    // engaged and prevents pattern-counting between rounds. Derived
+    // from the same hash as the segment so it's reproducible from the
+    // server seed for provably-fair audit.
+    const durHash = parseInt(this.round.serverSeedHash.substring(0, 8), 16);
+    const u = (durHash >>> 0) / 0xffffffff;
+    this.currentSpinDurationMs = Math.round(
+      SPIN_DURATION_MIN_MS + u * (SPIN_DURATION_MAX_MS - SPIN_DURATION_MIN_MS)
+    );
 
     this.emit('event', {
       type: 'phase:spinning',
       payload: {
         roundId: this.round.roundId,
         spinStartedAt: this.spinStartedAt,
-        spinDurationMs: SPIN_DURATION_MS,
+        spinDurationMs: this.currentSpinDurationMs,
         // Authoritative segment is sent now so the client can land
         // exactly there. The provably-fair seed is revealed after the
         // round completes for full verification.
@@ -378,7 +399,7 @@ class WheelEngine extends EventEmitter {
     if (this.spinTimer) clearTimeout(this.spinTimer);
     this.spinTimer = setTimeout(
       () => void this.completeSpin(),
-      SPIN_DURATION_MS
+      this.currentSpinDurationMs
     );
   }
 
@@ -458,9 +479,9 @@ class WheelEngine extends EventEmitter {
     });
 
     // Brief breather — without an explicit countdown phase. The client
-    // shows the result for ~3 s, then we open the next betting window
-    // immediately.
-    setTimeout(() => void this.openWaiting(), 3000);
+    // shows the result for ~1 s, then we open the next betting window
+    // immediately so the round-cycle is continuous.
+    setTimeout(() => void this.openWaiting(), 1000);
   }
 
   /* ------------------------------ helpers ------------------------------ */

@@ -568,25 +568,19 @@ export class CrashGameEngine extends BaseGameEngine {
       history: this.history.slice(-20).reverse(),
       stats: this.getRoomStats(),
     });
+    // Skip the countdown phase — once betting closes, the round flips
+    // to `active` immediately so the curve starts without a 3-2-1
+    // ceremony. Admin's `countdownSeconds` config is therefore ignored.
     this.waitingTimeout = setTimeout(
-      () => this.startCountdown(),
+      () => this.activateRound(),
       this.waitingTimeMs
     );
   }
 
   private startCountdown(): void {
-    this.clearTimeouts();
-    this.room.state = 'starting';
-    const endsAt = Date.now() + this.countdownTimeMs;
-    this.currentPhaseEndsAt = endsAt;
-    this.emitEvent('phase:countdown', {
-      duration: this.countdownTimeMs,
-      endsAt,
-    });
-    this.countdownTimeout = setTimeout(
-      () => this.activateRound(),
-      this.countdownTimeMs
-    );
+    // Retained as a no-op for binary compatibility with any caller that
+    // still references it. The lifecycle now goes waiting → active.
+    this.activateRound();
   }
 
   private clearTimeouts(): void {

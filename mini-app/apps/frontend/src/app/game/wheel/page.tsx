@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Disc3, Coins, Users, Shield, Wifi } from 'lucide-react';
+import { Disc3, Coins, Users, Shield, Wifi, ChevronDown } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -407,30 +407,54 @@ function HistoryStrip({
 }: {
   history: Array<{ multiplier: number }>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? history.slice(0, 20) : history.slice(0, 12);
+
   return (
-    <div className="rounded-card bg-white/[0.04] border border-white/10 px-3 py-2.5 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-      {history.length === 0 ? (
-        <span className="text-whisper-gray text-[11px] font-roobert">
-          History will appear after the first round
-        </span>
-      ) : (
-        history.map((h, i) => {
-          const c = SEG_COLOR[h.multiplier];
-          return (
-            <span
-              key={i}
-              className="shrink-0 inline-flex items-center justify-center px-2.5 py-1 rounded-pill border font-roobert text-[11px] font-semibold tabular-nums"
-              style={{
-                background: `${c.base}66`,
-                borderColor: c.rim,
-                color: '#fff',
-              }}
-            >
-              ×{h.multiplier}
+    <div className="rounded-card bg-white/[0.04] border border-white/10 px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <div
+          className={cn(
+            'flex-1 min-w-0',
+            expanded
+              ? 'flex flex-wrap gap-1.5'
+              : 'flex items-center gap-1.5 overflow-x-auto scrollbar-hide'
+          )}
+        >
+          {visible.length === 0 ? (
+            <span className="text-whisper-gray text-[11px] font-roobert">
+              History will appear after the first round
             </span>
-          );
-        })
-      )}
+          ) : (
+            visible.map((h, i) => {
+              const c = SEG_COLOR[h.multiplier];
+              return (
+                <span
+                  key={i}
+                  className="shrink-0 inline-flex items-center justify-center px-2.5 py-1 rounded-pill border font-roobert text-[11px] font-semibold tabular-nums"
+                  style={{
+                    background: `${c.base}66`,
+                    borderColor: c.rim,
+                    color: '#fff',
+                  }}
+                >
+                  ×{h.multiplier}
+                </span>
+              );
+            })
+          )}
+        </div>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="shrink-0 w-7 h-7 rounded-pill border border-white/15 flex items-center justify-center text-frost-white/70 hover:text-frost-white hover:border-white/25 transition-colors"
+          aria-label="Toggle history"
+        >
+          <ChevronDown
+            size={14}
+            className={cn('transition-transform', expanded && 'rotate-180')}
+          />
+        </button>
+      </div>
     </div>
   );
 }
@@ -540,7 +564,20 @@ function Wheel({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rotationRef = useRef(0);
   const targetRotationRef = useRef(0);
+  const settleStartRotationRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  // Locked spin contract for the current spin — we capture the spin
+  // start, duration and target so a re-render with new snapshot data
+  // doesn't yank the wheel mid-rotation.
+  const spinLockRef = useRef<{
+    startedAt: number;
+    durationMs: number;
+    target: number;
+    /** Slight offset from the segment center — gives the pointer the
+     *  "casino" landing where it doesn't sit dead-on the divider. */
+    overshoot: number;
+    seg: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!layout || !snap) return;
@@ -574,25 +611,46 @@ function Wheel({
     });
     ro.observe(canvas);
 
-    if (snap.phase === 'spinning' && snap.spinStartedAt) {
+    if (snap.phase === 'spinning' && snap.spinStartedAt && snap.segmentIndex != null) {
       const seg = snap.segmentIndex;
-      if (seg != null) {
-        const segmentSpan = (2 * Math.PI) / layout.length;
-        targetRotationRef.current =
-          5 * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2;
-      }
-    } else if (snap.phase === 'completed' && snap.segmentIndex != null) {
       const segmentSpan = (2 * Math.PI) / layout.length;
-      const target =
-        5 * 2 * Math.PI -
-        snap.segmentIndex * segmentSpan -
-        segmentSpan / 2;
-      targetRotationRef.current = target;
-      rotationRef.current = target;
+      // Build the spin lock once per spin. If the lock is already set
+      // for this spinStartedAt, keep it (re-renders shouldn't recompute
+      // overshoot — that would change where the pointer lands).
+      const same =
+        spinLockRef.current &&
+        spinLockRef.current.startedAt === snap.spinStartedAt &&
+        spinLockRef.current.seg === seg;
+      if (!same) {
+        // Random landing offset within the wedge — clamped to ±35% of
+        // the wedge span so the pointer never crosses into a neighbour.
+        const u = (Math.sin(snap.spinStartedAt) * 9301 + 49297) % 233280;
+        const r = (u / 233280) * 2 - 1; // -1..1
+        const overshoot = r * segmentSpan * 0.35;
+        // 8 full revs + center → seg → wedge offset.
+        const target =
+          8 * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
+        settleStartRotationRef.current = rotationRef.current;
+        spinLockRef.current = {
+          startedAt: snap.spinStartedAt,
+          durationMs: snap.spinDurationMs,
+          target,
+          overshoot,
+          seg,
+        };
+        targetRotationRef.current = target;
+      }
+    } else if (
+      snap.phase === 'completed' &&
+      snap.segmentIndex != null &&
+      spinLockRef.current
+    ) {
+      // Park exactly where the lock said we'd land.
+      rotationRef.current = spinLockRef.current.target;
+      targetRotationRef.current = spinLockRef.current.target;
+    } else if (snap.phase === 'waiting') {
+      spinLockRef.current = null;
     }
-
-    const spinStart = snap.spinStartedAt ?? null;
-    const spinDuration = snap.spinDurationMs;
 
     const draw = () => {
       rafRef.current = requestAnimationFrame(draw);
@@ -603,15 +661,43 @@ function Wheel({
 
       ctx.clearRect(0, 0, w, h);
 
-      if (snap.phase === 'spinning' && spinStart) {
+      if (snap.phase === 'spinning' && spinLockRef.current) {
+        const lock = spinLockRef.current;
         const t = Math.min(
           1,
-          Math.max(0, (Date.now() - spinStart) / spinDuration)
+          Math.max(0, (Date.now() - lock.startedAt) / lock.durationMs)
         );
-        const ease = 1 - Math.pow(1 - t, 3);
-        rotationRef.current = ease * targetRotationRef.current;
+        // Two-phase ease for the "casino tease":
+        //   phase 1 (0..0.85) → ease-out to a slight overshoot beyond
+        //                       the resting target (~3% extra arc).
+        //   phase 2 (0.85..1) → soft elastic settle back to target.
+        // This makes the pointer slide past the chosen wedge edge
+        // and tug back, rather than coming to a clean stop on a
+        // sector divider.
+        const segmentSpan = (2 * Math.PI) / layout.length;
+        const settleStart = settleStartRotationRef.current;
+        let value: number;
+        if (t < 0.85) {
+          const tt = t / 0.85;
+          const ease = 1 - Math.pow(1 - tt, 3);
+          // Overshoot is a fixed fraction of one wedge span, in the
+          // direction of travel.
+          const overshootArc = segmentSpan * 0.18;
+          const peak = lock.target + overshootArc;
+          value = settleStart + (peak - settleStart) * ease;
+        } else {
+          const tt = (t - 0.85) / 0.15;
+          // Damped sine for the elastic settle.
+          const elastic = Math.sin(tt * Math.PI) * (1 - tt) * 0.04;
+          const overshootArc = segmentSpan * 0.18;
+          value =
+            lock.target + overshootArc * (1 - tt) - elastic * segmentSpan;
+        }
+        rotationRef.current = value;
       } else if (snap.phase === 'waiting') {
         rotationRef.current += 0.0025;
+      } else if (snap.phase === 'completed' && spinLockRef.current) {
+        rotationRef.current = spinLockRef.current.target;
       }
 
       const cx = w / 2;

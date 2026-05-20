@@ -43,8 +43,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     maxBet: 10000,
     houseEdge: 0.01,
     extras: {
-      waitingPhaseSeconds: 5,
-      countdownSeconds: 3,
+      waitingPhaseSeconds: 15,
+      countdownSeconds: 0,
     },
   },
   mines: {

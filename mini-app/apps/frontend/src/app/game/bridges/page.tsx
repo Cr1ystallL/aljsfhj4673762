@@ -70,7 +70,9 @@ const LEVEL_LABEL: Record<Level, { en: string; sub: string }> = {
   hard: { en: 'Hard', sub: '3 traps per row' },
 };
 
-const QUICK_AMOUNTS = [10, 50, 100, 500];
+const QUICK_AMOUNTS: number[] = [];
+// Unused — kept as a placeholder so hot-reload doesn't whine about empties.
+void QUICK_AMOUNTS;
 
 export default function BridgesPage() {
   const { balance, fetchBalance } = useBalance();
@@ -831,29 +833,7 @@ function BetPanel({
           </button>
         </div>
 
-        {/* Quick chips */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
-          {QUICK_AMOUNTS.map((q) => (
-            <button
-              key={q}
-              onClick={() => setAmount(clamp(q))}
-              className={cn(
-                'shrink-0 px-3 h-8 rounded-pill border font-roobert font-medium tabular-nums text-[12px] transition-all active:scale-95',
-                amount === q
-                  ? 'border-white/30 bg-white/[0.08] text-frost-white'
-                  : 'border-white/10 bg-white/[0.03] text-frost-white/75 hover:border-white/20'
-              )}
-            >
-              {q}
-            </button>
-          ))}
-          <button
-            onClick={() => setAmount(clamp(maxBet))}
-            className="shrink-0 px-3 h-8 rounded-pill border border-white/15 bg-white/[0.04] font-roobert font-medium uppercase tracking-[0.16em] text-[10px] text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
-          >
-            Max
-          </button>
-        </div>
+        {/* Quick chips (none — keep panel cleaner) */}
       </div>
 
       <div className="h-px bg-white/[0.06]" />

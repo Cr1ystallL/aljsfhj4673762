@@ -881,7 +881,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * snappy.
    */
   app.get('/_x/games', { preHandler: adminOnly }, async (_req, reply) => {
-    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip'];
+    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'];
     const configs = await Promise.all(
       types.map(async (t) => ({ gameType: t, config: await gameConfig.get(t) }))
     );
@@ -900,7 +900,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: adminOnly },
     async (request, reply) => {
       const t = request.params.type as GameType;
-      if (!['crash', 'mines', 'plinko', 'coinflip'].includes(t)) {
+      if (!['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'].includes(t)) {
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
       }
       const config = await gameConfig.get(t);
@@ -927,7 +927,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: adminOnly },
     async (request, reply) => {
       const t = request.params.type as GameType;
-      if (!['crash', 'mines', 'plinko', 'coinflip'].includes(t)) {
+      if (!['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'].includes(t)) {
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
       }
       const reason = (request.body?.reason ?? '').trim();

@@ -59,6 +59,10 @@ export const CrashStage = memo(function CrashStage({
   connected,
   lastCrashPoint,
 }: CrashStageProps) {
+  // Countdown phase has been collapsed into waiting (round flips
+  // straight to active after betting closes), so the prop is accepted
+  // for API compatibility but no longer rendered.
+  void countdown;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const multiplierTextRef = useRef<HTMLSpanElement>(null);
 
@@ -191,7 +195,16 @@ export const CrashStage = memo(function CrashStage({
           break;
         }
       }
-      const points = firstIdx > 0 ? graph.slice(firstIdx) : graph;
+      let points = firstIdx > 0 ? graph.slice(firstIdx) : graph;
+
+      // Guarantee an anchor at (t=0, m=1.00). Without this the curve's
+      // bottom-left can detach from the axis whenever the buffer is
+      // pruned (sleeping tab, reconnect, mid-round join). The bottom of
+      // the visible plot is fundamentally `(padLeft, h - padBottom)`,
+      // so anchor every paint pass there.
+      if (points.length === 0 || points[0].time > 5 || points[0].multiplier > 1.001) {
+        points = [{ time: 0, multiplier: 1 }, ...points];
+      }
 
       const lastT =
         points.length >= 2 ? points[points.length - 1].time || 1 : 1;
@@ -200,8 +213,10 @@ export const CrashStage = memo(function CrashStage({
 
       // Smooth scale: target window grows continuously with elapsed
       // time + a 25% headroom so the head sits ~80% from the left.
-      const xTarget = Math.max(6000, lastT * 1.25);
-      const yTarget = Math.max(Math.log(2.5), Math.log(lastM * 1.25));
+      // Window always anchors at t=0 (padLeft) so the curve traces
+      // continuously from the bottom-left corner — no scrolling.
+      const xTarget = Math.max(6000, lastT * 1.18);
+      const yTarget = Math.max(Math.log(2.5), Math.log(lastM * 1.20));
 
       // Lerp both axes per frame. 0.06 ≈ ~1s settle at 60fps which feels
       // organic without being laggy.
@@ -499,25 +514,6 @@ export const CrashStage = memo(function CrashStage({
         {/* Top-left phase plate */}
         <div className="absolute top-5 left-5">
           <AnimatePresence mode="wait">
-            {phase === 'starting' && countdown !== null && (
-              <motion.div
-                key="countdown"
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="flex flex-col"
-              >
-                <div className="px-4 py-1.5 rounded-pill bg-white/[0.06] border border-white/15">
-                  <span className="font-roobert text-frost-white text-[20px] tabular-nums tracking-wider">
-                    {String(Math.floor(countdown / 60)).padStart(2, '0')}:
-                    {String(countdown % 60).padStart(2, '0')}
-                  </span>
-                </div>
-                <span className="mt-1.5 ml-1 text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Countdown
-                </span>
-              </motion.div>
-            )}
             {phase === 'waiting' && (
               <motion.div
                 key="waiting"
