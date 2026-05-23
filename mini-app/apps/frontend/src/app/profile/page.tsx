@@ -90,34 +90,66 @@ export default function ProfilePage() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl"
+            className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]"
           >
-            {/* Atmospheric backdrop */}
-            <div
-              className="pointer-events-none absolute inset-0 opacity-40"
-              style={{
-                background:
-                  'radial-gradient(120% 100% at 50% 0%, rgba(160, 224, 171, 0.18) 0%, rgba(255, 172, 46, 0.10) 45%, transparent 80%)',
-              }}
-            />
-            <div
-              className="mobile-no-blur pointer-events-none absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
-              style={{
-                background:
-                  'radial-gradient(circle, rgba(165, 45, 37, 0.22) 0%, transparent 70%)',
-                filter: 'blur(48px)',
-              }}
-            />
+            {/* Blurred avatar backdrop — heavy gaussian blur on the user's
+                own photo. Falls back to a subtle Deep Ocean wash when the
+                user has no Telegram photo configured. */}
+            {user?.photoUrl ? (
+              <>
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    backgroundImage: `url(${user.photoUrl})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    filter: 'blur(36px) saturate(1.25)',
+                    transform: 'scale(1.25)',
+                    opacity: 0.65,
+                  }}
+                />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background:
+                      'linear-gradient(180deg, rgba(10,10,12,0.20) 0%, rgba(10,10,12,0.55) 60%, rgba(10,10,12,0.85) 100%)',
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-40"
+                  style={{
+                    background:
+                      'radial-gradient(120% 100% at 50% 0%, rgba(160, 224, 171, 0.18) 0%, rgba(255, 172, 46, 0.10) 45%, transparent 80%)',
+                  }}
+                />
+                <div
+                  className="mobile-no-blur pointer-events-none absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
+                  style={{
+                    background:
+                      'radial-gradient(circle, rgba(165, 45, 37, 0.22) 0%, transparent 70%)',
+                    filter: 'blur(48px)',
+                  }}
+                />
+              </>
+            )}
 
             <div className="relative px-5 pt-7 pb-5 flex flex-col items-center text-center">
               {/* Avatar */}
               <div className="relative">
-                <div className="mobile-no-blur absolute -inset-3 rounded-full opacity-50 blur-2xl"
-                  style={{
-                    background:
-                      'radial-gradient(circle, rgba(160, 224, 171, 0.35) 0%, transparent 70%)',
-                  }}
-                />
+                {!user?.photoUrl && (
+                  <div
+                    className="mobile-no-blur absolute -inset-3 rounded-full opacity-50 blur-2xl"
+                    style={{
+                      background:
+                        'radial-gradient(circle, rgba(160, 224, 171, 0.35) 0%, transparent 70%)',
+                    }}
+                  />
+                )}
                 {user?.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

@@ -11,55 +11,22 @@ import { useNavStore } from '@/store/nav-store';
 /* ---------------------------------------------------------------- glyphs */
 
 /**
- * Shiny coin glyph for the Bonuses tab. Animated highlight sweeps
- * across the face every couple of seconds — implemented via a small
- * SVG mask that rotates an offset gradient. The whole symbol is
- * pure-SVG so it scales crisply on retina + telegram WebViews.
+ * Plain coin glyph for the Bonuses tab — simple stroked SVG, no
+ * gradients, sparkles or animation. Matches the visual weight of the
+ * other lucide icons in the bar.
  */
-function ShinyCoinGlyph({ active }: { active: boolean }) {
+function CoinGlyph({ active }: { active: boolean }) {
+  const stroke = active ? '#ffffff' : 'rgba(255,255,255,0.65)';
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width={20}
-      height={20}
-      className={cn('drop-shadow-[0_1px_4px_rgba(255,210,120,0.45)]', active ? 'opacity-100' : 'opacity-90')}
-    >
-      <defs>
-        <radialGradient id="coinFace" cx="40%" cy="32%" r="80%">
-          <stop offset="0%" stopColor="#fff7d8" />
-          <stop offset="55%" stopColor="#f6c54a" />
-          <stop offset="100%" stopColor="#9b6a18" />
-        </radialGradient>
-        <linearGradient id="coinShine" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-          <stop offset="48%" stopColor="rgba(255,255,255,0.85)" />
-          <stop offset="56%" stopColor="rgba(255,255,255,0.85)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-        </linearGradient>
-      </defs>
-      <circle cx="12" cy="12" r="9.5" fill="url(#coinFace)" stroke="rgba(0,0,0,0.45)" strokeWidth="0.7" />
-      <circle cx="12" cy="12" r="7.2" fill="none" stroke="rgba(255,240,180,0.55)" strokeWidth="0.6" />
-      {/* M-shape mark */}
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none">
+      <circle cx="12" cy="12" r="9" stroke={stroke} strokeWidth="1.7" />
+      <circle cx="12" cy="12" r="5.5" stroke={stroke} strokeWidth="1.3" opacity="0.55" />
       <path
-        d="M 8 15.5 L 8 9.5 L 12 13.5 L 16 9.5 L 16 15.5"
-        fill="none"
-        stroke="rgba(60,30,0,0.85)"
-        strokeWidth="1.4"
+        d="M10 8.5v7M14 8.5v7"
+        stroke={stroke}
+        strokeWidth="1.5"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
-      {/* Animated sweep */}
-      <g style={{ mixBlendMode: 'overlay' }}>
-        <rect x="-12" y="-2" width="24" height="28" fill="url(#coinShine)" transform="translate(12 12) rotate(20)">
-          <animateTransform
-            attributeName="transform"
-            type="translate"
-            values="-6 -8; 26 14"
-            dur="2.6s"
-            repeatCount="indefinite"
-          />
-        </rect>
-      </g>
     </svg>
   );
 }
@@ -96,6 +63,8 @@ interface BottomNavigationProps {
   onProfileClick: () => void;
   onBonusesClick: () => void;
   onPartnerClick: () => void;
+  /** Force the bar (and grip) hidden — used while the side drawer is open. */
+  forceHidden?: boolean;
 }
 
 /**
@@ -123,6 +92,7 @@ export const BottomNavigation = memo(function BottomNavigation({
   onProfileClick,
   onBonusesClick,
   onPartnerClick,
+  forceHidden = false,
 }: BottomNavigationProps) {
   const pathname = usePathname();
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
@@ -133,15 +103,17 @@ export const BottomNavigation = memo(function BottomNavigation({
   const collapsed = useNavStore((s) => s.collapsed);
   const setCollapsed = useNavStore((s) => s.setCollapsed);
   const isCollapsed = hideable && collapsed;
+  const showGrip = hideable && collapsed && !forceHidden;
+  const showBar = !isCollapsed && !forceHidden;
 
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none"
-      aria-hidden={isCollapsed}
+      aria-hidden={isCollapsed || forceHidden}
     >
       {/* Grip handle — only on hideable pages, only when collapsed. */}
       <AnimatePresence>
-        {hideable && collapsed && (
+        {showGrip && (
           <motion.div
             key="handle-wrap"
             className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none"
@@ -164,7 +136,7 @@ export const BottomNavigation = memo(function BottomNavigation({
       </AnimatePresence>
 
       <AnimatePresence>
-        {!isCollapsed && (
+        {showBar && (
           <motion.div
             key="bar"
             initial={{ y: 96, opacity: 0 }}
@@ -185,7 +157,7 @@ export const BottomNavigation = memo(function BottomNavigation({
                   onClick={onMenuClick}
                 />
                 <NavItem
-                  icon={<ShinyCoinGlyph active={isBonusesActive} />}
+                  icon={<CoinGlyph active={isBonusesActive} />}
                   label="Бонусы"
                   onClick={onBonusesClick}
                   active={isBonusesActive}

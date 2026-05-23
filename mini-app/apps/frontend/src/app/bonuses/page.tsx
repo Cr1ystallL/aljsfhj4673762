@@ -339,13 +339,28 @@ const WHEEL_SECTORS_12 = [
   1.0, 0.05, 0.5, 0.1, 0.25, 0.05,
 ];
 
+/**
+ * Sector palette — calmer and more brand-aligned than the previous
+ * red-leaning gradient. Lower-tier sectors stay desaturated; the
+ * 1.00 zł jackpot pops in warm amber so the eye lands on it first.
+ */
 const SECTOR_TIER_COLOR: Record<number, string> = {
-  0.05: '#a0e0ab',
-  0.1: '#a0e0ab',
-  0.25: '#cfe07f',
-  0.5: '#ffac2e',
-  0.75: '#ff8a3a',
-  1.0: '#ff5a3a',
+  0.05: '#1f2933',
+  0.1: '#2c3a47',
+  0.25: '#4a6072',
+  0.5: '#6a8a7a',
+  0.75: '#d49a4a',
+  1.0: '#ffac2e',
+};
+
+/** Text colour per sector — light tiers get white, amber gets ink. */
+const SECTOR_TEXT_COLOR: Record<number, string> = {
+  0.05: '#ffffff',
+  0.1: '#ffffff',
+  0.25: '#ffffff',
+  0.5: '#ffffff',
+  0.75: '#0a0a0a',
+  1.0: '#0a0a0a',
 };
 
 function LuckyWheelHero({ onWin }: { onWin: () => void }) {
@@ -439,56 +454,72 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
     }
   };
 
+  const buttonLabel = onCooldown
+    ? `Wait ${Math.ceil(cooldownLeftMs / 1000)}s`
+    : noSpins
+      ? 'Come back tomorrow'
+      : busy || spinRef.current
+        ? 'Spinning…'
+        : 'Spin';
+
   return (
     <section className="relative overflow-hidden rounded-card border border-white/10">
-      {/* Deep Ocean radial — replaces the reference's purple */}
+      {/* Deep, calm backdrop — flat charcoal with a single soft amber halo
+          behind the wheel hub. No conic sun-rays, no red wash. */}
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(180deg, rgba(20, 20, 26, 1) 0%, rgba(10, 12, 16, 1) 100%)',
+            'linear-gradient(180deg, #0e0f13 0%, #0a0b0e 60%, #07080a 100%)',
         }}
       />
       <div
         aria-hidden
-        className="absolute inset-0 opacity-60"
+        className="absolute inset-0 opacity-70 pointer-events-none mobile-no-blur"
         style={{
           background:
-            'radial-gradient(120% 90% at 50% 110%, rgba(255, 172, 46, 0.30) 0%, rgba(165, 45, 37, 0.18) 35%, transparent 75%)',
+            'radial-gradient(60% 55% at 50% 55%, rgba(255, 172, 46, 0.12) 0%, transparent 70%)',
         }}
       />
-      {/* Sun-rays pattern */}
+      {/* Hairline top accent — quiet brand cue without extra surface area */}
       <div
         aria-hidden
-        className="absolute inset-0 opacity-25 pointer-events-none"
+        className="absolute inset-x-0 top-0 h-px"
         style={{
-          background: `repeating-conic-gradient(from 220deg at 50% 110%, rgba(255,172,46,0.35) 0deg, rgba(255,172,46,0.35) 8deg, transparent 8deg, transparent 18deg)`,
-          maskImage: 'radial-gradient(120% 90% at 50% 110%, black 30%, transparent 75%)',
-          WebkitMaskImage: 'radial-gradient(120% 90% at 50% 110%, black 30%, transparent 75%)',
+          background:
+            'linear-gradient(90deg, transparent 0%, rgba(255, 172, 46, 0.45) 50%, transparent 100%)',
         }}
       />
 
-      <div className="relative px-5 pt-5 sm:px-6 sm:pt-6 flex flex-col gap-1">
-        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-          Lucky Wheel
-        </span>
-        <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
-          Spin up to{' '}
-          <span className="text-[#a0e0ab] underline underline-offset-4 decoration-[#a0e0ab]/60">
-            10
-          </span>{' '}
-          times a day, win up to{' '}
-          <span className="text-[#ffac2e] underline underline-offset-4 decoration-[#ffac2e]/60">
-            1.00 zł
-          </span>{' '}
-          on your balance
-        </h2>
+      {/* Header row — title on the left, jackpot tag on the right */}
+      <div className="relative flex items-start justify-between gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+            <Sparkles size={11} strokeWidth={1.7} className="text-[#ffac2e]" />
+            Lucky Wheel
+          </span>
+          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
+            Daily free spin
+          </h2>
+        </div>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-[rgba(255,172,46,0.35)] bg-[rgba(255,172,46,0.10)]">
+            <Trophy size={11} strokeWidth={1.8} className="text-[#ffac2e]" />
+            <span className="font-roobert text-[11px] tabular-nums text-frost-white">
+              up to 1.00 zł
+            </span>
+          </span>
+          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+            10 spins/day
+          </span>
+        </div>
       </div>
 
-      <div className="relative px-3 pb-3 pt-3">
+      {/* Wheel canvas */}
+      <div className="relative px-3 pb-1 pt-2">
         <div
-          className="relative w-full max-w-[360px] mx-auto"
+          className="relative w-full max-w-[340px] mx-auto"
           style={{ aspectRatio: '1 / 1' }}
         >
           <FullWheelCanvas
@@ -496,44 +527,69 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
             idleRotationRef={idleRotationRef}
           />
         </div>
+      </div>
 
-        <div className="mt-3 flex justify-center">
-          <button
-            onClick={spin}
-            disabled={!canSpin}
-            className={cn(
-              'h-12 px-9 rounded-pill font-roobert font-semibold text-[14px] uppercase tracking-[0.22em] inline-flex items-center gap-1.5 transition-all active:scale-[0.98]',
-              canSpin
-                ? 'text-midnight-canvas'
-                : 'bg-white/[0.08] text-frost-white/55 border border-white/15 cursor-not-allowed'
-            )}
-            style={
-              canSpin
-                ? {
-                    background:
-                      'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(207, 224, 127) 100%)',
-                    boxShadow:
-                      '0 6px 22px rgba(160, 224, 171, 0.42), inset 0 1px 0 rgba(255,255,255,0.45)',
-                  }
-                : undefined
-            }
+      {/* Tier legend */}
+      <div className="relative px-5 sm:px-6 pb-1 flex items-center justify-center gap-1.5 flex-wrap">
+        {[0.05, 0.1, 0.25, 0.5, 1.0].map((tier) => (
+          <span
+            key={tier}
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill border border-white/10 bg-white/[0.03]"
           >
-            {onCooldown
-              ? `Wait ${Math.ceil(cooldownLeftMs / 1000)}s`
-              : noSpins
-                ? 'Come back tomorrow'
-                : 'Spin'}
-            {canSpin && <ChevronRight size={14} strokeWidth={2.2} />}
-          </button>
-        </div>
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: SECTOR_TIER_COLOR[tier] }}
+            />
+            <span className="font-roobert text-[10px] tabular-nums text-frost-white/85">
+              {tier.toFixed(2)}
+            </span>
+          </span>
+        ))}
+      </div>
 
-        <div className="mt-2 text-center font-roobert text-[11px] text-whisper-gray tabular-nums">
-          {state ? `${state.remaining} of ${state.dailyCap} spins left` : '—'}
+      {/* Spin CTA + counters */}
+      <div className="relative px-5 sm:px-6 pt-3 pb-5 flex flex-col gap-2">
+        <button
+          onClick={spin}
+          disabled={!canSpin}
+          className={cn(
+            'w-full h-12 rounded-pill font-roobert font-semibold text-[13px] uppercase tracking-[0.24em] inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98]',
+            canSpin
+              ? 'text-midnight-canvas'
+              : 'bg-white/[0.06] text-frost-white/55 border border-white/15 cursor-not-allowed'
+          )}
+          style={
+            canSpin
+              ? {
+                  background:
+                    'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
+                  boxShadow:
+                    '0 8px 24px rgba(255, 172, 46, 0.32), inset 0 1px 0 rgba(255,255,255,0.55)',
+                }
+              : undefined
+          }
+        >
+          {buttonLabel}
+          {canSpin && <ChevronRight size={14} strokeWidth={2.4} />}
+        </button>
+
+        <div className="flex items-center justify-between font-roobert text-[11px] text-whisper-gray tabular-nums">
+          <span>
+            {state ? `${state.remaining} / ${state.dailyCap} spins left` : '—'}
+          </span>
+          {onCooldown && (
+            <span className="text-[#ffac2e]">
+              cooldown {Math.ceil(cooldownLeftMs / 1000)}s
+            </span>
+          )}
         </div>
       </div>
 
       {state && state.ticker.length > 0 && (
         <div className="relative border-t border-white/10 px-3 py-2 overflow-x-auto scrollbar-hide flex items-center gap-2">
+          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.24em] text-whisper-gray pl-2 pr-1">
+            Recent
+          </span>
           {state.ticker.slice(0, 12).map((t, i) => (
             <div
               key={i}
@@ -555,7 +611,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
               <span className="font-roobert text-[10px] text-frost-white/85 truncate max-w-[64px]">
                 {t.name}
               </span>
-              <span className="font-roobert text-[10px] tabular-nums text-[#a0e0ab]">
+              <span className="font-roobert text-[10px] tabular-nums text-[#ffac2e]">
                 +{t.amount.toFixed(2)}
               </span>
             </div>
@@ -758,9 +814,13 @@ function FullWheelCanvas({
         ctx.font = '700 13px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        const textColor = SECTOR_TEXT_COLOR[SECTORS[i]] ?? '#ffffff';
+        const isDarkText = textColor === '#0a0a0a';
+        ctx.fillStyle = isDarkText
+          ? 'rgba(255,255,255,0.35)'
+          : 'rgba(0,0,0,0.55)';
         ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 1);
-        ctx.fillStyle = '#0a0a0a';
+        ctx.fillStyle = textColor;
         ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 0);
         ctx.restore();
       }
@@ -802,60 +862,50 @@ function FullWheelCanvas({
 
       ctx.restore();
 
-      // Tick studs on the bezel (24 pulsing dots) — they don't rotate.
-      const time = performance.now() / 1000;
-      for (let i = 0; i < 24; i++) {
-        const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+      // Static stud ring on the bezel — single soft tone, no pulsing.
+      // Modern wheels read better with a quiet bezel than a flashing one.
+      for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2 - Math.PI / 2;
         const sx = cx + Math.cos(a) * radius * 1.085;
         const sy = cy + Math.sin(a) * radius * 1.085;
-        const pulse = 0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.5);
         ctx.beginPath();
-        ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 220, 150, ${0.3 + pulse * 0.5})`;
+        ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 220, 150, 0.35)';
         ctx.fill();
       }
 
-      // Top pointer — pill with downward notch
+      // Top pointer — clean amber teardrop with a hairline outline.
       const ptCx = cx;
-      const ptCy = cy - radius * 1.05;
+      const ptCy = cy - radius * 1.04;
       ctx.save();
       ctx.translate(ptCx, ptCy);
-      // Halo
+      // Soft halo behind the pointer
+      const halo = ctx.createRadialGradient(0, 4, 0, 0, 4, 22);
+      halo.addColorStop(0, 'rgba(255, 172, 46, 0.55)');
+      halo.addColorStop(1, 'rgba(255, 172, 46, 0)');
       ctx.beginPath();
-      ctx.arc(0, 0, 18, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+      ctx.arc(0, 4, 22, 0, Math.PI * 2);
+      ctx.fillStyle = halo;
       ctx.fill();
-      // Pill
-      const pillW = 38;
-      const pillH = 14;
+      // Teardrop shape — rounded top, sharp tip pointing down at the rim
       ctx.beginPath();
-      ctx.moveTo(-pillW / 2, -pillH / 2);
-      ctx.arcTo(-pillW / 2 - 4, -pillH / 2, -pillW / 2 - 4, pillH / 2, pillH / 2);
-      ctx.arcTo(-pillW / 2 - 4, pillH / 2, -pillW / 2, pillH / 2, pillH / 2);
-      ctx.lineTo(pillW / 2, pillH / 2);
-      ctx.arcTo(pillW / 2 + 4, pillH / 2, pillW / 2 + 4, -pillH / 2, pillH / 2);
-      ctx.arcTo(pillW / 2 + 4, -pillH / 2, pillW / 2, -pillH / 2, pillH / 2);
+      ctx.moveTo(0, 14);
+      ctx.bezierCurveTo(10, 4, 10, -10, 0, -10);
+      ctx.bezierCurveTo(-10, -10, -10, 4, 0, 14);
       ctx.closePath();
-      const pGrad = ctx.createLinearGradient(0, -pillH / 2, 0, pillH / 2);
-      pGrad.addColorStop(0, '#ffffff');
-      pGrad.addColorStop(1, '#cccccc');
-      ctx.fillStyle = pGrad;
+      const tGrad = ctx.createLinearGradient(0, -10, 0, 14);
+      tGrad.addColorStop(0, '#ffd07a');
+      tGrad.addColorStop(1, '#ffac2e');
+      ctx.fillStyle = tGrad;
       ctx.fill();
       ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.stroke();
-      // Notch (triangle pointing down at the wheel rim)
+      // Inner highlight dot
       ctx.beginPath();
-      ctx.moveTo(-6, pillH / 2);
-      ctx.lineTo(0, pillH / 2 + 9);
-      ctx.lineTo(6, pillH / 2);
-      ctx.closePath();
-      const nGrad = ctx.createLinearGradient(0, pillH / 2, 0, pillH / 2 + 9);
-      nGrad.addColorStop(0, '#ffffff');
-      nGrad.addColorStop(1, '#bbbbbb');
-      ctx.fillStyle = nGrad;
+      ctx.arc(-2, -4, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
       ctx.fill();
-      ctx.stroke();
       ctx.restore();
     };
 
