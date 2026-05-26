@@ -199,7 +199,16 @@ export async function optionalAuth(
  * `admins:dynamic` and are checked dynamically in `isAdminTelegramId`.
  */
 const ADMIN_TELEGRAM_IDS: ReadonlySet<number> = (() => {
-  const raw = process.env.ADMIN_TELEGRAM_IDS ?? '';
+  // Accept both names. The backend was originally configured via
+  // ADMIN_TELEGRAM_IDS, but the Python bot in the same repo uses
+  // ADMIN_IDS for the exact same purpose. Allowing either keeps
+  // operators from having to set the value twice (and from getting
+  // confused when the admin button doesn't appear because they only
+  // updated the bot's .env).
+  const raw =
+    process.env.ADMIN_TELEGRAM_IDS ??
+    process.env.ADMIN_IDS ??
+    '';
   const ids = raw
     .split(',')
     .map((s) => s.trim())

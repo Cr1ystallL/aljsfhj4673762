@@ -76,7 +76,7 @@ export function BetControls({
     <GlassCard className="p-6 space-y-4">
       {/* Bet Amount Display */}
       <div className="text-center">
-        <Caption className="text-white/60 mb-2">Bet Amount</Caption>
+        <Caption className="text-white/60 mb-2">Сумма ставки</Caption>
         <div className="flex items-center justify-center gap-2">
           <DollarSign className="h-6 w-6 text-white/60" />
           <motion.div
@@ -150,7 +150,7 @@ export function BetControls({
           disabled={disabled}
           className="text-xs"
         >
-          Max
+          Макс
         </Button>
       </div>
 
@@ -170,14 +170,14 @@ export function BetControls({
             ⟳
           </motion.div>
         ) : (
-          'Place Bet'
+          'Сделать ставку'
         )}
       </Button>
 
       {/* Info */}
       <div className="flex justify-between text-xs text-white/40">
-        <span>Min: ${minBet.toFixed(2)}</span>
-        <span>Max: ${Math.min(maxBet, balance).toFixed(2)}</span>
+        <span>Мин: {minBet.toFixed(2)} zł</span>
+        <span>Макс: {Math.min(maxBet, balance).toFixed(2)} zł</span>
       </div>
     </GlassCard>
   );

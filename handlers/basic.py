@@ -7,6 +7,8 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 
+from aiogram.types import WebAppInfo
+
 from database.db import db
 from config import config
 from keyboards.reply import get_main_keyboard
@@ -86,17 +88,46 @@ async def set_language(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message(F.text.in_(["🎰 Слоты", "🎰 Sloty"]))
-async def show_slots(message: Message):
-    """Показать меню слотов"""
+@router.message(F.text.in_(["🎰 Mini-App", "🎰 Слоты", "🎰 Sloty"]))
+async def open_miniapp(message: Message):
+    """Открыть Mini-App.
+
+    Reply-клавиатура шлёт обычное текстовое сообщение, поэтому здесь мы
+    отвечаем коротким описанием + inline-кнопкой `web_app`, которая
+    запускает мини-приложение прямо в Telegram. Старые названия
+    «🎰 Слоты» / «🎰 Sloty» оставлены в фильтре, чтобы пользователи,
+    у которых ещё открыт прежний клиент, не натыкались на «команда не
+    распознана».
+    """
     lang = db.get_user_language(message.from_user.id)
-    text = get_text(lang, 'slots_title')
-    await message.answer(text, reply_markup=get_slots_menu(lang))
+    miniapp_url = config.MINI_APP_URL.strip()
+
+    # Если URL не задан, не показываем заведомо битую кнопку — лучше
+    # сообщить, что сервис временно недоступен, чем уводить юзера в 404.
+    if not miniapp_url:
+        await message.answer(get_text(lang, 'game_in_dev'))
+        return
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=get_text(lang, 'btn_open_miniapp'),
+            web_app=WebAppInfo(url=miniapp_url),
+        )
+    ]])
+
+    await message.answer(
+        get_text(lang, 'miniapp_intro'),
+        reply_markup=keyboard,
+    )
 
 
 @router.callback_query(F.data.in_(["slots_global", "slots_russia"]))
 async def slots_region(callback: CallbackQuery):
-    """Обработка выбора региона слотов"""
+    """Обработка выбора региона слотов (legacy).
+
+    Кнопка больше не показывается, но колбэки могут долететь от старых
+    сообщений в чатах, поэтому оставляем безобидный ответ-заглушку.
+    """
     lang = db.get_user_language(callback.from_user.id)
     await callback.answer(get_text(lang, 'game_in_dev'), show_alert=True)
 

@@ -44,8 +44,8 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
     <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
         {[
-          { key: 'all', label: 'All bets' },
-          { key: 'rare', label: 'Rare wins' },
+          { key: 'all', label: 'Все ставки' },
+          { key: 'rare', label: 'Редкие выигрыши' },
         ].map((t) => {
           const active = t.key === tab;
           return (
@@ -101,7 +101,7 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
                   {row.name}
                 </div>
                 <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                  {row.betAmount.toLocaleString('en-US', {
+                  {row.betAmount.toLocaleString('ru-RU', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -133,7 +133,7 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
                 )}
               >
                 {row.payout >= row.betAmount ? '+' : ''}
-                {row.payout.toLocaleString('en-US', {
+                {row.payout.toLocaleString('ru-RU', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 2,
                 })}{' '}
@@ -146,8 +146,8 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
         {visible.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
             {tab === 'rare'
-              ? 'No rare wins yet. Yours could be first.'
-              : 'Live bets will stream in here.'}
+              ? 'Редких выигрышей пока нет. Будьте первым.'
+              : 'Ставки будут появляться здесь.'}
           </div>
         )}
       </div>

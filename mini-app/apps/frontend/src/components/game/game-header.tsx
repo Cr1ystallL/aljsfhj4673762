@@ -51,7 +51,7 @@ export function GameHeader({ title, roundId, onShowProvablyFair }: GameHeaderPro
           className="flex items-center gap-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Back</span>
+          <span className="hidden sm:inline">Назад</span>
         </Button>
 
         {/* Center: Title & Round */}
@@ -59,7 +59,7 @@ export function GameHeader({ title, roundId, onShowProvablyFair }: GameHeaderPro
           <H3 className="mb-0">{title}</H3>
           {roundId && (
             <Caption className="text-white/40">
-              Round: {roundId.substring(0, 8)}...
+              Раунд: {roundId.substring(0, 8)}...
             </Caption>
           )}
         </div>

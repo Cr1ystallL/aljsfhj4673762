@@ -45,8 +45,8 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
       {/* Tabs */}
       <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
         {[
-          { key: 'all', label: 'All Bets' },
-          { key: 'rare', label: 'Big Wins' },
+          { key: 'all', label: 'Все ставки' },
+          { key: 'rare', label: 'Крупные выигрыши' },
         ].map((t) => {
           const active = t.key === tab;
           return (
@@ -104,7 +104,7 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
                   {row.name}
                 </div>
                 <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                  {row.betAmount.toLocaleString('en-US', {
+                  {row.betAmount.toLocaleString('ru-RU', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -134,7 +134,7 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
                 )}
               >
                 {row.payout >= row.betAmount ? '+' : ''}
-                {row.payout.toLocaleString('en-US', {
+                {row.payout.toLocaleString('ru-RU', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 2,
                 })}{' '}
@@ -147,8 +147,8 @@ export function PlinkoHistory({ entries, currency = 'zł' }: PlinkoHistoryProps)
         {visible.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
             {tab === 'rare'
-              ? 'No big wins yet. Yours will be the first.'
-              : 'Recent bets will appear here in real time.'}
+              ? 'Крупных выигрышей пока нет. Будьте первым.'
+              : 'Недавние ставки появятся здесь в реальном времени.'}
           </div>
         )}
       </div>

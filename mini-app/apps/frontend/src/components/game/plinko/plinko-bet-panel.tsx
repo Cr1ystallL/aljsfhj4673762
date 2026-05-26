@@ -52,12 +52,12 @@ export function PlinkoBetPanel({
     onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
 
   const ctaLabel = autoEnabled
-    ? 'Stop'
+    ? 'Стоп'
     : busy
     ? '…'
     : !canAfford
-    ? 'Insufficient balance'
-    : 'Drop';
+    ? 'Недостаточно средств'
+    : 'Бросить';
 
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
@@ -110,14 +110,14 @@ export function PlinkoBetPanel({
               : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
           )}
         >
-          Auto
+          Авто
           <span
             className={cn(
               'text-[9px] tracking-[0.16em]',
               autoEnabled ? 'text-midnight-canvas/70' : 'text-frost-white/55'
             )}
           >
-            {autoEnabled ? 'ON' : 'OFF'}
+            {autoEnabled ? 'ВКЛ' : 'ВЫКЛ'}
           </span>
         </button>
       </div>

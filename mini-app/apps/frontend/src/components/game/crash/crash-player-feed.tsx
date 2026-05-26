@@ -110,13 +110,13 @@ export const CrashPlayerFeed = memo(function CrashPlayerFeed({
     <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
       <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 border-b border-white/10">
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-          Player
+          Игрок
         </span>
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert text-right w-16">
-          Mult.
+          Кэфф.
         </span>
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert text-right w-20">
-          Win
+          Выигрыш
         </span>
       </div>
 
@@ -136,10 +136,10 @@ export const CrashPlayerFeed = memo(function CrashPlayerFeed({
                 <PlayerAvatar player={p} />
                 <div className="min-w-0">
                   <div className="font-roobert text-[13px] text-frost-white truncate">
-                    {isYou ? `${name} · you` : name}
+                    {isYou ? `${name} · вы` : name}
                   </div>
                   <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                    {p.betAmount.toLocaleString('en-US', {
+                    {p.betAmount.toLocaleString('ru-RU', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}
@@ -164,14 +164,14 @@ export const CrashPlayerFeed = memo(function CrashPlayerFeed({
                 {p.status === 'cashed' && p.payout != null ? (
                   <span className="text-frost-white">
                     +
-                    {p.payout.toLocaleString('en-US', {
+                    {p.payout.toLocaleString('ru-RU', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 0,
                     })}
                   </span>
                 ) : p.status === 'lost' ? (
                   <span className="text-[#ff8a76]/80">
-                    −{p.betAmount.toLocaleString('en-US')}
+                    −{p.betAmount.toLocaleString('ru-RU')}
                   </span>
                 ) : (
                   <span className="text-whisper-gray">…</span>
@@ -183,7 +183,7 @@ export const CrashPlayerFeed = memo(function CrashPlayerFeed({
 
         {sorted.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-            Players will appear here as soon as they place a bet
+            Игроки появятся, как только сделают ставку
           </div>
         )}
       </div>

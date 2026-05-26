@@ -92,13 +92,13 @@ export default function BonusesPage() {
           </button>
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-roobert text-frost-white text-[22px] font-normal leading-none truncate">
-              Bonuses
+              Бонусы
             </span>
             <Sparkles size={16} className="text-frost-white/85 shrink-0" strokeWidth={1.6} />
           </div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill border border-white/15 bg-white/[0.04]">
             <span className="font-roobert text-frost-white text-[12px] tabular-nums leading-none">
-              {(balance?.amount ?? 0).toLocaleString('en-US', {
+              {(balance?.amount ?? 0).toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
               })}
@@ -128,7 +128,7 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
   const submit = async () => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed || trimmed.length < 2) {
-      toast.warn('Enter a promo code');
+      toast.warn('Введите промокод');
       return;
     }
     setBusy(true);
@@ -141,12 +141,12 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Could not redeem promo code');
+        reportApiError(res, json, 'Не удалось активировать промокод');
         return;
       }
       toast.success(
-        `+${Number(json.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`,
-        { title: 'Promo applied' }
+        `+${Number(json.amount).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
+        { title: 'Промокод применён' }
       );
       setCode('');
       // Update store immediately + double-check via fetch.
@@ -154,7 +154,7 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
       if (balance) useBalanceStore.getState().updateBalance(Number(json.balance ?? balance.amount));
       onRedeemed();
     } catch {
-      toast.error('Network error, try again');
+      toast.error('Ошибка сети, попробуйте снова');
     } finally {
       setBusy(false);
     }
@@ -185,12 +185,12 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
         <div className="flex flex-col gap-1">
           <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
             <Ticket size={11} strokeWidth={1.7} />
-            Promo
+            Промокод
           </span>
           <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
-            Activate code,
+            Активируйте код,
             <br />
-            claim a bonus
+            получите бонус
           </h2>
         </div>
         <Gem />
@@ -201,7 +201,7 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
-          placeholder="ENTER CODE"
+          placeholder="ВВЕДИТЕ КОД"
           maxLength={32}
           className="flex-1 min-w-0 h-11 px-4 rounded-pill border border-white/20 bg-black/40 backdrop-blur-md font-roobert text-[14px] tracking-[0.2em] text-frost-white placeholder:text-whisper-gray focus:outline-none focus:border-white/40"
         />
@@ -218,7 +218,7 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
             boxShadow: '0 4px 14px rgba(255, 172, 46, 0.30)',
           }}
         >
-          Apply
+          Применить
           <ArrowRight size={12} strokeWidth={2} />
         </button>
       </div>
@@ -435,8 +435,8 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       forceTick((n) => n + 1);
       setTimeout(() => {
         toast.success(
-          `+${sectorAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`,
-          { title: 'Lucky spin' }
+          `+${sectorAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
+          { title: 'Колесо удачи' }
         );
         spinRef.current = null;
         forceTick((n) => n + 1);
@@ -448,19 +448,19 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         void load();
       }, 6000);
     } catch {
-      toast.error('Network error, try again');
+      toast.error('Ошибка сети, попробуйте снова');
     } finally {
       setBusy(false);
     }
   };
 
   const buttonLabel = onCooldown
-    ? `Wait ${Math.ceil(cooldownLeftMs / 1000)}s`
+    ? `Ждите ${Math.ceil(cooldownLeftMs / 1000)} с`
     : noSpins
-      ? 'Come back tomorrow'
+      ? 'Возвращайтесь завтра'
       : busy || spinRef.current
-        ? 'Spinning…'
-        : 'Spin';
+        ? 'Крутится…'
+        : 'Крутить';
 
   return (
     <section className="relative overflow-hidden rounded-card border border-white/10">
@@ -497,21 +497,21 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         <div className="flex flex-col gap-1 min-w-0">
           <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
             <Sparkles size={11} strokeWidth={1.7} className="text-[#ffac2e]" />
-            Lucky Wheel
+            Колесо удачи
           </span>
           <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
-            Daily free spin
+            Бесплатное вращение
           </h2>
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-[rgba(255,172,46,0.35)] bg-[rgba(255,172,46,0.10)]">
             <Trophy size={11} strokeWidth={1.8} className="text-[#ffac2e]" />
             <span className="font-roobert text-[11px] tabular-nums text-frost-white">
-              up to 1.00 zł
+              до 1.00 zł
             </span>
           </span>
           <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-            10 spins/day
+            10 вращений/день
           </span>
         </div>
       </div>
@@ -548,12 +548,12 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       </div>
 
       {/* Spin CTA + counters */}
-      <div className="relative px-5 sm:px-6 pt-3 pb-5 flex flex-col gap-2">
+      <div className="relative px-5 sm:px-6 pt-3 pb-5 flex flex-col gap-3">
         <button
           onClick={spin}
           disabled={!canSpin}
           className={cn(
-            'w-full h-12 rounded-pill font-roobert font-semibold text-[13px] uppercase tracking-[0.24em] inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98]',
+            'w-full h-14 px-6 rounded-pill font-roobert font-semibold text-[15px] uppercase tracking-[0.18em] inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98]',
             canSpin
               ? 'text-midnight-canvas'
               : 'bg-white/[0.06] text-frost-white/55 border border-white/15 cursor-not-allowed'
@@ -570,16 +570,16 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           }
         >
           {buttonLabel}
-          {canSpin && <ChevronRight size={14} strokeWidth={2.4} />}
+          {canSpin && <ChevronRight size={16} strokeWidth={2.4} />}
         </button>
 
         <div className="flex items-center justify-between font-roobert text-[11px] text-whisper-gray tabular-nums">
           <span>
-            {state ? `${state.remaining} / ${state.dailyCap} spins left` : '—'}
+            {state ? `${state.remaining} / ${state.dailyCap} вращений осталось` : '—'}
           </span>
           {onCooldown && (
             <span className="text-[#ffac2e]">
-              cooldown {Math.ceil(cooldownLeftMs / 1000)}s
+              ожидание {Math.ceil(cooldownLeftMs / 1000)} с
             </span>
           )}
         </div>
@@ -588,7 +588,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       {state && state.ticker.length > 0 && (
         <div className="relative border-t border-white/10 px-3 py-2 overflow-x-auto scrollbar-hide flex items-center gap-2">
           <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.24em] text-whisper-gray pl-2 pr-1">
-            Recent
+            Недавно
           </span>
           {state.ticker.slice(0, 12).map((t, i) => (
             <div
@@ -972,10 +972,10 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Could not join');
+        reportApiError(res, json, 'Не удалось присоединиться');
         return;
       }
-      toast.success('Joined');
+      toast.success('Вы присоединились');
       void load();
     } finally {
       setBusyId(null);
@@ -988,7 +988,7 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-          Contests
+          Турниры
         </span>
         <span className="font-roobert text-[11px] text-whisper-gray">
           {list?.length ?? 0}
@@ -1001,7 +1001,7 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
         </div>
       ) : list.length === 0 ? (
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-          No contests right now. Check back soon.
+          Сейчас турниров нет. Загляните позже.
         </div>
       ) : (
         list.map((c) => (
@@ -1069,10 +1069,10 @@ function ContestCard({
           <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
             {contest.visibility === 'public'
-              ? 'Public contest'
+              ? 'Публичный турнир'
               : contest.visibility === 'private'
-                ? 'Private contest'
-                : 'Global contest'}
+                ? 'Приватный турнир'
+                : 'Глобальный турнир'}
           </span>
         </div>
 
@@ -1089,11 +1089,11 @@ function ContestCard({
           </div>
           <div className="text-right shrink-0">
             <div className="font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
-              {contest.prizePool.toLocaleString('en-US', { maximumFractionDigits: 0 })}{' '}
+              {contest.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
               <span className="text-[12px] text-whisper-gray">zł</span>
             </div>
             <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums">
-              {contest.winnersCount} winners
+              {contest.winnersCount} победителей
             </div>
           </div>
         </div>
@@ -1107,16 +1107,16 @@ function ContestCard({
               {contest.participantCount}
             </span>
             <span className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-              ends in {remaining}
+              до конца {remaining}
             </span>
           </div>
           {contest.visibility === 'global' ? (
             <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85">
-              Auto-entry
+              Автоучастие
             </span>
           ) : contest.joined ? (
             <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-pill border border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.10)] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white">
-              Joined
+              Участвую
             </span>
           ) : (
             <button
@@ -1124,7 +1124,7 @@ function ContestCard({
               disabled={busy}
               className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
             >
-              Join
+              Участвовать
               <ArrowRight size={11} strokeWidth={1.8} />
             </button>
           )}
@@ -1157,29 +1157,29 @@ function describeRule(r: unknown): string | null {
   const o = r as Record<string, unknown>;
   switch (o.type) {
     case 'deposit_window':
-      return `Deposits ≥ ${o.amount} zł in last ${o.days}d`;
+      return `Депозиты ≥ ${o.amount} zł за ${o.days} дн.`;
     case 'wagered_window':
-      return `Wagered ≥ ${o.amount} zł in last ${o.days}d`;
+      return `Оборот ≥ ${o.amount} zł за ${o.days} дн.`;
     case 'deposit_total':
-      return `Lifetime deposits ≥ ${o.amount} zł`;
+      return `Депозитов всего ≥ ${o.amount} zł`;
     case 'referrals':
-      return `${o.count}+ referrals`;
+      return `${o.count}+ рефералов`;
     case 'registered_after':
-      return `Registered after ${typeof o.date === 'string' ? o.date.slice(0, 10) : ''}`;
+      return `Регистрация после ${typeof o.date === 'string' ? o.date.slice(0, 10) : ''}`;
     default:
       return null;
   }
 }
 
 function formatRemaining(ms: number): string {
-  if (ms <= 0) return 'closed';
+  if (ms <= 0) return 'завершено';
   const sec = Math.floor(ms / 1000);
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (d > 0) return `${d} д ${h} ч`;
+  if (h > 0) return `${h} ч ${m} м`;
+  return `${m} м`;
 }
 
 void AnimatePresence;

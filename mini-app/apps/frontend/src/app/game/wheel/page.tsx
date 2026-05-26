@@ -159,18 +159,18 @@ export default function WheelPage() {
   const placeBet = async () => {
     if (busy) return;
     if (amount <= 0) {
-      toast.warn('Enter a bet amount');
+      toast.warn('Введите сумму ставки');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
     if (snap?.phase !== 'waiting') {
-      toast.warn('Betting closed');
+      toast.warn('Приём ставок закрыт');
       return;
     }
     setBusy(true);
@@ -280,10 +280,10 @@ export default function WheelPage() {
             </div>
             <div className="px-4 py-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                Potential win
+                Возможный выигрыш
               </div>
               <div className="mt-1.5 font-roobert text-[20px] font-light tabular-nums text-frost-white">
-                {(amount * pick).toLocaleString('en-US', {
+                {(amount * pick).toLocaleString('ru-RU', {
                   maximumFractionDigits: 2,
                 })}{' '}
                 <span className="text-[12px] text-whisper-gray">zł</span>
@@ -474,24 +474,24 @@ function BetsFeed({
       <div className="grid grid-cols-3 gap-2 px-3 py-2 border-b border-white/10">
         <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em]">
           <Users size={10} strokeWidth={2} />
-          {stats.playerCount} players
+          {stats.playerCount} игроков
         </div>
         <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em] justify-center">
           <Coins size={10} strokeWidth={2} />
-          {stats.totalWagered.toLocaleString('en-US', {
+          {stats.totalWagered.toLocaleString('ru-RU', {
             maximumFractionDigits: 0,
           })}{' '}
           zł
         </div>
         <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em] justify-end">
           <Wifi size={10} strokeWidth={2} />
-          live
+          онлайн
         </div>
       </div>
       <div className="max-h-[260px] overflow-y-auto scrollbar-hide divide-y divide-white/5">
         {sorted.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-            Players will appear here as soon as they place a bet
+            Игроки появятся, как только сделают ставку
           </div>
         )}
         {sorted.map((b) => {
@@ -519,7 +519,7 @@ function BetsFeed({
                   {b.name}
                 </div>
                 <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                  {b.amount.toLocaleString('en-US', {
+                  {b.amount.toLocaleString('ru-RU', {
                     maximumFractionDigits: 2,
                   })}{' '}
                   zł · ×{b.pick}
@@ -538,7 +538,7 @@ function BetsFeed({
               >
                 {phase === 'completed'
                   ? b.won && b.payout != null
-                    ? `+${b.payout.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                    ? `+${b.payout.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}`
                     : '—'
                   : `×${b.pick}`}
               </div>

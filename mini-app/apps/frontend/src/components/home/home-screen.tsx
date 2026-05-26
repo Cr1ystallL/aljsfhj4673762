@@ -60,7 +60,7 @@ const botGames = [
   { id: 'basket', label: 'Баскетбол', command: 'basket', Icon: BasketballIcon, bg: '/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB.png' },
   { id: 'foot', label: 'Футбол', command: 'foot', Icon: FootballIcon, bg: '/%D0%A4%D1%83%D1%82%D0%B1%D0%BE%D0%BB.png' },
   { id: 'knb', label: 'КНБ', command: 'knb', Icon: RpsIcon, bg: '/%D0%9A%D0%9D%D0%91.png' },
-  { id: 'spider', label: 'Spider', command: 'spider', Icon: SpiderIcon, bg: '/Spider.png' },
+  { id: 'spider', label: 'Паучок', command: 'spider', Icon: SpiderIcon, bg: '/spider_bot.jpg' },
 ];
 
 function openTelegram(url: string) {
@@ -184,7 +184,7 @@ export function HomeScreen() {
           />
           <div className="relative px-5 py-6 sm:px-6 sm:py-7 flex flex-col gap-5">
             <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-              Featured · Signature Game
+              Рекомендуем · Фирменная игра
             </span>
             <div className="flex items-end justify-between gap-4">
               <div className="font-roobert text-frost-white text-[40px] sm:text-[48px] font-light leading-none tracking-tight">

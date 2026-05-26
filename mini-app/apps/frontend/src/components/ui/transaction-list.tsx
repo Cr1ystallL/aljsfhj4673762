@@ -35,7 +35,7 @@ export function TransactionList({ transactions, isLoading }: TransactionListProp
   if (transactions.length === 0) {
     return (
       <GlassCard className="p-8 text-center">
-        <Body className="text-white/40">No transactions yet</Body>
+        <Body className="text-white/40">Транзакций пока нет</Body>
       </GlassCard>
     );
   }
@@ -70,7 +70,7 @@ export function TransactionList({ transactions, isLoading }: TransactionListProp
                     {tx.gameType ? tx.gameType : tx.type}
                   </Body>
                   <Caption className="text-white/40">
-                    {new Date(tx.createdAt).toLocaleDateString('en-US', {
+                    {new Date(tx.createdAt).toLocaleDateString('ru-RU', {
                       month: 'short',
                       day: 'numeric',
                       hour: '2-digit',

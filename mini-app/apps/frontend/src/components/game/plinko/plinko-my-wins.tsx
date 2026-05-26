@@ -35,13 +35,13 @@ export function PlinkoMyWins({ wins, currency = 'zł' }: PlinkoMyWinsProps) {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
         <Sparkles size={12} className="text-frost-white/65" strokeWidth={1.6} />
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-          My wins · ×5 and up
+          Мои выигрыши · от ×5
         </span>
       </div>
 
       {wins.length === 0 ? (
         <div className="px-3 py-3 text-center font-roobert text-[12px] text-whisper-gray">
-          Hit ×5 or higher — your best drops will land here.
+          Выиграйте ×5 или выше — лучшие броски появятся здесь.
         </div>
       ) : (
         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-3">
@@ -77,15 +77,15 @@ export function PlinkoMyWins({ wins, currency = 'zł' }: PlinkoMyWinsProps) {
                 </div>
                 <div className="mt-1 font-roobert text-[14px] tabular-nums text-frost-white">
                   +
-                  {w.payout.toLocaleString('en-US', {
+                  {w.payout.toLocaleString('ru-RU', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
                   {currency}
                 </div>
                 <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                  bet{' '}
-                  {w.betAmount.toLocaleString('en-US', {
+                  ставка{' '}
+                  {w.betAmount.toLocaleString('ru-RU', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}

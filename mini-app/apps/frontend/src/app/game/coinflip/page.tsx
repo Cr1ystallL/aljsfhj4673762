@@ -160,12 +160,12 @@ export default function CoinflipGamePage() {
     if (mode === 'quick') {
       const have = balance?.amount ?? 0;
       if (amount <= 0) {
-        toast.warn('Enter a bet amount');
+        toast.warn('Введите сумму ставки');
         return;
       }
       if (amount > have) {
         toast.warn(
-          `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
+          `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
         );
         return;
       }
@@ -198,13 +198,13 @@ export default function CoinflipGamePage() {
       if (!multi || multi.status !== 'awaiting') {
         const have = balance?.amount ?? 0;
         if (amount <= 0) {
-          toast.warn('Enter a bet amount');
+          toast.warn('Введите сумму ставки');
           setBusy(false);
           return;
         }
         if (amount > have) {
           toast.warn(
-            `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
+            `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
           );
           setBusy(false);
           return;
@@ -249,7 +249,7 @@ export default function CoinflipGamePage() {
   async function cashout() {
     if (busy || flipping) return;
     if (!multi || multi.status !== 'awaiting' || multi.currentMultiplier <= 1) {
-      toast.warn('Win at least one round first');
+      toast.warn('Сначала выиграйте хотя бы один раунд');
       return;
     }
     setBusy(true);
@@ -392,7 +392,7 @@ export default function CoinflipGamePage() {
           {/* Insufficient-balance hint */}
           {!sessionActive && !canAfford && (
             <span className="relative font-roobert text-[11px] text-[#ff8a76]/85">
-              Insufficient balance for this bet
+              Недостаточно средств для ставки
             </span>
           )}
 

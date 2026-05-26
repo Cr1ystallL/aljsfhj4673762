@@ -5,11 +5,14 @@
 TRANSLATIONS = {
     'ru': {
         # Основные кнопки
-        'btn_slots': '🎰 Слоты',
+        'btn_slots': '🎰 Слоты',  # legacy — больше не отображается, оставлен для старых хэндлеров
+        'btn_miniapp': '🎰 Mini-App',
         'btn_games': '🎲 Игры TG',
         'btn_profile': '👤 Профиль',
         'btn_info': '❔ Информация',
         'btn_back': '‹ Назад',
+        'miniapp_intro': '🎰 <b>MacvBet Mini-App</b>\n\nНажмите кнопку ниже, чтобы открыть казино внутри Telegram.',
+        'btn_open_miniapp': '🎮 Открыть Mini-App',
         
         # Приветствие
         'welcome': '👋 Добро пожаловать, {name}!',
@@ -142,11 +145,14 @@ TRANSLATIONS = {
     
     'pl': {
         # Podstawowe przyciski
-        'btn_slots': '🎰 Sloty',
+        'btn_slots': '🎰 Sloty',  # legacy — już nie wyświetlane, zostawione dla starych handlerów
+        'btn_miniapp': '🎰 Mini-App',
         'btn_games': '🎲 Gry TG',
         'btn_profile': '👤 Profil',
         'btn_info': '❔ Informacje',
         'btn_back': '‹ Wstecz',
+        'miniapp_intro': '🎰 <b>MacvBet Mini-App</b>\n\nNaciśnij przycisk poniżej, aby otworzyć kasyno wewnątrz Telegrama.',
+        'btn_open_miniapp': '🎮 Otwórz Mini-App',
         
         # Powitanie
         'welcome': '👋 Witaj, {name}!',

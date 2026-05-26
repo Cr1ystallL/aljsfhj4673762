@@ -174,13 +174,13 @@ export default function PlinkoGamePage() {
    */
   async function dropBall() {
     if (amount <= 0) {
-      toast.warn('Enter a bet amount');
+      toast.warn('Введите сумму ставки');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }

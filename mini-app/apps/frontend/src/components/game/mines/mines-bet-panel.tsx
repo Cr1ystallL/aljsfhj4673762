@@ -57,13 +57,13 @@ export function MinesBetPanel({
 
   const ctaLabel = (() => {
     if (busy) return '…';
-    if (phase === 'idle') return 'Play';
+    if (phase === 'idle') return 'Играть';
     if (phase === 'active') {
       return canCashout
-        ? `Cash Out · x${currentMultiplier.toFixed(2)}`
-        : 'Reveal a cell';
+        ? `Забрать · x${currentMultiplier.toFixed(2)}`
+        : 'Откройте ячейку';
     }
-    return 'New round';
+    return 'Новый раунд';
   })();
 
   const ctaActive =
@@ -89,7 +89,7 @@ export function MinesBetPanel({
         <div className="px-4 py-3 border-r border-white/10">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-              Bet
+              Ставка
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -131,7 +131,7 @@ export function MinesBetPanel({
         <div className="px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert truncate">
-              Mines
+              Мины
             </span>
             <span className="text-[9px] uppercase tracking-[0.16em] text-whisper-gray font-roobert">
               1–24
@@ -142,7 +142,7 @@ export function MinesBetPanel({
               onClick={decMines}
               disabled={inputsLocked || mineCount <= 1}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Fewer mines"
+              aria-label="Меньше мин"
             >
               <Minus size={12} strokeWidth={2.2} />
             </button>
@@ -160,7 +160,7 @@ export function MinesBetPanel({
               onClick={incMines}
               disabled={inputsLocked || mineCount >= 24}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="More mines"
+              aria-label="Больше мин"
             >
               <Plus size={12} strokeWidth={2.2} />
             </button>

@@ -46,6 +46,12 @@ class Config:
         if admin_id.strip()
     ]
     
+    # URL мини-приложения (Telegram WebApp). Используется кнопкой
+    # «Mini-App» в главной клавиатуре бота, которая открывает наше
+    # казино-фронтенд внутри Telegram. Если URL не задан — кнопка
+    # скрывается, чтобы не отдавать пользователям битую ссылку.
+    MINI_APP_URL: str = os.getenv("MINI_APP_URL", "https://macvbet.nl")
+    
     @classmethod
     def validate(cls) -> None:
         """Проверить корректность конфигурации"""

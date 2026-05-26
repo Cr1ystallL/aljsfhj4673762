@@ -25,21 +25,29 @@ from aiogram.types import FSInputFile
 _ROOT = Path(__file__).resolve().parent.parent
 _PUBLIC = _ROOT / "mini-app" / "apps" / "frontend" / "public"
 
-# Filenames in `public/`. Cyrillic ones come from the asset pack the
-# user dropped into the repo.
+# Filenames in `public/`. We point each game key at the dedicated
+# `<game>_bot.jpg` artwork the user dropped in for the bot surface.
+# The frontend home / drawer keep using the Cyrillic-named variants;
+# the bot prefers the `_bot` set so it gets a separate look that's
+# tuned for caption-style messages (less text, bigger logo).
+#
+# Note the spelling of `bouling`/`footboll` — that's how the source
+# files are named in `public/` and we match them verbatim. Renaming
+# the assets would be a frontend concern; here we just consume what's
+# already on disk.
 GAME_PHOTOS: dict[str, str] = {
-    "dice": "Кубики.png",
-    "cube": "Кубики.png",
-    "bowling": "Боулинг.png",
-    "bowl": "Боулинг.png",
-    "darts": "Дартс.png",
-    "basketball": "Баскетбол.png",
-    "basket": "Баскетбол.png",
-    "football": "Футбол.png",
-    "foot": "Футбол.png",
-    "rps": "КНБ.png",
-    "knb": "КНБ.png",
-    "spider": "Spider.png",
+    "dice": "dice_bot.jpg",
+    "cube": "dice_bot.jpg",
+    "bowling": "bouling_bot.jpg",
+    "bowl": "bouling_bot.jpg",
+    "darts": "darts_bot.jpg",
+    "basketball": "basket_bot.jpg",
+    "basket": "basket_bot.jpg",
+    "football": "footboll_bot.jpg",
+    "foot": "footboll_bot.jpg",
+    "rps": "knb_bot.jpg",
+    "knb": "knb_bot.jpg",
+    "spider": "spider_bot.jpg",
 }
 
 

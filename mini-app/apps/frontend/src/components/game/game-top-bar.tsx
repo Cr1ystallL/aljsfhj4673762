@@ -57,7 +57,7 @@ export function GameTopBar({
         <button
           type="button"
           onClick={() => router.push('/')}
-          aria-label="Home"
+          aria-label="Главная"
           className="rounded-card transition-opacity hover:opacity-80"
         >
           <BrandLockup size={48} />
@@ -79,12 +79,12 @@ export function GameTopBar({
       <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={() => router.push('/balance')}
-          aria-label="Wallet"
+          aria-label="Кошелёк"
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
         >
           <Wallet size={12} className="text-frost-white/70" strokeWidth={1.8} />
           <span className="font-roobert text-frost-white text-[12px] tabular-nums leading-none">
-            {balanceAmount.toLocaleString('en-US', {
+            {balanceAmount.toLocaleString('ru-RU', {
               minimumFractionDigits: 0,
               maximumFractionDigits: 2,
             })}
@@ -96,14 +96,14 @@ export function GameTopBar({
 
         <button
           onClick={() => router.push('/profile')}
-          aria-label="Profile"
+          aria-label="Профиль"
           className="relative w-9 h-9 rounded-pill overflow-hidden border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors flex items-center justify-center"
         >
           {user?.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.photoUrl}
-              alt={user.firstName || 'Profile'}
+              alt={user.firstName || 'Профиль'}
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
               draggable={false}
@@ -118,7 +118,7 @@ export function GameTopBar({
         {onHowToPlay && (
           <button
             onClick={onHowToPlay}
-            aria-label="How to play"
+            aria-label="Как играть"
             className="inline-flex items-center justify-center w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
           >
             <HelpCircle size={14} strokeWidth={1.7} />

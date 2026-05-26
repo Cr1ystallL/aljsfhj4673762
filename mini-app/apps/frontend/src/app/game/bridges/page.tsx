@@ -118,7 +118,7 @@ export default function BridgesPage() {
     const have = balance?.amount ?? 0;
     if (amount > have || amount <= 0) {
       setAutoEnabled(false);
-      toast.warn('Auto-bet stopped — insufficient balance');
+      toast.warn('Авто-ставка остановлена — недостаточно средств');
       return;
     }
     const id = setTimeout(() => void start(), 600);
@@ -129,13 +129,13 @@ export default function BridgesPage() {
   const start = async () => {
     if (busy) return;
     if (amount <= 0) {
-      toast.warn('Enter a bet amount');
+      toast.warn('Введите сумму ставки');
       return;
     }
     const have = balance?.amount ?? 0;
     if (amount > have) {
       toast.warn(
-        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
@@ -199,7 +199,7 @@ export default function BridgesPage() {
   const cashout = async () => {
     if (busy || !state || state.state !== 'active') return;
     if (state.picks.length === 0) {
-      toast.warn('Cross at least one row before cashing out');
+      toast.warn('Перейдите хотя бы один ряд, перед тем как забрать выигрыш');
       return;
     }
     setBusy(true);

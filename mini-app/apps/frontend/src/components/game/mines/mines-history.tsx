@@ -48,8 +48,8 @@ export function MinesHistory({ entries, currency = 'zł' }: MinesHistoryProps) {
     <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
         {[
-          { key: 'all', label: 'All Bets' },
-          { key: 'rare', label: 'Big Wins' },
+          { key: 'all', label: 'Все ставки' },
+          { key: 'rare', label: 'Крупные выигрыши' },
         ].map((t) => {
           const active = t.key === tab;
           return (
@@ -107,7 +107,7 @@ export function MinesHistory({ entries, currency = 'zł' }: MinesHistoryProps) {
                     {row.name}
                   </div>
                   <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-                    {row.betAmount.toLocaleString('en-US', {
+                    {row.betAmount.toLocaleString('ru-RU', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}
@@ -127,7 +127,7 @@ export function MinesHistory({ entries, currency = 'zł' }: MinesHistoryProps) {
                       : 'border-white/15 text-frost-white/85 bg-white/[0.05]'
                   )}
                 >
-                  {won ? `x${row.multiplier.toFixed(2)}` : 'Bomb'}
+                  {won ? `x${row.multiplier.toFixed(2)}` : 'Бомба'}
                 </span>
 
                 <span
@@ -140,7 +140,7 @@ export function MinesHistory({ entries, currency = 'zł' }: MinesHistoryProps) {
                   {(won
                     ? row.payout
                     : row.betAmount
-                  ).toLocaleString('en-US', {
+                  ).toLocaleString('ru-RU', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -154,8 +154,8 @@ export function MinesHistory({ entries, currency = 'zł' }: MinesHistoryProps) {
         {visible.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
             {tab === 'rare'
-              ? 'No big wins yet.'
-              : 'Recent bets will appear here in real time.'}
+              ? 'Крупных выигрышей пока нет.'
+              : 'Недавние ставки появятся здесь в реальном времени.'}
           </div>
         )}
       </div>

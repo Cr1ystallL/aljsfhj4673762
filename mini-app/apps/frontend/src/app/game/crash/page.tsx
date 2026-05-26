@@ -138,7 +138,7 @@ export default function CrashGamePage() {
   async function placeSlotBet(slot: 0 | 1) {
     const cfg = slots[slot];
     if (cfg.amount <= 0) {
-      toast.warn('Enter a bet amount');
+      toast.warn('Введите сумму ставки');
       return;
     }
     // Pre-flight balance check — stops the round-trip when we already
@@ -146,7 +146,7 @@ export default function CrashGamePage() {
     const have = balance?.amount ?? 0;
     if (cfg.amount > have) {
       toast.warn(
-        `Insufficient balance — you have ${have.toLocaleString('en-US', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
       );
       return;
     }
@@ -172,7 +172,7 @@ export default function CrashGamePage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        reportApiError(res, data, 'Could not place bet');
+        reportApiError(res, data, 'Не удалось сделать ставку');
         throw new Error(data.message || 'Failed to place bet');
       }
       soundManager.play('ui.click');
@@ -202,7 +202,7 @@ export default function CrashGamePage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        reportApiError(res, data, 'Could not cancel bet');
+        reportApiError(res, data, 'Не удалось отменить ставку');
         throw new Error(data.message || 'Cancel failed');
       }
       soundManager.play('ui.click');
@@ -232,11 +232,11 @@ export default function CrashGamePage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        reportApiError(res, data, 'Could not cash out');
+        reportApiError(res, data, 'Не удалось забрать выигрыш');
         throw new Error(data.message || 'Cashout failed');
       }
       soundManager.play('game.cashout');
-      toast.cashout(snapshot.serverMultiplier, 'Cashed out');
+      toast.cashout(snapshot.serverMultiplier, 'Выигрыш забран');
     } catch (err) {
       console.error('Cashout failed:', err);
       setRuntime((prev) => {
