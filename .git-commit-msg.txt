@@ -1,0 +1,24 @@
+feat: blocked-user silent guard + wheel anim fix + home screen art
+
+Wheel
+- Engine now exposes segmentIndex + multiplier during `spinning` phase
+  (previously only on `completed`). Without it the client had nothing
+  to anchor on and the wheel sat still until the round ended; now the
+  spin starts immediately when the betting window closes
+
+Blocked users
+- Backend authenticate(): raw SQL lookup of users.is_blocked, returns
+  401 with code: 'BLOCKED' on flagged accounts (5s in-memory cache)
+- Frontend BlockedGuard: monkey-patches window.fetch, watches for
+  code: 'BLOCKED' on any /api/* 401, flips auth.blocked, renders a
+  silent black surface, calls Telegram.WebApp.close() after 600ms
+  with about:blank redirect as hard fallback. No textual copy anywhere
+- Admin endpoints (adminOnly) bypass the block check by design
+
+Home screen
+- Featured hero: caption "Featured . Signature Game", background art
+  /MacvJet.png blended with the deep-ocean wash
+- In-app tiles: per-game background art (MacvJet/Mines/Plinko/Coinflip)
+  with vignette + brand-tinted screen so titles stay readable
+- Bot tiles: Cyrillic-named PNGs (URL-encoded) under each square for
+  Кубики, Боулинг, Дартс, Баскетбол, Футбол, КНБ, Spider
