@@ -138,11 +138,17 @@ async def show_spider_game(callback: CallbackQuery):
 async def spider_make_bet(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'spider_instruction')
-    
+
     from keyboards.inline import get_spider_bet_instruction
-    await callback.message.edit_text(text, reply_markup=get_spider_bet_instruction(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'spider',
+        text,
+        reply_markup=get_spider_bet_instruction(lang),
+    )
     await callback.answer()
 
 
@@ -150,11 +156,17 @@ async def spider_make_bet(callback: CallbackQuery):
 async def back_to_spider(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'spider_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_spider_menu
-    await callback.message.edit_text(text, reply_markup=get_spider_menu(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'spider',
+        text,
+        reply_markup=get_spider_menu(lang),
+    )
     await callback.answer()
 
 

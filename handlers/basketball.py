@@ -48,11 +48,17 @@ async def basketball_make_bet(callback: CallbackQuery):
     """Показать инструкцию по ставке"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'basketball_instruction')
-    
+
     from keyboards.inline import get_basketball_bet_instruction
-    await callback.message.edit_text(text, reply_markup=get_basketball_bet_instruction(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'basket',
+        text,
+        reply_markup=get_basketball_bet_instruction(lang),
+    )
     await callback.answer()
 
 
@@ -61,11 +67,17 @@ async def back_to_basketball(callback: CallbackQuery):
     """Вернуться к меню игры в баскетбол"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'basketball_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_basketball_menu
-    await callback.message.edit_text(text, reply_markup=get_basketball_menu(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'basket',
+        text,
+        reply_markup=get_basketball_menu(lang),
+    )
     await callback.answer()
 
 

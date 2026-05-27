@@ -48,11 +48,17 @@ async def football_make_bet(callback: CallbackQuery):
     """Показать инструкцию по ставке"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'football_instruction')
-    
+
     from keyboards.inline import get_football_bet_instruction
-    await callback.message.edit_text(text, reply_markup=get_football_bet_instruction(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'foot',
+        text,
+        reply_markup=get_football_bet_instruction(lang),
+    )
     await callback.answer()
 
 
@@ -61,11 +67,17 @@ async def back_to_football(callback: CallbackQuery):
     """Вернуться к меню игры в футбол"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'football_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_football_menu
-    await callback.message.edit_text(text, reply_markup=get_football_menu(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'foot',
+        text,
+        reply_markup=get_football_menu(lang),
+    )
     await callback.answer()
 
 

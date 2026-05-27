@@ -51,11 +51,17 @@ async def bowling_make_bet(callback: CallbackQuery):
     """Показать инструкцию по ставке"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'bowling_instruction')
-    
+
     from keyboards.inline import get_bowling_bet_instruction
-    await callback.message.edit_text(text, reply_markup=get_bowling_bet_instruction(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'bowl',
+        text,
+        reply_markup=get_bowling_bet_instruction(lang),
+    )
     await callback.answer()
 
 
@@ -64,11 +70,17 @@ async def back_to_bowling(callback: CallbackQuery):
     """Вернуться к меню игры в боулинг"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'bowling_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_bowling_menu
-    await callback.message.edit_text(text, reply_markup=get_bowling_menu(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'bowl',
+        text,
+        reply_markup=get_bowling_menu(lang),
+    )
     await callback.answer()
 
 

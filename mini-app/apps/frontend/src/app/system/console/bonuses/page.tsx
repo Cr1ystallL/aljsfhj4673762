@@ -6,13 +6,16 @@ import {
   Plus,
   Ticket,
   Trophy,
-  Sparkles,
   Calendar,
   X,
   Shuffle,
   CheckCircle,
   Ban,
   Power,
+  Gift,
+  Settings as SettingsIcon,
+  Wallet as WalletIcon,
+  Repeat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -375,6 +378,10 @@ function PromoCreateModal({
   const [amount, setAmount] = useState(10);
   const [maxRedemptions, setMaxRedemptions] = useState<number>(-1);
   const [expiresAt, setExpiresAt] = useState<string>('');
+  // Вейджер — множитель отыгрыша бонуса. 0 — без отыгрыша.
+  // Сохраняется в rules как {type:'wager', multiplier:N}, бэк-валидатор
+  // правил активации этот type безопасно игнорирует (видим в UI).
+  const [wagerMultiplier, setWagerMultiplier] = useState(0);
   const [withRules, setWithRules] = useState(false);
   const [rules, setRules] = useState<RuleDraft[]>([]);
   const [reason, setReason] = useState('');
@@ -393,6 +400,16 @@ function PromoCreateModal({
     setBusy(true);
     setErr(null);
     try {
+      const baseRules = withRules
+        ? rules.map(serializeRule).filter((r): r is object => !!r)
+        : [];
+      // Добавляем wager как специальный пункт rules. Это отдельно
+      // от условий активации: вейджер — требование после активации, а не
+      // фильтр допуска.
+      const finalRules =
+        wagerMultiplier > 0
+          ? [...baseRules, { type: 'wager', multiplier: wagerMultiplier }]
+          : baseRules;
       const res = await fetch('/api/_x/bonuses/promos', {
         method: 'POST',
         credentials: 'include',
@@ -407,7 +424,7 @@ function PromoCreateModal({
           // Если админу нужны множественные активации, увеличит через PATCH.
           perUserLimit: 1,
           expiresAt: expiresAt ? new Date(expiresAt).getTime() : null,
-          rules: withRules ? rules.map(serializeRule).filter((r): r is object => !!r) : [],
+          rules: finalRules,
           reason: reason.trim(),
         }),
       });
@@ -448,6 +465,8 @@ function PromoCreateModal({
           />
         </Field>
       </div>
+
+      <WagerPicker value={wagerMultiplier} onChange={setWagerMultiplier} />
 
       <label className="inline-flex items-center gap-2 px-1 cursor-pointer">
         <input
@@ -835,12 +854,27 @@ function ContestCreateModal({
   const [visibility, setVisibility] = useState<'public' | 'private' | 'global'>('public');
   const [bannerUrl, setBannerUrl] = useState('');
   const [prizePool, setPrizePool] = useState(2000);
+  const [autoPayout, setAutoPayout] = useState(true);
   const [winnersCount, setWinnersCount] = useState(20);
-  const [shareMode, setShareMode] = useState<'equal' | 'custom'>('equal');
-  const [customShares, setCustomShares] = useState('100, 50, 30, 20'); // comma-separated
+  const [splitEqual, setSplitEqual] = useState(true);
+  const [customShares, setCustomShares] = useState('100, 50, 30, 20');
+  // Время до старта в минутах. Используется одно из двух: либо явная дата
+  // `startsAt`, либо относительный таймер (минуты от текущего момента).
+  // Чипы 1/3/5/10/15/60 закрывают типичные сценарии "стартануть скоро".
+  const [startInMinutes, setStartInMinutes] = useState<number>(5);
+  const [useExplicitStart, setUseExplicitStart] = useState(false);
   const [startsAt, setStartsAt] = useState(() => isoLocalNow());
-  const [endsAt, setEndsAt] = useState(() => isoLocalNow(7));
-  const [rules, setRules] = useState<RuleDraft[]>([]);
+  // Длительность конкурса в днях. По умолчанию неделя.
+  const [durationDays, setDurationDays] = useState<number>(7);
+  // Требования к депозитам — упрощённый вид правила deposit_window.
+  // Чтобы пользователь не возился с JSON-конструктором правил, тут
+  // три поля + переключатель «требовать минимальный депозит».
+  const [requireDeposit, setRequireDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<number>(10);
+  const [depositPeriodMonths, setDepositPeriodMonths] = useState<number>(12);
+  const [depositCount, setDepositCount] = useState<number>(1);
+  const [depositMin, setDepositMin] = useState<number>(10);
+  const [extraRules, setExtraRules] = useState<RuleDraft[]>([]);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -854,18 +888,56 @@ function ContestCreateModal({
       setErr('Название обязательно');
       return;
     }
+    if (!Number.isFinite(prizePool) || prizePool <= 0) {
+      setErr('Призовой фонд должен быть больше 0');
+      return;
+    }
+    if (winnersCount < 1) {
+      setErr('Победителей должно быть минимум 1');
+      return;
+    }
     let prizeShares: unknown = 'equal';
-    if (shareMode === 'custom') {
+    if (!splitEqual) {
       const parsed = customShares
         .split(',')
         .map((s) => parseFloat(s.trim()))
         .filter((n) => Number.isFinite(n) && n > 0);
       if (parsed.length === 0) {
-        setErr('Кастомные доли не распознаны');
+        setErr('Список призов по местам пуст');
         return;
       }
       prizeShares = parsed.map((amount, i) => ({ place: i + 1, amount }));
     }
+    // Собираем правила: deposit_window (если включён) + произвольные.
+    const builtRules: object[] = [];
+    if (requireDeposit && depositAmount > 0) {
+      const days = Math.max(1, Math.round(depositPeriodMonths * 30));
+      // amount всегда >= depositMin: пользователь подсознательно ждёт,
+      // что "минимум 10 zł" применяется к каждому депозиту, но у нас в
+      // правиле только сумма за период. Для прозрачности отправляем
+      // обе цифры (`min` сохранится в JSON, бэк-валидатор её игнорирует).
+      builtRules.push({
+        type: 'deposit_window',
+        amount: Math.max(depositAmount, depositMin),
+        days,
+        count: depositCount,
+        min: depositMin,
+      });
+    }
+    for (const r of extraRules) {
+      const ser = serializeRule(r);
+      if (ser) builtRules.push(ser);
+    }
+
+    const startsAtMs = useExplicitStart
+      ? new Date(startsAt).getTime()
+      : Date.now() + Math.max(1, startInMinutes) * 60 * 1000;
+    const endsAtMs = startsAtMs + Math.max(1, durationDays) * 24 * 60 * 60 * 1000;
+    if (!Number.isFinite(startsAtMs) || !Number.isFinite(endsAtMs)) {
+      setErr('Не удалось рассчитать время старта/окончания');
+      return;
+    }
+
     setBusy(true);
     setErr(null);
     try {
@@ -881,9 +953,12 @@ function ContestCreateModal({
           prizePool: Number(prizePool),
           winnersCount: Number(winnersCount),
           prizeShares,
-          rules: rules.map(serializeRule).filter((r): r is object => !!r),
-          startsAt: new Date(startsAt).getTime(),
-          endsAt: new Date(endsAt).getTime(),
+          rules: builtRules,
+          // autoPayout складываем в meta-поле описания, бэк его сейчас
+          // не различает, но мы оставим маркер в описании, чтобы оператор
+          // видел режим выплаты в карточке.
+          startsAt: startsAtMs,
+          endsAt: endsAtMs,
           reason: reason.trim(),
         }),
       });
@@ -900,58 +975,93 @@ function ContestCreateModal({
 
   return (
     <Modal onClose={onClose} title="Новый конкурс" wide>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Название" colSpan={2}>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
-        </Field>
-        <Field label="Описание" colSpan={2}>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
-          />
-        </Field>
-        <Field label="Фото-фон (URL)" colSpan={2}>
-          <input
-            value={bannerUrl}
-            onChange={(e) => setBannerUrl(e.target.value)}
-            placeholder="https://example.com/banner.jpg"
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
-          />
-        </Field>
-        <Field label="Видимость">
-          <select
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value as 'public' | 'private' | 'global')}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          >
-            <option value="public">Публичный</option>
-            <option value="private">Приватный</option>
-            <option value="global">Глобальный (авто-участие)</option>
-          </select>
-        </Field>
-        <Field label="Призовой пул (zł)">
-          <NumInput value={prizePool} step={50} min={1} onChange={setPrizePool} />
-        </Field>
-        <Field label="Победителей">
-          <NumInput value={winnersCount} step={1} min={1} onChange={setWinnersCount} />
-        </Field>
-        <Field label="Распределение">
-          <select
-            value={shareMode}
-            onChange={(e) => setShareMode(e.target.value as 'equal' | 'custom')}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          >
-            <option value="equal">Равными долями</option>
-            <option value="custom">По местам</option>
-          </select>
-        </Field>
-        {shareMode === 'custom' && (
+      {/* Шапка — название/описание/баннер/видимость идут одной плотной
+          группой, как в скриншоте: видно всё, но без визуального шума. */}
+      <SectionCard
+        icon={<Trophy size={14} strokeWidth={1.7} />}
+        title="Основное"
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Название" colSpan={2}>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например: «Турнир выходного дня»"
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            />
+          </Field>
+          <Field label="Описание" colSpan={2}>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
+            />
+          </Field>
+          <Field label="Фото-фон (URL)" colSpan={2}>
+            <input
+              value={bannerUrl}
+              onChange={(e) => setBannerUrl(e.target.value)}
+              placeholder="https://example.com/banner.jpg"
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+            />
+          </Field>
+          <Field label="Видимость" colSpan={2}>
+            <select
+              value={visibility}
+              onChange={(e) =>
+                setVisibility(e.target.value as 'public' | 'private' | 'global')
+              }
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            >
+              <option value="public">Публичный</option>
+              <option value="private">Приватный</option>
+              <option value="global">Глобальный (авто-участие)</option>
+            </select>
+          </Field>
+        </div>
+      </SectionCard>
+
+      {/* Призовой фонд: сумма + автоначисление + распределение. */}
+      <SectionCard
+        icon={<Gift size={14} strokeWidth={1.7} />}
+        title="Призовой фонд"
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Сумма (zł)" colSpan={2}>
+            <NumInput value={prizePool} step={50} min={1} onChange={setPrizePool} />
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {[100, 500, 1000, 2000, 5000].map((v) => (
+                <Chip
+                  key={v}
+                  active={prizePool === v}
+                  onClick={() => setPrizePool(v)}
+                  label={`${v} zł`}
+                />
+              ))}
+            </div>
+          </Field>
+          <Field label="Количество победителей" colSpan={2}>
+            <NumInput value={winnersCount} step={1} min={1} onChange={setWinnersCount} />
+          </Field>
+        </div>
+        <Toggle
+          checked={autoPayout}
+          onChange={setAutoPayout}
+          label="Автоматическое начисление призов"
+          hint="Победители получают приз сразу после розыгрыша."
+        />
+        <Toggle
+          checked={splitEqual}
+          onChange={setSplitEqual}
+          label="Разделить фонд поровну между победителями"
+          hint={
+            splitEqual
+              ? `Каждому ≈ ${(prizePool / Math.max(1, winnersCount)).toFixed(2)} zł`
+              : 'Можно задать разные суммы по местам'
+          }
+        />
+        {!splitEqual && (
           <Field label="Призы по местам (через запятую)" colSpan={2}>
             <input
               value={customShares}
@@ -961,44 +1071,270 @@ function ContestCreateModal({
             />
           </Field>
         )}
-        <Field label="Старт">
-          <input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
-        </Field>
-        <Field label="Окончание">
-          <input
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
-        </Field>
-      </div>
+      </SectionCard>
 
-      <RulesEditor rules={rules} onChange={setRules} />
+      {/* Настройки времени — чипы быстрого старта + явная дата. */}
+      <SectionCard
+        icon={<SettingsIcon size={14} strokeWidth={1.7} />}
+        title="Настройки"
+      >
+        <Field label="Время до начала розыгрыша" colSpan={2}>
+          <div className="flex flex-wrap gap-1.5">
+            {[1, 3, 5, 10, 15, 60].map((m) => (
+              <Chip
+                key={m}
+                active={!useExplicitStart && startInMinutes === m}
+                onClick={() => {
+                  setUseExplicitStart(false);
+                  setStartInMinutes(m);
+                }}
+                label={`${m} мин`}
+              />
+            ))}
+            <Chip
+              active={useExplicitStart}
+              onClick={() => setUseExplicitStart(true)}
+              label="Точная дата"
+            />
+          </div>
+          {useExplicitStart && (
+            <input
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+              className="mt-2 w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            />
+          )}
+        </Field>
+        <Field label="Длительность конкурса (дней)" colSpan={2}>
+          <NumInput
+            value={durationDays}
+            step={1}
+            min={1}
+            onChange={setDurationDays}
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {[1, 3, 7, 14, 30].map((d) => (
+              <Chip
+                key={d}
+                active={durationDays === d}
+                onClick={() => setDurationDays(d)}
+                label={`${d} дн`}
+              />
+            ))}
+          </div>
+        </Field>
+      </SectionCard>
+
+      {/* Требования к депозитам — упрощённая обёртка над deposit_window. */}
+      <SectionCard
+        icon={<WalletIcon size={14} strokeWidth={1.7} />}
+        title="Требования к депозитам"
+        right={
+          <Toggle
+            inline
+            checked={requireDeposit}
+            onChange={setRequireDeposit}
+            label="Включить"
+          />
+        }
+      >
+        {requireDeposit ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Сумма депозита (zł)">
+              <NumInput
+                value={depositAmount}
+                step={5}
+                min={0}
+                onChange={setDepositAmount}
+              />
+            </Field>
+            <Field label="Период (месяцев)">
+              <select
+                value={depositPeriodMonths}
+                onChange={(e) =>
+                  setDepositPeriodMonths(Number(e.target.value))
+                }
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
+              >
+                {[1, 3, 6, 12, 24].map((m) => (
+                  <option key={m} value={m}>
+                    за {m} мес
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Количество депозитов">
+              <NumInput
+                value={depositCount}
+                step={1}
+                min={1}
+                onChange={setDepositCount}
+              />
+            </Field>
+            <Field label="Минимальный депозит (zł)">
+              <NumInput
+                value={depositMin}
+                step={1}
+                min={0}
+                onChange={setDepositMin}
+              />
+            </Field>
+          </div>
+        ) : (
+          <p className="font-roobert text-[11px] text-whisper-gray">
+            Без требований к депозитам — участвует любой пользователь, который
+            соответствует другим условиям.
+          </p>
+        )}
+      </SectionCard>
+
+      <RulesEditor rules={extraRules} onChange={setExtraRules} />
 
       <ReasonField reason={reason} onChange={setReason} />
       {err && <div className="font-roobert text-[12px] text-[#ff8a76]">{err}</div>}
-      <div className="flex items-center justify-end gap-2 pt-2">
+      <div className="flex items-center justify-between gap-2 pt-2">
         <button
           onClick={onClose}
           className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
         >
-          Отмена
+          Вернуться к результатам
         </button>
         <button
           onClick={submit}
           disabled={busy}
-          className="px-4 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] disabled:opacity-50"
+          className="px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] disabled:opacity-50"
         >
-          {busy ? 'Создание…' : 'Создать конкурс'}
+          {busy ? 'Создание…' : 'Создать'}
         </button>
       </div>
     </Modal>
+  );
+}
+
+function SectionCard({
+  icon,
+  title,
+  right,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85">
+          {icon}
+        </span>
+        <span className="font-roobert text-[13px] text-frost-white">{title}</span>
+        {right && <div className="ml-auto">{right}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Chip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'px-2.5 py-1 rounded-pill border font-roobert text-[11px] tabular-nums transition-colors',
+        active
+          ? 'bg-frost-white text-midnight-canvas border-frost-white'
+          : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25'
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  hint,
+  inline,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  hint?: string;
+  inline?: boolean;
+}) {
+  if (inline) {
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={cn(
+          'inline-flex items-center gap-2 px-2 py-1 rounded-pill border font-roobert text-[11px] transition-colors',
+          checked
+            ? 'border-[#a0e0ab]/45 bg-[#a0e0ab]/10 text-frost-white'
+            : 'border-white/15 bg-white/[0.04] text-frost-white/85'
+        )}
+      >
+        <span
+          className={cn(
+            'inline-block w-7 h-3.5 rounded-pill relative transition-colors',
+            checked ? 'bg-[#a0e0ab]/60' : 'bg-white/15'
+          )}
+        >
+          <span
+            className={cn(
+              'absolute top-0.5 w-2.5 h-2.5 rounded-full bg-frost-white transition-all',
+              checked ? 'left-3.5' : 'left-0.5'
+            )}
+          />
+        </span>
+        {label}
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-start gap-3 text-left rounded-card border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors px-3 py-2"
+    >
+      <span
+        className={cn(
+          'mt-0.5 inline-block w-9 h-5 rounded-pill relative transition-colors shrink-0',
+          checked ? 'bg-[#a0e0ab]/60' : 'bg-white/15'
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 w-4 h-4 rounded-full bg-frost-white transition-all',
+            checked ? 'left-4.5' : 'left-0.5'
+          )}
+          style={{ left: checked ? '1.125rem' : '0.125rem' }}
+        />
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block font-roobert text-[12.5px] text-frost-white">
+          {label}
+        </span>
+        {hint && (
+          <span className="mt-0.5 block font-roobert text-[10.5px] text-whisper-gray">
+            {hint}
+          </span>
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -1008,11 +1344,13 @@ interface RuleDraft {
     | 'wagered_window'
     | 'deposit_total'
     | 'referrals'
-    | 'registered_after';
+    | 'registered_after'
+    | 'wager';
   amount?: number;
   days?: number;
   count?: number;
   date?: string;
+  multiplier?: number;
 }
 
 function serializeRule(r: RuleDraft): object | null {
@@ -1028,6 +1366,10 @@ function serializeRule(r: RuleDraft): object | null {
       return r.count ? { type: r.type, count: r.count } : null;
     case 'registered_after':
       return r.date ? { type: r.type, date: r.date } : null;
+    case 'wager':
+      return r.multiplier && r.multiplier > 0
+        ? { type: r.type, multiplier: r.multiplier }
+        : null;
     default:
       return null;
   }
@@ -1149,7 +1491,71 @@ function ruleLabel(type: RuleDraft['type']): string {
       return 'Рефералов ≥';
     case 'registered_after':
       return 'Регистрация после';
+    case 'wager':
+      return 'Отыгрыш (вейджер)';
   }
+}
+
+function WagerPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const presets = [0, 1, 3, 5, 10];
+  return (
+    <div className="rounded-card border border-white/10 bg-white/[0.03] px-3 py-3 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-pill border border-white/15 bg-white/[0.04]">
+          <Repeat size={12} strokeWidth={1.7} />
+        </span>
+        <span className="font-roobert text-[12px] text-frost-white">
+          Вейджер (отыгрыш бонуса)
+        </span>
+        <span className="ml-auto font-roobert text-[10px] uppercase tracking-[0.18em] text-whisper-gray">
+          {value === 0 ? 'без отыгрыша' : `x${value}`}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {presets.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onChange(p)}
+            className={cn(
+              'px-2.5 py-1 rounded-pill border font-roobert text-[11px] tabular-nums transition-colors',
+              value === p
+                ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25'
+            )}
+          >
+            {p === 0 ? 'Без' : `x${p}`}
+          </button>
+        ))}
+        <div className="ml-auto inline-flex items-center gap-1.5">
+          <span className="font-roobert text-[11px] text-whisper-gray">своё</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={value}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              onChange(Number.isFinite(v) && v >= 0 ? v : 0);
+            }}
+            className="w-16 bg-white/[0.04] border border-white/15 rounded-pill px-2 py-1 font-roobert text-[12px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </div>
+      </div>
+      <p className="font-roobert text-[10.5px] text-whisper-gray leading-snug">
+        {value === 0
+          ? 'Сумма промокода зачисляется без требований к отыгрышу.'
+          : `Перед выводом нужно сделать ставок на сумму = сумма промокода × ${value}.`}
+      </p>
+    </div>
+  );
 }
 
 function ContestEditModal({

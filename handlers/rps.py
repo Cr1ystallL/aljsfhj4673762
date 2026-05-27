@@ -61,11 +61,17 @@ async def show_rps_game(callback: CallbackQuery):
 async def rps_make_bet(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'rps_instruction')
-    
+
     from keyboards.inline import get_rps_bet_instruction
-    await callback.message.edit_text(text, reply_markup=get_rps_bet_instruction(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'knb',
+        text,
+        reply_markup=get_rps_bet_instruction(lang),
+    )
     await callback.answer()
 
 
@@ -73,11 +79,17 @@ async def rps_make_bet(callback: CallbackQuery):
 async def back_to_rps(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'rps_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_rps_menu
-    await callback.message.edit_text(text, reply_markup=get_rps_menu(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'knb',
+        text,
+        reply_markup=get_rps_menu(lang),
+    )
     await callback.answer()
 
 

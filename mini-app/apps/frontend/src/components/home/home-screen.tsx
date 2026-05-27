@@ -46,8 +46,8 @@ const inAppGames: InAppGame[] = [
   { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
   { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
-  { id: 'wheel', name: 'Wheel', href: '/game/wheel' },
-  { id: 'bridges', name: 'Bridges', href: '/game/bridges' },
+  { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
+  { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
 ];
 
 const BOT_USERNAME =
@@ -154,14 +154,15 @@ export function HomeScreen() {
           onClick={() => router.push('/game/crash')}
           className="relative overflow-hidden rounded-card border border-white/10 bg-midnight-canvas text-left active:scale-[0.99] transition-transform"
         >
-          {/* Background art — MacvJet.png blended into the deep ocean wash. */}
+          {/* Background art — 16:9 MacvJet лежит во всю ширину hero, */}
+          {/* без виньетки держится больше фирменного вида. */}
           <div
             aria-hidden
-            className="absolute inset-0 opacity-45"
+            className="absolute inset-0 opacity-60"
             style={{
-              backgroundImage: 'url(/MacvJet.png)',
+              backgroundImage: 'url(/MacvJet16-9.png)',
               backgroundSize: 'cover',
-              backgroundPosition: 'right center',
+              backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',
               filter: 'saturate(1.05)',
             }}

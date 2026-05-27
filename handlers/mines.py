@@ -54,11 +54,18 @@ async def show_mines_game(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
     await callback.message.delete()
-    
+
     text = get_text(lang, 'mines_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_mines_menu
-    await callback.bot.send_message(user_id, text, reply_markup=get_mines_menu(lang))
+    from utils.game_photos import send_game_message
+    await send_game_message(
+        callback.bot,
+        user_id,
+        'mines',
+        text,
+        reply_markup=get_mines_menu(lang),
+    )
     await callback.answer()
 
 
@@ -66,22 +73,34 @@ async def show_mines_game(callback: CallbackQuery):
 async def mines_make_bet(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'mines_instruction')
-    
+
     from keyboards.inline import get_mines_bet_instruction
-    await callback.message.edit_text(text, reply_markup=get_mines_bet_instruction(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'mines',
+        text,
+        reply_markup=get_mines_bet_instruction(lang),
+    )
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_mines")
 async def back_to_mines(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
+
     text = get_text(lang, 'mines_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
+
     from keyboards.inline import get_mines_menu
-    await callback.message.edit_text(text, reply_markup=get_mines_menu(lang))
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'mines',
+        text,
+        reply_markup=get_mines_menu(lang),
+    )
     await callback.answer()
 
 @router.message(Command("mines"))

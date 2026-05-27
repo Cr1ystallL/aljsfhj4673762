@@ -48,7 +48,42 @@ GAME_PHOTOS: dict[str, str] = {
     "rps": "knb_bot.jpg",
     "knb": "knb_bot.jpg",
     "spider": "spider_bot.jpg",
+    # У `mines` нет отдельного `_bot`-варианта — используем тот же ассет,
+    # что и фронтенд-плитка на главной. Фото 1024×1024, в подпись Telegram
+    # умещается без обрезки.
+    "mines": "Mines.png",
 }
+
+
+async def replace_with_game_photo(
+    callback,
+    game_key: str,
+    text: str,
+    reply_markup=None,
+    parse_mode: str = "HTML",
+) -> None:
+    """Удалить текущее сообщение и прислать новое с игровым фото.
+
+    Игровые меню в боте присылаются как `send_photo` (фото + caption), и
+    попытка `edit_text` на таком сообщении валится с
+    "there is no text in the message to edit". Этот helper аккуратно
+    подменяет сообщение: удаляет старое (если можем) и шлёт новое через
+    `send_game_message`, чтобы и инструкция, и возврат в меню всегда шли
+    с одинаковой плиткой-фоном.
+    """
+    try:
+        await callback.message.delete()
+    except Exception:
+        # Сообщение могло устареть — это не критично, идём дальше.
+        pass
+    await send_game_message(
+        callback.bot,
+        callback.from_user.id,
+        game_key,
+        text,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode,
+    )
 
 
 def get_game_photo(key: str) -> Optional[FSInputFile]:
@@ -129,5 +164,6 @@ __all__ = [
     "GAME_PHOTOS",
     "get_game_photo",
     "send_game_message",
+    "replace_with_game_photo",
     "list_missing_assets",
 ]

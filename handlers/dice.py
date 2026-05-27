@@ -53,20 +53,23 @@ async def show_dice_game(callback: CallbackQuery):
 
 @router.callback_query(F.data == "dice_make_bet")
 async def dice_make_bet(callback: CallbackQuery):
-    """Показать инструкцию по ставке"""
+    """Показать инструкцию по ставке.
+
+    Раньше сообщение с инструкцией приходило без фото — теперь
+    во всех играх оно присылается вместе с игровым баннером.
+    """
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
-    # Удаляем сообщение с фото
-    await callback.message.delete()
-    
+
     text = get_text(lang, 'dice_instruction')
-    
+
     from keyboards.inline import get_dice_bet_instruction
-    await callback.bot.send_message(
-        chat_id=user_id,
-        text=text,
-        reply_markup=get_dice_bet_instruction(lang)
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'cube',
+        text,
+        reply_markup=get_dice_bet_instruction(lang),
     )
     await callback.answer()
 
@@ -76,18 +79,16 @@ async def back_to_dice(callback: CallbackQuery):
     """Вернуться к меню игры в кости"""
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
-    
-    # Удаляем текущее сообщение
-    await callback.message.delete()
-    
+
     text = get_text(lang, 'dice_menu', min_bet=config.MIN_BET, max_bet=config.MAX_BET)
-    
-    # Отправляем текстовое сообщение без фото
+
     from keyboards.inline import get_dice_menu
-    await callback.bot.send_message(
-        chat_id=user_id,
-        text=text,
-        reply_markup=get_dice_menu(lang)
+    from utils.game_photos import replace_with_game_photo
+    await replace_with_game_photo(
+        callback,
+        'cube',
+        text,
+        reply_markup=get_dice_menu(lang),
     )
     await callback.answer()
 
