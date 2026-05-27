@@ -2022,7 +2022,10 @@ function Modal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      // Snap-к-верху на мобиле + большой нижний padding, чтобы кнопки
+      // действий (например «Создать») всегда были выше нижнего таб-бара
+      // (~96px + safe-area). На sm+ модалка центрируется как раньше.
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center px-4 pt-4 pb-[140px] sm:pb-4 overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
       <motion.div
@@ -2035,7 +2038,7 @@ function Modal({
           wide ? 'max-w-[640px]' : 'max-w-[480px]'
         )}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 sticky top-0 bg-midnight-canvas/95 backdrop-blur-sm z-10">
           <span className="font-roobert text-[14px] text-frost-white">{title}</span>
           <button
             onClick={onClose}

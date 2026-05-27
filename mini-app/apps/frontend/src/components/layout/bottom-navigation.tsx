@@ -3,10 +3,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Menu, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { memo } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useNavStore } from '@/store/nav-store';
+
+/* ----------------------------------------------- swipe-down to dismiss */
+
+/** Minimum vertical drag (px) before we collapse the bar. */
+const SWIPE_DOWN_THRESHOLD = 36;
+/** Maximum horizontal drift before we treat the gesture as a tap/scroll. */
+const SWIPE_HORIZONTAL_TOLERANCE = 24;
 
 /* ---------------------------------------------------------------- glyphs */
 
@@ -99,12 +106,51 @@ export const BottomNavigation = memo(function BottomNavigation({
   const isBonusesActive = pathname?.startsWith('/bonuses') ?? false;
   const isPartnerActive = pathname?.startsWith('/partner') ?? false;
 
-  const hideable = useNavStore((s) => s.hideable);
   const collapsed = useNavStore((s) => s.collapsed);
   const setCollapsed = useNavStore((s) => s.setCollapsed);
-  const isCollapsed = hideable && collapsed;
-  const showGrip = hideable && collapsed && !forceHidden;
-  const showBar = !isCollapsed && !forceHidden;
+  // Свайп вниз доступен на любой странице — раньше скрытие работало
+  // только на hideable страницах (игры, бонусы), но модалки админки
+  // тоже перекрывались баром, поэтому теперь сворачивание разрешено
+  // везде и управляется единственным флагом `collapsed`.
+  const isCollapsed = collapsed;
+  const showGrip = collapsed && !forceHidden;
+  const showBar = !collapsed && !forceHidden;
+
+  // Track active vertical swipe-to-dismiss on the bar itself.
+  const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(
+    null
+  );
+
+  const onBarTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    swipeRef.current = { x: t.clientX, y: t.clientY, active: true };
+  }, []);
+
+  const onBarTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      const start = swipeRef.current;
+      if (!start || !start.active) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const dx = Math.abs(t.clientX - start.x);
+      const dy = t.clientY - start.y; // > 0 means moving down
+      if (dx > SWIPE_HORIZONTAL_TOLERANCE) {
+        // Horizontal drift — treat as a tap/scroll, not a swipe.
+        start.active = false;
+        return;
+      }
+      if (dy >= SWIPE_DOWN_THRESHOLD) {
+        start.active = false;
+        setCollapsed(true);
+      }
+    },
+    [setCollapsed]
+  );
+
+  const onBarTouchEnd = useCallback(() => {
+    swipeRef.current = null;
+  }, []);
 
   return (
     <div
@@ -145,12 +191,27 @@ export const BottomNavigation = memo(function BottomNavigation({
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
             className="relative mx-3 mb-3 pointer-events-auto"
             style={{ willChange: 'transform' }}
+            onTouchStart={onBarTouchStart}
+            onTouchMove={onBarTouchMove}
+            onTouchEnd={onBarTouchEnd}
+            onTouchCancel={onBarTouchEnd}
           >
             <div
               className="relative rounded-card border border-white/10"
               style={{ background: 'rgba(0, 0, 0, 0.78)' }}
             >
-              <div className="relative grid grid-cols-5 items-center px-2 py-1.5">
+              {/* Drag handle — ненавязчивая полоска-намёк, что бар */}
+              {/* можно «свайпнуть вниз». Tap по ней тоже сворачивает */}
+              {/* (быстрый способ убрать панель с экрана). */}
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                aria-label="Свернуть нижнюю панель"
+                className="absolute top-1 left-1/2 -translate-x-1/2 inline-flex items-center justify-center w-12 h-3 group"
+              >
+                <span className="block w-9 h-[3px] rounded-full bg-frost-white/35 group-active:bg-frost-white/70 transition-colors" />
+              </button>
+              <div className="relative grid grid-cols-5 items-center px-2 py-1.5 pt-2.5">
                 <NavItem
                   icon={<Menu size={18} strokeWidth={1.7} />}
                   label="Меню"
