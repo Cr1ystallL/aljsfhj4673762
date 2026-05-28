@@ -259,8 +259,14 @@ function fmt(n: number | null | undefined): string {
   return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 }
 
-function StatusChip({ status }: { status: Deposit['status'] }) {
-  const map: Record<Deposit['status'], { label: string; cls: string; Icon: typeof Clock }> = {
+function StatusChip({ status }: { status: Deposit['status'] | string }) {
+  // У БД могут появиться новые статусы (например, `failed`/`refunded`),
+  // которых ещё нет в нашем Record. Без fallback это падало с
+  // `Cannot read properties of undefined (reading 'Icon')` и роняло
+  // всю страницу депозитов. Поэтому даём дефолтный «нейтральный» чип
+  // и в нём же показываем сырое имя статуса — оператор сразу видит
+  // что-то не покрытое UI и поднимает багу.
+  const map: Record<string, { label: string; cls: string; Icon: typeof Clock }> = {
     pending: {
       label: 'Ожидание',
       cls: 'border-white/15 bg-white/[0.04] text-frost-white/85',
@@ -282,7 +288,13 @@ function StatusChip({ status }: { status: Deposit['status'] }) {
       Icon: AlertTriangle,
     },
   };
-  const m = map[status];
+  const m =
+    map[status] ??
+    {
+      label: status || 'Неизвестно',
+      cls: 'border-white/10 bg-white/[0.03] text-whisper-gray',
+      Icon: AlertTriangle,
+    };
   const Icon = m.Icon;
   return (
     <span

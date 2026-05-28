@@ -471,8 +471,13 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
       const id = request.params.id;
       try {
         const rows = await app.prisma.$queryRaw<
-          Array<{ id: string; state: string }>
-        >`SELECT id, state FROM contests WHERE id = ${id} LIMIT 1`;
+          Array<{
+            id: string;
+            state: string;
+            visibility: string;
+            rules: unknown;
+          }>
+        >`SELECT id, state, visibility, rules FROM contests WHERE id = ${id} LIMIT 1`;
         const contest = rows[0];
         if (!contest) {
           return reply.code(404).send({
@@ -487,6 +492,32 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
             message: 'Contest is closed',
             code: 'CONTEST_CLOSED',
           });
+        }
+        // Проверяем условия eligibility (rules конкурса) тем же
+        // валидатором, что и для промокодов — только так гарантировано,
+        // что пользователь, не выполнивший «депозит ≥ 100 за 30 дней»
+        // и т.п., не сможет тыкнуть «Участвовать» в обход условий.
+        // Глобальные конкурсы записывают всех — пропускаем проверку
+        // (она всё равно делается при подсчёте победителей).
+        if (contest.visibility !== 'global') {
+          const rawRules = contest.rules;
+          const rules: Array<Record<string, unknown>> = Array.isArray(rawRules)
+            ? (rawRules as Array<Record<string, unknown>>)
+            : [];
+          if (rules.length > 0) {
+            const failure = await checkActivationRules(
+              app.prisma,
+              userId,
+              rules
+            );
+            if (failure) {
+              return reply.code(403).send({
+                error: 'Forbidden',
+                message: failure,
+                code: 'CONTEST_NOT_ELIGIBLE',
+              });
+            }
+          }
         }
         await app.prisma.$executeRaw`
           INSERT INTO contest_participants (id, contest_id, user_id, banned, joined_at)
@@ -551,9 +582,13 @@ async function checkActivationRules(
            AND created_at >= ${since}`;
       const total = Math.abs(Number(rows[0]?.s ?? 0));
       if (total < amount) {
+        // Сообщение видит пользователь в UI — пишем по-русски,
+        // с указанием недостающей суммы. Раньше отдавали английский
+        // текст, и игроки не понимали, чего от них хотят.
+        const lack = Math.max(0, amount - total).toFixed(2);
         return r.type === 'deposit_window'
-          ? `Need at least ${amount} zł deposited in ${days} days`
-          : `Need at least ${amount} zł wagered in ${days} days`;
+          ? `Не хватает ${lack} zł депозитов за последние ${days} дн.`
+          : `Не хватает ${lack} zł оборота ставок за последние ${days} дн.`;
       }
     } else if (r.type === 'deposit_total') {
       const amount = Number(r.amount);
@@ -563,7 +598,8 @@ async function checkActivationRules(
          WHERE user_id = ${userId} AND type = 'deposit'`;
       const total = Number(rows[0]?.s ?? 0);
       if (total < amount) {
-        return `Need at least ${amount} zł deposited overall`;
+        const lack = Math.max(0, amount - total).toFixed(2);
+        return `Не хватает ${lack} zł депозитов за всё время`;
       }
     } else if (r.type === 'referrals') {
       // Referral system isn't shipped yet — treat as always-fail so
@@ -582,9 +618,8 @@ async function checkActivationRules(
         SELECT created_at FROM users WHERE id = ${userId} LIMIT 1`;
       const createdAt = rows[0]?.created_at?.getTime() ?? 0;
       if (createdAt < date) {
-        return `Only available to accounts registered after ${new Date(date)
-          .toISOString()
-          .slice(0, 10)}`;
+        const human = new Date(date).toLocaleDateString('ru-RU');
+        return `Доступно только аккаунтам, зарегистрированным после ${human}`;
       }
     }
   }
