@@ -1,10 +1,19 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Coins, Sparkles, TrendingUp, Users, Wallet } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ChevronDown,
+  Coins,
+  Radio,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 import { HelpButton } from '@/components/admin/help-button';
+import { cn } from '@/lib/utils';
 
 /**
  * Admin → Dashboard.
@@ -214,6 +223,13 @@ export default function AdminDashboardPage() {
               }}
             />
           </section>
+
+          {/* Live presence — компактная плитка под KPI: число игроков
+              онлайн «прямо сейчас» + раскрывающийся список с тем, какую
+              именно страницу/игру каждый смотрит. Данные тянет
+              отдельно (`/api/_x/presence`) с автообновлением раз в 5с,
+              поэтому не нужно дёргать тяжелый /_x/stats чаще. */}
+          <LivePresence />
 
           {/* Timeline */}
           <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
@@ -542,4 +558,236 @@ function TimelineChart({ points }: { points: AdminStats['timeline'] }) {
       })}
     </svg>
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live presence widget                                                       */
+/* -------------------------------------------------------------------------- */
+
+interface PresenceUser {
+  userId: string;
+  name: string;
+  username: string | null;
+  photoUrl: string | null;
+  telegramId: number | null;
+  pathname: string;
+  ts: number;
+}
+
+interface PresenceResponse {
+  ok: true;
+  count: number;
+  users: PresenceUser[];
+  pages: Array<{ pathname: string; count: number }>;
+}
+
+/**
+ * Карточка «Сейчас в мини-аппе».
+ *
+ * Сворачивается/разворачивается тапом по шапке. В свёрнутом виде —
+ * только большой счётчик и подсказка по топ-страницам. В раскрытом —
+ * список игроков с аватарами и текущей страницей. Список ужат до 50
+ * человек: больше — это уже не оперативная задача, а аналитика, и
+ * для неё лучше отдельный отчёт.
+ */
+function LivePresence() {
+  const [data, setData] = useState<PresenceResponse | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/_x/presence', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const j = (await res.json()) as PresenceResponse;
+      setData(j);
+    } catch {
+      // тихо игнорируем — следующий тик всё перепроверит
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const id = setInterval(() => void load(), 5_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const top = useMemo(() => (data?.pages ?? []).slice(0, 3), [data]);
+  const sorted = useMemo(
+    () => (data?.users ?? []).slice(0, 50),
+    [data]
+  );
+
+  return (
+    <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-4 py-3 flex items-center justify-between gap-3 active:bg-white/[0.04] transition-colors"
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-pill border border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-[#a0e0ab] shrink-0">
+            <Radio size={14} strokeWidth={1.7} />
+            {/* живая зелёная точка-«пульс» — намёк, что данные real-time */}
+            <span
+              aria-hidden
+              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#a0e0ab] animate-pulse"
+            />
+          </span>
+          <div className="min-w-0">
+            <div className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+              Сейчас в мини-аппе
+            </div>
+            <div className="mt-0.5 font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums">
+              {data ? data.count : '—'}
+              {data && (
+                <span className="ml-1.5 text-whisper-gray text-[11px] tabular-nums">
+                  игрок{plural(data.count)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {top.length > 0 && (
+            <div className="hidden sm:flex items-center gap-1.5">
+              {top.map((p) => (
+                <span
+                  key={p.pathname}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border border-white/10 bg-white/[0.03] font-roobert text-[10px] text-frost-white/85"
+                  title={p.pathname}
+                >
+                  <span className="text-whisper-gray">
+                    {prettyPath(p.pathname)}
+                  </span>
+                  <span className="tabular-nums text-frost-white">{p.count}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <ChevronDown
+            size={14}
+            strokeWidth={1.8}
+            className={cn(
+              'text-frost-white/60 transition-transform',
+              open && 'rotate-180'
+            )}
+          />
+        </div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden"
+          >
+            {sorted.length === 0 ? (
+              <div className="px-4 py-6 text-center font-roobert text-[12px] text-whisper-gray border-t border-white/10">
+                Никто не в мини-аппе прямо сейчас.
+              </div>
+            ) : (
+              <ul className="divide-y divide-white/5 border-t border-white/10">
+                {sorted.map((u) => (
+                  <li
+                    key={u.userId}
+                    className="px-4 py-2.5 grid grid-cols-[auto_1fr_auto] items-center gap-3"
+                  >
+                    {u.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={u.photoUrl}
+                        alt={u.name}
+                        referrerPolicy="no-referrer"
+                        draggable={false}
+                        className="w-8 h-8 rounded-pill border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <span className="w-8 h-8 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[12px]">
+                        {u.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-roobert text-[13px] text-frost-white truncate">
+                        {u.name}
+                      </div>
+                      <div className="font-roobert text-[10.5px] text-whisper-gray truncate tabular-nums">
+                        {u.telegramId ? `#${u.telegramId}` : ''}
+                        {u.username ? ` · @${u.username}` : ''}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-roobert text-[11px] text-frost-white truncate max-w-[180px]">
+                        {prettyPath(u.pathname)}
+                      </div>
+                      <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+                        {ageLabel(u.ts)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
+
+/**
+ * Превращает технический pathname в человекочитаемое название экрана —
+ * админу удобнее видеть «MacvJet» чем «/game/crash» в строке отчёта.
+ * Маппинг расширяется по мере появления новых страниц.
+ */
+function prettyPath(p: string): string {
+  if (p === '/' || p === '') return 'Главная';
+  if (p === '/balance') return 'Кошелёк';
+  if (p === '/profile') return 'Профиль';
+  if (p === '/bonuses') return 'Бонусы';
+  if (p === '/partner') return 'Партнёрка';
+  if (p.startsWith('/game/')) {
+    const slug = p.split('/')[2] ?? '';
+    if (slug === 'crash') return 'Игра · MacvJet';
+    if (slug === 'mines') return 'Игра · Mines';
+    if (slug === 'plinko') return 'Игра · Plinko';
+    if (slug === 'coinflip') return 'Игра · Coinflip';
+    if (slug === 'wheel') return 'Игра · Wheel';
+    if (slug === 'bridges') return 'Игра · Bridges';
+    return `Игра · ${slug}`;
+  }
+  if (p === '/system/console') return 'Админка · Сводка';
+  if (p === '/system/console/users') return 'Админка · Игроки';
+  if (p === '/system/console/users/:id') return 'Админка · Карточка';
+  if (p === '/system/console/deposits') return 'Админка · Депозиты';
+  if (p === '/system/console/withdrawals') return 'Админка · Вывод';
+  if (p === '/system/console/bonuses') return 'Админка · Бонусы';
+  if (p === '/system/console/games') return 'Админка · Игры';
+  if (p === '/system/console/audit') return 'Админка · Аудит';
+  return p;
+}
+
+function ageLabel(ts: number): string {
+  const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (sec < 5) return 'только что';
+  if (sec < 60) return `${sec}с назад`;
+  const min = Math.floor(sec / 60);
+  return `${min}м назад`;
+}
+
+function plural(n: number): string {
+  // «1 игрок», «2 игрока», «5 игроков» — без полноценной библиотеки
+  // склонения, но достаточно для одной цифры онлайна.
+  const a = Math.abs(n) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return 'ов';
+  if (b > 1 && b < 5) return 'а';
+  if (b === 1) return '';
+  return 'ов';
 }

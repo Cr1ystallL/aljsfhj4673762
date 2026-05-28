@@ -147,7 +147,10 @@ export default function UserDetailPage() {
     setBusy(true);
     try {
       if (action === 'balance') {
-        const num = parseFloat(delta);
+        // Поддерживаем «100,5» (русская локаль) и «+50» (явный плюс) —
+        // input теперь type=text, поэтому валидируем сами.
+        const normalized = delta.trim().replace(',', '.').replace(/^\+/, '');
+        const num = parseFloat(normalized);
         if (!Number.isFinite(num) || num === 0) {
           setBusy(false);
           return;
@@ -553,10 +556,19 @@ export default function UserDetailPage() {
                   <label className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
                     Изменение (положительное = кредит, отрицательное = дебет)
                   </label>
+                  {/* type=text + inputMode=text — иначе на iOS-клаве */}
+                  {/* появляется numeric pad без знака минус, и оператор */}
+                  {/* физически не может ввести «-50». Валидируем ввод */}
+                  {/* паттерном: цифры, точка/запятая, опциональный знак. */}
                   <input
                     value={delta}
                     onChange={(e) => setDelta(e.target.value)}
-                    type="number"
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    pattern="^-?\d+([.,]\d+)?$"
                     placeholder="+100 или -50"
                     className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[14px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
                   />

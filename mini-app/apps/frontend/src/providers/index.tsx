@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TelegramProvider } from './telegram-provider';
 import { WebSocketProvider } from './websocket-provider';
 import { BalanceSyncProvider } from './balance-sync-provider';
+import { PresenceProvider } from './presence-provider';
 import { BlockedGuard } from './blocked-guard';
 import { ToastHost } from '@/components/ui/toast-host';
 import { useState } from 'react';
@@ -30,12 +31,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <TelegramProvider>
         <WebSocketProvider>
           <BalanceSyncProvider>
-            <BlockedGuard>
-              <SplashGate>
-                <ToastHost />
-                {children}
-              </SplashGate>
-            </BlockedGuard>
+            <PresenceProvider>
+              <BlockedGuard>
+                <SplashGate>
+                  <ToastHost />
+                  {children}
+                </SplashGate>
+              </BlockedGuard>
+            </PresenceProvider>
           </BalanceSyncProvider>
         </WebSocketProvider>
       </TelegramProvider>

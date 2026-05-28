@@ -985,7 +985,10 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
   void currentUserId;
 
   return (
-    <section className="flex flex-col gap-3">
+    // id="contests" — якорь, по которому Hero на главной (см.
+    // home-screen.tsx) скроллит сюда после клика по «случайному
+    // конкурсу». scroll-mt-4 даёт визуальный отступ от верха окна.
+    <section id="contests" className="flex flex-col gap-3 scroll-mt-4">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
           Турниры

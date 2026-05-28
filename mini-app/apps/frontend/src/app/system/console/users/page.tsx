@@ -2,14 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, ShieldAlert, Lock, ChevronRight } from 'lucide-react';
+import {
+  Search,
+  ShieldAlert,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
+import { cn } from '@/lib/utils';
 
 /**
  * Admin → Users list.
  *
- * Server-paginated (50 per page), search by name / username / TG id,
- * filter by moderation flag. Each row links to the user's detail page.
+ * Server-paginated (5 per page — operator goes deep into specific
+ * accounts and rarely needs a long roll), search by name / username /
+ * TG id, filter by moderation flag. Each row links to the user's
+ * detail page.
  */
 
 interface UserRow {
@@ -35,7 +46,7 @@ interface ListResponse {
   users: UserRow[];
 }
 
-const LIMIT = 50;
+const LIMIT = 5;
 
 export default function UsersListPage() {
   const router = useRouter();
@@ -228,27 +239,133 @@ export default function UsersListPage() {
 
         {/* Pagination */}
         {data && totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25 disabled:opacity-40 transition-colors font-roobert text-[12px]"
-            >
-              Назад
-            </button>
-            <span className="font-roobert text-[12px] tabular-nums text-whisper-gray">
-              {page} / {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25 disabled:opacity-40 transition-colors font-roobert text-[12px]"
-            >
-              Дальше
-            </button>
-          </div>
+          <PageNav
+            page={page}
+            totalPages={totalPages}
+            onChange={(next) =>
+              setPage(Math.min(totalPages, Math.max(1, next)))
+            }
+          />
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Pager — full Twitter/SaaS-style controls: jump-to-first, prev,
+ * three numbered pages around the current one, next, jump-to-last.
+ * On narrow screens the «<<» / «>>» buttons collapse to icons only,
+ * a normal Latin numeral list stays in the middle. Page count is
+ * limited to a sliding window of 3 around the current page so the
+ * widget never overflows even at totalPages = 999.
+ */
+function PageNav({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (next: number) => void;
+}) {
+  // Окно из 3 номеров вокруг текущей страницы. Логика:
+  //   page=1 → 1 2 3
+  //   page=2 → 1 2 3
+  //   page=N → N-1 N N (ужимаемся к концу)
+  // Это хватает для админки (5 на страницу × десятки страниц), а
+  // больших списков из тысяч нет.
+  const visiblePages = useMemo(() => {
+    const out: number[] = [];
+    let start = page - 1;
+    let end = page + 1;
+    if (start < 1) {
+      end += 1 - start;
+      start = 1;
+    }
+    if (end > totalPages) {
+      start -= end - totalPages;
+      end = totalPages;
+    }
+    start = Math.max(1, start);
+    end = Math.min(totalPages, end);
+    for (let i = start; i <= end; i++) out.push(i);
+    return out;
+  }, [page, totalPages]);
+
+  const atStart = page <= 1;
+  const atEnd = page >= totalPages;
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 pt-1">
+      <PageButton
+        aria-label="Первая страница"
+        disabled={atStart}
+        onClick={() => onChange(1)}
+      >
+        <ChevronsLeft size={14} strokeWidth={1.8} />
+      </PageButton>
+      <PageButton
+        aria-label="Предыдущая страница"
+        disabled={atStart}
+        onClick={() => onChange(page - 1)}
+      >
+        <ChevronLeft size={14} strokeWidth={1.8} />
+      </PageButton>
+      {visiblePages.map((p) => (
+        <PageButton
+          key={p}
+          active={p === page}
+          onClick={() => onChange(p)}
+          aria-label={`Страница ${p}`}
+        >
+          {p}
+        </PageButton>
+      ))}
+      <PageButton
+        aria-label="Следующая страница"
+        disabled={atEnd}
+        onClick={() => onChange(page + 1)}
+      >
+        <ChevronRight size={14} strokeWidth={1.8} />
+      </PageButton>
+      <PageButton
+        aria-label="Последняя страница"
+        disabled={atEnd}
+        onClick={() => onChange(totalPages)}
+      >
+        <ChevronsRight size={14} strokeWidth={1.8} />
+      </PageButton>
+    </div>
+  );
+}
+
+function PageButton({
+  children,
+  active,
+  disabled,
+  onClick,
+  ...rest
+}: {
+  children: React.ReactNode;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'disabled'>) {
+  return (
+    <button
+      {...rest}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'min-w-[34px] h-9 px-2.5 rounded-pill border font-roobert text-[12px] tabular-nums transition-colors inline-flex items-center justify-center',
+        active
+          ? 'bg-frost-white text-midnight-canvas border-frost-white'
+          : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25',
+        disabled && 'opacity-40 cursor-not-allowed hover:border-white/15'
+      )}
+    >
+      {children}
+    </button>
   );
 }

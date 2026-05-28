@@ -72,6 +72,23 @@ function inferCode(text: string): string | null {
 }
 
 /**
+ * Дёргаем синхронизацию баланса прямо из обработки ошибок: если
+ * сервер сказал «недостаточно средств», значит наш закэшированный
+ * баланс отстал от истины (обычно — игрок только что списал в боте).
+ * BalanceSyncProvider слушает этот ивент и моментально перезапрашивает
+ * /api/balance, чтобы пилюля наверху показала правильную сумму
+ * раньше, чем игрок успеет ткнуть «играть» ещё раз.
+ */
+function dispatchBalanceForceSync() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new Event('balance:force-sync'));
+  } catch {
+    /* noop — старые движки без CustomEvent выпадут отсюда тихо */
+  }
+}
+
+/**
  * Show a toast for the given API failure and return the human-readable
  * message. Pass either the `Response` (for status-code defaults) and
  * the parsed body, or a thrown `Error` from a fetch call.
@@ -86,6 +103,7 @@ export function reportApiError(
   if (explicitCode && FRIENDLY[explicitCode]) {
     const m = FRIENDLY[explicitCode];
     toast[m.kind](m.text);
+    if (explicitCode === 'INSUFFICIENT_BALANCE') dispatchBalanceForceSync();
     return m.text;
   }
 
@@ -96,6 +114,7 @@ export function reportApiError(
   if (inferred && FRIENDLY[inferred]) {
     const m = FRIENDLY[inferred];
     toast[m.kind](m.text);
+    if (inferred === 'INSUFFICIENT_BALANCE') dispatchBalanceForceSync();
     return m.text;
   }
   if (text) {

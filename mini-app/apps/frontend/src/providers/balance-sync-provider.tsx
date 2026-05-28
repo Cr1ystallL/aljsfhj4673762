@@ -20,7 +20,14 @@ import { apiClient } from '@/lib/api/client';
  *   - Once on mount.
  *   - Whenever the page becomes visible again (`visibilitychange`).
  *   - On window focus.
- *   - On a 20-second timer as a defence-in-depth.
+ *   - On a 8-second timer as a defence-in-depth (was 20s before, but
+ *     bot-side bets land faster than that and players were ending up
+ *     with a stale balance pill — the fetch is a single tiny GET so
+ *     bumping it to 8s is fine).
+ *   - Immediately after any API error reports `INSUFFICIENT_BALANCE`
+ *     (see `lib/api/errors.ts`). That error means the server's view of
+ *     the balance is lower than what the client thinks, so we
+ *     reconcile right away instead of waiting for the next tick.
  *
  * The fetch is cheap (a single GET /api/balance) and the result is
  * compared against the current store value — if they match, no React
@@ -74,16 +81,23 @@ export function BalanceSyncProvider({
       if (document.visibilityState === 'visible') void sync();
     };
     const onFocus = () => void sync();
-    const id = setInterval(() => void sync(), 20_000);
+    // Кастомный ивент, который шлём из reportApiError при попадании в
+    // INSUFFICIENT_BALANCE. Без него баланс рассинхрона ждал до 8с
+    // следующего тика — и игрок видел «есть 100 zł», но ставку 11 zł
+    // не мог сделать. Теперь сразу подтягиваем актуальное значение.
+    const onForceSync = () => void sync();
+    const id = setInterval(() => void sync(), 8_000);
 
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onFocus);
+    window.addEventListener('balance:force-sync', onForceSync);
 
     return () => {
       cancelled = true;
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('balance:force-sync', onForceSync);
     };
   }, [isAuthenticated]);
 
