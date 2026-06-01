@@ -105,6 +105,29 @@ interface UserDetail {
   }>;
 }
 
+type RtpMode = 'off' | 'earn' | 'give';
+
+interface UserRtp {
+  config: {
+    mode: RtpMode;
+    target: number;
+    windowMs: number;
+    intensity: number;
+  };
+  status: {
+    mode: RtpMode;
+    target: number;
+    windowMs: number;
+    intensity: number;
+    windowStart: number;
+    windowEnd: number;
+    windowProfit: number;
+    windowStake: number;
+    signal: number;
+    released: boolean;
+  };
+}
+
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
   const userId = params.id;
@@ -114,6 +137,14 @@ export default function UserDetailPage() {
   const [copied, setCopied] = useState(false);
   const [betLimit, setBetLimit] = useState(100);
   const [txLimit, setTxLimit] = useState(100);
+  const [rtp, setRtp] = useState<UserRtp | null>(null);
+  const [rtpBusy, setRtpBusy] = useState(false);
+  const [rtpForm, setRtpForm] = useState<{
+    mode: RtpMode;
+    target: string;
+    windowMs: string;
+    intensity: string;
+  }>({ mode: 'off', target: '0', windowMs: '3600000', intensity: '0.6' });
 
   // Action modal state — single modal driven by `action`.
   type Action = null | 'balance' | 'block' | 'lock';
@@ -140,9 +171,33 @@ export default function UserDetailPage() {
     }
   }, [userId, betLimit, txLimit]);
 
+  const loadRtp = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/_x/users/${userId}/rtp`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const j = (await res.json()) as { ok: boolean } & UserRtp;
+      setRtp(j);
+      setRtpForm({
+        mode: j.config.mode,
+        target: String(j.config.target),
+        windowMs: String(j.config.windowMs),
+        intensity: String(j.config.intensity),
+      });
+    } catch {
+      // ignore
+    }
+  }, [userId]);
+
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    void loadRtp();
+  }, [loadRtp]);
 
   const handleCopyId = async () => {
     if (!data) return;
@@ -261,6 +316,45 @@ export default function UserDetailPage() {
         })
       : '—';
 
+  const submitRtp = async () => {
+    if (!rtp) return;
+    const reason = prompt('Причина изменения RTP (минимум 3 символа):');
+    if (!reason || reason.trim().length < 3) return;
+    setRtpBusy(true);
+    try {
+      const body = {
+        mode: rtpForm.mode,
+        target: parseFloat(rtpForm.target) || 0,
+        windowMs: parseInt(rtpForm.windowMs, 10) || 3600000,
+        intensity: Math.min(1, Math.max(0, parseFloat(rtpForm.intensity) || 0)),
+        reason: reason.trim(),
+      };
+      const res = await fetch(`/api/_x/users/${userId}/rtp`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const j = (await res.json()) as { ok: boolean } & UserRtp;
+        setRtp(j);
+        setRtpForm({
+          mode: j.config.mode,
+          target: String(j.config.target),
+          windowMs: String(j.config.windowMs),
+          intensity: String(j.config.intensity),
+        });
+        alert('Персональный RTP обновлён');
+      } else {
+        alert('Не удалось обновить RTP');
+      }
+    } catch {
+      alert('Ошибка сети при обновлении RTP');
+    } finally {
+      setRtpBusy(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col gap-5">
@@ -346,6 +440,102 @@ export default function UserDetailPage() {
                   {u.currency}
                 </span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Per-user RTP */}
+        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="flex flex-col gap-1">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+                Персональный RTP
+              </span>
+              {rtp ? (
+                <span className="font-roobert text-[12px] text-frost-white">
+                  {rtp.status.mode.toUpperCase()} · Цель: {rtp.status.target} · Окно:{' '}
+                  {(rtp.status.windowMs / 60000).toFixed(0)} мин · Инт: {rtp.status.intensity}
+                </span>
+              ) : (
+                <span className="font-roobert text-[12px] text-whisper-gray">Загрузка…</span>
+              )}
+            </div>
+            <HelpButton title="Персональный RTP" size={12}>
+              <p>Перекрывает глобальный контроллер для этого игрока.</p>
+              <p>earn — зарабатывать сумму target за окно, give — отдать target.</p>
+              <p>intensity 0..1, окно в миллисекундах.</p>
+            </HelpButton>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="font-roobert text-[11px] text-whisper-gray">Режим</label>
+              <select
+                value={rtpForm.mode}
+                onChange={(e) => setRtpForm((f) => ({ ...f, mode: e.target.value as RtpMode }))}
+                className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
+              >
+                <option value="off">off</option>
+                <option value="earn">earn</option>
+                <option value="give">give</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-roobert text-[11px] text-whisper-gray">Target (PLN)</label>
+              <input
+                type="number"
+                value={rtpForm.target}
+                onChange={(e) => setRtpForm((f) => ({ ...f, target: e.target.value }))}
+                className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-roobert text-[11px] text-whisper-gray">Окно (мс)</label>
+              <input
+                type="number"
+                value={rtpForm.windowMs}
+                onChange={(e) => setRtpForm((f) => ({ ...f, windowMs: e.target.value }))}
+                className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-roobert text-[11px] text-whisper-gray">Интенсивность (0..1)</label>
+              <input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                value={rtpForm.intensity}
+                onChange={(e) => setRtpForm((f) => ({ ...f, intensity: e.target.value }))}
+                className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between px-4 pb-4">
+            <div className="text-[11px] text-whisper-gray font-roobert">
+              Status:{' '}
+              {rtp ? (
+                <>
+                  Profit {rtp.status.windowProfit.toFixed(2)} · Stake {rtp.status.windowStake.toFixed(2)} ·
+                  Signal {rtp.status.signal.toFixed(3)} {rtp.status.released ? '(released)' : ''}
+                </>
+              ) : (
+                '—'
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setRtpForm((f) => ({ ...f, mode: 'off', target: '0', intensity: '0.6' }))}
+                className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] text-[12px] text-whisper-gray"
+              >
+                Сброс
+              </button>
+              <button
+                onClick={submitRtp}
+                disabled={rtpBusy}
+                className="px-4 py-2 rounded-pill border border-white/20 bg-white/[0.08] text-[12px] text-frost-white hover:border-white/30 disabled:opacity-50"
+              >
+                {rtpBusy ? 'Сохраняю…' : 'Сохранить'}
+              </button>
             </div>
           </div>
         </section>
