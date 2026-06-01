@@ -42,7 +42,7 @@ class Config:
     # ID администраторов
     ADMIN_IDS: List[int] = [
         int(admin_id.strip()) 
-        for admin_id in os.getenv("ADMIN_IDS", "").split(",") 
+        for admin_id in (os.getenv("ADMIN_IDS") or os.getenv("ADMIN_TELEGRAM_IDS") or "").split(",") 
         if admin_id.strip()
     ]
     

@@ -5,6 +5,7 @@ import { balanceRoutes } from './balance.js';
 import { websocketRoutes } from './websocket.js';
 import { gameRoutes } from './games.js';
 import { adminRoutes } from './admin.js';
+import { maintenanceRoutes } from './maintenance.js';
 import { macvpayRoutes } from './macvpay.js';
 import { withdrawalRoutes } from './withdrawals.js';
 import { bonusesRoutes } from './bonuses.js';
@@ -42,6 +43,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Admin (covert — see admin.ts for the security posture)
   await app.register(adminRoutes, { prefix: '/api' });
+
+  // Maintenance mode (public status + admin toggle)
+  await app.register(maintenanceRoutes, { prefix: '/api' });
 
   // WebSocket
   await app.register(websocketRoutes);

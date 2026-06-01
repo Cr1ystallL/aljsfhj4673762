@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, Eraser, RotateCcw } from 'lucide-react';import { HelpButton } from '@/components/admin/help-button';
+import { Activity, Eraser, RotateCcw } from 'lucide-react';
+import { HelpButton } from '@/components/admin/help-button';
 
 /**
  * Admin → System.
@@ -43,6 +44,58 @@ export default function SystemPage() {
   const [logsBusy, setLogsBusy] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
 
+  const [maintEnabled, setMaintEnabled] = useState<boolean>(false);
+  const [maintMessage, setMaintMessage] = useState<string>('');
+  const [maintBusy, setMaintBusy] = useState<boolean>(false);
+
+  const loadMaintStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/_x/maintenance', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const j = await res.json();
+        setMaintEnabled(j.config.enabled);
+        setMaintMessage(j.config.message ?? '');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const updateMaintenance = async (nextEnabled: boolean, nextMsg: string) => {
+    const reason = prompt(
+      `Вы собираетесь ${nextEnabled ? 'включить' : 'выключить'} тех. режим. Причина (минимум 3 символа):`
+    );
+    if (!reason || reason.trim().length < 3) return;
+    setMaintBusy(true);
+    try {
+      const res = await fetch('/api/_x/maintenance', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: nextEnabled,
+          message: nextMsg.trim() || undefined,
+          reason: reason.trim(),
+        }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        setMaintEnabled(j.config.enabled);
+        setMaintMessage(j.config.message ?? '');
+        alert('Тех. режим обновлен');
+      } else {
+        alert('Не удалось обновить тех. режим');
+      }
+    } catch {
+      alert('Ошибка сети при обновлении тех. режима');
+    } finally {
+      setMaintBusy(false);
+    }
+  };
+
   const reloadStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/_x/system/status', {
@@ -81,9 +134,10 @@ export default function SystemPage() {
 
   useEffect(() => {
     void reloadStatus();
+    void loadMaintStatus();
     const id = setInterval(reloadStatus, 10_000);
     return () => clearInterval(id);
-  }, [reloadStatus]);
+  }, [reloadStatus, loadMaintStatus]);
 
   useEffect(() => {
     void reloadLogs(logService);
@@ -241,6 +295,78 @@ export default function SystemPage() {
               <Stat label="Node" value={proc.nodeVersion} />
             </div>
           )}
+        </section>
+
+        {/* Maintenance Mode */}
+        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+              Технический Режим (Тех. Режим)
+            </span>
+            <HelpButton title="Ограничение доступа">
+              <p>
+                При включенном тех. режиме обычные пользователи на фронте будут
+                перенаправляться на страницу-заглушку с сообщением о
+                техработах.
+              </p>
+              <p>
+                Бот также перестанет отвечать на обычные действия и будет
+                выдавать предупреждение о проведении технических работ.
+              </p>
+              <p>
+                Администраторы могут продолжать использовать консоль для
+                отключения этого режима.
+              </p>
+            </HelpButton>
+          </div>
+          <div className="p-4 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <span className="font-roobert text-[14px] text-frost-white">
+                  Статус режима техработ:{' '}
+                  <strong className={maintEnabled ? 'text-red-400' : 'text-emerald-400'}>
+                    {maintEnabled ? '🔴 ВКЛЮЧЕН (сайт заблокирован)' : '🟢 ВЫКЛЮЧЕН (активен)'}
+                  </strong>
+                </span>
+                <span className="font-roobert text-[11px] text-whisper-gray mt-0.5">
+                  Полная блокировка бота и мини-приложения для обычных пользователей
+                </span>
+              </div>
+              <button
+                onClick={() => updateMaintenance(!maintEnabled, maintMessage)}
+                disabled={maintBusy}
+                className={`px-4 py-2 rounded-pill font-roobert text-[12px] uppercase tracking-wider font-semibold transition-all ${
+                  maintEnabled
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-black'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              >
+                {maintEnabled ? 'Отключить тех. режим' : 'Включить тех. режим'}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
+              <label className="font-roobert text-[12px] text-whisper-gray">
+                Сообщение для пользователей (необязательно)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={maintMessage}
+                  onChange={(e) => setMaintMessage(e.target.value)}
+                  placeholder="Пример: Ведутся плановые обновления. Бот скоро возобновит работу."
+                  className="flex-1 rounded-card border border-white/10 bg-white/[0.02] px-3 py-2 font-roobert text-[13px] text-frost-white placeholder:text-white/20 focus:border-white/20 focus:outline-none"
+                />
+                <button
+                  onClick={() => updateMaintenance(maintEnabled, maintMessage)}
+                  disabled={maintBusy}
+                  className="px-4 py-2 rounded-card border border-white/15 bg-white/[0.04] hover:bg-white/[0.06] font-roobert text-[13px] text-frost-white transition-colors"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Maintenance actions */}
