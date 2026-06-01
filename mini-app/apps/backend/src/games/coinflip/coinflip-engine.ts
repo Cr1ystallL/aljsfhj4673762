@@ -422,24 +422,20 @@ class CoinflipEngine {
         await bettingPipeline.processLoss(g.bet);
       }
 
-      await prisma.gameRound
-        .update({
-          where: { id: g.bet.roundId },
-          data: {
-            state: 'completed',
-            serverSeed: g.serverSeed,
-            endedAt: new Date(),
-            result: {
-              status,
-              roundsCompleted: g.round - 1,
-              multiplier: g.currentMultiplier,
-              payout,
-            },
+      await prisma.gameRound.update({
+        where: { id: g.bet.roundId },
+        data: {
+          state: 'completed',
+          serverSeed: g.serverSeed,
+          endedAt: new Date(),
+          result: {
+            status,
+            roundsCompleted: g.round - 1,
+            multiplier: g.currentMultiplier,
+            payout,
           },
-        })
-        .catch((err) =>
-          logger.warn(err, 'Failed to finalise coinflip multiply round')
-        );
+        },
+      });
 
       logger.info(
         {
@@ -451,16 +447,34 @@ class CoinflipEngine {
         },
         'Coinflip multiply finalized'
       );
+
+      (g as unknown as { _status: 'cashed' | 'busted' })._status = status;
     } catch (err) {
       logger.error(err, 'Failed to settle coinflip multiply');
-    }
 
-    // Mark the in-memory session as terminal — toPublic reflects this.
-    g.awaiting = 'flipResult';
-    g.pendingChoice = undefined;
-    // `status` is stored implicitly via bet.payout / bet.multiplier; we
-    // surface it through toPublic.
-    (g as unknown as { _status: 'cashed' | 'busted' })._status = status;
+      try {
+        const persisted = await bettingPipeline.getBet(g.bet.id);
+        const resolved =
+          persisted?.state === 'cashed_out' ||
+          persisted?.state === 'won' ||
+          persisted?.state === 'lost';
+        if (!resolved) {
+          await bettingPipeline.rollbackBet(g.bet, false);
+        }
+      } catch (rollbackErr) {
+        logger.error(
+          rollbackErr,
+          'Failed to rollback coinflip bet after settlement error'
+        );
+      }
+
+      (g as unknown as { _status: 'cashed' | 'busted' })._status = 'busted';
+      throw err;
+    } finally {
+      // Mark the in-memory session as terminal — toPublic reflects this.
+      g.awaiting = 'flipResult';
+      g.pendingChoice = undefined;
+    }
   }
 
   private toPublic(g: MultiplyState): CoinflipMultiplyState {

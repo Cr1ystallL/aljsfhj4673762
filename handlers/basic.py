@@ -218,7 +218,10 @@ async def show_info(message: Message):
     lang = db.get_user_language(message.from_user.id)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text=get_text(lang, 'btn_agreement'), url="https://teletype.in/@macvbet/agreement"),
+            InlineKeyboardButton(
+                text=get_text(lang, 'btn_agreement'),
+                url="https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01",
+            ),
             InlineKeyboardButton(text=get_text(lang, 'btn_support'), url="https://t.me/macvbet_support")
         ]
     ])
