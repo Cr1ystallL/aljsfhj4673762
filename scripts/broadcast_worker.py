@@ -98,13 +98,35 @@ async def _send_one(
     text = bc["text"]
     try:
         if media_url:
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=media_url,
-                caption=text[:1024],
-                parse_mode=parse_mode,
-                reply_markup=keyboard,
-            )
+            try:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=media_url,
+                    caption=text[:1024],
+                    parse_mode=parse_mode,
+                    reply_markup=keyboard,
+                )
+            except TelegramAPIError as photo_err:
+                # Telegram couldn't fetch the URL as an image (broken
+                # link, non-image content type, HTML page, etc). Rather
+                # than dropping the whole message, fall back to a plain
+                # text send so the broadcast still reaches the user.
+                msg = str(photo_err).lower()
+                if (
+                    "wrong type of the web page content" in msg
+                    or "wrong file identifier" in msg
+                    or "failed to get http url content" in msg
+                    or "image_process_failed" in msg
+                ):
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=text,
+                        parse_mode=parse_mode,
+                        reply_markup=keyboard,
+                        disable_web_page_preview=True,
+                    )
+                else:
+                    raise
         else:
             await bot.send_message(
                 chat_id=chat_id,
@@ -195,6 +217,16 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
                     delivered += 1
                 else:
                     failed += 1
+                    # Surface the concrete failure reason in the bot log
+                    # so we don't have to dig into broadcast_recipients to
+                    # understand why a whole broadcast came back empty.
+                    logger.warning(
+                        "Broadcast %s -> %s failed (%s): %s",
+                        bc_id,
+                        tg_id,
+                        status,
+                        err,
+                    )
 
                 cur.execute(
                     "INSERT INTO broadcast_recipients "
