@@ -32,6 +32,39 @@ class DatabasePostgres:
     def _get_connection(self):
         """Получить соединение с базой данных"""
         return psycopg2.connect(self.database_url)
+
+    def _ensure_user_uuid(self, telegram_id: int) -> Optional[str]:
+        """Вернуть UUID пользователя, создавая запись при отсутствии."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE telegram_id = %s', (telegram_id,))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return row[0]
+        # Создаём пользователя и баланс
+        cursor.execute(
+            '''
+            INSERT INTO users (id, telegram_id, created_at, updated_at)
+            VALUES (gen_random_uuid(), %s, NOW(), NOW())
+            RETURNING id
+            ''',
+            (telegram_id,)
+        )
+        user_uuid = cursor.fetchone()[0]
+        cursor.execute(
+            '''
+            INSERT INTO balances (id, user_id, amount, currency, demo_mode, created_at, updated_at)
+            VALUES (gen_random_uuid(), %s, %s, 'PLN', false, NOW(), NOW())
+            ''',
+            (user_uuid, self.get_initial_balance())
+        )
+        conn.commit()
+        conn.close()
+        return user_uuid
+
+    def get_initial_balance(self) -> float:
+        return config.INITIAL_BALANCE if config.INITIAL_BALANCE is not None else 0
     
     def get_balance(self, user_id: int) -> float:
         """
@@ -109,6 +142,45 @@ class DatabasePostgres:
         new_balance = round(current + amount, 2)
         self.set_balance(user_id, new_balance)
         return new_balance
+
+    def add_transaction(
+        self,
+        telegram_id: int,
+        tx_type: str,
+        amount: float,
+        balance_before: float,
+        balance_after: float,
+        game_type: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """Записать транзакцию в общую таблицу transactions."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        user_uuid = self._ensure_user_uuid(telegram_id)
+        if not user_uuid:
+            conn.close()
+            return
+        cursor.execute(
+            '''
+            INSERT INTO transactions (
+              id, user_id, type, amount, balance_before, balance_after,
+              game_type, created_at, metadata
+            ) VALUES (
+              gen_random_uuid(), %s, %s, %s, %s, %s, %s, NOW(), %s
+            )
+            ''',
+            (
+                user_uuid,
+                tx_type,
+                round(amount, 2),
+                round(balance_before, 2),
+                round(balance_after, 2),
+                game_type,
+                psycopg2.extras.Json(metadata or {}),
+            ),
+        )
+        conn.commit()
+        conn.close()
     
     def subtract_balance(self, user_id: int, amount: float) -> float:
         """
