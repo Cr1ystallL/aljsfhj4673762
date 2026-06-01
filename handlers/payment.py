@@ -7,6 +7,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import asyncio
 import logging
+import json
+import urllib.request
 from aiocryptopay import AioCryptoPay, Networks
 from config import config
 from database.db import db
@@ -146,6 +148,19 @@ async def deposit_cryptobot(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(DepositStates.waiting_for_amount)
+def fetch_usdt_pln_rate() -> float:
+    """Получить курс USDT→PLN с exchangerate.host; fallback 3.9"""
+    try:
+        with urllib.request.urlopen("https://api.exchangerate.host/latest?base=USD&symbols=PLN", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            rate = float(data.get("rates", {}).get("PLN") or 0)
+            if rate > 0:
+                return rate
+    except Exception:
+        pass
+    return 3.9
+
+
 async def process_deposit_amount(message: Message, state: FSMContext):
     """Обработка введенной суммы"""
     user_id = message.from_user.id
@@ -179,6 +194,9 @@ async def process_deposit_amount(message: Message, state: FSMContext):
         # Отправляем эмодзи часов
         clock_msg = await message.answer(get_text(lang, 'deposit_creating'))
         
+        # Получаем курс USDT→PLN (USDT ~ USD паритет)
+        rate = fetch_usdt_pln_rate()
+
         # Создаем инвойс через CryptoPay
         if not config.CRYPTOPAY_TOKEN:
             await clock_msg.edit_text(get_text(lang, 'deposit_not_configured'))
@@ -197,19 +215,20 @@ async def process_deposit_amount(message: Message, state: FSMContext):
                 description=f"Пополнение баланса пользователя {message.from_user.id}"
             )
             
-            # Получаем курс (примерный)
-            rub_amount = amount * 83.23  # Примерный курс USDT к RUB
+            # Пересчёт в PLN по офиц. курсу
+            pln_amount = amount * rate
             
             # Сохраняем инвойс
             active_invoices[invoice.invoice_id] = {
                 'user_id': message.from_user.id,
                 'amount_usdt': amount,
-                'amount_rub': rub_amount,
+                'amount_pln': pln_amount,
+                'rate': rate,
                 'invoice': invoice
             }
             
             # Формируем сообщение
-            text = get_text(lang, 'deposit_invoice', amount=amount, rub=f"{rub_amount:.2f}")
+            text = get_text(lang, 'deposit_invoice', amount=amount, rub=f"{pln_amount:.2f} zł")
             
             await clock_msg.edit_text(
                 text,
@@ -260,26 +279,26 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                 invoice = invoices[0]
                 if invoice.status == 'paid':
                     # Оплата прошла
-                    rub_amount = invoice_data['amount_rub']
+                    pln_amount = invoice_data['amount_pln']
                     
                     # Начисляем баланс
-                    new_balance = db.add_balance(user_id, rub_amount)
-                    db.add_deposit_amount_to_lose(user_id, rub_amount)
+                    new_balance = db.add_balance(user_id, pln_amount)
+                    db.add_deposit_amount_to_lose(user_id, pln_amount)
                     
                     # Проверяем бонус на депозит
                     if db.get_dep_bonus_state(user_id) == 1:
                         db.set_dep_bonus_state(user_id, 2)
-                        db.set_bonus_wager(user_id, rub_amount)
+                        db.set_bonus_wager(user_id, pln_amount)
                         try:
                             await message.bot.send_message(
                                 chat_id=user_id,
-                                text=get_text(lang, 'deposit_bonus_activated', amount=format_amount(rub_amount))
+                                text=get_text(lang, 'deposit_bonus_activated', amount=format_amount(pln_amount))
                             )
                         except:
                             pass
                     
                     await message.edit_text(
-                        get_text(lang, 'deposit_success', rub=f"{rub_amount:.2f}", balance=f"{new_balance:.2f}")
+                        get_text(lang, 'deposit_success', rub=f"{pln_amount:.2f} zł", balance=f"{new_balance:.2f}")
                     )
                     
                     # Удаляем инвойс из активных
