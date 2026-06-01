@@ -513,6 +513,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               state: true,
               placedAt: true,
               resolvedAt: true,
+              metadata: true,
             },
           }),
           app.prisma.transaction.aggregate({
@@ -545,8 +546,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
         const wagered = Number(betsAgg._sum.amount ?? 0);
         const paidOut = Number(betsAgg._sum.payout ?? 0);
+        const asMillis = (value: unknown): number => {
+          if (typeof value === 'number') return value;
+          if (!value) return 0;
+          const d = new Date(value as string | number | Date);
+          const t = d.getTime();
+          return Number.isFinite(t) ? t : 0;
+        };
+
         const lastSeenAt = sessions.reduce<number | null>((acc, s) => {
-          const t = new Date(s.lastActivity).getTime();
+          const t = asMillis((s as any).lastActivity);
           return acc === null || t > acc ? t : acc;
         }, null);
 
@@ -579,12 +588,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           },
           lastSeenAt,
           sessions: sessions.map((s) => ({
-            sessionId: s.id,
-            createdAt: s.createdAt?.getTime?.() ?? new Date(s.createdAt).getTime?.() ?? 0,
-            lastActivity: s.lastActivity?.getTime?.() ?? new Date(s.lastActivity).getTime?.() ?? 0,
-            expiresAt: s.expiresAt?.getTime?.() ?? new Date(s.expiresAt).getTime?.() ?? 0,
-            ipAddress: s.ipAddress ?? null,
-            userAgent: s.userAgent ?? null,
+            sessionId: (s as any).id ?? (s as any).sessionId ?? '',
+            createdAt: asMillis((s as any).createdAt),
+            lastActivity: asMillis((s as any).lastActivity),
+            expiresAt: asMillis((s as any).expiresAt),
+            ipAddress: (s as any).ipAddress ?? null,
+            userAgent: (s as any).userAgent ?? null,
           })),
           bets: bets.map((b) => ({
             id: b.id,
@@ -596,9 +605,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             placedAt: b.placedAt.getTime(),
             resolvedAt: b.resolvedAt?.getTime() ?? null,
             source:
-              (b.metadata as Record<string, unknown> | null | undefined)?.source
-                ? String((b.metadata as Record<string, unknown>).source)
-                : null,
+              b.metadata && typeof b.metadata === 'object'
+                ? String((b.metadata as Record<string, unknown>).source ?? 'miniapp')
+                : 'miniapp',
           })),
           transactions: txs.map((t) => ({
             id: t.id,
