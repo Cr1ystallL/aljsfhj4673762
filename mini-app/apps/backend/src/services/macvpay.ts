@@ -14,8 +14,15 @@ import { logger } from '../utils/logger.js';
  * provider migrates.
  */
 
-const BASE_URL = 'http://167.172.35.229:1337/api/android';
-const TOKEN = 'cas_08bda731b6e42e5997b7d8977b5d01d3513db07a17206a92';
+const BASE_URLS = (
+  process.env.MACVPAY_BASE_URLS ??
+  'http://195.242.118.84:1337/api/android,http://167.172.35.229:1337/api/android'
+)
+  .split(',')
+  .map((url) => url.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+const TOKEN = process.env.MACVPAY_TOKEN ?? 'cas_08bda731b6e42e5997b7d8977b5d01d3513db07a17206a92';
 
 // Reserved for a future TLS migration. Disables certificate validation
 // when (and if) the provider switches to HTTPS with a self-signed cert.
@@ -86,27 +93,37 @@ export async function createOrder(
   webhookUrl: string,
   type: 'bank' | 'revolut' = 'bank'
 ): Promise<MacvPayCreateResult> {
-  try {
-    const res = await fetch(`${BASE_URL}/casino/get_card`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Casino-Token': TOKEN,
-        'X-Webhook-URL': webhookUrl,
-      },
-      body: JSON.stringify({
-        currency: 'PLN',
-        price: amount,
-        type,
-        client_id: userId,
-        external_id: externalId,
-      }),
-    });
-    return (await res.json()) as MacvPayCreateResult;
-  } catch (err) {
-    logger.error({ err }, 'MacvPay createOrder failed');
-    return { success: false, error: 'Network error' };
+  for (const baseUrl of BASE_URLS) {
+    try {
+      const res = await fetch(`${baseUrl}/casino/get_card`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Casino-Token': TOKEN,
+          'X-Webhook-URL': webhookUrl,
+        },
+        body: JSON.stringify({
+          currency: 'PLN',
+          price: amount,
+          type,
+          client_id: userId,
+          external_id: externalId,
+        }),
+      });
+
+      const json = (await res.json()) as MacvPayCreateResult;
+      if (!json.success) {
+        logger.warn({ baseUrl, error: json.error }, 'MacvPay createOrder returned error');
+        continue;
+      }
+
+      return json;
+    } catch (err) {
+      logger.error({ err, baseUrl }, 'MacvPay createOrder request failed');
+    }
   }
+
+  return { success: false, error: 'Network error' };
 }
 
 /**
@@ -116,8 +133,9 @@ export async function cancelOrder(
   orderId: string
 ): Promise<{ success: boolean }> {
   try {
+    const baseUrl = BASE_URLS[0];
     const res = await fetch(
-      `${BASE_URL}/casino/get_card?cancel=true&id=${encodeURIComponent(orderId)}`,
+      `${baseUrl}/casino/get_card?cancel=true&id=${encodeURIComponent(orderId)}`,
       {
         method: 'POST',
         headers: { 'X-Casino-Token': TOKEN },
@@ -137,8 +155,9 @@ export async function getOrderStatus(
   orderId: string
 ): Promise<MacvPayOrderStatus | MacvPayErrorResponse> {
   try {
+    const baseUrl = BASE_URLS[0];
     const res = await fetch(
-      `${BASE_URL}/casino/order/${encodeURIComponent(orderId)}`,
+      `${baseUrl}/casino/order/${encodeURIComponent(orderId)}`,
       {
         method: 'GET',
         headers: { 'X-Casino-Token': TOKEN },

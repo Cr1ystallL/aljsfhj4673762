@@ -7,6 +7,7 @@ import {
   getOrderStatus,
   type MacvPayWebhookPayload,
 } from '../services/macvpay.js';
+import { walletConfig } from '../services/wallet-config.js';
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
 import { rtpEngine } from '../services/rtp-engine.js';
@@ -72,7 +73,8 @@ export async function macvpayRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // Minimum deposit guard (from wallet config if available, else 10 PLN).
-      const minDeposit = 10;
+      const cfg = await walletConfig.getMasked();
+      const minDeposit = Number(cfg.minDeposit ?? 10) || 10;
       if (amount < minDeposit) {
         return reply
           .code(400)
@@ -87,8 +89,9 @@ export async function macvpayRoutes(app: FastifyInstance): Promise<void> {
 
       if (!result.success) {
         logger.warn({ userId, amount, error: result.error }, 'MacvPay order failed');
-        return reply.code(502).send({
-          error: 'Платёжный провайдер недоступен. Попробуйте позже.',
+        return reply.code(503).send({
+          error:
+            'Платёжный провайдер временно недоступен. Попробуйте другой способ или повторите позже.',
         });
       }
 
