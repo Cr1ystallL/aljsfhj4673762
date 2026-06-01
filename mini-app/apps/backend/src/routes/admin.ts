@@ -595,6 +595,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             state: b.state,
             placedAt: b.placedAt.getTime(),
             resolvedAt: b.resolvedAt?.getTime() ?? null,
+            source:
+              (b.metadata as Record<string, unknown> | null | undefined)?.source
+                ? String((b.metadata as Record<string, unknown>).source)
+                : null,
           })),
           transactions: txs.map((t) => ({
             id: t.id,

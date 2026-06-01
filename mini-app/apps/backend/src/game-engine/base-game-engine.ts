@@ -162,6 +162,10 @@ export abstract class BaseGameEngine extends EventEmitter {
    * Place bet
    */
   async placeBet(userId: string, amount: number, metadata?: Record<string, any>): Promise<Bet> {
+    // Default metadata: mark source as miniapp unless caller overrides.
+    const meta: Record<string, any> = metadata ? { ...metadata } : {};
+    if (!('source' in meta)) meta.source = 'miniapp';
+
     // Validate bet amount
     if (amount < this.config.minBet || amount > this.config.maxBet) {
       throw new Error(`Bet amount must be between ${this.config.minBet} and ${this.config.maxBet}`);
@@ -193,7 +197,7 @@ export abstract class BaseGameEngine extends EventEmitter {
       amount,
       state: 'pending',
       placedAt: Date.now(),
-      metadata,
+      metadata: meta,
     };
 
     // Process bet (with player's demo mode)
