@@ -240,8 +240,8 @@ async def process_deposit_amount(message: Message, state: FSMContext):
                 'invoice': invoice
             }
             
-            # Формируем сообщение
-            text = get_text(lang, 'deposit_invoice', amount=amount, rub=f"{pln_amount:.2f} zł")
+            # Формируем сообщение (USDT без локальной валюты)
+            text = get_text(lang, 'deposit_invoice', amount=f"{amount:.2f}")
             
             await clock_msg.edit_text(
                 text,
@@ -293,6 +293,8 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                 if invoice.status == 'paid':
                     # Оплата прошла
                     pln_amount = invoice_data['amount_pln']
+                    amount_usdt = invoice_data['amount_usdt']
+                    rate = invoice_data['rate']
                     
                     # Начисляем баланс (ботовая SQLite) + синхроним в Postgres
                     new_balance = db.add_balance(user_id, pln_amount)
@@ -302,11 +304,18 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                         db_postgres.add_transaction(
                             telegram_id=user_id,
                             tx_type='deposit',
-                            amount=pln_amount,
+                            amount=amount_usdt,
                             balance_before=before,
                             balance_after=new_balance,
                             game_type=None,
-                            metadata={'provider': 'cryptobot', 'source': 'bot'},
+                            metadata={
+                                'provider': 'cryptobot',
+                                'source': 'bot',
+                                'currency': 'USDT',
+                                'amountLocal': pln_amount,
+                                'fxRate': rate,
+                                'invoiceId': invoice.invoice_id,
+                            },
                         )
                     except Exception as e:
                         logging.error(f"Failed to mirror deposit to Postgres: {e}")
@@ -318,13 +327,19 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                         try:
                             await message.bot.send_message(
                                 chat_id=user_id,
-                                text=get_text(lang, 'deposit_bonus_activated', amount=format_amount(pln_amount))
+                                text=get_text(lang, 'deposit_bonus_activated', amount=f"{amount_usdt:.2f}")
                             )
                         except:
                             pass
                     
+                    balance_usdt = new_balance / rate if rate else amount_usdt
                     await message.edit_text(
-                        get_text(lang, 'deposit_success', rub=f"{pln_amount:.2f} zł", balance=f"{new_balance:.2f}")
+                        get_text(
+                            lang,
+                            'deposit_success',
+                            amount=f"{amount_usdt:.2f}",
+                            balance=f"{balance_usdt:.2f}",
+                        )
                     )
                     
                     # Удаляем инвойс из активных
@@ -362,29 +377,59 @@ async def check_payment(callback: CallbackQuery):
             invoice = invoices[0]
             if invoice.status == 'paid':
                 # Оплата прошла
-                rub_amount = invoice_data['amount_rub']
                 user_id = invoice_data['user_id']
-                
+                pln_amount = invoice_data.get('amount_pln', 0)
+                amount_usdt = invoice_data.get('amount_usdt', 0)
+                rate = invoice_data.get('rate') or fetch_usdt_pln_rate()
+
                 # Начисляем баланс
-                new_balance = db.add_balance(user_id, rub_amount)
-                db.add_deposit_amount_to_lose(user_id, rub_amount)
+                new_balance = db.add_balance(user_id, pln_amount)
+                db.add_deposit_amount_to_lose(user_id, pln_amount)
                 
                 # Проверяем бонус на депозит
                 if db.get_dep_bonus_state(user_id) == 1:
                     db.set_dep_bonus_state(user_id, 2)
-                    db.set_bonus_wager(user_id, rub_amount)
+                    db.set_bonus_wager(user_id, pln_amount)
                     try:
                         await callback.bot.send_message(
                             chat_id=user_id,
-                            text=get_text(lang, 'deposit_bonus_activated', amount=format_amount(rub_amount))
+                            text=get_text(lang, 'deposit_bonus_activated', amount=f"{amount_usdt:.2f}")
                         )
                     except:
                         pass
                 
+                balance_usdt = new_balance / rate if rate else amount_usdt
                 await callback.message.edit_text(
-                    get_text(lang, 'deposit_success', rub=f"{rub_amount:.2f}", balance=f"{new_balance:.2f}")
+                    get_text(
+                        lang,
+                        'deposit_success',
+                        amount=f"{amount_usdt:.2f}",
+                        balance=f"{balance_usdt:.2f}",
+                    )
                 )
-                
+
+                try:
+                    before = new_balance - pln_amount
+                    db_postgres.add_transaction(
+                        telegram_id=user_id,
+                        tx_type='deposit',
+                        amount=amount_usdt,
+                        balance_before=before,
+                        balance_after=new_balance,
+                        game_type=None,
+                        metadata={
+                            'provider': 'cryptobot',
+                            'source': 'bot',
+                            'currency': 'USDT',
+                            'amountLocal': pln_amount,
+                            'fxRate': rate,
+                            'invoiceId': invoice_id,
+                            'manualCheck': True,
+                        },
+                    )
+                except Exception as e:
+                    logging.error(f"Failed to mirror manual deposit to Postgres: {e}")
+
                 # Удаляем инвойс из активных
                 del active_invoices[invoice_id]
                 await callback.answer("✅ Оплата подтверждена!")

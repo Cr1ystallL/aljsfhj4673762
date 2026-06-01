@@ -2012,6 +2012,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         Math.max(10, parseInt(request.query.limit ?? '50', 10))
       );
       const statusFilter = request.query.status;
+      const normalizedStatus =
+        statusFilter && statusFilter !== 'all' ? statusFilter : undefined;
       try {
         // ---- MacvPay orders ---------------------------------------------
         // Raw query — table is created via the macvpay migration and may
@@ -2033,8 +2035,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           created_at: Date;
         }
 
-        const where = statusFilter
-          ? Prisma.sql` WHERE status = ${statusFilter}`
+        const where = normalizedStatus
+          ? Prisma.sql` WHERE status = ${normalizedStatus}`
           : Prisma.empty;
         let orders: MacvpayOrderRow[] = [];
         try {
@@ -2052,7 +2054,42 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           orders = [];
         }
 
-        const userIds = Array.from(new Set(orders.map((o) => o.user_id)));
+        interface CryptoBotTxRow {
+          id: string;
+          user_id: string;
+          amount: string;
+          metadata: Prisma.JsonValue;
+          created_at: Date;
+        }
+
+        const allowFallback = !normalizedStatus || normalizedStatus === 'paid';
+        let txRows: CryptoBotTxRow[] = [];
+        if (allowFallback) {
+          try {
+            txRows = await app.prisma.$queryRaw<CryptoBotTxRow[]>(Prisma.sql`
+              SELECT id::text AS id,
+                     user_id::text AS user_id,
+                     amount::text AS amount,
+                     metadata,
+                     created_at
+                FROM transactions
+               WHERE type = 'deposit'
+                 AND metadata ? 'provider'
+                 AND metadata->>'provider' = 'cryptobot'
+               ORDER BY created_at DESC
+               LIMIT ${limit}
+            `);
+          } catch (err) {
+            logger.warn({ err }, 'cryptobot deposit fallback read failed');
+            txRows = [];
+          }
+        }
+
+        const userIdSet = new Set<string>();
+        for (const o of orders) userIdSet.add(o.user_id);
+        for (const t of txRows) userIdSet.add(t.user_id);
+
+        const userIds = Array.from(userIdSet);
         const users = userIds.length
           ? await app.prisma.user.findMany({
               where: { id: { in: userIds } },
@@ -2103,7 +2140,53 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           };
         });
 
-        return reply.send({ ok: true, deposits: list });
+        const cryptoBotList = txRows.map((t) => {
+          const u = byId.get(t.user_id);
+          const meta =
+            t.metadata && typeof t.metadata === 'object' && t.metadata !== null
+              ? (t.metadata as Record<string, unknown>)
+              : null;
+          const amountUsdt = Number(t.amount ?? 0);
+          const invoiceId = meta?.invoiceId;
+          const providerOrderId =
+            typeof invoiceId === 'string' || typeof invoiceId === 'number'
+              ? String(invoiceId)
+              : t.id;
+          const currency =
+            typeof meta?.currency === 'string' ? meta.currency : 'USDT';
+
+          return {
+            id: t.id,
+            providerOrderId,
+            externalId: providerOrderId,
+            userId: t.user_id,
+            name:
+              u?.firstName ||
+              u?.username ||
+              (u?.telegramId
+                ? `id${u.telegramId.toString().slice(-4)}`
+                : 'Игрок'),
+            telegramId: u?.telegramId ? Number(u.telegramId) : null,
+            photoUrl: u?.photoUrl ?? null,
+            amount: amountUsdt,
+            uniqueAmount: 0,
+            currency,
+            type: 'cryptobot',
+            status: 'paid' as const,
+            card: null,
+            recipient: null,
+            details: null,
+            expiresAt: null,
+            paidAt: t.created_at.getTime(),
+            createdAt: t.created_at.getTime(),
+          };
+        });
+
+        const combined = [...list, ...cryptoBotList]
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, limit);
+
+        return reply.send({ ok: true, deposits: combined });
       } catch (error) {
         logger.error(error, 'Deposits list failed');
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
