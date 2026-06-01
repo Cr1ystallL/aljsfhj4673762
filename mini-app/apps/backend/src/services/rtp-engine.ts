@@ -111,12 +111,21 @@ export interface RtpStatus extends RtpConfig {
 
 const CONFIG_KEY = 'rtp:config';
 const WINDOW_KEY = 'rtp:window';
+const USER_CONFIG_KEY = (userId: string) => `rtp:usercfg:${userId}`;
+const USER_WINDOW_KEY = (userId: string) => `rtp:userwin:${userId}`;
 
 const DEFAULT_CONFIG: RtpConfig = {
   mode: 'off',
   target: 0,
   windowMs: 24 * 60 * 60 * 1000,
   intensity: 0.5,
+};
+
+const DEFAULT_USER_CONFIG: RtpConfig = {
+  mode: 'off',
+  target: 0,
+  windowMs: 60 * 60 * 1000,
+  intensity: 0.6,
 };
 
 const MAX_BIAS = 1.0;
@@ -174,6 +183,131 @@ class RtpEngine {
       await this.clearUserAccumulators();
     }
     return next;
+  }
+
+  private buildUserDefaults(globalCfg: RtpConfig): RtpConfig {
+    return {
+      mode: 'off',
+      target: 0,
+      windowMs: Math.max(60_000, globalCfg.windowMs),
+      intensity: globalCfg.intensity,
+    };
+  }
+
+  async getUserConfig(userId: string): Promise<RtpConfig> {
+    try {
+      const r = redisClient.getClient();
+      const raw = await r.hgetall(USER_CONFIG_KEY(userId));
+      if (!raw || Object.keys(raw).length === 0) {
+        return { ...this.buildUserDefaults(await this.getConfig()) };
+      }
+      const base = await this.getConfig();
+      return {
+        mode:
+          raw.mode === 'earn' || raw.mode === 'give' || raw.mode === 'off'
+            ? raw.mode
+            : 'off',
+        target: numOr(raw.target, 0),
+        windowMs: Math.max(60_000, numOr(raw.windowMs, base.windowMs)),
+        intensity: clamp(numOr(raw.intensity, base.intensity), 0, 1),
+      };
+    } catch (err) {
+      logger.warn({ err, userId }, 'rtp.getUserConfig failed');
+      const base = await this.getConfig();
+      return { ...this.buildUserDefaults(base) };
+    }
+  }
+
+  async setUserConfig(
+    userId: string,
+    patch: Partial<RtpConfig>,
+    opts: { reset?: boolean } = {}
+  ): Promise<RtpConfig> {
+    const base = await this.getConfig();
+    const current = await this.getUserConfig(userId);
+    const next: RtpConfig = {
+      mode:
+        patch.mode === 'earn' || patch.mode === 'give' || patch.mode === 'off'
+          ? patch.mode
+          : current.mode,
+      target: numOr(patch.target, current.target),
+      windowMs: Math.max(60_000, numOr(patch.windowMs, current.windowMs ?? base.windowMs)),
+      intensity: clamp(numOr(patch.intensity, current.intensity ?? base.intensity), 0, 1),
+    };
+    try {
+      const r = redisClient.getClient();
+      await r.hset(USER_CONFIG_KEY(userId), {
+        mode: next.mode,
+        target: String(next.target),
+        windowMs: String(next.windowMs),
+        intensity: String(next.intensity),
+      });
+      if (opts.reset) {
+        await r.del(USER_WINDOW_KEY(userId));
+        await this.clearUserAccumulator(userId);
+      }
+    } catch (err) {
+      logger.warn({ err, userId }, 'rtp.setUserConfig failed');
+    }
+    return next;
+  }
+
+  private async ensureUserWindow(userId: string, cfg: RtpConfig): Promise<{ profit: number; stake: number; windowStart: number }> {
+    const r = redisClient.getClient();
+    let raw = await r.hgetall(USER_WINDOW_KEY(userId));
+    let windowStart = Number(raw?.windowStart ?? 0);
+    const now = Date.now();
+    if (!windowStart || now - windowStart > cfg.windowMs) {
+      windowStart = now;
+      await r.del(USER_WINDOW_KEY(userId));
+      await r.hset(USER_WINDOW_KEY(userId), {
+        windowStart: String(windowStart),
+        profit: '0',
+        stake: '0',
+      });
+      raw = await r.hgetall(USER_WINDOW_KEY(userId));
+    }
+    return {
+      profit: numOr(raw?.profit, 0),
+      stake: numOr(raw?.stake, 0),
+      windowStart,
+    };
+  }
+
+  async getUserStatus(userId: string): Promise<RtpStatus> {
+    const cfg = await this.getUserConfig(userId);
+    const { profit, stake, windowStart } = await this.ensureUserWindow(userId, cfg);
+    const now = Date.now();
+    const t = cfg.windowMs > 0 ? (now - windowStart) / cfg.windowMs : 0;
+    const elapsed = clamp(t, 0, 1);
+
+    let signal = 0;
+    let released = false;
+    if (cfg.mode === 'earn') {
+      const expected = cfg.target * elapsed;
+      if (profit >= cfg.target) {
+        released = true;
+      } else if (cfg.target > 0) {
+        signal = clamp((expected - profit) / cfg.target, -1, 1);
+      }
+    } else if (cfg.mode === 'give') {
+      const expected = -cfg.target * elapsed;
+      if (-profit >= cfg.target) {
+        released = true;
+      } else if (cfg.target > 0) {
+        signal = clamp((expected - profit) / cfg.target, -1, 1);
+      }
+    }
+
+    return {
+      ...cfg,
+      windowStart,
+      windowEnd: windowStart + cfg.windowMs,
+      windowProfit: profit,
+      windowStake: stake,
+      signal,
+      released,
+    };
   }
 
   async getStatus(): Promise<RtpStatus> {
@@ -249,22 +383,28 @@ class RtpEngine {
    * and clamped to [-1, +1].
    */
   async getBiasFor(userId: string): Promise<number> {
+    // Check user-specific config first
+    const userCfg = await this.getUserConfig(userId);
+    if (userCfg.mode !== 'off' && userCfg.intensity > 0) {
+      const status = await this.getUserStatus(userId);
+      if (!status.released) {
+        const rawUser = status.signal * userCfg.intensity * MAX_BIAS;
+        const load = await this.peekLoad(userId);
+        const damp = load > LOAD_DAMP_THRESHOLD ? LOAD_DAMP_THRESHOLD / load : 1;
+        return clamp(rawUser * damp, -MAX_BIAS, MAX_BIAS);
+      }
+    }
+
+    // Fallback to global controller
     const cfg = await this.getConfig();
     if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
 
     const status = await this.getStatus();
     if (status.released) return 0;
 
-    // signal is already in [-1, +1] aligned so positive == casino is
-    // behind. The intensity scale is [0, 1].
     const raw = status.signal * cfg.intensity * MAX_BIAS;
-
-    // Damp by per-user load.
     const load = await this.peekLoad(userId);
-    const damp = load > LOAD_DAMP_THRESHOLD
-      ? LOAD_DAMP_THRESHOLD / load
-      : 1;
-
+    const damp = load > LOAD_DAMP_THRESHOLD ? LOAD_DAMP_THRESHOLD / load : 1;
     return clamp(raw * damp, -MAX_BIAS, MAX_BIAS);
   }
 
@@ -356,18 +496,30 @@ class RtpEngine {
     const profitDelta = stake - grossPayout;
     try {
       const r = redisClient.getClient();
-      // Make sure window is current; getStatus rotates it.
+      // Ensure global and user windows are current.
       await this.getStatus();
+      const userCfg = await this.getUserConfig(userId);
+      await this.ensureUserWindow(userId, userCfg);
+
       const tx = r.multi();
+      // Global window
       tx.hincrbyfloat(WINDOW_KEY, 'profit', String(profitDelta));
       tx.hincrbyfloat(WINDOW_KEY, 'stake', String(stake));
+
+      // Per-user window
+      tx.hincrbyfloat(USER_WINDOW_KEY(userId), 'profit', String(profitDelta));
+      tx.hincrbyfloat(USER_WINDOW_KEY(userId), 'stake', String(stake));
+
       // Bump the user's load proportional to bet size, but bounded.
       const loadInc = Math.min(2, 0.4 + Math.log10(Math.max(1, stake)) * 0.4);
       tx.hincrbyfloat(`rtp:user:${userId}`, 'load', String(loadInc));
       tx.hset(`rtp:user:${userId}`, 'load_updated', String(Date.now()));
       tx.hincrbyfloat(`rtp:user:${userId}`, 'profit', String(-profitDelta));
       const cfg = await this.getConfig();
-      tx.expire(`rtp:user:${userId}`, Math.ceil(cfg.windowMs / 1000) + 60);
+      const ttlGlobal = Math.ceil(cfg.windowMs / 1000) + 60;
+      const ttlUser = Math.ceil(userCfg.windowMs / 1000) + 60;
+      tx.expire(`rtp:user:${userId}`, ttlGlobal);
+      tx.expire(USER_WINDOW_KEY(userId), ttlUser);
       await tx.exec();
     } catch (err) {
       logger.warn({ err }, 'rtp.recordOutcome failed');
@@ -404,6 +556,16 @@ class RtpEngine {
       if (keys.length > 0) await r.del(...keys);
     } catch (err) {
       logger.warn({ err }, 'rtp.clearUserAccumulators failed');
+    }
+  }
+
+  private async clearUserAccumulator(userId: string): Promise<void> {
+    try {
+      const r = redisClient.getClient();
+      const keys = await r.keys(`rtp:user:${userId}`);
+      if (keys.length > 0) await r.del(...keys);
+    } catch (err) {
+      logger.warn({ err, userId }, 'rtp.clearUserAccumulator failed');
     }
   }
 }

@@ -397,6 +397,73 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ------------------------------------------------ user RTP (per-user auto-RTP) */
+
+  app.get<{ Params: { id: string } }>(
+    '/_x/users/:id/rtp',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const [config, status] = await Promise.all([
+          rtpEngine.getUserConfig(id),
+          rtpEngine.getUserStatus(id),
+        ]);
+        return reply.send({ ok: true, config, status });
+      } catch (error) {
+        logger.error(error, 'Admin user RTP get failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  app.patch<{
+    Params: { id: string };
+    Body: {
+      mode?: 'off' | 'earn' | 'give';
+      target?: number;
+      windowMs?: number;
+      intensity?: number;
+      reset?: boolean;
+      reason: string;
+    };
+  }>(
+    '/_x/users/:id/rtp',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      const patch: Partial<import('../services/rtp-engine.js').RtpConfig> = {};
+      if (request.body.mode) patch.mode = request.body.mode;
+      if (typeof request.body.target === 'number') patch.target = request.body.target;
+      if (typeof request.body.windowMs === 'number') patch.windowMs = request.body.windowMs;
+      if (typeof request.body.intensity === 'number') patch.intensity = request.body.intensity;
+
+      try {
+        const before = await rtpEngine.getUserConfig(id);
+        const next = await rtpEngine.setUserConfig(id, patch, { reset: !!request.body.reset });
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'rtp.user.config',
+          targetType: 'user-rtp',
+          targetId: id,
+          payloadBefore: before,
+          payloadAfter: next,
+          reason,
+        });
+        const status = await rtpEngine.getUserStatus(id);
+        return reply.send({ ok: true, config: next, status });
+      } catch (error) {
+        logger.error(error, 'Admin user RTP patch failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
   app.get<{
     Params: { id: string };
     Querystring?: { betLimit?: string; txLimit?: string };
