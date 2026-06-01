@@ -9,6 +9,7 @@ import {
 } from '../services/macvpay.js';
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
+import { rtpEngine } from '../services/rtp-engine.js';
 
 /**
  * MacvPay deposit routes.
@@ -437,6 +438,7 @@ async function creditDeposit(
           externalId: payload.external_id,
           paidAt: payload.paid_at,
           provider: 'macvpay',
+          source: 'miniapp',
         },
       },
     });
@@ -460,5 +462,20 @@ async function creditDeposit(
     // Notify the balance store so the frontend updates in real-time.
     await balanceService.invalidateCache(userId);
     await balanceService.notifyBalance(userId, afterAmount, false);
+
+    // Auto-RTP hook: earn target = 80% от депозита, окно 6h, intensity 0.6
+    try {
+      const target = Math.max(0, creditAmount * 0.8);
+      await rtpEngine.setUserConfig(userId, {
+        mode: target > 0 ? 'earn' : 'off',
+        target,
+        windowMs: 6 * 60 * 60 * 1000,
+        intensity: 0.6,
+      }, { reset: true });
+      // touch status to rotate window
+      await rtpEngine.getUserStatus(userId);
+    } catch (err) {
+      logger.warn({ err, userId }, 'Auto-RTP set failed on deposit');
+    }
   });
 }
