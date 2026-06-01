@@ -487,6 +487,49 @@ class Database:
         
         # Обновляем оборот
         self.add_turnover(user_id, bet_amount)
+
+        # Синхронизация ставки в PostgreSQL
+        try:
+            from database.db_postgres import db_postgres
+            import uuid
+            
+            # Сопоставим русские/оригинальные названия игр с английскими тегами для admin panel
+            game_map = {
+                'Кости': 'cube',
+                'cube': 'cube',
+                'Боулинг': 'bowling',
+                'bowling': 'bowling',
+                'Дартс': 'darts',
+                'darts': 'darts',
+                'Баскетбол': 'basketball',
+                'basketball': 'basketball',
+                'Футбол': 'football',
+                'football': 'football',
+                'Камень, ножницы, бумага': 'rps',
+                'rps': 'rps',
+                'Мины': 'mines',
+                'mines': 'mines',
+                'Паук': 'spider',
+                'spider': 'spider',
+            }
+            mapped_game = game_map.get(game_type, game_type.lower())
+            
+            bet_id = str(uuid.uuid4())
+            state = "won" if result == "win" else "lost"
+            multiplier = round(win_amount / bet_amount, 2) if bet_amount > 0 else 0.0
+            
+            db_postgres.add_bot_bet(
+                telegram_id=user_id,
+                bet_id=bet_id,
+                game_type=mapped_game,
+                amount=bet_amount,
+                payout=win_amount,
+                multiplier=multiplier,
+                state=state,
+                metadata={'message_id': message_id, 'source': 'bot'}
+            )
+        except Exception as e:
+            print(f"❌ Failed to mirror bet to Postgres: {e}")
     
     def get_last_bet(self, user_id: int) -> Optional[Dict]:
         """

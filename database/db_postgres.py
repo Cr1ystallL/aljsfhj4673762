@@ -61,6 +61,125 @@ class DatabasePostgres:
         )
         conn.commit()
         conn.close()
+
+    def add_withdrawal(
+        self,
+        telegram_id: int,
+        amount: float,
+        balance_before: float,
+        balance_after: float,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """Записать вывод в transactions (type=withdrawal, source=bot)."""
+        meta = {'source': 'bot', **(metadata or {})}
+        self.add_transaction(
+            telegram_id=telegram_id,
+            tx_type='withdrawal',
+            amount=amount,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            game_type=None,
+            metadata=meta,
+        )
+
+    def add_bot_bet(
+        self,
+        telegram_id: int,
+        bet_id: str,
+        game_type: str,
+        amount: float,
+        payout: float,
+        multiplier: float,
+        state: str,
+        round_id: Optional[str] = None,
+        placed_at: Optional[datetime] = None,
+        resolved_at: Optional[datetime] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """
+        Записать ставку бота в bets + транзакции (bet и win/refund) с source=bot.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        user_uuid = self._ensure_user_uuid(telegram_id)
+        if not user_uuid:
+            conn.close()
+            return
+
+        try:
+            cursor.execute(
+                '''
+                INSERT INTO bets (
+                  id, user_id, round_id, game_type, amount, state,
+                  payout, multiplier, metadata, placed_at, resolved_at
+                ) VALUES (
+                  %s, %s, %s, %s, %s, %s,
+                  %s, %s, %s, %s, %s
+                )
+                ON CONFLICT (id) DO NOTHING
+                ''',
+                (
+                    bet_id,
+                    user_uuid,
+                    round_id,
+                    game_type,
+                    round(amount, 2),
+                    state,
+                    round(payout, 2) if payout is not None else None,
+                    multiplier,
+                    psycopg2.extras.Json({'source': 'bot', **(metadata or {})}),
+                    placed_at or datetime.utcnow(),
+                    resolved_at or datetime.utcnow(),
+                ),
+            )
+
+            # Транзакция списания ставки
+            cursor.execute(
+                '''
+                INSERT INTO transactions (
+                  id, user_id, type, amount, balance_before, balance_after,
+                  game_type, game_round_id, created_at, metadata
+                ) VALUES (
+                  gen_random_uuid(), %s, 'bet', %s, 0, 0,
+                  %s, %s, NOW(), %s
+                )
+                ''',
+                (
+                    user_uuid,
+                    round(amount, 2),
+                    game_type,
+                    round_id,
+                    psycopg2.extras.Json({'betId': bet_id, 'source': 'bot', **(metadata or {})}),
+                ),
+            )
+
+            # Если есть выплата — транзакция выигрыша
+            if payout and payout > 0:
+                cursor.execute(
+                    '''
+                    INSERT INTO transactions (
+                      id, user_id, type, amount, balance_before, balance_after,
+                      game_type, game_round_id, created_at, metadata
+                    ) VALUES (
+                      gen_random_uuid(), %s, 'win', %s, 0, 0,
+                      %s, %s, NOW(), %s
+                    )
+                    ''',
+                    (
+                        user_uuid,
+                        round(payout, 2),
+                        game_type,
+                        round_id,
+                        psycopg2.extras.Json({'betId': bet_id, 'source': 'bot', **(metadata or {})}),
+                    ),
+                )
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"❌ Failed to write bot bet to Postgres: {e}")
+        finally:
+            conn.close()
         return user_uuid
 
     def get_initial_balance(self) -> float:

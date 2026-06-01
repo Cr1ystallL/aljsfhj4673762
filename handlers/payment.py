@@ -12,6 +12,7 @@ import urllib.request
 from aiocryptopay import AioCryptoPay, Networks
 from config import config
 from database.db import db
+from database.db_postgres import db_postgres
 from locales.translations import get_text, format_amount
 
 async def lock_withdrawal(user_id: int, withdrawal_id: int, amount_usdt: float, amount_rub: float, bot):
@@ -20,6 +21,17 @@ async def lock_withdrawal(user_id: int, withdrawal_id: int, amount_usdt: float, 
     if wid_data and wid_data['status'] == 'pending_block':
         db.update_withdrawal_status(withdrawal_id, 'cancelled')
         db.confirm_held_balance(user_id, amount_rub) # списываем холд безвозвратно
+        try:
+            current_bal = db.get_balance(user_id)
+            db_postgres.add_withdrawal(
+                telegram_id=user_id,
+                amount=amount_rub,
+                balance_before=current_bal + amount_rub,
+                balance_after=current_bal,
+                metadata={'withdrawal_id': withdrawal_id, 'usdt': amount_usdt, 'status': 'blocked_forfeit'}
+            )
+        except Exception as e:
+            logging.error(f"Failed to record blocked withdrawal in Postgres: {e}")
         try:
             lang = db.get_user_language(user_id)
             kbd = InlineKeyboardMarkup(inline_keyboard=[
@@ -40,7 +52,8 @@ async def restore_pending_withdrawals(bot):
             wid = item['id']
             user_id = item['user_id']
             amount_usdt = item['amount']
-            amount_rub = amount_usdt * 83.23
+            rate = fetch_usdt_pln_rate()
+            amount_rub = amount_usdt * rate
             # Перезапускаем таймер на 5 минут
             asyncio.create_task(lock_withdrawal(user_id, wid, amount_usdt, amount_rub, bot))
     except Exception as e:
@@ -62,6 +75,19 @@ from typing import Dict, Any
 # Хранилище активных инвойсов и заявок на вывод
 active_invoices: Dict[int, Dict[str, Any]] = {}
 active_withdrawals: Dict[int, Dict[str, Any]] = {}  # {withdrawal_id: {user_id, amount_usdt, amount_rub, method}}
+
+
+def fetch_usdt_pln_rate() -> float:
+    """Получить курс USDT→PLN с exchangerate.host; fallback 3.9"""
+    try:
+        with urllib.request.urlopen("https://api.exchangerate.host/latest?base=USD&symbols=PLN", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            rate = float(data.get("rates", {}).get("PLN") or 0)
+            if rate > 0:
+                return rate
+    except Exception:
+        pass
+    return 3.9
 
 
 def get_deposit_methods_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -148,19 +174,6 @@ async def deposit_cryptobot(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(DepositStates.waiting_for_amount)
-def fetch_usdt_pln_rate() -> float:
-    """Получить курс USDT→PLN с exchangerate.host; fallback 3.9"""
-    try:
-        with urllib.request.urlopen("https://api.exchangerate.host/latest?base=USD&symbols=PLN", timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            rate = float(data.get("rates", {}).get("PLN") or 0)
-            if rate > 0:
-                return rate
-    except Exception:
-        pass
-    return 3.9
-
-
 async def process_deposit_amount(message: Message, state: FSMContext):
     """Обработка введенной суммы"""
     user_id = message.from_user.id
@@ -281,9 +294,22 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                     # Оплата прошла
                     pln_amount = invoice_data['amount_pln']
                     
-                    # Начисляем баланс
+                    # Начисляем баланс (ботовая SQLite) + синхроним в Postgres
                     new_balance = db.add_balance(user_id, pln_amount)
                     db.add_deposit_amount_to_lose(user_id, pln_amount)
+                    try:
+                        before = new_balance - pln_amount
+                        db_postgres.add_transaction(
+                            telegram_id=user_id,
+                            tx_type='deposit',
+                            amount=pln_amount,
+                            balance_before=before,
+                            balance_after=new_balance,
+                            game_type=None,
+                            metadata={'provider': 'cryptobot', 'source': 'bot'},
+                        )
+                    except Exception as e:
+                        logging.error(f"Failed to mirror deposit to Postgres: {e}")
                     
                     # Проверяем бонус на депозит
                     if db.get_dep_bonus_state(user_id) == 1:
@@ -411,8 +437,8 @@ async def withdraw_cryptobot(callback: CallbackQuery, state: FSMContext):
     lang = db.get_user_language(user_id)
     balance_rub = db.get_available_balance(user_id)
     
-    # Получаем актуальный курс (примерный)
-    usdt_rate = 83.23
+    # Получаем актуальный курс USDT→PLN
+    usdt_rate = fetch_usdt_pln_rate()
     balance_usdt = balance_rub / usdt_rate
     
     text = get_text(lang, 'withdraw_enter_amount', available=f"{balance_usdt:.2f}")
@@ -680,6 +706,19 @@ async def confirm_withdrawal_with_check(message: Message):
         # Подтверждаем вывод (списываем с held_balance)
         db.confirm_held_balance(user_id, amount_rub)
         db.update_withdrawal_status(withdrawal_id, 'completed')
+        
+        # Записываем в Postgres
+        try:
+            current_bal = db.get_balance(user_id)
+            db_postgres.add_withdrawal(
+                telegram_id=user_id,
+                amount=amount_rub,
+                balance_before=current_bal + amount_rub,
+                balance_after=current_bal,
+                metadata={'withdrawal_id': withdrawal_id, 'usdt': amount_usdt, 'status': 'completed', 'check_url': check_url}
+            )
+        except Exception as e:
+            logging.error(f"Failed to record withdrawal in Postgres: {e}")
         
         # Отправляем чек пользователю
         user_text = get_text(lang, 'withdraw_approved', amount=amount_usdt)
