@@ -2,11 +2,33 @@
 Middleware для отслеживания активности пользователей и проверки блокировки
 """
 import aiohttp
+import redis.asyncio as aioredis
 from typing import Callable, Dict, Any, Awaitable, Union
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
 from database.db import db
 from config import config
+
+# Инициализируем клиент Redis для проверки динамических админов
+redis_client = aioredis.from_url(config.REDIS_URL, decode_responses=True)
+
+
+async def check_is_admin(user_id: int) -> bool:
+    """Проверяет, является ли пользователь администратором (seed или динамический)"""
+    # 1. Проверяем статических админов из .env
+    if user_id in config.ADMIN_IDS:
+        return True
+    
+    # 2. Проверяем динамических админов в Redis
+    try:
+        if await redis_client.sismember("admins:dynamic", str(user_id)):
+            return True
+        if await redis_client.sismember("admins:withdrawal", str(user_id)):
+            return True
+    except Exception:
+        pass
+    
+    return False
 
 
 class UserActivityMiddleware(BaseMiddleware):
@@ -18,8 +40,13 @@ class UserActivityMiddleware(BaseMiddleware):
         event: Union[Message, CallbackQuery],
         data: Dict[str, Any]
     ) -> Any:
+        # Получаем статус администратора (seed + dynamic)
+        is_admin = False
+        if event.from_user:
+            is_admin = await check_is_admin(event.from_user.id)
+
         # Проверяем технический режим (кроме админов)
-        if event.from_user and event.from_user.id not in config.ADMIN_IDS:
+        if event.from_user and not is_admin:
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get('http://localhost:4000/api/maintenance/status', timeout=0.8) as response:
@@ -40,7 +67,7 @@ class UserActivityMiddleware(BaseMiddleware):
                 pass
 
         # Проверяем блокировку пользователя (кроме админов)
-        if event.from_user and event.from_user.id not in config.ADMIN_IDS:
+        if event.from_user and not is_admin:
             if db.is_user_blocked(event.from_user.id):
                 if isinstance(event, Message):
                     await event.answer(

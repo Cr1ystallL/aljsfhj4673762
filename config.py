@@ -45,6 +45,9 @@ class Config:
         for admin_id in (os.getenv("ADMIN_IDS") or os.getenv("ADMIN_TELEGRAM_IDS") or "").split(",") 
         if admin_id.strip()
     ]
+
+    # Redis (общий с backend для проверки динамических админов и техрежима)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     
     # URL мини-приложения (Telegram WebApp). Используется кнопкой
     # «Mini-App» в главной клавиатуре бота, которая открывает наше
