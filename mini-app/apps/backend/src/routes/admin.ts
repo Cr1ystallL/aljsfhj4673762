@@ -397,11 +397,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  app.get<{ Params: { id: string } }>(
+  app.get<{
+    Params: { id: string };
+    Querystring?: { betLimit?: string; txLimit?: string };
+  }>(
     '/_x/users/:id',
     { preHandler: adminOnly },
     async (request, reply) => {
       const { id } = request.params;
+      const betLimit = Math.min(500, Math.max(10, parseInt(request.query?.betLimit ?? '100', 10)));
+      const txLimit = Math.min(500, Math.max(10, parseInt(request.query?.txLimit ?? '100', 10)));
       try {
         const userRows = await app.prisma.$queryRaw<RawUserRow[]>(
           Prisma.sql`
@@ -417,7 +422,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const [balance, betsAgg, bets, txs, adminLog] = await Promise.all([
+        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog] = await Promise.all([
           app.prisma.balance.findUnique({
             where: { userId: id },
             select: { amount: true, currency: true, lastSyncedAt: true },
@@ -431,7 +436,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           app.prisma.bet.findMany({
             where: { userId: id },
             orderBy: { placedAt: 'desc' },
-            take: 30,
+            take: betLimit,
             select: {
               id: true,
               gameType: true,
@@ -443,10 +448,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               resolvedAt: true,
             },
           }),
+          app.prisma.transaction.aggregate({
+            where: { userId: id },
+            _count: { _all: true },
+          }),
           app.prisma.transaction.findMany({
             where: { userId: id },
             orderBy: { createdAt: 'desc' },
-            take: 30,
+            take: txLimit,
             select: {
               id: true,
               type: true,
@@ -458,6 +467,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               metadata: true,
             },
           }),
+          sessionManager.getUserSessions(id),
           app.prisma.$queryRaw<RawAuditRow[]>(Prisma.sql`
             SELECT * FROM admin_audit_log
             WHERE target_type = 'user' AND target_id = ${id}
@@ -468,6 +478,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
         const wagered = Number(betsAgg._sum.amount ?? 0);
         const paidOut = Number(betsAgg._sum.payout ?? 0);
+        const lastSeenAt = sessions.reduce<number | null>((acc, s) => {
+          const t = new Date(s.lastActivity).getTime();
+          return acc === null || t > acc ? t : acc;
+        }, null);
 
         return reply.send({
           ok: true,
@@ -496,6 +510,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             maxMultiplier: Number(betsAgg._max.multiplier ?? 0),
             maxBet: Number(betsAgg._max.amount ?? 0),
           },
+          lastSeenAt,
+          sessions: sessions.map((s) => ({
+            sessionId: s.id,
+            createdAt: s.createdAt?.getTime?.() ?? new Date(s.createdAt).getTime?.() ?? 0,
+            lastActivity: s.lastActivity?.getTime?.() ?? new Date(s.lastActivity).getTime?.() ?? 0,
+            expiresAt: s.expiresAt?.getTime?.() ?? new Date(s.expiresAt).getTime?.() ?? 0,
+            ipAddress: s.ipAddress ?? null,
+            userAgent: s.userAgent ?? null,
+          })),
           bets: bets.map((b) => ({
             id: b.id,
             gameType: b.gameType,
@@ -516,6 +539,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             createdAt: t.createdAt.getTime(),
             metadata: t.metadata,
           })),
+          totals: {
+            bets: betsAgg._count._all,
+            transactions: txAgg._count._all,
+          },
           adminLog: adminLog.map((a) => ({
             id: a.id,
             action: a.action,

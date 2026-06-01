@@ -61,6 +61,15 @@ interface UserDetail {
     maxMultiplier: number;
     maxBet: number;
   };
+  lastSeenAt: number | null;
+  sessions: Array<{
+    sessionId: string;
+    createdAt: number;
+    lastActivity: number;
+    expiresAt: number;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }>;
   bets: Array<{
     id: string;
     gameType: string;
@@ -81,6 +90,10 @@ interface UserDetail {
     createdAt: number;
     metadata: unknown;
   }>;
+  totals?: {
+    bets: number;
+    transactions: number;
+  };
   adminLog: Array<{
     id: string;
     action: string;
@@ -99,6 +112,8 @@ export default function UserDetailPage() {
   const [data, setData] = useState<UserDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [betLimit, setBetLimit] = useState(100);
+  const [txLimit, setTxLimit] = useState(100);
 
   // Action modal state — single modal driven by `action`.
   type Action = null | 'balance' | 'block' | 'lock';
@@ -109,7 +124,7 @@ export default function UserDetailPage() {
 
   const reload = useCallback(async () => {
     try {
-      const res = await fetch(`/api/_x/users/${userId}`, {
+      const res = await fetch(`/api/_x/users/${userId}?betLimit=${betLimit}&txLimit=${txLimit}`, {
         credentials: 'include',
         cache: 'no-store',
       });
@@ -123,7 +138,7 @@ export default function UserDetailPage() {
     } catch {
       setError('not-found');
     }
-  }, [userId]);
+  }, [userId, betLimit, txLimit]);
 
   useEffect(() => {
     void reload();
@@ -235,6 +250,17 @@ export default function UserDetailPage() {
   const u = data.user;
   const initials = (u.firstName?.charAt(0) ?? 'U').toUpperCase();
 
+  const formatDate = (ts: number | null) =>
+    ts
+      ? new Date(ts).toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '—';
+
   return (
     <>
       <div className="flex flex-col gap-5">
@@ -324,6 +350,49 @@ export default function UserDetailPage() {
           </div>
         </section>
 
+        {/* Activity & sessions */}
+        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="flex flex-col gap-1">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+                Активность
+              </span>
+              <span className="font-roobert text-[12px] text-frost-white">
+                Последняя активность: {formatDate(data.lastSeenAt)} · Сессий: {data.sessions.length}
+              </span>
+            </div>
+            <HelpButton title="Сессии и активность" size={12}>
+              <p>lastSeen строится по последней активности в живых сессиях (Redis).</p>
+              <p>Отзыв сессии на странице «Сессии» вылогинивает пользователя при следующем запросе.</p>
+            </HelpButton>
+          </div>
+          {data.sessions.length === 0 ? (
+            <div className="p-4 font-roobert text-[12px] text-whisper-gray">Активных сессий нет.</div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {data.sessions.map((s) => (
+                <div
+                  key={s.sessionId}
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="font-roobert text-[12px] text-frost-white truncate">{s.sessionId}</div>
+                    <div className="font-roobert text-[10px] text-whisper-gray tabular-nums truncate">
+                      IP: {s.ipAddress ?? '—'} · UA: {s.userAgent ?? '—'}
+                    </div>
+                  </div>
+                  <div className="text-right font-roobert text-[11px] text-whisper-gray tabular-nums">
+                    Создана: {formatDate(s.createdAt)}
+                  </div>
+                  <div className="text-right font-roobert text-[11px] text-frost-white tabular-nums">
+                    Активность: {formatDate(s.lastActivity)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Stats grid */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Stat label="Ставок" value={data.stats.totalBets.toLocaleString('ru-RU')} />
@@ -411,9 +480,19 @@ export default function UserDetailPage() {
             <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
               Последние ставки
             </span>
-            <span className="font-roobert text-[11px] text-whisper-gray">
-              {data.bets.length}
-            </span>
+            <div className="flex items-center gap-2 text-[11px] text-whisper-gray font-roobert">
+              <span>
+                {data.bets.length} / {data.totals?.bets ?? data.bets.length}
+              </span>
+              {data.bets.length < (data.totals?.bets ?? Infinity) && data.bets.length < 500 && (
+                <button
+                  onClick={() => setBetLimit((v) => Math.min(500, v + 100))}
+                  className="px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.05] hover:border-white/25"
+                >
+                  Показать ещё
+                </button>
+              )}
+            </div>
           </div>
           {data.bets.length === 0 ? (
             <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
@@ -463,6 +542,61 @@ export default function UserDetailPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        {/* Transactions */}
+        <section>
+          <div className="flex items-baseline justify-between px-1 mb-2">
+            <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+              Транзакции
+            </span>
+            <div className="flex items-center gap-2 text-[11px] text-whisper-gray font-roobert">
+              <span>
+                {data.transactions.length} / {data.totals?.transactions ?? data.transactions.length}
+              </span>
+              {data.transactions.length < (data.totals?.transactions ?? Infinity) &&
+                data.transactions.length < 500 && (
+                  <button
+                    onClick={() => setTxLimit((v) => Math.min(500, v + 100))}
+                    className="px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.05] hover:border-white/25"
+                  >
+                    Показать ещё
+                  </button>
+                )}
+            </div>
+          </div>
+          {data.transactions.length === 0 ? (
+            <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
+              Транзакций нет.
+            </div>
+          ) : (
+            <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden divide-y divide-white/5">
+              {data.transactions.map((t) => (
+                <div key={t.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="font-roobert text-[13px] text-frost-white truncate">
+                      {t.type}
+                    </div>
+                    <div className="font-roobert text-[10px] text-whisper-gray tabular-nums truncate">
+                      {new Date(t.createdAt).toLocaleString('ru-RU')}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-roobert text-[11px] text-whisper-gray">До</div>
+                    <div className="font-roobert text-[12px] tabular-nums">
+                      {t.balanceBefore.toLocaleString('ru-RU')}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-roobert text-[11px] text-whisper-gray">После</div>
+                    <div className="font-roobert text-[12px] tabular-nums">
+                      {t.balanceAfter.toLocaleString('ru-RU')}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
