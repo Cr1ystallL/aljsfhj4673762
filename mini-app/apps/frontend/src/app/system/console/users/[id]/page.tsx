@@ -89,6 +89,7 @@ interface UserDetail {
     gameType: string | null;
     createdAt: number;
     metadata: unknown;
+    source?: string | null;
   }>;
   totals?: {
     bets: number;
@@ -769,8 +770,13 @@ export default function UserDetailPage() {
                     <div className="font-roobert text-[13px] text-frost-white truncate">
                       {t.type}
                     </div>
-                    <div className="font-roobert text-[10px] text-whisper-gray tabular-nums truncate">
-                      {new Date(t.createdAt).toLocaleString('ru-RU')}
+                    <div className="flex items-center gap-2 font-roobert text-[10px] text-whisper-gray tabular-nums truncate">
+                      <span>{new Date(t.createdAt).toLocaleString('ru-RU')}</span>
+                      {t.source && (
+                        <span className="px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04] uppercase tracking-[0.12em]">
+                          {t.source}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">

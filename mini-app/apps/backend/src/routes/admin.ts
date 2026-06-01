@@ -605,6 +605,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             gameType: t.gameType,
             createdAt: t.createdAt.getTime(),
             metadata: t.metadata,
+            source:
+              (t.metadata as Record<string, unknown> | null | undefined)?.source
+                ? String((t.metadata as Record<string, unknown>).source)
+                : (t.metadata as Record<string, unknown> | null | undefined)?.provider
+                  ? String((t.metadata as Record<string, unknown>).provider)
+                  : null,
           })),
           totals: {
             bets: betsAgg._count._all,

@@ -43,6 +43,11 @@ export class TransactionService {
       gameRoundId: tx.gameRoundId,
       metadata: tx.metadata,
       createdAt: tx.createdAt,
+      source: (tx.metadata as Record<string, unknown> | null | undefined)?.source
+        ? String((tx.metadata as Record<string, unknown>).source)
+        : (tx.metadata as Record<string, unknown> | null | undefined)?.provider
+          ? String((tx.metadata as Record<string, unknown>).provider)
+          : null,
     }));
   }
 
