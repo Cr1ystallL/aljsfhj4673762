@@ -566,6 +566,7 @@ function Wheel({
   const targetRotationRef = useRef(0);
   const settleStartRotationRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const fallbackStartRef = useRef<number | null>(null);
   // Locked spin contract for the current spin — we capture the spin
   // start, duration and target so a re-render with new snapshot data
   // doesn't yank the wheel mid-rotation.
@@ -621,7 +622,10 @@ function Wheel({
       // segment index.
       const seg = snap.segmentIndex!;
       const segmentSpan = (2 * Math.PI) / layout.length;
-      const startedAt = snap.spinStartedAt ?? Date.now();
+      const startedAt = snap.spinStartedAt ?? fallbackStartRef.current ?? Date.now();
+      if (!snap.spinStartedAt && !fallbackStartRef.current) {
+        fallbackStartRef.current = startedAt;
+      }
       const durationMs = snap.spinDurationMs || 12000;
       const same =
         spinLockRef.current &&
@@ -649,6 +653,7 @@ function Wheel({
       targetRotationRef.current = spinLockRef.current.target;
     } else if (snap.phase === 'waiting') {
       spinLockRef.current = null;
+      fallbackStartRef.current = null;
     }
 
     const draw = () => {
@@ -660,7 +665,10 @@ function Wheel({
 
       ctx.clearRect(0, 0, w, h);
 
-      if (snap.phase === 'spinning' && spinLockRef.current) {
+      if (
+        (snap.phase === 'spinning' || snap.phase === 'completed') &&
+        spinLockRef.current
+      ) {
         const lock = spinLockRef.current;
         const t = Math.min(
           1,
