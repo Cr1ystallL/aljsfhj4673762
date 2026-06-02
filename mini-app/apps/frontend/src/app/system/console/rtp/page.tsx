@@ -21,6 +21,7 @@ interface RtpStatus {
   target: number;
   windowMs: number;
   intensity: number;
+  earnBiasBoost?: number;
   windowStart: number;
   windowEnd: number;
   windowProfit: number;
@@ -42,6 +43,7 @@ export default function RtpPage() {
   const [target, setTarget] = useState<string>('1000');
   const [windowMs, setWindowMs] = useState<number>(24 * 3600_000);
   const [intensity, setIntensity] = useState<number>(0.5);
+  const [earnBoost, setEarnBoost] = useState<number>(1);
   const [reason, setReason] = useState('');
   const [reset, setReset] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -67,6 +69,7 @@ export default function RtpPage() {
           setTarget(String(s.target));
           setWindowMs(s.windowMs);
           setIntensity(s.intensity);
+          setEarnBoost(s.earnBiasBoost ?? 1);
         }
       } catch {
         // ignore
@@ -97,6 +100,7 @@ export default function RtpPage() {
           target: Number(target) || 0,
           windowMs,
           intensity,
+          earnBiasBoost: earnBoost,
           reset,
           reason: reason.trim(),
         }),
@@ -227,6 +231,14 @@ export default function RtpPage() {
                   positive={status.signal > 0.05}
                   negative={status.signal < -0.05}
                 />
+                {typeof status.earnBiasBoost === 'number' && status.mode === 'earn' && (
+                  <Stat
+                    label="Усиление earn"
+                    value={(status.earnBiasBoost ?? 1).toFixed(2)}
+                    unit="×"
+                    muted
+                  />
+                )}
               </div>
 
               {/* Window progress bar */}
@@ -295,6 +307,38 @@ export default function RtpPage() {
             </p>
           )}
         </Section>
+
+        {/* Earn-only tilt boost */}
+        {mode === 'earn' && (
+          <Section
+            title="Усиление earn"
+            subtitle="Множитель силы наклона только в режиме earn"
+          >
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={0.5}
+                max={3}
+                step={0.05}
+                value={earnBoost}
+                onChange={(e) => {
+                  setEarnBoost(Number(e.target.value));
+                  setDirty(true);
+                }}
+                className="flex-1"
+              />
+              <span className="w-12 text-right font-roobert text-[14px] tabular-nums text-frost-white">
+                {earnBoost.toFixed(2)}
+              </span>
+            </div>
+            <p className="mt-2 font-roobert text-[11px] text-whisper-gray leading-relaxed">
+              Применяется только когда режим = earn. Умножает рассчитанный bias
+              до {earnBoost.toFixed(2)}× перед тем как игры его используют.
+              При 3.0 наклон ощутимо сильнее: шансы победы снижаются быстрее,
+              но остаются вероятностными (не 0/100).
+            </p>
+          </Section>
+        )}
 
         {/* Target & window */}
         <Section

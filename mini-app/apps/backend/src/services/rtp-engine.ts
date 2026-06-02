@@ -96,6 +96,8 @@ export interface RtpConfig {
   windowMs: number;
   /** 0..1, how strongly bias is applied. */
   intensity: number;
+  /** Earn-only: multiplies the computed bias to make the tilt stronger. */
+  earnBiasBoost?: number;
 }
 
 export interface RtpStatus extends RtpConfig {
@@ -119,6 +121,7 @@ const DEFAULT_CONFIG: RtpConfig = {
   target: 0,
   windowMs: 24 * 60 * 60 * 1000,
   intensity: 0.5,
+  earnBiasBoost: 1,
 };
 
 const DEFAULT_USER_CONFIG: RtpConfig = {
@@ -150,6 +153,7 @@ class RtpEngine {
         target: numOr(raw.target, 0),
         windowMs: numOr(raw.windowMs, DEFAULT_CONFIG.windowMs),
         intensity: clamp(numOr(raw.intensity, 0.5), 0, 1),
+        earnBiasBoost: numOr(raw.earnBiasBoost, DEFAULT_CONFIG.earnBiasBoost ?? 1),
       };
     } catch (err) {
       logger.warn({ err }, 'rtp.getConfig failed');
@@ -170,6 +174,7 @@ class RtpEngine {
       target: numOr(patch.target, current.target),
       windowMs: Math.max(60_000, numOr(patch.windowMs, current.windowMs)),
       intensity: clamp(numOr(patch.intensity, current.intensity), 0, 1),
+      earnBiasBoost: numOr(patch.earnBiasBoost, current.earnBiasBoost ?? 1),
     };
     const r = redisClient.getClient();
     await r.hset(CONFIG_KEY, {
@@ -177,6 +182,7 @@ class RtpEngine {
       target: String(next.target),
       windowMs: String(next.windowMs),
       intensity: String(next.intensity),
+      earnBiasBoost: String(next.earnBiasBoost ?? 1),
     });
     if (opts.reset) {
       await r.del(WINDOW_KEY);
@@ -307,6 +313,7 @@ class RtpEngine {
       windowStake: stake,
       signal,
       released,
+      earnBiasBoost: cfg.earnBiasBoost,
     };
   }
 
@@ -385,10 +392,12 @@ class RtpEngine {
   async getBiasFor(userId: string): Promise<number> {
     // Check user-specific config first
     const userCfg = await this.getUserConfig(userId);
+    const globalCfg = await this.getConfig();
     if (userCfg.mode !== 'off' && userCfg.intensity > 0) {
       const status = await this.getUserStatus(userId);
       if (!status.released) {
-        const rawUser = status.signal * userCfg.intensity * MAX_BIAS;
+        const boost = userCfg.mode === 'earn' ? (globalCfg.earnBiasBoost ?? 1) : 1;
+        const rawUser = status.signal * userCfg.intensity * MAX_BIAS * boost;
         const load = await this.peekLoad(userId);
         const damp = load > LOAD_DAMP_THRESHOLD ? LOAD_DAMP_THRESHOLD / load : 1;
         return clamp(rawUser * damp, -MAX_BIAS, MAX_BIAS);
@@ -396,13 +405,14 @@ class RtpEngine {
     }
 
     // Fallback to global controller
-    const cfg = await this.getConfig();
+    const cfg = globalCfg;
     if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
 
     const status = await this.getStatus();
     if (status.released) return 0;
 
-    const raw = status.signal * cfg.intensity * MAX_BIAS;
+    const boost = cfg.mode === 'earn' ? (cfg.earnBiasBoost ?? 1) : 1;
+    const raw = status.signal * cfg.intensity * MAX_BIAS * boost;
     const load = await this.peekLoad(userId);
     const damp = load > LOAD_DAMP_THRESHOLD ? LOAD_DAMP_THRESHOLD / load : 1;
     return clamp(raw * damp, -MAX_BIAS, MAX_BIAS);
@@ -419,8 +429,9 @@ class RtpEngine {
     if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
     const status = await this.getStatus();
     if (status.released) return 0;
+    const boost = cfg.mode === 'earn' ? (cfg.earnBiasBoost ?? 1) : 1;
     return clamp(
-      status.signal * cfg.intensity * MAX_BIAS,
+      status.signal * cfg.intensity * MAX_BIAS * boost,
       -MAX_BIAS,
       MAX_BIAS
     );

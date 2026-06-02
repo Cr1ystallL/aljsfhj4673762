@@ -1944,6 +1944,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    *   - windowMs: window duration in milliseconds
    *   - intensity: 0..1 — strength of the bias (0 = controller does
    *                nothing even when on, 1 = fully aggressive)
+   *   - earnBiasBoost: optional >0 multiplier to make earn tilt stronger
    *   - reset: if true, wipe the current window and start fresh.
    *   - reason: required (>=3 chars) for audit trail.
    */
@@ -1954,6 +1955,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       target?: number;
       windowMs?: number;
       intensity?: number;
+      earnBiasBoost?: number;
       reset?: boolean;
     };
   }>(
@@ -1972,6 +1974,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             target: request.body.target,
             windowMs: request.body.windowMs,
             intensity: request.body.intensity,
+            earnBiasBoost: request.body.earnBiasBoost,
           },
           { reset: !!request.body.reset }
         );

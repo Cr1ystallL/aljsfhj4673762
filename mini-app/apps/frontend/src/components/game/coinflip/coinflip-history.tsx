@@ -109,20 +109,29 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
                 </div>
               </div>
 
-              <span
-                className={cn(
-                  'font-roobert text-[11px] tabular-nums px-2 py-0.5 rounded-pill border',
-                  row.multiplier >= 10
+              {(() => {
+                const effectiveMult = row.betAmount > 0
+                  ? row.payout / row.betAmount
+                  : row.multiplier;
+                const tint =
+                  effectiveMult >= 10
                     ? 'border-[rgba(165,45,37,0.45)] text-frost-white bg-[rgba(165,45,37,0.18)]'
-                    : row.multiplier >= 2
+                    : effectiveMult >= 2
                     ? 'border-[rgba(255,172,46,0.4)] text-frost-white bg-[rgba(255,172,46,0.14)]'
-                    : row.multiplier >= 1
+                    : effectiveMult >= 1
                     ? 'border-white/15 text-frost-white/85 bg-white/[0.05]'
-                    : 'border-[rgba(165,45,37,0.35)] text-[#ff8a76]/85 bg-[rgba(165,45,37,0.10)]'
-                )}
-              >
-                x{row.multiplier.toFixed(2)}
-              </span>
+                    : 'border-[rgba(165,45,37,0.35)] text-[#ff8a76]/85 bg-[rgba(165,45,37,0.10)]';
+                return (
+                  <span
+                    className={cn(
+                      'font-roobert text-[11px] tabular-nums px-2 py-0.5 rounded-pill border',
+                      tint
+                    )}
+                  >
+                    x{effectiveMult.toFixed(2)}
+                  </span>
+                );
+              })()}
 
               <span
                 className={cn(
