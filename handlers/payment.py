@@ -263,9 +263,12 @@ async def process_deposit_amount(message: Message, state: FSMContext):
         
         # Проверяем минимальный депозит из состояния
         data = await state.get_data()
-        min_usdt = float(data.get('min_usdt', 3.61))
-        min_pln = float(data.get('min_pln', min_usdt * fetch_usdt_pln_rate()))
-        rate = float(data.get('rate', fetch_usdt_pln_rate()))
+        rate = float(data.get('rate') or fetch_usdt_pln_rate())
+        min_pln = float(data.get('min_pln') or await get_min_deposit_pln())
+        min_usdt = float(
+            data.get('min_usdt')
+            or max(round(min_pln / rate + 1e-8, 2), 0.01)
+        )
 
         if amount < min_usdt:
             await message.answer(
@@ -492,11 +495,7 @@ async def check_payment(callback: CallbackQuery):
     lang = db.get_user_language(user_id)
     invoice_id = int(callback.data.split(":")[1])
     
-    if invoice_id not in active_invoices:
-        await callback.answer("❌ Инвойс не найден", show_alert=True)
-        return
-    
-    invoice_data = active_invoices[invoice_id]
+    invoice_data = active_invoices.get(invoice_id)
     crypto = None
     
     try:
@@ -508,10 +507,14 @@ async def check_payment(callback: CallbackQuery):
             invoice = invoices[0]
             if invoice.status == 'paid':
                 # Оплата прошла
-                user_id = invoice_data['user_id']
-                pln_amount = invoice_data.get('amount_pln', 0)
-                amount_usdt = invoice_data.get('amount_usdt', 0)
-                rate = invoice_data.get('rate') or fetch_usdt_pln_rate()
+                user_id = invoice_data['user_id'] if invoice_data else callback.from_user.id
+                amount_usdt = (
+                    invoice_data.get('amount_usdt') if invoice_data else float(invoice.amount)
+                )
+                rate = invoice_data.get('rate') if invoice_data else fetch_usdt_pln_rate()
+                pln_amount = (
+                    invoice_data.get('amount_pln') if invoice_data else amount_usdt * rate
+                )
 
                 # Начисляем баланс
                 new_balance = db.add_balance(user_id, pln_amount)
@@ -542,9 +545,10 @@ async def check_payment(callback: CallbackQuery):
                     )
                 )
 
+                tx_id = None
                 try:
                     before = new_balance - pln_amount
-                    db_postgres.add_transaction(
+                    tx_id = db_postgres.add_transaction(
                         telegram_id=user_id,
                         tx_type='deposit',
                         amount=amount_usdt,
@@ -564,8 +568,24 @@ async def check_payment(callback: CallbackQuery):
                 except Exception as e:
                     logging.error(f"Failed to mirror manual deposit to Postgres: {e}")
 
+                try:
+                    db_postgres.upsert_cryptobot_invoice(
+                        telegram_id=user_id,
+                        invoice_id=invoice_id,
+                        amount_usdt=amount_usdt,
+                        amount_pln=pln_amount,
+                        rate=rate,
+                        status='paid',
+                        paid_amount=pln_amount,
+                        paid_at=datetime.utcnow(),
+                        credit_tx_id=tx_id,
+                    )
+                except Exception as e:
+                    logging.error(f"Failed to update CryptoBot invoice status (manual): {e}")
+
                 # Удаляем инвойс из активных
-                del active_invoices[invoice_id]
+                if invoice_id in active_invoices:
+                    del active_invoices[invoice_id]
                 await callback.answer("✅ Оплата подтверждена!")
             else:
                 await callback.answer(get_text(lang, 'deposit_pending'), show_alert=True)
