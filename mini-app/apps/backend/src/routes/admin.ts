@@ -2140,6 +2140,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           };
         });
 
+        const ordersById = new Map(list.map((o) => [o.id, o]));
+
         const cryptoBotList = txRows.map((t) => {
           const u = byId.get(t.user_id);
           const meta =
@@ -2148,12 +2150,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               : null;
           const amountUsdt = Number(t.amount ?? 0);
           const invoiceId = meta?.invoiceId;
-          const providerOrderId =
+          const providerOrderIdRaw =
             typeof invoiceId === 'string' || typeof invoiceId === 'number'
               ? String(invoiceId)
               : t.id;
+          const providerOrderId = providerOrderIdRaw.startsWith('cryptobot_')
+            ? providerOrderIdRaw
+            : `cryptobot_${providerOrderIdRaw}`;
           const currency =
             typeof meta?.currency === 'string' ? meta.currency : 'USDT';
+          const amountPln = Number(meta?.amountLocal ?? 0);
+          const fxRate = Number(meta?.fxRate ?? 0);
+          const linked = ordersById.get(providerOrderId);
 
           return {
             id: t.id,
@@ -2161,24 +2169,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             externalId: providerOrderId,
             userId: t.user_id,
             name:
+              linked?.name ||
               u?.firstName ||
               u?.username ||
               (u?.telegramId
                 ? `id${u.telegramId.toString().slice(-4)}`
                 : 'Игрок'),
-            telegramId: u?.telegramId ? Number(u.telegramId) : null,
-            photoUrl: u?.photoUrl ?? null,
-            amount: amountUsdt,
-            uniqueAmount: 0,
-            currency,
+            telegramId: linked?.telegramId ?? (u?.telegramId ? Number(u.telegramId) : null),
+            photoUrl: linked?.photoUrl ?? u?.photoUrl ?? null,
+            amount: linked?.currency === 'PLN' && amountPln > 0 ? amountPln : amountUsdt,
+            uniqueAmount: linked?.uniqueAmount ?? 0,
+            currency: linked?.currency ?? currency,
             type: 'cryptobot',
             status: 'paid' as const,
-            card: null,
-            recipient: null,
-            details: null,
-            expiresAt: null,
-            paidAt: t.created_at.getTime(),
-            createdAt: t.created_at.getTime(),
+            card: linked?.card ?? null,
+            recipient: linked?.recipient ?? null,
+            details: linked?.details ?? null,
+            expiresAt: linked?.expiresAt ?? null,
+            paidAt: linked?.paidAt ?? t.created_at.getTime(),
+            createdAt: linked?.createdAt ?? t.created_at.getTime(),
+            meta: {
+              fxRate,
+              amountUsdt,
+              amountPln,
+            },
           };
         });
 

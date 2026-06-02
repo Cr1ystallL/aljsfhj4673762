@@ -2,6 +2,7 @@
 PostgreSQL адаптер для Python бота
 Использует ту же базу данных что и Mini-app backend
 """
+import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Dict, List, Tuple, Optional
@@ -61,6 +62,7 @@ class DatabasePostgres:
         )
         conn.commit()
         conn.close()
+        return user_uuid
 
     def add_withdrawal(
         self,
@@ -271,14 +273,14 @@ class DatabasePostgres:
         balance_after: float,
         game_type: Optional[str] = None,
         metadata: Optional[dict] = None,
-    ) -> None:
+    ) -> Optional[str]:
         """Записать транзакцию в общую таблицу transactions."""
         conn = self._get_connection()
         cursor = conn.cursor()
         user_uuid = self._ensure_user_uuid(telegram_id)
         if not user_uuid:
             conn.close()
-            return
+            return None
         cursor.execute(
             '''
             INSERT INTO transactions (
@@ -287,6 +289,7 @@ class DatabasePostgres:
             ) VALUES (
               gen_random_uuid(), %s, %s, %s, %s, %s, %s, NOW(), %s
             )
+            RETURNING id
             ''',
             (
                 user_uuid,
@@ -296,6 +299,81 @@ class DatabasePostgres:
                 round(balance_after, 2),
                 game_type,
                 psycopg2.extras.Json(metadata or {}),
+            ),
+        )
+        tx_id_row = cursor.fetchone()
+        conn.commit()
+        conn.close()
+        return str(tx_id_row[0]) if tx_id_row and tx_id_row[0] is not None else None
+
+    def upsert_cryptobot_invoice(
+        self,
+        telegram_id: int,
+        invoice_id: int,
+        amount_usdt: float,
+        amount_pln: float,
+        rate: float,
+        status: str,
+        expires_at: Optional[datetime] = None,
+        paid_amount: Optional[float] = None,
+        paid_at: Optional[datetime] = None,
+        credit_tx_id: Optional[str] = None,
+    ) -> None:
+        """Сохранить или обновить заявку CryptoBot в macvpay_orders."""
+        user_uuid = self._ensure_user_uuid(telegram_id)
+        if not user_uuid:
+            return
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        order_id = f"cryptobot_{invoice_id}"
+        expires = expires_at or datetime.utcnow() + timedelta(minutes=30)
+        details_payload = json.dumps(
+            {
+                'source': 'cryptobot',
+                'rate': round(rate, 6),
+                'amountPln': round(amount_pln, 2),
+                'amountUsdt': round(amount_usdt, 2),
+                'localCurrency': 'PLN',
+            }
+        )
+
+        cursor.execute(
+            '''
+            INSERT INTO macvpay_orders (
+              id, user_id, external_id, requested_amount, unique_amount,
+              currency, payment_type, status, details, expires_at,
+              paid_amount, paid_at, credit_tx_id, created_at, updated_at
+            ) VALUES (
+              %s, %s, %s, %s, %s,
+              %s, 'cryptobot', %s, %s, %s,
+              %s, %s, %s, NOW(), NOW()
+            )
+            ON CONFLICT (id) DO UPDATE SET
+              requested_amount = EXCLUDED.requested_amount,
+              unique_amount = EXCLUDED.unique_amount,
+              currency = EXCLUDED.currency,
+              status = EXCLUDED.status,
+              details = COALESCE(EXCLUDED.details, macvpay_orders.details),
+              expires_at = EXCLUDED.expires_at,
+              paid_amount = COALESCE(EXCLUDED.paid_amount, macvpay_orders.paid_amount),
+              paid_at = COALESCE(EXCLUDED.paid_at, macvpay_orders.paid_at),
+              credit_tx_id = COALESCE(EXCLUDED.credit_tx_id, macvpay_orders.credit_tx_id),
+              updated_at = NOW()
+            ''',
+            (
+                order_id,
+                user_uuid,
+                order_id,
+                round(amount_usdt, 2),
+                round(amount_pln, 2),
+                'USDT',
+                status,
+                details_payload,
+                expires,
+                None if paid_amount is None else round(paid_amount, 2),
+                paid_at,
+                credit_tx_id,
             ),
         )
         conn.commit()

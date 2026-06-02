@@ -8,12 +8,79 @@ from aiogram.fsm.state import State, StatesGroup
 import asyncio
 import logging
 import json
+import time
 import urllib.request
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+
+import redis.asyncio as redis_asyncio
 from aiocryptopay import AioCryptoPay, Networks
 from config import config
 from database.db import db
 from database.db_postgres import db_postgres
 from locales.translations import get_text, format_amount
+
+_wallet_config_cache: Dict[str, Any] = {'value': None, 'expires': 0.0}
+_wallet_cache_lock = asyncio.Lock()
+_redis_client: Optional[redis_asyncio.Redis] = None
+
+
+async def get_redis_client() -> Optional[redis_asyncio.Redis]:
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    try:
+        _redis_client = redis_asyncio.from_url(
+            config.REDIS_URL,
+            encoding='utf-8',
+            decode_responses=True,
+        )
+    except Exception as e:
+        logging.error(f"Failed to init Redis client: {e}")
+        _redis_client = None
+    return _redis_client
+
+
+async def get_min_deposit_pln() -> float:
+    now = time.time()
+    cached = _wallet_config_cache.get('value')
+    expires = _wallet_config_cache.get('expires', 0.0)
+    if cached is not None and expires > now:
+        try:
+            return float(cached)
+        except (TypeError, ValueError):
+            pass
+
+    async with _wallet_cache_lock:
+        cached = _wallet_config_cache.get('value')
+        expires = _wallet_config_cache.get('expires', 0.0)
+        if cached is not None and expires > time.time():
+            try:
+                return float(cached)
+            except (TypeError, ValueError):
+                pass
+
+        min_deposit = 10.0
+        client = await get_redis_client()
+        if client is not None:
+            try:
+                raw = await client.get('wallet_config')
+                if raw:
+                    data = json.loads(raw)
+                    value = data.get('minDeposit')
+                    if isinstance(value, (int, float)):
+                        min_deposit = float(value)
+                    elif isinstance(value, str):
+                        parsed = float(value.replace(',', '.'))
+                        if parsed > 0:
+                            min_deposit = parsed
+            except Exception as e:
+                logging.error(f"Failed to fetch wallet config: {e}")
+
+        _wallet_config_cache['value'] = min_deposit
+        _wallet_config_cache['expires'] = time.time() + 30
+        return min_deposit
+
 
 async def lock_withdrawal(user_id: int, withdrawal_id: int, amount_usdt: float, amount_rub: float, bot):
     await asyncio.sleep(300) # 5 минут холд
@@ -69,8 +136,6 @@ class DepositStates(StatesGroup):
 class WithdrawalStates(StatesGroup):
     waiting_for_amount = State()
     waiting_for_check = State()
-
-from typing import Dict, Any
 
 # Хранилище активных инвойсов и заявок на вывод
 active_invoices: Dict[int, Dict[str, Any]] = {}
@@ -166,9 +231,23 @@ async def deposit_cryptobot(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
     
-    text = get_text(lang, 'deposit_enter_amount')
+    rate = fetch_usdt_pln_rate()
+    min_pln = await get_min_deposit_pln()
+    min_usdt = max(round(min_pln / rate + 1e-8, 2), 0.01)
+
+    text = get_text(
+        lang,
+        'deposit_enter_amount',
+        min_amount=f"{min_usdt:.2f}",
+        min_pln=f"{min_pln:.2f}",
+    )
     msg = await callback.message.edit_text(text)
-    await state.update_data(prompt_message_id=msg.message_id)
+    await state.update_data(
+        prompt_message_id=msg.message_id,
+        min_usdt=min_usdt,
+        min_pln=min_pln,
+        rate=rate,
+    )
     await state.set_state(DepositStates.waiting_for_amount)
     await callback.answer()
 
@@ -182,9 +261,21 @@ async def process_deposit_amount(message: Message, state: FSMContext):
     try:
         amount = float(message.text)
         
-        # Минимум 3.61 USDT (примерно 300 рублей)
-        if amount < 3.61:
-            await message.answer(get_text(lang, 'deposit_min_amount'))
+        # Проверяем минимальный депозит из состояния
+        data = await state.get_data()
+        min_usdt = float(data.get('min_usdt', 3.61))
+        min_pln = float(data.get('min_pln', min_usdt * fetch_usdt_pln_rate()))
+        rate = float(data.get('rate', fetch_usdt_pln_rate()))
+
+        if amount < min_usdt:
+            await message.answer(
+                get_text(
+                    lang,
+                    'deposit_min_amount',
+                    min_amount=f"{min_usdt:.2f}",
+                    min_pln=f"{min_pln:.2f}",
+                )
+            )
             return
         
         # Получаем ID сообщения с запросом суммы
@@ -207,8 +298,8 @@ async def process_deposit_amount(message: Message, state: FSMContext):
         # Отправляем эмодзи часов
         clock_msg = await message.answer(get_text(lang, 'deposit_creating'))
         
-        # Получаем курс USDT→PLN (USDT ~ USD паритет)
-        rate = fetch_usdt_pln_rate()
+        # Используем курс из состояния или общий, чтобы совпадала конвертация
+        rate = float(data.get('rate', fetch_usdt_pln_rate()))
 
         # Создаем инвойс через CryptoPay
         if not config.CRYPTOPAY_TOKEN:
@@ -237,11 +328,32 @@ async def process_deposit_amount(message: Message, state: FSMContext):
                 'amount_usdt': amount,
                 'amount_pln': pln_amount,
                 'rate': rate,
-                'invoice': invoice
+                'min_usdt': min_usdt,
+                'min_pln': min_pln,
+                'created_at': datetime.utcnow(),
+                'invoice': invoice,
             }
-            
-            # Формируем сообщение (USDT без локальной валюты)
-            text = get_text(lang, 'deposit_invoice', amount=f"{amount:.2f}")
+
+            try:
+                db_postgres.upsert_cryptobot_invoice(
+                    telegram_id=message.from_user.id,
+                    invoice_id=invoice.invoice_id,
+                    amount_usdt=amount,
+                    amount_pln=pln_amount,
+                    rate=rate,
+                    status='pending',
+                    expires_at=datetime.utcnow() + timedelta(minutes=30),
+                )
+            except Exception as e:
+                logging.error(f"Failed to upsert pending CryptoBot invoice: {e}")
+
+            # Формируем сообщение с обоими номиналами
+            text = get_text(
+                lang,
+                'deposit_invoice',
+                amount_usdt=f"{amount:.2f}",
+                amount_pln=f"{pln_amount:.2f}",
+            )
             
             await clock_msg.edit_text(
                 text,
@@ -299,9 +411,10 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                     # Начисляем баланс (ботовая SQLite) + синхроним в Postgres
                     new_balance = db.add_balance(user_id, pln_amount)
                     db.add_deposit_amount_to_lose(user_id, pln_amount)
+                    tx_id = None
                     try:
                         before = new_balance - pln_amount
-                        db_postgres.add_transaction(
+                        tx_id = db_postgres.add_transaction(
                             telegram_id=user_id,
                             tx_type='deposit',
                             amount=amount_usdt,
@@ -312,13 +425,28 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                                 'provider': 'cryptobot',
                                 'source': 'bot',
                                 'currency': 'USDT',
-                                'amountLocal': pln_amount,
+                                'amountLocal': round(pln_amount, 2),
                                 'fxRate': rate,
                                 'invoiceId': invoice.invoice_id,
                             },
                         )
                     except Exception as e:
                         logging.error(f"Failed to mirror deposit to Postgres: {e}")
+
+                    try:
+                        db_postgres.upsert_cryptobot_invoice(
+                            telegram_id=user_id,
+                            invoice_id=invoice.invoice_id,
+                            amount_usdt=amount_usdt,
+                            amount_pln=pln_amount,
+                            rate=rate,
+                            status='paid',
+                            paid_amount=pln_amount,
+                            paid_at=datetime.utcnow(),
+                            credit_tx_id=tx_id,
+                        )
+                    except Exception as e:
+                        logging.error(f"Failed to update CryptoBot invoice status: {e}")
                     
                     # Проверяем бонус на депозит
                     if db.get_dep_bonus_state(user_id) == 1:
@@ -332,13 +460,16 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
                         except:
                             pass
                     
-                    balance_usdt = new_balance / rate if rate else amount_usdt
+                    balance_pln = new_balance
+                    balance_usdt = balance_pln / rate if rate else amount_usdt
                     await message.edit_text(
                         get_text(
                             lang,
                             'deposit_success',
-                            amount=f"{amount_usdt:.2f}",
-                            balance=f"{balance_usdt:.2f}",
+                            amount_usdt=f"{amount_usdt:.2f}",
+                            amount_pln=f"{pln_amount:.2f}",
+                            balance_usdt=f"{balance_usdt:.2f}",
+                            balance_pln=f"{balance_pln:.2f}",
                         )
                     )
                     
@@ -398,13 +529,16 @@ async def check_payment(callback: CallbackQuery):
                     except:
                         pass
                 
-                balance_usdt = new_balance / rate if rate else amount_usdt
+                balance_pln = new_balance
+                balance_usdt = balance_pln / rate if rate else amount_usdt
                 await callback.message.edit_text(
                     get_text(
                         lang,
                         'deposit_success',
-                        amount=f"{amount_usdt:.2f}",
-                        balance=f"{balance_usdt:.2f}",
+                        amount_usdt=f"{amount_usdt:.2f}",
+                        amount_pln=f"{pln_amount:.2f}",
+                        balance_usdt=f"{balance_usdt:.2f}",
+                        balance_pln=f"{balance_pln:.2f}",
                     )
                 )
 
@@ -421,7 +555,7 @@ async def check_payment(callback: CallbackQuery):
                             'provider': 'cryptobot',
                             'source': 'bot',
                             'currency': 'USDT',
-                            'amountLocal': pln_amount,
+                            'amountLocal': round(pln_amount, 2),
                             'fxRate': rate,
                             'invoiceId': invoice_id,
                             'manualCheck': True,
@@ -454,7 +588,18 @@ async def cancel_payment(callback: CallbackQuery, state: FSMContext):
     invoice_id = int(callback.data.split(":")[1])
     
     if invoice_id in active_invoices:
-        del active_invoices[invoice_id]
+        info = active_invoices.pop(invoice_id)
+        try:
+            db_postgres.upsert_cryptobot_invoice(
+                telegram_id=user_id,
+                invoice_id=invoice_id,
+                amount_usdt=info.get('amount_usdt', 0.0),
+                amount_pln=info.get('amount_pln', 0.0),
+                rate=info.get('rate', fetch_usdt_pln_rate()),
+                status='cancelled',
+            )
+        except Exception as e:
+            logging.error(f"Failed to mark CryptoBot invoice cancelled: {e}")
     
     await callback.message.edit_text(get_text(lang, 'deposit_cancelled'))
     await state.clear()
