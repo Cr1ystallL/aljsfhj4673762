@@ -611,45 +611,40 @@ function Wheel({
     });
     ro.observe(canvas);
 
-    if (snap.phase === 'spinning' && snap.spinStartedAt && snap.segmentIndex != null) {
-      const seg = snap.segmentIndex;
+    const shouldSpin =
+      (snap.phase === 'spinning' || snap.phase === 'completed') &&
+      snap.segmentIndex != null;
+    if (shouldSpin) {
+      // Some environments were returning `spinStartedAt` as null, which
+      // made the wheel skip the spin and jump to the result. Synthesize
+      // a start time + lock so the animation always runs when we have a
+      // segment index.
+      const seg = snap.segmentIndex!;
       const segmentSpan = (2 * Math.PI) / layout.length;
-      // Build the spin lock once per spin. If the lock is already set
-      // for this spinStartedAt, keep it (re-renders shouldn't recompute
-      // overshoot — that would change where the pointer lands).
+      const startedAt = snap.spinStartedAt ?? Date.now();
+      const durationMs = snap.spinDurationMs || 12000;
       const same =
         spinLockRef.current &&
-        spinLockRef.current.startedAt === snap.spinStartedAt &&
+        spinLockRef.current.startedAt === startedAt &&
         spinLockRef.current.seg === seg;
       if (!same) {
-        // Random landing offset within the wedge — clamped to ±35% of
-        // the wedge span so the pointer never crosses into a neighbour.
-        const u = (Math.sin(snap.spinStartedAt) * 9301 + 49297) % 233280;
+        const u = (Math.sin(startedAt) * 9301 + 49297) % 233280;
         const r = (u / 233280) * 2 - 1; // -1..1
         const overshoot = r * segmentSpan * 0.35;
-        // Number of full revolutions scales with the spin duration so
-        // an 8s spin and a 15s spin both feel like the wheel is moving
-        // throughout — roughly one revolution per 1.4s.
-        const revs = Math.max(5, Math.round(snap.spinDurationMs / 1400));
-        // Total target rotation: full revs + center on seg + overshoot.
+        const revs = Math.max(5, Math.round(durationMs / 1400));
         const target =
           revs * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
         settleStartRotationRef.current = rotationRef.current;
         spinLockRef.current = {
-          startedAt: snap.spinStartedAt,
-          durationMs: snap.spinDurationMs,
+          startedAt,
+          durationMs,
           target,
           overshoot,
           seg,
         };
         targetRotationRef.current = target;
       }
-    } else if (
-      snap.phase === 'completed' &&
-      snap.segmentIndex != null &&
-      spinLockRef.current
-    ) {
-      // Park exactly where the lock said we'd land.
+    } else if (snap.phase === 'completed' && spinLockRef.current) {
       rotationRef.current = spinLockRef.current.target;
       targetRotationRef.current = spinLockRef.current.target;
     } else if (snap.phase === 'waiting') {
