@@ -16,6 +16,7 @@ import {
   Settings as SettingsIcon,
   Wallet as WalletIcon,
   Repeat,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -866,6 +867,7 @@ function ContestCreateModal({
   const [startsAt, setStartsAt] = useState(() => isoLocalNow());
   // Длительность конкурса в днях. По умолчанию неделя.
   const [durationDays, setDurationDays] = useState<number>(7);
+  const [winnerWager, setWinnerWager] = useState<number>(0);
   // Требования к депозитам — упрощённый вид правила deposit_window.
   // Чтобы пользователь не возился с JSON-конструктором правил, тут
   // три поля + переключатель «требовать минимальный депозит».
@@ -953,6 +955,7 @@ function ContestCreateModal({
           prizePool: Number(prizePool),
           winnersCount: Number(winnersCount),
           prizeShares,
+          winnerWager,
           rules: builtRules,
           // autoPayout складываем в meta-поле описания, бэк его сейчас
           // не различает, но мы оставим маркер в описании, чтобы оператор
@@ -1005,6 +1008,15 @@ function ContestCreateModal({
               placeholder="https://example.com/banner.jpg"
               className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
             />
+            {bannerUrl.trim() && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={bannerUrl.trim()}
+                alt="Preview"
+                className="mt-2 w-full h-32 object-cover rounded-card border border-white/10"
+                referrerPolicy="no-referrer"
+              />
+            )}
           </Field>
           <Field label="Видимость" colSpan={2}>
             <select
@@ -1061,6 +1073,9 @@ function ContestCreateModal({
               : 'Можно задать разные суммы по местам'
           }
         />
+        <div className="mt-3">
+          <WagerPicker value={winnerWager} onChange={setWinnerWager} />
+        </div>
         {!splitEqual && (
           <Field label="Призы по местам (через запятую)" colSpan={2}>
             <input
@@ -1198,7 +1213,7 @@ function ContestCreateModal({
           onClick={onClose}
           className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
         >
-          Вернуться к результатам
+          Отмена
         </button>
         <button
           onClick={submit}
@@ -1573,6 +1588,7 @@ function ContestEditModal({
   const [visibility, setVisibility] = useState<'public' | 'private' | 'global'>('public');
   const [prizePool, setPrizePool] = useState(0);
   const [winnersCount, setWinnersCount] = useState(1);
+  const [winnerWager, setWinnerWager] = useState(0);
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [reason, setReason] = useState('');
@@ -1595,6 +1611,7 @@ function ContestEditModal({
       setVisibility(c.visibility ?? 'public');
       setPrizePool(c.prizePool);
       setWinnersCount(c.winnersCount);
+      setWinnerWager(c.winnerWager ?? 0);
       setStartsAt(toLocalIso(c.startsAt));
       setEndsAt(toLocalIso(c.endsAt));
       setLoaded(true);
@@ -1620,6 +1637,7 @@ function ContestEditModal({
           visibility,
           prizePool: Number(prizePool),
           winnersCount: Number(winnersCount),
+          winnerWager,
           startsAt: new Date(startsAt).getTime(),
           endsAt: new Date(endsAt).getTime(),
           reason: reason.trim(),
@@ -1665,6 +1683,15 @@ function ContestEditModal({
                 placeholder="https://example.com/banner.jpg"
                 className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
               />
+              {bannerUrl.trim() && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={bannerUrl.trim()}
+                  alt="Preview"
+                  className="mt-2 w-full h-32 object-cover rounded-card border border-white/10"
+                  referrerPolicy="no-referrer"
+                />
+              )}
             </Field>
             <Field label="Видимость">
               <select
@@ -1684,6 +1711,9 @@ function ContestEditModal({
             </Field>
             <Field label="Победителей">
               <NumInput value={winnersCount} step={1} min={1} onChange={setWinnersCount} />
+            </Field>
+            <Field label="Вейджер победителей (x)" colSpan={2}>
+              <WagerPicker value={winnerWager} onChange={setWinnerWager} />
             </Field>
             <Field label="Старт">
               <input
@@ -1754,6 +1784,9 @@ function ContestDetailModal({
       endsAt: number;
       state: string;
       resolvedWinners: unknown;
+      draftWinners?: unknown;
+      winnerWager?: number;
+      bannerUrl?: string | null;
     };
     participants: Array<{
       id: string;
@@ -1852,8 +1885,23 @@ function ContestDetailModal({
       }>)
     : null;
 
+  const preview = winners
+    ? null
+    : draftWinners.length > 0
+      ? draftWinners
+      : null;
+
   return (
     <Modal onClose={onClose} title={data.contest.title} wide>
+      {data.contest.bannerUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={data.contest.bannerUrl}
+          alt="banner"
+          className="w-full h-32 object-cover rounded-card border border-white/10"
+          referrerPolicy="no-referrer"
+        />
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Пул" value={`${data.contest.prizePool.toFixed(0)} zł`} />
         <Stat label="Победителей" value={String(data.contest.winnersCount)} />
@@ -1866,6 +1914,10 @@ function ContestDetailModal({
           value={
             <StateBadge state={data.contest.state} />
           }
+        />
+        <Stat
+          label="Вейджер победителей"
+          value={data.contest.winnerWager ? `x${data.contest.winnerWager}` : 'Без отыгрыша'}
         />
       </div>
 
@@ -1937,6 +1989,84 @@ function ContestDetailModal({
             );
           })}
         </div>
+      ) : preview ? (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          {preview.map((w, i) => {
+            const u = data.participants.find((p) => p.userId === w.userId);
+            return (
+              <div
+                key={w.place}
+                className={cn(
+                  'grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-4 py-2',
+                  i > 0 && 'border-t border-white/5'
+                )}
+              >
+                <span className="font-roobert text-[12px] tabular-nums text-whisper-gray w-6">#{w.place}</span>
+                <div className="font-roobert text-[12px] text-frost-white truncate">
+                  {u?.name ?? `id${w.userId.slice(0, 6)}`}
+                </div>
+                <div className="font-roobert text-[12px] text-whisper-gray">предпросмотр</div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => replaceWinner(w.place)}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-frost-white/85 disabled:opacity-50"
+                  >
+                    <Shuffle size={10} strokeWidth={1.8} />
+                    Заменить
+                  </button>
+                  <button
+                    onClick={() => removeDraftWinner(w.userId)}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-[#ff8a76] disabled:opacity-50"
+                  >
+                    <Trash2 size={10} strokeWidth={1.8} />
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : preview ? (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          {preview.map((w, i) => {
+            const u = data.participants.find((p) => p.userId === w.userId);
+            return (
+              <div
+                key={w.place}
+                className={cn(
+                  'grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-4 py-2',
+                  i > 0 && 'border-t border-white/5'
+                )}
+              >
+                <span className="font-roobert text-[12px] tabular-nums text-whisper-gray w-6">#{w.place}</span>
+                <div className="font-roobert text-[12px] text-frost-white truncate">
+                  {u?.name ?? `id${w.userId.slice(0, 6)}`}
+                </div>
+                <div className="font-roobert text-[12px] text-whisper-gray">предпросмотр</div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => replaceWinner(w.place)}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-frost-white/85 disabled:opacity-50"
+                  >
+                    <Shuffle size={10} strokeWidth={1.8} />
+                    Заменить
+                  </button>
+                  <button
+                    onClick={() => removeDraftWinner(w.userId)}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-[#ff8a76] disabled:opacity-50"
+                  >
+                    <Trash2 size={10} strokeWidth={1.8} />
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <Empty text="Розыгрыш ещё не проведён" />
       )}
@@ -1981,19 +2111,35 @@ function ContestDetailModal({
               >
                 {p.name}
               </div>
-              <button
-                onClick={() => banUser(p.userId, !p.banned)}
-                disabled={busy}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 rounded-pill border font-roobert text-[10px] uppercase tracking-[0.16em] disabled:opacity-50',
-                  p.banned
-                    ? 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-frost-white'
-                    : 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-frost-white'
-                )}
-              >
-                {p.banned ? <CheckCircle size={10} strokeWidth={1.8} /> : <Ban size={10} strokeWidth={1.8} />}
-                {p.banned ? 'Восст.' : 'Дискв.'}
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => addDraftWinner(p.userId)}
+                  disabled={busy || p.banned}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-frost-white/85 disabled:opacity-50"
+                >
+                  Сделать победителем
+                </button>
+                <button
+                  onClick={() => banUser(p.userId, !p.banned)}
+                  disabled={busy}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded-pill border font-roobert text-[10px] uppercase tracking-[0.16em] disabled:opacity-50',
+                    p.banned
+                      ? 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-frost-white'
+                      : 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-frost-white'
+                  )}
+                >
+                  {p.banned ? <CheckCircle size={10} strokeWidth={1.8} /> : <Ban size={10} strokeWidth={1.8} />}
+                  {p.banned ? 'Восст.' : 'Дискв.'}
+                </button>
+                <button
+                  onClick={() => kickParticipant(p.userId)}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-[#ff8a76] disabled:opacity-50"
+                >
+                  Удалить
+                </button>
+              </div>
             </div>
           ))
         )}

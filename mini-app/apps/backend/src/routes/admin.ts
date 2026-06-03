@@ -397,6 +397,192 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /**
+   * POST /api/_x/bonuses/contests/:id/draft-winners
+   * Body: { winners: [{ userId, place }], reason }
+   * Sets the preview winners list (pre-draw). Duplicates and banned
+   * users are filtered; list is clamped to winners_count.
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { winners?: Array<{ userId?: string; place?: number }>; reason?: string };
+  }>(
+    '/_x/bonuses/contests/:id/draft-winners',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const { id } = request.params;
+      const winnersBody = Array.isArray(request.body?.winners) ? request.body.winners : [];
+
+      try {
+        const draft = await app.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<
+            Array<{ winners_count: number; visibility: string; rules: unknown; starts_at: Date }>
+          >`SELECT winners_count, visibility, rules, starts_at FROM contests WHERE id = ${id} LIMIT 1 FOR UPDATE`;
+          const c = rows[0];
+          if (!c) throw new Error('Contest not found');
+
+          let pool: string[] = [];
+          if (c.visibility === 'global') {
+            const eligible = await collectGlobalContestParticipants(app, id, c.rules, c.starts_at);
+            pool = eligible.filter((e) => !e.banned).map((e) => e.user_id);
+          } else {
+            const eligible = await tx.$queryRaw<Array<{ user_id: string }>>`
+              SELECT user_id FROM contest_participants
+               WHERE contest_id = ${id} AND banned = FALSE`;
+            pool = eligible.map((e) => e.user_id);
+          }
+          if (pool.length === 0) throw new Error('No eligible participants');
+
+          const cleaned = winnersBody
+            .map((w, i) => ({
+              userId: typeof w?.userId === 'string' ? w.userId : '',
+              place: Number.isFinite(w?.place) && (w?.place ?? 0) > 0 ? Number(w?.place) : i + 1,
+            }))
+            .filter((w) => w.userId && pool.includes(w.userId));
+
+          const unique: string[] = [];
+          for (const w of cleaned.sort((a, b) => a.place - b.place)) {
+            if (unique.includes(w.userId)) continue;
+            if (unique.length >= c.winners_count) break;
+            unique.push(w.userId);
+          }
+
+          const normalized = unique.map((uid, idx) => ({ userId: uid, place: idx + 1 }));
+
+          await tx.$executeRaw`
+            UPDATE contests
+               SET draft_winners = ${JSON.stringify(normalized)}::jsonb,
+                   updated_at = NOW()
+             WHERE id = ${id}`;
+          return normalized;
+        });
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'contest.draft_winners.set',
+          targetType: 'contest',
+          targetId: id,
+          payloadAfter: { draftWinners: draft },
+          reason,
+        });
+
+        return reply.send({ ok: true, draftWinners: draft });
+      } catch (err) {
+        const msg = (err as Error).message ?? 'Bad Request';
+        logger.error({ err }, 'Contest draft-winners set failed');
+        return reply.code(400).send({ error: msg });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/_x/bonuses/contests/:id/draft-winners/:userId
+   * Removes a single user from the preview winners list.
+   */
+  app.delete<{
+    Params: { id: string; userId: string };
+    Body: { reason?: string };
+  }>(
+    '/_x/bonuses/contests/:id/draft-winners/:userId',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const { id, userId } = request.params;
+      try {
+        const updated = await app.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<Array<{ draft_winners: unknown }>>`
+            SELECT draft_winners FROM contests WHERE id = ${id} LIMIT 1 FOR UPDATE`;
+          const c = rows[0];
+          if (!c) throw new Error('Contest not found');
+          const current = Array.isArray(c.draft_winners)
+            ? (c.draft_winners as Array<{ userId?: string; place?: number }> )
+            : [];
+          const filtered = current.filter((w) => (w as any).userId !== userId);
+          const normalized = filtered.map((w, idx) => ({
+            userId: String((w as any).userId),
+            place: idx + 1,
+          }));
+          await tx.$executeRaw`
+            UPDATE contests
+               SET draft_winners = ${JSON.stringify(normalized)}::jsonb,
+                   updated_at = NOW()
+             WHERE id = ${id}`;
+          return normalized;
+        });
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'contest.draft_winners.remove',
+          targetType: 'contest',
+          targetId: id,
+          payloadAfter: { userId },
+          reason,
+        });
+
+        return reply.send({ ok: true, draftWinners: updated });
+      } catch (err) {
+        const msg = (err as Error).message ?? 'Bad Request';
+        logger.error({ err }, 'Contest draft-winner remove failed');
+        return reply.code(400).send({ error: msg });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/_x/bonuses/contests/:id/participants/:userId
+   * Remove a participant entirely (admin kick).
+   */
+  app.delete<{
+    Params: { id: string; userId: string };
+    Body: { reason?: string };
+  }>(
+    '/_x/bonuses/contests/:id/participants/:userId',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      const { id, userId } = request.params;
+      try {
+        await app.prisma.$executeRaw`
+          DELETE FROM contest_participants
+           WHERE contest_id = ${id} AND user_id = ${userId}`;
+        await app.prisma.$executeRaw`
+          UPDATE contests
+             SET draft_winners = CASE
+                                   WHEN draft_winners IS NULL THEN NULL
+                                   ELSE (
+                                     SELECT jsonb_agg(elem)
+                                       FROM jsonb_array_elements(draft_winners) elem
+                                      WHERE elem->>'userId' <> ${userId}
+                                   )
+                                 END,
+                 updated_at = NOW()
+           WHERE id = ${id}`;
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'contest.participant.remove',
+          targetType: 'contest',
+          targetId: id,
+          payloadAfter: { userId },
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (err) {
+        logger.error(err, 'contest participant remove failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
   /* ------------------------------------------------ user RTP (per-user auto-RTP) */
 
   app.get<{ Params: { id: string } }>(
@@ -3047,6 +3233,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       rules?: unknown;
       startsAt?: number;
       endsAt?: number;
+      winnerWager?: number;
       reason?: string;
     };
   }>('/_x/bonuses/contests', { preHandler: adminOnly }, async (request, reply) => {
@@ -3069,6 +3256,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const winnersCount = Math.floor(Number(request.body?.winnersCount));
     const startsAt = request.body?.startsAt;
     const endsAt = request.body?.endsAt;
+    const winnerWagerRaw = Number(request.body?.winnerWager);
+    const winnerWager =
+      Number.isFinite(winnerWagerRaw) && winnerWagerRaw > 0
+        ? +winnerWagerRaw.toFixed(2)
+        : 0;
     if (
       !title ||
       !Number.isFinite(prizePool) ||
@@ -3097,11 +3289,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       await app.prisma.$executeRaw`
         INSERT INTO contests (id, title, description, visibility, banner_url, prize_pool,
-                               winners_count, prize_shares, rules,
+                               winners_count, winner_wager, prize_shares, rules,
                                starts_at, ends_at, state,
                                created_by_user_id, created_at, updated_at)
         VALUES (${id}, ${title}, ${request.body?.description ?? null},
-                ${visibility}, ${bannerUrl}, ${prizePool}::numeric, ${winnersCount},
+                ${visibility}, ${bannerUrl}, ${prizePool}::numeric, ${winnersCount}, ${winnerWager}::numeric,
                 ${JSON.stringify(prizeShares)}::jsonb,
                 ${JSON.stringify(rules)}::jsonb,
                 ${new Date(startsAt)}, ${new Date(endsAt)},
@@ -3150,11 +3342,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             ends_at: Date;
             state: string;
             resolved_winners: unknown;
+            draft_winners: unknown;
+            winner_wager: string | null;
+            banner_url: string | null;
             created_at: Date;
           }>
         >`SELECT id, title, description, visibility, prize_pool::text,
                   winners_count, prize_shares, rules, starts_at, ends_at,
-                  state, resolved_winners, created_at
+                  state, resolved_winners, draft_winners, winner_wager,
+                  banner_url,
+                  created_at
             FROM contests WHERE id = ${id} LIMIT 1`;
         const c = rows[0];
         if (!c) {
@@ -3211,6 +3408,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             endsAt: c.ends_at.getTime(),
             state: c.state,
             resolvedWinners: c.resolved_winners,
+            draftWinners: c.draft_winners,
+            winnerWager: c.winner_wager === null ? 0 : Number(c.winner_wager),
+            bannerUrl: c.banner_url,
             createdAt: c.created_at.getTime(),
           },
           participants: participants.map((p) => ({
@@ -3296,9 +3496,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               visibility: string;
               rules: unknown;
               starts_at: Date;
+              draft_winners: unknown;
+              winner_wager: unknown;
             }>
           >`SELECT id, winners_count, prize_shares, state, visibility,
-                    rules, starts_at
+                    rules, starts_at, draft_winners, winner_wager
               FROM contests WHERE id = ${id} LIMIT 1 FOR UPDATE`;
           const c = rows[0];
           if (!c) throw new Error('Contest not found');
@@ -3324,19 +3526,50 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           if (pool.length === 0) {
             throw new Error('No eligible participants');
           }
-          // Random pick winners_count without replacement.
-          const winnersCount = Math.min(c.winners_count, pool.length);
-          const picks: string[] = [];
-          const draftPool = [...pool];
-          for (let i = 0; i < winnersCount; i++) {
-            const idx = Math.floor(Math.random() * draftPool.length);
-            picks.push(draftPool.splice(idx, 1)[0]);
-          }
           const shares = Array.isArray(c.prize_shares) ? c.prize_shares : [];
-          const winners = picks.map((uid, i) => {
-            const share = (shares as Array<{ amount?: number }>)[i] ?? shares[shares.length - 1] ?? { amount: 0 };
-            return { userId: uid, place: i + 1, amount: Number(share.amount ?? 0) };
-          });
+
+          // If admin preselected draft_winners, respect them (skip banned, clamp to winners_count).
+          let winners: Array<{ userId: string; place: number; amount: number }> = [];
+          if (Array.isArray(c.draft_winners) && (c.draft_winners as any[]).length) {
+            const cleaned = (c.draft_winners as any[])
+              .map((w) => ({ userId: String((w as any).userId), place: Number((w as any).place) }))
+              .filter((w) => pool.includes(w.userId) && Number.isFinite(w.place));
+            const unique: Record<string, boolean> = {};
+            winners = cleaned
+              .sort((a, b) => a.place - b.place)
+              .slice(0, c.winners_count)
+              .filter((w) => {
+                if (unique[w.userId]) return false;
+                unique[w.userId] = true;
+                return true;
+              })
+              .map((w, i) => {
+                const share = (shares as Array<{ amount?: number }>)[i] ?? shares[shares.length - 1] ?? { amount: 0 };
+                return { ...w, place: i + 1, amount: Number(share.amount ?? 0) };
+              });
+            // Fill remaining slots randomly.
+            const remaining = Math.max(0, Math.min(c.winners_count, pool.length) - winners.length);
+            const used = new Set(winners.map((w) => w.userId));
+            const draftPool = pool.filter((p) => !used.has(p));
+            for (let i = 0; i < remaining; i++) {
+              const idx = Math.floor(Math.random() * draftPool.length);
+              const uid = draftPool.splice(idx, 1)[0];
+              const share = (shares as Array<{ amount?: number }>)[winners.length + i] ?? shares[shares.length - 1] ?? { amount: 0 };
+              winners.push({ userId: uid, place: winners.length + 1, amount: Number(share.amount ?? 0) });
+            }
+          } else {
+            const winnersCount = Math.min(c.winners_count, pool.length);
+            const picks: string[] = [];
+            const draftPool = [...pool];
+            for (let i = 0; i < winnersCount; i++) {
+              const idx = Math.floor(Math.random() * draftPool.length);
+              picks.push(draftPool.splice(idx, 1)[0]);
+            }
+            winners = picks.map((uid, i) => {
+              const share = (shares as Array<{ amount?: number }>)[i] ?? shares[shares.length - 1] ?? { amount: 0 };
+              return { userId: uid, place: i + 1, amount: Number(share.amount ?? 0) };
+            });
+          }
 
           // Credit winners.
           for (const w of winners) {
@@ -3369,6 +3602,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
           await tx.$executeRaw`
             UPDATE contests SET resolved_winners = ${JSON.stringify(winners)}::jsonb,
+                                draft_winners = NULL,
                                 state = 'paid',
                                 updated_at = NOW()
               WHERE id = ${id}`;
@@ -3422,13 +3656,71 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       try {
         const result = await app.prisma.$transaction(async (tx) => {
           const rows = await tx.$queryRaw<
-            Array<{ resolved_winners: unknown; state: string }>
-          >`SELECT resolved_winners, state FROM contests
+            Array<{
+              resolved_winners: unknown;
+              draft_winners: unknown;
+              state: string;
+              visibility: string;
+              rules: unknown;
+              starts_at: Date;
+              winners_count: number;
+              prize_shares: unknown;
+            }>
+          >`SELECT resolved_winners, draft_winners, state, visibility, rules, starts_at, winners_count, prize_shares FROM contests
              WHERE id = ${id} LIMIT 1 FOR UPDATE`;
           const c = rows[0];
-          if (!c || !Array.isArray(c.resolved_winners)) {
-            throw new Error('Contest not drawn yet');
+          if (!c) throw new Error('Contest not found');
+
+          // If contest not paid yet, operate on draft_winners only.
+          if (c.state !== 'paid' || !Array.isArray(c.resolved_winners)) {
+            let pool: string[] = [];
+            if (c.visibility === 'global') {
+              const eligible = await collectGlobalContestParticipants(app, id, c.rules, c.starts_at);
+              pool = eligible.filter((e) => !e.banned).map((e) => e.user_id);
+            } else {
+              const eligible = await tx.$queryRaw<Array<{ user_id: string }>>`
+                SELECT user_id FROM contest_participants
+                 WHERE contest_id = ${id} AND banned = FALSE`;
+              pool = eligible.map((e) => e.user_id);
+            }
+            if (pool.length === 0) throw new Error('No eligible participants');
+
+            const current = Array.isArray(c.draft_winners) ? (c.draft_winners as any[]) : [];
+            if (!current.length) throw new Error('No draft winners to replace');
+
+            const normalized = current
+              .map((w, i) => ({
+                userId: String((w as any).userId ?? ''),
+                place: Number.isFinite((w as any).place) && (w as any).place > 0 ? Number((w as any).place) : i + 1,
+              }))
+              .filter((w) => w.userId && pool.includes(w.userId))
+              .sort((a, b) => a.place - b.place)
+              .slice(0, c.winners_count);
+
+            const idx = normalized.findIndex((w) => w.place === place);
+            if (idx === -1) throw new Error('Place not found');
+            const old = normalized[idx];
+
+            const used = new Set(normalized.map((w) => w.userId));
+            used.delete(old.userId);
+            const candidates = pool.filter((uid) => !used.has(uid));
+            if (!candidates.length) throw new Error('No replacement available');
+            const newUserId = candidates[Math.floor(Math.random() * candidates.length)];
+
+            normalized[idx] = { ...old, userId: newUserId };
+            const resequenced = normalized
+              .sort((a, b) => a.place - b.place)
+              .slice(0, c.winners_count)
+              .map((w, i) => ({ userId: w.userId, place: i + 1 }));
+
+            await tx.$executeRaw`
+              UPDATE contests
+                 SET draft_winners = ${JSON.stringify(resequenced)}::jsonb,
+                     updated_at = NOW()
+               WHERE id = ${id}`;
+            return { mode: 'draft', oldUserId: old.userId, newUserId, draft: resequenced } as const;
           }
+
           const winners = c.resolved_winners as Array<{
             userId: string;
             place: number;
@@ -3509,7 +3801,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             UPDATE contests SET resolved_winners = ${JSON.stringify(winners)}::jsonb,
                                 updated_at = NOW()
               WHERE id = ${id}`;
-          return { old, newUserId };
+          return { mode: 'paid', oldUserId: old.userId, newUserId } as const;
         });
 
         await audit({
@@ -3517,8 +3809,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           action: 'contest.replace_winner',
           targetType: 'contest',
           targetId: id,
-          payloadBefore: { place, oldUserId: result.old.userId },
-          payloadAfter: { place, newUserId: result.newUserId },
+          payloadBefore: { place, oldUserId: result.oldUserId },
+          payloadAfter: { place, newUserId: result.newUserId, mode: result.mode },
           reason,
         });
         return reply.send({ ok: true, ...result });
@@ -3585,6 +3877,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       startsAt?: number;
       endsAt?: number;
       visibility?: 'public' | 'private' | 'global';
+      winnerWager?: number;
       reason?: string;
     };
   }>('/_x/bonuses/contests/:id', { preHandler: adminOnly }, async (request, reply) => {
@@ -3612,6 +3905,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     if (typeof b.endsAt === 'number')
       fragments.push(Prisma.sql`ends_at = ${new Date(b.endsAt)}`);
     if (b.visibility) fragments.push(Prisma.sql`visibility = ${b.visibility}`);
+    if (typeof b.winnerWager === 'number' && Number.isFinite(b.winnerWager))
+      fragments.push(
+        Prisma.sql`winner_wager = ${Math.max(0, +b.winnerWager.toFixed(2))}::numeric`
+      );
     if (fragments.length === 0)
       return reply.code(400).send({ error: 'Nothing to update' });
     fragments.push(Prisma.sql`updated_at = NOW()`);
