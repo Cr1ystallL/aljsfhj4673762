@@ -158,27 +158,18 @@ async def spam_control_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
 
-    # Начать рассылку
     data = await state.get_data()
-    # Если данных нет, значит состояние уже очищено
-    if "spam_text" not in data:
-        await callback.answer("Рассылка уже запущена или данные устарели.", show_alert=True)
-        return
-
     text = data.get('spam_text', '')
     photo = data.get('spam_photo')
     video = data.get('spam_video')
     animation = data.get('spam_animation')
     markup_dict = data.get('spam_markup_dict')
 
-    # Восстанавливаем разметку 
     markup = InlineKeyboardMarkup(**markup_dict) if markup_dict else None
 
-    # Очищаем состояние и обновляем кнопку на "В процессе"
     await state.clear()
     await callback.message.edit_text("⏳ <b>Рассылка запущена... Это может занять некоторое время.</b>", reply_markup=None)
 
-    # Функция отправки
     async def send_broadcast(user_id):
         try:
             if photo:
@@ -195,14 +186,17 @@ async def spam_control_callback(callback: CallbackQuery, state: FSMContext):
 
     success_count = 0
     all_users = db.get_all_users()
-    
+
     for uid_tuple in all_users:
         uid = uid_tuple[0]
         if await send_broadcast(uid):
             success_count += 1
         await asyncio.sleep(0.05)
-        
-    await callback.message.edit_text(f"✅ <b>Рассылка завершена!</b>\nУспешно отправлено: <b>{success_count}</b> пользователям.", reply_markup=None)
+
+    await callback.message.edit_text(
+        f"✅ <b>Рассылка завершена!</b>\nУспешно отправлено: <b>{success_count}</b> пользователям.",
+        reply_markup=None,
+    )
 
 
 
@@ -322,41 +316,6 @@ async def admin_callback_handler(callback: CallbackQuery, state: FSMContext):
         )
 
 
-@router.message(Command("dbdump"))
-async def dbdump_command(message: Message):
-    # Ограничиваем команду только админам (статические и динамические)
-    if not await check_is_admin(message.from_user.id):
-        await message.answer("⛔ Нет доступа")
-        return
-
-    await message.answer("⏳ Формирую дамп базы…")
-
-    dump_path = f"/tmp/dbdump_{message.from_user.id}_{int(datetime.now().timestamp())}.dump"
-    cmd = (
-        f"pg_dump --dbname={os.getenv('DATABASE_URL', '')} --format=custom --file={dump_path}"
-    )
-
-    # Выполняем pg_dump в отдельном потоке, чтобы не блокировать loop
-    proc = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await proc.communicate()
-
-    if proc.returncode != 0:
-        await message.answer(
-            "❌ Не удалось создать дамп.\n" + (stderr.decode()[:400] if stderr else "")
-        )
-        return
-
-    try:
-        file = FSInputFile(dump_path)
-        await message.answer_document(file, caption="📦 Дамп БД")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка отправки файла: {e}")
-    finally:
-        try:
-            os.remove(dump_path)
-        except Exception:
-            pass
-        
     elif action == "manage_player":
         # Запрашиваем ID игрока
         await state.set_state(AdminStates.waiting_for_player_id)
@@ -684,6 +643,40 @@ async def process_balance_change(message: Message, state: FSMContext):
     )
     
     await state.clear()
+
+
+# ------------------------------------------------------------
+# /dbdump — только для админов
+@router.message(Command("dbdump"))
+async def dbdump_command(message: Message):
+    if not await check_is_admin(message.from_user.id):
+        await message.answer("⛔ Нет доступа")
+        return
+
+    await message.answer("⏳ Формирую дамп базы…")
+
+    dump_path = f"/tmp/dbdump_{message.from_user.id}_{int(datetime.now().timestamp())}.dump"
+    cmd = f"pg_dump --dbname={os.getenv('DATABASE_URL', '')} --format=custom --file={dump_path}"
+
+    proc = await asyncio.create_subprocess_shell(
+        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    _stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        await message.answer("❌ Не удалось создать дамп.\n" + (stderr.decode()[:400] if stderr else ""))
+        return
+
+    try:
+        file = FSInputFile(dump_path)
+        await message.answer_document(file, caption="📦 Дамп БД")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка отправки файла: {e}")
+    finally:
+        try:
+            os.remove(dump_path)
+        except Exception:
+            pass
 
 
 @router.message(AdminStates.waiting_for_bonus_amount)
