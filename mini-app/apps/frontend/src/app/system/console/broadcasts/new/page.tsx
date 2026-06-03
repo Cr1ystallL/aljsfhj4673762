@@ -37,8 +37,6 @@ export default function NewBroadcastPage() {
   const [text, setText] = useState('');
   const [parseMode, setParseMode] = useState<'HTML' | 'Markdown' | 'none'>('HTML');
   const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
-  const [mediaPreviewError, setMediaPreviewError] = useState<string | null>(null);
   const [buttons, setButtons] = useState<ButtonInput[]>([]);
 
   // Audience
@@ -110,18 +108,6 @@ export default function NewBroadcastPage() {
     return () => clearTimeout(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audMode, minBalance, regAfter, regBefore, inactiveDays, specificIds]);
-
-  // Preview image availability when media URL changes.
-  useEffect(() => {
-    const url = mediaUrl.trim();
-    if (!url) {
-      setMediaPreviewUrl('');
-      setMediaPreviewError(null);
-      return;
-    }
-    setMediaPreviewUrl(url);
-    setMediaPreviewError(null);
-  }, [mediaUrl]);
 
   const submit = async () => {
     if (text.trim().length < 1) {
@@ -224,30 +210,6 @@ export default function NewBroadcastPage() {
               placeholder="https://…"
               className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
             />
-            {mediaPreviewUrl && (
-              <div className="mt-2 rounded-card border border-white/10 bg-white/[0.04] p-2 flex items-start gap-3">
-                <div className="shrink-0 w-[120px] h-[120px] rounded-[10px] overflow-hidden bg-white/[0.03] border border-white/5">
-                  <img
-                    src={mediaPreviewUrl}
-                    alt="Предпросмотр"
-                    className="w-full h-full object-cover"
-                    onLoad={() => setMediaPreviewError(null)}
-                    onError={() => setMediaPreviewError('Не удалось загрузить изображение по ссылке')}
-                  />
-                </div>
-                <div className="flex-1 text-[12px] text-whisper-gray font-roobert leading-snug">
-                  <div className="text-frost-white/80 break-all">{mediaPreviewUrl}</div>
-                  {mediaPreviewError ? (
-                    <div className="mt-1 text-rose-300 text-[11px]">{mediaPreviewError}</div>
-                  ) : (
-                    <div className="mt-1 text-emerald-300/80 text-[11px]">Картинка загружается, бот попробует отправить как фото.</div>
-                  )}
-                  <div className="mt-2 text-[11px] text-whisper-gray/80">
-                    Требования Telegram: прямой HTTPS, image/*, без авторизации, &lt; 20 МБ.
-                  </div>
-                </div>
-              </div>
-            )}
           </Field>
           <Field label="Кнопки (до 3)">
             <div className="flex flex-col gap-2">
