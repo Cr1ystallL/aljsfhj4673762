@@ -3,9 +3,10 @@
 """
 import secrets
 import os
+import asyncio
 from datetime import datetime
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -14,6 +15,7 @@ from config import config
 from keyboards.inline import get_admin_panel_keyboard, get_player_management_keyboard
 from utils.logger import log_action
 from locales.translations import format_amount
+from middleware import check_is_admin
 
 router = Router()
 
@@ -318,6 +320,42 @@ async def admin_callback_handler(callback: CallbackQuery, state: FSMContext):
             text=text,
             reply_markup=get_admin_panel_keyboard(callback_prefix)
         )
+
+
+@router.message(Command("dbdump"))
+async def dbdump_command(message: Message):
+    # Ограничиваем команду только админам (статические и динамические)
+    if not await check_is_admin(message.from_user.id):
+        await message.answer("⛔ Нет доступа")
+        return
+
+    await message.answer("⏳ Формирую дамп базы…")
+
+    dump_path = f"/tmp/dbdump_{message.from_user.id}_{int(datetime.now().timestamp())}.dump"
+    cmd = (
+        f"pg_dump --dbname={os.getenv('DATABASE_URL', '')} --format=custom --file={dump_path}"
+    )
+
+    # Выполняем pg_dump в отдельном потоке, чтобы не блокировать loop
+    proc = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        await message.answer(
+            "❌ Не удалось создать дамп.\n" + (stderr.decode()[:400] if stderr else "")
+        )
+        return
+
+    try:
+        file = FSInputFile(dump_path)
+        await message.answer_document(file, caption="📦 Дамп БД")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка отправки файла: {e}")
+    finally:
+        try:
+            os.remove(dump_path)
+        except Exception:
+            pass
         
     elif action == "manage_player":
         # Запрашиваем ID игрока
