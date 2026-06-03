@@ -274,7 +274,6 @@ function PromoRow({
       longPressRef.current.timeout = null;
     }
   };
-
   return (
     <button
       onClick={() => {
@@ -1869,6 +1868,78 @@ function ContestDetailModal({
     }
   };
 
+  const draftWinners = useMemo(
+    () =>
+      Array.isArray(data?.contest.draftWinners)
+        ? (data!.contest.draftWinners as Array<{ userId?: string; place?: number }> )
+            .map((w, i) => ({
+              userId: String(w.userId ?? ''),
+              place: Number.isFinite(w.place) && (w.place ?? 0) > 0 ? Number(w.place) : i + 1,
+            }))
+            .filter((w) => w.userId)
+            .sort((a, b) => a.place - b.place)
+        : [],
+    [data]
+  );
+
+  const addDraftWinner = async (userId: string) => {
+    const reason = prompt('Причина назначения победителя:');
+    if (!reason || reason.trim().length < 3) return;
+    const exists = draftWinners.some((w) => w.userId === userId);
+    const next = exists
+      ? draftWinners
+      : [...draftWinners, { userId, place: draftWinners.length + 1 }];
+    setBusy(true);
+    try {
+      await fetch(`/api/_x/bonuses/contests/${id}/draft-winners`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ winners: next, reason: reason.trim() }),
+      });
+      await reload();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeDraftWinner = async (userId: string) => {
+    const reason = prompt('Причина удаления победителя:');
+    if (!reason || reason.trim().length < 3) return;
+    setBusy(true);
+    try {
+      await fetch(`/api/_x/bonuses/contests/${id}/draft-winners/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      await reload();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const kickParticipant = async (userId: string) => {
+    const reason = prompt('Причина удаления участника:');
+    if (!reason || reason.trim().length < 3) return;
+    setBusy(true);
+    try {
+      await fetch(`/api/_x/bonuses/contests/${id}/participants/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      await reload();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!data) {
     return (
       <Modal onClose={onClose} title="Загрузка…">
@@ -1991,46 +2062,7 @@ function ContestDetailModal({
         </div>
       ) : preview ? (
         <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-          {preview.map((w, i) => {
-            const u = data.participants.find((p) => p.userId === w.userId);
-            return (
-              <div
-                key={w.place}
-                className={cn(
-                  'grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-4 py-2',
-                  i > 0 && 'border-t border-white/5'
-                )}
-              >
-                <span className="font-roobert text-[12px] tabular-nums text-whisper-gray w-6">#{w.place}</span>
-                <div className="font-roobert text-[12px] text-frost-white truncate">
-                  {u?.name ?? `id${w.userId.slice(0, 6)}`}
-                </div>
-                <div className="font-roobert text-[12px] text-whisper-gray">предпросмотр</div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => replaceWinner(w.place)}
-                    disabled={busy}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-frost-white/85 disabled:opacity-50"
-                  >
-                    <Shuffle size={10} strokeWidth={1.8} />
-                    Заменить
-                  </button>
-                  <button
-                    onClick={() => removeDraftWinner(w.userId)}
-                    disabled={busy}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-pill border border-white/15 hover:border-white/35 font-roobert text-[10px] uppercase tracking-[0.16em] text-[#ff8a76] disabled:opacity-50"
-                  >
-                    <Trash2 size={10} strokeWidth={1.8} />
-                    Удалить
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : preview ? (
-        <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-          {preview.map((w, i) => {
+          {preview.map((w: { userId: string; place: number }, i: number) => {
             const u = data.participants.find((p) => p.userId === w.userId);
             return (
               <div
