@@ -27,6 +27,7 @@ import {
   Sparkles,
   Users,
   Wallet,
+  Database,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -131,6 +132,12 @@ const links: AdminLink[] = [
     label: 'Система',
     Icon: Cpu,
     href: '/system/console/system',
+  },
+  {
+    id: 'dbops',
+    label: 'Бэкапы БД',
+    Icon: Database,
+    href: '/system/console/db-ops',
   },
 ];
 

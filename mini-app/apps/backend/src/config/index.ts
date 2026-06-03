@@ -29,6 +29,9 @@ export const config = {
   
   // Telegram
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+
+  // DB maintenance password (for admin export/import UI)
+  dbOpsPassword: process.env.DB_OPS_PASSWORD || '',
   
   // Python Bot Integration
   pythonBotApiUrl: process.env.PYTHON_BOT_API_URL || 'http://localhost:8000',
@@ -54,6 +57,11 @@ export function validateConfig(): void {
     'DATABASE_URL',
     'TELEGRAM_BOT_TOKEN',
   ];
+
+  // DB ops password is optional in development but required in production.
+  if (process.env.NODE_ENV === 'production') {
+    required.push('DB_OPS_PASSWORD');
+  }
   
   // JWT_SECRET is critical in production
   if (process.env.NODE_ENV === 'production') {

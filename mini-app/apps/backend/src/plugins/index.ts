@@ -5,6 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import jwt from '@fastify/jwt';
 import websocket from '@fastify/websocket';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { config } from '../config/index.js';
 import { prisma } from '../lib/prisma.js';
 import fp from 'fastify-plugin';
@@ -57,6 +58,13 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
+  // Multipart (needed for DB import uploads)
+  await app.register(multipart, {
+    limits: {
+      fileSize: 512 * 1024 * 1024, // 512MB
+    },
   });
 
   // Security headers
