@@ -128,14 +128,8 @@ export class WebSocketClient {
     }
     this.reconnectAttempts = 0;
     
-    // Authenticate
-    if (this.token) {
-      this.send({
-        type: 'auth',
-        payload: { token: this.token },
-        timestamp: Date.now(),
-      });
-    }
+    // Note: Authentication is handled by AuthenticatedWebSocketClient, not here
+    // to avoid conflicts with sessionId-based auth vs token-based auth
     
     // Start heartbeat
     this.startHeartbeat();

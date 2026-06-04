@@ -13,7 +13,9 @@ import type {
   ServerErrorEvent,
   ServerBlackjackSeatUpdateEvent,
   ServerBlackjackStateEvent,
+  ServerCrashStateEvent,
 } from '@casino/shared';
+import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { getBlackjackRooms, joinBlackjackSeat, leaveBlackjackRoom, serializeRoom } from '../services/blackjack-room-store.js';
 import { logger } from '../utils/logger.js';
 
@@ -43,7 +45,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
     
     logger.info({ connectionId }, 'WebSocket client connected (unauthenticated)');
 
-    // Authentication timeout: 10 seconds
+    // Authentication timeout: 30 seconds (increased from 10s for slow connections)
     const authTimeout = setTimeout(() => {
       if (!socket.isAuthenticated) {
         logger.warn({ connectionId }, 'WebSocket authentication timeout');
@@ -51,10 +53,14 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           code: 'AUTH_TIMEOUT',
           message: 'Authentication required',
         });
-        socket.send(JSON.stringify(errorEvent));
-        socket.close();
+        try {
+          socket.send(JSON.stringify(errorEvent));
+        } catch {}
+        try {
+          socket.close();
+        } catch {}
       }
-    }, 10000);
+    }, 30000);
 
     socket.on('message', async (message: Buffer) => {
       try {
@@ -109,6 +115,51 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
             const room = rooms.find((r) => r.id === roomId);
             if (room) {
               const stateEvent = createEvent<ServerBlackjackStateEvent>('bj:state', serializeRoom(room));
+              socket.send(JSON.stringify(stateEvent));
+            }
+          }
+
+          // If crash room, send current state snapshot with active players
+          if (roomId === 'crash_main') {
+            const engine = crashManager.getRoom(roomId);
+            if (engine) {
+              const state = engine.getCurrentState() as {
+                phase: string;
+                multiplier: number;
+                elapsedTime: number;
+                phaseEndsAt: number | null;
+                serverSeedHash: string;
+                activePlayers: Array<{
+                  userId: string;
+                  slot: number;
+                  betAmount: number;
+                  user: { userId: string; username?: string | null; firstName?: string | null; photoUrl?: string | null } | null;
+                }>;
+                cashedOut: Array<{
+                  userId: string;
+                  slot: number;
+                  multiplier: number;
+                  payout: number;
+                  timestamp: number;
+                }>;
+                history: Array<{ crashPoint: number; roundId?: string }>;
+                stats: { playerCount: number; totalWagered: number; betsCount: number };
+                crashPointPreview?: number | null;
+              };
+
+              const stateEvent = createEvent<ServerCrashStateEvent>('crash:state', {
+                roomId,
+                phase: state.phase as any,
+                multiplier: state.multiplier,
+                elapsedTime: state.elapsedTime,
+                phaseEndsAt: state.phaseEndsAt,
+                serverSeedHash: state.serverSeedHash,
+                activePlayers: state.activePlayers,
+                cashedOut: state.cashedOut,
+                history: state.history,
+                stats: state.stats,
+                crashPointPreview: state.crashPointPreview ?? null,
+              });
               socket.send(JSON.stringify(stateEvent));
             }
           }

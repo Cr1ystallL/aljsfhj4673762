@@ -420,6 +420,75 @@ export class CrashLiveStream extends EventEmitter {
       case 'game:joined':
         return;
 
+      case 'crash:state': {
+        // Server sends current room state on join - update players and game state
+        const p = raw.payload || {};
+        const phaseMap: Record<string, CrashPhase> = {
+          idle: 'idle',
+          waiting: 'waiting',
+          starting: 'starting',
+          active: 'active',
+          resolving: 'resolving',
+          completed: 'completed',
+        };
+        const phase: CrashPhase = phaseMap[p.phase] ?? this.snapshot.phase;
+
+        // Build players list from activePlayers and cashedOut
+        const players: CrashLivePlayer[] = Array.isArray(p.activePlayers)
+          ? p.activePlayers.map((ap: any) => ({
+              key: `${ap.userId}:${ap.slot ?? 0}`,
+              userId: ap.userId,
+              slot: Number(ap.slot ?? 0),
+              betAmount: Number(ap.betAmount ?? 0),
+              user: ap.user ?? null,
+              status: 'active' as const,
+            }))
+          : [];
+
+        // Merge cashed out players
+        if (Array.isArray(p.cashedOut)) {
+          for (const c of p.cashedOut) {
+            const key = `${c.userId}:${c.slot ?? 0}`;
+            const i = players.findIndex((x) => x.key === key);
+            const cashed: CrashLivePlayer = {
+              key,
+              userId: c.userId,
+              slot: Number(c.slot ?? 0),
+              betAmount: i !== -1 ? players[i].betAmount : 0,
+              user: i !== -1 ? players[i].user : null,
+              multiplier: Number(c.multiplier),
+              payout: Number(c.payout),
+              status: 'cashed',
+            };
+            if (i === -1) players.push(cashed);
+            else players[i] = cashed;
+          }
+        }
+
+        this.updateSlow({
+          phase,
+          players,
+          history: Array.isArray(p.history)
+            ? p.history.map((h: any) => ({
+                crashPoint: Number(h.crashPoint),
+                roundId: h.roundId,
+              }))
+            : this.snapshot.history,
+          stats: p.stats ?? this.snapshot.stats,
+          serverSeedHash: p.serverSeedHash ?? this.snapshot.serverSeedHash,
+          serverMultiplier: Number(p.multiplier) || this.snapshot.serverMultiplier,
+          lastCrashPoint: p.crashPointPreview ?? this.snapshot.lastCrashPoint,
+        });
+
+        // If active phase, start animation
+        if (phase === 'active' && p.elapsedTime) {
+          this.activeStartedAt = Date.now() - Number(p.elapsedTime);
+          this.activeStartMultiplier = 1;
+          this.startAnim();
+        }
+        return;
+      }
+
       case 'game:event':
         this.handleGameEvent(raw.payload);
         return;

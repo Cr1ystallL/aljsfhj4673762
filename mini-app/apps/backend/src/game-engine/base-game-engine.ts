@@ -372,6 +372,13 @@ export abstract class BaseGameEngine extends EventEmitter {
     };
   }
 
+  /**
+   * Get detailed current state for client sync (optional, implemented by games that need it)
+   */
+  getCurrentState(): unknown {
+    return this.getState();
+  }
+
   // Abstract methods to be implemented by specific games
 
   protected abstract createRound(): Promise<GameRound>;

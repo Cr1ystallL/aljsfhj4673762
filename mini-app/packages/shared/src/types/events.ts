@@ -128,6 +128,48 @@ export const ServerBlackjackStateEventSchema = z.object({
   timestamp: z.number(),
 });
 
+// Crash state sync for room (sent when joining to show current players)
+export const ServerCrashStateEventSchema = z.object({
+  type: z.literal('crash:state'),
+  payload: z.object({
+    roomId: z.string(),
+    phase: z.enum(['idle', 'waiting', 'starting', 'active', 'resolving', 'completed']),
+    multiplier: z.number(),
+    elapsedTime: z.number(),
+    phaseEndsAt: z.number().nullable(),
+    serverSeedHash: z.string(),
+    activePlayers: z.array(z.object({
+      userId: z.string(),
+      slot: z.number(),
+      betAmount: z.number(),
+      user: z.object({
+        userId: z.string(),
+        username: z.string().nullable().optional(),
+        firstName: z.string().nullable().optional(),
+        photoUrl: z.string().nullable().optional(),
+      }).nullable().optional(),
+    })),
+    cashedOut: z.array(z.object({
+      userId: z.string(),
+      slot: z.number(),
+      multiplier: z.number(),
+      payout: z.number(),
+      timestamp: z.number(),
+    })),
+    history: z.array(z.object({
+      crashPoint: z.number(),
+      roundId: z.string().optional(),
+    })),
+    stats: z.object({
+      playerCount: z.number(),
+      totalWagered: z.number(),
+      betsCount: z.number(),
+    }),
+    crashPointPreview: z.number().nullable().optional(),
+  }),
+  timestamp: z.number(),
+});
+
 // Blackjack seat update broadcast
 export const ServerBlackjackSeatUpdateEventSchema = z.object({
   type: z.literal('bj:seat_update'),
@@ -274,6 +316,7 @@ export type ServerBalanceUpdateEvent = z.infer<typeof ServerBalanceUpdateEventSc
 export type ServerErrorEvent = z.infer<typeof ServerErrorEventSchema>;
 export type ServerBlackjackStateEvent = z.infer<typeof ServerBlackjackStateEventSchema>;
 export type ServerBlackjackSeatUpdateEvent = z.infer<typeof ServerBlackjackSeatUpdateEventSchema>;
+export type ServerCrashStateEvent = z.infer<typeof ServerCrashStateEventSchema>;
 
 export type GameRoundCreatedEvent = z.infer<typeof GameRoundCreatedEventSchema>;
 export type GamePhaseWaitingEvent = z.infer<typeof GamePhaseWaitingEventSchema>;
