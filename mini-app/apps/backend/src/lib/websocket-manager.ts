@@ -27,6 +27,15 @@ export class WebSocketManager {
   }
 
   /**
+   * Get list of rooms for a connection
+   */
+  getConnectionRooms(connectionId: string): string[] {
+    const connection = this.connections.get(connectionId);
+    if (!connection) return [];
+    return Array.from(connection.gameRooms);
+  }
+
+  /**
    * Setup Redis pub/sub for broadcasting across servers
    */
   private async setupPubSub(): Promise<void> {

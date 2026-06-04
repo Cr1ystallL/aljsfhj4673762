@@ -55,14 +55,8 @@ const MODE_CARDS: Array<{
   },
 ];
 
-function createRoom(id: number, filledBots = 0): Room {
+function createRoom(id: number): Room {
   const seats: Seat[] = Array.from({ length: 6 }, (_, idx) => ({ id: idx + 1 }));
-  for (let i = 0; i < Math.min(filledBots, seats.length); i++) {
-    seats[i].occupant = {
-      id: `guest-${id}-${i}`,
-      name: `Игрок ${i + 1}`,
-    };
-  }
   return {
     id: `room-${id}`,
     label: `Комната ${id}`,
@@ -77,7 +71,7 @@ function countFilled(seats: Seat[]) {
 function ensureEmptyRoom(rooms: Room[]): Room[] {
   const hasEmpty = rooms.some((r) => countFilled(r.seats) === 0);
   if (hasEmpty) return rooms;
-  return [...rooms, createRoom(rooms.length + 1, 0)];
+  return [...rooms, createRoom(rooms.length + 1)];
 }
 
 function Avatar({ occupant }: { occupant: Occupant }) {
@@ -212,7 +206,7 @@ export function BlackjackClient() {
     Array.from({ length: 6 }, (_, idx) => ({ id: idx + 1 }))
   );
 
-  const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1, 3)]));
+  const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
 
@@ -264,13 +258,6 @@ export function BlackjackClient() {
 
   const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === you.id)?.id ?? null;
 
-  // auto-select first room in multiplayer
-  useEffect(() => {
-    if (mode === 'multi' && !activeRoomId && rooms.length > 0) {
-      setActiveRoomId(rooms[0].id);
-    }
-  }, [mode, activeRoomId, rooms]);
-
   // --- WebSocket handlers for multiplayer ---
   useEffect(() => {
     if (!sessionId || !activeRoomId || mode !== 'multi') return;
@@ -313,6 +300,13 @@ export function BlackjackClient() {
     connect().catch(() => {});
 
     return () => {
+      if (wsRef.current && activeRoomId) {
+        wsRef.current.send({
+          type: 'game:leave',
+          payload: { roomId: activeRoomId },
+          timestamp: Date.now(),
+        });
+      }
       if (unsub) unsub();
       ws.disconnect();
       wsRef.current = null;
@@ -467,7 +461,29 @@ export function BlackjackClient() {
     <div className="space-y-4">
       <button
         type="button"
-        onClick={() => setActiveRoomId(null)}
+        onClick={() => {
+          if (wsRef.current && activeRoomId) {
+            wsRef.current.send({
+              type: 'game:leave',
+              payload: { roomId: activeRoomId },
+              timestamp: Date.now(),
+            });
+          }
+          // очистить локально свое место
+          setRooms((prev) =>
+            prev.map((room) =>
+              room.id === activeRoomId
+                ? {
+                    ...room,
+                    seats: room.seats.map((s) =>
+                      s.occupant?.id === you.id ? { ...s, occupant: undefined } : s
+                    ),
+                  }
+                : room
+            )
+          );
+          setActiveRoomId(null);
+        }}
         className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
       >
         <ArrowLeft size={18} />

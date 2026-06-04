@@ -184,8 +184,23 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
       }
     });
 
-    socket.on('close', () => {
+    socket.on('close', async () => {
       clearTimeout(authTimeout);
+      if (socket.userId) {
+        const rooms = wsManager.getConnectionRooms(connectionId);
+        for (const roomId of rooms) {
+          if (roomId.startsWith('blackjack')) {
+            const updated = await leaveBlackjackRoom(roomId, socket.userId);
+            if (updated) {
+              const updateEvent = createEvent<ServerBlackjackSeatUpdateEvent>('bj:seat_update', {
+                roomId: updated.id,
+                seats: updated.seats,
+              });
+              wsManager.broadcastToRoom(roomId, updateEvent);
+            }
+          }
+        }
+      }
       wsManager.removeConnection(connectionId);
       logger.info({ connectionId, userId: socket.userId }, 'WebSocket client disconnected');
     });
