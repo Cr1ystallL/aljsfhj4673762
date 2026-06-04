@@ -5,6 +5,7 @@ import {
   Rocket,
   Disc3,
   Footprints,
+  PlayingCards,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ export type GameKey =
   | 'coinflip'
   | 'wheel'
   | 'bridges'
+  | 'blackjack'
   | 'unknown';
 
 /**
@@ -122,6 +124,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   coinflip: { label: 'Coinflip', Icon: CoinflipIcon },
   wheel: { label: 'Wheel', Icon: Disc3 },
   bridges: { label: 'Bridges', Icon: Footprints },
+  blackjack: { label: 'Blackjack', Icon: PlayingCards },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 
@@ -139,6 +142,7 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('coinflip')) return 'coinflip';
   if (v.startsWith('wheel')) return 'wheel';
   if (v.startsWith('bridges')) return 'bridges';
+  if (v.startsWith('blackjack')) return 'blackjack';
   return 'unknown';
 }
 

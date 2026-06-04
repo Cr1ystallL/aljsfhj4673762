@@ -1191,7 +1191,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * snappy.
    */
   app.get('/_x/games', { preHandler: adminOnly }, async (_req, reply) => {
-    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'];
+    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'];
     const configs = await Promise.all(
       types.map(async (t) => ({ gameType: t, config: await gameConfig.get(t) }))
     );
@@ -1210,7 +1210,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: adminOnly },
     async (request, reply) => {
       const t = request.params.type as GameType;
-      if (!['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'].includes(t)) {
+      if (!['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'].includes(t)) {
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
       }
       const config = await gameConfig.get(t);
@@ -1226,6 +1226,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     Params: { type: string };
     Body: {
       paused?: boolean;
+      hidden?: boolean;
       minBet?: number;
       maxBet?: number;
       houseEdge?: number;
@@ -1237,7 +1238,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: adminOnly },
     async (request, reply) => {
       const t = request.params.type as GameType;
-      if (!['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'].includes(t)) {
+      if (!['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'].includes(t)) {
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
       }
       const reason = (request.body?.reason ?? '').trim();
@@ -1248,6 +1249,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const before = await gameConfig.get(t);
       const patch: Partial<typeof before> = {};
       if (typeof request.body.paused === 'boolean') patch.paused = request.body.paused;
+      if (typeof request.body.hidden === 'boolean') patch.hidden = request.body.hidden;
       if (typeof request.body.minBet === 'number') patch.minBet = request.body.minBet;
       if (typeof request.body.maxBet === 'number') patch.maxBet = request.body.maxBet;
       if (typeof request.body.houseEdge === 'number') {

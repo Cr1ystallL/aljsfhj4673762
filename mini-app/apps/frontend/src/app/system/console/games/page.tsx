@@ -22,10 +22,11 @@ import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges';
+type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack';
 
 interface GameCfg {
   paused: boolean;
+  hidden: boolean;
   minBet: number;
   maxBet: number;
   houseEdge: number;
@@ -38,7 +39,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges'];
+const ORDER: GameType[] = ['crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);
@@ -162,6 +163,7 @@ function GameCard({
 
   const dirty =
     form.paused !== initial.paused ||
+    form.hidden !== initial.hidden ||
     form.minBet !== initial.minBet ||
     form.maxBet !== initial.maxBet ||
     form.houseEdge !== initial.houseEdge ||
@@ -216,6 +218,11 @@ function GameCard({
           {form.paused && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-pill border border-amber-400/40 bg-amber-400/10 font-roobert text-[10px] uppercase tracking-[0.18em] text-amber-200">
               На паузе
+            </span>
+          )}
+          {form.hidden && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-pill border border-white/20 bg-white/[0.06] font-roobert text-[10px] uppercase tracking-[0.18em] text-frost-white">
+              Скрыто
             </span>
           )}
           {dirty && !busy && (
@@ -298,6 +305,32 @@ function GameCard({
                 onChange={(v) => setForm((f) => ({ ...f, minBet: v }))}
               />
             </Field>
+
+          {/* Hidden */}
+          <Field
+            label="Скрыть игру"
+            help={{
+              title: 'Скрытая игра',
+              body: (
+                <>
+                  <p>Скрывает игру из лобби для всех, кроме админов.</p>
+                  <p>Админы продолжают видеть и открывать игру для тестов.</p>
+                </>
+              ),
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, hidden: !f.hidden }))}
+              className={`px-3 py-1.5 rounded-pill border font-roobert text-[12px] transition-colors ${
+                form.hidden
+                  ? 'border-white/30 bg-white/[0.08] text-frost-white'
+                  : 'border-white/15 bg-white/[0.04] text-frost-white/85'
+              }`}
+            >
+              {form.hidden ? 'Скрыто' : 'Видно всем'}
+            </button>
+          </Field>
             <Field
               label="Макс. ставка (zł)"
               help={{

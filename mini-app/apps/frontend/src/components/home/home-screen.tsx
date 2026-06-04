@@ -39,11 +39,13 @@ interface InAppGame {
   href: string;
   /** Optional background image overlay (path under /public). */
   bg?: string;
+  wide?: boolean;
 }
 
 const inAppGames: InAppGame[] = [
   { id: 'crash', name: 'MacvJet', href: '/game/crash', bg: '/MacvJet.png' },
   { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
+  { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/BLACKJACK.png', wide: true },
   { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
@@ -105,6 +107,10 @@ export function HomeScreen() {
   const { user } = useAuthStore();
   const balance = useBalanceStore((s) => s.balance);
   const { fetchBalance } = useBalance();
+  const [availability, setAvailability] = useState<{
+    isAdmin: boolean;
+    hidden: Record<string, boolean>;
+  } | null>(null);
   // Список открытых конкурсов — Hero крутит из них рандомный публичный
   // (или глобальный) при каждом монтировании главной. Если конкурсов
   // нет вообще — фолбэк на старую карточку MacvJet, чтобы не было
@@ -114,6 +120,33 @@ export function HomeScreen() {
   useEffect(() => {
     void fetchBalance();
   }, [fetchBalance]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/games/availability', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        const hidden: Record<string, boolean> = {};
+        if (Array.isArray(json.games)) {
+          for (const g of json.games) {
+            if (g?.gameType) hidden[g.gameType] = !!g.hidden;
+          }
+        }
+        setAvailability({ isAdmin: !!json.isAdmin, hidden });
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,6 +188,15 @@ export function HomeScreen() {
 
   const balanceAmount = balance?.amount ?? 0;
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
+
+  const visibleGames = useMemo(() => {
+    const hidden = availability?.hidden ?? {};
+    const isAdmin = availability?.isAdmin ?? false;
+    return inAppGames.filter((g) => {
+      if (hidden[g.id] && !isAdmin) return false;
+      return true;
+    });
+  }, [availability]);
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
@@ -220,14 +262,16 @@ export function HomeScreen() {
         )}
 
         {/* Section caption — Игры */}
-        <SectionLabel right={`${inAppGames.length}`}>Игры</SectionLabel>
+        <SectionLabel right={`${visibleGames.length}`}>Игры</SectionLabel>
 
         <div className="grid grid-cols-2 gap-3">
-          {inAppGames.map((g, i) => (
+          {visibleGames.map((g, i) => (
             <button
               key={g.id}
               onClick={() => router.push(g.href)}
-              className="group relative overflow-hidden rounded-card border border-white/10 bg-midnight-canvas aspect-[5/6] text-left active:scale-[0.98] transition-transform"
+              className={`group relative overflow-hidden rounded-card border border-white/10 bg-midnight-canvas ${
+                g.wide ? 'col-span-2 aspect-[16/9]' : 'aspect-[5/6]'
+              } text-left active:scale-[0.98] transition-transform`}
             >
               {/* Background art — only when an asset is available. */}
               {g.bg && (

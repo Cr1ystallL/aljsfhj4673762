@@ -254,7 +254,7 @@ export function isAdminTelegramId(telegramId: number): boolean {
  * Async version that also consults the runtime Redis set. Called from
  * the `adminOnly` guard.
  */
-async function isAdminTelegramIdAsync(telegramId: number): Promise<boolean> {
+export async function isAdminTelegramIdAsync(telegramId: number): Promise<boolean> {
   if (ADMIN_TELEGRAM_IDS.has(telegramId)) return true;
   const dyn = await getDynamicAdmins();
   return dyn.has(telegramId);

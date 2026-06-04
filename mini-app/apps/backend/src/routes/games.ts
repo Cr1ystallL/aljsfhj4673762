@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticate, isAdminTelegramIdAsync, type AuthenticatedRequest } from '../middleware/auth.js';
 import { CrashGameEngine } from '../games/crash/crash-engine.js';
 import { minesEngine } from '../games/mines/mines-engine.js';
 import {
@@ -24,6 +24,7 @@ import {
 } from '../games/bridges/bridges-engine.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
+import { gameConfig, type GameType } from '../services/game-config.js';
 
 /**
  * Game Routes
@@ -67,6 +68,43 @@ function checkRateLimit(userId: string, action: string): boolean {
 // rebuild the room without bouncing the whole Node process.
 
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
+  async function ensureVisible(
+    gameType: GameType,
+    request: AuthenticatedRequest,
+    reply: any
+  ): Promise<boolean> {
+    const cfg = await gameConfig.get(gameType);
+    const isAdmin = await isAdminTelegramIdAsync(request.user.telegramId);
+    if (cfg.hidden && !isAdmin) {
+      await logger.warn({ gameType, userId: request.user.userId }, 'Hidden game access blocked');
+      await reply.code(404).send({ error: 'Not Found' });
+      return false;
+    }
+    return true;
+  }
+
+  const gameTypes: GameType[] = [
+    'crash',
+    'mines',
+    'plinko',
+    'coinflip',
+    'wheel',
+    'bridges',
+    'blackjack',
+  ];
+
+  app.get('/availability', { preHandler: authenticate }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const isAdmin = await isAdminTelegramIdAsync(user.telegramId);
+    const games = await Promise.all(
+      gameTypes.map(async (t) => {
+        const cfg = await gameConfig.get(t);
+        return { gameType: t, hidden: !!cfg.hidden, paused: !!cfg.paused };
+      })
+    );
+    return reply.send({ ok: true, isAdmin, games });
+  });
+
   /**
    * Helper: ensure the engine knows display info for the current user.
    * This populates avatar/name fields embedded in player feed events.
@@ -122,6 +160,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, slot = 0, autoCashout = null } = request.body;
 
+      if (!(await ensureVisible('crash', request as AuthenticatedRequest, reply))) return;
+
       if (!checkRateLimit(userId, 'crash:bet')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -170,6 +210,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { slot = 0 } = request.body || {};
 
+      if (!(await ensureVisible('crash', request as AuthenticatedRequest, reply))) return;
+
       if (!checkRateLimit(userId, 'crash:cancel')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -215,6 +257,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { slot = 0 } = request.body || {};
 
+      if (!(await ensureVisible('crash', request as AuthenticatedRequest, reply))) return;
+
       if (!checkRateLimit(userId, 'crash:cashout')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -253,6 +297,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       preHandler: authenticate,
     },
     async (request, reply) => {
+      if (!(await ensureVisible('crash', request as AuthenticatedRequest, reply))) return;
       try {
         const engine = crashManager.getRoom('crash_main') as CrashGameEngine;
         if (!engine) {
@@ -278,6 +323,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get('/mines/state', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
     const state = minesEngine.getState(userId);
     return reply.send({ state });
   });
@@ -306,6 +352,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, mineCount } = request.body;
+
+      if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
 
       if (!checkRateLimit(userId, 'mines:start')) {
         return reply.code(429).send({
@@ -349,6 +397,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { position } = request.body;
 
+      if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
+
       if (!checkRateLimit(userId, 'mines:reveal')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -378,6 +428,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.post('/mines/cashout', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
 
+    if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
+
     if (!checkRateLimit(userId, 'mines:cashout')) {
       return reply.code(429).send({
         error: 'Too Many Requests',
@@ -405,6 +457,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post('/mines/dismiss', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
     minesEngine.forget(userId);
     return reply.send({ success: true });
   });
@@ -428,6 +481,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const limit = Math.min(parseInt(request.query.limit || '5', 10), 20);
+      if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
       try {
         const bets = await app.prisma.bet.findMany({
           where: {
@@ -481,6 +535,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
+      if (!(await ensureVisible('mines', request as AuthenticatedRequest, reply))) return;
       const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
       try {
         const bets = await app.prisma.bet.findMany({
@@ -537,7 +592,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    * Public-facing constants the UI needs to lay out the board (rows,
    * bucket count) and the multiplier table per risk tier.
    */
-  app.get('/plinko/config', { preHandler: authenticate }, async (_req, reply) => {
+  app.get('/plinko/config', { preHandler: authenticate }, async (request, reply) => {
+    if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
     return reply.send({
       rows: 16,
       buckets: 17,
@@ -572,6 +628,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, risk } = request.body;
+
+      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
 
       if (!checkRateLimit(userId, 'plinko:drop')) {
         return reply.code(429).send({
@@ -618,6 +676,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { roundId } = request.body;
 
+      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
+
       try {
         const result = await plinkoEngine.settle(userId, roundId);
         return reply.send({ success: true, ...result });
@@ -648,6 +708,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
+      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
       const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
       try {
         const bets = await app.prisma.bet.findMany({
@@ -718,6 +779,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
+      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
       const limit = Math.min(parseInt(request.query.limit || '10', 10), 30);
       try {
         const bets = await app.prisma.bet.findMany({
@@ -764,7 +826,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    * GET /api/games/coinflip/config
    * Public-facing constants for the multiply mode UI.
    */
-  app.get('/coinflip/config', { preHandler: authenticate }, async (_req, reply) => {
+  app.get('/coinflip/config', { preHandler: authenticate }, async (request, reply) => {
+    if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
     return reply.send({
       multipliers: coinflipEngine.getMultipliers(),
       modes: ['quick', 'multiply'],
@@ -780,6 +843,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: authenticate },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
+      if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
       const state = coinflipEngine.getState(userId);
       return reply.send({ state });
     }
@@ -807,6 +871,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, choice } = request.body;
+
+      if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
 
       if (!checkRateLimit(userId, 'coinflip:quick')) {
         return reply.code(429).send({
@@ -854,6 +920,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, choice } = request.body;
 
+      if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
       if (!checkRateLimit(userId, 'coinflip:start')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -898,6 +965,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = (request as AuthenticatedRequest).user;
       const { choice } = request.body;
 
+      if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
+
       if (!checkRateLimit(userId, 'coinflip:flip')) {
         return reply.code(429).send({
           error: 'Too Many Requests',
@@ -939,6 +1008,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
+        if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
         const state = await coinflipEngine.cashout(userId);
         return reply.send({ success: true, state });
       } catch (error) {
@@ -961,6 +1031,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: authenticate },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
+      if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
       coinflipEngine.forget(userId);
       return reply.send({ success: true });
     }
@@ -982,6 +1053,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
+      if (!(await ensureVisible('coinflip', request as AuthenticatedRequest, reply))) return;
       const limit = Math.min(parseInt(request.query.limit || '40', 10), 60);
       try {
         const bets = await app.prisma.bet.findMany({
@@ -1040,7 +1112,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    * Polled every 1 s while waiting / completed, every 250 ms while
    * spinning so the wheel locks onto its segment crisply.
    */
-  app.get('/wheel/state', { preHandler: authenticate }, async (_req, reply) => {
+  app.get('/wheel/state', { preHandler: authenticate }, async (request, reply) => {
+    if (!(await ensureVisible('wheel', request as AuthenticatedRequest, reply))) return;
     return reply.send({
       success: true,
       state: wheelEngine.getSnapshot(),
@@ -1071,6 +1144,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, pick } = request.body;
+
+      if (!(await ensureVisible('wheel', request as AuthenticatedRequest, reply))) return;
 
       if (!checkRateLimit(userId, 'wheel:bet')) {
         return reply.code(429).send({
@@ -1105,6 +1180,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get('/bridges/state', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
     return reply.send({ success: true, state: bridgesEngine.getState(userId) });
   });
 
@@ -1130,6 +1206,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const { amount, level } = request.body;
+
+      if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
       if (!checkRateLimit(userId, 'bridges:start')) {
         return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
       }
@@ -1166,6 +1244,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       const { col } = request.body;
+      if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
       if (!checkRateLimit(userId, 'bridges:step')) {
         return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
       }
@@ -1189,6 +1268,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post('/bridges/cashout', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
     if (!checkRateLimit(userId, 'bridges:cashout')) {
       return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
     }
@@ -1211,6 +1291,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post('/bridges/dismiss', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
     bridgesEngine.forget(userId);
     return reply.send({ success: true });
   });

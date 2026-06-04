@@ -16,12 +16,21 @@ import { logger } from '../utils/logger.js';
  * round.
  */
 
-export type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges';
+export type GameType =
+  | 'crash'
+  | 'mines'
+  | 'plinko'
+  | 'coinflip'
+  | 'wheel'
+  | 'bridges'
+  | 'blackjack';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve
    *  outstanding ones cleanly. */
   paused: boolean;
+  /** True hides the game from non-admins (UI and API guards). */
+  hidden: boolean;
   minBet: number;
   maxBet: number;
   /**
@@ -39,6 +48,7 @@ export interface GameConfig {
 const DEFAULTS: Record<GameType, GameConfig> = {
   crash: {
     paused: false,
+    hidden: false,
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
@@ -49,6 +59,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
   },
   mines: {
     paused: false,
+    hidden: false,
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
@@ -60,6 +71,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
   },
   plinko: {
     paused: false,
+    hidden: false,
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
@@ -69,6 +81,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
   },
   coinflip: {
     paused: false,
+    hidden: false,
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.03,
@@ -79,6 +92,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
   },
   wheel: {
     paused: false,
+    hidden: false,
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.0, // baked into the slot distribution
@@ -88,6 +102,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
   },
   bridges: {
     paused: false,
+    hidden: false,
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
@@ -96,6 +111,14 @@ const DEFAULTS: Record<GameType, GameConfig> = {
       rows: 5,
       cells: 4,
     },
+  },
+  blackjack: {
+    paused: false,
+    hidden: true,
+    minBet: 1,
+    maxBet: 10000,
+    houseEdge: 0.01,
+    extras: {},
   },
 };
 
