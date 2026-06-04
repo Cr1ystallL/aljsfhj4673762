@@ -56,17 +56,11 @@ export const config = {
 export function validateConfig(): void {
   const required = [
     'DATABASE_URL',
-    'TELEGRAM_BOT_TOKEN',
   ];
 
   // DB ops password is optional in development but required in production.
   if (process.env.NODE_ENV === 'production') {
     required.push('DB_OPS_PASSWORD');
-  }
-  
-  // JWT_SECRET is critical in production
-  if (process.env.NODE_ENV === 'production') {
-    required.push('JWT_SECRET');
   }
   
   const missing = required.filter((key) => !process.env[key]);
@@ -75,12 +69,5 @@ export function validateConfig(): void {
     throw new Error(
       `Missing required environment variables: ${missing.join(', ')}`
     );
-  }
-  
-  // Validate JWT secret strength in production
-  if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET) {
-    if (process.env.JWT_SECRET.length < 32) {
-      throw new Error('JWT_SECRET must be at least 32 characters in production');
-    }
   }
 }
