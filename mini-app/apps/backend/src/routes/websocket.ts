@@ -17,6 +17,7 @@ import type {
 } from '@casino/shared';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { getBlackjackRooms, joinBlackjackSeat, leaveBlackjackRoom, serializeRoom } from '../services/blackjack-room-store.js';
+import { blackjackRoomManager } from '../games/blackjack/blackjack-engine.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -186,7 +187,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           return;
         }
 
-        // Handle blackjack seat selection
+        // Handle blackjack seat selection (presence only)
         if (validMessage.type === 'bj:seat') {
           if (!socket.userId) {
             const errorEvent = createEvent<ServerErrorEvent>('error', {
@@ -203,6 +204,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
             avatar?: string;
           };
 
+          // Update presence in room store
           const updatedRoom = await joinBlackjackSeat(roomId, seatId, {
             id: socket.userId,
             name,
@@ -223,6 +225,100 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
             seats: updatedRoom.seats,
           });
           wsManager.broadcastToRoom(updatedRoom.id, updateEvent);
+          return;
+        }
+
+        // Handle blackjack multiplayer room join (actual game)
+        if (validMessage.type === 'bj:join_game') {
+          if (!socket.userId) {
+            const errorEvent = createEvent<ServerErrorEvent>('error', {
+              code: 'AUTH_REQUIRED',
+              message: 'Authentication required',
+            });
+            socket.send(JSON.stringify(errorEvent));
+            return;
+          }
+          const { roomId, seatId, name, avatar, bet } = validMessage.payload as {
+            roomId: string;
+            seatId: number;
+            name: string;
+            avatar?: string;
+            bet: number;
+          };
+
+          const engine = blackjackRoomManager.getOrCreateRoom(roomId);
+          const success = engine.join(socket.userId, name, avatar, seatId, bet);
+
+          if (!success) {
+            const errorEvent = createEvent<ServerErrorEvent>('error', {
+              code: 'JOIN_FAILED',
+              message: 'Cannot join game - seat taken or game in progress',
+            });
+            socket.send(JSON.stringify(errorEvent));
+            return;
+          }
+
+          // Also update presence
+          await joinBlackjackSeat(roomId, seatId, {
+            id: socket.userId,
+            name,
+            avatar,
+          });
+
+          // Broadcast state to all players
+          wsManager.broadcastToRoom(roomId, {
+            type: 'bj:state',
+            payload: engine.getState(),
+            timestamp: Date.now(),
+          });
+          return;
+        }
+
+        // Handle blackjack hit action
+        if (validMessage.type === 'bj:hit') {
+          if (!socket.userId) return;
+          const { roomId } = validMessage.payload as { roomId: string };
+          
+          const engine = blackjackRoomManager.getRoom(roomId);
+          if (!engine) return;
+
+          await engine.hit(socket.userId);
+          return;
+        }
+
+        // Handle blackjack stand action
+        if (validMessage.type === 'bj:stand') {
+          if (!socket.userId) return;
+          const { roomId } = validMessage.payload as { roomId: string };
+          
+          const engine = blackjackRoomManager.getRoom(roomId);
+          if (!engine) return;
+
+          await engine.stand(socket.userId);
+          return;
+        }
+
+        // Handle blackjack double action
+        if (validMessage.type === 'bj:double') {
+          if (!socket.userId) return;
+          const { roomId } = validMessage.payload as { roomId: string };
+          
+          const engine = blackjackRoomManager.getRoom(roomId);
+          if (!engine) return;
+
+          await engine.double(socket.userId);
+          return;
+        }
+
+        // Handle blackjack leave game
+        if (validMessage.type === 'bj:leave_game') {
+          if (!socket.userId) return;
+          const { roomId } = validMessage.payload as { roomId: string };
+          
+          const engine = blackjackRoomManager.getRoom(roomId);
+          if (engine) {
+            engine.leave(socket.userId);
+          }
           return;
         }
       } catch (error) {
