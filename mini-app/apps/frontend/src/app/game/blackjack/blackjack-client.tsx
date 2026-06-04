@@ -26,7 +26,7 @@ interface Room {
   seats: Seat[];
 }
 
-// Увеличенные позиции для более крупного стола
+// Multiplayer seat positions (6 seats)
 const SEAT_POSITIONS: Record<number, { left: string; top: string }> = {
   1: { left: '10%', top: '58%' },
   2: { left: '26%', top: '70%' },
@@ -35,6 +35,9 @@ const SEAT_POSITIONS: Record<number, { left: string; top: string }> = {
   5: { left: '74%', top: '70%' },
   6: { left: '90%', top: '58%' },
 };
+
+// Solo seat position (1 seat in center)
+const SOLO_SEAT_POSITION: { left: string; top: string } = { left: '50%', top: '72%' };
 
 const MODE_CARDS: Array<{
   key: 'solo' | 'multi';
@@ -108,30 +111,23 @@ function Avatar({ occupant }: { occupant: Occupant }) {
 
 function InlineBetControls({ bet, onChange }: { bet: number; onChange: (value: number) => void }) {
   const fmt = (v: number) => v.toLocaleString('ru-RU');
-  const controls = [
-    { label: '-', fn: () => onChange(Math.max(1, bet - 10)) },
-    { label: '½', fn: () => onChange(Math.max(1, Math.floor(bet / 2))) },
-    { label: '2x', fn: () => onChange(Math.min(1_000_000, bet * 2)) },
-    { label: '+', fn: () => onChange(Math.min(1_000_000, bet + 10)) },
-  ];
 
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div className="rounded-full border border-white/15 bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg shadow-black/40 backdrop-blur">
-        {fmt(bet)} zł
-      </div>
-      <div className="flex items-center gap-0.5">
-        {controls.map((c) => (
-          <button
-            key={c.label}
-            type="button"
-            onClick={c.fn}
-            className="h-6 w-6 rounded-full border border-white/15 bg-white/[0.08] text-[10px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, Math.floor(bet / 2)))}
+        className="h-5 px-1.5 rounded border border-white/15 bg-white/[0.08] text-[9px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
+      >
+        ½
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(1_000_000, bet * 2))}
+        className="h-5 px-1.5 rounded border border-white/15 bg-white/[0.08] text-[9px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
+      >
+        ×2
+      </button>
     </div>
   );
 }
@@ -143,6 +139,7 @@ function SeatSpot({
   onSelect,
   bet,
   onBetChange,
+  onLeave,
 }: {
   seat: Seat;
   position: { left: string; top: string };
@@ -150,49 +147,64 @@ function SeatSpot({
   onSelect: () => void;
   bet: number;
   onBetChange: (value: number) => void;
+  onLeave?: () => void;
 }) {
   const occupiedByOther = !!seat.occupant && !isYou;
+  const isEmpty = !seat.occupant;
 
   return (
     <div
-      className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2"
+      className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
       style={{ left: position.left, top: position.top }}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        disabled={occupiedByOther}
-        className={cn(
-          'relative flex h-20 w-20 items-center justify-center rounded-full border-2 transition-all shadow-lg shadow-black/50 backdrop-blur',
-          occupiedByOther
-            ? 'cursor-not-allowed border-white/20 bg-white/[0.08]'
-            : isYou
-            ? 'border-emerald-300/80 bg-emerald-300/10 hover:border-emerald-200'
-            : 'border-amber-300/60 bg-black/70 hover:border-amber-200/70'
-        )}
-      >
-        {seat.occupant ? (
-          <div className="scale-110">
-            <Avatar occupant={seat.occupant} />
+      {/* Empty seat - small green plus button */}
+      {isEmpty && (
+        <button
+          type="button"
+          onClick={onSelect}
+          disabled={occupiedByOther}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-400/50 bg-emerald-500/20 text-emerald-300 text-lg font-bold transition-all shadow-lg shadow-black/50 backdrop-blur hover:bg-emerald-500/30 hover:scale-110"
+        >
+          +
+        </button>
+      )}
+
+      {/* Occupied by other - show avatar */}
+      {occupiedByOther && (
+        <div className="flex flex-col items-center gap-1">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-white/20 bg-white/[0.08] shadow-lg">
+            <Avatar occupant={seat.occupant!} />
           </div>
-        ) : (
-          <div className="h-12 w-12 rounded-full border-2 border-dashed border-amber-200/60 bg-transparent" />
-        )}
-        <div className="absolute -top-1 -right-1 h-5 w-5 rounded-md border border-amber-200/60 bg-white/10" />
-      </button>
-      <div className="flex items-center gap-2 text-[11px] text-white/75">
-        <span className="rounded-full border border-white/10 bg-black/60 px-2 py-1 backdrop-blur">
-          Место {seat.id}
-        </span>
-        {occupiedByOther && <span className="text-white/50">Занято</span>}
-      </div>
-      {isYou ? (
-        <InlineBetControls bet={bet} onChange={onBetChange} />
-      ) : seat.occupant ? (
-        <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] text-white/85 shadow-sm">
-          {seat.occupant.name}
+          <div className="rounded-full border border-white/10 bg-black/60 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur">
+            {seat.occupant!.name}
+          </div>
         </div>
-      ) : null}
+      )}
+
+      {/* Your seat - avatar with leave button and bet controls */}
+      {isYou && (
+        <div className="flex flex-col items-center gap-1">
+          <div className="relative">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-emerald-400/60 bg-emerald-500/10 shadow-lg shadow-emerald-900/30">
+              <Avatar occupant={seat.occupant!} />
+            </div>
+            {/* Leave button (minus) in top-right corner */}
+            <button
+              type="button"
+              onClick={onLeave}
+              className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-400/50 bg-red-500/20 text-red-300 text-xs font-bold transition hover:bg-red-500/30"
+            >
+              −
+            </button>
+          </div>
+          {/* Bet display */}
+          <div className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+            {bet.toLocaleString('ru-RU')} zł
+          </div>
+          {/* Bet controls */}
+          <InlineBetControls bet={bet} onChange={onBetChange} />
+        </div>
+      )}
     </div>
   );
 }
@@ -212,9 +224,7 @@ export function BlackjackClient() {
 
   const [mode, setMode] = useState<'solo' | 'multi' | null>(null);
   const [bet, setBet] = useState(100);
-  const [soloSeats, setSoloSeats] = useState<Seat[]>(() =>
-    Array.from({ length: 6 }, (_, idx) => ({ id: idx + 1 }))
-  );
+  const [soloSeats, setSoloSeats] = useState<Seat[]>(() => [{ id: 1 }]);
 
   const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -476,7 +486,9 @@ export function BlackjackClient() {
   const renderTable = (
     seats: Seat[],
     onSeat: (id: number) => void,
-    activeSeatId: number | null
+    activeSeatId: number | null,
+    onLeave?: () => void,
+    isSolo: boolean = false
   ) => (
     <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
       <div className="relative aspect-[4/3.5]">
@@ -485,7 +497,7 @@ export function BlackjackClient() {
 
         <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
           <Users size={16} className="text-amber-300" />
-          <span>Свободных мест: {6 - countFilled(seats)}/6</span>
+          <span>{isSolo ? '1 на 1 с дилером' : `Свободных мест: ${6 - countFilled(seats)}/6`}</span>
           {activeSeatId && (
             <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-50 border border-emerald-300/30">
               Вы на месте {activeSeatId}
@@ -493,25 +505,45 @@ export function BlackjackClient() {
           )}
         </div>
 
-        {Object.entries(SEAT_POSITIONS).map(([id, position]) => {
-          const seat = seats.find((s) => s.id === Number(id));
-          if (!seat) return null;
-          const isYou = seat.occupant?.id === you.id;
-          return (
-            <SeatSpot
-              key={seat.id}
-              seat={seat}
-              position={position}
-              isYou={isYou}
-              onSelect={() => onSeat(seat.id)}
-              bet={bet}
-              onBetChange={setBet}
-            />
-          );
-        })}
+        {isSolo ? (
+          // Solo mode - 1 seat in center
+          <SeatSpot
+            key={1}
+            seat={seats[0] || { id: 1 }}
+            position={SOLO_SEAT_POSITION}
+            isYou={seats[0]?.occupant?.id === you.id}
+            onSelect={() => onSeat(1)}
+            onLeave={onLeave}
+            bet={bet}
+            onBetChange={setBet}
+          />
+        ) : (
+          // Multiplayer mode - 6 seats
+          Object.entries(SEAT_POSITIONS).map(([id, position]) => {
+            const seat = seats.find((s) => s.id === Number(id));
+            if (!seat) return null;
+            const isYou = seat.occupant?.id === you.id;
+            return (
+              <SeatSpot
+                key={seat.id}
+                seat={seat}
+                position={position}
+                isYou={isYou}
+                onSelect={() => onSeat(seat.id)}
+                onLeave={onLeave}
+                bet={bet}
+                onBetChange={setBet}
+              />
+            );
+          })
+        )}
       </div>
     </div>
   );
+
+  const handleSoloLeave = () => {
+    setSoloSeats((prev) => prev.map((s) => ({ ...s, occupant: undefined })));
+  };
 
   const renderSolo = () => (
     <div className="space-y-4">
@@ -524,7 +556,7 @@ export function BlackjackClient() {
         Назад к выбору режима
       </button>
       <h1 className="font-roobert text-[22px] text-white">Blackjack — SOLO</h1>
-      {renderTable(soloSeats, handleSoloSeat, currentSoloSeat)}
+      {renderTable(soloSeats, handleSoloSeat, currentSoloSeat, handleSoloLeave, true)}
     </div>
   );
 
