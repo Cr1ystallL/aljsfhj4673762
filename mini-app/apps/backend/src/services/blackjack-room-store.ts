@@ -18,12 +18,12 @@ export interface BJRoom {
   seats: BJSeat[];
 }
 
-const REDIS_KEY = 'blackjack:rooms';
+const REDIS_KEY = 'blackjack:v2:rooms';
 const MAX_SEATS = 6;
 
 function createEmptyRoom(index: number): BJRoom {
   return {
-    id: `blackjack-${index}`,
+    id: `bj-v2-${index}`,
     label: `Комната ${index}`,
     seats: Array.from({ length: MAX_SEATS }, (_, i) => ({ id: i + 1, occupant: null })),
   };
@@ -40,7 +40,7 @@ function sanitizeOccupant(raw: BJOccupant): BJOccupant {
 async function normalizeRoomId(roomId: string): Promise<string> {
   // allow numeric ids from old clients
   if (/^\d+$/.test(roomId)) {
-    return `blackjack-${roomId}`;
+    return `bj-v2-${roomId}`;
   }
   return roomId;
 }
@@ -53,7 +53,7 @@ async function loadRooms(): Promise<BJRoom[]> {
     const parsed = JSON.parse(raw) as BJRoom[];
     if (!Array.isArray(parsed) || parsed.length === 0) return [createEmptyRoom(1)];
     return parsed.map((room, idx) => ({
-      id: room.id || `blackjack-${idx + 1}`,
+      id: room.id || `bj-v2-${idx + 1}`,
       label: room.label || `Комната ${idx + 1}`,
       seats: Array.isArray(room.seats)
         ? room.seats.map((s, i) => ({

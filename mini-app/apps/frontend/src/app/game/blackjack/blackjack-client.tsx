@@ -81,7 +81,7 @@ const MODE_CARDS: Array<{
   },
 ];
 
-const roomIdFromIndex = (idx: number) => `blackjack-${idx}`;
+const roomIdFromIndex = (idx: number) => `bj-v2-${idx}`;
 
 function createRoom(id: number): Room {
   const seats: Seat[] = Array.from({ length: 6 }, (_, idx) => ({ id: idx + 1 }));
@@ -135,18 +135,18 @@ function InlineBetControls({ bet, onChange }: { bet: number; onChange: (value: n
   const fmt = (v: number) => v.toLocaleString('ru-RU');
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={() => onChange(Math.max(1, Math.floor(bet / 2)))}
-        className="h-5 px-1.5 rounded border border-white/15 bg-white/[0.08] text-[9px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
+        className="h-8 px-3 rounded-full border border-amber-300/50 bg-amber-400/10 text-[12px] font-medium text-amber-100 transition hover:border-amber-200 hover:bg-amber-400/20"
       >
         ½
       </button>
       <button
         type="button"
         onClick={() => onChange(Math.min(1_000_000, bet * 2))}
-        className="h-5 px-1.5 rounded border border-white/15 bg-white/[0.08] text-[9px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
+        className="h-8 px-3 rounded-full border border-amber-300/50 bg-amber-400/10 text-[12px] font-medium text-amber-100 transition hover:border-amber-200 hover:bg-amber-400/20"
       >
         ×2
       </button>
@@ -185,7 +185,7 @@ function SeatSpot({
           type="button"
           onClick={onSelect}
           disabled={occupiedByOther}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-400/50 bg-emerald-500/20 text-emerald-300 text-lg font-bold transition-all shadow-lg shadow-black/50 backdrop-blur hover:bg-emerald-500/30 hover:scale-110"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-amber-300/60 bg-amber-400/15 text-amber-200 text-lg font-bold transition-all shadow-lg shadow-black/50 backdrop-blur hover:bg-amber-400/25 hover:scale-110"
         >
           +
         </button>
@@ -207,7 +207,7 @@ function SeatSpot({
       {isYou && (
         <div className="flex flex-col items-center gap-1">
           <div className="relative">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-emerald-400/60 bg-emerald-500/10 shadow-lg shadow-emerald-900/30">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/20 bg-white/10 shadow-lg">
               <Avatar occupant={seat.occupant!} />
             </div>
             {/* Leave button (minus) in top-right corner */}
@@ -223,8 +223,6 @@ function SeatSpot({
           <div className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
             {bet.toLocaleString('ru-RU')} zł
           </div>
-          {/* Bet controls */}
-          <InlineBetControls bet={bet} onChange={onBetChange} />
         </div>
       )}
     </div>
@@ -318,11 +316,11 @@ export function BlackjackClient() {
     return parseInt(card.rank);
   };
 
-  const calculateHandValue = (hand: Card[]): { total: number; soft: boolean } => {
+  const calculateHandValue = (hand: Card[], includeHidden = false): { total: number; soft: boolean } => {
     let total = 0;
     let aces = 0;
     for (const card of hand) {
-      if (card.hidden) continue;
+      if (card.hidden && !includeHidden) continue;
       if (card.rank === 'A') {
         aces++;
         total += 11;
@@ -346,6 +344,17 @@ export function BlackjackClient() {
   const dealCard = (deck: Card[], hidden = false): { card: Card; remaining: Card[] } => {
     const card = { ...deck[0], hidden };
     return { card, remaining: deck.slice(1) };
+  };
+
+  // Solo deck storage to avoid re-creating per action
+  const soloDeckRef = useRef<Card[]>([]);
+
+  const drawFromSoloDeck = (hidden = false): Card | null => {
+    const deck = soloDeckRef.current;
+    if (!deck.length) return null;
+    const [first, ...rest] = deck;
+    soloDeckRef.current = rest;
+    return { ...first, hidden };
   };
 
   // Solo game timer and dealing effect
@@ -390,43 +399,40 @@ export function BlackjackClient() {
   }, [mode, soloGameState.phase]);
 
   const startSoloRound = () => {
-    const deck = createDeck();
-    let currentDeck = deck;
+    soloDeckRef.current = createDeck();
     const roundId = `solo_${Date.now()}`;
     
+    // Reset dealer state
+    setSoloGameState((prev) => ({ ...prev, dealerHand: [], currentTurnSeatId: 1, roundId }));
+
     // Deal first card to player (if seated)
     setSoloSeats((prev) => {
       const next = [...prev];
       const playerSeat = next.find((s) => s.occupant);
       if (playerSeat) {
-        const { card, remaining } = dealCard(currentDeck);
-        currentDeck = remaining;
-        playerSeat.hand = [card];
+        const card = drawFromSoloDeck();
+        if (card) playerSeat.hand = [card];
       }
       return next;
     });
     
     // Deal first card to dealer (visible) after 500ms
     setTimeout(() => {
-      const { card, remaining } = dealCard(currentDeck);
-      currentDeck = remaining;
-      setSoloGameState((prev) => ({ ...prev, dealerHand: [card] }));
+      const firstDealer = drawFromSoloDeck();
+      if (firstDealer) {
+        setSoloGameState((prev) => ({ ...prev, dealerHand: [firstDealer] }));
+      }
       
       // Deal second card to player after 500ms
       setTimeout(() => {
         setSoloSeats((prev) => {
           const next = [...prev];
           const playerSeat = next.find((s) => s.occupant);
-          if (playerSeat && currentDeck.length > 0) {
-            const { card: card2, remaining } = dealCard(currentDeck);
-            currentDeck = remaining;
-            playerSeat.hand = [...(playerSeat.hand || []), card2];
-            
-            // Check for blackjack
-            if (isBlackjack(playerSeat.hand)) {
-              playerSeat.status = 'blackjack';
-            } else {
-              playerSeat.status = 'playing';
+          if (playerSeat) {
+            const card2 = drawFromSoloDeck();
+            if (card2) {
+              playerSeat.hand = [...(playerSeat.hand || []), card2];
+              playerSeat.status = isBlackjack(playerSeat.hand) ? 'blackjack' : 'playing';
             }
           }
           return next;
@@ -434,14 +440,16 @@ export function BlackjackClient() {
         
         // Deal second card to dealer (hidden) after 500ms
         setTimeout(() => {
-          const { card: hiddenCard, remaining } = dealCard(currentDeck, true);
-          setSoloGameState((prev) => ({
-            ...prev,
-            dealerHand: [...prev.dealerHand, hiddenCard],
-            phase: 'player_turn',
-            currentTurnSeatId: 1,
-            roundId,
-          }));
+          const hiddenCard = drawFromSoloDeck(true);
+          if (hiddenCard) {
+            setSoloGameState((prev) => ({
+              ...prev,
+              dealerHand: [...prev.dealerHand, hiddenCard],
+              phase: 'player_turn',
+              currentTurnSeatId: 1,
+              roundId,
+            }));
+          }
         }, 500);
       }, 500);
     }, 500);
@@ -450,10 +458,8 @@ export function BlackjackClient() {
   // Player actions
   const handleHit = () => {
     if (soloGameState.phase !== 'player_turn') return;
-    
-    const deck = createDeck();
-    const { card } = dealCard(deck);
-    
+    const card = drawFromSoloDeck();
+    if (!card) return;
     setSoloSeats((prev) => {
       const next = [...prev];
       const playerSeat = next.find((s) => s.occupant);
@@ -472,7 +478,7 @@ export function BlackjackClient() {
 
   const handleStand = () => {
     if (soloGameState.phase !== 'player_turn') return;
-    
+
     setSoloSeats((prev) => {
       const next = [...prev];
       const playerSeat = next.find((s) => s.occupant);
@@ -481,8 +487,6 @@ export function BlackjackClient() {
       }
       return next;
     });
-    
-    // Start dealer turn
     setSoloGameState((prev) => ({ ...prev, phase: 'dealer_turn' }));
     setTimeout(() => playDealerTurn(), 1000);
   };
@@ -505,29 +509,28 @@ export function BlackjackClient() {
   };
 
   const playDealerTurn = () => {
-    // Reveal hidden card
-    setSoloGameState((prev) => ({
-      ...prev,
-      dealerHand: prev.dealerHand.map((c) => ({ ...c, hidden: false })),
-    }));
-    
-    setTimeout(() => {
-      const { total } = calculateHandValue(soloGameState.dealerHand);
-      
-      if (total < 17) {
-        // Dealer hits
-        const deck = createDeck();
-        const { card } = dealCard(deck);
-        setSoloGameState((prev) => ({
-          ...prev,
-          dealerHand: [...prev.dealerHand, card],
-        }));
-        setTimeout(() => playDealerTurn(), 1000);
-      } else {
-        // Dealer stands or busts
-        finishSoloRound();
-      }
-    }, 1000);
+    const revealAndPlay = () => {
+      setSoloGameState((prev) => {
+        const revealed = prev.dealerHand.map((c) => ({ ...c, hidden: false }));
+        const { total } = calculateHandValue(revealed, true);
+
+        if (total < 17) {
+          const card = drawFromSoloDeck();
+          if (!card) {
+            setTimeout(() => finishSoloRound(), 300);
+            return { ...prev, dealerHand: revealed, phase: 'dealer_turn' };
+          }
+          setTimeout(revealAndPlay, 800);
+          return { ...prev, dealerHand: [...revealed, { ...card, hidden: false }], phase: 'dealer_turn' };
+        }
+
+        setTimeout(() => finishSoloRound(), 300);
+        return { ...prev, dealerHand: revealed, phase: 'dealer_turn' };
+      });
+    };
+
+    setSoloGameState((prev) => ({ ...prev, dealerHand: prev.dealerHand.map((c) => ({ ...c, hidden: false })), phase: 'dealer_turn' }));
+    setTimeout(revealAndPlay, 400);
   };
 
   const finishSoloRound = async () => {
@@ -536,7 +539,7 @@ export function BlackjackClient() {
     const playerSeat = soloSeats.find((s) => s.occupant);
     const playerHand = playerSeat?.hand || [];
     const playerValue = calculateHandValue(playerHand).total;
-    const dealerValue = calculateHandValue(soloGameState.dealerHand).total;
+    const dealerValue = calculateHandValue(soloGameState.dealerHand, true).total;
     
     const playerHasBlackjack = isBlackjack(playerHand);
     const dealerHasBlackjack = isBlackjack(soloGameState.dealerHand);
@@ -751,7 +754,7 @@ export function BlackjackClient() {
         await ws.connectAuthenticated(sessionId);
         // Subscribe to all blackjack rooms
         rooms.forEach((room) => {
-          if (room.id.startsWith('blackjack')) {
+          if (room.id.startsWith('bj-v2')) {
             ws.send({ type: 'game:join', payload: { roomId: room.id }, timestamp: Date.now() });
           }
         });
@@ -776,7 +779,7 @@ export function BlackjackClient() {
                     if (r.id !== payload.roomId) return r;
                     // Map players to seats
                     const seatsWithHands = r.seats.map((s) => {
-                      const player = payload.players.find((p: any) => p.seatId === s.id);
+                      const player = payload.players?.find((p: any) => p.seatId === s.id);
                       if (player) {
                         return {
                           ...s,
@@ -914,7 +917,6 @@ export function BlackjackClient() {
               priority
               className="object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/35 to-black/65" />
             <div className="absolute inset-0 flex flex-col justify-end p-4">
               <p className="text-[12px] uppercase tracking-[0.12em] text-amber-200/80">Blackjack</p>
               <p className="font-roobert text-[20px] text-white">{card.title}</p>
@@ -932,7 +934,7 @@ export function BlackjackClient() {
     const ws = roomWsRef.current;
     if (ws.isConnected()) {
       rooms.forEach((room) => {
-        if (room.id.startsWith('blackjack')) {
+        if (room.id.startsWith('bj-v2')) {
           ws.send({ type: 'game:join', payload: { roomId: room.id }, timestamp: Date.now() });
         }
       });
@@ -941,34 +943,38 @@ export function BlackjackClient() {
 
   // Card component
   const CardDisplay = ({ card, small = false }: { card: Card; small?: boolean }) => {
-    if (card.hidden) {
-      return (
-        <div className={cn(
-          'rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 border border-white/20 flex items-center justify-center shadow-lg',
-          small ? 'h-10 w-7' : 'h-16 w-11'
-        )}>
-          <span className="text-white/50 text-xs">?</span>
-        </div>
-      );
-    }
-    
     const suitSymbols: Record<Suit, string> = {
       hearts: '♥',
       diamonds: '♦',
       clubs: '♣',
       spades: '♠',
     };
-    
     const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
-    
+    const baseSize = small ? 'h-10 w-7 text-[10px]' : 'h-16 w-11 text-sm';
+
+    if (card.hidden) {
+      return (
+        <div
+          className={cn(
+            'rounded-lg border border-amber-300/40 bg-gradient-to-br from-[#0b0c11] via-[#11131c] to-[#0b0c11] flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.45)] text-amber-200/70',
+            baseSize,
+          )}
+        >
+          ?
+        </div>
+      );
+    }
+
     return (
-      <div className={cn(
-        'rounded-lg bg-white border border-white/20 flex flex-col items-center justify-center shadow-lg',
-        small ? 'h-10 w-7' : 'h-16 w-11',
-        isRed ? 'text-red-600' : 'text-black'
-      )}>
-        <span className={cn('font-bold leading-none', small ? 'text-[10px]' : 'text-sm')}>{card.rank}</span>
-        <span className={cn('leading-none', small ? 'text-[8px]' : 'text-xs')}>{suitSymbols[card.suit]}</span>
+      <div
+        className={cn(
+          'rounded-lg border border-amber-300/50 bg-gradient-to-br from-[#0f111a] via-[#131624] to-[#0c0e17] flex flex-col items-center justify-center shadow-[0_10px_28px_rgba(0,0,0,0.45)] text-white',
+          baseSize,
+          isRed ? 'text-rose-300' : 'text-sky-200'
+        )}
+      >
+        <span className={cn('font-semibold leading-none', small ? 'text-[11px]' : 'text-base')}>{card.rank}</span>
+        <span className={cn('leading-none', small ? 'text-[9px]' : 'text-sm')}>{suitSymbols[card.suit]}</span>
       </div>
     );
   };
@@ -985,10 +991,9 @@ export function BlackjackClient() {
     const showActions = isSolo && isPlayerTurn;
     
     return (
-    <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
-      <div className="relative aspect-[4/3.5]">
+    <div className="relative mx-auto w-full max-w-[1400px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
+      <div className="relative aspect-[4/3.5] md:aspect-[16/9]">
         <Image src="/BJ_table.png?v=2" alt="Blackjack table" fill className="object-contain" priority />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
 
         {/* Status bar */}
         <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
@@ -1209,9 +1214,8 @@ export function BlackjackClient() {
                   alt={room.label}
                   fill
                   priority
-                  className="object-cover opacity-40 group-hover:opacity-50 transition-opacity"
+                  className="object-cover opacity-60 group-hover:opacity-75 transition-opacity"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/70" />
                 <div className="absolute inset-0 flex items-center justify-between p-4">
                   <div className="flex flex-col gap-1">
                     <p className="font-roobert text-[18px] text-white">{room.label}</p>
@@ -1299,7 +1303,7 @@ export function BlackjackClient() {
 
   return (
     <main className="min-h-screen bg-midnight-canvas text-frost-white">
-      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-4 py-6">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-6 md:px-10">
         {mode === null && renderModeSelection()}
         {mode === 'solo' && renderSolo()}
         {mode === 'multi' && activeRoomId === null && renderRoomList()}

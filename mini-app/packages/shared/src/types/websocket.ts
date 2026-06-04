@@ -32,6 +32,11 @@ export const WSMessageTypeSchema = z.enum([
   'bj:seat',
   'bj:state',
   'bj:seat_update',
+  'bj:join_game',
+  'bj:leave_game',
+  'bj:hit',
+  'bj:stand',
+  'bj:double',
   
   // System
   'error',
