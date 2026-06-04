@@ -71,8 +71,9 @@ function countFilled(seats: Seat[]) {
 }
 
 function ensureEmptyRoom(rooms: Room[]): Room[] {
-  const hasEmpty = rooms.some((r) => countFilled(r.seats) === 0);
-  if (hasEmpty) return rooms;
+  // Новая комната появляется, только когда ВСЕ текущие заполнены наполовину или более (>= 3 из 6)
+  const hasAvailableRoom = rooms.some((r) => countFilled(r.seats) < 3);
+  if (hasAvailableRoom) return rooms;
   return [...rooms, createRoom(rooms.length + 1)];
 }
 
