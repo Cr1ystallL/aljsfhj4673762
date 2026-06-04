@@ -1001,15 +1001,32 @@ export function BlackjackClient() {
           )}
         </div>
 
-        {/* Countdown timer */}
-        {isSolo && gameState?.phase === 'countdown' && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="rounded-2xl border border-amber-300/30 bg-black/80 px-8 py-6 text-center">
-              <p className="text-white/70 mb-2">Игра начинается через</p>
-              <p className="font-roobert text-[48px] text-amber-300">{gameState.countdown}</p>
+        {/* Countdown timer - compact like Wheel/Crash */}
+        {(isSolo && gameState?.phase === 'countdown') || (!isSolo && multiGameState?.phase === 'countdown') ? (
+          <div className="absolute left-1/2 top-[5%] z-30 -translate-x-1/2">
+            <div className="flex flex-col items-center">
+              <div className="rounded-full border border-amber-300/50 bg-black/80 px-4 py-1.5 text-center shadow-lg">
+                <span className="font-roobert text-[18px] font-bold text-amber-300">
+                  {isSolo ? soloGameState.countdown : multiGameState?.countdown}
+                </span>
+                <span className="ml-1.5 text-[12px] text-white/70">сек</span>
+              </div>
+              <span className="mt-1 text-[11px] text-white/60">Раздача через...</span>
             </div>
           </div>
-        )}
+        ) : null}
+
+        {/* Phase indicator for waiting/betting phase */}
+        {(isSolo && gameState?.phase === 'waiting') || (!isSolo && multiGameState?.phase === 'waiting') ? (
+          <div className="absolute left-1/2 top-[5%] z-30 -translate-x-1/2">
+            <div className="flex flex-col items-center">
+              <div className="rounded-full border border-white/20 bg-black/60 px-4 py-1.5 text-center">
+                <span className="text-[12px] text-white/80">Ожидание игроков...</span>
+              </div>
+              <span className="mt-1 text-[10px] text-white/50">Сядьте за стол, чтобы начать</span>
+            </div>
+          </div>
+        ) : null}
 
         {/* Dealer area - top center */}
         <div className="absolute left-1/2 top-[12%] -translate-x-1/2 z-20">
@@ -1127,6 +1144,19 @@ export function BlackjackClient() {
           })
         )}
       </div>
+
+      {/* Global bet controls - shown during waiting/countdown when seated */}
+      {activeSeatId && gameState && (gameState.phase === 'waiting' || gameState.phase === 'countdown') && (
+        <div className="absolute bottom-[4%] left-1/2 -translate-x-1/2 z-40">
+          <div className="flex flex-col items-center gap-2">
+            <div className="rounded-full border border-white/20 bg-black/70 px-4 py-2 backdrop-blur-sm">
+              <span className="text-[12px] text-white/70">Ваша ставка:</span>
+              <span className="ml-2 font-roobert text-[16px] text-amber-300">{bet.toLocaleString('ru-RU')} zł</span>
+            </div>
+            <InlineBetControls bet={bet} onChange={setBet} />
+          </div>
+        </div>
+      )}
     </div>
     );
   };
