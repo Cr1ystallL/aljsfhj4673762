@@ -27,16 +27,6 @@ export const WSMessageTypeSchema = z.enum([
   // Colon-delimited game events used by current WS routes
   'game:join',
   'game:leave',
-
-  // Blackjack realtime
-  'bj:seat',
-  'bj:state',
-  'bj:seat_update',
-  'bj:join_game',
-  'bj:leave_game',
-  'bj:hit',
-  'bj:stand',
-  'bj:double',
   
   // System
   'error',

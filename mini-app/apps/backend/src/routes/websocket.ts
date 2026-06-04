@@ -11,13 +11,8 @@ import type {
   ServerGameJoinedEvent,
   ServerGameLeftEvent,
   ServerErrorEvent,
-  ServerBlackjackSeatUpdateEvent,
-  ServerBlackjackStateEvent,
-  ServerCrashStateEvent,
 } from '@casino/shared';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
-import { getBlackjackRooms, joinBlackjackSeat, leaveBlackjackRoom, serializeRoom } from '../services/blackjack-room-store.js';
-import { blackjackRoomManager } from '../games/blackjack/blackjack-engine.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -110,16 +105,6 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           const joinedEvent = createEvent<ServerGameJoinedEvent>('game:joined', { roomId });
           socket.send(JSON.stringify(joinedEvent));
 
-          // If blackjack room, send current state snapshot
-          if (roomId.startsWith('blackjack')) {
-            const rooms = await getBlackjackRooms();
-            const room = rooms.find((r) => r.id === roomId);
-            if (room) {
-              const stateEvent = createEvent<ServerBlackjackStateEvent>('bj:state', serializeRoom(room));
-              socket.send(JSON.stringify(stateEvent));
-            }
-          }
-
           // If crash room, send current state snapshot with active players
           if (roomId === 'crash_main') {
             const engine = crashManager.getRoom(roomId);
@@ -148,7 +133,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
                 crashPointPreview?: number | null;
               };
 
-              const stateEvent = createEvent<ServerCrashStateEvent>('crash:state', {
+              const stateEvent = createEvent('crash:state', {
                 roomId,
                 phase: state.phase as any,
                 multiplier: state.multiplier,
@@ -174,151 +159,6 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           const leftEvent = createEvent<ServerGameLeftEvent>('game:left', { roomId });
           socket.send(JSON.stringify(leftEvent));
 
-          if (roomId.startsWith('blackjack') && socket.userId) {
-            const updated = await leaveBlackjackRoom(roomId, socket.userId);
-            if (updated) {
-              const updateEvent = createEvent<ServerBlackjackSeatUpdateEvent>('bj:seat_update', {
-                roomId: updated.id,
-                seats: updated.seats,
-              });
-              wsManager.broadcastToRoom(roomId, updateEvent);
-            }
-          }
-          return;
-        }
-
-        // Handle blackjack seat selection (presence only)
-        if (validMessage.type === 'bj:seat') {
-          if (!socket.userId) {
-            const errorEvent = createEvent<ServerErrorEvent>('error', {
-              code: 'AUTH_REQUIRED',
-              message: 'Authentication required',
-            });
-            socket.send(JSON.stringify(errorEvent));
-            return;
-          }
-          const { roomId, seatId, name, avatar } = validMessage.payload as {
-            roomId: string;
-            seatId: number;
-            name: string;
-            avatar?: string;
-          };
-
-          // Update presence in room store
-          const updatedRoom = await joinBlackjackSeat(roomId, seatId, {
-            id: socket.userId,
-            name,
-            avatar,
-          });
-
-          if (!updatedRoom) {
-            const errorEvent = createEvent<ServerErrorEvent>('error', {
-              code: 'SEAT_FAILED',
-              message: 'Cannot take seat',
-            });
-            socket.send(JSON.stringify(errorEvent));
-            return;
-          }
-
-          const updateEvent = createEvent<ServerBlackjackSeatUpdateEvent>('bj:seat_update', {
-            roomId: updatedRoom.id,
-            seats: updatedRoom.seats,
-          });
-          wsManager.broadcastToRoom(updatedRoom.id, updateEvent);
-          return;
-        }
-
-        // Handle blackjack multiplayer room join (actual game)
-        if (validMessage.type === 'bj:join_game') {
-          if (!socket.userId) {
-            const errorEvent = createEvent<ServerErrorEvent>('error', {
-              code: 'AUTH_REQUIRED',
-              message: 'Authentication required',
-            });
-            socket.send(JSON.stringify(errorEvent));
-            return;
-          }
-          const { roomId, seatId, name, avatar, bet } = validMessage.payload as {
-            roomId: string;
-            seatId: number;
-            name: string;
-            avatar?: string;
-            bet: number;
-          };
-
-          const engine = blackjackRoomManager.getOrCreateRoom(roomId);
-          const success = engine.join(socket.userId, name, avatar, seatId, bet);
-
-          if (!success) {
-            const errorEvent = createEvent<ServerErrorEvent>('error', {
-              code: 'JOIN_FAILED',
-              message: 'Cannot join game - seat taken or game in progress',
-            });
-            socket.send(JSON.stringify(errorEvent));
-            return;
-          }
-
-          // Also update presence
-          await joinBlackjackSeat(roomId, seatId, {
-            id: socket.userId,
-            name,
-            avatar,
-          });
-
-          // Broadcast state to all players
-          wsManager.broadcastToRoom(roomId, {
-            type: 'bj:state',
-            payload: engine.getState(),
-            timestamp: Date.now(),
-          });
-          return;
-        }
-
-        // Handle blackjack hit action
-        if (validMessage.type === 'bj:hit') {
-          if (!socket.userId) return;
-          const { roomId } = validMessage.payload as { roomId: string };
-          
-          const engine = blackjackRoomManager.getRoom(roomId);
-          if (!engine) return;
-
-          await engine.hit(socket.userId);
-          return;
-        }
-
-        // Handle blackjack stand action
-        if (validMessage.type === 'bj:stand') {
-          if (!socket.userId) return;
-          const { roomId } = validMessage.payload as { roomId: string };
-          
-          const engine = blackjackRoomManager.getRoom(roomId);
-          if (!engine) return;
-
-          await engine.stand(socket.userId);
-          return;
-        }
-
-        // Handle blackjack double action
-        if (validMessage.type === 'bj:double') {
-          if (!socket.userId) return;
-          const { roomId } = validMessage.payload as { roomId: string };
-          
-          const engine = blackjackRoomManager.getRoom(roomId);
-          if (!engine) return;
-
-          await engine.double(socket.userId);
-          return;
-        }
-
-        // Handle blackjack leave game
-        if (validMessage.type === 'bj:leave_game') {
-          if (!socket.userId) return;
-          const { roomId } = validMessage.payload as { roomId: string };
-          
-          const engine = blackjackRoomManager.getRoom(roomId);
-          if (engine) {
-            engine.leave(socket.userId);
-          }
           return;
         }
       } catch (error) {
@@ -333,21 +173,6 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
     socket.on('close', async () => {
       clearTimeout(authTimeout);
-      if (socket.userId) {
-        const rooms = wsManager.getConnectionRooms(connectionId);
-        for (const roomId of rooms) {
-          if (roomId.startsWith('blackjack')) {
-            const updated = await leaveBlackjackRoom(roomId, socket.userId);
-            if (updated) {
-              const updateEvent = createEvent<ServerBlackjackSeatUpdateEvent>('bj:seat_update', {
-                roomId: updated.id,
-                seats: updated.seats,
-              });
-              wsManager.broadcastToRoom(roomId, updateEvent);
-            }
-          }
-        }
-      }
       wsManager.removeConnection(connectionId);
       logger.info({ connectionId, userId: socket.userId }, 'WebSocket client disconnected');
     });
