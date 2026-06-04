@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'crypto';
 import { authenticate, isAdminTelegramIdAsync, type AuthenticatedRequest } from '../middleware/auth.js';
 import { CrashGameEngine } from '../games/crash/crash-engine.js';
 import { minesEngine } from '../games/mines/mines-engine.js';
@@ -26,6 +27,8 @@ import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { getBlackjackRooms } from '../services/blackjack-room-store.js';
+import { bettingPipeline } from '../game-engine/betting-pipeline.js';
+import { prisma } from '../lib/prisma.js';
 
 /**
  * Game Routes
@@ -331,6 +334,97 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ success: true, rooms });
       } catch (error) {
         logger.error(error, 'Failed to get blackjack rooms');
+        return reply.code(500).send({ error: 'Internal server error' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/games/blackjack/result
+   * Save blackjack game result and update balance
+   */
+  app.post(
+    '/blackjack/result',
+    {
+      preHandler: authenticate,
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const body = request.body as {
+        bet: number;
+        result: 'win' | 'lose' | 'push' | 'blackjack';
+        payout: number;
+        playerHand: { suit: string; rank: string }[];
+        dealerHand: { suit: string; rank: string }[];
+        mode: 'solo' | 'multi';
+        roundId: string;
+      };
+
+      try {
+        // Validate input
+        if (!body.bet || !body.result || body.payout === undefined) {
+          return reply.code(400).send({ error: 'Missing required fields' });
+        }
+
+        const bet = Math.max(0, Math.min(1_000_000, body.bet));
+        const payout = Math.max(0, body.payout);
+
+        // Create bet record
+        const betRecord = {
+          id: `bj_${Date.now()}_${randomUUID()}`,
+          userId,
+          gameId: body.roundId,
+          roundId: body.roundId,
+          amount: bet,
+          state: 'pending' as const,
+          placedAt: Date.now(),
+          metadata: { gameType: 'blackjack', mode: body.mode },
+        };
+
+        // Process bet (deduct from balance)
+        await bettingPipeline.processBet(betRecord, false);
+
+        // Save game round
+        await prisma.gameRound.create({
+          data: {
+            id: body.roundId,
+            gameType: 'blackjack',
+            state: 'completed',
+            startedAt: new Date(),
+            endedAt: new Date(),
+            metadata: { mode: body.mode, betAmount: bet },
+            result: {
+              result: body.result,
+              payout,
+              playerHand: body.playerHand,
+              dealerHand: body.dealerHand,
+            },
+          },
+        }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
+
+        // Process payout if won
+        if (payout > 0) {
+          await bettingPipeline.processPayout(betRecord, payout, false);
+        } else if (body.result === 'push') {
+          // Return bet on push
+          await bettingPipeline.processPayout(betRecord, bet, false);
+        } else {
+          await bettingPipeline.processLoss(betRecord);
+        }
+
+        logger.info(
+          { userId, roundId: body.roundId, result: body.result, bet, payout },
+          'Blackjack round completed'
+        );
+
+        return reply.send({
+          success: true,
+          result: body.result,
+          bet,
+          payout,
+        });
+      } catch (error) {
+        logger.error(error, 'Failed to process blackjack result');
         return reply.code(500).send({ error: 'Internal server error' });
       }
     }

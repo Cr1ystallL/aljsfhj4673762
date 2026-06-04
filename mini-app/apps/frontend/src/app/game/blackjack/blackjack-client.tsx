@@ -528,7 +528,7 @@ export function BlackjackClient() {
     }, 1000);
   };
 
-  const finishSoloRound = () => {
+  const finishSoloRound = async () => {
     setSoloGameState((prev) => ({ ...prev, phase: 'settling' }));
     
     const playerSeat = soloSeats.find((s) => s.occupant);
@@ -563,8 +563,33 @@ export function BlackjackClient() {
       payout = 0;
     }
     
-    // TODO: Send result to backend for balance update and RTP tracking
-    console.log('Round finished:', { result, payout, playerValue, dealerValue });
+    // Send result to backend
+    try {
+      const response = await fetch('/api/games/blackjack/result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          bet: playerSeat?.bet || 0,
+          result,
+          payout,
+          playerHand: playerHand.map(c => ({ suit: c.suit, rank: c.rank })),
+          dealerHand: soloGameState.dealerHand.map(c => ({ suit: c.suit, rank: c.rank })),
+          mode: 'solo',
+          roundId: soloGameState.roundId,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // Update local balance if needed
+          console.log('Round finished:', { result, payout, newBalance: data.balance });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send game result:', error);
+    }
     
     // Reset for next round after delay
     setTimeout(() => {
@@ -575,7 +600,7 @@ export function BlackjackClient() {
         currentTurnSeatId: null,
         roundId: '',
       });
-      setSoloSeats((prev) => prev.map((s) => ({ ...s, hand: undefined, status: undefined })));
+      setSoloSeats((prev) => prev.map((s) => ({ ...s, hand: undefined, status: undefined, bet: undefined })));
     }, 3000);
   };
 
