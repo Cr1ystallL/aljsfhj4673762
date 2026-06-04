@@ -26,13 +26,14 @@ interface Room {
   seats: Seat[];
 }
 
+// Увеличенные позиции для более крупного стола
 const SEAT_POSITIONS: Record<number, { left: string; top: string }> = {
-  1: { left: '14%', top: '62%' },
-  2: { left: '30%', top: '72%' },
-  3: { left: '46%', top: '79%' },
-  4: { left: '60%', top: '79%' },
-  5: { left: '74%', top: '72%' },
-  6: { left: '88%', top: '62%' },
+  1: { left: '10%', top: '58%' },
+  2: { left: '26%', top: '70%' },
+  3: { left: '42%', top: '76%' },
+  4: { left: '58%', top: '76%' },
+  5: { left: '74%', top: '70%' },
+  6: { left: '90%', top: '58%' },
 };
 
 const MODE_CARDS: Array<{
@@ -71,10 +72,14 @@ function countFilled(seats: Seat[]) {
 }
 
 function ensureEmptyRoom(rooms: Room[]): Room[] {
-  // Новая комната появляется, только когда ВСЕ текущие заполнены наполовину или более (>= 3 из 6)
-  const hasAvailableRoom = rooms.some((r) => countFilled(r.seats) < 3);
-  if (hasAvailableRoom) return rooms;
-  return [...rooms, createRoom(rooms.length + 1)];
+  // Новая комната появляется только когда последняя комната полностью заполнена (6/6)
+  if (rooms.length === 0) return [createRoom(1)];
+  const lastRoom = rooms[rooms.length - 1];
+  const lastRoomFilled = countFilled(lastRoom.seats);
+  if (lastRoomFilled >= 6) {
+    return [...rooms, createRoom(rooms.length + 1)];
+  }
+  return rooms;
 }
 
 function Avatar({ occupant }: { occupant: Occupant }) {
@@ -104,24 +109,24 @@ function Avatar({ occupant }: { occupant: Occupant }) {
 function InlineBetControls({ bet, onChange }: { bet: number; onChange: (value: number) => void }) {
   const fmt = (v: number) => v.toLocaleString('ru-RU');
   const controls = [
-    { label: '-10', fn: () => onChange(Math.max(1, bet - 10)) },
-    { label: '1/2', fn: () => onChange(Math.max(1, Math.floor(bet / 2))) },
-    { label: 'x2', fn: () => onChange(Math.min(1_000_000, bet * 2)) },
-    { label: '+10', fn: () => onChange(Math.min(1_000_000, bet + 10)) },
+    { label: '-', fn: () => onChange(Math.max(1, bet - 10)) },
+    { label: '½', fn: () => onChange(Math.max(1, Math.floor(bet / 2))) },
+    { label: '2x', fn: () => onChange(Math.min(1_000_000, bet * 2)) },
+    { label: '+', fn: () => onChange(Math.min(1_000_000, bet + 10)) },
   ];
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[12px] font-semibold text-white shadow-lg shadow-black/40 backdrop-blur">
+    <div className="flex flex-col items-center gap-0.5">
+      <div className="rounded-full border border-white/15 bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg shadow-black/40 backdrop-blur">
         {fmt(bet)} zł
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         {controls.map((c) => (
           <button
             key={c.label}
             type="button"
             onClick={c.fn}
-            className="h-9 w-9 rounded-full border border-white/15 bg-white/[0.08] text-[11px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
+            className="h-6 w-6 rounded-full border border-white/15 bg-white/[0.08] text-[10px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
           >
             {c.label}
           </button>
@@ -158,7 +163,7 @@ function SeatSpot({
         onClick={onSelect}
         disabled={occupiedByOther}
         className={cn(
-          'relative flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all shadow-lg shadow-black/50 backdrop-blur',
+          'relative flex h-20 w-20 items-center justify-center rounded-full border-2 transition-all shadow-lg shadow-black/50 backdrop-blur',
           occupiedByOther
             ? 'cursor-not-allowed border-white/20 bg-white/[0.08]'
             : isYou
@@ -167,11 +172,13 @@ function SeatSpot({
         )}
       >
         {seat.occupant ? (
-          <Avatar occupant={seat.occupant} />
+          <div className="scale-110">
+            <Avatar occupant={seat.occupant} />
+          </div>
         ) : (
-          <div className="h-10 w-10 rounded-full border border-dashed border-amber-200/60 bg-transparent" />
+          <div className="h-12 w-12 rounded-full border-2 border-dashed border-amber-200/60 bg-transparent" />
         )}
-        <div className="absolute -top-2 -right-2 h-4 w-4 rounded-md border border-amber-200/60 bg-white/10" />
+        <div className="absolute -top-1 -right-1 h-5 w-5 rounded-md border border-amber-200/60 bg-white/10" />
       </button>
       <div className="flex items-center gap-2 text-[11px] text-white/75">
         <span className="rounded-full border border-white/10 bg-black/60 px-2 py-1 backdrop-blur">
@@ -211,8 +218,8 @@ export function BlackjackClient() {
 
   const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [roomsLoading, setRoomsLoading] = useState(false);
   const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
+  const roomWsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
 
   const sessionId = useAuthStore((s) => s.sessionId);
 
@@ -262,12 +269,12 @@ export function BlackjackClient() {
 
   const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === you.id)?.id ?? null;
 
-  // --- Load rooms from server when entering multiplayer mode ---
+  // --- Load rooms from server and subscribe to real-time updates via WebSocket ---
   useEffect(() => {
     if (mode !== 'multi') return;
 
+    // Initial load via REST API
     const loadRooms = async () => {
-      setRoomsLoading(true);
       try {
         const res = await fetch('/api/games/blackjack/rooms', {
           credentials: 'include',
@@ -275,7 +282,6 @@ export function BlackjackClient() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.rooms)) {
-            // Merge server rooms with local state, preserving any local changes
             setRooms((prev) => {
               const serverRooms = data.rooms.map((r: any) => ({
                 id: r.id,
@@ -293,23 +299,77 @@ export function BlackjackClient() {
                     }))
                   : Array.from({ length: 6 }, (_, i) => ({ id: i + 1 })),
               }));
-              // Ensure at least one empty room exists
               return ensureEmptyRoom(serverRooms);
             });
           }
         }
       } catch {
         // Fallback to local state on error
-      } finally {
-        setRoomsLoading(false);
       }
     };
 
     loadRooms();
-    // Refresh rooms every 5 seconds while in room list
-    const interval = setInterval(loadRooms, 5000);
-    return () => clearInterval(interval);
-  }, [mode]);
+
+    // Subscribe to all blackjack rooms via WebSocket for real-time updates
+    if (sessionId) {
+      const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
+      const base = /\/ws$/.test(baseRaw) ? baseRaw : `${baseRaw.replace(/\/$/, '')}/ws`;
+      const ws = createAuthenticatedWebSocket(base);
+      roomWsRef.current = ws;
+
+      const connect = async () => {
+        await ws.connectAuthenticated(sessionId);
+        // Subscribe to all blackjack rooms
+        rooms.forEach((room) => {
+          if (room.id.startsWith('blackjack')) {
+            ws.send({ type: 'game:join', payload: { roomId: room.id }, timestamp: Date.now() });
+          }
+        });
+
+        ws.onMessage((msg: WSMessage) => {
+          if (msg.type === 'bj:state') {
+            const { roomId, seats, label } = (msg as ServerBlackjackStateEvent).payload;
+            setRooms((prev) => {
+              const exists = prev.some((r) => r.id === roomId);
+              let next;
+              if (exists) {
+                next = prev.map((r) => (r.id === roomId ? { ...r, seats, label: label || r.label } : r));
+              } else {
+                next = [...prev, { id: roomId, label: label || `Комната ${roomId.split('-')[1]}`, seats }];
+              }
+              return ensureEmptyRoom(next);
+            });
+          }
+          if (msg.type === 'bj:seat_update') {
+            const { roomId, seats } = (msg as ServerBlackjackSeatUpdateEvent).payload;
+            setRooms((prev) => {
+              const exists = prev.some((r) => r.id === roomId);
+              if (!exists) {
+                return ensureEmptyRoom([...prev, { id: roomId, label: `Комната ${roomId.split('-')[1]}`, seats }]);
+              }
+              return ensureEmptyRoom(prev.map((r) => (r.id === roomId ? { ...r, seats } : r)));
+            });
+          }
+        });
+
+        ws.onDisconnect(() => {
+          setTimeout(() => {
+            connect().catch(() => {});
+          }, 2000);
+        });
+      };
+
+      connect().catch(() => {});
+    }
+
+    return () => {
+      if (roomWsRef.current) {
+        roomWsRef.current.disconnect();
+        roomWsRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, sessionId, rooms.length]);
 
   // --- WebSocket handlers for multiplayer ---
   useEffect(() => {
@@ -405,8 +465,8 @@ export function BlackjackClient() {
     onSeat: (id: number) => void,
     activeSeatId: number | null
   ) => (
-    <div className="relative mx-auto w-full max-w-[820px] overflow-hidden rounded-3xl border border-white/10 bg-[#05060c] shadow-2xl">
-      <div className="relative aspect-[16/9]">
+    <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl border border-white/10 bg-[#05060c] shadow-2xl">
+      <div className="relative aspect-[4/3]">
         <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-contain" priority />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
 
@@ -467,14 +527,8 @@ export function BlackjackClient() {
       </button>
       <h1 className="font-roobert text-[22px] text-white">Blackjack — MULTIPLAYER</h1>
       <p className="text-[13px] text-white/65">
-        В комнате до 6 игроков. Когда первая комната наполняется наполовину, появляется новая.
+        В комнате до 6 игроков. Новая комната появляется, когда текущая заполнена полностью (6/6).
       </p>
-      {roomsLoading && (
-        <div className="flex items-center gap-2 text-[13px] text-white/50">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-amber-300" />
-          Загрузка комнат...
-        </div>
-      )}
       <div className="grid grid-cols-1 gap-3">
         {rooms.map((room) => {
           const filled = countFilled(room.seats);
