@@ -194,7 +194,7 @@ function SeatSpot({
       {/* Occupied by other - show avatar */}
       {occupiedByOther && (
         <div className="flex flex-col items-center gap-1">
-          <div className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-white/20 bg-white/[0.08] shadow-lg">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-black/50 shadow-lg backdrop-blur">
             <Avatar occupant={seat.occupant!} />
           </div>
           <div className="rounded-full border border-white/10 bg-black/60 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur">
@@ -207,7 +207,7 @@ function SeatSpot({
       {isYou && (
         <div className="flex flex-col items-center gap-1">
           <div className="relative">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/20 bg-white/10 shadow-lg">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-black/50 shadow-lg backdrop-blur">
               <Avatar occupant={seat.occupant!} />
             </div>
             {/* Leave button (minus) in top-right corner */}
@@ -218,10 +218,6 @@ function SeatSpot({
             >
               −
             </button>
-          </div>
-          {/* Bet display */}
-          <div className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
-            {bet.toLocaleString('ru-RU')} zł
           </div>
         </div>
       )}
@@ -761,9 +757,10 @@ export function BlackjackClient() {
 
         ws.onMessage((msg: WSMessage) => {
           if (msg.type === 'bj:state') {
-            const payload = (msg as any).payload;
+            const payload = (msg as any).payload || {};
+            const players = Array.isArray(payload.players) ? payload.players : [];
             // Check if this is a multiplayer game state (has phase) or room presence update
-            if (payload.phase && payload.players) {
+            if (payload.phase && players.length) {
               // Multiplayer game state from engine
               if (activeRoomId === payload.roomId) {
                 setMultiGameState({
@@ -779,7 +776,7 @@ export function BlackjackClient() {
                     if (r.id !== payload.roomId) return r;
                     // Map players to seats
                     const seatsWithHands = r.seats.map((s) => {
-                      const player = payload.players?.find((p: any) => p.seatId === s.id);
+                      const player = players.find((p: any) => p.seatId === s.id);
                       if (player) {
                         return {
                           ...s,
@@ -1067,7 +1064,7 @@ export function BlackjackClient() {
             {/* Player hand display */}
             {seats[0]?.hand && seats[0].hand.length > 0 && (
               <div 
-                className="absolute z-25 flex flex-col items-center gap-1"
+                className="absolute z-25 flex flex-col items-center gap-2"
                 style={{ left: SOLO_SEAT_POSITION.left, top: '55%' }}
               >
                 <div className="flex items-center gap-1">
@@ -1075,46 +1072,65 @@ export function BlackjackClient() {
                     <CardDisplay key={idx} card={card} />
                   ))}
                 </div>
-                {seats[0].status && (
-                  <div className={cn(
-                    'rounded-full px-2 py-0.5 text-[10px] font-medium border',
-                    seats[0].status === 'bust' && 'bg-red-400/20 text-red-300 border-red-400/30',
-                    seats[0].status === 'blackjack' && 'bg-amber-400/20 text-amber-300 border-amber-400/30',
-                    seats[0].status === 'stand' && 'bg-blue-400/20 text-blue-300 border-blue-400/30',
-                    seats[0].status === 'playing' && 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30'
-                  )}>
-                    {calculateHandValue(seats[0].hand).total} 
-                    {seats[0].status === 'bust' && ' - Перебор'}
-                    {seats[0].status === 'blackjack' && ' - Блэкджек!'}
-                    {seats[0].status === 'stand' && ' - Стоп'}
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full border border-amber-300/40 bg-black/70 px-3 py-1 text-[11px] text-amber-100 shadow-lg shadow-black/40">
+                    Очки: {calculateHandValue(seats[0].hand).total}
                   </div>
-                )}
+                  {seats[0].status && (
+                    <div className={cn(
+                      'rounded-full px-3 py-1 text-[11px] font-medium border',
+                      seats[0].status === 'bust' && 'bg-red-400/15 text-red-200 border-red-400/30',
+                      seats[0].status === 'blackjack' && 'bg-amber-400/15 text-amber-200 border-amber-400/30',
+                      seats[0].status === 'stand' && 'bg-blue-400/15 text-blue-200 border-blue-400/30',
+                      seats[0].status === 'playing' && 'bg-emerald-400/15 text-emerald-200 border-emerald-400/30'
+                    )}>
+                      {seats[0].status === 'bust' && 'Перебор'}
+                      {seats[0].status === 'blackjack' && 'Блэкджек'}
+                      {seats[0].status === 'stand' && 'Стоп'}
+                      {seats[0].status === 'playing' && 'Играете'}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {/* Action buttons */}
             {showActions && (
-              <div className="absolute bottom-[8%] left-1/2 -translate-x-1/2 z-40 flex items-center gap-2">
-                <button
-                  onClick={handleHit}
-                  className="rounded-xl border border-emerald-400/50 bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/30 transition"
-                >
-                  Ещё (Hit)
-                </button>
-                <button
-                  onClick={handleStand}
-                  className="rounded-xl border border-amber-400/50 bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/30 transition"
-                >
-                  Хватит (Stand)
-                </button>
-                {seats[0]?.hand?.length === 2 && (
+              <div className="absolute inset-x-0 bottom-[5%] z-40 flex justify-center px-4">
+                <div className="flex w-full max-w-3xl items-center justify-center gap-3 rounded-2xl bg-black/70 p-3 shadow-2xl backdrop-blur">
                   <button
-                    onClick={handleDouble}
-                    className="rounded-xl border border-blue-400/50 bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-blue-500/30 transition"
+                    onClick={handleHit}
+                    className="group relative flex-1 overflow-hidden rounded-xl border border-emerald-300/70 bg-gradient-to-br from-emerald-700/70 via-emerald-600/60 to-emerald-800/70 px-4 py-3 text-center shadow-[0_10px_35px_rgba(0,0,0,0.55)] transition hover:scale-[1.01] hover:border-emerald-200"
                   >
-                    Удвоить (Double)
+                    <span className="pointer-events-none absolute inset-0 bg-white/5 opacity-50" />
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-200/60 text-lg">＋</span>
+                    <div className="relative flex flex-col items-center gap-0.5 text-white">
+                      <span className="text-[16px] font-semibold tracking-wide">ЕЩЁ</span>
+                    </div>
                   </button>
-                )}
+                  <button
+                    onClick={handleStand}
+                    className="group relative flex-1 overflow-hidden rounded-xl border border-amber-300/80 bg-gradient-to-br from-amber-700/70 via-amber-600/60 to-amber-800/70 px-4 py-3 text-center shadow-[0_10px_35px_rgba(0,0,0,0.55)] transition hover:scale-[1.01] hover:border-amber-200"
+                  >
+                    <span className="pointer-events-none absolute inset-0 bg-white/5 opacity-50" />
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-amber-100/70 text-sm">✋</span>
+                    <div className="relative flex flex-col items-center gap-0.5 text-white">
+                      <span className="text-[16px] font-semibold tracking-wide">ХВАТИТ</span>
+                    </div>
+                  </button>
+                  {seats[0]?.hand?.length === 2 && (
+                    <button
+                      onClick={handleDouble}
+                      className="group relative flex-1 overflow-hidden rounded-xl border border-blue-300/80 bg-gradient-to-br from-sky-700/70 via-sky-600/60 to-blue-800/70 px-4 py-3 text-center shadow-[0_10px_35px_rgba(0,0,0,0.55)] transition hover:scale-[1.01] hover:border-blue-200"
+                    >
+                      <span className="pointer-events-none absolute inset-0 bg-white/5 opacity-50" />
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-blue-100/70 text-sm">×2</span>
+                      <div className="relative flex flex-col items-center gap-0.5 text-white">
+                        <span className="text-[16px] font-semibold tracking-wide">УДВОИТЬ</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1150,14 +1166,10 @@ export function BlackjackClient() {
         )}
       </div>
 
-      {/* Global bet controls - shown during waiting/countdown when seated */}
+      {/* Global bet controls - compact */}
       {activeSeatId && gameState && (gameState.phase === 'waiting' || gameState.phase === 'countdown') && (
         <div className="absolute bottom-[4%] left-1/2 -translate-x-1/2 z-40">
-          <div className="flex flex-col items-center gap-2">
-            <div className="rounded-full border border-white/20 bg-black/70 px-4 py-2 backdrop-blur-sm">
-              <span className="text-[12px] text-white/70">Ваша ставка:</span>
-              <span className="ml-2 font-roobert text-[16px] text-amber-300">{bet.toLocaleString('ru-RU')} zł</span>
-            </div>
+          <div className="rounded-full border border-amber-200/30 bg-black/70 px-3 py-2 backdrop-blur flex items-center gap-2 shadow-lg">
             <InlineBetControls bet={bet} onChange={setBet} />
           </div>
         </div>
