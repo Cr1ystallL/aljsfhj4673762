@@ -306,6 +306,28 @@ function GameCard({
               />
             </Field>
 
+            <Field
+              label="Макс. ставка (zł)"
+              help={{
+                title: 'Максимальная ставка',
+                body: (
+                  <p>
+                    Верхняя граница. Защищает казино от слишком крупных
+                    одиночных ставок. Должна быть{' '}
+                    <strong>не меньше</strong> минимальной.
+                  </p>
+                ),
+              }}
+            >
+              <NumberInput
+                value={form.maxBet}
+                step={10}
+                min={0}
+                onChange={(v) => setForm((f) => ({ ...f, maxBet: v }))}
+              />
+            </Field>
+          </div>
+
           {/* Hidden */}
           <Field
             label="Скрыть игру"
@@ -331,27 +353,6 @@ function GameCard({
               {form.hidden ? 'Скрыто' : 'Видно всем'}
             </button>
           </Field>
-            <Field
-              label="Макс. ставка (zł)"
-              help={{
-                title: 'Максимальная ставка',
-                body: (
-                  <p>
-                    Верхняя граница. Защищает казино от слишком крупных
-                    одиночных ставок. Должна быть{' '}
-                    <strong>не меньше</strong> минимальной.
-                  </p>
-                ),
-              }}
-            >
-              <NumberInput
-                value={form.maxBet}
-                step={10}
-                min={0}
-                onChange={(v) => setForm((f) => ({ ...f, maxBet: v }))}
-              />
-            </Field>
-          </div>
 
           {/* House edge */}
           <Field
