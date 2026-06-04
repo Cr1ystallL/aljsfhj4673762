@@ -257,8 +257,10 @@ export function BlackjackClient() {
 
   const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [multiGameState, setMultiGameState] = useState<GameState | null>(null);
   const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
   const roomWsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
+  const multiWsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
 
   const sessionId = useAuthStore((s) => s.sessionId);
 
@@ -606,6 +608,35 @@ export function BlackjackClient() {
 
   const handleRoomSeat = (seatId: number) => {
     if (!activeRoom) return;
+    
+    // Check if already seated - then leave
+    const currentSeat = activeRoom.seats.find((s) => s.occupant?.id === you.id);
+    if (currentSeat) {
+      // Leave current seat
+      setRooms((prev) => {
+        const nextRooms = prev.map((room) => {
+          if (room.id !== activeRoom.id) return room;
+          const seats = room.seats.map((s) =>
+            s.occupant?.id === you.id ? { ...s, occupant: undefined } : s
+          );
+          return { ...room, seats };
+        });
+        return ensureEmptyRoom(nextRooms);
+      });
+      
+      // Send leave to backend
+      if (wsRef.current) {
+        wsRef.current.send({
+          type: 'bj:leave_game',
+          payload: { roomId: activeRoom.id },
+          timestamp: Date.now(),
+        });
+      }
+      setMultiGameState(null);
+      return;
+    }
+    
+    // Join new seat
     setRooms((prev) => {
       const nextRooms = prev.map((room) => {
         if (room.id !== activeRoom.id) return room;
@@ -621,13 +652,49 @@ export function BlackjackClient() {
       return ensureEmptyRoom(nextRooms);
     });
 
+    // Send presence update
     if (wsRef.current && sessionId) {
       wsRef.current.send({
         type: 'bj:seat',
         payload: { roomId: activeRoom.id, seatId, name: you.name, avatar: you.avatar },
         timestamp: Date.now(),
       });
+      
+      // Join actual game
+      wsRef.current.send({
+        type: 'bj:join_game',
+        payload: { roomId: activeRoom.id, seatId, name: you.name, avatar: you.avatar, bet },
+        timestamp: Date.now(),
+      });
     }
+  };
+
+  // Multiplayer actions
+  const handleMultiHit = () => {
+    if (!activeRoom || !wsRef.current) return;
+    wsRef.current.send({
+      type: 'bj:hit',
+      payload: { roomId: activeRoom.id },
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleMultiStand = () => {
+    if (!activeRoom || !wsRef.current) return;
+    wsRef.current.send({
+      type: 'bj:stand',
+      payload: { roomId: activeRoom.id },
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleMultiDouble = () => {
+    if (!activeRoom || !wsRef.current) return;
+    wsRef.current.send({
+      type: 'bj:double',
+      payload: { roomId: activeRoom.id },
+      timestamp: Date.now(),
+    });
   };
 
   const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === you.id)?.id ?? null;
@@ -691,17 +758,53 @@ export function BlackjackClient() {
 
         ws.onMessage((msg: WSMessage) => {
           if (msg.type === 'bj:state') {
-            const { roomId, seats, label } = (msg as ServerBlackjackStateEvent).payload;
-            setRooms((prev) => {
-              const exists = prev.some((r) => r.id === roomId);
-              let next;
-              if (exists) {
-                next = prev.map((r) => (r.id === roomId ? { ...r, seats, label: label || r.label } : r));
-              } else {
-                next = [...prev, { id: roomId, label: label || `Комната ${roomId.split('-')[1]}`, seats }];
+            const payload = (msg as any).payload;
+            // Check if this is a multiplayer game state (has phase) or room presence update
+            if (payload.phase && payload.players) {
+              // Multiplayer game state from engine
+              if (activeRoomId === payload.roomId) {
+                setMultiGameState({
+                  phase: payload.phase,
+                  countdown: payload.countdown,
+                  dealerHand: payload.dealerHand || [],
+                  currentTurnSeatId: payload.currentTurnSeatId,
+                  roundId: payload.roundId,
+                });
+                // Update room seats with game data
+                setRooms((prev) => {
+                  return prev.map((r) => {
+                    if (r.id !== payload.roomId) return r;
+                    // Map players to seats
+                    const seatsWithHands = r.seats.map((s) => {
+                      const player = payload.players.find((p: any) => p.seatId === s.id);
+                      if (player) {
+                        return {
+                          ...s,
+                          hand: player.hand,
+                          bet: player.bet,
+                          status: player.status,
+                        };
+                      }
+                      return s;
+                    });
+                    return { ...r, seats: seatsWithHands };
+                  });
+                });
               }
-              return ensureEmptyRoom(next);
-            });
+            } else if (payload.seats) {
+              // Room presence update
+              const { roomId, seats, label } = payload;
+              setRooms((prev) => {
+                const exists = prev.some((r) => r.id === roomId);
+                let next;
+                if (exists) {
+                  next = prev.map((r) => (r.id === roomId ? { ...r, seats, label: label || r.label } : r));
+                } else {
+                  next = [...prev, { id: roomId, label: label || `Комната ${roomId.split('-')[1]}`, seats }];
+                }
+                return ensureEmptyRoom(next);
+              });
+            }
           }
           if (msg.type === 'bj:seat_update') {
             const { roomId, seats } = (msg as ServerBlackjackSeatUpdateEvent).payload;
