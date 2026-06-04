@@ -369,7 +369,7 @@ export function BlackjackClient() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, sessionId, rooms.length]);
+  }, [mode, sessionId]);
 
   // --- WebSocket handlers for multiplayer ---
   useEffect(() => {
@@ -460,13 +460,26 @@ export function BlackjackClient() {
     </div>
   );
 
+  // Subscribe to rooms updates when rooms change
+  useEffect(() => {
+    if (!roomWsRef.current || mode !== 'multi') return;
+    const ws = roomWsRef.current;
+    if (ws.isConnected()) {
+      rooms.forEach((room) => {
+        if (room.id.startsWith('blackjack')) {
+          ws.send({ type: 'game:join', payload: { roomId: room.id }, timestamp: Date.now() });
+        }
+      });
+    }
+  }, [rooms, mode]);
+
   const renderTable = (
     seats: Seat[],
     onSeat: (id: number) => void,
     activeSeatId: number | null
   ) => (
-    <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl border border-white/10 bg-[#05060c] shadow-2xl">
-      <div className="relative aspect-[4/3]">
+    <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
+      <div className="relative aspect-[4/3.5]">
         <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-contain" priority />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
 
@@ -516,7 +529,7 @@ export function BlackjackClient() {
   );
 
   const renderRoomList = () => (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <button
         type="button"
         onClick={() => setMode(null)}
@@ -525,52 +538,71 @@ export function BlackjackClient() {
         <ArrowLeft size={18} />
         Назад к выбору режима
       </button>
-      <h1 className="font-roobert text-[22px] text-white">Blackjack — MULTIPLAYER</h1>
-      <p className="text-[13px] text-white/65">
-        В комнате до 6 игроков. Новая комната появляется, когда текущая заполнена полностью (6/6).
-      </p>
-      <div className="grid grid-cols-1 gap-3">
+      <div>
+        <h1 className="font-roobert text-[22px] text-white">Blackjack — MULTIPLAYER</h1>
+        <p className="text-[13px] text-white/65">
+          В комнате до 6 игроков. Новая комната открывается когда текущая заполнена.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-4">
         {rooms.map((room) => {
           const filled = countFilled(room.seats);
+          const isFull = filled === 6;
           return (
-            <div
+            <button
               key={room.id}
-              className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+              type="button"
+              onClick={() => setActiveRoomId(room.id)}
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] text-left shadow-xl transition-all hover:border-white/20"
             >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-roobert text-[16px] text-white">{room.label}</p>
-                  <p className="text-[12px] text-white/60">Занято: {filled}/6</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveRoomId(room.id)}
-                  className="rounded-xl border border-amber-300/60 bg-amber-300/15 px-3 py-2 text-sm font-medium text-amber-50 hover:border-amber-200"
-                >
-                  Войти
-                </button>
-              </div>
-              <div className="grid grid-cols-6 gap-2">
-                {room.seats.map((seat) => (
-                  <div
-                    key={seat.id}
-                    className={cn(
-                      'flex h-10 items-center justify-center rounded-lg border text-[12px] overflow-hidden',
-                      seat.occupant
-                        ? 'border-white/15 bg-white/[0.05] text-white/80'
-                        : 'border-dashed border-white/20 bg-white/[0.02] text-white/60'
-                    )}
-                    title={seat.occupant ? seat.occupant.name : `Место ${seat.id}`}
-                  >
-                    {seat.occupant ? (
-                      <span className="truncate px-1">{seat.occupant.name}</span>
-                    ) : (
-                      `Место ${seat.id}`
-                    )}
+              <div className="relative aspect-[16/6] w-full">
+                <Image
+                  src="/BJ_table.png"
+                  alt={room.label}
+                  fill
+                  priority
+                  className="object-cover opacity-40 group-hover:opacity-50 transition-opacity"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/70" />
+                <div className="absolute inset-0 flex items-center justify-between p-4">
+                  <div className="flex flex-col gap-1">
+                    <p className="font-roobert text-[18px] text-white">{room.label}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        'text-[12px] px-2 py-0.5 rounded-full border',
+                        isFull 
+                          ? 'border-red-300/40 bg-red-400/10 text-red-200'
+                          : 'border-emerald-300/40 bg-emerald-400/10 text-emerald-200'
+                      )}>
+                        {filled}/6 игроков
+                      </span>
+                      {isFull && <span className="text-[11px] text-red-300/80">Комната заполнена</span>}
+                    </div>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <div className="flex -space-x-2">
+                      {room.seats.filter(s => s.occupant).slice(0, 4).map((seat, idx) => (
+                        <div
+                          key={idx}
+                          className="h-8 w-8 rounded-full border-2 border-black/50 bg-white/20 flex items-center justify-center text-[10px] text-white/90"
+                          title={seat.occupant?.name}
+                        >
+                          {seat.occupant?.name.charAt(0).toUpperCase()}
+                        </div>
+                      ))}
+                      {filled > 4 && (
+                        <div className="h-8 w-8 rounded-full border-2 border-black/50 bg-white/10 flex items-center justify-center text-[10px] text-white/70">
+                          +{filled - 4}
+                        </div>
+                      )}
+                    </div>
+                    <span className="ml-2 rounded-xl border border-amber-300/60 bg-amber-300/15 px-4 py-2 text-sm font-medium text-amber-50 group-hover:border-amber-200 transition-colors">
+                      Войти
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

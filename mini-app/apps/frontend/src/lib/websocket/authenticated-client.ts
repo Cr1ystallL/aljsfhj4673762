@@ -108,6 +108,13 @@ export class AuthenticatedWebSocketClient extends WebSocketClient {
 
     return this.connectAuthenticated(this.sessionId);
   }
+
+  /**
+   * Check if WebSocket is connected and authenticated
+   */
+  isConnected(): boolean {
+    return this.getStatus() === 'open';
+  }
 }
 
 /**
