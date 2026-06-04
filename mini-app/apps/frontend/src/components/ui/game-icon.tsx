@@ -5,7 +5,7 @@ import {
   Rocket,
   Disc3,
   Footprints,
-  CreditCard,
+  Spade,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
@@ -124,7 +124,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   coinflip: { label: 'Coinflip', Icon: CoinflipIcon },
   wheel: { label: 'Wheel', Icon: Disc3 },
   bridges: { label: 'Bridges', Icon: Footprints },
-  blackjack: { label: 'Blackjack', Icon: CreditCard },
+  blackjack: { label: 'Blackjack', Icon: Spade },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 
