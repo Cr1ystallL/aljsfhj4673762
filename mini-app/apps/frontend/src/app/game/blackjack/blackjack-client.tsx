@@ -24,6 +24,15 @@ interface Room {
   seats: Seat[];
 }
 
+const SEAT_POSITIONS: Record<number, { left: string; top: string }> = {
+  1: { left: '14%', top: '62%' },
+  2: { left: '30%', top: '72%' },
+  3: { left: '46%', top: '79%' },
+  4: { left: '60%', top: '79%' },
+  5: { left: '74%', top: '72%' },
+  6: { left: '88%', top: '62%' },
+};
+
 const MODE_CARDS: Array<{
   key: 'solo' | 'multi';
   title: string;
@@ -93,92 +102,91 @@ function Avatar({ occupant }: { occupant: Occupant }) {
   );
 }
 
-function SeatButton({
-  seat,
-  isYou,
-  onSelect,
-}: {
-  seat: Seat;
-  isYou: boolean;
-  onSelect: () => void;
-}) {
-  const occupiedByOther = !!seat.occupant && !isYou;
+function InlineBetControls({ bet, onChange }: { bet: number; onChange: (value: number) => void }) {
+  const fmt = (v: number) => v.toLocaleString('ru-RU');
+  const controls = [
+    { label: '-10', fn: () => onChange(Math.max(1, bet - 10)) },
+    { label: '1/2', fn: () => onChange(Math.max(1, Math.floor(bet / 2))) },
+    { label: 'x2', fn: () => onChange(Math.min(1_000_000, bet * 2)) },
+    { label: '+10', fn: () => onChange(Math.min(1_000_000, bet + 10)) },
+  ];
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={occupiedByOther}
-      className={cn(
-        'relative flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all',
-        occupiedByOther
-          ? 'border-white/10 bg-white/[0.03] text-white/60 cursor-not-allowed'
-          : isYou
-          ? 'border-emerald-400/60 bg-emerald-400/10 text-emerald-50'
-          : 'border-white/15 bg-white/[0.05] hover:border-white/25 hover:bg-white/[0.08] text-white'
-      )}
-    >
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.07] text-[13px] font-semibold text-white/80">
-        Место {seat.id}
+    <div className="flex flex-col items-center gap-1">
+      <div className="rounded-full border border-white/15 bg-black/70 px-3 py-1 text-[12px] font-semibold text-white shadow-lg shadow-black/40 backdrop-blur">
+        {fmt(bet)} zł
       </div>
-      <div className="flex flex-1 items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {seat.occupant ? (
-            <Avatar occupant={seat.occupant} />
-          ) : (
-            <div className="h-11 w-11 rounded-full border border-dashed border-white/30 bg-white/[0.03]" />
-          )}
-          <div className="leading-tight">
-            <p className="font-roobert text-[13px] text-white/85">
-              {seat.occupant ? (isYou ? 'Вы сидите здесь' : seat.occupant.name) : 'Свободное место'}
-            </p>
-            <p className="text-[11px] text-white/60">
-              {seat.occupant ? (isYou ? 'Можно менять ставку' : 'Занято') : 'Нажми, чтобы занять'}
-            </p>
-          </div>
-        </div>
+      <div className="flex items-center gap-1">
+        {controls.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            onClick={c.fn}
+            className="h-9 w-9 rounded-full border border-white/15 bg-white/[0.08] text-[11px] text-white transition hover:border-white/30 hover:bg-white/[0.14]"
+          >
+            {c.label}
+          </button>
+        ))}
       </div>
-    </button>
+    </div>
   );
 }
 
-function BetControls({ bet, onChange }: { bet: number; onChange: (value: number) => void }) {
-  const fmt = (v: number) => v.toLocaleString('ru-RU');
+function SeatSpot({
+  seat,
+  position,
+  isYou,
+  onSelect,
+  bet,
+  onBetChange,
+}: {
+  seat: Seat;
+  position: { left: string; top: string };
+  isYou: boolean;
+  onSelect: () => void;
+  bet: number;
+  onBetChange: (value: number) => void;
+}) {
+  const occupiedByOther = !!seat.occupant && !isYou;
+
   return (
-    <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/70">Ставка</p>
-        <span className="font-roobert text-lg text-white">{fmt(bet)} zł</span>
+    <div
+      className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2"
+      style={{ left: position.left, top: position.top }}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={occupiedByOther}
+        className={cn(
+          'relative flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all shadow-lg shadow-black/50 backdrop-blur',
+          occupiedByOther
+            ? 'cursor-not-allowed border-white/20 bg-white/[0.08]'
+            : isYou
+            ? 'border-emerald-300/80 bg-emerald-300/10 hover:border-emerald-200'
+            : 'border-amber-300/60 bg-black/70 hover:border-amber-200/70'
+        )}
+      >
+        {seat.occupant ? (
+          <Avatar occupant={seat.occupant} />
+        ) : (
+          <div className="h-10 w-10 rounded-full border border-dashed border-amber-200/60 bg-transparent" />
+        )}
+        <div className="absolute -top-2 -right-2 h-4 w-4 rounded-md border border-amber-200/60 bg-white/10" />
+      </button>
+      <div className="flex items-center gap-2 text-[11px] text-white/75">
+        <span className="rounded-full border border-white/10 bg-black/60 px-2 py-1 backdrop-blur">
+          Место {seat.id}
+        </span>
+        {occupiedByOther && <span className="text-white/50">Занято</span>}
       </div>
-      <div className="grid grid-cols-4 gap-3">
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(1, bet - 10))}
-          className="rounded-xl border border-white/15 bg-white/[0.04] py-2 text-sm text-white hover:border-white/25"
-        >
-          -10
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(1, Math.floor(bet / 2)))}
-          className="rounded-xl border border-white/15 bg-white/[0.04] py-2 text-sm text-white hover:border-white/25"
-        >
-          1/2
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(Math.min(1_000_000, bet * 2))}
-          className="rounded-xl border border-white/15 bg-white/[0.04] py-2 text-sm text-white hover:border-white/25"
-        >
-          x2
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(bet + 10)}
-          className="rounded-xl border border-white/15 bg-white/[0.04] py-2 text-sm text-white hover:border-white/25"
-        >
-          +10
-        </button>
-      </div>
+      {isYou ? (
+        <InlineBetControls bet={bet} onChange={onBetChange} />
+      ) : seat.occupant ? (
+        <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] text-white/85 shadow-sm">
+          {seat.occupant.name}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -275,30 +283,42 @@ export function BlackjackClient() {
     </div>
   );
 
-  const renderTable = (seats: Seat[], onSeat: (id: number) => void, activeSeatId: number | null) => (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#0e101c] via-[#111527] to-[#0b0d1a] shadow-2xl">
-      <div className="absolute inset-0">
-        <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/45 to-black/65" />
-      </div>
-      <div className="relative z-10 space-y-4 p-4">
-        <div className="flex items-center justify-between text-white/85">
-          <div className="flex items-center gap-2 text-sm">
-            <Users size={16} className="text-amber-300" />
-            <span>Свободных мест: {6 - countFilled(seats)}/6</span>
-          </div>
-          {activeSeatId && <span className="text-[13px] text-emerald-200">Вы заняли место {activeSeatId}</span>}
+  const renderTable = (
+    seats: Seat[],
+    onSeat: (id: number) => void,
+    activeSeatId: number | null
+  ) => (
+    <div className="relative mx-auto w-full max-w-[980px] scale-[0.95] overflow-hidden rounded-3xl border border-white/10 bg-[#05060c] shadow-2xl sm:scale-100">
+      <div className="relative aspect-[16/9]">
+        <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-contain" priority />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
+
+        <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
+          <Users size={16} className="text-amber-300" />
+          <span>Свободных мест: {6 - countFilled(seats)}/6</span>
+          {activeSeatId && (
+            <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-50 border border-emerald-300/30">
+              Вы на месте {activeSeatId}
+            </span>
+          )}
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {seats.map((seat) => (
-            <SeatButton
+
+        {Object.entries(SEAT_POSITIONS).map(([id, position]) => {
+          const seat = seats.find((s) => s.id === Number(id));
+          if (!seat) return null;
+          const isYou = seat.occupant?.id === 'you';
+          return (
+            <SeatSpot
               key={seat.id}
               seat={seat}
-              isYou={seat.occupant?.id === 'you'}
+              position={position}
+              isYou={isYou}
               onSelect={() => onSeat(seat.id)}
+              bet={bet}
+              onBetChange={setBet}
             />
-          ))}
-        </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -315,7 +335,6 @@ export function BlackjackClient() {
       </button>
       <h1 className="font-roobert text-[22px] text-white">Blackjack — SOLO</h1>
       {renderTable(soloSeats, handleSoloSeat, currentSoloSeat)}
-      <BetControls bet={bet} onChange={setBet} />
     </div>
   );
 
@@ -391,7 +410,6 @@ export function BlackjackClient() {
         <span>{activeRoom?.label}</span>
       </div>
       {activeRoom ? renderTable(activeRoom.seats, handleRoomSeat, currentRoomSeatId) : null}
-      <BetControls bet={bet} onChange={setBet} />
     </div>
   );
 
