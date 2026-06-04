@@ -23,6 +23,15 @@ export const WSMessageTypeSchema = z.enum([
   'game_leave',
   'game_state',
   'game_error',
+
+  // Colon-delimited game events used by current WS routes
+  'game:join',
+  'game:leave',
+
+  // Blackjack realtime
+  'bj:seat',
+  'bj:state',
+  'bj:seat_update',
   
   // System
   'error',

@@ -4,7 +4,17 @@ import { randomUUID } from 'crypto';
 import { wsManager } from '../lib/websocket-manager.js';
 import { sessionManager } from '../lib/session-manager.js';
 import { parseClientEvent, createEvent } from '@casino/shared';
-import type { ServerAuthSuccessEvent, ServerAuthErrorEvent, ServerPongEvent, ServerGameJoinedEvent, ServerGameLeftEvent, ServerErrorEvent } from '@casino/shared';
+import type {
+  ServerAuthSuccessEvent,
+  ServerAuthErrorEvent,
+  ServerPongEvent,
+  ServerGameJoinedEvent,
+  ServerGameLeftEvent,
+  ServerErrorEvent,
+  ServerBlackjackSeatUpdateEvent,
+  ServerBlackjackStateEvent,
+} from '@casino/shared';
+import { getBlackjackRooms, joinBlackjackSeat, leaveBlackjackRoom, serializeRoom } from '../services/blackjack-room-store.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -92,6 +102,16 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           wsManager.joinRoom(connectionId, roomId);
           const joinedEvent = createEvent<ServerGameJoinedEvent>('game:joined', { roomId });
           socket.send(JSON.stringify(joinedEvent));
+
+          // If blackjack room, send current state snapshot
+          if (roomId.startsWith('blackjack')) {
+            const rooms = await getBlackjackRooms();
+            const room = rooms.find((r) => r.id === roomId);
+            if (room) {
+              const stateEvent = createEvent<ServerBlackjackStateEvent>('bj:state', serializeRoom(room));
+              socket.send(JSON.stringify(stateEvent));
+            }
+          }
           return;
         }
 
@@ -101,6 +121,57 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           wsManager.leaveRoom(connectionId, roomId);
           const leftEvent = createEvent<ServerGameLeftEvent>('game:left', { roomId });
           socket.send(JSON.stringify(leftEvent));
+
+          if (roomId.startsWith('blackjack') && socket.userId) {
+            const updated = await leaveBlackjackRoom(roomId, socket.userId);
+            if (updated) {
+              const updateEvent = createEvent<ServerBlackjackSeatUpdateEvent>('bj:seat_update', {
+                roomId: updated.id,
+                seats: updated.seats,
+              });
+              wsManager.broadcastToRoom(roomId, updateEvent);
+            }
+          }
+          return;
+        }
+
+        // Handle blackjack seat selection
+        if (validMessage.type === 'bj:seat') {
+          if (!socket.userId) {
+            const errorEvent = createEvent<ServerErrorEvent>('error', {
+              code: 'AUTH_REQUIRED',
+              message: 'Authentication required',
+            });
+            socket.send(JSON.stringify(errorEvent));
+            return;
+          }
+          const { roomId, seatId, name, avatar } = validMessage.payload as {
+            roomId: string;
+            seatId: number;
+            name: string;
+            avatar?: string;
+          };
+
+          const updatedRoom = await joinBlackjackSeat(roomId, seatId, {
+            id: socket.userId,
+            name,
+            avatar,
+          });
+
+          if (!updatedRoom) {
+            const errorEvent = createEvent<ServerErrorEvent>('error', {
+              code: 'SEAT_FAILED',
+              message: 'Cannot take seat',
+            });
+            socket.send(JSON.stringify(errorEvent));
+            return;
+          }
+
+          const updateEvent = createEvent<ServerBlackjackSeatUpdateEvent>('bj:seat_update', {
+            roomId: updatedRoom.id,
+            seats: updatedRoom.seats,
+          });
+          wsManager.broadcastToRoom(updatedRoom.id, updateEvent);
           return;
         }
       } catch (error) {

@@ -49,11 +49,24 @@ export const ClientGameLeaveEventSchema = z.object({
   timestamp: z.number(),
 });
 
+// Blackjack client seat selection
+export const ClientBlackjackSeatEventSchema = z.object({
+  type: z.literal('bj:seat'),
+  payload: z.object({
+    roomId: z.string(),
+    seatId: z.number().int().min(1).max(6),
+    name: z.string().min(1).max(64),
+    avatar: z.string().url().max(512).optional(),
+  }),
+  timestamp: z.number(),
+});
+
 export const ClientEventSchema = z.discriminatedUnion('type', [
   ClientAuthEventSchema,
   ClientPingEventSchema,
   ClientGameJoinEventSchema,
   ClientGameLeaveEventSchema,
+  ClientBlackjackSeatEventSchema,
 ]);
 
 // Server → Client Events
@@ -93,6 +106,41 @@ export const ServerGameLeftEventSchema = z.object({
   type: z.literal('game:left'),
   payload: z.object({
     roomId: z.string(),
+  }),
+  timestamp: z.number(),
+});
+
+// Blackjack state sync for room
+export const ServerBlackjackStateEventSchema = z.object({
+  type: z.literal('bj:state'),
+  payload: z.object({
+    roomId: z.string(),
+    label: z.string(),
+    seats: z.array(
+      z.object({
+        id: z.number().int().min(1).max(6),
+        occupant: z
+          .object({ id: z.string(), name: z.string(), avatar: z.string().url().optional() })
+          .nullable(),
+      })
+    ),
+  }),
+  timestamp: z.number(),
+});
+
+// Blackjack seat update broadcast
+export const ServerBlackjackSeatUpdateEventSchema = z.object({
+  type: z.literal('bj:seat_update'),
+  payload: z.object({
+    roomId: z.string(),
+    seats: z.array(
+      z.object({
+        id: z.number().int().min(1).max(6),
+        occupant: z
+          .object({ id: z.string(), name: z.string(), avatar: z.string().url().optional() })
+          .nullable(),
+      })
+    ),
   }),
   timestamp: z.number(),
 });
@@ -214,6 +262,7 @@ export type ClientAuthEvent = z.infer<typeof ClientAuthEventSchema>;
 export type ClientPingEvent = z.infer<typeof ClientPingEventSchema>;
 export type ClientGameJoinEvent = z.infer<typeof ClientGameJoinEventSchema>;
 export type ClientGameLeaveEvent = z.infer<typeof ClientGameLeaveEventSchema>;
+export type ClientBlackjackSeatEvent = z.infer<typeof ClientBlackjackSeatEventSchema>;
 export type ClientEvent = z.infer<typeof ClientEventSchema>;
 
 export type ServerAuthSuccessEvent = z.infer<typeof ServerAuthSuccessEventSchema>;
@@ -223,6 +272,8 @@ export type ServerGameJoinedEvent = z.infer<typeof ServerGameJoinedEventSchema>;
 export type ServerGameLeftEvent = z.infer<typeof ServerGameLeftEventSchema>;
 export type ServerBalanceUpdateEvent = z.infer<typeof ServerBalanceUpdateEventSchema>;
 export type ServerErrorEvent = z.infer<typeof ServerErrorEventSchema>;
+export type ServerBlackjackStateEvent = z.infer<typeof ServerBlackjackStateEventSchema>;
+export type ServerBlackjackSeatUpdateEvent = z.infer<typeof ServerBlackjackSeatUpdateEventSchema>;
 
 export type GameRoundCreatedEvent = z.infer<typeof GameRoundCreatedEventSchema>;
 export type GamePhaseWaitingEvent = z.infer<typeof GamePhaseWaitingEventSchema>;

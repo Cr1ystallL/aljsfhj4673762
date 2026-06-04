@@ -1,11 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Users } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useTelegramAuth } from '@/hooks/use-telegram-auth';
 import { cn } from '@/lib/utils';
+import { createAuthenticatedWebSocket } from '@/lib/websocket/authenticated-client';
+import type { WSMessage, ServerBlackjackSeatUpdateEvent, ServerBlackjackStateEvent } from '@casino/shared';
 
 interface Occupant {
   id: string;
@@ -15,7 +17,7 @@ interface Occupant {
 
 interface Seat {
   id: number;
-  occupant?: Occupant;
+  occupant?: Occupant | null;
 }
 
 interface Room {
@@ -197,11 +199,11 @@ export function BlackjackClient() {
 
   const you: Occupant = useMemo(
     () => ({
-      id: 'you',
+      id: user?.id ?? 'you',
       name: user?.firstName || 'Вы',
       avatar: user?.photoUrl,
     }),
-    [user?.firstName, user?.photoUrl]
+    [user?.firstName, user?.photoUrl, user?.id]
   );
 
   const [mode, setMode] = useState<'solo' | 'multi' | null>(null);
@@ -212,14 +214,17 @@ export function BlackjackClient() {
 
   const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1, 3)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
 
-  const currentSoloSeat = soloSeats.find((s) => s.occupant?.id === 'you')?.id ?? null;
+  const sessionId = useAuthStore((s) => s.sessionId);
+
+  const currentSoloSeat = soloSeats.find((s) => s.occupant?.id === you.id)?.id ?? null;
   const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
 
   const handleSoloSeat = (seatId: number) => {
     setSoloSeats((prev) => {
       const next = prev.map((s) =>
-        s.occupant?.id === 'you'
+        s.occupant?.id === you.id
           ? { ...s, occupant: undefined }
           : s
       );
@@ -237,19 +242,82 @@ export function BlackjackClient() {
       const nextRooms = prev.map((room) => {
         if (room.id !== activeRoom.id) return room;
         const seats = room.seats.map((s) =>
-          s.occupant?.id === 'you' ? { ...s, occupant: undefined } : s
+          s.occupant?.id === you.id ? { ...s, occupant: undefined } : s
         );
         const target = seats.find((s) => s.id === seatId);
         if (!target) return room;
-        if (target.occupant && target.occupant.id !== 'you') return room;
+        if (target.occupant && target.occupant.id !== you.id) return room;
         target.occupant = you;
         return { ...room, seats };
       });
       return ensureEmptyRoom(nextRooms);
     });
+
+    if (wsRef.current && sessionId) {
+      wsRef.current.send({
+        type: 'bj:seat',
+        payload: { roomId: activeRoom.id, seatId, name: you.name, avatar: you.avatar },
+        timestamp: Date.now(),
+      });
+    }
   };
 
-  const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === 'you')?.id ?? null;
+  const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === you.id)?.id ?? null;
+
+  // auto-select first room in multiplayer
+  useEffect(() => {
+    if (mode === 'multi' && !activeRoomId && rooms.length > 0) {
+      setActiveRoomId(rooms[0].id);
+    }
+  }, [mode, activeRoomId, rooms]);
+
+  // --- WebSocket handlers for multiplayer ---
+  useEffect(() => {
+    if (!sessionId || !activeRoomId || mode !== 'multi') return;
+
+    const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
+    const base = /\/ws$/.test(baseRaw) ? baseRaw : `${baseRaw.replace(/\/$/, '')}/ws`;
+    const ws = createAuthenticatedWebSocket(base);
+    wsRef.current = ws;
+
+    let unsub: (() => void) | null = null;
+
+    const connect = async () => {
+      await ws.connectAuthenticated(sessionId);
+      // Join room
+      ws.send({ type: 'game:join', payload: { roomId: activeRoomId }, timestamp: Date.now() });
+      // Subscribe to messages
+      unsub = ws.onMessage((msg: WSMessage) => {
+        if (msg.type === 'bj:state') {
+          const { roomId, seats, label } = (msg as ServerBlackjackStateEvent).payload;
+          setRooms((prev) => {
+            const next = prev.map((r) => (r.id === roomId ? { ...r, seats, label } : r));
+            // ensure exists
+            if (!next.find((r) => r.id === roomId)) next.push({ id: roomId, label, seats });
+            return next;
+          });
+        }
+        if (msg.type === 'bj:seat_update') {
+          const { roomId, seats } = (msg as ServerBlackjackSeatUpdateEvent).payload;
+          setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, seats } : r)));
+        }
+      });
+
+      ws.onDisconnect(() => {
+        setTimeout(() => {
+          connect().catch(() => {});
+        }, 1000);
+      });
+    };
+
+    connect().catch(() => {});
+
+    return () => {
+      if (unsub) unsub();
+      ws.disconnect();
+      wsRef.current = null;
+    };
+  }, [activeRoomId, mode, sessionId]);
 
   const renderModeSelection = () => (
     <div className="grid grid-cols-1 gap-4">
@@ -306,7 +374,7 @@ export function BlackjackClient() {
         {Object.entries(SEAT_POSITIONS).map(([id, position]) => {
           const seat = seats.find((s) => s.id === Number(id));
           if (!seat) return null;
-          const isYou = seat.occupant?.id === 'you';
+          const isYou = seat.occupant?.id === you.id;
           return (
             <SeatSpot
               key={seat.id}
