@@ -390,6 +390,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             id: body.roundId,
             gameType: 'blackjack',
             state: 'completed',
+            serverSeedHash: 'card_game_no_seed',
             startedAt: new Date(),
             endedAt: new Date(),
             metadata: { mode: body.mode, betAmount: bet },
@@ -398,7 +399,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
               payout,
               playerHand: body.playerHand,
               dealerHand: body.dealerHand,
-            },
+            } as any,
           },
         }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
 
