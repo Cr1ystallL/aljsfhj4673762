@@ -55,10 +55,12 @@ const MODE_CARDS: Array<{
   },
 ];
 
+const roomIdFromIndex = (idx: number) => `blackjack-${idx}`;
+
 function createRoom(id: number): Room {
   const seats: Seat[] = Array.from({ length: 6 }, (_, idx) => ({ id: idx + 1 }));
   return {
-    id: `room-${id}`,
+    id: roomIdFromIndex(id),
     label: `Комната ${id}`,
     seats,
   };
@@ -260,7 +262,12 @@ export function BlackjackClient() {
 
   // --- WebSocket handlers for multiplayer ---
   useEffect(() => {
-    if (!sessionId || !activeRoomId || mode !== 'multi') return;
+    if (!sessionId || !mode) return;
+
+    // если нет комнат, создаем первую локально с корректным id
+    setRooms((prev) => (prev.length === 0 ? [createRoom(1)] : prev));
+
+    if (!activeRoomId) return;
 
     const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
     const base = /\/ws$/.test(baseRaw) ? baseRaw : `${baseRaw.replace(/\/$/, '')}/ws`;

@@ -37,6 +37,14 @@ function sanitizeOccupant(raw: BJOccupant): BJOccupant {
   };
 }
 
+async function normalizeRoomId(roomId: string): Promise<string> {
+  // allow numeric ids from old clients
+  if (/^\d+$/.test(roomId)) {
+    return `blackjack-${roomId}`;
+  }
+  return roomId;
+}
+
 async function loadRooms(): Promise<BJRoom[]> {
   const client = redisClient.getClient();
   try {
@@ -90,30 +98,28 @@ export async function getBlackjackRooms(): Promise<BJRoom[]> {
 }
 
 export async function joinBlackjackSeat(
-  roomId: string,
+  roomIdRaw: string,
   seatId: number,
   occupant: BJOccupant
 ): Promise<BJRoom | null> {
+  const roomId = await normalizeRoomId(roomIdRaw);
   if (seatId < 1 || seatId > MAX_SEATS) return null;
   let rooms = await loadRooms();
 
   const targetIndex = rooms.findIndex((r) => r.id === roomId);
-  if (targetIndex === -1) {
-    rooms = ensureEmptySlotRoom(rooms);
-  }
-
-  const room = rooms.find((r) => r.id === roomId) ?? rooms[rooms.length - 1];
+  const room = targetIndex === -1 ? rooms[rooms.length - 1] : rooms[targetIndex];
+  const resolvedRoom = room?.id === roomId ? room : createEmptyRoom(rooms.length + 1);
 
   // Remove user from all seats first
   rooms = removeUserEverywhere(rooms, occupant.id);
 
   // If room is now missing (because it was new), ensure it exists
-  const idx = rooms.findIndex((r) => r.id === room.id);
+  const idx = rooms.findIndex((r) => r.id === resolvedRoom.id);
   if (idx === -1) {
-    rooms.push(room);
+    rooms.push(resolvedRoom);
   }
 
-  const currentRoom = rooms.find((r) => r.id === room.id)!;
+  const currentRoom = rooms.find((r) => r.id === roomId) ?? rooms.find((r) => r.id === resolvedRoom.id)!;
   const seat = currentRoom.seats.find((s) => s.id === seatId);
   if (!seat) return null;
   seat.occupant = sanitizeOccupant(occupant);
