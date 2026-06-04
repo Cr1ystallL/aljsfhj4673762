@@ -18,12 +18,34 @@ interface Occupant {
 interface Seat {
   id: number;
   occupant?: Occupant | null;
+  hand?: Card[];
+  bet?: number;
+  status?: 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender';
 }
 
 interface Room {
   id: string;
   label: string;
   seats: Seat[];
+}
+
+type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
+type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
+
+interface Card {
+  suit: Suit;
+  rank: Rank;
+  hidden?: boolean;
+}
+
+type GamePhase = 'waiting' | 'countdown' | 'dealing' | 'player_turn' | 'dealer_turn' | 'settling';
+
+interface GameState {
+  phase: GamePhase;
+  countdown: number;
+  dealerHand: Card[];
+  currentTurnSeatId: number | null;
+  roundId: string;
 }
 
 // Multiplayer seat positions (6 seats)
@@ -225,6 +247,13 @@ export function BlackjackClient() {
   const [mode, setMode] = useState<'solo' | 'multi' | null>(null);
   const [bet, setBet] = useState(100);
   const [soloSeats, setSoloSeats] = useState<Seat[]>(() => [{ id: 1 }]);
+  const [soloGameState, setSoloGameState] = useState<GameState>({
+    phase: 'waiting',
+    countdown: 10,
+    dealerHand: [],
+    currentTurnSeatId: null,
+    roundId: '',
+  });
 
   const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -240,15 +269,314 @@ export function BlackjackClient() {
     setSoloSeats((prev) => {
       const next = prev.map((s) =>
         s.occupant?.id === you.id
-          ? { ...s, occupant: undefined }
+          ? { ...s, occupant: undefined, hand: undefined, bet: undefined, status: undefined }
           : s
       );
       const target = next.find((s) => s.id === seatId);
       if (!target) return prev;
       if (target.occupant && target.occupant.id !== 'you') return prev;
       target.occupant = you;
+      target.bet = bet;
       return [...next];
     });
+  };
+
+  const handleSoloLeave = () => {
+    setSoloSeats((prev) => prev.map((s) => ({ ...s, occupant: undefined, hand: undefined, bet: undefined, status: undefined })));
+    setSoloGameState({
+      phase: 'waiting',
+      countdown: 10,
+      dealerHand: [],
+      currentTurnSeatId: null,
+      roundId: '',
+    });
+  };
+
+  // Blackjack game logic helpers
+  const createDeck = (): Card[] => {
+    const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    const deck: Card[] = [];
+    for (const suit of suits) {
+      for (const rank of ranks) {
+        deck.push({ suit, rank });
+      }
+    }
+    // Shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  };
+
+  const getCardValue = (card: Card): number => {
+    if (card.rank === 'A') return 11;
+    if (['K', 'Q', 'J'].includes(card.rank)) return 10;
+    return parseInt(card.rank);
+  };
+
+  const calculateHandValue = (hand: Card[]): { total: number; soft: boolean } => {
+    let total = 0;
+    let aces = 0;
+    for (const card of hand) {
+      if (card.hidden) continue;
+      if (card.rank === 'A') {
+        aces++;
+        total += 11;
+      } else if (['K', 'Q', 'J'].includes(card.rank)) {
+        total += 10;
+      } else {
+        total += parseInt(card.rank);
+      }
+    }
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces--;
+    }
+    return { total, soft: aces > 0 };
+  };
+
+  const isBlackjack = (hand: Card[]): boolean => {
+    return hand.length === 2 && calculateHandValue(hand).total === 21;
+  };
+
+  const dealCard = (deck: Card[], hidden = false): { card: Card; remaining: Card[] } => {
+    const card = { ...deck[0], hidden };
+    return { card, remaining: deck.slice(1) };
+  };
+
+  // Solo game timer and dealing effect
+  useEffect(() => {
+    if (mode !== 'solo') return;
+    const occupiedSeats = soloSeats.filter((s) => s.occupant);
+    
+    // If someone is sitting, start/restart countdown
+    if (occupiedSeats.length > 0 && soloGameState.phase === 'waiting') {
+      setSoloGameState((prev) => ({ ...prev, phase: 'countdown' }));
+    }
+    
+    // If everyone left, reset to waiting
+    if (occupiedSeats.length === 0 && soloGameState.phase !== 'waiting') {
+      setSoloGameState({
+        phase: 'waiting',
+        countdown: 10,
+        dealerHand: [],
+        currentTurnSeatId: null,
+        roundId: '',
+      });
+      setSoloSeats((prev) => prev.map((s) => ({ ...s, hand: undefined, status: undefined })));
+    }
+  }, [mode, soloSeats, soloGameState.phase]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (mode !== 'solo' || soloGameState.phase !== 'countdown') return;
+    
+    const timer = setInterval(() => {
+      setSoloGameState((prev) => {
+        if (prev.countdown <= 1) {
+          // Start dealing
+          startSoloRound();
+          return { ...prev, phase: 'dealing', countdown: 0 };
+        }
+        return { ...prev, countdown: prev.countdown - 1 };
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [mode, soloGameState.phase]);
+
+  const startSoloRound = () => {
+    const deck = createDeck();
+    let currentDeck = deck;
+    const roundId = `solo_${Date.now()}`;
+    
+    // Deal first card to player (if seated)
+    setSoloSeats((prev) => {
+      const next = [...prev];
+      const playerSeat = next.find((s) => s.occupant);
+      if (playerSeat) {
+        const { card, remaining } = dealCard(currentDeck);
+        currentDeck = remaining;
+        playerSeat.hand = [card];
+      }
+      return next;
+    });
+    
+    // Deal first card to dealer (visible) after 500ms
+    setTimeout(() => {
+      const { card, remaining } = dealCard(currentDeck);
+      currentDeck = remaining;
+      setSoloGameState((prev) => ({ ...prev, dealerHand: [card] }));
+      
+      // Deal second card to player after 500ms
+      setTimeout(() => {
+        setSoloSeats((prev) => {
+          const next = [...prev];
+          const playerSeat = next.find((s) => s.occupant);
+          if (playerSeat && currentDeck.length > 0) {
+            const { card: card2, remaining } = dealCard(currentDeck);
+            currentDeck = remaining;
+            playerSeat.hand = [...(playerSeat.hand || []), card2];
+            
+            // Check for blackjack
+            if (isBlackjack(playerSeat.hand)) {
+              playerSeat.status = 'blackjack';
+            } else {
+              playerSeat.status = 'playing';
+            }
+          }
+          return next;
+        });
+        
+        // Deal second card to dealer (hidden) after 500ms
+        setTimeout(() => {
+          const { card: hiddenCard, remaining } = dealCard(currentDeck, true);
+          setSoloGameState((prev) => ({
+            ...prev,
+            dealerHand: [...prev.dealerHand, hiddenCard],
+            phase: 'player_turn',
+            currentTurnSeatId: 1,
+            roundId,
+          }));
+        }, 500);
+      }, 500);
+    }, 500);
+  };
+
+  // Player actions
+  const handleHit = () => {
+    if (soloGameState.phase !== 'player_turn') return;
+    
+    const deck = createDeck();
+    const { card } = dealCard(deck);
+    
+    setSoloSeats((prev) => {
+      const next = [...prev];
+      const playerSeat = next.find((s) => s.occupant);
+      if (playerSeat) {
+        playerSeat.hand = [...(playerSeat.hand || []), card];
+        const { total } = calculateHandValue(playerSeat.hand);
+        if (total > 21) {
+          playerSeat.status = 'bust';
+          // End round - dealer wins
+          setTimeout(() => finishSoloRound(), 1000);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleStand = () => {
+    if (soloGameState.phase !== 'player_turn') return;
+    
+    setSoloSeats((prev) => {
+      const next = [...prev];
+      const playerSeat = next.find((s) => s.occupant);
+      if (playerSeat) {
+        playerSeat.status = 'stand';
+      }
+      return next;
+    });
+    
+    // Start dealer turn
+    setSoloGameState((prev) => ({ ...prev, phase: 'dealer_turn' }));
+    setTimeout(() => playDealerTurn(), 1000);
+  };
+
+  const handleDouble = () => {
+    if (soloGameState.phase !== 'player_turn') return;
+    
+    setSoloSeats((prev) => {
+      const next = [...prev];
+      const playerSeat = next.find((s) => s.occupant);
+      if (playerSeat && playerSeat.bet) {
+        playerSeat.bet *= 2;
+      }
+      return next;
+    });
+    
+    // Hit one more card then stand
+    handleHit();
+    setTimeout(() => handleStand(), 500);
+  };
+
+  const playDealerTurn = () => {
+    // Reveal hidden card
+    setSoloGameState((prev) => ({
+      ...prev,
+      dealerHand: prev.dealerHand.map((c) => ({ ...c, hidden: false })),
+    }));
+    
+    setTimeout(() => {
+      const { total } = calculateHandValue(soloGameState.dealerHand);
+      
+      if (total < 17) {
+        // Dealer hits
+        const deck = createDeck();
+        const { card } = dealCard(deck);
+        setSoloGameState((prev) => ({
+          ...prev,
+          dealerHand: [...prev.dealerHand, card],
+        }));
+        setTimeout(() => playDealerTurn(), 1000);
+      } else {
+        // Dealer stands or busts
+        finishSoloRound();
+      }
+    }, 1000);
+  };
+
+  const finishSoloRound = () => {
+    setSoloGameState((prev) => ({ ...prev, phase: 'settling' }));
+    
+    const playerSeat = soloSeats.find((s) => s.occupant);
+    const playerHand = playerSeat?.hand || [];
+    const playerValue = calculateHandValue(playerHand).total;
+    const dealerValue = calculateHandValue(soloGameState.dealerHand).total;
+    
+    const playerHasBlackjack = isBlackjack(playerHand);
+    const dealerHasBlackjack = isBlackjack(soloGameState.dealerHand);
+    
+    // Determine winner and settle bets
+    let result: 'win' | 'lose' | 'push' | 'blackjack' = 'lose';
+    let payout = 0;
+    
+    if (playerHasBlackjack && !dealerHasBlackjack) {
+      result = 'blackjack';
+      payout = (playerSeat?.bet || 0) * 2.5; // 3:2 payout
+    } else if (playerValue > 21) {
+      result = 'lose';
+      payout = 0;
+    } else if (dealerValue > 21) {
+      result = 'win';
+      payout = (playerSeat?.bet || 0) * 2;
+    } else if (playerValue > dealerValue) {
+      result = 'win';
+      payout = (playerSeat?.bet || 0) * 2;
+    } else if (playerValue === dealerValue) {
+      result = 'push';
+      payout = playerSeat?.bet || 0;
+    } else {
+      result = 'lose';
+      payout = 0;
+    }
+    
+    // TODO: Send result to backend for balance update and RTP tracking
+    console.log('Round finished:', { result, payout, playerValue, dealerValue });
+    
+    // Reset for next round after delay
+    setTimeout(() => {
+      setSoloGameState({
+        phase: 'waiting',
+        countdown: 10,
+        dealerHand: [],
+        currentTurnSeatId: null,
+        roundId: '',
+      });
+      setSoloSeats((prev) => prev.map((s) => ({ ...s, hand: undefined, status: undefined })));
+    }, 3000);
   };
 
   const handleRoomSeat = (seatId: number) => {
@@ -483,18 +811,58 @@ export function BlackjackClient() {
     }
   }, [rooms, mode]);
 
+  // Card component
+  const CardDisplay = ({ card, small = false }: { card: Card; small?: boolean }) => {
+    if (card.hidden) {
+      return (
+        <div className={cn(
+          'rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 border border-white/20 flex items-center justify-center shadow-lg',
+          small ? 'h-10 w-7' : 'h-16 w-11'
+        )}>
+          <span className="text-white/50 text-xs">?</span>
+        </div>
+      );
+    }
+    
+    const suitSymbols: Record<Suit, string> = {
+      hearts: '♥',
+      diamonds: '♦',
+      clubs: '♣',
+      spades: '♠',
+    };
+    
+    const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+    
+    return (
+      <div className={cn(
+        'rounded-lg bg-white border border-white/20 flex flex-col items-center justify-center shadow-lg',
+        small ? 'h-10 w-7' : 'h-16 w-11',
+        isRed ? 'text-red-600' : 'text-black'
+      )}>
+        <span className={cn('font-bold leading-none', small ? 'text-[10px]' : 'text-sm')}>{card.rank}</span>
+        <span className={cn('leading-none', small ? 'text-[8px]' : 'text-xs')}>{suitSymbols[card.suit]}</span>
+      </div>
+    );
+  };
+
   const renderTable = (
     seats: Seat[],
     onSeat: (id: number) => void,
     activeSeatId: number | null,
     onLeave?: () => void,
-    isSolo: boolean = false
-  ) => (
+    isSolo: boolean = false,
+    gameState?: GameState
+  ) => {
+    const isPlayerTurn = gameState?.phase === 'player_turn' && activeSeatId;
+    const showActions = isSolo && isPlayerTurn;
+    
+    return (
     <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
       <div className="relative aspect-[4/3.5]">
         <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-contain" priority />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
 
+        {/* Status bar */}
         <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
           <Users size={16} className="text-amber-300" />
           <span>{isSolo ? '1 на 1 с дилером' : `Свободных мест: ${6 - countFilled(seats)}/6`}</span>
@@ -505,18 +873,111 @@ export function BlackjackClient() {
           )}
         </div>
 
+        {/* Countdown timer */}
+        {isSolo && gameState?.phase === 'countdown' && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="rounded-2xl border border-amber-300/30 bg-black/80 px-8 py-6 text-center">
+              <p className="text-white/70 mb-2">Игра начинается через</p>
+              <p className="font-roobert text-[48px] text-amber-300">{gameState.countdown}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Dealer area - top center */}
+        <div className="absolute left-1/2 top-[12%] -translate-x-1/2 z-20">
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-1">
+              {gameState?.dealerHand.map((card, idx) => (
+                <CardDisplay key={idx} card={card} />
+              ))}
+            </div>
+            {gameState && gameState.dealerHand.length > 0 && (
+              <div className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/70 border border-white/10">
+                Дилер: {calculateHandValue(gameState.dealerHand).total}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Player hands and seats */}
         {isSolo ? (
-          // Solo mode - 1 seat in center
-          <SeatSpot
-            key={1}
-            seat={seats[0] || { id: 1 }}
-            position={SOLO_SEAT_POSITION}
-            isYou={seats[0]?.occupant?.id === you.id}
-            onSelect={() => onSeat(1)}
-            onLeave={onLeave}
-            bet={bet}
-            onBetChange={setBet}
-          />
+          <>
+            {/* Solo seat */}
+            <SeatSpot
+              key={1}
+              seat={seats[0] || { id: 1 }}
+              position={SOLO_SEAT_POSITION}
+              isYou={seats[0]?.occupant?.id === you.id}
+              onSelect={() => onSeat(1)}
+              onLeave={onLeave}
+              bet={bet}
+              onBetChange={setBet}
+            />
+            
+            {/* Player hand display */}
+            {seats[0]?.hand && seats[0].hand.length > 0 && (
+              <div 
+                className="absolute z-25 flex flex-col items-center gap-1"
+                style={{ left: SOLO_SEAT_POSITION.left, top: '55%' }}
+              >
+                <div className="flex items-center gap-1">
+                  {seats[0].hand.map((card, idx) => (
+                    <CardDisplay key={idx} card={card} />
+                  ))}
+                </div>
+                {seats[0].status && (
+                  <div className={cn(
+                    'rounded-full px-2 py-0.5 text-[10px] font-medium border',
+                    seats[0].status === 'bust' && 'bg-red-400/20 text-red-300 border-red-400/30',
+                    seats[0].status === 'blackjack' && 'bg-amber-400/20 text-amber-300 border-amber-400/30',
+                    seats[0].status === 'stand' && 'bg-blue-400/20 text-blue-300 border-blue-400/30',
+                    seats[0].status === 'playing' && 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30'
+                  )}>
+                    {calculateHandValue(seats[0].hand).total} 
+                    {seats[0].status === 'bust' && ' - Перебор'}
+                    {seats[0].status === 'blackjack' && ' - Блэкджек!'}
+                    {seats[0].status === 'stand' && ' - Стоп'}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {showActions && (
+              <div className="absolute bottom-[8%] left-1/2 -translate-x-1/2 z-40 flex items-center gap-2">
+                <button
+                  onClick={handleHit}
+                  className="rounded-xl border border-emerald-400/50 bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/30 transition"
+                >
+                  Ещё (Hit)
+                </button>
+                <button
+                  onClick={handleStand}
+                  className="rounded-xl border border-amber-400/50 bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/30 transition"
+                >
+                  Хватит (Stand)
+                </button>
+                {seats[0]?.hand?.length === 2 && (
+                  <button
+                    onClick={handleDouble}
+                    className="rounded-xl border border-blue-400/50 bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-blue-500/30 transition"
+                  >
+                    Удвоить (Double)
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Phase indicator */}
+            {gameState && gameState.phase !== 'waiting' && gameState.phase !== 'countdown' && (
+              <div className="absolute bottom-[2%] left-1/2 -translate-x-1/2 z-30 rounded-full bg-black/60 px-3 py-1 text-[11px] text-white/70 border border-white/10">
+                {gameState.phase === 'dealing' && 'Раздача карт...'}
+                {gameState.phase === 'player_turn' && 'Ваш ход'}
+                {gameState.phase === 'dealer_turn' && 'Ход дилера...'}
+                {gameState.phase === 'settling' && 'Подсчёт результатов...'}
+              </div>
+            )}
+          </>
         ) : (
           // Multiplayer mode - 6 seats
           Object.entries(SEAT_POSITIONS).map(([id, position]) => {
@@ -539,10 +1000,7 @@ export function BlackjackClient() {
         )}
       </div>
     </div>
-  );
-
-  const handleSoloLeave = () => {
-    setSoloSeats((prev) => prev.map((s) => ({ ...s, occupant: undefined })));
+    );
   };
 
   const renderSolo = () => (
@@ -556,7 +1014,7 @@ export function BlackjackClient() {
         Назад к выбору режима
       </button>
       <h1 className="font-roobert text-[22px] text-white">Blackjack — SOLO</h1>
-      {renderTable(soloSeats, handleSoloSeat, currentSoloSeat, handleSoloLeave, true)}
+      {renderTable(soloSeats, handleSoloSeat, currentSoloSeat, handleSoloLeave, true, soloGameState)}
     </div>
   );
 
