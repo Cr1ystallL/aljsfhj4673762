@@ -409,7 +409,7 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   private async playDealerHand(): Promise<void> {
-    const { total } = this.calculateHandValue(this.state.dealerHand);
+    const { total } = this.calculateHandValue(this.state.dealerHand, true);
 
     if (total < this.config.dealerStandOn) {
       // Dealer hits
@@ -431,7 +431,7 @@ export class BlackjackEngine extends EventEmitter {
     this.state.phase = 'settling';
     this.broadcastState();
 
-    const dealerValue = this.calculateHandValue(this.state.dealerHand).total;
+    const dealerValue = this.calculateHandValue(this.state.dealerHand, true).total;
     const dealerBust = dealerValue > 21;
     const dealerBlackjack = this.isBlackjack(this.state.dealerHand);
 
@@ -597,12 +597,12 @@ export class BlackjackEngine extends EventEmitter {
     return card;
   }
 
-  private calculateHandValue(hand: Card[]): { total: number; soft: boolean } {
+  private calculateHandValue(hand: Card[], includeHidden = false): { total: number; soft: boolean } {
     let total = 0;
     let aces = 0;
 
     for (const card of hand) {
-      if (card.hidden) continue;
+      if (card.hidden && !includeHidden) continue;
       
       if (card.rank === 'A') {
         aces++;
