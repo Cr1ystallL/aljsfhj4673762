@@ -48,19 +48,6 @@ interface GameState {
   roundId: string;
 }
 
-// Multiplayer seat positions (6 seats)
-const SEAT_POSITIONS: Record<number, { left: string; top: string }> = {
-  1: { left: '10%', top: '58%' },
-  2: { left: '26%', top: '70%' },
-  3: { left: '42%', top: '76%' },
-  4: { left: '58%', top: '76%' },
-  5: { left: '74%', top: '70%' },
-  6: { left: '90%', top: '58%' },
-};
-
-// Solo seat position (1 seat in center)
-const SOLO_SEAT_POSITION: { left: string; top: string } = { left: '50%', top: '72%' };
-
 const MODE_CARDS: Array<{
   key: 'solo' | 'multi';
   title: string;
@@ -105,124 +92,6 @@ function ensureEmptyRoom(rooms: Room[]): Room[] {
     return [...rooms, createRoom(rooms.length + 1)];
   }
   return rooms;
-}
-
-function Avatar({ occupant }: { occupant: Occupant }) {
-  const initials = occupant.name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  return (
-    <div className="h-11 w-11 rounded-full border border-white/20 bg-white/5 overflow-hidden flex items-center justify-center text-sm font-semibold text-frost-white shadow-lg shadow-black/40">
-      {occupant.avatar ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={occupant.avatar}
-          alt={occupant.name}
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <span>{initials}</span>
-      )}
-    </div>
-  );
-}
-
-function InlineBetControls({ bet, onChange }: { bet: number; onChange: (value: number) => void }) {
-  const fmt = (v: number) => v.toLocaleString('ru-RU');
-
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(1, Math.floor(bet / 2)))}
-        className="h-8 px-3 rounded-full border border-amber-300/50 bg-amber-400/10 text-[12px] font-medium text-amber-100 transition hover:border-amber-200 hover:bg-amber-400/20"
-      >
-        ½
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(1_000_000, bet * 2))}
-        className="h-8 px-3 rounded-full border border-amber-300/50 bg-amber-400/10 text-[12px] font-medium text-amber-100 transition hover:border-amber-200 hover:bg-amber-400/20"
-      >
-        ×2
-      </button>
-    </div>
-  );
-}
-
-function SeatSpot({
-  seat,
-  position,
-  isYou,
-  onSelect,
-  bet,
-  onBetChange,
-  onLeave,
-}: {
-  seat: Seat;
-  position: { left: string; top: string };
-  isYou: boolean;
-  onSelect: () => void;
-  bet: number;
-  onBetChange: (value: number) => void;
-  onLeave?: () => void;
-}) {
-  const occupiedByOther = !!seat.occupant && !isYou;
-  const isEmpty = !seat.occupant;
-
-  return (
-    <div
-      className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
-      style={{ left: position.left, top: position.top }}
-    >
-      {/* Empty seat - small green plus button */}
-      {isEmpty && (
-        <button
-          type="button"
-          onClick={onSelect}
-          disabled={occupiedByOther}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-amber-300/60 bg-amber-400/15 text-amber-200 text-lg font-bold transition-all shadow-lg shadow-black/50 backdrop-blur hover:bg-amber-400/25 hover:scale-110"
-        >
-          +
-        </button>
-      )}
-
-      {/* Occupied by other - show avatar */}
-      {occupiedByOther && (
-        <div className="flex flex-col items-center gap-1">
-          <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-black/50 shadow-lg backdrop-blur">
-            <Avatar occupant={seat.occupant!} />
-          </div>
-          <div className="rounded-full border border-white/10 bg-black/60 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur">
-            {seat.occupant!.name}
-          </div>
-        </div>
-      )}
-
-      {/* Your seat - avatar with leave button and bet controls */}
-      {isYou && (
-        <div className="flex flex-col items-center gap-1">
-          <div className="relative">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-black/50 shadow-lg backdrop-blur">
-              <Avatar occupant={seat.occupant!} />
-            </div>
-            {/* Leave button (minus) in top-right corner */}
-            <button
-              type="button"
-              onClick={onLeave}
-              className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-400/50 bg-red-500/20 text-red-300 text-xs font-bold transition hover:bg-red-500/30"
-            >
-              −
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function BlackjackClient() {
@@ -698,6 +567,22 @@ export function BlackjackClient() {
 
   const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === you.id)?.id ?? null;
 
+  // Синхронизируем bet в занятых местах, чтобы круг ставки показывал актуальное значение
+  useEffect(() => {
+    if (mode === 'solo') {
+      setSoloSeats((prev) => prev.map((s) => (s.occupant?.id === you.id ? { ...s, bet } : s)));
+    }
+    if (mode === 'multi' && activeRoomId) {
+      setRooms((prev) =>
+        prev.map((room) =>
+          room.id === activeRoomId
+            ? { ...room, seats: room.seats.map((s) => (s.occupant?.id === you.id ? { ...s, bet } : s)) }
+            : room
+        )
+      );
+    }
+  }, [bet, mode, activeRoomId, you.id]);
+
   // --- Load rooms from server and subscribe to real-time updates via WebSocket ---
   useEffect(() => {
     if (mode !== 'multi') return;
@@ -984,197 +869,212 @@ export function BlackjackClient() {
     isSolo: boolean = false,
     gameState?: GameState
   ) => {
-    const isPlayerTurn = gameState?.phase === 'player_turn' && activeSeatId;
-    const showActions = isSolo && isPlayerTurn;
-    
-    return (
-    <div className="relative mx-auto w-full max-w-[1400px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
-      <div className="relative aspect-[4/3.5] md:aspect-[16/9]">
-        <Image src="/BJ_table.png?v=2" alt="Blackjack table" fill className="object-contain" priority />
+    const yourSeat = seats.find((s) => s.occupant?.id === you.id) ?? null;
+    const firstEmpty = seats.find((s) => !s.occupant) ?? null;
+    const seat = isSolo ? seats[0] : yourSeat || firstEmpty || seats[0];
+    const seatId = seat?.id ?? null;
+    const hand = seat?.hand || [];
+    const seatBet = seat?.occupant?.id === you.id ? seat.bet ?? bet : bet;
+    const displayName = seat?.occupant?.name ?? (isSolo ? 'Player 1' : seat ? `Место ${seat.id}` : 'Место');
+    const isPlayerTurn = gameState?.phase === 'player_turn' && seatId && (isSolo || gameState?.currentTurnSeatId === seatId);
+    const showActions = Boolean(isPlayerTurn);
+    const isActive = isPlayerTurn || seat?.status === 'playing';
 
-        {/* Status bar */}
-        <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
-          <Users size={16} className="text-amber-300" />
-          <span>{isSolo ? '1 на 1 с дилером' : `Свободных мест: ${6 - countFilled(seats)}/6`}</span>
-          {activeSeatId && (
-            <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-50 border border-emerald-300/30">
-              Вы на месте {activeSeatId}
-            </span>
+    const updateBetEverywhere = (next: number) => {
+      const clamped = Math.max(1, Math.min(1_000_000, next));
+      setBet(clamped);
+      if (isSolo) {
+        setSoloSeats((prev) => prev.map((s) => (s.occupant?.id === you.id ? { ...s, bet: clamped } : s)));
+      } else if (activeRoomId) {
+        setRooms((prev) =>
+          prev.map((room) =>
+            room.id === activeRoomId
+              ? { ...room, seats: room.seats.map((s) => (s.occupant?.id === you.id ? { ...s, bet: clamped } : s)) }
+              : room
+          )
+        );
+      }
+    };
+
+    const handleJoin = () => {
+      if (seat?.id) onSeat(seat.id);
+    };
+
+    const actionHandlers = {
+      hit: isSolo ? handleHit : handleMultiHit,
+      stand: isSolo ? handleStand : handleMultiStand,
+      double: isSolo ? handleDouble : handleMultiDouble,
+    };
+
+    return (
+      <div className="relative mx-auto w-full max-w-none overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
+        <div className="relative h-[78vh] min-h-[520px] w-full">
+          <Image src="/BJ_table.png?v=2" alt="Blackjack table" fill className="object-cover" priority />
+
+          {/* Статус */}
+          <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/80 backdrop-blur">
+            <Users size={16} className="text-amber-300" />
+            <span>{isSolo ? 'SOLO' : 'MULTIPLAYER'}</span>
+            {activeSeatId && (
+              <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-50 border border-emerald-300/30">
+                Ваше место {activeSeatId}
+              </span>
+            )}
+          </div>
+
+          {/* Игровой блок — один seat по центру */}
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center">
+            {/* Cards */}
+            <div className="relative mb-6 flex h-36 items-end justify-center gap-3">
+              {hand.length > 0 ? (
+                hand.map((card, idx) => {
+                  const middle = (hand.length - 1) / 2;
+                  const offset = idx - middle;
+                  return (
+                    <div
+                      key={idx}
+                      className="transition-transform duration-300"
+                      style={{ transform: `translateY(${Math.abs(offset) * -4}px) rotate(${offset * 6}deg)` }}
+                    >
+                      <CardDisplay card={card} />
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-lg border border-dashed border-amber-300/40 bg-black/40 px-4 py-2 text-[12px] text-white/60">
+                  Ваша рука появится здесь
+                </div>
+              )}
+              {hand.length > 0 && (
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/80 px-3 py-1 text-[11px] text-white/80 shadow-lg">
+                  Очки: {calculateHandValue(hand).total}
+                </div>
+              )}
+            </div>
+
+            {/* Betting circle */}
+            <div className={cn('relative flex items-center justify-center', isActive && 'animate-pulse-soft') }>
+              <button
+                type="button"
+                onClick={() => updateBetEverywhere(Math.max(1, Math.floor(seatBet / 2)))}
+                disabled={!seat?.occupant && !isSolo}
+                className="absolute -left-12 flex h-9 w-9 items-center justify-center rounded-full border border-amber-200/50 bg-black/70 text-amber-100 shadow-lg shadow-black/40 backdrop-blur transition hover:border-amber-100 disabled:opacity-40"
+              >
+                −
+              </button>
+
+              <div
+                onClick={!seat?.occupant ? handleJoin : undefined}
+                className={cn(
+                  'relative flex h-32 w-32 items-center justify-center rounded-full border border-amber-200/50 bg-gradient-to-b from-[#0d0f16]/90 via-[#0b0d14]/85 to-[#0d0f16]/90 shadow-[0_25px_60px_rgba(0,0,0,0.55)] backdrop-blur',
+                  isActive && 'ring-2 ring-amber-300/60 shadow-[0_30px_80px_rgba(255,191,71,0.25)]',
+                  !seat?.occupant && 'cursor-pointer hover:border-amber-200/70'
+                )}
+              >
+                <div className="absolute inset-1 rounded-full border border-amber-200/30" />
+                <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/5 via-transparent to-white/0" />
+                <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-1">
+                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-amber-200 shadow-[0_6px_18px_rgba(0,0,0,0.5)]" />
+                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-slate-200 to-white shadow-[0_6px_18px_rgba(0,0,0,0.5)]" />
+                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-200 shadow-[0_6px_18px_rgba(0,0,0,0.5)]" />
+                </div>
+                <div className="relative z-10 flex flex-col items-center text-white">
+                  {seat?.occupant ? (
+                    <>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-amber-100/70">Ставка</span>
+                      <span className="text-[22px] font-semibold leading-tight">
+                        {seatBet.toLocaleString('ru-RU')}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[14px] font-semibold text-amber-100">Сесть</span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => updateBetEverywhere(Math.min(1_000_000, seatBet + 100))}
+                disabled={!seat?.occupant && !isSolo}
+                className="absolute -right-12 flex h-9 w-9 items-center justify-center rounded-full border border-amber-200/50 bg-black/70 text-amber-100 shadow-lg shadow-black/40 backdrop-blur transition hover:border-amber-100 disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
+
+            {/* Name & status */}
+            <div className="mt-6 flex items-center gap-2 text-sm text-white/80">
+              <span className="rounded-full border border-white/10 bg-black/50 px-3 py-1 backdrop-blur">
+                {displayName}
+              </span>
+              {seat?.status && (
+                <span
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-[12px] font-medium',
+                    seat.status === 'bust' && 'border-red-300/50 bg-red-400/15 text-red-100',
+                    seat.status === 'blackjack' && 'border-amber-300/60 bg-amber-300/15 text-amber-50',
+                    seat.status === 'stand' && 'border-blue-300/50 bg-blue-400/15 text-blue-50',
+                    seat.status === 'playing' && 'border-emerald-300/60 bg-emerald-400/15 text-emerald-50'
+                  )}
+                >
+                  {seat.status === 'bust' && 'Перебор'}
+                  {seat.status === 'blackjack' && 'Блэкджек'}
+                  {seat.status === 'stand' && 'Стоп'}
+                  {seat.status === 'playing' && 'Играете'}
+                </span>
+              )}
+              {seat?.occupant?.id === you.id && onLeave && (
+                <button
+                  type="button"
+                  onClick={onLeave}
+                  className="ml-1 rounded-full border border-red-300/50 bg-red-500/15 px-2 py-1 text-[12px] text-red-100 transition hover:border-red-200 hover:bg-red-500/25"
+                >
+                  Покинуть
+                </button>
+              )}
+            </div>
+
+            {/* Actions — компактные и рядом с кругом */}
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                onClick={actionHandlers.hit}
+                disabled={!showActions}
+                className="min-w-[90px] rounded-full border border-emerald-300/60 bg-emerald-500/15 px-3 py-2 text-[12px] font-semibold text-emerald-50 shadow-lg shadow-black/40 backdrop-blur transition hover:border-emerald-200 disabled:opacity-40"
+              >
+                ЕЩЁ
+              </button>
+              <button
+                onClick={actionHandlers.stand}
+                disabled={!showActions}
+                className="min-w-[90px] rounded-full border border-amber-300/70 bg-amber-400/15 px-3 py-2 text-[12px] font-semibold text-amber-50 shadow-lg shadow-black/40 backdrop-blur transition hover:border-amber-200 disabled:opacity-40"
+              >
+                ХВАТИТ
+              </button>
+              {hand.length === 2 && (
+                <button
+                  onClick={actionHandlers.double}
+                  disabled={!showActions}
+                  className="min-w-[90px] rounded-full border border-blue-300/70 bg-blue-500/15 px-3 py-2 text-[12px] font-semibold text-blue-50 shadow-lg shadow-black/40 backdrop-blur transition hover:border-blue-200 disabled:opacity-40"
+                >
+                  УДВОИТЬ
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Ожидание/таймер */}
+          {(isSolo ? gameState?.phase === 'countdown' : multiGameState?.phase === 'countdown') && (
+            <div className="absolute right-4 top-4 z-30 rounded-full border border-amber-300/50 bg-black/70 px-3 py-1.5 text-[12px] text-amber-100 shadow-lg">
+              Раздача через {isSolo ? soloGameState.countdown : multiGameState?.countdown} сек
+            </div>
+          )}
+          {(isSolo ? gameState?.phase === 'waiting' : multiGameState?.phase === 'waiting') && (
+            <div className="absolute right-4 top-4 z-30 translate-y-11 rounded-full border border-white/15 bg-black/60 px-3 py-1.5 text-[12px] text-white/70 shadow-lg">
+              Ожидаем игроков
+            </div>
           )}
         </div>
-
-        {/* Countdown timer - compact like Wheel/Crash */}
-        {(isSolo && gameState?.phase === 'countdown') || (!isSolo && multiGameState?.phase === 'countdown') ? (
-          <div className="absolute left-1/2 top-[5%] z-30 -translate-x-1/2">
-            <div className="flex flex-col items-center">
-              <div className="rounded-full border border-amber-300/50 bg-black/80 px-4 py-1.5 text-center shadow-lg">
-                <span className="font-roobert text-[18px] font-bold text-amber-300">
-                  {isSolo ? soloGameState.countdown : multiGameState?.countdown}
-                </span>
-                <span className="ml-1.5 text-[12px] text-white/70">сек</span>
-              </div>
-              <span className="mt-1 text-[11px] text-white/60">Раздача через...</span>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Phase indicator for waiting/betting phase */}
-        {(isSolo && gameState?.phase === 'waiting') || (!isSolo && multiGameState?.phase === 'waiting') ? (
-          <div className="absolute left-1/2 top-[5%] z-30 -translate-x-1/2">
-            <div className="flex flex-col items-center">
-              <div className="rounded-full border border-white/20 bg-black/60 px-4 py-1.5 text-center">
-                <span className="text-[12px] text-white/80">Ожидание игроков...</span>
-              </div>
-              <span className="mt-1 text-[10px] text-white/50">Сядьте за стол, чтобы начать</span>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Dealer area - top center */}
-        <div className="absolute left-1/2 top-[12%] -translate-x-1/2 z-20">
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-1">
-              {gameState?.dealerHand.map((card, idx) => (
-                <CardDisplay key={idx} card={card} />
-              ))}
-            </div>
-            {gameState && gameState.dealerHand.length > 0 && (
-              <div className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/70 border border-white/10">
-                Дилер: {calculateHandValue(gameState.dealerHand).total}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Player hands and seats */}
-        {isSolo ? (
-          <>
-            {/* Solo seat */}
-            <SeatSpot
-              key={1}
-              seat={seats[0] || { id: 1 }}
-              position={SOLO_SEAT_POSITION}
-              isYou={seats[0]?.occupant?.id === you.id}
-              onSelect={() => onSeat(1)}
-              onLeave={onLeave}
-              bet={bet}
-              onBetChange={setBet}
-            />
-            
-            {/* Player hand display */}
-            {seats[0]?.hand && seats[0].hand.length > 0 && (
-              <div 
-                className="absolute z-25 flex flex-col items-center gap-2"
-                style={{ left: SOLO_SEAT_POSITION.left, top: '55%' }}
-              >
-                <div className="flex items-center gap-1">
-                  {seats[0].hand.map((card, idx) => (
-                    <CardDisplay key={idx} card={card} />
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="rounded-full border border-amber-300/40 bg-black/70 px-3 py-1 text-[11px] text-amber-100 shadow-lg shadow-black/40">
-                    Очки: {calculateHandValue(seats[0].hand).total}
-                  </div>
-                  {seats[0].status && (
-                    <div className={cn(
-                      'rounded-full px-3 py-1 text-[11px] font-medium border',
-                      seats[0].status === 'bust' && 'bg-red-400/15 text-red-200 border-red-400/30',
-                      seats[0].status === 'blackjack' && 'bg-amber-400/15 text-amber-200 border-amber-400/30',
-                      seats[0].status === 'stand' && 'bg-blue-400/15 text-blue-200 border-blue-400/30',
-                      seats[0].status === 'playing' && 'bg-emerald-400/15 text-emerald-200 border-emerald-400/30'
-                    )}>
-                      {seats[0].status === 'bust' && 'Перебор'}
-                      {seats[0].status === 'blackjack' && 'Блэкджек'}
-                      {seats[0].status === 'stand' && 'Стоп'}
-                      {seats[0].status === 'playing' && 'Играете'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Action buttons */}
-            {showActions && (
-              <div className="absolute inset-x-0 bottom-[5%] z-40 flex justify-center px-4">
-                <div className="flex w-full max-w-3xl items-center justify-center gap-3 rounded-2xl bg-black/70 p-3 shadow-2xl backdrop-blur">
-                  <button
-                    onClick={handleHit}
-                    className="group relative flex-1 overflow-hidden rounded-xl border border-emerald-300/70 bg-gradient-to-br from-emerald-700/70 via-emerald-600/60 to-emerald-800/70 px-4 py-3 text-center shadow-[0_10px_35px_rgba(0,0,0,0.55)] transition hover:scale-[1.01] hover:border-emerald-200"
-                  >
-                    <span className="pointer-events-none absolute inset-0 bg-white/5 opacity-50" />
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-200/60 text-lg">＋</span>
-                    <div className="relative flex flex-col items-center gap-0.5 text-white">
-                      <span className="text-[16px] font-semibold tracking-wide">ЕЩЁ</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={handleStand}
-                    className="group relative flex-1 overflow-hidden rounded-xl border border-amber-300/80 bg-gradient-to-br from-amber-700/70 via-amber-600/60 to-amber-800/70 px-4 py-3 text-center shadow-[0_10px_35px_rgba(0,0,0,0.55)] transition hover:scale-[1.01] hover:border-amber-200"
-                  >
-                    <span className="pointer-events-none absolute inset-0 bg-white/5 opacity-50" />
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-amber-100/70 text-sm">✋</span>
-                    <div className="relative flex flex-col items-center gap-0.5 text-white">
-                      <span className="text-[16px] font-semibold tracking-wide">ХВАТИТ</span>
-                    </div>
-                  </button>
-                  {seats[0]?.hand?.length === 2 && (
-                    <button
-                      onClick={handleDouble}
-                      className="group relative flex-1 overflow-hidden rounded-xl border border-blue-300/80 bg-gradient-to-br from-sky-700/70 via-sky-600/60 to-blue-800/70 px-4 py-3 text-center shadow-[0_10px_35px_rgba(0,0,0,0.55)] transition hover:scale-[1.01] hover:border-blue-200"
-                    >
-                      <span className="pointer-events-none absolute inset-0 bg-white/5 opacity-50" />
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-blue-100/70 text-sm">×2</span>
-                      <div className="relative flex flex-col items-center gap-0.5 text-white">
-                        <span className="text-[16px] font-semibold tracking-wide">УДВОИТЬ</span>
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Phase indicator */}
-            {gameState && gameState.phase !== 'waiting' && gameState.phase !== 'countdown' && (
-              <div className="absolute bottom-[2%] left-1/2 -translate-x-1/2 z-30 rounded-full bg-black/60 px-3 py-1 text-[11px] text-white/70 border border-white/10">
-                {gameState.phase === 'dealing' && 'Раздача карт...'}
-                {gameState.phase === 'player_turn' && 'Ваш ход'}
-                {gameState.phase === 'dealer_turn' && 'Ход дилера...'}
-                {gameState.phase === 'settling' && 'Подсчёт результатов...'}
-              </div>
-            )}
-          </>
-        ) : (
-          // Multiplayer mode - 6 seats
-          Object.entries(SEAT_POSITIONS).map(([id, position]) => {
-            const seat = seats.find((s) => s.id === Number(id));
-            if (!seat) return null;
-            const isYou = seat.occupant?.id === you.id;
-            return (
-              <SeatSpot
-                key={seat.id}
-                seat={seat}
-                position={position}
-                isYou={isYou}
-                onSelect={() => onSeat(seat.id)}
-                onLeave={onLeave}
-                bet={bet}
-                onBetChange={setBet}
-              />
-            );
-          })
-        )}
       </div>
-
-      {/* Global bet controls - compact */}
-      {activeSeatId && gameState && (gameState.phase === 'waiting' || gameState.phase === 'countdown') && (
-        <div className="absolute bottom-[4%] left-1/2 -translate-x-1/2 z-40">
-          <div className="rounded-full border border-amber-200/30 bg-black/70 px-3 py-2 backdrop-blur flex items-center gap-2 shadow-lg">
-            <InlineBetControls bet={bet} onChange={setBet} />
-          </div>
-        </div>
-      )}
-    </div>
     );
   };
 
