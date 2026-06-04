@@ -25,6 +25,7 @@ import {
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
+import { getBlackjackRooms } from '../services/blackjack-room-store.js';
 
 /**
  * Game Routes
@@ -309,6 +310,27 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ state });
       } catch (error) {
         logger.error(error, 'Failed to get crash state');
+        return reply.code(500).send({ error: 'Internal server error' });
+      }
+    }
+  );
+
+  /**
+   * GET /api/games/blackjack/rooms
+   * Get list of blackjack rooms with current occupants
+   */
+  app.get(
+    '/blackjack/rooms',
+    {
+      preHandler: authenticate,
+    },
+    async (request, reply) => {
+      if (!(await ensureVisible('blackjack', request as AuthenticatedRequest, reply))) return;
+      try {
+        const rooms = await getBlackjackRooms();
+        return reply.send({ success: true, rooms });
+      } catch (error) {
+        logger.error(error, 'Failed to get blackjack rooms');
         return reply.code(500).send({ error: 'Internal server error' });
       }
     }

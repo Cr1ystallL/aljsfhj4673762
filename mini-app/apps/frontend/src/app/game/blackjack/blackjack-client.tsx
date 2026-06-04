@@ -211,6 +211,7 @@ export function BlackjackClient() {
 
   const [rooms, setRooms] = useState<Room[]>(() => ensureEmptyRoom([createRoom(1)]));
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [roomsLoading, setRoomsLoading] = useState(false);
   const wsRef = useRef<ReturnType<typeof createAuthenticatedWebSocket> | null>(null);
 
   const sessionId = useAuthStore((s) => s.sessionId);
@@ -261,12 +262,58 @@ export function BlackjackClient() {
 
   const currentRoomSeatId = activeRoom?.seats.find((s) => s.occupant?.id === you.id)?.id ?? null;
 
+  // --- Load rooms from server when entering multiplayer mode ---
+  useEffect(() => {
+    if (mode !== 'multi') return;
+
+    const loadRooms = async () => {
+      setRoomsLoading(true);
+      try {
+        const res = await fetch('/api/games/blackjack/rooms', {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.rooms)) {
+            // Merge server rooms with local state, preserving any local changes
+            setRooms((prev) => {
+              const serverRooms = data.rooms.map((r: any) => ({
+                id: r.id,
+                label: r.label || `Комната ${r.id.split('-')[1]}`,
+                seats: Array.isArray(r.seats)
+                  ? r.seats.map((s: any) => ({
+                      id: s.id,
+                      occupant: s.occupant
+                        ? {
+                            id: s.occupant.id,
+                            name: s.occupant.name,
+                            avatar: s.occupant.avatar,
+                          }
+                        : undefined,
+                    }))
+                  : Array.from({ length: 6 }, (_, i) => ({ id: i + 1 })),
+              }));
+              // Ensure at least one empty room exists
+              return ensureEmptyRoom(serverRooms);
+            });
+          }
+        }
+      } catch {
+        // Fallback to local state on error
+      } finally {
+        setRoomsLoading(false);
+      }
+    };
+
+    loadRooms();
+    // Refresh rooms every 5 seconds while in room list
+    const interval = setInterval(loadRooms, 5000);
+    return () => clearInterval(interval);
+  }, [mode]);
+
   // --- WebSocket handlers for multiplayer ---
   useEffect(() => {
     if (!sessionId || !mode) return;
-
-    // если нет комнат, создаем первую локально с корректным id
-    setRooms((prev) => (prev.length === 0 ? [createRoom(1)] : prev));
 
     if (!activeRoomId) return;
 
@@ -422,6 +469,12 @@ export function BlackjackClient() {
       <p className="text-[13px] text-white/65">
         В комнате до 6 игроков. Когда первая комната наполняется наполовину, появляется новая.
       </p>
+      {roomsLoading && (
+        <div className="flex items-center gap-2 text-[13px] text-white/50">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-amber-300" />
+          Загрузка комнат...
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3">
         {rooms.map((room) => {
           const filled = countFilled(room.seats);
@@ -448,13 +501,18 @@ export function BlackjackClient() {
                   <div
                     key={seat.id}
                     className={cn(
-                      'flex h-10 items-center justify-center rounded-lg border text-[12px]',
+                      'flex h-10 items-center justify-center rounded-lg border text-[12px] overflow-hidden',
                       seat.occupant
                         ? 'border-white/15 bg-white/[0.05] text-white/80'
                         : 'border-dashed border-white/20 bg-white/[0.02] text-white/60'
                     )}
+                    title={seat.occupant ? seat.occupant.name : `Место ${seat.id}`}
                   >
-                    {seat.occupant ? seat.occupant.name : `Место ${seat.id}`}
+                    {seat.occupant ? (
+                      <span className="truncate px-1">{seat.occupant.name}</span>
+                    ) : (
+                      `Место ${seat.id}`
+                    )}
                   </div>
                 ))}
               </div>
