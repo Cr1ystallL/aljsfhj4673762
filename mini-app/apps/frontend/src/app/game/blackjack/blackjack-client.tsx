@@ -987,7 +987,7 @@ export function BlackjackClient() {
     return (
     <div className="relative mx-auto w-full max-w-[960px] overflow-hidden rounded-3xl bg-[#05060c] shadow-2xl">
       <div className="relative aspect-[4/3.5]">
-        <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-contain" priority />
+        <Image src="/BJ_table.png?v=2" alt="Blackjack table" fill className="object-contain" priority />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
 
         {/* Status bar */}
@@ -1205,7 +1205,7 @@ export function BlackjackClient() {
             >
               <div className="relative aspect-[16/6] w-full">
                 <Image
-                  src="/BJ_table.png"
+                  src="/BJ_table.png?v=2"
                   alt={room.label}
                   fill
                   priority

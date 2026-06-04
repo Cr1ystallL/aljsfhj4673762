@@ -410,6 +410,7 @@ export class BlackjackEngine extends EventEmitter {
 
   private async playDealerHand(): Promise<void> {
     const { total } = this.calculateHandValue(this.state.dealerHand, true);
+    logger.info({ total, handSize: this.state.dealerHand.length, standOn: this.config.dealerStandOn }, 'Dealer hand calculation');
 
     if (total < this.config.dealerStandOn) {
       // Dealer hits
