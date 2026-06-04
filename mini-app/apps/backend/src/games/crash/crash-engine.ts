@@ -493,6 +493,7 @@ export class CrashGameEngine extends BaseGameEngine {
     this.checkAutoCashouts();
 
     if (this.crashState.currentMultiplier >= this.crashState.crashPoint) {
+      this.room.state = 'resolving';
       void this.crash();
       return;
     }
