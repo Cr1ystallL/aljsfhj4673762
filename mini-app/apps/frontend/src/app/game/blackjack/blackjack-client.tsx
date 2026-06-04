@@ -288,7 +288,7 @@ export function BlackjackClient() {
     onSeat: (id: number) => void,
     activeSeatId: number | null
   ) => (
-    <div className="relative mx-auto w-full max-w-[980px] scale-[0.95] overflow-hidden rounded-3xl border border-white/10 bg-[#05060c] shadow-2xl sm:scale-100">
+    <div className="relative mx-auto w-full max-w-[820px] overflow-hidden rounded-3xl border border-white/10 bg-[#05060c] shadow-2xl">
       <div className="relative aspect-[16/9]">
         <Image src="/BJ_table.png" alt="Blackjack table" fill className="object-contain" priority />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-black/40 to-black/65" />
@@ -415,7 +415,7 @@ export function BlackjackClient() {
 
   return (
     <main className="min-h-screen bg-midnight-canvas text-frost-white">
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-5 px-4 py-6">
+      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-4 py-6">
         {mode === null && renderModeSelection()}
         {mode === 'solo' && renderSolo()}
         {mode === 'multi' && activeRoomId === null && renderRoomList()}
