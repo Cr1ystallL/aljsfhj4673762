@@ -73,6 +73,9 @@ interface TournamentRow {
   entryFee: number;
   startAtGmt1: number;
   durationHours: number;
+  startsAt: number;
+  endsAt: number;
+  cycleState?: string;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -81,6 +84,7 @@ interface TournamentRow {
 function TournamentsTab() {
   const [list, setList] = useState<TournamentRow[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState<Record<string, 'start' | 'end' | null>>({});
   const reload = useCallback(async () => {
     try {
       const res = await fetch('/api/_x/tournaments', {
@@ -98,6 +102,34 @@ function TournamentsTab() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const formatDate = useCallback((ts?: number) => {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleString('ru-RU', {
+      timeZone: 'Europe/Warsaw',
+      hour12: false,
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, []);
+
+  const forceAction = useCallback(
+    async (id: string, mode: 'start' | 'end') => {
+      setActionBusy((prev) => ({ ...prev, [id]: mode }));
+      try {
+        await fetch(`/api/_x/tournaments/${id}/force-${mode}`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        await reload();
+      } finally {
+        setActionBusy((prev) => ({ ...prev, [id]: null }));
+      }
+    },
+    [reload]
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -119,25 +151,61 @@ function TournamentsTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {list.map((t) => (
-            <button
+            <div
               key={t.id}
-              className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-3 text-left flex flex-col gap-2"
+              className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 text-left flex flex-col gap-2"
             >
               <div className="flex items-center justify-between text-[11px] text-whisper-gray">
                 <span className="inline-flex items-center gap-1 uppercase tracking-[0.18em]">
                   <Trophy size={12} strokeWidth={1.7} /> {t.gameType}
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04]">
-                  {t.active ? 'Активен' : 'Выключен'}
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04]',
+                    t.cycleState === 'ended' && 'text-[#ffb199] border-[#ffb199]/50'
+                  )}
+                >
+                  {t.cycleState === 'ended' ? 'Завершён' : t.active ? 'Активен' : 'Выключен'}
                 </span>
               </div>
               <div className="font-roobert text-[15px] text-frost-white truncate">{t.title}</div>
+              <div className="text-[11px] text-whisper-gray line-clamp-2 min-h-[28px]">{t.description || '—'}</div>
               <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-whisper-gray tabular-nums">
-                <span>Пул {t.prizePool.toFixed(0)} zł</span>
+                <span>
+                  {t.prizeMode === 'percent'
+                    ? `Пул ${t.prizePool.toFixed(0)} zł`
+                    : `Фикс ${t.fixedPrize?.toFixed(0) ?? 0} zł`}
+                </span>
                 <span>Победителей {t.winnersCount}</span>
                 <span>Старт {t.startBalance.toFixed(0)} TM</span>
               </div>
-            </button>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-whisper-gray tabular-nums">
+                <span>Начало: {formatDate(t.startsAt)}</span>
+                <span>Конец: {formatDate(t.endsAt)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-whisper-gray tabular-nums">
+                <span>Тип: {t.entryFee > 0 ? 'С взносом' : 'Бесплатный'}</span>
+                <span>Длительность: {t.durationHours} ч.</span>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  onClick={() => forceAction(t.id, 'start')}
+                  disabled={actionBusy[t.id] === 'start'}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-[11px] text-frost-white hover:border-white/30 disabled:opacity-50"
+                >
+                  <Power size={12} />
+                  {actionBusy[t.id] === 'start' ? 'Стартуем…' : 'Стартовать сейчас'}
+                </button>
+                <button
+                  onClick={() => forceAction(t.id, 'end')}
+                  disabled={actionBusy[t.id] === 'end'}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-[11px] text-frost-white hover:border-white/30 disabled:opacity-50"
+                >
+                  <CheckCircle size={12} />
+                  {actionBusy[t.id] === 'end' ? 'Завершаем…' : 'Завершить и выплатить'}
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -195,7 +263,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           description: description.trim() || null,
           bannerUrl: bannerUrl.trim() || null,
           gameType: gameType.trim(),
-          prizePool: Number(prizePool),
+          prizePool: prizeMode === 'fixed' ? Number(winnersCount) * Number(fixedPrize) : Number(prizePool),
           prizeMode,
           winnersCount: Number(winnersCount),
           fixedPrize: prizeMode === 'fixed' ? Number(fixedPrize) : null,
@@ -253,9 +321,11 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
             ))}
           </select>
         </Field>
-        <Field label="Призовой пул (zł)">
-          <NumInput value={prizePool} onChange={setPrizePool} step={10} />
-        </Field>
+        {prizeMode === 'percent' && (
+          <Field label="Призовой пул (zł)">
+            <NumInput value={prizePool} onChange={setPrizePool} step={10} />
+          </Field>
+        )}
         <Field label="Режим призов">
           <select
             value={prizeMode}
@@ -270,9 +340,16 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           <NumInput value={winnersCount} onChange={setWinnersCount} step={1} />
         </Field>
         {prizeMode === 'fixed' && (
-          <Field label="Сумма приза каждому" colSpan={2}>
-            <NumInput value={fixedPrize} onChange={setFixedPrize} step={10} />
-          </Field>
+          <>
+            <Field label="Сумма приза каждому" colSpan={2}>
+              <NumInput value={fixedPrize} onChange={setFixedPrize} step={10} />
+            </Field>
+            <Field label="Призовой пул" colSpan={2}>
+              <div className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85">
+                {(Number(winnersCount) * Number(fixedPrize || 0)).toFixed(2)} zł
+              </div>
+            </Field>
+          </>
         )}
         <Field label="Стартовый турнирный баланс">
           <NumInput value={startBalance} onChange={setStartBalance} step={10} />
