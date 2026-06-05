@@ -49,6 +49,7 @@ module.exports = {
       cwd: '/var/www/MACVBET/mini-app/apps/frontend',
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3000',
+      interpreter: 'node',
 
       autorestart: true,
       watch: false,
