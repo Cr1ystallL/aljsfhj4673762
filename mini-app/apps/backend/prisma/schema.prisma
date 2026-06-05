@@ -34,6 +34,7 @@ model User {
   balance      Balance?
   bets         Bet[]
   transactions Transaction[]
+  tournamentParticipants TournamentParticipant[]
 
   @@index([telegramId])
   @@index([isBlocked])
