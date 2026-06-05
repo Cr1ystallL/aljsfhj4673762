@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import gsap from 'gsap';
-import { Disc3, Coins, Users, Shield, Wifi, ChevronDown } from 'lucide-react';
+import { Disc3, ChevronDown } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -11,33 +11,10 @@ import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 
-/**
- * Wheel of Fortune — premium redesign.
- *
- * Visual stack (drawn into canvas, single-pass per frame):
- *
- *   1. Atmospheric background — radial wash, brand-tinted.
- *   2. Outer rim (decorative ring) with subtle glow.
- *   3. Tick studs — small bright dots evenly spaced around the rim,
- *      so the wheel reads as a real fortune wheel.
- *   4. Sector body — flat tier colour, no gradient (cleaner read at
- *      small sizes). Soft inner shadow on the back-to-front edge for
- *      depth.
- *   5. Sector divider strokes — thin black/dark, gives crisp segment
- *      boundaries.
- *   6. Sector labels — bold, tabular, large.
- *   7. Central hub — concentric rings (outer ring + inner darker ring
- *      + brass dot in the middle).
- *   8. Top pointer — premium downward triangle with a tiny "anvil"
- *      base, white body, dark border, soft shadow.
- *
- * Animation:
- *   - Idle drift in waiting phase.
- *   - Cubic-out spin tied to the server's spin window (5s).
- *   - On completed phase the wheel parks on the resolved segment.
- *
- * UI text in English throughout.
- */
+/* ========================================================================== */
+/*  Monopo Saigon — Wheel of Fortune                                          */
+/*  Cinematic darkroom aesthetic · achromatic palette · editorial typography   */
+/* ========================================================================== */
 
 type Phase = 'waiting' | 'spinning' | 'completed';
 
@@ -67,47 +44,59 @@ interface Snapshot {
   stats: { playerCount: number; totalWagered: number };
 }
 
-/**
- * Single solid colour per multiplier — the rim ring + label + history
- * chip all share these.
- */
+/* -------------------------------------------------------------------------- */
+/*  Achromatic segment palette                                                 */
+/*  Rarer multipliers = lighter tones. 30x is near-white — it POPS.           */
+/* -------------------------------------------------------------------------- */
+
 const SEG_COLOR: Record<
   number,
-  { base: string; rim: string; light: string; deep: string }
+  { base: string; face: string; label: string; pill: string; pillBg: string }
 > = {
+  /* Fallback for legacy x1 history entries — never shown on the wheel */
   1: {
-    base: '#3f3f46',
-    rim: 'rgba(161, 161, 170, 0.85)',
-    light: '#52525b',
-    deep: '#27272a',
+    base: '#1c1c1c',
+    face: '#252525',
+    label: '#6d6d6d',
+    pill: '#6d6d6d',
+    pillBg: 'rgba(109,109,109,0.12)',
   },
   2: {
-    base: '#4a8b62',
-    rim: 'rgba(160, 224, 171, 0.85)',
-    light: '#5fb37d',
-    deep: '#2f5a3f',
+    base: '#1e1e1e',
+    face: '#262626',
+    label: '#9a9a9a',
+    pill: '#9a9a9a',
+    pillBg: 'rgba(154,154,154,0.10)',
   },
   3: {
-    base: '#bb8a44',
-    rim: 'rgba(255, 200, 110, 0.85)',
-    light: '#dca654',
-    deep: '#7a5a2a',
+    base: '#2c2c2c',
+    face: '#363636',
+    label: '#b8b8b8',
+    pill: '#c0c0c0',
+    pillBg: 'rgba(192,192,192,0.10)',
   },
   5: {
-    base: '#c46a3a',
-    rim: 'rgba(255, 150, 80, 0.9)',
-    light: '#e88550',
-    deep: '#7a4020',
+    base: '#404040',
+    face: '#4e4e4e',
+    label: '#d4d4d4',
+    pill: '#e0e0e0',
+    pillBg: 'rgba(224,224,224,0.10)',
   },
   30: {
-    base: '#b03a30',
-    rim: 'rgba(255, 100, 90, 0.95)',
-    light: '#d65043',
-    deep: '#6e2018',
+    base: '#686868',
+    face: '#787878',
+    label: '#ffffff',
+    pill: '#ffffff',
+    pillBg: 'rgba(255,255,255,0.12)',
   },
 };
 
-const PICKS: number[] = [1, 2, 3, 5, 30];
+/** Bettable multipliers — x1 deliberately removed */
+const PICKS: number[] = [2, 3, 5, 30];
+
+/* ========================================================================== */
+/*  Page                                                                       */
+/* ========================================================================== */
 
 export default function WheelPage() {
   const { balance, fetchBalance } = useBalance();
@@ -126,6 +115,8 @@ export default function WheelPage() {
   } | null>(null);
   const [phaseTick, setPhaseTick] = useState(0);
 
+  /* ----- Data fetching --------------------------------------------------- */
+
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/games/wheel/state', {
@@ -137,7 +128,7 @@ export default function WheelPage() {
       setSnap(j.state as Snapshot);
       setLayout(j.layout as number[]);
     } catch {
-      // best-effort
+      /* best-effort */
     }
   }, []);
 
@@ -158,41 +149,42 @@ export default function WheelPage() {
     return () => clearInterval(id);
   }, [load, fetchBalance, pollMs]);
 
-  // Kick an extra fetch right as the countdown ends to remove the
-  // post-timer pause before spinning.
   useEffect(() => {
     if (!snap || snap.phase !== 'waiting' || !snap.waitingEndsAt) return;
     const ms = snap.waitingEndsAt - Date.now();
-    const id = setTimeout(() => {
-      void load();
-    }, Math.max(0, ms - 80));
+    const id = setTimeout(() => void load(), Math.max(0, ms - 80));
     return () => clearTimeout(id);
   }, [snap, load]);
 
-  // Track client-side spin window so UI stays in "spinning" until the
-  // wheel fully settles, even if the server flips to completed a bit
-  // earlier.
+  /* ----- Spin runtime tracking ------------------------------------------- */
+
   useEffect(() => {
     if (!snap) return;
     if (snap.phase === 'waiting') {
       spinRuntimeRef.current = null;
       return;
     }
-    if ((snap.phase === 'spinning' || snap.phase === 'completed') && snap.segmentIndex != null) {
-      const startedAt = Math.min(snap.spinStartedAt ?? Date.now(), Date.now());
+    if (
+      (snap.phase === 'spinning' || snap.phase === 'completed') &&
+      snap.segmentIndex != null
+    ) {
+      const startedAt = Math.min(
+        snap.spinStartedAt ?? Date.now(),
+        Date.now()
+      );
       const durationMs = snap.spinDurationMs || 12000;
       const current = spinRuntimeRef.current;
-      if (!current || current.seg !== snap.segmentIndex || current.durationMs !== durationMs || current.startedAt !== startedAt) {
-        spinRuntimeRef.current = {
-          startedAt,
-          durationMs,
-          seg: snap.segmentIndex,
-        };
+      if (
+        !current ||
+        current.seg !== snap.segmentIndex ||
+        current.durationMs !== durationMs ||
+        current.startedAt !== startedAt
+      ) {
+        spinRuntimeRef.current = { startedAt, durationMs, seg: snap.segmentIndex };
       }
     }
   }, [snap]);
 
-  // Heartbeat to recompute UI phase gating.
   useEffect(() => {
     const id = setInterval(() => setPhaseTick(Date.now()), 120);
     return () => clearInterval(id);
@@ -201,12 +193,17 @@ export default function WheelPage() {
   const uiPhase: Phase = useMemo(() => {
     if (!snap) return 'waiting';
     const spin = spinRuntimeRef.current;
-    if ((snap.phase === 'spinning' || snap.phase === 'completed') && spin) {
+    if (
+      (snap.phase === 'spinning' || snap.phase === 'completed') &&
+      spin
+    ) {
       const endAt = spin.startedAt + spin.durationMs;
       if (Date.now() < endAt - 30) return 'spinning';
     }
     return snap.phase;
   }, [snap, phaseTick]);
+
+  /* ----- Sound cues ------------------------------------------------------ */
 
   useEffect(() => {
     if (!snap) return;
@@ -226,6 +223,8 @@ export default function WheelPage() {
     }
     lastUiPhaseRef.current = uiPhase;
   }, [uiPhase, snap, fetchBalance]);
+
+  /* ----- Bet placement --------------------------------------------------- */
 
   const placeBet = async () => {
     if (busy) return;
@@ -273,52 +272,54 @@ export default function WheelPage() {
     [balance]
   );
 
+  /* ----- Render ---------------------------------------------------------- */
+
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
+    <main className="min-h-screen w-full bg-[#000000] text-[#ffffff]">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-5">
         <GameTopBar title="Wheel" Icon={Disc3} />
 
+        {/* History */}
         {snap && <HistoryStrip history={snap.history.slice(0, 12)} />}
 
-        {/* Wheel stage */}
-        <div className="relative rounded-card border border-white/10 bg-midnight-canvas overflow-hidden">
+        {/* ---- Wheel Stage (Dark Immersive Frame) ---- */}
+        <div className="relative overflow-hidden" style={{ borderRadius: 0 }}>
+          {/* Atmospheric radial wash — achromatic only */}
           <div
-            className="absolute inset-0 opacity-40 pointer-events-none"
+            className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                'radial-gradient(120% 100% at 50% 100%, rgba(165, 45, 37, 0.22) 0%, rgba(255, 172, 46, 0.14) 35%, rgba(160, 224, 171, 0.10) 65%, transparent 85%)',
+                'radial-gradient(70% 60% at 50% 45%, rgba(255,255,255,0.03) 0%, transparent 70%)',
             }}
           />
-          <div className="relative aspect-[1/1] sm:aspect-[4/3] flex items-center justify-center">
-            <Wheel layout={layout} snap={snap} uiPhase={uiPhase} />
+          <div className="relative aspect-square flex items-center justify-center">
+            <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} />
           </div>
         </div>
 
-        <PhasePill snap={snap} />
+        {/* Phase + Hash */}
+        <PhaseBar snap={snap} uiPhase={uiPhase} />
 
-        {/* Pick chips */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
+        {/* ---- Multiplier Picks (Pill Buttons) ---- */}
+        <div className="flex items-center justify-center gap-2">
           {PICKS.map((p) => {
-            const c = SEG_COLOR[p];
             const active = pick === p;
             return (
               <button
                 key={p}
                 onClick={() => setPick(p)}
                 className={cn(
-                  'shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-pill border font-roobert font-semibold tabular-nums text-[13px] transition-all active:scale-[0.97]',
-                  active
-                    ? 'text-frost-white shadow-[0_0_18px_rgba(255,172,46,0.18)]'
-                    : 'text-frost-white/85 border-white/10 bg-white/[0.03]'
+                  'inline-flex items-center justify-center h-10 px-5 transition-all',
+                  'font-sans text-[13px] font-light tracking-[0.08em] uppercase tabular-nums',
+                  'active:scale-[0.97]'
                 )}
-                style={
-                  active
-                    ? {
-                        borderColor: c.rim,
-                        background: `${c.base}55`,
-                      }
-                    : undefined
-                }
+                style={{
+                  borderRadius: 75,
+                  background: active ? '#ffffff' : 'transparent',
+                  color: active ? '#000000' : '#9a9a9a',
+                  border: active ? '1px solid #ffffff' : '1px solid #3a3a3a',
+                  fontWeight: active ? 600 : 300,
+                }}
               >
                 ×{p}
               </button>
@@ -326,14 +327,25 @@ export default function WheelPage() {
           })}
         </div>
 
-        {/* Bet panel */}
-        <div className="rounded-card border border-white/10 bg-white/[0.04] overflow-hidden">
-          <div className="grid grid-cols-2 items-center">
-            <div className="px-4 py-3 border-r border-white/10">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                Bet
+        {/* ---- Bet Panel ---- */}
+        <div
+          style={{
+            borderRadius: 0,
+            background: '#0a0a0a',
+            border: '1px solid #1a1a1a',
+          }}
+        >
+          {/* Bet + Payout row */}
+          <div className="grid grid-cols-2">
+            {/* Bet input */}
+            <div className="px-5 py-4" style={{ borderRight: '1px solid #1a1a1a' }}>
+              <div
+                className="font-sans uppercase tracking-[0.2em] text-[#6d6d6d]"
+                style={{ fontSize: 10, lineHeight: '1.58' }}
+              >
+                Ставка
               </div>
-              <div className="mt-1.5 flex items-center gap-2">
+              <div className="mt-2 flex items-center gap-2">
                 <input
                   type="number"
                   step={1}
@@ -345,42 +357,125 @@ export default function WheelPage() {
                     if (Number.isFinite(v))
                       setAmount(Math.max(minBet, Math.min(maxBet, v)));
                   }}
-                  className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[20px] font-light tabular-nums focus:outline-none"
+                  className="flex-1 min-w-0 bg-transparent text-[#ffffff] font-sans tabular-nums focus:outline-none"
+                  style={{ fontSize: 22, fontWeight: 300, lineHeight: 1.15 }}
                 />
+                <span
+                  className="font-sans text-[#6d6d6d] uppercase"
+                  style={{ fontSize: 11, letterSpacing: '0.08em' }}
+                >
+                  zł
+                </span>
               </div>
             </div>
-            <div className="px-4 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                Возможный выигрыш
+
+            {/* Potential payout */}
+            <div className="px-5 py-4">
+              <div
+                className="font-sans uppercase tracking-[0.2em] text-[#6d6d6d]"
+                style={{ fontSize: 10, lineHeight: '1.58' }}
+              >
+                Выигрыш
               </div>
-              <div className="mt-1.5 font-roobert text-[20px] font-light tabular-nums text-frost-white">
-                {(amount * pick).toLocaleString('ru-RU', {
-                  maximumFractionDigits: 2,
-                })}{' '}
-                <span className="text-[12px] text-whisper-gray">zł</span>
+              <div className="mt-2">
+                <span
+                  className="font-sans text-[#ffffff] tabular-nums"
+                  style={{ fontSize: 22, fontWeight: 300, lineHeight: 1.15 }}
+                >
+                  {(amount * pick).toLocaleString('ru-RU', {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+                <span
+                  className="font-sans text-[#6d6d6d] uppercase ml-1.5"
+                  style={{ fontSize: 11, letterSpacing: '0.08em' }}
+                >
+                  zł
+                </span>
               </div>
             </div>
           </div>
-          <div className="px-3 pb-3 pt-1 border-t border-white/10">
+
+          {/* CTA */}
+          <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid #1a1a1a' }}>
             <button
               onClick={placeBet}
               disabled={busy || uiPhase !== 'waiting'}
-              className={cn(
-                'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-all active:scale-[0.99]',
-                uiPhase === 'waiting' && !busy
-                  ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/95 shadow-[0_4px_18px_rgba(255,255,255,0.18)]'
-                  : 'bg-white/[0.06] text-frost-white/65 border border-white/15 cursor-not-allowed'
-              )}
+              className="w-full transition-all active:scale-[0.99]"
+              style={{
+                height: 48,
+                borderRadius: 75,
+                fontSize: 12,
+                fontWeight: 400,
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase' as const,
+                fontFamily: 'inherit',
+                background:
+                  uiPhase === 'waiting' && !busy ? '#ffffff' : '#1a1a1a',
+                color:
+                  uiPhase === 'waiting' && !busy ? '#000000' : '#636363',
+                border:
+                  uiPhase === 'waiting' && !busy
+                    ? '1px solid #ffffff'
+                    : '1px solid #2a2a2a',
+                cursor:
+                  uiPhase === 'waiting' && !busy
+                    ? 'pointer'
+                    : 'not-allowed',
+              }}
             >
               {uiPhase === 'waiting'
-                ? `Bet on ×${pick}`
+                ? `Поставить ×${pick}`
                 : uiPhase === 'spinning'
-                  ? 'Spinning…'
-                  : 'Round ended'}
+                  ? 'Крутится…'
+                  : 'Раунд завершён'}
             </button>
           </div>
         </div>
 
+        {/* Quick bet presets */}
+        <div className="flex items-center justify-center gap-2">
+          {[10, 50, 100, 500].map((v) => (
+            <button
+              key={v}
+              onClick={() => setAmount(Math.min(v, maxBet))}
+              className="font-sans tabular-nums transition-colors"
+              style={{
+                fontSize: 11,
+                fontWeight: amount === v ? 600 : 300,
+                color: amount === v ? '#ffffff' : '#636363',
+                letterSpacing: '0.05em',
+                padding: '6px 12px',
+                borderRadius: 75,
+                border:
+                  amount === v
+                    ? '1px solid #636363'
+                    : '1px solid transparent',
+                background: 'transparent',
+              }}
+            >
+              {v}
+            </button>
+          ))}
+          <button
+            onClick={() => setAmount(maxBet)}
+            className="font-sans transition-colors"
+            style={{
+              fontSize: 11,
+              fontWeight: 300,
+              color: '#636363',
+              letterSpacing: '0.05em',
+              padding: '6px 12px',
+              borderRadius: 75,
+              border: '1px solid transparent',
+              background: 'transparent',
+            }}
+          >
+            MAX
+          </button>
+        </div>
+
+        {/* ---- Bets Feed ---- */}
         {snap && (
           <BetsFeed bets={snap.bets} stats={snap.stats} phase={snap.phase} />
         )}
@@ -389,23 +484,49 @@ export default function WheelPage() {
   );
 }
 
-/* -------------------------------------------------------------------------- */
+/* ========================================================================== */
+/*  Phase Bar                                                                  */
+/* ========================================================================== */
 
-function PhasePill({ snap }: { snap: Snapshot | null }) {
+function PhaseBar({
+  snap,
+  uiPhase,
+}: {
+  snap: Snapshot | null;
+  uiPhase: Phase;
+}) {
   if (!snap) return null;
+
+  const phaseLabel =
+    uiPhase === 'waiting'
+      ? 'Приём ставок'
+      : uiPhase === 'spinning'
+        ? 'Вращение'
+        : 'Результат';
+
   return (
-    <div className="flex items-center justify-end gap-2">
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-white/[0.05] border border-white/10">
-        <Shield size={11} className="text-frost-white/60" strokeWidth={2} />
-        <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
-          {snap.serverSeedHash
-            ? `${snap.serverSeedHash.slice(0, 10)}…`
-            : 'loading hash'}
-        </span>
-      </div>
+    <div className="flex items-center justify-between">
+      <span
+        className="font-sans uppercase tracking-[0.2em] text-[#6d6d6d]"
+        style={{ fontSize: 10 }}
+      >
+        {phaseLabel}
+      </span>
+      <span
+        className="font-sans text-[#636363] tracking-wider"
+        style={{ fontSize: 10 }}
+      >
+        {snap.serverSeedHash
+          ? `${snap.serverSeedHash.slice(0, 12)}…`
+          : '—'}
+      </span>
     </div>
   );
 }
+
+/* ========================================================================== */
+/*  History Strip                                                              */
+/* ========================================================================== */
 
 function HistoryStrip({
   history,
@@ -416,7 +537,7 @@ function HistoryStrip({
   const visible = expanded ? history.slice(0, 20) : history.slice(0, 12);
 
   return (
-    <div className="rounded-card bg-white/[0.04] border border-white/10 px-3 py-2.5">
+    <div style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: 12 }}>
       <div className="flex items-start gap-2">
         <div
           className={cn(
@@ -427,20 +548,27 @@ function HistoryStrip({
           )}
         >
           {visible.length === 0 ? (
-            <span className="text-whisper-gray text-[11px] font-roobert">
-              History will appear after the first round
+            <span
+              className="font-sans text-[#636363]"
+              style={{ fontSize: 11 }}
+            >
+              История появится после первого раунда
             </span>
           ) : (
             visible.map((h, i) => {
-              const c = SEG_COLOR[h.multiplier];
+              const c = SEG_COLOR[h.multiplier] ?? SEG_COLOR[2];
               return (
                 <span
                   key={i}
-                  className="shrink-0 inline-flex items-center justify-center px-2.5 py-1 rounded-pill border font-roobert text-[11px] font-semibold tabular-nums"
+                  className="shrink-0 inline-flex items-center justify-center font-sans tabular-nums"
                   style={{
-                    background: `${c.base}66`,
-                    borderColor: c.rim,
-                    color: '#fff',
+                    fontSize: 11,
+                    fontWeight: 400,
+                    padding: '4px 10px',
+                    borderRadius: 75,
+                    background: c.pillBg,
+                    color: c.pill,
+                    border: `1px solid ${c.pill}22`,
                   }}
                 >
                   ×{h.multiplier}
@@ -451,11 +579,16 @@ function HistoryStrip({
         </div>
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="shrink-0 w-7 h-7 rounded-pill border border-white/15 flex items-center justify-center text-frost-white/70 hover:text-frost-white hover:border-white/25 transition-colors"
+          className="shrink-0 w-7 h-7 flex items-center justify-center transition-colors"
+          style={{
+            borderRadius: 75,
+            border: '1px solid #2a2a2a',
+            color: '#636363',
+          }}
           aria-label="Toggle history"
         >
           <ChevronDown
-            size={14}
+            size={13}
             className={cn('transition-transform', expanded && 'rotate-180')}
           />
         </button>
@@ -463,6 +596,10 @@ function HistoryStrip({
     </div>
   );
 }
+
+/* ========================================================================== */
+/*  Bets Feed                                                                  */
+/* ========================================================================== */
 
 function BetsFeed({
   bets,
@@ -474,71 +611,105 @@ function BetsFeed({
   phase: Phase;
 }) {
   const sorted = [...bets].sort((a, b) => b.amount - a.amount);
+
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-      <div className="grid grid-cols-3 gap-2 px-3 py-2 border-b border-white/10">
-        <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em]">
-          <Users size={10} strokeWidth={2} />
+    <div style={{ borderTop: '1px solid #1a1a1a' }}>
+      {/* Stats header */}
+      <div
+        className="flex items-center justify-between py-3"
+        style={{ borderBottom: '1px solid #0f0f0f' }}
+      >
+        <span
+          className="font-sans uppercase tracking-[0.2em] text-[#636363]"
+          style={{ fontSize: 10 }}
+        >
           {stats.playerCount} игроков
-        </div>
-        <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em] justify-center">
-          <Coins size={10} strokeWidth={2} />
+        </span>
+        <span
+          className="font-sans uppercase tracking-[0.2em] text-[#636363]"
+          style={{ fontSize: 10 }}
+        >
           {stats.totalWagered.toLocaleString('ru-RU', {
             maximumFractionDigits: 0,
           })}{' '}
           zł
-        </div>
-        <div className="inline-flex items-center gap-1.5 text-whisper-gray font-roobert text-[10px] uppercase tracking-[0.2em] justify-end">
-          <Wifi size={10} strokeWidth={2} />
-          онлайн
-        </div>
+        </span>
       </div>
-      <div className="max-h-[260px] overflow-y-auto scrollbar-hide divide-y divide-white/5">
+
+      {/* List */}
+      <div className="max-h-[280px] overflow-y-auto scrollbar-hide">
         {sorted.length === 0 && (
-          <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-            Игроки появятся, как только сделают ставку
+          <div
+            className="py-10 text-center font-sans text-[#636363]"
+            style={{ fontSize: 12 }}
+          >
+            Ожидание ставок
           </div>
         )}
         {sorted.map((b) => {
-          const c = SEG_COLOR[b.pick];
+          const c = SEG_COLOR[b.pick] ?? SEG_COLOR[2];
           return (
             <div
               key={b.userId + ':' + b.pick}
-              className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5"
+              className="flex items-center gap-3 py-3"
+              style={{ borderBottom: '1px solid #0a0a0a' }}
             >
+              {/* Avatar */}
               {b.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={b.photoUrl}
                   alt={b.name}
-                  className="w-7 h-7 rounded-pill border border-white/10 object-cover"
+                  className="w-7 h-7 object-cover"
+                  style={{ borderRadius: 75, border: '1px solid #1a1a1a' }}
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <span className="w-7 h-7 rounded-pill bg-white/10 flex items-center justify-center font-roobert text-[11px]">
+                <span
+                  className="w-7 h-7 flex items-center justify-center font-sans"
+                  style={{
+                    borderRadius: 75,
+                    background: '#181818',
+                    color: '#6d6d6d',
+                    fontSize: 11,
+                    border: '1px solid #1a1a1a',
+                  }}
+                >
                   {b.name.charAt(0).toUpperCase()}
                 </span>
               )}
-              <div className="min-w-0">
-                <div className="font-roobert text-[13px] text-frost-white truncate">
+
+              {/* Name + meta */}
+              <div className="flex-1 min-w-0">
+                <div
+                  className="font-sans text-[#ffffff] truncate"
+                  style={{ fontSize: 13, fontWeight: 400 }}
+                >
                   {b.name}
                 </div>
-                <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+                <div
+                  className="font-sans text-[#636363] tabular-nums"
+                  style={{ fontSize: 10 }}
+                >
                   {b.amount.toLocaleString('ru-RU', {
                     maximumFractionDigits: 2,
                   })}{' '}
                   zł · ×{b.pick}
                 </div>
               </div>
+
+              {/* Result */}
               <div
-                className="text-right font-roobert text-[12px] tabular-nums"
+                className="text-right font-sans tabular-nums"
                 style={{
+                  fontSize: 12,
+                  fontWeight: phase === 'completed' && b.won ? 600 : 300,
                   color:
                     phase === 'completed'
                       ? b.won
-                        ? c.rim
-                        : 'rgba(255,138,118,0.8)'
-                      : 'rgba(255,255,255,0.7)',
+                        ? '#ffffff'
+                        : '#3a3a3a'
+                      : '#6d6d6d',
                 }}
               >
                 {phase === 'completed'
@@ -555,11 +726,11 @@ function BetsFeed({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Wheel canvas                                                               */
-/* -------------------------------------------------------------------------- */
+/* ========================================================================== */
+/*  Wheel Canvas                                                               */
+/* ========================================================================== */
 
-function Wheel({
+function WheelCanvas({
   layout,
   snap,
   uiPhase,
@@ -573,7 +744,7 @@ function Wheel({
   const idleTweenRef = useRef<gsap.core.Tween | null>(null);
   const spinTweenRef = useRef<gsap.core.Tween | null>(null);
 
-  // Timer logic for center overlay
+  /* Timer for center overlay */
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!snap) return;
@@ -586,193 +757,175 @@ function Wheel({
       ? Math.max(0, Math.ceil((snap.waitingEndsAt - now) / 1000))
       : null;
 
-  // Render logic
-  const draw = useCallback((rotation: number) => {
-    if (!layout || !snap) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  /* ---- Draw function ---------------------------------------------------- */
 
-    const w = canvas.width / (window.devicePixelRatio || 1);
-    const h = canvas.height / (window.devicePixelRatio || 1);
-    if (!w || !h) return;
+  const draw = useCallback(
+    (rotation: number) => {
+      if (!layout || !snap) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    ctx.clearRect(0, 0, w, h);
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      if (!w || !h) return;
 
-    const cx = w / 2;
-    const cy = h / 2;
-    const radius = Math.min(w, h) * 0.42;
-    const segments = layout.length;
-    const span = (2 * Math.PI) / segments;
+      ctx.clearRect(0, 0, w, h);
 
-    // ---- Drop shadow under the wheel -------------------------------
-    ctx.beginPath();
-    ctx.ellipse(
-      cx,
-      cy + radius * 0.95,
-      radius * 0.85,
-      radius * 0.12,
-      0,
-      0,
-      Math.PI * 2
-    );
-    const shadow = ctx.createRadialGradient(
-      cx, cy + radius * 0.95, 0,
-      cx, cy + radius * 0.95, radius * 0.85
-    );
-    shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
-    shadow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = shadow;
-    ctx.fill();
+      const cx = w / 2;
+      const cy = h / 2;
+      const radius = Math.min(w, h) * 0.43;
+      const segments = layout.length;
+      const span = (2 * Math.PI) / segments;
 
-    // ---- Outer glow ring -------------------------------------------
-    const glow = ctx.createRadialGradient(
-      cx, cy, radius * 0.9,
-      cx, cy, radius * 1.18
-    );
-    glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
-    glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.10)');
-    glow.addColorStop(1, 'rgba(255, 172, 46, 0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ---- Outer rim -------------------------------------------------
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 1.04, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 1.06, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 172, 46, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // ---- Segments + labels ----------------------------------------
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(rotation);
-
-    for (let i = 0; i < segments; i++) {
-      const a0 = i * span;
-      const a1 = (i + 1) * span;
-      const m = layout[i];
-      const c = SEG_COLOR[m];
-
+      /* ---- Subtle floor shadow ---------------------------------------- */
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.arc(0, 0, radius, a0, a1);
-      ctx.closePath();
-      ctx.fillStyle = c.base;
+      ctx.ellipse(
+        cx,
+        cy + radius * 0.92,
+        radius * 0.7,
+        radius * 0.08,
+        0,
+        0,
+        Math.PI * 2
+      );
+      const shadowGrad = ctx.createRadialGradient(
+        cx,
+        cy + radius * 0.92,
+        0,
+        cx,
+        cy + radius * 0.92,
+        radius * 0.7
+      );
+      shadowGrad.addColorStop(0, 'rgba(255,255,255,0.04)');
+      shadowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = shadowGrad;
       ctx.fill();
-      
-      // Light sector highlighting (subtle gradient per sector)
-      const grad = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius);
-      grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-      grad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
-      ctx.fillStyle = grad;
-      ctx.fill();
-    }
 
-    // Sector divider lines
-    for (let i = 0; i < segments; i++) {
-      const a = i * span;
+      /* ---- Outer rim — thin white hairline ----------------------------- */
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.arc(cx, cy, radius * 1.03, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      /* ---- Segments --------------------------------------------------- */
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+
+      for (let i = 0; i < segments; i++) {
+        const a0 = i * span;
+        const a1 = (i + 1) * span;
+        const m = layout[i];
+        const c = SEG_COLOR[m] ?? SEG_COLOR[2];
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, a0, a1);
+        ctx.closePath();
+        ctx.fillStyle = c.base;
+        ctx.fill();
+
+        /* Subtle inner highlight towards outer edge */
+        const grad = ctx.createRadialGradient(0, 0, radius * 0.6, 0, 0, radius);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(1, 'rgba(255,255,255,0.025)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      /* Divider hairlines */
+      for (let i = 0; i < segments; i++) {
+        const a = i * span;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      /* Labels */
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < segments; i++) {
+        const a0 = i * span;
+        const a1 = (i + 1) * span;
+        const m = layout[i];
+        const c = SEG_COLOR[m] ?? SEG_COLOR[2];
+        const aMid = (a0 + a1) / 2;
+        const lx = Math.cos(aMid) * radius * 0.7;
+        const ly = Math.sin(aMid) * radius * 0.7;
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(aMid + Math.PI / 2);
+        ctx.font = '300 14px "Inter", ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = c.label;
+        ctx.fillText(`×${m}`, 0, 0);
+        ctx.restore();
+      }
+
+      /* ---- Central hub ------------------------------------------------ */
+      /* Outer ring */
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
       ctx.lineWidth = 1;
       ctx.stroke();
-    }
 
-    // Labels
-    ctx.fillStyle = '#fff';
-    ctx.font =
-      '700 14px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < segments; i++) {
-      const a0 = i * span;
-      const a1 = (i + 1) * span;
-      const m = layout[i];
-      const aMid = (a0 + a1) / 2;
-      const lx = Math.cos(aMid) * radius * 0.72;
-      const ly = Math.sin(aMid) * radius * 0.72;
-      ctx.save();
-      ctx.translate(lx, ly);
-      ctx.rotate(aMid + Math.PI / 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillText(`×${m}`, 0, 1);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(`×${m}`, 0, 0);
-      ctx.restore();
-    }
-
-    // Inner dark center (for timer)
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
-    ctx.fillStyle = '#0f1115'; // Matte dark
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.stroke();
-    
-    // Gloss on inner center
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
-    const gloss = ctx.createLinearGradient(-radius * 0.28, -radius * 0.28, radius * 0.28, radius * 0.28);
-    gloss.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-    gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gloss;
-    ctx.fill();
-
-    ctx.restore();
-
-    // ---- Static tick studs (no animation) -------------------------
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
-      const sx = cx + Math.cos(a) * radius * 1.085;
-      const sy = cy + Math.sin(a) * radius * 1.085;
+      /* Inner dot */
       ctx.beginPath();
-      ctx.arc(sx, sy, 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 220, 150, 0.5)';
+      ctx.arc(0, 0, radius * 0.04, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
       ctx.fill();
-    }
 
-    // ---- Top pointer -----------------------------------------------
-    const px = cx;
-    const py = cy - radius * 1.04;
-    ctx.beginPath();
-    ctx.arc(px, py + 6, 8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    ctx.fill();
+      ctx.restore();
 
-    ctx.beginPath();
-    ctx.moveTo(px - 11, py - 8);
-    ctx.lineTo(px + 11, py - 8);
-    ctx.lineTo(px + 8, py - 1);
-    ctx.lineTo(px, py + 16);
-    ctx.lineTo(px - 8, py - 1);
-    ctx.closePath();
-    const pGrad = ctx.createLinearGradient(px, py - 8, px, py + 16);
-    pGrad.addColorStop(0, '#ffffff');
-    pGrad.addColorStop(1, '#cccccc');
-    ctx.fillStyle = pGrad;
-    ctx.fill();
-    ctx.lineWidth = 1.2;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.stroke();
-  }, [layout, snap]);
+      /* ---- Tick studs (static, not rotating) -------------------------- */
+      const tickCount = 30;
+      for (let i = 0; i < tickCount; i++) {
+        const a = (i / tickCount) * Math.PI * 2 - Math.PI / 2;
+        const sx = cx + Math.cos(a) * radius * 1.06;
+        const sy = cy + Math.sin(a) * radius * 1.06;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fill();
+      }
+
+      /* ---- Top pointer ------------------------------------------------ */
+      const px = cx;
+      const py = cy - radius * 1.03;
+
+      ctx.beginPath();
+      ctx.moveTo(px - 8, py - 6);
+      ctx.lineTo(px + 8, py - 6);
+      ctx.lineTo(px, py + 14);
+      ctx.closePath();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    },
+    [layout, snap]
+  );
+
+  /* ---- Canvas setup + render loop -------------------------------------- */
 
   useEffect(() => {
     if (!layout || !snap) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const isTouch = typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+    const isTouch =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
     let size = { w: 0, h: 0 };
 
@@ -801,6 +954,8 @@ function Wheel({
     };
   }, [layout, snap, draw]);
 
+  /* ---- GSAP spin / idle animation ------------------------------------- */
+
   useEffect(() => {
     if (!layout || !snap) return;
 
@@ -809,39 +964,46 @@ function Wheel({
       if (!idleTweenRef.current || !idleTweenRef.current.isActive()) {
         idleTweenRef.current = gsap.to(rotRef.current, {
           angle: rotRef.current.angle + Math.PI * 2,
-          duration: 30, // Slow idle rotation
+          duration: 40,
           repeat: -1,
-          ease: "none",
+          ease: 'none',
         });
       }
-    } else if ((snap.phase === 'spinning' || snap.phase === 'completed') && snap.segmentIndex != null) {
+    } else if (
+      (snap.phase === 'spinning' || snap.phase === 'completed') &&
+      snap.segmentIndex != null
+    ) {
       if (idleTweenRef.current) idleTweenRef.current.kill();
-      if (spinTweenRef.current && spinTweenRef.current.isActive() && snap.phase === 'spinning') return;
+      if (
+        spinTweenRef.current &&
+        spinTweenRef.current.isActive() &&
+        snap.phase === 'spinning'
+      )
+        return;
 
       const seg = snap.segmentIndex;
       const segmentSpan = (2 * Math.PI) / layout.length;
-      // Exact center of the winning sector at the top (-Math.PI/2)
-      const targetAngle = -seg * segmentSpan - segmentSpan / 2 - Math.PI / 2;
+      const targetAngle =
+        -seg * segmentSpan - segmentSpan / 2 - Math.PI / 2;
 
       rotRef.current.angle = rotRef.current.angle % (Math.PI * 2);
       let diff = targetAngle - rotRef.current.angle;
       while (diff > 0) diff -= Math.PI * 2;
-      
-      // Only do the full spin animation if we are actually spinning
+
       if (snap.phase === 'spinning') {
-        diff -= Math.PI * 2 * 6; // 6 extra spins for drama
-        
+        diff -= Math.PI * 2 * 6;
         spinTweenRef.current = gsap.to(rotRef.current, {
           angle: rotRef.current.angle + diff,
           duration: (snap.spinDurationMs || 5000) / 1000,
-          ease: "power3.out",
+          ease: 'power3.out',
         });
       } else {
-        // Just snap if it's completed (e.g. initial load)
         rotRef.current.angle = targetAngle;
       }
     }
   }, [snap, layout]);
+
+  /* ---- JSX ------------------------------------------------------------- */
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
@@ -850,23 +1012,69 @@ function Wheel({
         className="absolute inset-0 w-full h-full"
         style={{ imageRendering: 'auto' }}
       />
+
+      {/* Center overlay text */}
       <div className="absolute z-10 flex flex-col items-center justify-center pointer-events-none">
-        {uiPhase === 'waiting' && remaining !== null && (
-          remaining > 0 ? (
-            <span className="font-roobert text-frost-white text-[20px] sm:text-[24px] font-medium tabular-nums drop-shadow-md">
-              00:{String(remaining).padStart(2, '0')}
-            </span>
-          ) : (
-            <span className="font-roobert text-[#5fb37d] text-[20px] sm:text-[24px] font-bold tracking-widest drop-shadow-[0_0_8px_rgba(95,179,125,0.6)]">
-              GO!
-            </span>
-          )
-        )}
-        {uiPhase === 'spinning' && (
-          <span className="font-roobert text-frost-white text-[16px] sm:text-[18px] font-bold tracking-widest animate-pulse drop-shadow-md">
-            SPINNING
-          </span>
-        )}
+        <AnimatePresence mode="wait">
+          {uiPhase === 'waiting' && remaining !== null && (
+            <motion.span
+              key={remaining > 0 ? 'timer' : 'go'}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="font-sans tabular-nums"
+              style={{
+                fontSize: remaining > 0 ? 28 : 22,
+                fontWeight: 300,
+                color: '#ffffff',
+                letterSpacing: remaining > 0 ? '0.05em' : '0.3em',
+                textTransform: remaining > 0 ? undefined : ('uppercase' as const),
+              }}
+            >
+              {remaining > 0
+                ? `${String(remaining).padStart(2, '0')}`
+                : 'GO'}
+            </motion.span>
+          )}
+
+          {uiPhase === 'spinning' && (
+            <motion.span
+              key="spinning"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0.3, 0.8, 0.3] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="font-sans uppercase"
+              style={{
+                fontSize: 12,
+                fontWeight: 300,
+                color: '#9a9a9a',
+                letterSpacing: '0.35em',
+              }}
+            >
+              ···
+            </motion.span>
+          )}
+
+          {uiPhase === 'completed' && snap?.multiplier != null && (
+            <motion.span
+              key="result"
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="font-sans tabular-nums"
+              style={{
+                fontSize: 26,
+                fontWeight: 300,
+                color: '#ffffff',
+                letterSpacing: '0.05em',
+              }}
+            >
+              ×{snap.multiplier}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
