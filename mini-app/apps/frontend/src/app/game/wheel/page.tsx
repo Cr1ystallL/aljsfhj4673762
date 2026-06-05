@@ -75,6 +75,12 @@ const SEG_COLOR: Record<
   number,
   { base: string; rim: string; light: string; deep: string }
 > = {
+  1: {
+    base: '#3f3f46',
+    rim: 'rgba(161, 161, 170, 0.85)',
+    light: '#52525b',
+    deep: '#27272a',
+  },
   2: {
     base: '#4a8b62',
     rim: 'rgba(160, 224, 171, 0.85)',
@@ -101,7 +107,7 @@ const SEG_COLOR: Record<
   },
 };
 
-const PICKS: number[] = [2, 3, 5, 30];
+const PICKS: number[] = [1, 2, 3, 5, 30];
 
 export default function WheelPage() {
   const { balance, fetchBalance } = useBalance();
