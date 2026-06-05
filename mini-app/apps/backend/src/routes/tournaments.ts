@@ -1,94 +1,115 @@
 import type { FastifyInstance } from 'fastify';
-import { randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { authenticate, adminOnly, type AuthenticatedRequest } from '../middleware/auth.js';
-import { logger } from '../utils/logger.js';
+import { prisma } from '../lib/prisma.js';
+import { balanceService } from '../services/balance-service.js';
 
 type PrizeMode = 'percent' | 'fixed';
+const PERCENT_PAYOUTS = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
 
-interface TournamentConfig {
-  id: string;
-  title: string;
-  description: string | null;
-  bannerUrl: string | null;
-  gameType: string;
-  prizePool: number;
-  prizeMode: PrizeMode;
-  winnersCount: number;
-  fixedPrize: number | null;
-  startBalance: number;
-  entryFee: number;
-  startAtGmt1: number; // ms since epoch of first start
-  durationHours: number; // usually 10
-  active: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
+const toNumber = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
 
-interface CycleState {
-  id: string;
-  tournamentId: string;
-  startsAt: number;
-  endsAt: number;
-  prizePool: number;
-}
-
-interface Participant {
-  id: string;
-  cycleId: string;
-  userId: string;
-  balance: number;
-  reachedAt: number;
-  joinedAt: number;
-  refreshCount: number;
-  lastRefreshAt?: number;
-}
-
-const tournaments = new Map<string, TournamentConfig>();
-const cycles = new Map<string, CycleState>();
-const participants = new Map<string, Participant>(); // key cycleId:userId
-
-function nextCycleWindow(t: TournamentConfig, now = Date.now()): { startsAt: number; endsAt: number } {
-  // All times treated in GMT+1; we offset by +1h to convert to UTC for scheduling.
+function cycleBounds(t: { startAtGmt1: Date; durationHours: number }, now = Date.now()) {
   const offsetMs = 60 * 60 * 1000;
-  const firstStart = t.startAtGmt1 - offsetMs;
-  if (now <= firstStart) return { startsAt: firstStart, endsAt: firstStart + t.durationHours * 3600 * 1000 };
+  const firstStartUtc = t.startAtGmt1.getTime() - offsetMs;
   const dayMs = 24 * 3600 * 1000;
-  const daysPassed = Math.floor((now - firstStart) / dayMs);
-  const currentStart = firstStart + daysPassed * dayMs;
-  const currentEnd = currentStart + t.durationHours * 3600 * 1000;
+  const durationMs = t.durationHours * 3600 * 1000;
+  if (now <= firstStartUtc) return { startsAt: firstStartUtc, endsAt: firstStartUtc + durationMs };
+  const daysPassed = Math.floor((now - firstStartUtc) / dayMs);
+  const currentStart = firstStartUtc + daysPassed * dayMs;
+  const currentEnd = currentStart + durationMs;
   if (now <= currentEnd) return { startsAt: currentStart, endsAt: currentEnd };
   const nextStart = currentStart + dayMs;
-  return { startsAt: nextStart, endsAt: nextStart + t.durationHours * 3600 * 1000 };
+  return { startsAt: nextStart, endsAt: nextStart + durationMs };
 }
 
-function getOrCreateCycle(t: TournamentConfig, now = Date.now()): CycleState {
-  const { startsAt, endsAt } = nextCycleWindow(t, now);
-  const existing = Array.from(cycles.values()).find((c) => c.tournamentId === t.id && c.startsAt === startsAt);
-  if (existing) return existing;
-  const c: CycleState = {
-    id: randomUUID(),
-    tournamentId: t.id,
-    startsAt,
-    endsAt,
-    prizePool: t.prizePool,
-  };
-  cycles.set(c.id, c);
-  return c;
+async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: number; prizePool: Prisma.Decimal }) {
+  const { startsAt, endsAt } = cycleBounds(t);
+  let cycle = await (prisma as any).tournamentCycle.findFirst({
+    where: { tournamentId: t.id, startsAt: new Date(startsAt) },
+  });
+  if (!cycle) {
+    cycle = await (prisma as any).tournamentCycle.create({
+      data: {
+        tournamentId: t.id,
+        startsAt: new Date(startsAt),
+        endsAt: new Date(endsAt),
+        prizePool: t.prizePool,
+        state: 'live',
+      },
+    });
+  }
+  return cycle;
 }
 
-function participantKey(cycleId: string, userId: string) {
-  return `${cycleId}:${userId}`;
+async function debitRealBalance(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  amount: number,
+  metadata: Record<string, unknown>
+) {
+  // Ensure balance row exists
+  await tx.balance.upsert({
+    where: { userId },
+    update: {},
+    create: { userId, amount: 0, currency: 'PLN', demoMode: false },
+  });
+
+  const rows = await tx.$queryRaw<Array<{ before: string; after: string }>>`
+    UPDATE balances
+    SET amount = amount - ${amount}::numeric,
+        updated_at = NOW(),
+        last_synced_at = NOW(),
+        version = version + 1
+    WHERE user_id = ${userId}
+      AND amount >= ${amount}::numeric
+    RETURNING amount + ${amount}::numeric as before, amount as after
+  `;
+  if (rows.length === 0) {
+    throw new Error('Недостаточно средств');
+  }
+
+  await tx.transaction.create({
+    data: {
+      userId,
+      type: 'tournament_fee',
+      amount: -amount,
+      balanceBefore: Number(rows[0].before),
+      balanceAfter: Number(rows[0].after),
+      metadata: metadata as Prisma.InputJsonValue,
+    },
+  });
+
+  return Number(rows[0].after);
 }
 
-function percentPayouts(pool: number): Array<{ place: number; amount: number }> {
-  const percents = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
-  return percents.map((p, i) => ({ place: i + 1, amount: +(pool * (p / 100)).toFixed(2) }));
+function computePrize(pool: number, mode: PrizeMode, idx: number, winnersCount: number, fixedPrize: number | null) {
+  if (mode === 'percent') {
+    return +(pool * (PERCENT_PAYOUTS[idx] ? PERCENT_PAYOUTS[idx] / 100 : 0)).toFixed(2);
+  }
+  if (mode === 'fixed' && idx < winnersCount) return fixedPrize ?? 0;
+  return 0;
 }
 
 export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
   /* ----------------------------- admin CRUD ----------------------------- */
   app.get('/_x/tournaments', { preHandler: adminOnly }, async (_req, reply) => {
-    return reply.send({ ok: true, tournaments: Array.from(tournaments.values()) });
+    const items = await (prisma as any).tournament.findMany({ orderBy: { createdAt: 'desc' } });
+    const mapped = await Promise.all(
+      items.map(async (t: any) => {
+        const cycle = await ensureCycle(t);
+        return {
+          ...t,
+          prizePool: toNumber(t.prizePool),
+          fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
+          startBalance: toNumber(t.startBalance),
+          entryFee: toNumber(t.entryFee),
+          startsAt: cycle.startsAt.getTime(),
+          endsAt: cycle.endsAt.getTime(),
+        };
+      })
+    );
+    return reply.send({ ok: true, tournaments: mapped });
   });
 
   app.post<{
@@ -123,79 +144,89 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Invalid payload' });
     }
 
-    const now = Date.now();
-    const t: TournamentConfig = {
-      id: randomUUID(),
-      title,
-      description: b.description ?? null,
-      bannerUrl: b.bannerUrl?.trim() || null,
-      gameType,
-      prizePool,
-      prizeMode,
-      winnersCount,
-      fixedPrize,
-      startBalance,
-      entryFee,
-      startAtGmt1,
-      durationHours,
-      active: true,
-      createdAt: now,
-      updatedAt: now,
-    };
-    tournaments.set(t.id, t);
-    getOrCreateCycle(t, now);
+    const t = await (prisma as any).tournament.create({
+      data: {
+        title,
+        description: b.description ?? null,
+        bannerUrl: b.bannerUrl?.trim() || null,
+        gameType,
+        prizePool,
+        prizeMode,
+        winnersCount,
+        fixedPrize,
+        startBalance,
+        entryFee,
+        startAtGmt1: new Date(startAtGmt1),
+        durationHours,
+        active: true,
+      },
+    });
+    await ensureCycle(t);
     return reply.send({ ok: true, id: t.id });
   });
 
-  app.patch<{ Params: { id: string }; Body: Partial<TournamentConfig> }>(
+  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; startBalance: number; entryFee: number; startAtGmt1: number; durationHours: number; active: boolean }> }>(
     '/_x/tournaments/:id',
     { preHandler: adminOnly },
     async (request, reply) => {
-      const t = tournaments.get(request.params.id);
+      const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
       if (!t) return reply.code(404).send({ error: 'Not found' });
       const b = request.body ?? {};
-      Object.assign(t, {
-        title: b.title ?? t.title,
-        description: b.description ?? t.description,
-        bannerUrl: b.bannerUrl ?? t.bannerUrl,
-        gameType: b.gameType ?? t.gameType,
-        prizePool: Number.isFinite(b.prizePool) ? Number(b.prizePool) : t.prizePool,
-        prizeMode: (b.prizeMode as PrizeMode) ?? t.prizeMode,
-        winnersCount: Number.isFinite(b.winnersCount) ? Number(b.winnersCount) : t.winnersCount,
-        fixedPrize: Number.isFinite(b.fixedPrize) ? Number(b.fixedPrize) : t.fixedPrize,
-        startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
-        entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
-        startAtGmt1: Number.isFinite(b.startAtGmt1) ? Number(b.startAtGmt1) : t.startAtGmt1,
-        durationHours: Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours,
-        active: typeof b.active === 'boolean' ? b.active : t.active,
-        updatedAt: Date.now(),
+      await (prisma as any).tournament.update({
+        where: { id: t.id },
+        data: {
+          title: b.title ?? t.title,
+          description: b.description ?? t.description,
+          bannerUrl: b.bannerUrl ?? t.bannerUrl,
+          gameType: b.gameType ?? t.gameType,
+          prizePool: Number.isFinite(b.prizePool) ? Number(b.prizePool) : t.prizePool,
+          prizeMode: (b.prizeMode as PrizeMode) ?? (t.prizeMode as PrizeMode),
+          winnersCount: Number.isFinite(b.winnersCount) ? Number(b.winnersCount) : t.winnersCount,
+          fixedPrize: Number.isFinite(b.fixedPrize) ? Number(b.fixedPrize) : t.fixedPrize,
+          startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
+          entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
+          startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1,
+          durationHours: Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours,
+          active: typeof b.active === 'boolean' ? b.active : t.active,
+        },
       });
+      await ensureCycle({ ...t, ...b, startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1 });
       return reply.send({ ok: true });
     }
   );
 
   /* ------------------------------ public ------------------------------- */
-  app.get('/tournaments', { preHandler: authenticate }, async (_req, reply) => {
+  app.get('/tournaments', { preHandler: authenticate }, async (req, reply) => {
+    const { userId } = (req as AuthenticatedRequest).user;
+    const tournaments = await (prisma as any).tournament.findMany({ where: { active: true } });
     const now = Date.now();
-    const live = Array.from(tournaments.values())
-      .filter((t) => t.active)
-      .map((t) => ({ t, cycle: getOrCreateCycle(t, now) }))
-      .map(({ t, cycle }) => ({
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        bannerUrl: t.bannerUrl,
-        gameType: t.gameType,
-        prizePool: t.prizePool,
-        prizeMode: t.prizeMode,
-        winnersCount: t.winnersCount,
-        fixedPrize: t.fixedPrize,
-        startBalance: t.startBalance,
-        entryFee: t.entryFee,
-        startsAt: cycle.startsAt,
-        endsAt: cycle.endsAt,
-      }));
-    return reply.send({ ok: true, tournaments: live });
+    const enriched = await Promise.all(
+      tournaments.map(async (t: any) => {
+        const cycle = await ensureCycle(t);
+        const participant = await (prisma as any).tournamentParticipant.findUnique({
+          where: { cycleId_userId: { cycleId: cycle.id, userId } },
+        });
+        return {
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          bannerUrl: t.bannerUrl,
+          gameType: t.gameType,
+          prizePool: toNumber(cycle.prizePool),
+          prizeMode: t.prizeMode,
+          winnersCount: t.winnersCount,
+          fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
+          startBalance: toNumber(t.startBalance),
+          entryFee: toNumber(t.entryFee),
+          startsAt: cycle.startsAt.getTime(),
+          endsAt: cycle.endsAt.getTime(),
+          joined: Boolean(participant),
+          tournamentBalance: participant ? toNumber(participant.balance) : null,
+          live: now >= cycle.startsAt.getTime() && now <= cycle.endsAt.getTime(),
+        };
+      })
+    );
+    return reply.send({ ok: true, tournaments: enriched });
   });
 
   app.post<{ Params: { id: string } }>(
@@ -203,26 +234,39 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: authenticate },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const t = tournaments.get(request.params.id);
+      const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
       if (!t || !t.active) return reply.code(404).send({ error: 'Not found' });
-      const cycle = getOrCreateCycle(t, Date.now());
-      const key = participantKey(cycle.id, userId);
-      const fee = t.entryFee;
-      if (!participants.has(key)) {
-        participants.set(key, {
-          id: randomUUID(),
-          cycleId: cycle.id,
-          userId,
-          balance: t.startBalance,
-          reachedAt: Date.now(),
-          joinedAt: Date.now(),
-          refreshCount: 0,
+      const cycle = await ensureCycle(t);
+      const now = Date.now();
+      if (now > cycle.endsAt.getTime()) return reply.code(400).send({ error: 'Цикл завершён' });
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          const existing = await (tx as any).tournamentParticipant.findUnique({
+            where: { cycleId_userId: { cycleId: cycle.id, userId } },
+          });
+          if (existing) return;
+
+          const fee = toNumber(t.entryFee);
+          if (fee > 0) {
+            await debitRealBalance(tx, userId, fee, { tournamentId: t.id, cycleId: cycle.id, reason: 'join' });
+          }
+
+          await (tx as any).tournamentParticipant.create({
+            data: {
+              cycleId: cycle.id,
+              userId,
+              balance: t.startBalance,
+              reachedAt: new Date(),
+              refreshCount: 0,
+            },
+          });
         });
+      } catch (error) {
+        return reply.code(400).send({ error: (error as Error).message });
       }
-      // Fee handling: in-memory stub (no wallet mutation). We only log.
-      if (fee > 0) {
-        logger.info({ userId, fee, tournamentId: t.id }, 'Tournament fee (stub, not deducted)');
-      }
+
+      await balanceService.invalidateCache(userId);
       return reply.send({ ok: true });
     }
   );
@@ -232,24 +276,43 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: authenticate },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const t = tournaments.get(request.params.id);
+      const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
       if (!t || !t.active) return reply.code(404).send({ error: 'Not found' });
-      const cycle = getOrCreateCycle(t, Date.now());
-      const key = participantKey(cycle.id, userId);
-      const p = participants.get(key);
-      if (!p) return reply.code(400).send({ error: 'Not registered' });
-      if (p.balance > 0) return reply.code(409).send({ error: 'Balance must be <= 0 to refresh' });
-      p.balance = t.startBalance;
-      p.refreshCount += 1;
-      p.reachedAt = Date.now();
-      p.lastRefreshAt = Date.now();
-      // fee split stub
-      if (t.entryFee > 0) {
-        const fundAdd = t.entryFee * 0.9;
-        const house = t.entryFee * 0.1;
-        cycle.prizePool += fundAdd;
-        logger.info({ userId, fundAdd, house, tournamentId: t.id }, 'Tournament refresh fee (stub)');
+      const cycle = await ensureCycle(t);
+      if (Date.now() > cycle.endsAt.getTime()) return reply.code(400).send({ error: 'Цикл завершён' });
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          const participant = await (tx as any).tournamentParticipant.findUnique({
+            where: { cycleId_userId: { cycleId: cycle.id, userId } },
+          });
+          if (!participant) throw new Error('Not registered');
+          if (toNumber(participant.balance) > 0) throw new Error('Balance must be <= 0 to refresh');
+
+          const fee = toNumber(t.entryFee);
+          if (fee > 0) {
+            await debitRealBalance(tx, userId, fee, { tournamentId: t.id, cycleId: cycle.id, reason: 'refresh' });
+            await (tx as any).tournamentCycle.update({
+              where: { id: cycle.id },
+              data: { prizePool: new Prisma.Decimal(toNumber(cycle.prizePool) + fee * 0.9) },
+            });
+          }
+
+          await (tx as any).tournamentParticipant.update({
+            where: { id: participant.id },
+            data: {
+              balance: t.startBalance,
+              refreshCount: participant.refreshCount + 1,
+              reachedAt: new Date(),
+              lastRefreshAt: new Date(),
+            },
+          });
+        });
+      } catch (error) {
+        return reply.code(400).send({ error: (error as Error).message });
       }
+
+      await balanceService.invalidateCache(userId);
       return reply.send({ ok: true });
     }
   );
@@ -259,29 +322,27 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: authenticate },
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
-      const t = tournaments.get(request.params.id);
+      const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
       if (!t) return reply.code(404).send({ error: 'Not found' });
-      const cycle = getOrCreateCycle(t, Date.now());
-      const rows = Array.from(participants.values()).filter((p) => p.cycleId === cycle.id);
-      const sorted = rows.sort((a, b) => {
-        if (b.balance !== a.balance) return b.balance - a.balance;
-        return a.reachedAt - b.reachedAt;
+      const cycle = await ensureCycle(t);
+      const rows = await (prisma as any).tournamentParticipant.findMany({
+        where: { cycleId: cycle.id },
+        orderBy: [
+          { balance: 'desc' },
+          { reachedAt: 'asc' },
+        ],
+        take: 200,
       });
-      const top = sorted.slice(0, 50).map((p, idx) => ({
+      const top = rows.slice(0, 50).map((p: any, idx: number) => ({
         place: idx + 1,
         userId: p.userId,
-        balance: p.balance,
-        prize:
-          t.prizeMode === 'percent'
-            ? percentPayouts(cycle.prizePool)[idx]?.amount ?? 0
-            : t.prizeMode === 'fixed'
-              ? (idx < t.winnersCount ? t.fixedPrize ?? 0 : 0)
-              : 0,
+        balance: toNumber(p.balance),
+        prize: computePrize(toNumber(cycle.prizePool), t.prizeMode as PrizeMode, idx, t.winnersCount, t.fixedPrize ? toNumber(t.fixedPrize) : null),
       }));
-      const selfIndex = sorted.findIndex((p) => p.userId === userId);
+      const selfIndex = rows.findIndex((p: any) => p.userId === userId);
       const self = selfIndex === -1 ? null : {
         place: selfIndex + 1,
-        balance: sorted[selfIndex].balance,
+        balance: toNumber(rows[selfIndex].balance),
       };
       return reply.send({ ok: true, leaderboard: top, self });
     }

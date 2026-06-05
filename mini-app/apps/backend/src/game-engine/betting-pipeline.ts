@@ -28,6 +28,59 @@ import type { Bet, BetState } from './types.js';
 const prisma = new PrismaClient();
 
 const TWO_DP = (n: number) => Math.round(n * 100) / 100;
+const toNumber = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
+
+/* -------------------------------------------------------------------------- */
+/* Tournament helpers (daily 10h cycles, shared with routes)                   */
+/* -------------------------------------------------------------------------- */
+
+const PERCENT_PAYOUTS = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
+
+function cycleBounds(t: { startAtGmt1: Date; durationHours: number }, now = Date.now()) {
+  const offsetMs = 60 * 60 * 1000;
+  const firstStartUtc = t.startAtGmt1.getTime() - offsetMs;
+  const dayMs = 24 * 3600 * 1000;
+  const durationMs = t.durationHours * 3600 * 1000;
+  if (now <= firstStartUtc) return { startsAt: firstStartUtc, endsAt: firstStartUtc + durationMs };
+  const daysPassed = Math.floor((now - firstStartUtc) / dayMs);
+  const currentStart = firstStartUtc + daysPassed * dayMs;
+  const currentEnd = currentStart + durationMs;
+  if (now <= currentEnd) return { startsAt: currentStart, endsAt: currentEnd };
+  const nextStart = currentStart + dayMs;
+  return { startsAt: nextStart, endsAt: nextStart + durationMs };
+}
+
+async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: number; prizePool: Prisma.Decimal }) {
+  const { startsAt, endsAt } = cycleBounds(t);
+  let cycle = await (prisma as any).tournamentCycle.findFirst({
+    where: { tournamentId: t.id, startsAt: new Date(startsAt) },
+  });
+  if (!cycle) {
+    cycle = await (prisma as any).tournamentCycle.create({
+      data: {
+        tournamentId: t.id,
+        startsAt: new Date(startsAt),
+        endsAt: new Date(endsAt),
+        prizePool: t.prizePool,
+        state: 'live',
+      },
+    });
+  }
+  return cycle as { id: string; startsAt: Date; endsAt: Date; prizePool: Prisma.Decimal };
+}
+
+async function findTournamentContext(userId: string, gameType: string) {
+  const t = await (prisma as any).tournament.findFirst({ where: { active: true, gameType }, orderBy: { createdAt: 'desc' } });
+  if (!t) return null;
+  const cycle = await ensureCycle(t);
+  const now = Date.now();
+  if (now < cycle.startsAt.getTime() || now > cycle.endsAt.getTime()) return null;
+  const participant = await (prisma as any).tournamentParticipant.findUnique({
+    where: { cycleId_userId: { cycleId: cycle.id, userId } },
+  });
+  if (!participant) return null;
+  return { tournament: t as any, cycle, participant };
+}
 
 export class BettingPipeline {
   /**
@@ -126,6 +179,51 @@ export class BettingPipeline {
     }
 
     try {
+      const tournamentCtx = await findTournamentContext(bet.userId, gt);
+
+      if (tournamentCtx) {
+        await prisma.$transaction(async (tx) => {
+          const userRows = await tx.$queryRaw<
+            Array<{ is_blocked: boolean }>
+          >`SELECT is_blocked FROM users WHERE id = ${bet.userId} LIMIT 1`;
+          if (userRows[0]?.is_blocked) {
+            throw new Error('Аккаунт заблокирован администратором');
+          }
+
+          const updatedRows = await tx.$queryRaw<Array<{ balance: string | number }>>`
+            UPDATE tournament_participants
+            SET balance = balance - ${amount}::numeric,
+                reached_at = NOW()
+            WHERE id = ${tournamentCtx.participant.id}
+              AND balance >= ${amount}::numeric
+            RETURNING balance
+          `;
+          if (updatedRows.length === 0) {
+            throw new Error('Недостаточно турнирного баланса');
+          }
+
+          await tx.bet.create({
+            data: {
+              id: bet.id,
+              userId: bet.userId,
+              gameType: bet.gameId.split('_')[0],
+              roundId: bet.roundId,
+              amount,
+              state: bet.state,
+              placedAt: new Date(bet.placedAt),
+              metadata: {
+                ...(bet.metadata || {}),
+                tournamentId: tournamentCtx.tournament.id,
+                tournamentCycleId: tournamentCtx.cycle.id,
+              },
+            },
+          });
+        });
+
+        logger.info({ betId: bet.id, userId: bet.userId, amount, tournament: tournamentCtx.tournament.id }, 'Tournament bet processed');
+        return;
+      }
+
       const newBalance = await prisma.$transaction(async (tx) => {
         // Block flagged accounts before touching the balance row.
         // We use a Prisma raw query so this works even when the client
@@ -217,6 +315,43 @@ export class BettingPipeline {
     const credit = TWO_DP(capped);
 
     try {
+      const meta = (bet.metadata || {}) as Record<string, any>;
+      const tournamentCycleId = meta.tournamentCycleId as string | undefined;
+
+      if (tournamentCycleId) {
+        await prisma.$transaction(async (tx) => {
+          const participant = await (tx as any).tournamentParticipant.findUnique({
+            where: { cycleId_userId: { cycleId: tournamentCycleId, userId: bet.userId } },
+          });
+          if (!participant) return;
+
+          if (credit > 0) {
+            await tx.$queryRaw`
+              UPDATE tournament_participants
+              SET balance = balance + ${credit}::numeric,
+                  reached_at = NOW()
+              WHERE id = ${participant.id}
+            `;
+          }
+
+          await tx.bet.update({
+            where: { id: bet.id },
+            data: {
+              state: credit > 0 ? 'won' : 'lost',
+              payout: credit,
+              multiplier: bet.multiplier,
+              resolvedAt: new Date(),
+            },
+          });
+        });
+
+        // RTP controller still needs the outcome for earning/giving decisions.
+        await rtpEngine.recordOutcome(bet.userId, stake, credit);
+
+        logger.info({ betId: bet.id, userId: bet.userId, payout: credit, tournamentCycleId }, 'Tournament payout processed');
+        return;
+      }
+
       const newBalance = await prisma.$transaction(async (tx) => {
         let balanceAfter = 0;
 
