@@ -780,39 +780,33 @@ function WheelCanvas({
 
       /* ---- Subtle floor shadow ---------------------------------------- */
       ctx.beginPath();
-      ctx.ellipse(
-        cx,
-        cy + radius * 0.92,
-        radius * 0.7,
-        radius * 0.08,
-        0,
-        0,
-        Math.PI * 2
-      );
-      const shadowGrad = ctx.createRadialGradient(
-        cx,
-        cy + radius * 0.92,
-        0,
-        cx,
-        cy + radius * 0.92,
-        radius * 0.7
-      );
-      shadowGrad.addColorStop(0, 'rgba(255,255,255,0.04)');
-      shadowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.ellipse(cx, cy + radius * 0.95, radius * 0.75, radius * 0.1, 0, 0, Math.PI * 2);
+      const shadowGrad = ctx.createRadialGradient(cx, cy + radius * 0.95, 0, cx, cy + radius * 0.95, radius * 0.75);
+      shadowGrad.addColorStop(0, 'rgba(0,0,0,0.8)');
+      shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = shadowGrad;
       ctx.fill();
 
-      /* ---- Outer rim — thin white hairline ----------------------------- */
+      /* ---- Outer rim glow ----------------------------- */
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.03, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      ctx.arc(cx, cy, radius * 1.05, 0, Math.PI * 2);
+      const rimGrad = ctx.createRadialGradient(cx, cy, radius * 0.98, cx, cy, radius * 1.06);
+      rimGrad.addColorStop(0, 'rgba(255,255,255,0)');
+      rimGrad.addColorStop(0.5, 'rgba(255,255,255,0.04)');
+      rimGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = rimGrad;
+      ctx.fill();
 
       /* ---- Segments --------------------------------------------------- */
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(rotation);
+
+      // Inner shadow / vignette over the whole wheel
+      const vignetteGrad = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius);
+      vignetteGrad.addColorStop(0, 'rgba(0,0,0,0.8)');
+      vignetteGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+      vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
 
       for (let i = 0; i < segments; i++) {
         const a0 = i * span;
@@ -824,25 +818,48 @@ function WheelCanvas({
         ctx.moveTo(0, 0);
         ctx.arc(0, 0, radius, a0, a1);
         ctx.closePath();
+
+        // Base fill
         ctx.fillStyle = c.base;
         ctx.fill();
 
-        /* Subtle inner highlight towards outer edge */
-        const grad = ctx.createRadialGradient(0, 0, radius * 0.6, 0, 0, radius);
-        grad.addColorStop(0, 'rgba(255,255,255,0)');
-        grad.addColorStop(1, 'rgba(255,255,255,0.025)');
-        ctx.fillStyle = grad;
+        // Gradient overlay for a slight 3D cone effect
+        const segGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+        segGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
+        segGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
+        ctx.fillStyle = segGrad;
         ctx.fill();
       }
+
+      /* Apply vignette to wheel */
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fillStyle = vignetteGrad;
+      ctx.fill();
+
+      /* Outer ring stroke */
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
       /* Divider hairlines */
       for (let i = 0; i < segments; i++) {
         const a = i * span;
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.lineWidth = 0.5;
+        ctx.moveTo(radius * 0.1, 0); // Don't draw all the way to center
+        ctx.lineTo(radius, 0);
+        ctx.rotate(span);
+        
+        // Use a gradient for the divider
+        const lineGrad = ctx.createLinearGradient(0, 0, radius, 0);
+        lineGrad.addColorStop(0, 'rgba(255,255,255,0)');
+        lineGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+        lineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        
+        ctx.strokeStyle = lineGrad;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
 
@@ -855,62 +872,97 @@ function WheelCanvas({
         const m = layout[i];
         const c = SEG_COLOR[m] ?? SEG_COLOR[2];
         const aMid = (a0 + a1) / 2;
-        const lx = Math.cos(aMid) * radius * 0.7;
-        const ly = Math.sin(aMid) * radius * 0.7;
+        
+        // Push text slightly further out and align properly
+        const lx = Math.cos(aMid) * radius * 0.75;
+        const ly = Math.sin(aMid) * radius * 0.75;
+        
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(aMid + Math.PI / 2);
-        ctx.font = '300 14px "Inter", ui-sans-serif, system-ui, sans-serif';
+        
+        // Premium typography
+        ctx.font = '600 16px "Inter", ui-sans-serif, system-ui, sans-serif';
         ctx.fillStyle = c.label;
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 1;
         ctx.fillText(`×${m}`, 0, 0);
         ctx.restore();
       }
 
       /* ---- Central hub ------------------------------------------------ */
-      /* Outer ring */
+      /* Base outer ring (dark metal) */
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
-      ctx.fillStyle = '#0a0a0a';
+      ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = '#111';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
       ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
       ctx.stroke();
 
-      /* Inner dot */
+      /* Inner bezel */
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.04, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.arc(0, 0, radius * 0.26, 0, Math.PI * 2);
+      const hubGrad = ctx.createLinearGradient(-radius * 0.26, -radius * 0.26, radius * 0.26, radius * 0.26);
+      hubGrad.addColorStop(0, '#2a2a2a');
+      hubGrad.addColorStop(0.5, '#0a0a0a');
+      hubGrad.addColorStop(1, '#1a1a1a');
+      ctx.fillStyle = hubGrad;
       ctx.fill();
+      
+      /* Inner hollow area (where text lives) */
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = '#050505';
+      ctx.fill();
+      
+      // Inner shadow for depth
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
 
       ctx.restore();
 
       /* ---- Tick studs (static, not rotating) -------------------------- */
-      const tickCount = 30;
+      const tickCount = segments;
       for (let i = 0; i < tickCount; i++) {
-        const a = (i / tickCount) * Math.PI * 2 - Math.PI / 2;
-        const sx = cx + Math.cos(a) * radius * 1.06;
-        const sy = cy + Math.sin(a) * radius * 1.06;
+        const a = (i / tickCount) * Math.PI * 2 - Math.PI / 2 + (span / 2);
+        const sx = cx + Math.cos(a) * radius * 1.03;
+        const sy = cy + Math.sin(a) * radius * 1.03;
+        
         ctx.beginPath();
-        ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
         ctx.fill();
       }
 
-      /* ---- Top pointer ------------------------------------------------ */
+      /* ---- Top pointer (sleek modern diamond) -------------------------------- */
       const px = cx;
-      const py = cy - radius * 1.03;
+      const py = cy - radius * 1.05;
 
       ctx.beginPath();
-      ctx.moveTo(px - 8, py - 6);
-      ctx.lineTo(px + 8, py - 6);
-      ctx.lineTo(px, py + 14);
+      ctx.moveTo(px, py - 12);
+      ctx.lineTo(px + 10, py);
+      ctx.lineTo(px, py + 18);
+      ctx.lineTo(px - 10, py);
       ctx.closePath();
 
-      ctx.fillStyle = '#ffffff';
+      const pointerGrad = ctx.createLinearGradient(px, py - 12, px, py + 18);
+      pointerGrad.addColorStop(0, '#ffffff');
+      pointerGrad.addColorStop(1, '#aaaaaa');
+      
+      ctx.fillStyle = pointerGrad;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      ctx.lineWidth = 0.8;
+      
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 1;
       ctx.stroke();
+      
+      // Reset shadow for subsequent draws
+      ctx.shadowBlur = 0;
     },
     [layout, snap]
   );
