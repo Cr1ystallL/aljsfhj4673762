@@ -19,6 +19,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { gameLabel, type GameKey } from '@/components/ui/game-icon';
 
 /**
  * Admin → Bonuses
@@ -35,6 +36,10 @@ import { cn } from '@/lib/utils';
  */
 
 type Tab = 'promo' | 'contests' | 'tournaments';
+
+const GAME_OPTIONS: Array<{ value: GameKey; label: string }> = (
+  ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'] as const
+).map((key) => ({ value: key, label: gameLabel(key) }));
 
 interface PromoRow {
   id: string;
@@ -162,6 +167,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
   const [winnersCount, setWinnersCount] = useState(10);
   const [fixedPrize, setFixedPrize] = useState(50);
   const [startBalance, setStartBalance] = useState(200);
+  const [feeType, setFeeType] = useState<'free' | 'fee'>('free');
   const [entryFee, setEntryFee] = useState(0);
   const [startAt, setStartAt] = useState(() => isoLocalNow());
   const [durationHours, setDurationHours] = useState(10);
@@ -194,7 +200,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           winnersCount: Number(winnersCount),
           fixedPrize: prizeMode === 'fixed' ? Number(fixedPrize) : null,
           startBalance: Number(startBalance),
-          entryFee: Number(entryFee),
+          entryFee: feeType === 'fee' ? Number(entryFee) : 0,
           startAtGmt1: new Date(startAt).getTime(),
           durationHours: Number(durationHours),
         }),
@@ -235,11 +241,17 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           />
         </Field>
         <Field label="Игра">
-          <input
+          <select
             value={gameType}
             onChange={(e) => setGameType(e.target.value)}
             className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
+          >
+            {GAME_OPTIONS.map((g) => (
+              <option key={g.value} value={g.value} className="bg-midnight-canvas text-midnight-canvas">
+                {g.label}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Призовой пул (zł)">
           <NumInput value={prizePool} onChange={setPrizePool} step={10} />
@@ -265,9 +277,39 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
         <Field label="Стартовый турнирный баланс">
           <NumInput value={startBalance} onChange={setStartBalance} step={10} />
         </Field>
-        <Field label="Взнос (fee) real">
-          <NumInput value={entryFee} onChange={setEntryFee} step={10} />
+        <Field label="Тип участия">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setFeeType('free')}
+              className={cn(
+                'px-3 py-2 rounded-pill border text-[12px] font-roobert',
+                feeType === 'free'
+                  ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                  : 'bg-white/[0.04] border-white/15 text-frost-white'
+              )}
+            >
+              Бесплатно
+            </button>
+            <button
+              type="button"
+              onClick={() => setFeeType('fee')}
+              className={cn(
+                'px-3 py-2 rounded-pill border text-[12px] font-roobert',
+                feeType === 'fee'
+                  ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                  : 'bg-white/[0.04] border-white/15 text-frost-white'
+              )}
+            >
+              С взносом
+            </button>
+          </div>
         </Field>
+        {feeType === 'fee' && (
+          <Field label="Взнос (real)">
+            <NumInput value={entryFee} onChange={setEntryFee} step={10} />
+          </Field>
+        )}
         <Field label="Старт (GMT+1)" colSpan={2}>
           <input
             type="datetime-local"
