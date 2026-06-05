@@ -741,53 +741,14 @@ function Wheel({
         spinLockRef.current
       ) {
         const lock = spinLockRef.current;
-        const t = Math.min(
-          1,
-          Math.max(0, (Date.now() - lock.startedAt) / lock.durationMs)
-        );
-        // Three-phase casino easing — keeps the wheel visibly moving
-        // for most of the spin instead of asymptoting in the first
-        // few seconds (which is what cubic ease-out does):
-        //
-        //   phase 1  t ∈ [0, 0.70)  → linear cruise, covers 78% of total
-        //                              rotation at constant angular speed
-        //   phase 2  t ∈ [0.70, 0.92) → cubic ease-out brake, covers next
-        //                                17% as the wheel decelerates
-        //   phase 3  t ∈ [0.92, 1.0)  → elastic settle around the target
-        //                                with the per-spin overshoot, so
-        //                                the pointer slips past the wedge
-        //                                edge and tugs back instead of
-        //                                snapping to a divider.
-        //
-        // The piecewise function is C0-continuous (no value jumps) and
-        // the velocity discontinuities are small enough to read as a
-        // natural deceleration on the wheel.
-        const segmentSpan = (2 * Math.PI) / layout.length;
+        const rawT = (Date.now() - lock.startedAt) / lock.durationMs;
+        const t = Math.min(1, Math.max(0, rawT));
+        // Simple smooth deceleration (ease-out cubic) — starts fast,
+        // gradually slows down, lands exactly on target without
+        // overshoot/elastic bounce so it looks physically natural.
+        const ease = 1 - Math.pow(1 - t, 3);
         const settleStart = settleStartRotationRef.current;
-        const totalArc = lock.target - settleStart;
-        const overshootArc = segmentSpan * 0.18;
-        let value: number;
-        if (t < 0.7) {
-          // Linear cruise, covers 78% of the arc.
-          const portion = (t / 0.7) * 0.78;
-          value = settleStart + totalArc * portion;
-        } else if (t < 0.92) {
-          // Cubic ease-out, finishing the remaining 22% in 22% of time.
-          const tt = (t - 0.7) / 0.22;
-          const ease = 1 - Math.pow(1 - tt, 3);
-          // Cover 0.78 → 1.0 + overshootArc/totalArc.
-          const startPortion = 0.78;
-          const overshootPortion = overshootArc / Math.max(1e-6, totalArc);
-          const endPortion = 1 + overshootPortion;
-          const portion = startPortion + (endPortion - startPortion) * ease;
-          value = settleStart + totalArc * portion;
-        } else {
-          // Elastic settle: damped sine pulling back from overshoot.
-          const tt = (t - 0.92) / 0.08;
-          const damp = (1 - tt) * (1 - tt);
-          const wave = Math.sin(tt * Math.PI * 1.5) * damp;
-          value = lock.target + overshootArc * (1 - tt) - wave * overshootArc * 0.4;
-        }
+        const value = settleStart + (lock.target - settleStart) * ease;
         rotationRef.current = value;
       } else if (snap.phase === 'waiting') {
         rotationRef.current += 0.0025;
