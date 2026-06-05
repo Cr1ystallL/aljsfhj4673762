@@ -297,7 +297,7 @@ export default function WheelPage() {
             }}
           />
           <div className="relative aspect-square flex items-center justify-center">
-            <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} />
+            <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} clockSkew={clockSkew} />
           </div>
         </div>
 
@@ -738,10 +738,12 @@ function WheelCanvas({
   layout,
   snap,
   uiPhase,
+  clockSkew,
 }: {
   layout: number[] | null;
   snap: Snapshot | null;
   uiPhase: Phase;
+  clockSkew: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rotRef = useRef({ angle: -Math.PI / 2 });
