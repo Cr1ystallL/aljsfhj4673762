@@ -6,11 +6,6 @@ import { NextRequest, NextResponse } from 'next/server';
  * cookies attached so authentication works through the cookie session layer.
  */
 function backendBaseUrl(): string {
-  const b =
-    process.env.INTERNAL_API_URL ||
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL;
-  if (b) return b.replace(/\/$/, '');
   return 'http://127.0.0.1:4000';
 }
 

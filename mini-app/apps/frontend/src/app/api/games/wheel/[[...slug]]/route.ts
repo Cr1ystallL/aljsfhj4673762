@@ -4,11 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
  * Proxy Wheel game API to the Fastify backend.
  */
 function backendBaseUrl(): string {
-  const b =
-    process.env.INTERNAL_API_URL ||
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL;
-  if (b) return b.replace(/\/$/, '');
   return 'http://127.0.0.1:4000';
 }
 
