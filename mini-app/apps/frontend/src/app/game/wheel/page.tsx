@@ -54,39 +54,39 @@ const SEG_COLOR: Record<
   { base: string; face: string; label: string; pill: string; pillBg: string }
 > = {
   1: {
-    base: '#050505',
-    face: '#111111',
-    label: '#333333',
-    pill: '#333333',
-    pillBg: 'rgba(255,255,255,0.02)',
+    base: '#1c1c1c',
+    face: '#252525',
+    label: '#6d6d6d',
+    pill: '#6d6d6d',
+    pillBg: 'rgba(109,109,109,0.12)',
   },
   2: {
-    base: '#0a0a0a',
-    face: '#1a1a1a',
-    label: '#777777',
-    pill: '#777777',
-    pillBg: 'rgba(255,255,255,0.03)',
+    base: '#4a4a4a', // Gray
+    face: '#4a4a4a',
+    label: '#ffffff',
+    pill: '#9a9a9a',
+    pillBg: 'rgba(154,154,154,0.12)',
   },
   3: {
-    base: '#141414',
-    face: '#222222',
-    label: '#aaaaaa',
-    pill: '#aaaaaa',
-    pillBg: 'rgba(255,255,255,0.05)',
+    base: '#14b8a6', // Teal
+    face: '#2dd4bf',
+    label: '#ffffff',
+    pill: '#14b8a6',
+    pillBg: 'rgba(20, 184, 166, 0.12)',
   },
   5: {
-    base: '#1f1f1f',
-    face: '#2a2a2a',
-    label: '#dddddd',
-    pill: '#dddddd',
-    pillBg: 'rgba(255,255,255,0.08)',
+    base: '#8b5cf6', // Purple
+    face: '#a78bfa',
+    label: '#ffffff',
+    pill: '#8b5cf6',
+    pillBg: 'rgba(139, 92, 246, 0.12)',
   },
   30: {
-    base: '#ffffff',
-    face: '#f0f0f0',
+    base: '#eab308', // Gold
+    face: '#facc15',
     label: '#000000',
-    pill: '#ffffff',
-    pillBg: 'rgba(255,255,255,0.15)',
+    pill: '#eab308',
+    pillBg: 'rgba(234, 179, 8, 0.12)',
   },
 };
 
