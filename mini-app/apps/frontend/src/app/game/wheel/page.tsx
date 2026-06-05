@@ -138,7 +138,7 @@ export default function WheelPage() {
       if (remainingMs < 3200) return 200;
     }
     return 1200;
-  }, [snap]);
+  }, [snap?.phase, snap?.waitingEndsAt]);
 
   useEffect(() => {
     void load();
@@ -151,9 +151,10 @@ export default function WheelPage() {
   useEffect(() => {
     if (!snap || snap.phase !== 'waiting' || !snap.waitingEndsAt) return;
     const ms = snap.waitingEndsAt - Date.now();
-    const id = setTimeout(() => void load(), Math.max(0, ms - 80));
+    if (ms <= 0) return;
+    const id = setTimeout(() => void load(), ms);
     return () => clearTimeout(id);
-  }, [snap, load]);
+  }, [snap?.phase, snap?.waitingEndsAt, load]);
 
   /* ----- Spin runtime tracking ------------------------------------------- */
 

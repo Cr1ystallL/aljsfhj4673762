@@ -79,6 +79,7 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
     max: config.rateLimitMax,
     timeWindow: config.rateLimitWindowMs,
     errorResponseBuilder: () => ({
+      statusCode: 429,
       error: 'Too Many Requests',
       message: 'Rate limit exceeded',
       code: 'RATE_LIMIT_EXCEEDED',
