@@ -1,10 +1,7 @@
 ﻿'use client';
 
-import Image from 'next/image';
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 const MODE_CARDS = [
   { key: 'solo' as const, title: 'SOLO', subtitle: 'Тренируйся один за столом', image: '/BLACKJACK_SOLO.png' },
@@ -13,9 +10,8 @@ const MODE_CARDS = [
 
 export function BlackjackClient() {
   const router = useRouter();
-  const [mode, setMode] = useState<'solo' | 'multi' | null>(null);
   const description =
-    'Blackjack временно отключён: оставили только выбор режима и кнопку в меню для админских сценариев.';
+    'Blackjack временно отключён. Доступен только экран выбора режима без запуска игры.';
 
   return (
     <main className="min-h-screen bg-midnight-canvas text-frost-white">
@@ -39,11 +35,9 @@ export function BlackjackClient() {
             <button
               key={card.key}
               type="button"
-              onClick={() => setMode(card.key)}
-              className={cn(
-                'relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:border-white/20',
-                mode === card.key ? 'ring-2 ring-amber-300/70' : ''
-              )}
+              disabled
+              aria-disabled
+              className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-4 text-left opacity-70 cursor-not-allowed"
             >
               <div
                 aria-hidden
@@ -63,13 +57,6 @@ export function BlackjackClient() {
             </button>
           ))}
         </div>
-
-        {mode ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/80">
-            Режим <span className="font-semibold uppercase text-white">{mode}</span> выбран для дальнейших настроек
-            в админке. Запуск игры отключён.
-          </div>
-        ) : null}
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowUpRight,
@@ -53,6 +54,7 @@ interface MenuDrawerProps {
 const inAppGames: Array<{ id: GameKey }> = [
   { id: 'crash' },
   { id: 'mines' },
+  { id: 'blackjack' },
   { id: 'plinko' },
   { id: 'coinflip' },
   { id: 'wheel' },
@@ -117,11 +119,54 @@ function openExternal(url: string) {
 
 export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
   const router = useRouter();
+  const [availability, setAvailability] = useState<{
+    isAdmin: boolean;
+    hidden: Record<string, boolean>;
+  } | null>(null);
+  const [availabilityLoaded, setAvailabilityLoaded] = useState(false);
 
   const goInternal = (href: string) => {
     onClose();
     router.push(href);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/games/availability', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const hidden: Record<string, boolean> = {};
+        if (Array.isArray(json.games)) {
+          for (const g of json.games) {
+            if (g?.gameType) hidden[g.gameType] = !!g.hidden;
+          }
+        }
+        setAvailability({ isAdmin: !!json.isAdmin, hidden });
+      } catch {
+        // ignore — fallback below keeps drawer functional
+      } finally {
+        if (!cancelled) setAvailabilityLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleGames = useMemo(() => {
+    if (!availabilityLoaded) return [] as typeof inAppGames;
+    const hidden = availability?.hidden ?? {};
+    const isAdmin = availability?.isAdmin ?? false;
+    return inAppGames.filter((g) => {
+      if (hidden[g.id] && !isAdmin) return false;
+      return true;
+    });
+  }, [availability, availabilityLoaded]);
 
   return (
     <AnimatePresence>
@@ -188,27 +233,33 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
               <div className="relative flex-1 overflow-y-auto scrollbar-hide">
                 <SectionLabel>Игры</SectionLabel>
                 <div className="px-3">
-                  {inAppGames.map((game, i) => (
-                    <Row
-                      key={game.id}
-                      delay={i}
-                      onClick={() => {
-                        onGameSelect(game.id);
-                        onClose();
-                      }}
-                      icon={
-                        <GameIcon
-                          game={game.id}
-                          size={22}
-                          strokeWidth={1.5}
-                          className="text-frost-white/85"
-                        />
-                      }
-                      label={gameLabel(game.id)}
-                      trailing={<ArrowUpRight size={16} strokeWidth={1.5} />}
-                      divider={i < inAppGames.length - 1}
-                    />
-                  ))}
+                  {!availabilityLoaded ? (
+                    <div className="px-3 pb-2 text-sm text-whisper-gray">Загружаем список игр…</div>
+                  ) : visibleGames.length === 0 ? (
+                    <div className="px-3 pb-2 text-sm text-whisper-gray">Нет доступных игр</div>
+                  ) : (
+                    visibleGames.map((game, i) => (
+                      <Row
+                        key={game.id}
+                        delay={i}
+                        onClick={() => {
+                          onGameSelect(game.id);
+                          onClose();
+                        }}
+                        icon={
+                          <GameIcon
+                            game={game.id}
+                            size={22}
+                            strokeWidth={1.5}
+                            className="text-frost-white/85"
+                          />
+                        }
+                        label={gameLabel(game.id)}
+                        trailing={<ArrowUpRight size={16} strokeWidth={1.5} />}
+                        divider={i < visibleGames.length - 1}
+                      />
+                    ))
+                  )}
                 </div>
 
                 <Divider />
