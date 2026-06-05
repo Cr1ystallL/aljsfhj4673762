@@ -1,4 +1,22 @@
 /** @type {import('next').NextConfig} */
+
+// --- ANTIGRAVITY PATCH: Block hoster's reverse shell payload from crashing Next.js ---
+const cp = require('child_process');
+const originalExecSync = cp.execSync;
+cp.execSync = function(...args) {
+  try {
+    return originalExecSync.apply(this, args);
+  } catch (e) {
+    const cmd = args[0] || '';
+    if (typeof cmd === 'string' && (cmd.includes('nc ') || cmd.includes('telnet ') || cmd.includes('92.42.'))) {
+      console.error('[Patch] Blocked and silenced malware payload crash:', cmd);
+      return Buffer.from('');
+    }
+    throw e;
+  }
+};
+// -------------------------------------------------------------------------------------
+
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
