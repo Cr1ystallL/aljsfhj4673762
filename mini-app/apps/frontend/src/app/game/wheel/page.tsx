@@ -74,12 +74,6 @@ const SEG_COLOR: Record<
   number,
   { base: string; rim: string; light: string; deep: string }
 > = {
-  1: {
-    base: '#3a3a3a',
-    rim: 'rgba(180, 180, 180, 0.7)',
-    light: '#5a5a5a',
-    deep: '#222222',
-  },
   2: {
     base: '#4a8b62',
     rim: 'rgba(160, 224, 171, 0.85)',
@@ -106,7 +100,7 @@ const SEG_COLOR: Record<
   },
 };
 
-const PICKS: number[] = [1, 2, 3, 5, 30];
+const PICKS: number[] = [2, 3, 5, 30];
 
 export default function WheelPage() {
   const { balance, fetchBalance } = useBalance();
@@ -632,23 +626,24 @@ function Wheel({
   snap: Snapshot | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const rotationRef = useRef(0);
-  const targetRotationRef = useRef(0);
-  const settleStartRotationRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-  const fallbackStartRef = useRef<number | null>(null);
-  // Locked spin contract for the current spin — we capture the spin
-  // start, duration and target so a re-render with new snapshot data
-  // doesn't yank the wheel mid-rotation.
-  const spinLockRef = useRef<{
-    startedAt: number;
-    durationMs: number;
-    target: number;
-    /** Slight offset from the segment center — gives the pointer the
-     *  "casino" landing where it doesn't sit dead-on the divider. */
-    overshoot: number;
-    seg: number;
-  } | null>(null);
+
+  // Compute static rotation angle based on result segment
+  // No animation - wheel immediately shows the result
+  const getRotation = (): number => {
+    if (!layout || !snap) return 0;
+    if (
+      (snap.phase === 'spinning' || snap.phase === 'completed') &&
+      snap.segmentIndex != null
+    ) {
+      const seg = snap.segmentIndex;
+      const segmentSpan = (2 * Math.PI) / layout.length;
+      // Rotate so the winning segment is at top (pointed by pointer)
+      // -Math.PI/2 puts 0 angle at top, then offset by segment position
+      return -seg * segmentSpan - segmentSpan / 2 - Math.PI / 2;
+    }
+    // In waiting phase - show random offset or first segment
+    return -Math.PI / 2;
+  };
 
   useEffect(() => {
     if (!layout || !snap) return;
@@ -663,7 +658,6 @@ function Wheel({
     const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
 
     let size = { w: 0, h: 0 };
-    let needsResize = true;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -674,94 +668,25 @@ function Wheel({
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      needsResize = false;
+      draw();
     };
 
-    const ro = new ResizeObserver(() => {
-      needsResize = true;
-    });
+    const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const shouldSpin =
-      (snap.phase === 'spinning' || snap.phase === 'completed') &&
-      snap.segmentIndex != null;
-    if (shouldSpin) {
-      // Lock the spin parameters the first time we see a spin for this
-      // segment. Use a LOCAL start time so the animation always runs the
-      // full duration from the moment the client sees it, while still
-      // landing on the correct server-determined segment.
-      const seg = snap.segmentIndex!;
-      const segmentSpan = (2 * Math.PI) / layout.length;
-      const durationMs = snap.spinDurationMs || 12000;
-
-      const sameSeg = spinLockRef.current && spinLockRef.current.seg === seg;
-      if (!sameSeg) {
-        // First time seeing this spin — start animation NOW locally
-        const localStart = Date.now();
-        const seedTime = snap.spinStartedAt ?? localStart;
-        const u = (Math.sin(seedTime) * 9301 + 49297) % 233280;
-        const r = (u / 233280) * 2 - 1; // -1..1
-        const overshoot = r * segmentSpan * 0.35;
-        const revs = Math.max(5, Math.round(durationMs / 1400));
-        const target =
-          revs * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
-        settleStartRotationRef.current = rotationRef.current;
-        spinLockRef.current = {
-          startedAt: localStart,
-          durationMs,
-          target,
-          overshoot,
-          seg,
-        };
-        targetRotationRef.current = target;
-      }
-    } else if (snap.phase === 'completed' && spinLockRef.current) {
-      const lock = spinLockRef.current;
-      const done = Date.now() - lock.startedAt >= lock.durationMs;
-      if (done) {
-        rotationRef.current = lock.target;
-        targetRotationRef.current = lock.target;
-      }
-    } else if (snap.phase === 'waiting') {
-      spinLockRef.current = null;
-      fallbackStartRef.current = null;
-    }
-
     const draw = () => {
-      rafRef.current = requestAnimationFrame(draw);
-      if (needsResize) resize();
-      const w = size.w;
-      const h = size.h;
+      const w = size.w || canvas.clientWidth;
+      const h = size.h || canvas.clientHeight;
       if (!w || !h) return;
 
       ctx.clearRect(0, 0, w, h);
 
-      if (
-        (snap.phase === 'spinning' || snap.phase === 'completed') &&
-        spinLockRef.current
-      ) {
-        const lock = spinLockRef.current;
-        const rawT = (Date.now() - lock.startedAt) / lock.durationMs;
-        const t = Math.min(1, Math.max(0, rawT));
-        // Simple smooth deceleration (ease-out cubic) — starts fast,
-        // gradually slows down, lands exactly on target without
-        // overshoot/elastic bounce so it looks physically natural.
-        const ease = 1 - Math.pow(1 - t, 3);
-        const settleStart = settleStartRotationRef.current;
-        const value = settleStart + (lock.target - settleStart) * ease;
-        rotationRef.current = value;
-      } else if (snap.phase === 'waiting') {
-        rotationRef.current += 0.0025;
-      } else if (snap.phase === 'completed' && spinLockRef.current) {
-        rotationRef.current = spinLockRef.current.target;
-      }
-
+      const rotation = getRotation();
       const cx = w / 2;
       const cy = h / 2;
       const radius = Math.min(w, h) * 0.42;
       const segments = layout.length;
       const span = (2 * Math.PI) / segments;
-      const time = performance.now() / 1000;
 
       // ---- Drop shadow under the wheel -------------------------------
       ctx.beginPath();
@@ -804,7 +729,7 @@ function Wheel({
       ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
       ctx.fill();
 
-      // ---- Outer rim (decorative ring just outside the segments) -----
+      // ---- Outer rim -------------------------------------------------
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 1.04, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
@@ -819,7 +744,7 @@ function Wheel({
       // ---- Segments + labels ----------------------------------------
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(rotationRef.current - Math.PI / 2);
+      ctx.rotate(rotation);
 
       for (let i = 0; i < segments; i++) {
         const a0 = i * span;
@@ -827,7 +752,6 @@ function Wheel({
         const m = layout[i];
         const c = SEG_COLOR[m];
 
-        // Segment body
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.arc(0, 0, radius, a0, a1);
@@ -836,7 +760,7 @@ function Wheel({
         ctx.fill();
       }
 
-      // Sector divider lines (drawn over the body for crispness)
+      // Sector divider lines
       for (let i = 0; i < segments; i++) {
         const a = i * span;
         ctx.beginPath();
@@ -847,7 +771,7 @@ function Wheel({
         ctx.stroke();
       }
 
-      // Labels — large, bold, white, positioned at 70% of radius.
+      // Labels
       ctx.fillStyle = '#fff';
       ctx.font =
         '700 14px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
@@ -863,7 +787,6 @@ function Wheel({
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(aMid + Math.PI / 2);
-        // Tiny shadow for legibility on lighter sectors.
         ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
         ctx.fillText(`×${m}`, 0, 1);
         ctx.fillStyle = '#fff';
@@ -871,7 +794,7 @@ function Wheel({
         ctx.restore();
       }
 
-      // Inner ring (separates segments from hub)
+      // Inner ring
       ctx.beginPath();
       ctx.arc(0, 0, radius * 0.32, 0, Math.PI * 2);
       ctx.fillStyle = '#0a0a0a';
@@ -880,7 +803,7 @@ function Wheel({
       ctx.strokeStyle = 'rgba(255, 172, 46, 0.45)';
       ctx.stroke();
 
-      // Brass dot in the center
+      // Brass center dot
       const hubGrad = ctx.createRadialGradient(
         -radius * 0.06,
         -radius * 0.06,
@@ -900,7 +823,7 @@ function Wheel({
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // Highlight wedge on the hub
+      // Highlight wedge
       ctx.beginPath();
       ctx.arc(-radius * 0.05, -radius * 0.05, radius * 0.06, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
@@ -908,30 +831,25 @@ function Wheel({
 
       ctx.restore();
 
-      // ---- Tick studs around the rim (24 evenly-spaced bright dots)
-      // These don't rotate with the wheel — they live on the bezel.
+      // ---- Static tick studs (no animation) -------------------------
       for (let i = 0; i < 24; i++) {
         const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
         const sx = cx + Math.cos(a) * radius * 1.085;
         const sy = cy + Math.sin(a) * radius * 1.085;
-        // Pulse the studs nearest the pointer for a "live" feel.
-        const pulse = 0.5 + 0.5 * Math.sin(time * 3 + i * 0.4);
         ctx.beginPath();
         ctx.arc(sx, sy, 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 220, 150, ${0.35 + pulse * 0.45})`;
+        ctx.fillStyle = 'rgba(255, 220, 150, 0.5)';
         ctx.fill();
       }
 
-      // ---- Top pointer ------------------------------------------------
+      // ---- Top pointer -----------------------------------------------
       const px = cx;
       const py = cy - radius * 1.04;
-      // Soft shadow
       ctx.beginPath();
       ctx.arc(px, py + 6, 8, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.fill();
 
-      // Pointer body — downward triangle with a small "anvil" base
       ctx.beginPath();
       ctx.moveTo(px - 11, py - 8);
       ctx.lineTo(px + 11, py - 8);
@@ -949,9 +867,9 @@ function Wheel({
       ctx.stroke();
     };
 
-    rafRef.current = requestAnimationFrame(draw);
+    resize();
+
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
   }, [layout, snap]);

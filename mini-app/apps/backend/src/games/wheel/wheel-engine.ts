@@ -11,79 +11,43 @@ import type { Bet } from '../../game-engine/types.js';
 /**
  * Wheel of Fortune — live multiplayer.
  *
- * Layout: a 25-segment wheel with the following multipliers, repeated
- * around the circle so the visual reads as a fortune wheel:
+ * Layout: a 15-segment wheel with the following multipliers:
  *
- *   1x — 10 segments
  *   2x —  6 segments
  *   3x —  5 segments
  *   5x —  3 segments
  *   30x — 1 segment
  *
- *   total = 25 segments. Expected value = (10×1 + 6×2 + 5×3 + 3×5 + 1×30) / 25
- *                                       = (10 + 12 + 15 + 15 + 30) / 25
- *                                       = 82 / 25 = 3.28x
+ *   total = 15 segments.
  *
- * Wait — 3.28x EV with these counts means the wheel pays out 3.28× on
- * average against a "you-bet-on-everything" strategy. Real games here
- * bet on a SINGLE multiplier slot, so the actual user-EV depends on
- * which slot they pick:
- *
- *   bet on 1x  → P(win) = 10/25 = 0.40,  EV = 0.40 × 1  = 0.40
- *   bet on 2x  → P(win) =  6/25 = 0.24,  EV = 0.24 × 2  = 0.48
- *   bet on 3x  → P(win) =  5/25 = 0.20,  EV = 0.20 × 3  = 0.60
- *   bet on 5x  → P(win) =  3/25 = 0.12,  EV = 0.12 × 5  = 0.60
- *   bet on 30x → P(win) =  1/25 = 0.04,  EV = 0.04 × 30 = 1.20
- *
- * The 30x is favourable to the user — RTP > 100% — which is needed to
- * make the rare jackpot worth chasing. To keep the casino's expected
- * profit positive across the board, the rtp-engine bias trims the
- * 30x-segment selection probability when the controller is in earn
- * mode. With bias = 0 the segments are uniformly drawn from the seed.
- *
- * Round lifecycle (matches Crash):
- *   - waiting (admin-configurable) — open betting
- *   - spinning — server picks a segment immediately, but the visual
- *     spin lasts 5 s on the client
- *   - completed — payouts settled, history strip updated
- *
- * Players bet on a SINGLE multiplier value (1, 2, 3, 5 or 30). Win
+ * Players bet on a SINGLE multiplier value (2, 3, 5 or 30). Win
  * iff the resolved segment carries that same multiplier. Payout =
  * stake × multiplier. Losers lose their stake, no partial returns.
  */
 
-export type WheelMultiplier = 1 | 2 | 3 | 5 | 30;
+export type WheelMultiplier = 2 | 3 | 5 | 30;
 
 const SLOT_LAYOUT: WheelMultiplier[] = (() => {
   const out: WheelMultiplier[] = [];
-  for (let i = 0; i < 10; i++) out.push(1);
   for (let i = 0; i < 6; i++) out.push(2);
   for (let i = 0; i < 5; i++) out.push(3);
   for (let i = 0; i < 3; i++) out.push(5);
   out.push(30);
-  // Distribute interleaved so visually the wheel doesn't have giant
-  // contiguous arcs of the same value. Stable shuffle by interleaving
-  // the rarest first.
-  const shuffled: WheelMultiplier[] = new Array(25);
-  // Pin the 30x at index 0, then space 5x evenly at offsets {5, 13, 21}
-  // so they sit roughly 144° apart on the wheel. Fill remainder with
-  // 3, 2, 1 in that priority.
-  const fives = [5, 13, 21];
-  const threesAt = [2, 8, 11, 17, 23];
-  const twosAt = [3, 6, 9, 12, 18, 24];
+  // 15 segments total. Distribute interleaved visually.
+  const shuffled: WheelMultiplier[] = new Array(15);
+  const fives = [3, 8, 13];
+  const threesAt = [1, 5, 9, 12, 14];
+  const twosAt = [2, 4, 6, 7, 10, 11];
   shuffled[0] = 30;
   for (const i of fives) shuffled[i] = 5;
   for (const i of threesAt) shuffled[i] = 3;
   for (const i of twosAt) shuffled[i] = 2;
-  for (let i = 0; i < 25; i++) {
-    if (shuffled[i] === undefined) shuffled[i] = 1;
-  }
   return shuffled;
 })();
 
 export const WHEEL_LAYOUT: ReadonlyArray<WheelMultiplier> = SLOT_LAYOUT;
 
-export const WHEEL_VALUES: ReadonlyArray<WheelMultiplier> = [1, 2, 3, 5, 30];
+export const WHEEL_VALUES: ReadonlyArray<WheelMultiplier> = [2, 3, 5, 30];
 
 interface WheelBetRow {
   betId: string;
@@ -535,10 +499,10 @@ class WheelEngine extends EventEmitter {
 }
 
 /**
- * Pick a segment 0..24 from the seed, biased by the rtp controller.
+ * Pick a segment 0..14 from the seed, biased by the rtp controller.
  * Bias mechanism:
  *   bias > 0 (casino-favouring) → reduce 30x slot probability, push
- *     mass into 1x and 2x.
+ *     mass into 2x and 3x.
  *   bias < 0 (player-favouring) → boost 30x and 5x probability.
  *
  * Implementation: we apply a per-multiplier weight perturbation, then
@@ -548,10 +512,9 @@ function pickSegment(hash: string, bias: number): number {
   const b = Math.max(-1, Math.min(1, bias));
   // Per-multiplier weight scalers. With b=0 they're all 1.
   const scaler: Record<WheelMultiplier, number> = {
-    1: 1 + b * 0.3,
-    2: 1 + b * 0.1,
-    3: 1,
-    5: 1 - b * 0.25,
+    2: 1 + b * 0.15,
+    3: 1 + b * 0.05,
+    5: 1 - b * 0.2,
     30: 1 - b * 0.6,
   };
   const weights = SLOT_LAYOUT.map((m) => Math.max(0.05, scaler[m]));
