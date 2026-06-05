@@ -267,7 +267,7 @@ class WheelEngine extends EventEmitter {
   private async openWaiting(): Promise<void> {
     // Read configurable waiting duration from gameConfig (key 'wheel').
     try {
-      const cfg = await gameConfig.get('wheel' as 'crash');
+      const cfg = await gameConfig.get('wheel');
       const extras = (cfg.extras ?? {}) as { waitingPhaseSeconds?: number };
       const ws = Number(extras.waitingPhaseSeconds);
       this.waitingMs =
@@ -451,9 +451,9 @@ class WheelEngine extends EventEmitter {
     });
 
     // Brief breather — without an explicit countdown phase. The client
-    // shows the result for ~1 s, then we open the next betting window
+    // shows the result for ~2 s, then we open the next betting window
     // immediately so the round-cycle is continuous.
-    setTimeout(() => void this.openWaiting(), 1000);
+    setTimeout(() => void this.openWaiting(), 2000);
   }
 
   /* ------------------------------ helpers ------------------------------ */

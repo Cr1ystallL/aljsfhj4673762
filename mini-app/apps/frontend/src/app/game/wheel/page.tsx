@@ -53,7 +53,6 @@ const SEG_COLOR: Record<
   number,
   { base: string; face: string; label: string; pill: string; pillBg: string }
 > = {
-  /* Fallback for legacy x1 history entries — never shown on the wheel */
   1: {
     base: '#1c1c1c',
     face: '#252525',
@@ -62,32 +61,32 @@ const SEG_COLOR: Record<
     pillBg: 'rgba(109,109,109,0.12)',
   },
   2: {
-    base: '#1e1e1e',
-    face: '#262626',
-    label: '#9a9a9a',
+    base: '#3a3a3a',
+    face: '#4a4a4a',
+    label: '#ffffff',
     pill: '#9a9a9a',
-    pillBg: 'rgba(154,154,154,0.10)',
+    pillBg: 'rgba(154,154,154,0.12)',
   },
   3: {
-    base: '#2c2c2c',
-    face: '#363636',
-    label: '#b8b8b8',
-    pill: '#c0c0c0',
-    pillBg: 'rgba(192,192,192,0.10)',
+    base: '#14b8a6', // Turquoise (Teal)
+    face: '#2dd4bf',
+    label: '#ffffff',
+    pill: '#14b8a6',
+    pillBg: 'rgba(20, 184, 166, 0.12)',
   },
   5: {
-    base: '#404040',
-    face: '#4e4e4e',
-    label: '#d4d4d4',
-    pill: '#e0e0e0',
-    pillBg: 'rgba(224,224,224,0.10)',
+    base: '#8b5cf6', // Purple (Violet)
+    face: '#a78bfa',
+    label: '#ffffff',
+    pill: '#8b5cf6',
+    pillBg: 'rgba(139, 92, 246, 0.12)',
   },
   30: {
-    base: '#686868',
-    face: '#787878',
+    base: '#eab308', // Gold (Yellow)
+    face: '#facc15',
     label: '#ffffff',
-    pill: '#ffffff',
-    pillBg: 'rgba(255,255,255,0.12)',
+    pill: '#eab308',
+    pillBg: 'rgba(234, 179, 8, 0.12)',
   },
 };
 
@@ -1019,17 +1018,18 @@ function WheelCanvas({
           {uiPhase === 'waiting' && remaining !== null && (
             <motion.span
               key={remaining > 0 ? 'timer' : 'go'}
-              initial={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="font-sans tabular-nums"
               style={{
-                fontSize: remaining > 0 ? 28 : 22,
-                fontWeight: 300,
-                color: '#ffffff',
-                letterSpacing: remaining > 0 ? '0.05em' : '0.3em',
-                textTransform: remaining > 0 ? undefined : ('uppercase' as const),
+                fontSize: remaining > 0 ? 46 : 16,
+                fontWeight: remaining > 0 ? 200 : 400,
+                color: remaining > 0 ? '#ffffff' : '#a3a3a3',
+                letterSpacing: remaining > 0 ? '-0.03em' : '0.4em',
+                textTransform: remaining > 0 ? undefined : 'uppercase',
+                textShadow: remaining > 0 ? '0 0 40px rgba(255,255,255,0.2)' : 'none',
               }}
             >
               {remaining > 0
@@ -1042,33 +1042,36 @@ function WheelCanvas({
             <motion.span
               key="spinning"
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0.3, 0.8, 0.3] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
+              animate={{ opacity: [0.2, 1, 0.2] }}
+              transition={{ duration: 2, ease: "easeInOut", repeat: Infinity }}
               className="font-sans uppercase"
               style={{
                 fontSize: 12,
-                fontWeight: 300,
-                color: '#9a9a9a',
-                letterSpacing: '0.35em',
+                fontWeight: 400,
+                color: '#ffffff',
+                letterSpacing: '0.5em',
+                textShadow: '0 0 20px rgba(255,255,255,0.5)',
+                marginLeft: '0.5em', // offset tracking visually
               }}
             >
-              ···
+              SPIN
             </motion.span>
           )}
 
           {uiPhase === 'completed' && snap?.multiplier != null && (
             <motion.span
               key="result"
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
               className="font-sans tabular-nums"
               style={{
-                fontSize: 26,
+                fontSize: 42,
                 fontWeight: 300,
-                color: '#ffffff',
-                letterSpacing: '0.05em',
+                color: SEG_COLOR[snap.multiplier]?.face ?? '#ffffff',
+                letterSpacing: '-0.02em',
+                textShadow: `0 0 40px ${SEG_COLOR[snap.multiplier]?.pillBg ?? 'rgba(255,255,255,0.2)'}`,
               }}
             >
               ×{snap.multiplier}
