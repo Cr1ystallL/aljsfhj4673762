@@ -95,6 +95,7 @@ export interface WheelLiveSnapshot {
   /** Spin duration in ms (so the client can sync its rotation). */
   spinDurationMs: number;
   stats: { playerCount: number; totalWagered: number };
+  timestamp: number;
 }
 
 interface CurrentRound {
