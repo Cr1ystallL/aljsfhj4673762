@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
  * of the admin panel.
  */
 
-type Tab = 'promo' | 'contests';
+type Tab = 'promo' | 'contests' | 'tournaments';
 
 interface PromoRow {
   id: string;
@@ -50,6 +50,255 @@ interface PromoRow {
   createdAt: number;
   redemptions: number;
   paidOut: number;
+}
+
+/* ============================================================== Tournaments (admin) */
+
+interface TournamentRow {
+  id: string;
+  title: string;
+  description: string | null;
+  bannerUrl: string | null;
+  gameType: string;
+  prizePool: number;
+  prizeMode: 'percent' | 'fixed';
+  winnersCount: number;
+  fixedPrize: number | null;
+  startBalance: number;
+  entryFee: number;
+  startAtGmt1: number;
+  durationHours: number;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+function TournamentsTab() {
+  const [list, setList] = useState<TournamentRow[] | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const reload = useCallback(async () => {
+    try {
+      const res = await fetch('/api/_x/tournaments', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      setList((json.tournaments ?? []) as TournamentRow[]);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="font-roobert text-[14px] text-frost-white">Турниры</span>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px]"
+        >
+          <Plus size={12} strokeWidth={1.8} />
+          Создать
+        </button>
+      </div>
+
+      {list === null ? (
+        <Spinner />
+      ) : list.length === 0 ? (
+        <Empty text="Турниров пока нет" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {list.map((t) => (
+            <button
+              key={t.id}
+              className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-3 text-left flex flex-col gap-2"
+            >
+              <div className="flex items-center justify-between text-[11px] text-whisper-gray">
+                <span className="inline-flex items-center gap-1 uppercase tracking-[0.18em]">
+                  <Trophy size={12} strokeWidth={1.7} /> {t.gameType}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04]">
+                  {t.active ? 'Активен' : 'Выключен'}
+                </span>
+              </div>
+              <div className="font-roobert text-[15px] text-frost-white truncate">{t.title}</div>
+              <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-whisper-gray tabular-nums">
+                <span>Пул {t.prizePool.toFixed(0)} zł</span>
+                <span>Победителей {t.winnersCount}</span>
+                <span>Старт {t.startBalance.toFixed(0)} TM</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {createOpen && (
+          <TournamentCreateModal
+            onClose={() => setCreateOpen(false)}
+            onCreated={() => {
+              setCreateOpen(false);
+              void reload();
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
+  const [gameType, setGameType] = useState('wheel');
+  const [prizePool, setPrizePool] = useState(500);
+  const [prizeMode, setPrizeMode] = useState<'percent' | 'fixed'>('percent');
+  const [winnersCount, setWinnersCount] = useState(10);
+  const [fixedPrize, setFixedPrize] = useState(50);
+  const [startBalance, setStartBalance] = useState(200);
+  const [entryFee, setEntryFee] = useState(0);
+  const [startAt, setStartAt] = useState(() => isoLocalNow());
+  const [durationHours, setDurationHours] = useState(10);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!title.trim()) {
+      setErr('Название обязательно');
+      return;
+    }
+    if (!gameType.trim()) {
+      setErr('Игра обязательна');
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      const res = await fetch('/api/_x/tournaments', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || null,
+          bannerUrl: bannerUrl.trim() || null,
+          gameType: gameType.trim(),
+          prizePool: Number(prizePool),
+          prizeMode,
+          winnersCount: Number(winnersCount),
+          fixedPrize: prizeMode === 'fixed' ? Number(fixedPrize) : null,
+          startBalance: Number(startBalance),
+          entryFee: Number(entryFee),
+          startAtGmt1: new Date(startAt).getTime(),
+          durationHours: Number(durationHours),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(json.error || 'Ошибка');
+        return;
+      }
+      onCreated();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Новый турнир" wide>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Название" colSpan={2}>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
+        <Field label="Описание" colSpan={2}>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
+        <Field label="Баннер URL" colSpan={2}>
+          <input
+            value={bannerUrl}
+            onChange={(e) => setBannerUrl(e.target.value)}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
+        <Field label="Игра">
+          <input
+            value={gameType}
+            onChange={(e) => setGameType(e.target.value)}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
+        <Field label="Призовой пул (zł)">
+          <NumInput value={prizePool} onChange={setPrizePool} step={10} />
+        </Field>
+        <Field label="Режим призов">
+          <select
+            value={prizeMode}
+            onChange={(e) => setPrizeMode(e.target.value as 'percent' | 'fixed')}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          >
+            <option value="percent">Проценты (топ-10)</option>
+            <option value="fixed">Фикс всем</option>
+          </select>
+        </Field>
+        <Field label="Победителей">
+          <NumInput value={winnersCount} onChange={setWinnersCount} step={1} />
+        </Field>
+        {prizeMode === 'fixed' && (
+          <Field label="Сумма приза каждому" colSpan={2}>
+            <NumInput value={fixedPrize} onChange={setFixedPrize} step={10} />
+          </Field>
+        )}
+        <Field label="Стартовый турнирный баланс">
+          <NumInput value={startBalance} onChange={setStartBalance} step={10} />
+        </Field>
+        <Field label="Взнос (fee) real">
+          <NumInput value={entryFee} onChange={setEntryFee} step={10} />
+        </Field>
+        <Field label="Старт (GMT+1)" colSpan={2}>
+          <input
+            type="datetime-local"
+            value={startAt}
+            onChange={(e) => setStartAt(e.target.value)}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
+        <Field label="Длительность (часы)">
+          <NumInput value={durationHours} onChange={setDurationHours} step={1} />
+        </Field>
+      </div>
+
+      {err && <div className="font-roobert text-[12px] text-[#ff8a76]">{err}</div>}
+      <div className="flex items-center justify-end gap-2 pt-3">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
+        >
+          Отмена
+        </button>
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="px-4 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] disabled:opacity-50"
+        >
+          {busy ? 'Сохранение…' : 'Создать'}
+        </button>
+      </div>
+    </Modal>
+  );
 }
 
 interface ContestRow {
@@ -80,6 +329,7 @@ export default function AdminBonusesPage() {
             [
               { id: 'promo' as const, label: 'Промокоды' },
               { id: 'contests' as const, label: 'Конкурсы' },
+              { id: 'tournaments' as const, label: 'Турниры' },
             ]
           ).map((t) => (
             <button
@@ -100,6 +350,7 @@ export default function AdminBonusesPage() {
 
       {tab === 'promo' && <PromoTab />}
       {tab === 'contests' && <ContestsTab />}
+      {tab === 'tournaments' && <TournamentsTab />}
     </div>
   );
 }

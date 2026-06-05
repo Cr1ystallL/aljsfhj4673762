@@ -54,6 +54,181 @@ interface WheelStateResponse {
   }>;
 }
 
+interface TournamentRow {
+  id: string;
+  title: string;
+  description: string | null;
+  bannerUrl: string | null;
+  gameType: string;
+  prizePool: number;
+  prizeMode: 'percent' | 'fixed';
+  winnersCount: number;
+  fixedPrize: number | null;
+  startBalance: number;
+  entryFee: number;
+  startsAt: number;
+  endsAt: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tournaments                                                                */
+/* -------------------------------------------------------------------------- */
+
+function TournamentsList() {
+  const [list, setList] = useState<TournamentRow[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tournaments', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      setList(json.tournaments as TournamentRow[]);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const join = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/tournaments/${id}/join`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось зарегистрироваться');
+        return;
+      }
+      toast.success('Вы зарегистрированы в турнире');
+      void load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-3" id="tournaments">
+      <div className="flex items-baseline justify-between px-1">
+        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">Турниры</span>
+        <span className="font-roobert text-[11px] text-whisper-gray">{list?.length ?? 0}</span>
+      </div>
+
+      {list === null ? (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] py-10 flex items-center justify-center">
+          <div className="w-5 h-5 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+        </div>
+      ) : list.length === 0 ? (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
+          Сейчас турниров нет. Загляните позже.
+        </div>
+      ) : (
+        list.map((t) => (
+          <TournamentCard key={t.id} tournament={t} onJoin={() => join(t.id)} busy={busyId === t.id} />
+        ))
+      )}
+    </section>
+  );
+}
+
+function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
+  const now = Date.now();
+  const remainingMs = Math.max(0, tournament.endsAt - now);
+  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-card border border-white/10"
+    >
+      {tournament.bannerUrl ? (
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-45"
+          style={{
+            backgroundImage: `url(${tournament.bannerUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      ) : null}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.85) 100%)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-50 mix-blend-screen pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(110% 90% at 100% 100%, rgba(255, 172, 46, 0.20) 0%, rgba(160, 224, 171, 0.10) 50%, transparent 80%)',
+        }}
+      />
+      <div className="relative px-5 py-4 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
+          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+            Турнир · {tournament.gameType}
+          </span>
+        </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] leading-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+              {tournament.title}
+            </div>
+            {tournament.description && (
+              <div className="mt-1 font-roobert text-[12px] text-whisper-gray line-clamp-2">
+                {tournament.description}
+              </div>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+              {tournament.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+              <span className="text-[12px] text-whisper-gray">zł</span>
+            </div>
+            <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums">
+              {tournament.winnersCount} победителей
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-[11px] text-whisper-gray tabular-nums">
+          <span>Стартовый баланс {tournament.startBalance.toFixed(0)} TM</span>
+          <span>Взнос {tournament.entryFee.toFixed(0)} zł</span>
+          <span>До конца {remaining}</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="font-roobert text-[11px] text-whisper-gray">Игра: {tournament.gameType}</div>
+          <button
+            onClick={onJoin}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
+          >
+            Участвовать
+            <ArrowRight size={11} strokeWidth={1.8} />
+          </button>
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
 interface ContestRow {
   id: string;
   title: string;
@@ -110,6 +285,8 @@ export default function BonusesPage() {
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 
         <LuckyWheelHero onWin={() => void fetchBalance()} />
+
+        <TournamentsList />
 
         <ContestsList currentUserId={user?.id ?? null} />
       </div>

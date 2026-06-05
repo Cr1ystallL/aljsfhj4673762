@@ -11,6 +11,7 @@ import { macvpayRoutes } from './macvpay.js';
 import { withdrawalRoutes } from './withdrawals.js';
 import { bonusesRoutes } from './bonuses.js';
 import { presenceRoutes } from './presence.js';
+import { tournamentRoutes } from './tournaments.js';
 
 /**
  * Register all application routes
@@ -36,6 +37,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Bonuses (promo codes, lucky wheel, contests)
   await app.register(bonusesRoutes, { prefix: '/api/bonuses' });
+
+  // Tournaments (experimental)
+  await app.register(tournamentRoutes, { prefix: '/api' });
 
   // Presence — heartbeat (player) + live list (admin). См. presence.ts.
   // Регистрируется до admin-роутов, чтобы /api/_x/presence резолвился
