@@ -54,35 +54,35 @@ const SEG_COLOR: Record<
   { base: string; face: string; label: string; pill: string; pillBg: string }
 > = {
   1: {
-    base: '#1c1c1c',
+    base: '#111111',
     face: '#252525',
     label: '#6d6d6d',
     pill: '#6d6d6d',
     pillBg: 'rgba(109,109,109,0.12)',
   },
   2: {
-    base: '#3a3a3a',
+    base: '#1a1a1a', // Very dark gray
     face: '#4a4a4a',
     label: '#ffffff',
     pill: '#9a9a9a',
     pillBg: 'rgba(154,154,154,0.12)',
   },
   3: {
-    base: '#14b8a6', // Turquoise (Teal)
+    base: '#112224', // Very dark teal
     face: '#2dd4bf',
     label: '#ffffff',
     pill: '#14b8a6',
     pillBg: 'rgba(20, 184, 166, 0.12)',
   },
   5: {
-    base: '#8b5cf6', // Purple (Violet)
+    base: '#1a1324', // Very dark purple
     face: '#a78bfa',
     label: '#ffffff',
     pill: '#8b5cf6',
     pillBg: 'rgba(139, 92, 246, 0.12)',
   },
   30: {
-    base: '#eab308', // Gold (Yellow)
+    base: '#261f0b', // Very dark gold
     face: '#facc15',
     label: '#ffffff',
     pill: '#eab308',
@@ -854,9 +854,9 @@ function WheelCanvas({
         
         // Use a gradient for the divider
         const lineGrad = ctx.createLinearGradient(0, 0, radius, 0);
-        lineGrad.addColorStop(0, 'rgba(255,255,255,0)');
-        lineGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
-        lineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        lineGrad.addColorStop(0, 'rgba(255,255,255,0.02)');
+        lineGrad.addColorStop(0.5, 'rgba(255,255,255,0.3)'); // Brighter center for visibility
+        lineGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
         
         ctx.strokeStyle = lineGrad;
         ctx.lineWidth = 1.5;
