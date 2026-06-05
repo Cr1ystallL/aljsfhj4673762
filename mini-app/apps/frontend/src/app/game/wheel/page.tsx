@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import gsap from 'gsap';
 import { Disc3, Coins, Users, Shield, Wifi, ChevronDown } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
@@ -283,11 +284,11 @@ export default function WheelPage() {
             }}
           />
           <div className="relative aspect-[1/1] sm:aspect-[4/3] flex items-center justify-center">
-            <Wheel layout={layout} snap={snap} />
+            <Wheel layout={layout} snap={snap} uiPhase={uiPhase} />
           </div>
         </div>
 
-        <PhasePill snap={snap} uiPhase={uiPhase} />
+        <PhasePill snap={snap} />
 
         {/* Pick chips */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
@@ -384,76 +385,10 @@ export default function WheelPage() {
 
 /* -------------------------------------------------------------------------- */
 
-function PhasePill({ snap, uiPhase }: { snap: Snapshot | null; uiPhase: Phase }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!snap) return;
-    const id = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(id);
-  }, [snap]);
-
+function PhasePill({ snap }: { snap: Snapshot | null }) {
   if (!snap) return null;
-  const remaining =
-    uiPhase === 'waiting' && snap.waitingEndsAt
-      ? Math.max(0, Math.ceil((snap.waitingEndsAt - now) / 1000))
-      : null;
-
   return (
-    <div className="flex items-center justify-between gap-2">
-      <AnimatePresence mode="wait">
-        {uiPhase === 'waiting' && (
-          <motion.div
-            key="w"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10"
-          >
-            <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-              Place your bets
-            </span>
-            {remaining !== null && (
-              <span className="font-roobert text-frost-white text-[13px] tabular-nums leading-none">
-                00:{String(remaining).padStart(2, '0')}
-              </span>
-            )}
-          </motion.div>
-        )}
-        {snap.phase === 'spinning' && (
-          <motion.div
-            key="s"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.06] border border-white/15"
-          >
-            <span className="text-[11px] uppercase tracking-[0.18em] text-frost-white font-roobert">
-              Spinning
-            </span>
-          </motion.div>
-        )}
-        {snap.phase === 'completed' && snap.multiplier !== null && (
-          <motion.div
-            key="c"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill border"
-            style={{
-              background: `${SEG_COLOR[snap.multiplier].base}55`,
-              borderColor: SEG_COLOR[snap.multiplier].rim,
-            }}
-          >
-            <span className="text-[11px] uppercase tracking-[0.18em] text-frost-white font-roobert">
-              Result
-            </span>
-            <span className="font-roobert font-semibold text-frost-white text-[14px] tabular-nums">
-              ×{snap.multiplier}
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="flex items-center justify-end gap-2">
       <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-white/[0.05] border border-white/10">
         <Shield size={11} className="text-frost-white/60" strokeWidth={2} />
         <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
@@ -621,42 +556,218 @@ function BetsFeed({
 function Wheel({
   layout,
   snap,
+  uiPhase,
 }: {
   layout: number[] | null;
   snap: Snapshot | null;
+  uiPhase: Phase;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rotRef = useRef({ angle: -Math.PI / 2 });
+  const idleTweenRef = useRef<gsap.core.Tween | null>(null);
+  const spinTweenRef = useRef<gsap.core.Tween | null>(null);
 
-  // Compute static rotation angle based on result segment
-  // No animation - wheel immediately shows the result
-  const getRotation = (): number => {
-    if (!layout || !snap) return 0;
-    if (
-      (snap.phase === 'spinning' || snap.phase === 'completed') &&
-      snap.segmentIndex != null
-    ) {
-      const seg = snap.segmentIndex;
-      const segmentSpan = (2 * Math.PI) / layout.length;
-      // Rotate so the winning segment is at top (pointed by pointer)
-      // -Math.PI/2 puts 0 angle at top, then offset by segment position
-      return -seg * segmentSpan - segmentSpan / 2 - Math.PI / 2;
-    }
-    // In waiting phase - show random offset or first segment
-    return -Math.PI / 2;
-  };
-
+  // Timer logic for center overlay
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (!snap) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [snap]);
+
+  const remaining =
+    uiPhase === 'waiting' && snap?.waitingEndsAt
+      ? Math.max(0, Math.ceil((snap.waitingEndsAt - now) / 1000))
+      : null;
+
+  // Render logic
+  const draw = useCallback((rotation: number) => {
     if (!layout || !snap) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const isTouch =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
+    const w = canvas.width / (window.devicePixelRatio || 1);
+    const h = canvas.height / (window.devicePixelRatio || 1);
+    if (!w || !h) return;
 
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const radius = Math.min(w, h) * 0.42;
+    const segments = layout.length;
+    const span = (2 * Math.PI) / segments;
+
+    // ---- Drop shadow under the wheel -------------------------------
+    ctx.beginPath();
+    ctx.ellipse(
+      cx,
+      cy + radius * 0.95,
+      radius * 0.85,
+      radius * 0.12,
+      0,
+      0,
+      Math.PI * 2
+    );
+    const shadow = ctx.createRadialGradient(
+      cx, cy + radius * 0.95, 0,
+      cx, cy + radius * 0.95, radius * 0.85
+    );
+    shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
+    shadow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadow;
+    ctx.fill();
+
+    // ---- Outer glow ring -------------------------------------------
+    const glow = ctx.createRadialGradient(
+      cx, cy, radius * 0.9,
+      cx, cy, radius * 1.18
+    );
+    glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
+    glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.10)');
+    glow.addColorStop(1, 'rgba(255, 172, 46, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ---- Outer rim -------------------------------------------------
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 1.04, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 1.06, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 172, 46, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // ---- Segments + labels ----------------------------------------
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+
+    for (let i = 0; i < segments; i++) {
+      const a0 = i * span;
+      const a1 = (i + 1) * span;
+      const m = layout[i];
+      const c = SEG_COLOR[m];
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius, a0, a1);
+      ctx.closePath();
+      ctx.fillStyle = c.base;
+      ctx.fill();
+      
+      // Light sector highlighting (subtle gradient per sector)
+      const grad = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      grad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    // Sector divider lines
+    for (let i = 0; i < segments; i++) {
+      const a = i * span;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Labels
+    ctx.fillStyle = '#fff';
+    ctx.font =
+      '700 14px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < segments; i++) {
+      const a0 = i * span;
+      const a1 = (i + 1) * span;
+      const m = layout[i];
+      const aMid = (a0 + a1) / 2;
+      const lx = Math.cos(aMid) * radius * 0.72;
+      const ly = Math.sin(aMid) * radius * 0.72;
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(aMid + Math.PI / 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.fillText(`×${m}`, 0, 1);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(`×${m}`, 0, 0);
+      ctx.restore();
+    }
+
+    // Inner dark center (for timer)
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f1115'; // Matte dark
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.stroke();
+    
+    // Gloss on inner center
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
+    const gloss = ctx.createLinearGradient(-radius * 0.28, -radius * 0.28, radius * 0.28, radius * 0.28);
+    gloss.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+    gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = gloss;
+    ctx.fill();
+
+    ctx.restore();
+
+    // ---- Static tick studs (no animation) -------------------------
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+      const sx = cx + Math.cos(a) * radius * 1.085;
+      const sy = cy + Math.sin(a) * radius * 1.085;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 220, 150, 0.5)';
+      ctx.fill();
+    }
+
+    // ---- Top pointer -----------------------------------------------
+    const px = cx;
+    const py = cy - radius * 1.04;
+    ctx.beginPath();
+    ctx.arc(px, py + 6, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(px - 11, py - 8);
+    ctx.lineTo(px + 11, py - 8);
+    ctx.lineTo(px + 8, py - 1);
+    ctx.lineTo(px, py + 16);
+    ctx.lineTo(px - 8, py - 1);
+    ctx.closePath();
+    const pGrad = ctx.createLinearGradient(px, py - 8, px, py + 16);
+    pGrad.addColorStop(0, '#ffffff');
+    pGrad.addColorStop(1, '#cccccc');
+    ctx.fillStyle = pGrad;
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.stroke();
+  }, [layout, snap]);
+
+  useEffect(() => {
+    if (!layout || !snap) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const isTouch = typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
     let size = { w: 0, h: 0 };
 
     const resize = () => {
@@ -667,218 +778,90 @@ function Wheel({
       size = { w, h };
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw();
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw(rotRef.current.angle);
     };
 
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const draw = () => {
-      const w = size.w || canvas.clientWidth;
-      const h = size.h || canvas.clientHeight;
-      if (!w || !h) return;
-
-      ctx.clearRect(0, 0, w, h);
-
-      const rotation = getRotation();
-      const cx = w / 2;
-      const cy = h / 2;
-      const radius = Math.min(w, h) * 0.42;
-      const segments = layout.length;
-      const span = (2 * Math.PI) / segments;
-
-      // ---- Drop shadow under the wheel -------------------------------
-      ctx.beginPath();
-      ctx.ellipse(
-        cx,
-        cy + radius * 0.95,
-        radius * 0.85,
-        radius * 0.12,
-        0,
-        0,
-        Math.PI * 2
-      );
-      const shadow = ctx.createRadialGradient(
-        cx,
-        cy + radius * 0.95,
-        0,
-        cx,
-        cy + radius * 0.95,
-        radius * 0.85
-      );
-      shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
-      shadow.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = shadow;
-      ctx.fill();
-
-      // ---- Outer glow ring -------------------------------------------
-      const glow = ctx.createRadialGradient(
-        cx,
-        cy,
-        radius * 0.9,
-        cx,
-        cy,
-        radius * 1.18
-      );
-      glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
-      glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.10)');
-      glow.addColorStop(1, 'rgba(255, 172, 46, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // ---- Outer rim -------------------------------------------------
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.04, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.06, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 172, 46, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // ---- Segments + labels ----------------------------------------
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(rotation);
-
-      for (let i = 0; i < segments; i++) {
-        const a0 = i * span;
-        const a1 = (i + 1) * span;
-        const m = layout[i];
-        const c = SEG_COLOR[m];
-
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, radius, a0, a1);
-        ctx.closePath();
-        ctx.fillStyle = c.base;
-        ctx.fill();
-      }
-
-      // Sector divider lines
-      for (let i = 0; i < segments; i++) {
-        const a = i * span;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      // Labels
-      ctx.fillStyle = '#fff';
-      ctx.font =
-        '700 14px ui-sans-serif, system-ui, "Segoe UI", Roobert, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      for (let i = 0; i < segments; i++) {
-        const a0 = i * span;
-        const a1 = (i + 1) * span;
-        const m = layout[i];
-        const aMid = (a0 + a1) / 2;
-        const lx = Math.cos(aMid) * radius * 0.72;
-        const ly = Math.sin(aMid) * radius * 0.72;
-        ctx.save();
-        ctx.translate(lx, ly);
-        ctx.rotate(aMid + Math.PI / 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-        ctx.fillText(`×${m}`, 0, 1);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(`×${m}`, 0, 0);
-        ctx.restore();
-      }
-
-      // Inner ring
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.32, 0, Math.PI * 2);
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fill();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(255, 172, 46, 0.45)';
-      ctx.stroke();
-
-      // Brass center dot
-      const hubGrad = ctx.createRadialGradient(
-        -radius * 0.06,
-        -radius * 0.06,
-        0,
-        0,
-        0,
-        radius * 0.18
-      );
-      hubGrad.addColorStop(0, 'rgba(255, 220, 150, 1)');
-      hubGrad.addColorStop(0.5, 'rgba(220, 170, 80, 1)');
-      hubGrad.addColorStop(1, 'rgba(120, 80, 30, 1)');
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2);
-      ctx.fillStyle = hubGrad;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-
-      // Highlight wedge
-      ctx.beginPath();
-      ctx.arc(-radius * 0.05, -radius * 0.05, radius * 0.06, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.fill();
-
-      ctx.restore();
-
-      // ---- Static tick studs (no animation) -------------------------
-      for (let i = 0; i < 24; i++) {
-        const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
-        const sx = cx + Math.cos(a) * radius * 1.085;
-        const sy = cy + Math.sin(a) * radius * 1.085;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 220, 150, 0.5)';
-        ctx.fill();
-      }
-
-      // ---- Top pointer -----------------------------------------------
-      const px = cx;
-      const py = cy - radius * 1.04;
-      ctx.beginPath();
-      ctx.arc(px, py + 6, 8, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.moveTo(px - 11, py - 8);
-      ctx.lineTo(px + 11, py - 8);
-      ctx.lineTo(px + 8, py - 1);
-      ctx.lineTo(px, py + 16);
-      ctx.lineTo(px - 8, py - 1);
-      ctx.closePath();
-      const pGrad = ctx.createLinearGradient(px, py - 8, px, py + 16);
-      pGrad.addColorStop(0, '#ffffff');
-      pGrad.addColorStop(1, '#cccccc');
-      ctx.fillStyle = pGrad;
-      ctx.fill();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.stroke();
-    };
-
-    resize();
+    const renderLoop = () => draw(rotRef.current.angle);
+    gsap.ticker.add(renderLoop);
 
     return () => {
       ro.disconnect();
+      gsap.ticker.remove(renderLoop);
     };
-  }, [layout, snap]);
+  }, [layout, snap, draw]);
+
+  useEffect(() => {
+    if (!layout || !snap) return;
+
+    if (snap.phase === 'waiting') {
+      if (spinTweenRef.current) spinTweenRef.current.kill();
+      if (!idleTweenRef.current || !idleTweenRef.current.isActive()) {
+        idleTweenRef.current = gsap.to(rotRef.current, {
+          angle: rotRef.current.angle + Math.PI * 2,
+          duration: 30, // Slow idle rotation
+          repeat: -1,
+          ease: "none",
+        });
+      }
+    } else if ((snap.phase === 'spinning' || snap.phase === 'completed') && snap.segmentIndex != null) {
+      if (idleTweenRef.current) idleTweenRef.current.kill();
+      if (spinTweenRef.current && spinTweenRef.current.isActive() && snap.phase === 'spinning') return;
+
+      const seg = snap.segmentIndex;
+      const segmentSpan = (2 * Math.PI) / layout.length;
+      // Exact center of the winning sector at the top (-Math.PI/2)
+      const targetAngle = -seg * segmentSpan - segmentSpan / 2 - Math.PI / 2;
+
+      rotRef.current.angle = rotRef.current.angle % (Math.PI * 2);
+      let diff = targetAngle - rotRef.current.angle;
+      while (diff > 0) diff -= Math.PI * 2;
+      
+      // Only do the full spin animation if we are actually spinning
+      if (snap.phase === 'spinning') {
+        diff -= Math.PI * 2 * 6; // 6 extra spins for drama
+        
+        spinTweenRef.current = gsap.to(rotRef.current, {
+          angle: rotRef.current.angle + diff,
+          duration: (snap.spinDurationMs || 5000) / 1000,
+          ease: "power3.out",
+        });
+      } else {
+        // Just snap if it's completed (e.g. initial load)
+        rotRef.current.angle = targetAngle;
+      }
+    }
+  }, [snap, layout]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ imageRendering: 'auto' }}
-    />
+    <div className="absolute inset-0 flex items-center justify-center">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ imageRendering: 'auto' }}
+      />
+      <div className="absolute z-10 flex flex-col items-center justify-center pointer-events-none">
+        {uiPhase === 'waiting' && remaining !== null && (
+          remaining > 0 ? (
+            <span className="font-roobert text-frost-white text-[20px] sm:text-[24px] font-medium tabular-nums drop-shadow-md">
+              00:{String(remaining).padStart(2, '0')}
+            </span>
+          ) : (
+            <span className="font-roobert text-[#5fb37d] text-[20px] sm:text-[24px] font-bold tracking-widest drop-shadow-[0_0_8px_rgba(95,179,125,0.6)]">
+              GO!
+            </span>
+          )
+        )}
+        {uiPhase === 'spinning' && (
+          <span className="font-roobert text-frost-white text-[16px] sm:text-[18px] font-bold tracking-widest animate-pulse drop-shadow-md">
+            SPINNING
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
