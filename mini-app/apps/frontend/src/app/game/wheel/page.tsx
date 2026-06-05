@@ -761,10 +761,9 @@ function WheelCanvas({
   /* Timer for center overlay */
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!snap) return;
-    const id = setInterval(() => setNow(Date.now()), 250);
+    const id = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(id);
-  }, [snap]);
+  }, []);
 
   const remaining =
     uiPhase === 'waiting' && snap?.waitingEndsAt
