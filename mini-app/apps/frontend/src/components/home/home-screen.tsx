@@ -190,7 +190,8 @@ export function HomeScreen() {
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   const visibleGames = useMemo(() => {
-    const hidden = availability?.hidden ?? {};
+    // Если не смогли загрузить доступность, по умолчанию скрываем Blackjack для неадминов.
+    const hidden = availability?.hidden ?? { blackjack: true };
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
       if (hidden[g.id] && !isAdmin) return false;

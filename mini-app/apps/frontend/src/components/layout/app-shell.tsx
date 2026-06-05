@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { BottomNavigation } from './bottom-navigation';
 import { MenuDrawer } from './menu-drawer';
 import { useNavStore } from '@/store/nav-store';
+import { useAuthStore } from '@/store/auth-store';
 
 /**
  * App shell with persistent navigation.
@@ -29,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
   const setHideable = useNavStore((s) => s.setHideable);
+  const isAuthenticated = !!useAuthStore((s) => s.token);
 
   useEffect(() => {
     const hideable = HIDEABLE_PREFIXES.some((p) => pathname.startsWith(p));
@@ -116,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onGameSelect={handleGameSelect}
+        isAuthenticated={isAuthenticated}
       />
     </>
   );

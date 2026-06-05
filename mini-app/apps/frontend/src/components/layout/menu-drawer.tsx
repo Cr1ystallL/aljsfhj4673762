@@ -30,6 +30,7 @@ interface MenuDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onGameSelect: (game: string) => void;
+  isAuthenticated?: boolean;
 }
 
 /**
@@ -117,7 +118,7 @@ function openExternal(url: string) {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
+export function MenuDrawer({ isOpen, onClose, onGameSelect, isAuthenticated = true }: MenuDrawerProps) {
   const router = useRouter();
   const [availability, setAvailability] = useState<{
     isAdmin: boolean;
@@ -132,6 +133,11 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
 
   useEffect(() => {
     let cancelled = false;
+    if (!isAuthenticated) {
+      setAvailabilityLoaded(true);
+      return;
+    }
+
     void (async () => {
       try {
         const res = await fetch('/api/games/availability', {
@@ -156,17 +162,18 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect }: MenuDrawerProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const visibleGames = useMemo(() => {
     if (!availabilityLoaded) return [] as typeof inAppGames;
-    const hidden = availability?.hidden ?? {};
+    const hiddenFallback: Partial<Record<GameKey, boolean>> = isAuthenticated ? {} : { blackjack: true };
+    const hidden: Partial<Record<GameKey, boolean>> = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
-      if (hidden[g.id] && !isAdmin) return false;
+      if ((hidden[g.id] ?? hiddenFallback[g.id]) && !isAdmin) return false;
       return true;
     });
-  }, [availability, availabilityLoaded]);
+  }, [availability, availabilityLoaded, isAuthenticated]);
 
   return (
     <AnimatePresence>
