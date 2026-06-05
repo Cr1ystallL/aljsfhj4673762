@@ -94,7 +94,7 @@ const menuItems: Array<{
     id: 'support',
     label: 'Поддержка',
     Icon: Headphones,
-    href: `https://t.me/${BOT_USERNAME}?start=support`,
+    href: 'https://t.me/MacvBetSupport',
     external: true,
   },
 ];
@@ -343,7 +343,7 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect, isAuthenticated = tr
                   <button
                     onClick={() => {
                       onClose();
-                      openExternal(`https://t.me/${BOT_USERNAME}`);
+                      openExternal('https://t.me/+m9rl_ptr8fZiNzcy');
                     }}
                     className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors"
                   >

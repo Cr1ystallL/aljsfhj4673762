@@ -117,6 +117,13 @@ export default function WheelPage() {
   const [busy, setBusy] = useState(false);
 
   const lastPhaseRef = useRef<Phase | null>(null);
+  const lastUiPhaseRef = useRef<Phase | null>(null);
+  const spinRuntimeRef = useRef<{
+    startedAt: number;
+    durationMs: number;
+    seg: number | null;
+  } | null>(null);
+  const [phaseTick, setPhaseTick] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -133,28 +140,91 @@ export default function WheelPage() {
     }
   }, []);
 
+  const pollMs = useMemo(() => {
+    if (snap?.phase === 'spinning') return 250;
+    if (snap?.phase === 'waiting' && snap.waitingEndsAt) {
+      const remainingMs = snap.waitingEndsAt - Date.now();
+      if (remainingMs < 3200) return 200;
+    }
+    return 1200;
+  }, [snap]);
+
   useEffect(() => {
     void load();
     void fetchBalance();
     soundManager.initialize();
-    const id = setInterval(
-      () => void load(),
-      snap?.phase === 'spinning' ? 250 : 1500
-    );
+    const id = setInterval(() => void load(), pollMs);
     return () => clearInterval(id);
-  }, [load, fetchBalance, snap?.phase]);
+  }, [load, fetchBalance, pollMs]);
+
+  // Kick an extra fetch right as the countdown ends to remove the
+  // post-timer pause before spinning.
+  useEffect(() => {
+    if (!snap || snap.phase !== 'waiting' || !snap.waitingEndsAt) return;
+    const ms = snap.waitingEndsAt - Date.now();
+    const id = setTimeout(() => {
+      void load();
+    }, Math.max(0, ms - 80));
+    return () => clearTimeout(id);
+  }, [snap, load]);
+
+  // Track client-side spin window so UI stays in "spinning" until the
+  // wheel fully settles, even if the server flips to completed a bit
+  // earlier.
+  useEffect(() => {
+    if (!snap) return;
+    if (snap.phase === 'waiting') {
+      spinRuntimeRef.current = null;
+      return;
+    }
+    if ((snap.phase === 'spinning' || snap.phase === 'completed') && snap.segmentIndex != null) {
+      const startedAt = Math.min(snap.spinStartedAt ?? Date.now(), Date.now());
+      const durationMs = snap.spinDurationMs || 12000;
+      const current = spinRuntimeRef.current;
+      if (!current || current.seg !== snap.segmentIndex || current.durationMs !== durationMs || current.startedAt !== startedAt) {
+        spinRuntimeRef.current = {
+          startedAt,
+          durationMs,
+          seg: snap.segmentIndex,
+        };
+      }
+    }
+  }, [snap]);
+
+  // Heartbeat to recompute UI phase gating.
+  useEffect(() => {
+    const id = setInterval(() => setPhaseTick(Date.now()), 120);
+    return () => clearInterval(id);
+  }, []);
+
+  const uiPhase: Phase = useMemo(() => {
+    if (!snap) return 'waiting';
+    const spin = spinRuntimeRef.current;
+    if ((snap.phase === 'spinning' || snap.phase === 'completed') && spin) {
+      const endAt = spin.startedAt + spin.durationMs;
+      if (Date.now() < endAt - 30) return 'spinning';
+    }
+    return snap.phase;
+  }, [snap, phaseTick]);
 
   useEffect(() => {
     if (!snap) return;
     if (lastPhaseRef.current && lastPhaseRef.current !== snap.phase) {
       if (snap.phase === 'spinning') soundManager.play('game.bet_placed');
-      else if (snap.phase === 'completed') {
+    }
+    lastPhaseRef.current = snap.phase;
+  }, [snap]);
+
+  useEffect(() => {
+    if (!snap) return;
+    if (lastUiPhaseRef.current && lastUiPhaseRef.current !== uiPhase) {
+      if (uiPhase === 'completed') {
         soundManager.play('game.cashout');
         void fetchBalance();
       }
     }
-    lastPhaseRef.current = snap.phase;
-  }, [snap, fetchBalance]);
+    lastUiPhaseRef.current = uiPhase;
+  }, [uiPhase, snap, fetchBalance]);
 
   const placeBet = async () => {
     if (busy) return;
@@ -223,7 +293,7 @@ export default function WheelPage() {
           </div>
         </div>
 
-        <PhasePill snap={snap} />
+        <PhasePill snap={snap} uiPhase={uiPhase} />
 
         {/* Pick chips */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
@@ -293,17 +363,17 @@ export default function WheelPage() {
           <div className="px-3 pb-3 pt-1 border-t border-white/10">
             <button
               onClick={placeBet}
-              disabled={busy || snap?.phase !== 'waiting'}
+              disabled={busy || uiPhase !== 'waiting'}
               className={cn(
                 'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-all active:scale-[0.99]',
-                snap?.phase === 'waiting' && !busy
+                uiPhase === 'waiting' && !busy
                   ? 'bg-frost-white text-midnight-canvas hover:bg-frost-white/95 shadow-[0_4px_18px_rgba(255,255,255,0.18)]'
                   : 'bg-white/[0.06] text-frost-white/65 border border-white/15 cursor-not-allowed'
               )}
             >
-              {snap?.phase === 'waiting'
+              {uiPhase === 'waiting'
                 ? `Bet on ×${pick}`
-                : snap?.phase === 'spinning'
+                : uiPhase === 'spinning'
                   ? 'Spinning…'
                   : 'Round ended'}
             </button>
@@ -320,7 +390,7 @@ export default function WheelPage() {
 
 /* -------------------------------------------------------------------------- */
 
-function PhasePill({ snap }: { snap: Snapshot | null }) {
+function PhasePill({ snap, uiPhase }: { snap: Snapshot | null; uiPhase: Phase }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!snap) return;
@@ -330,14 +400,14 @@ function PhasePill({ snap }: { snap: Snapshot | null }) {
 
   if (!snap) return null;
   const remaining =
-    snap.phase === 'waiting' && snap.waitingEndsAt
+    uiPhase === 'waiting' && snap.waitingEndsAt
       ? Math.max(0, Math.ceil((snap.waitingEndsAt - now) / 1000))
       : null;
 
   return (
     <div className="flex items-center justify-between gap-2">
       <AnimatePresence mode="wait">
-        {snap.phase === 'waiting' && (
+        {uiPhase === 'waiting' && (
           <motion.div
             key="w"
             initial={{ opacity: 0 }}
@@ -622,17 +692,22 @@ function Wheel({
       // segment index.
       const seg = snap.segmentIndex!;
       const segmentSpan = (2 * Math.PI) / layout.length;
-      const startedAt = snap.spinStartedAt ?? fallbackStartRef.current ?? Date.now();
+      const serverStart = snap.spinStartedAt ?? fallbackStartRef.current ?? Date.now();
       if (!snap.spinStartedAt && !fallbackStartRef.current) {
-        fallbackStartRef.current = startedAt;
+        fallbackStartRef.current = serverStart;
       }
       const durationMs = snap.spinDurationMs || 12000;
+      // Start no later than "now" but otherwise honor the server start
+      // so the animation runs the full spin window.
+      const now = Date.now();
+      const adjustedStart = Math.min(serverStart, now);
       const same =
         spinLockRef.current &&
-        spinLockRef.current.startedAt === startedAt &&
+        spinLockRef.current.startedAt === adjustedStart &&
         spinLockRef.current.seg === seg;
       if (!same) {
-        const u = (Math.sin(startedAt) * 9301 + 49297) % 233280;
+        const seedTime = adjustedStart;
+        const u = (Math.sin(seedTime) * 9301 + 49297) % 233280;
         const r = (u / 233280) * 2 - 1; // -1..1
         const overshoot = r * segmentSpan * 0.35;
         const revs = Math.max(5, Math.round(durationMs / 1400));
@@ -640,7 +715,7 @@ function Wheel({
           revs * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
         settleStartRotationRef.current = rotationRef.current;
         spinLockRef.current = {
-          startedAt,
+          startedAt: adjustedStart,
           durationMs,
           target,
           overshoot,
@@ -649,8 +724,12 @@ function Wheel({
         targetRotationRef.current = target;
       }
     } else if (snap.phase === 'completed' && spinLockRef.current) {
-      rotationRef.current = spinLockRef.current.target;
-      targetRotationRef.current = spinLockRef.current.target;
+      const lock = spinLockRef.current;
+      const done = Date.now() - lock.startedAt >= lock.durationMs;
+      if (done) {
+        rotationRef.current = lock.target;
+        targetRotationRef.current = lock.target;
+      }
     } else if (snap.phase === 'waiting') {
       spinLockRef.current = null;
       fallbackStartRef.current = null;
