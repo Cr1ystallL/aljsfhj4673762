@@ -295,6 +295,13 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  app.delete<{ Params: { id: string } }>('/_x/tournaments/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
+    if (!t) return reply.code(404).send({ error: 'Not found' });
+    await (prisma as any).tournament.delete({ where: { id: t.id } });
+    return reply.send({ ok: true });
+  });
+
   app.post<{ Params: { id: string } }>('/_x/tournaments/:id/force-start', { preHandler: adminOnly }, async (request, reply) => {
     const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
     if (!t) return reply.code(404).send({ error: 'Not found' });

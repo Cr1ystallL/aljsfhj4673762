@@ -131,6 +131,23 @@ function TournamentsTab() {
     [reload]
   );
 
+  const removeTournament = useCallback(
+    async (id: string) => {
+      if (!confirm('Удалить турнир? Все циклы и участники исчезнут навсегда!')) return;
+      setActionBusy((prev) => ({ ...prev, [id]: 'delete' }));
+      try {
+        await fetch(`/api/_x/tournaments/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        await reload();
+      } finally {
+        setActionBusy((prev) => ({ ...prev, [id]: null }));
+      }
+    },
+    [reload]
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -203,6 +220,14 @@ function TournamentsTab() {
                 >
                   <CheckCircle size={12} />
                   {actionBusy[t.id] === 'end' ? 'Завершаем…' : 'Завершить и выплатить'}
+                </button>
+                <button
+                  onClick={() => removeTournament(t.id)}
+                  disabled={actionBusy[t.id] === 'delete'}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-[#ff8a76]/30 bg-[#ff8a76]/10 text-[11px] text-[#ff8a76] hover:bg-[#ff8a76]/20 disabled:opacity-50 ml-auto"
+                >
+                  <Trash2 size={12} />
+                  {actionBusy[t.id] === 'delete' ? 'Удаляем…' : 'Удалить'}
                 </button>
               </div>
             </div>
