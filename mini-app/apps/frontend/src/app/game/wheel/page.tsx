@@ -686,27 +686,19 @@ function Wheel({
       (snap.phase === 'spinning' || snap.phase === 'completed') &&
       snap.segmentIndex != null;
     if (shouldSpin) {
-      // Some environments were returning `spinStartedAt` as null, which
-      // made the wheel skip the spin and jump to the result. Synthesize
-      // a start time + lock so the animation always runs when we have a
-      // segment index.
+      // Lock the spin parameters the first time we see a spin for this
+      // segment. Use a LOCAL start time so the animation always runs the
+      // full duration from the moment the client sees it, while still
+      // landing on the correct server-determined segment.
       const seg = snap.segmentIndex!;
       const segmentSpan = (2 * Math.PI) / layout.length;
-      const serverStart = snap.spinStartedAt ?? fallbackStartRef.current ?? Date.now();
-      if (!snap.spinStartedAt && !fallbackStartRef.current) {
-        fallbackStartRef.current = serverStart;
-      }
       const durationMs = snap.spinDurationMs || 12000;
-      // Start no later than "now" but otherwise honor the server start
-      // so the animation runs the full spin window.
-      const now = Date.now();
-      const adjustedStart = Math.min(serverStart, now);
-      const same =
-        spinLockRef.current &&
-        spinLockRef.current.startedAt === adjustedStart &&
-        spinLockRef.current.seg === seg;
-      if (!same) {
-        const seedTime = adjustedStart;
+
+      const sameSeg = spinLockRef.current && spinLockRef.current.seg === seg;
+      if (!sameSeg) {
+        // First time seeing this spin — start animation NOW locally
+        const localStart = Date.now();
+        const seedTime = snap.spinStartedAt ?? localStart;
         const u = (Math.sin(seedTime) * 9301 + 49297) % 233280;
         const r = (u / 233280) * 2 - 1; // -1..1
         const overshoot = r * segmentSpan * 0.35;
@@ -715,7 +707,7 @@ function Wheel({
           revs * 2 * Math.PI - seg * segmentSpan - segmentSpan / 2 + overshoot;
         settleStartRotationRef.current = rotationRef.current;
         spinLockRef.current = {
-          startedAt: adjustedStart,
+          startedAt: localStart,
           durationMs,
           target,
           overshoot,
