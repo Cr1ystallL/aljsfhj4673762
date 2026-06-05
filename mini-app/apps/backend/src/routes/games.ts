@@ -1121,6 +1121,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       state: wheelEngine.getSnapshot(),
       layout: WHEEL_LAYOUT,
       values: WHEEL_VALUES,
+      serverTime: Date.now(),
     });
   });
 

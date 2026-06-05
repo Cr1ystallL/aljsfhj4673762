@@ -61,32 +61,32 @@ const SEG_COLOR: Record<
     pillBg: 'rgba(109,109,109,0.12)',
   },
   2: {
-    base: '#4a4a4a', // Gray
-    face: '#4a4a4a',
+    base: '#2563eb', // Blue
+    face: '#3b82f6',
     label: '#ffffff',
-    pill: '#9a9a9a',
-    pillBg: 'rgba(154,154,154,0.12)',
+    pill: '#60a5fa',
+    pillBg: 'rgba(96,165,250,0.15)',
   },
   3: {
-    base: '#14b8a6', // Teal
-    face: '#2dd4bf',
+    base: '#16a34a', // Green
+    face: '#22c55e',
     label: '#ffffff',
-    pill: '#14b8a6',
-    pillBg: 'rgba(20, 184, 166, 0.12)',
+    pill: '#4ade80',
+    pillBg: 'rgba(74,222,128,0.15)',
   },
   5: {
-    base: '#8b5cf6', // Purple
-    face: '#a78bfa',
+    base: '#9333ea', // Purple
+    face: '#a855f7',
     label: '#ffffff',
-    pill: '#8b5cf6',
-    pillBg: 'rgba(139, 92, 246, 0.12)',
+    pill: '#c084fc',
+    pillBg: 'rgba(192,132,252,0.15)',
   },
   30: {
-    base: '#eab308', // Gold
-    face: '#facc15',
-    label: '#000000',
-    pill: '#eab308',
-    pillBg: 'rgba(234, 179, 8, 0.12)',
+    base: '#dc2626', // Red
+    face: '#ef4444',
+    label: '#ffffff',
+    pill: '#f87171',
+    pillBg: 'rgba(248,113,113,0.15)',
   },
 };
 
@@ -101,6 +101,7 @@ export default function WheelPage() {
   const { balance, fetchBalance } = useBalance();
   const [layout, setLayout] = useState<number[] | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [clockSkew, setClockSkew] = useState(0);
   const [pick, setPick] = useState<number>(2);
   const [amount, setAmount] = useState(10);
   const [busy, setBusy] = useState(false);
@@ -124,6 +125,9 @@ export default function WheelPage() {
       });
       if (!res.ok) return;
       const j = await res.json();
+      if (j.serverTime) {
+        setClockSkew(Date.now() - j.serverTime);
+      }
       setSnap(j.state as Snapshot);
       setLayout(j.layout as number[]);
     } catch {
@@ -134,11 +138,11 @@ export default function WheelPage() {
   const pollMs = useMemo(() => {
     if (snap?.phase === 'spinning') return 250;
     if (snap?.phase === 'waiting' && snap.waitingEndsAt) {
-      const remainingMs = snap.waitingEndsAt - Date.now();
+      const remainingMs = snap.waitingEndsAt - (Date.now() - clockSkew);
       if (remainingMs < 3200) return 200;
     }
     return 1200;
-  }, [snap?.phase, snap?.waitingEndsAt]);
+  }, [snap?.phase, snap?.waitingEndsAt, clockSkew]);
 
   useEffect(() => {
     void load();
@@ -150,11 +154,11 @@ export default function WheelPage() {
 
   useEffect(() => {
     if (!snap || snap.phase !== 'waiting' || !snap.waitingEndsAt) return;
-    const ms = snap.waitingEndsAt - Date.now();
+    const ms = snap.waitingEndsAt - (Date.now() - clockSkew);
     if (ms <= 0) return;
     const id = setTimeout(() => void load(), ms);
     return () => clearTimeout(id);
-  }, [snap?.phase, snap?.waitingEndsAt, load]);
+  }, [snap?.phase, snap?.waitingEndsAt, load, clockSkew]);
 
   /* ----- Spin runtime tracking ------------------------------------------- */
 
@@ -169,8 +173,8 @@ export default function WheelPage() {
       snap.segmentIndex != null
     ) {
       const startedAt = Math.min(
-        snap.spinStartedAt ?? Date.now(),
-        Date.now()
+        snap.spinStartedAt ?? (Date.now() - clockSkew),
+        Date.now() - clockSkew
       );
       const durationMs = snap.spinDurationMs || 12000;
       const current = spinRuntimeRef.current;
@@ -198,10 +202,10 @@ export default function WheelPage() {
       spin
     ) {
       const endAt = spin.startedAt + spin.durationMs;
-      if (Date.now() < endAt - 30) return 'spinning';
+      if (Date.now() - clockSkew < endAt - 30) return 'spinning';
     }
     return snap.phase;
-  }, [snap, phaseTick]);
+  }, [snap, phaseTick, clockSkew]);
 
   /* ----- Sound cues ------------------------------------------------------ */
 
@@ -754,7 +758,7 @@ function WheelCanvas({
 
   const remaining =
     uiPhase === 'waiting' && snap?.waitingEndsAt
-      ? Math.max(0, Math.ceil((snap.waitingEndsAt - now) / 1000))
+      ? Math.max(0, Math.ceil((snap.waitingEndsAt - (now - clockSkew)) / 1000))
       : null;
 
   /* ---- Draw function ---------------------------------------------------- */
