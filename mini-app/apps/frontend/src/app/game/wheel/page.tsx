@@ -172,12 +172,20 @@ export default function WheelPage() {
       (snap.phase === 'spinning' || snap.phase === 'completed') &&
       snap.segmentIndex != null
     ) {
-      const startedAt = Math.min(
-        snap.spinStartedAt ?? (Date.now() - clockSkew),
-        Date.now() - clockSkew
-      );
       const durationMs = snap.spinDurationMs || 12000;
       const current = spinRuntimeRef.current;
+      
+      let startedAt = snap.spinStartedAt;
+      if (startedAt == null) {
+        if (current && current.seg === snap.segmentIndex) {
+          startedAt = current.startedAt;
+        } else {
+          startedAt = Date.now() - clockSkew;
+        }
+      } else {
+        startedAt = Math.min(startedAt, Date.now() - clockSkew);
+      }
+
       if (
         !current ||
         current.seg !== snap.segmentIndex ||
@@ -1028,14 +1036,14 @@ function WheelCanvas({
         });
       }
     } else if (
-      (snap.phase === 'spinning' || snap.phase === 'completed') &&
+      (uiPhase === 'spinning' || uiPhase === 'completed') &&
       snap.segmentIndex != null
     ) {
       if (idleTweenRef.current) idleTweenRef.current.kill();
       if (
         spinTweenRef.current &&
         spinTweenRef.current.isActive() &&
-        snap.phase === 'spinning'
+        uiPhase === 'spinning'
       )
         return;
 
@@ -1048,7 +1056,7 @@ function WheelCanvas({
       let diff = targetAngle - rotRef.current.angle;
       while (diff > 0) diff -= Math.PI * 2;
 
-      if (snap.phase === 'spinning') {
+      if (uiPhase === 'spinning') {
         diff -= Math.PI * 2 * 6;
         spinTweenRef.current = gsap.to(rotRef.current, {
           angle: rotRef.current.angle + diff,

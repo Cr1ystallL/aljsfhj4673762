@@ -190,6 +190,7 @@ class WheelEngine extends EventEmitter {
       spinStartedAt: this.phase === 'spinning' ? this.spinStartedAt : null,
       spinDurationMs: this.currentSpinDurationMs,
       stats: this.getStats(),
+      timestamp: Date.now(),
     };
   }
 
