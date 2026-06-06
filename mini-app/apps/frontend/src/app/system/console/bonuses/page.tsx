@@ -370,12 +370,24 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           </Field>
         )}
         <Field label="Старт (GMT+1)" colSpan={2}>
-          <input
-            type="datetime-local"
-            value={startAt}
-            onChange={(e) => setStartAt(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
+          {repeatType === 'daily' ? (
+            <input
+              type="time"
+              value={startAt.includes('T') ? startAt.split('T')[1] : startAt}
+              onChange={(e) => {
+                const today = new Date().toISOString().split('T')[0];
+                setStartAt(`${today}T${e.target.value}`);
+              }}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            />
+          ) : (
+            <input
+              type="datetime-local"
+              value={startAt}
+              onChange={(e) => setStartAt(e.target.value)}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            />
+          )}
         </Field>
         <Field label="Длительность (часы)">
           <NumInput value={durationHours} onChange={setDurationHours} step={1} />
