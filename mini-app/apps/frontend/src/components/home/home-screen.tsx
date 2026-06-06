@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -105,6 +105,7 @@ interface HeroContest {
 export function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const balance = useBalanceStore((s) => s.balance);
   const { fetchBalance } = useBalance();
   const [availability, setAvailability] = useState<{
@@ -118,10 +119,12 @@ export function HomeScreen() {
   const [contests, setContests] = useState<HeroContest[] | null>(null);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     void fetchBalance();
-  }, [fetchBalance]);
+  }, [fetchBalance, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -146,9 +149,10 @@ export function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -170,7 +174,7 @@ export function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Выбираем рандомный публичный или глобальный live/scheduled конкурс.
   // useMemo гарантирует, что внутри одной сессии Hero не «прыгает» при

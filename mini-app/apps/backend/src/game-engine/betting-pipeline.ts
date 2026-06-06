@@ -102,7 +102,7 @@ export class BettingPipeline {
             updated_at = NOW(),
             last_synced_at = NOW(),
             version = version + 1
-        WHERE user_id = ${userId}::text
+        WHERE user_id = ${userId}::uuid
           AND demo_mode = ${demoMode}
           AND amount >= ${amount}::numeric
         RETURNING amount
@@ -131,7 +131,7 @@ export class BettingPipeline {
             updated_at = NOW(),
             last_synced_at = NOW(),
             version = version + 1
-        WHERE user_id = ${userId}::text
+        WHERE user_id = ${userId}::uuid
           AND demo_mode = ${demoMode}
         RETURNING amount
       `
@@ -185,7 +185,7 @@ export class BettingPipeline {
         await prisma.$transaction(async (tx) => {
           const userRows = await tx.$queryRaw<
             Array<{ is_blocked: boolean }>
-          >`SELECT is_blocked FROM users WHERE id = ${bet.userId}::text LIMIT 1`;
+          >`SELECT is_blocked FROM users WHERE id = ${bet.userId}::uuid LIMIT 1`;
           if (userRows[0]?.is_blocked) {
             throw new Error('Аккаунт заблокирован администратором');
           }
@@ -194,7 +194,7 @@ export class BettingPipeline {
             UPDATE tournament_participants
             SET balance = balance - ${amount}::numeric,
                 reached_at = NOW()
-            WHERE id = ${tournamentCtx.participant.id}::text
+            WHERE id = ${tournamentCtx.participant.id}::uuid
               AND balance >= ${amount}::numeric
             RETURNING balance
           `;
@@ -230,7 +230,7 @@ export class BettingPipeline {
         // hasn't been regenerated yet on the server (legacy build).
         const userRows = await tx.$queryRaw<
           Array<{ is_blocked: boolean }>
-        >`SELECT is_blocked FROM users WHERE id = ${bet.userId}::text LIMIT 1`;
+        >`SELECT is_blocked FROM users WHERE id = ${bet.userId}::uuid LIMIT 1`;
         if (userRows[0]?.is_blocked) {
           throw new Error('Аккаунт заблокирован администратором');
         }
@@ -331,7 +331,7 @@ export class BettingPipeline {
               UPDATE tournament_participants
               SET balance = balance + ${credit}::numeric,
                   reached_at = NOW()
-              WHERE id = ${participant.id}::text
+              WHERE id = ${participant.id}::uuid
             `;
           }
 

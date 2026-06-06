@@ -195,17 +195,17 @@ export default function TournamentPage() {
                 Завершен
               </span>
             ) : t.joined ? (
-              <div className="flex items-center gap-1.5 p-1 rounded-pill bg-white/5 border border-white/5 shadow-inner">
-                <span className="inline-flex items-center gap-1.5 px-4 h-8 rounded-pill bg-[rgba(160,224,171,0.15)] text-[rgba(160,224,171,0.9)] font-roobert text-[12px] uppercase tracking-[0.15em]">
+              <div className="flex items-center gap-2 p-1.5 rounded-pill bg-white/5 border border-white/5 shadow-inner">
+                <span className="inline-flex items-center gap-1.5 px-5 h-10 rounded-pill bg-[rgba(160,224,171,0.15)] text-[rgba(160,224,171,0.9)] font-roobert text-[13px] uppercase tracking-[0.15em]">
                   Участвую
                 </span>
                 <button
                   onClick={onLeave}
                   disabled={busy}
                   title="Покинуть турнир"
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-[rgba(255,110,110,0.15)] text-whisper-gray hover:text-[#ff6e6e] transition-colors disabled:opacity-50"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-transparent hover:bg-[rgba(255,110,110,0.15)] text-whisper-gray hover:text-[#ff6e6e] transition-colors disabled:opacity-50"
                 >
-                  <LogOut size={14} strokeWidth={2} />
+                  <LogOut size={16} strokeWidth={2} />
                 </button>
               </div>
             ) : (
