@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Trophy, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Trophy, ArrowLeft, ArrowRight, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface LeaderboardUser {
@@ -195,16 +195,17 @@ export default function TournamentPage() {
                 Завершен
               </span>
             ) : t.joined ? (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-4 h-10 rounded-pill border border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.10)] font-roobert text-[12px] uppercase tracking-[0.18em] text-frost-white">
+              <div className="flex items-center gap-1.5 p-1 rounded-pill bg-white/5 border border-white/5 shadow-inner">
+                <span className="inline-flex items-center gap-1.5 px-4 h-8 rounded-pill bg-[rgba(160,224,171,0.15)] text-[rgba(160,224,171,0.9)] font-roobert text-[12px] uppercase tracking-[0.15em]">
                   Участвую
                 </span>
                 <button
                   onClick={onLeave}
                   disabled={busy}
-                  className="inline-flex items-center justify-center px-4 h-10 rounded-pill border border-[rgba(255,110,110,0.5)] bg-[rgba(255,110,110,0.1)] text-[#ff6e6e] font-roobert text-[12px] uppercase tracking-[0.1em] hover:bg-[rgba(255,110,110,0.2)] transition-colors disabled:opacity-50"
+                  title="Покинуть турнир"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-[rgba(255,110,110,0.15)] text-whisper-gray hover:text-[#ff6e6e] transition-colors disabled:opacity-50"
                 >
-                  Покинуть
+                  <LogOut size={14} strokeWidth={2} />
                 </button>
               </div>
             ) : (
