@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -11,6 +11,7 @@ import { CoinflipHistory } from '@/components/game/coinflip/coinflip-history';
 import { CoinflipRulesModal } from '@/components/game/coinflip/coinflip-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
+import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -288,10 +289,14 @@ export default function CoinflipGamePage() {
 
   /* --------------------------------------------------- derived state */
 
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'coinflip');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
   const minBet = 1;
   const maxBet = useMemo(
-    () => Math.max(minBet, Math.floor(balance?.amount ?? 10000)),
-    [balance]
+    () => Math.max(minBet, Math.floor(activeBalance)),
+    [activeBalance]
   );
 
   const sessionActive = !!multi && multi.status === 'awaiting';

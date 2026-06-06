@@ -15,6 +15,7 @@ import {
 import { PlinkoRulesModal } from '@/components/game/plinko/plinko-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
+import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -314,10 +315,14 @@ export default function PlinkoGamePage() {
 
   /* ----------------------------------------------------------- derived */
 
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'plinko');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
   const minBet = 1;
   const maxBet = useMemo(
-    () => Math.max(minBet, Math.floor(balance?.amount ?? 10000)),
-    [balance]
+    () => Math.max(minBet, Math.floor(activeBalance)),
+    [activeBalance]
   );
 
   /** True when the user can afford the current stake. */

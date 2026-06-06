@@ -249,9 +249,9 @@ export default function TournamentPage() {
                     </span>
                     {user.user?.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={user.user.photoUrl} alt={uName} className="w-8 h-8 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
+                      <img src={user.user.photoUrl} alt={uName} className="w-10 h-10 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center font-roobert text-[12px] text-frost-white">
+                      <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center font-roobert text-[14px] text-frost-white">
                         {uName.charAt(0).toUpperCase()}
                       </div>
                     )}

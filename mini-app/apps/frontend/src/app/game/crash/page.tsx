@@ -16,6 +16,7 @@ import { CrashRulesModal } from '@/components/game/crash/crash-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
 import { useCrashLive } from '@/hooks/use-crash-live';
+import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -256,10 +257,14 @@ export default function CrashGamePage() {
 
   /* ----------------------------------------------------------- derived */
 
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'crash');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
   const minBet = 1;
   const maxBet = useMemo(
-    () => Math.max(minBet, Math.floor(balance?.amount ?? 10000)),
-    [balance]
+    () => Math.max(minBet, Math.floor(activeBalance)),
+    [activeBalance]
   );
 
   const bettingClosed = snapshot.phase === 'active' || snapshot.phase === 'completed' || snapshot.phase === 'resolving';
