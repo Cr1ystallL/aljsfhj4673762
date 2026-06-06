@@ -183,7 +183,6 @@ export default function TournamentPage() {
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-white/10 mt-2">
             <div className="flex flex-col gap-1">
-            <div className="flex flex-col gap-1">
               <span className="font-roobert text-[12px] text-whisper-gray tabular-nums">
                 {t.cycleState === 'ended' ? 'завершено' : 'до конца'}
               </span>
