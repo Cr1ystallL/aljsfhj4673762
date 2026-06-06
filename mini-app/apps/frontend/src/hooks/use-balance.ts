@@ -24,6 +24,7 @@ export function useBalance() {
     try {
       const response = await apiClient.get<{
         balance: { amount: number; currency: string };
+        tournamentBalances?: Array<{ gameType: string; balance: number }>;
       }>(`/api/balance`);
       store.setBalance({
         userId: '',
@@ -31,7 +32,7 @@ export function useBalance() {
         currency: response.balance.currency,
         demoMode: false,
         lastSyncedAt: new Date(),
-      });
+      }, response.tournamentBalances || []);
     } catch (error) {
       console.error('Failed to fetch balance:', error);
     } finally {
@@ -43,6 +44,7 @@ export function useBalance() {
     try {
       const response = await apiClient.post<{
         balance: { amount: number; currency: string };
+        tournamentBalances?: Array<{ gameType: string; balance: number }>;
       }>('/api/balance/sync', {});
       useBalanceStore.getState().setBalance({
         userId: '',
@@ -50,13 +52,20 @@ export function useBalance() {
         currency: response.balance.currency,
         demoMode: false,
         lastSyncedAt: new Date(),
-      });
+      }, response.tournamentBalances || []);
     } catch (error) {
       console.error('Failed to sync balance:', error);
     }
   }, []);
 
-  const optimisticUpdate = useCallback((delta: number) => {
+  const optimisticUpdate = useCallback((delta: number, gameType?: string) => {
+    if (gameType) {
+      const curT = useBalanceStore.getState().tournamentBalances.find(t => t.gameType === gameType);
+      if (curT) {
+        useBalanceStore.getState().updateBalance(curT.balance + delta, gameType);
+      }
+      return;
+    }
     const cur = useBalanceStore.getState().balance;
     if (!cur) return;
     useBalanceStore.getState().updateBalance(cur.amount + delta);

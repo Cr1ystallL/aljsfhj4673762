@@ -28,6 +28,7 @@ interface Snapshot {
     photoUrl: string | null;
     amount: number;
     pick: number;
+    isTournament?: boolean;
     won?: boolean;
     payout?: number;
   }>;
@@ -663,8 +664,11 @@ function BetsFeed({
           return (
             <div
               key={b.userId + ':' + b.pick}
-              className="flex items-center gap-3 py-3"
-              style={{ borderBottom: '1px solid #0a0a0a' }}
+              className={cn(
+                "flex items-center gap-3 py-3 px-2 rounded-md transition-colors",
+                b.isTournament ? "bg-[#d4af37]/[0.08] border border-[#d4af37]/20" : ""
+              )}
+              style={!b.isTournament ? { borderBottom: '1px solid #0a0a0a' } : {}}
             >
               {/* Avatar */}
               {b.photoUrl ? (
@@ -700,13 +704,13 @@ function BetsFeed({
                   {b.name}
                 </div>
                 <div
-                  className="font-sans text-[#636363] tabular-nums"
+                  className="font-sans text-[#636363] flex items-center gap-1 tabular-nums"
                   style={{ fontSize: 10 }}
                 >
                   {b.amount.toLocaleString('ru-RU', {
                     maximumFractionDigits: 2,
                   })}{' '}
-                  zł · ×{b.pick}
+                  {b.isTournament ? <Trophy size={10} className="text-[#d4af37]" /> : 'zł'} · ×{b.pick}
                 </div>
               </div>
 

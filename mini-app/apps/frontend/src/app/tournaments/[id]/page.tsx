@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 interface LeaderboardUser {
   place: number;
   userId: string;
+  user: { username?: string | null; firstName?: string | null; photoUrl?: string | null } | null;
   balance: number;
   prize: number;
 }
@@ -73,6 +74,19 @@ export default function TournamentPage() {
     setBusy(true);
     try {
       const res = await fetch(`/api/tournaments/${id}/join`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        await load();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onLeave = async () => {
+    if (!confirm('Вы уверены, что хотите покинуть турнир? Ваш турнирный баланс будет обнулён.')) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/tournaments/${id}/leave`, { method: 'POST', credentials: 'include' });
       if (res.ok) {
         await load();
       }
@@ -169,17 +183,31 @@ export default function TournamentPage() {
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-white/10 mt-2">
             <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="font-roobert text-[12px] text-whisper-gray tabular-nums">
-                {t.cycleState === 'ended' ? 'до начала' : 'до конца'}
+                {t.cycleState === 'ended' ? 'завершено' : 'до конца'}
               </span>
               <span className="font-roobert text-[14px] text-frost-white tabular-nums">
-                {remaining}
+                {t.cycleState === 'ended' ? '—' : remaining}
               </span>
             </div>
-            {t.joined ? (
-              <span className="inline-flex items-center gap-1.5 px-4 h-10 rounded-pill border border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.10)] font-roobert text-[12px] uppercase tracking-[0.18em] text-frost-white">
-                Участвую
+            {t.cycleState === 'ended' ? (
+              <span className="inline-flex items-center gap-1.5 px-6 h-10 rounded-pill bg-white/5 text-whisper-gray font-roobert text-[12px] uppercase tracking-[0.2em]">
+                Завершен
               </span>
+            ) : t.joined ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-4 h-10 rounded-pill border border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.10)] font-roobert text-[12px] uppercase tracking-[0.18em] text-frost-white">
+                  Участвую
+                </span>
+                <button
+                  onClick={onLeave}
+                  disabled={busy}
+                  className="inline-flex items-center justify-center px-4 h-10 rounded-pill border border-[rgba(255,110,110,0.5)] bg-[rgba(255,110,110,0.1)] text-[#ff6e6e] font-roobert text-[12px] uppercase tracking-[0.1em] hover:bg-[rgba(255,110,110,0.2)] transition-colors disabled:opacity-50"
+                >
+                  Покинуть
+                </button>
+              </div>
             ) : (
               <button
                 onClick={onJoin}
@@ -212,22 +240,35 @@ export default function TournamentPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {leaderboard.map((user) => (
-              <div key={user.userId} className="flex items-center justify-between p-4 rounded-[16px] border border-white/5 bg-white/[0.02]">
-                <div className="flex items-center gap-4">
-                  <span className={user.place <= 3 ? 'text-[16px] font-roobert text-[#ffac2e]' : 'text-[14px] font-roobert text-whisper-gray'}>
-                    #{user.place}
-                  </span>
-                  <span className="text-[14px] font-roobert text-frost-white">Участник {user.userId.slice(0, 5)}</span>
+            {leaderboard.map((user) => {
+              const uName = user.user?.firstName || user.user?.username || `Участник ${user.userId.slice(0, 5)}`;
+              return (
+                <div key={user.userId} className="grid grid-cols-[auto_1fr_auto] items-center gap-4 p-3 rounded-[16px] border border-white/5 bg-white/[0.02]">
+                  <div className="flex items-center gap-3">
+                    <span className={user.place <= 3 ? 'w-6 text-center text-[16px] font-roobert text-[#ffac2e]' : 'w-6 text-center text-[14px] font-roobert text-whisper-gray'}>
+                      #{user.place}
+                    </span>
+                    {user.user?.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={user.user.photoUrl} alt={uName} className="w-8 h-8 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center font-roobert text-[12px] text-frost-white">
+                        {uName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-[14px] font-roobert text-frost-white max-w-[120px] sm:max-w-[200px] truncate">{uName}</span>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[14px] font-roobert text-[#ffac2e] tabular-nums flex items-center gap-1">
+                      {user.balance.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} <Trophy size={11} className="text-[#ffac2e]/70" />
+                    </span>
+                    {user.prize > 0 && (
+                      <span className="text-[11px] font-roobert text-[#a0e0ab] tabular-nums">+{user.prize} zł</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[14px] font-roobert text-[#ffac2e] tabular-nums">{user.balance.toFixed(0)} TM</span>
-                  {user.prize > 0 && (
-                    <span className="text-[11px] font-roobert text-[#a0e0ab] tabular-nums">+{user.prize} zł</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

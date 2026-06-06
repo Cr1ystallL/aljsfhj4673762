@@ -54,6 +54,7 @@ interface WheelBetRow {
   userId: string;
   amount: number;
   pick: WheelMultiplier;
+  isTournament?: boolean;
   user: { firstName?: string | null; username?: string | null; photoUrl?: string | null } | null;
 }
 
@@ -160,6 +161,7 @@ class WheelEngine extends EventEmitter {
             amount: b.amount,
             pick: b.pick,
             won: this.phase === 'completed' ? won : undefined,
+            isTournament: b.isTournament,
             payout:
               this.phase === 'completed' && won
                 ? +(b.amount * b.pick).toFixed(2)
@@ -238,7 +240,7 @@ class WheelEngine extends EventEmitter {
       metadata: { gameType: 'wheel', pick },
     };
 
-    await bettingPipeline.processBet(bet, false);
+    const isTournament = await bettingPipeline.processBet(bet, false);
     bet.state = 'active';
 
     this.round.bets.set(key, {
@@ -247,6 +249,7 @@ class WheelEngine extends EventEmitter {
       amount,
       pick,
       user,
+      isTournament,
     });
 
     this.emit('event', {
@@ -256,6 +259,7 @@ class WheelEngine extends EventEmitter {
         amount,
         pick,
         user,
+        isTournament,
         stats: this.getStats(),
       },
     });

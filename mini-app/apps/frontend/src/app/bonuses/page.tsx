@@ -141,9 +141,28 @@ function TournamentsList() {
 
 function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
   const router = useRouter();
-  const now = Date.now();
-  const remainingMs = Math.max(0, tournament.endsAt - now);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const int = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(int);
+  }, []);
+
+  const isBeforeStart = now < tournament.startsAt;
+  const isEnded = now > tournament.endsAt;
+  const targetTime = isBeforeStart ? tournament.startsAt : tournament.endsAt;
+  const remainingMs = Math.max(0, targetTime - now);
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+
+  // Convert ibb.co page URLs to direct URLs (approximate)
+  let bannerUrl = tournament.bannerUrl;
+  if (bannerUrl && bannerUrl.startsWith('https://ibb.co/')) {
+    const id = bannerUrl.split('https://ibb.co/')[1]?.split('/')[0];
+    if (id) {
+      // Direct link from ibb.co usually looks like i.ibb.co/xxx/image.png
+      // We can't know the exact file name or extension. We will just leave it and warn the admin, 
+      // but let's try to handle known direct links just in case.
+    }
+  }
 
   return (
     <motion.section
@@ -212,7 +231,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
         <div className="grid grid-cols-3 gap-2 text-[11px] text-whisper-gray tabular-nums">
           <span>Стартовый баланс {tournament.startBalance.toFixed(0)} TM</span>
           <span>Взнос {tournament.entryFee.toFixed(0)} zł</span>
-          <span>До конца {remaining}</span>
+          <span>{isEnded ? 'Завершен' : isBeforeStart ? `До начала ${remaining}` : `До конца ${remaining}`}</span>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">

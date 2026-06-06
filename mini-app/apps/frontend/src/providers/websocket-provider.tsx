@@ -68,7 +68,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               currency: payload.currency,
               demoMode: payload.demoMode,
               lastSyncedAt: new Date(payload.timestamp),
-            });
+            }, useBalanceStore.getState().tournamentBalances);
             // Surface a toast for "external" credits (deposits paid in,
             // admin balance adjustments) so the player notices money
             // arriving from outside the games. We deliberately ignore

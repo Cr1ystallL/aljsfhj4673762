@@ -21,12 +21,32 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const balance = await balanceService.getBalance(userId);
+      const { prisma } = await import('../lib/prisma.js');
+      
+      const activeParticipants = await (prisma as any).tournamentParticipant.findMany({
+        where: {
+          userId,
+          cycle: {
+            startsAt: { lte: new Date() },
+            endsAt: { gte: new Date() },
+            tournament: { active: true }
+          }
+        },
+        include: { cycle: { include: { tournament: true } } }
+      });
+
+      const tournamentBalances = activeParticipants.map((p: any) => ({
+        gameType: p.cycle.tournament.gameType,
+        balance: Number(p.balance)
+      }));
+
       return reply.send({
         balance: {
           amount: balance.amount,
           currency: balance.currency,
           demoMode: false,
         },
+        tournamentBalances
       });
     } catch (error) {
       logger.error(error, 'Failed to get balance');

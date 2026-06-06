@@ -49,6 +49,7 @@ export function BalanceSyncProvider({
       try {
         const res = await apiClient.get<{
           balance: { amount: number; currency: string };
+          tournamentBalances?: Array<{ gameType: string; balance: number }>;
         }>('/api/balance');
         if (cancelled) return;
         const next = res.balance;
@@ -56,7 +57,12 @@ export function BalanceSyncProvider({
         // Skip the setBalance call when the value is already current —
         // setBalance triggers a render via Zustand even when the value
         // is identical because the object reference changes.
+        const tb = res.tournamentBalances || [];
+        const curTb = useBalanceStore.getState().tournamentBalances;
+        const tbChanged = JSON.stringify(tb) !== JSON.stringify(curTb);
+
         if (
+          !tbChanged &&
           cur &&
           cur.amount === next.amount &&
           cur.currency === next.currency
@@ -69,7 +75,7 @@ export function BalanceSyncProvider({
           currency: next.currency,
           demoMode: false,
           lastSyncedAt: new Date(),
-        });
+        }, tb);
       } catch {
         // Best-effort. Failures are silent — WS will reconcile.
       }

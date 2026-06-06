@@ -27,11 +27,14 @@ export class TransactionService {
    * Get transaction history from shared DB.
    */
   async getTransactions(userId: string, limit: number = 50) {
-    const transactions = await prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+    const transactions: any[] = await prisma.$queryRaw`
+      SELECT id, type, amount, balance_before as "balanceBefore", balance_after as "balanceAfter", game_type as "gameType", game_round_id as "gameRoundId", metadata, created_at as "createdAt"
+      FROM transactions
+      WHERE user_id = ${userId}
+        AND (metadata->>'tournamentId' IS NULL)
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
 
     return transactions.map((tx) => ({
       id: tx.id,

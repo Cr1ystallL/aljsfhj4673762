@@ -158,7 +158,7 @@ export class BettingPipeline {
    * Atomically: debits balance, creates bet record, records bet transaction.
    * Throws 'Insufficient balance' if funds are not enough.
    */
-  async processBet(bet: Bet, demoMode: boolean = false): Promise<void> {
+  async processBet(bet: Bet, demoMode: boolean = false): Promise<boolean> {
     const amount = TWO_DP(bet.amount);
 
     // Honour admin-controlled limits and pause flag. The engine knows
@@ -221,7 +221,7 @@ export class BettingPipeline {
         });
 
         logger.info({ betId: bet.id, userId: bet.userId, amount, tournament: tournamentCtx.tournament.id }, 'Tournament bet processed');
-        return;
+        return true;
       }
 
       const newBalance = await prisma.$transaction(async (tx) => {
@@ -282,6 +282,7 @@ export class BettingPipeline {
         { betId: bet.id, userId: bet.userId, amount, newBalance, demoMode },
         'Bet processed'
       );
+      return false;
     } catch (error) {
       logger.error(error, 'Failed to process bet');
       throw error;

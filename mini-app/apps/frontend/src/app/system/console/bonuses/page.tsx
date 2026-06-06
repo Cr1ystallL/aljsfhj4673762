@@ -58,6 +58,33 @@ interface PromoRow {
   paidOut: number;
 }
 
+function formatRemaining(ms: number): string {
+  if (ms <= 0) return 'завершено';
+  const sec = Math.floor(ms / 1000);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (d > 0) return `${d} д ${h} ч`;
+  if (h > 0) return `${h} ч ${m} м ${s} с`;
+  return `${m} м ${s} с`;
+}
+
+function LiveTimer({ startsAt }: { startsAt: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const int = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(int);
+  }, []);
+
+  if (now >= startsAt) return null;
+  return (
+    <div className="text-[11px] text-[#ffac2e]">
+      До начала: {formatRemaining(startsAt - now)}
+    </div>
+  );
+}
+
 /* ============================================================== Tournaments (admin) */
 
 interface TournamentRow {
@@ -170,6 +197,7 @@ function TournamentsTab() {
                 <span>Начало: {formatDate(t.startsAt)}</span>
                 <span>Конец: {formatDate(t.endsAt)}</span>
               </div>
+              <LiveTimer startsAt={t.startsAt} />
               <div className="grid grid-cols-2 gap-2 text-[11px] text-whisper-gray tabular-nums">
                 <span>Тип: {t.entryFee > 0 ? 'С взносом' : 'Бесплатный'}</span>
                 <span>Длительность: {t.durationHours} ч.</span>

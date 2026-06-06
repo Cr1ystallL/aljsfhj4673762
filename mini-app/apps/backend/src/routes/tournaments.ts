@@ -486,6 +486,36 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
   );
 
   app.post<{ Params: { id: string } }>(
+    '/tournaments/:id/leave',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
+      if (!t || !t.active) return reply.code(404).send({ error: 'Not found' });
+      const cycle = await ensureCycle(t);
+      if (cycle.state === 'ended' || Date.now() > cycle.endsAt.getTime()) return reply.code(400).send({ error: 'Цикл завершён' });
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          const participant = await (tx as any).tournamentParticipant.findUnique({
+            where: { cycleId_userId: { cycleId: cycle.id, userId } },
+          });
+          if (!participant) throw new Error('Not registered');
+
+          await (tx as any).tournamentParticipant.delete({
+            where: { id: participant.id },
+          });
+        });
+      } catch (error) {
+        return reply.code(400).send({ error: (error as Error).message });
+      }
+
+      await balanceService.invalidateCache(userId);
+      return reply.send({ ok: true });
+    }
+  );
+
+  app.post<{ Params: { id: string } }>(
     '/tournaments/:id/refresh',
     { preHandler: authenticate },
     async (request, reply) => {
@@ -544,6 +574,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       });
       const rows = await (prisma as any).tournamentParticipant.findMany({
         where: { cycleId: cycle.id },
+        include: { user: { select: { username: true, firstName: true, photoUrl: true } } },
         orderBy: [
           { balance: 'desc' },
           { reachedAt: 'asc' },
@@ -553,6 +584,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       const top = rows.slice(0, 50).map((p: any, idx: number) => ({
         place: idx + 1,
         userId: p.userId,
+        user: p.user,
         balance: toNumber(p.balance),
         prize: computePrize(toNumber(cycle.prizePool), t.prizeMode as PrizeMode, idx, t.winnersCount, t.fixedPrize ? toNumber(t.fixedPrize) : null),
       }));

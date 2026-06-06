@@ -1,7 +1,7 @@
-﻿'use client';
+'use client';
 
-import { HelpCircle, Wallet, type LucideIcon } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Trophy, HelpCircle, Wallet, type LucideIcon } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
@@ -39,7 +39,12 @@ export function GameTopBar({
   const router = useRouter();
   const { user } = useAuthStore();
   const balance = useBalanceStore((s) => s.balance);
+  const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
   const { fetchBalance } = useBalance();
+  const pathname = usePathname();
+  
+  const gameType = pathname?.split('/').pop() || '';
+  const activeTournamentBalance = tournamentBalances.find(t => t.gameType === gameType);
 
   // Pull a fresh balance whenever the bar mounts so the pill is never
   // stale even if a previous WS push was missed.
@@ -47,7 +52,7 @@ export function GameTopBar({
     void fetchBalance();
   }, [fetchBalance]);
 
-  const balanceAmount = balance?.amount ?? 0;
+  const balanceAmount = activeTournamentBalance ? activeTournamentBalance.balance : (balance?.amount ?? 0);
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
@@ -90,7 +95,7 @@ export function GameTopBar({
             })}
           </span>
           <span className="font-roobert text-whisper-gray text-[10px] leading-none">
-            zł
+            {activeTournamentBalance ? <Trophy size={11} strokeWidth={2} /> : 'zł'}
           </span>
         </button>
 

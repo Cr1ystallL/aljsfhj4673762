@@ -12,25 +12,36 @@ import type { Balance } from '@casino/shared';
 
 interface BalanceState {
   balance: Balance | null;
+  tournamentBalances: Array<{ gameType: string; balance: number }>;
   isLoading: boolean;
 
-  setBalance: (balance: Balance) => void;
-  updateBalance: (amount: number) => void;
+  setBalance: (balance: Balance, tournamentBalances?: Array<{ gameType: string; balance: number }>) => void;
+  updateBalance: (amount: number, gameType?: string) => void;
   setLoading: (loading: boolean) => void;
 }
 
 export const useBalanceStore = create<BalanceState>((set) => ({
   balance: null,
+  tournamentBalances: [],
   isLoading: false,
 
-  setBalance: (balance) =>
+  setBalance: (balance, tournamentBalances = []) =>
     set({
       balance,
+      tournamentBalances,
       isLoading: false,
     }),
 
-  updateBalance: (amount) =>
+  updateBalance: (amount, gameType) =>
     set((state) => {
+      if (gameType) {
+        return {
+          tournamentBalances: state.tournamentBalances.map(t => 
+            t.gameType === gameType ? { ...t, balance: amount } : t
+          )
+        };
+      }
+      
       if (!state.balance) return state;
 
       return {
