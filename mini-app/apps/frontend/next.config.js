@@ -35,7 +35,7 @@ const nextConfig = {
   // Production performance flags.
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
-  compress: true,
+  compress: false, // Disabling compression reduces memory during build/runtime
   reactProductionProfiling: false,
 
   // Modular imports — drops Lucide / framer-motion bundle weight by
@@ -57,7 +57,7 @@ const nextConfig = {
     // Low memory VPS optimizations
     cpus: 1,
     workerThreads: false,
-    memoryBasedWorkersCount: true,
+    memoryBasedWorkersCount: false,
   },
 
   // Image optimization
