@@ -194,7 +194,7 @@ export class BettingPipeline {
             UPDATE tournament_participants
             SET balance = balance - ${amount}::numeric,
                 reached_at = NOW()
-            WHERE id = ${tournamentCtx.participant.id}::uuid
+            WHERE id = ${tournamentCtx.participant.id}
               AND balance >= ${amount}::numeric
             RETURNING balance
           `;
@@ -331,7 +331,7 @@ export class BettingPipeline {
               UPDATE tournament_participants
               SET balance = balance + ${credit}::numeric,
                   reached_at = NOW()
-              WHERE id = ${participant.id}::uuid
+              WHERE id = ${participant.id}
             `;
           }
 
