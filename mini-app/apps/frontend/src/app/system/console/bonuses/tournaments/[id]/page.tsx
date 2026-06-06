@@ -152,7 +152,7 @@ export default function AdminTournamentPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-3 border-y border-white/10 mt-2">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] text-whisper-gray uppercase tracking-wider">Тип</span>
-            <span className="text-[12px] text-frost-white tabular-nums">{data.entryFee > 0 ? \`Взнос \${data.entryFee} zł\` : 'Бесплатно'}</span>
+            <span className="text-[12px] text-frost-white tabular-nums">{data.entryFee > 0 ? `Взнос ${data.entryFee} zł` : 'Бесплатно'}</span>
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] text-whisper-gray uppercase tracking-wider">Повтор</span>
@@ -214,7 +214,7 @@ export default function AdminTournamentPage() {
             {data.participants.map((p, idx) => (
               <div key={p.id} className="grid grid-cols-[30px_1fr_100px_100px] gap-2 px-4 py-3 border-b border-white/5 last:border-0 text-[12px] text-frost-white items-center hover:bg-white/[0.02]">
                 <span className="text-whisper-gray">{idx + 1}</span>
-                <span className="truncate">{p.username ? \`@\${p.username}\` : p.firstName || p.userId}</span>
+                <span className="truncate">{p.username ? `@${p.username}` : p.firstName || p.userId}</span>
                 <span className="text-right tabular-nums font-medium text-[#ffac2e]">{p.balance.toFixed(0)}</span>
                 <span className="text-right tabular-nums text-whisper-gray text-[10px]">{new Date(p.joinedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>

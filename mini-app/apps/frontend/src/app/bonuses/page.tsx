@@ -1212,13 +1212,208 @@ function ContestCard({
   const remainingMs = Math.max(0, contest.endsAt - now);
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
 
+      ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
+      const hubGrad = ctx.createRadialGradient(
+        -radius * 0.06, -radius * 0.06, 0,
+        0, 0, radius * 0.22
+      );
+      hubGrad.addColorStop(0, 'rgba(255, 230, 170, 1)');
+      hubGrad.addColorStop(0.5, 'rgba(220, 170, 80, 1)');
+      hubGrad.addColorStop(1, 'rgba(120, 80, 30, 1)');
+      ctx.fillStyle = hubGrad;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.stroke();
+      // Inner dark ring
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.16, 0, Math.PI * 2);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 172, 46, 0.55)';
+      ctx.stroke();
+
+      ctx.restore();
+
+      // Static stud ring on the bezel — single soft tone, no pulsing.
+      // Modern wheels read better with a quiet bezel than a flashing one.
+      for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2 - Math.PI / 2;
+        const sx = cx + Math.cos(a) * radius * 1.085;
+        const sy = cy + Math.sin(a) * radius * 1.085;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 220, 150, 0.35)';
+        ctx.fill();
+      }
+
+      // Top pointer — clean amber teardrop with a hairline outline.
+      const ptCx = cx;
+      const ptCy = cy - radius * 1.04;
+      ctx.save();
+      ctx.translate(ptCx, ptCy);
+      // Soft halo behind the pointer
+      const halo = ctx.createRadialGradient(0, 4, 0, 0, 4, 22);
+      halo.addColorStop(0, 'rgba(255, 172, 46, 0.55)');
+      halo.addColorStop(1, 'rgba(255, 172, 46, 0)');
+      ctx.beginPath();
+      ctx.arc(0, 4, 22, 0, Math.PI * 2);
+      ctx.fillStyle = halo;
+      ctx.fill();
+      // Teardrop shape — rounded top, sharp tip pointing down at the rim
+      ctx.beginPath();
+      ctx.moveTo(0, 14);
+      ctx.bezierCurveTo(10, 4, 10, -10, 0, -10);
+      ctx.bezierCurveTo(-10, -10, -10, 4, 0, 14);
+      ctx.closePath();
+      const tGrad = ctx.createLinearGradient(0, -10, 0, 14);
+      tGrad.addColorStop(0, '#ffd07a');
+      tGrad.addColorStop(1, '#ffac2e');
+      ctx.fillStyle = tGrad;
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.stroke();
+      // Inner highlight dot
+      ctx.beginPath();
+      ctx.arc(-2, -4, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.fill();
+      ctx.restore();
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      ro.disconnect();
+    };
+  }, [spinRef, idleRotationRef]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full"
+      style={{ imageRendering: 'auto' }}
+    />
+  );
+}
+
+/** Lighten/darken a hex color by a percentage. */
+function shade(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  let r = (num >> 16) & 0xff;
+  let g = (num >> 8) & 0xff;
+  let b = num & 0xff;
+  r = Math.max(0, Math.min(255, Math.round(r + 255 * percent)));
+  g = Math.max(0, Math.min(255, Math.round(g + 255 * percent)));
+  b = Math.max(0, Math.min(255, Math.round(b + 255 * percent)));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Contests                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function ContestsList({ currentUserId }: { currentUserId: string | null }) {
+  const [list, setList] = useState<ContestRow[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bonuses/contests', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      setList(json.contests as ContestRow[]);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const join = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/bonuses/contests/${id}/join`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось присоединиться');
+        return;
+      }
+      toast.success('Вы присоединились');
+      void load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  void currentUserId;
+
+  return (
+    // id="contests" — якорь, по которому Hero на главной (см.
+    // home-screen.tsx) скроллит сюда после клика по «случайному
+    // конкурсу». scroll-mt-4 даёт визуальный отступ от верха окна.
+    <section id="contests" className="flex flex-col gap-3 scroll-mt-4">
+      <div className="flex items-baseline justify-between px-1">
+        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+          Турниры
+        </span>
+        <span className="font-roobert text-[11px] text-whisper-gray">
+          {list?.length ?? 0}
+        </span>
+      </div>
+
+      {list === null ? (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] py-10 flex items-center justify-center">
+          <div className="w-5 h-5 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+        </div>
+      ) : list.length === 0 ? (
+        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
+          Сейчас турниров нет. Загляните позже.
+        </div>
+      ) : (
+        list.map((c) => (
+          <ContestCard
+            key={c.id}
+            contest={c}
+            onJoin={() => join(c.id)}
+            busy={busyId === c.id}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+function ContestCard({
+  contest,
+  onJoin,
+  busy,
+}: {
+  contest: ContestRow;
+  onJoin: () => void;
+  busy: boolean;
+}) {
+  const now = Date.now();
+  const remainingMs = Math.max(0, contest.endsAt - now);
+  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+
   const router = useRouter();
 
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      onClick={() => router.push(\`/tournaments/\${contest.id}\`)}
+      onClick={() => router.push(`/tournaments/${contest.id}`)}
       className="relative overflow-hidden rounded-card border border-white/10 cursor-pointer hover:border-white/20 transition-colors group"
     >
       {/* Banner art (admin-uploaded) — falls back to the gradient wash */}

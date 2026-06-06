@@ -116,18 +116,6 @@ function TournamentsTab() {
     });
   }, []);
 
-  const formatDate = useCallback((ts?: number) => {
-    if (!ts) return '—';
-    return new Date(ts).toLocaleString('ru-RU', {
-      timeZone: 'Europe/Warsaw',
-      hour12: false,
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }, []);
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
