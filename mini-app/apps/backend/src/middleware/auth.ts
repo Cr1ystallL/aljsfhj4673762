@@ -45,7 +45,7 @@ async function isUserBlocked(
   try {
     const rows = await (request.server as unknown as { prisma: { $queryRaw: <T>(s: TemplateStringsArray, ...vals: unknown[]) => Promise<T> } }).prisma.$queryRaw<
       Array<{ is_blocked: boolean }>
-    >`SELECT is_blocked FROM users WHERE id = ${userId} LIMIT 1`;
+    >`SELECT is_blocked FROM users WHERE id = ${userId}::uuid LIMIT 1`;
     const blocked = !!rows[0]?.is_blocked;
     blockCache.set(userId, { blocked, expiresAt: now + BLOCK_CACHE_TTL_MS });
     return blocked;
