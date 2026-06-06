@@ -240,16 +240,20 @@ export default function WheelPage() {
 
   /* ----- Bet placement --------------------------------------------------- */
 
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'wheel');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
   const placeBet = async () => {
     if (busy) return;
     if (amount <= 0) {
       toast.warn('Введите сумму ставки');
       return;
     }
-    const have = balance?.amount ?? 0;
+    const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
       );
       return;
     }
@@ -280,9 +284,7 @@ export default function WheelPage() {
     }
   };
 
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'wheel');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
 
   const minBet = 1;
   const maxBet = useMemo(

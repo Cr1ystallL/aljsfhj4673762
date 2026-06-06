@@ -54,7 +54,10 @@ const DEFAULT_SLOT: SlotConfig = {
 };
 
 export default function CrashGamePage() {
-  const { balance } = useBalance();
+  const { balance, fetchBalance } = useBalance();
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'crash');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
   const { snapshot, stream, userId } = useCrashLive();
 
   const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
@@ -144,10 +147,10 @@ export default function CrashGamePage() {
     }
     // Pre-flight balance check — stops the round-trip when we already
     // know it'll fail. Server still rechecks atomically.
-    const have = balance?.amount ?? 0;
+    const have = activeBalance;
     if (cfg.amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
       );
       return;
     }
@@ -257,9 +260,7 @@ export default function CrashGamePage() {
 
   /* ----------------------------------------------------------- derived */
 
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'crash');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
 
   const minBet = 1;
   const maxBet = useMemo(

@@ -47,6 +47,9 @@ const STEP_MULTIPLIER = 1.94;
 
 export default function CoinflipGamePage() {
   const { balance, fetchBalance } = useBalance();
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'coinflip');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
 
   const [mode, setMode] = useState<CoinflipMode>('multiply');
   const [amount, setAmount] = useState(10);
@@ -159,14 +162,14 @@ export default function CoinflipGamePage() {
     if (busy || flipping) return;
 
     if (mode === 'quick') {
-      const have = balance?.amount ?? 0;
       if (amount <= 0) {
         toast.warn('Введите сумму ставки');
         return;
       }
+      const have = activeBalance;
       if (amount > have) {
         toast.warn(
-          `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+          `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
         );
         return;
       }
@@ -197,15 +200,15 @@ export default function CoinflipGamePage() {
     setBusy(true);
     try {
       if (!multi || multi.status !== 'awaiting') {
-        const have = balance?.amount ?? 0;
         if (amount <= 0) {
           toast.warn('Введите сумму ставки');
           setBusy(false);
           return;
         }
+        const have = activeBalance;
         if (amount > have) {
           toast.warn(
-            `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+            `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
           );
           setBusy(false);
           return;
@@ -289,9 +292,7 @@ export default function CoinflipGamePage() {
 
   /* --------------------------------------------------- derived state */
 
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'coinflip');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
 
   const minBet = 1;
   const maxBet = useMemo(
@@ -303,7 +304,7 @@ export default function CoinflipGamePage() {
   const sessionFinished = !!multi && multi.status !== 'awaiting';
 
   /** True when the user has enough balance to start a NEW session. */
-  const canAfford = (balance?.amount ?? 0) >= amount && amount >= minBet;
+  const canAfford = activeBalance >= amount && amount >= minBet;
 
   const currentRound = multi?.round ?? 1;
   const maxRounds = multi?.maxRounds ?? 20;

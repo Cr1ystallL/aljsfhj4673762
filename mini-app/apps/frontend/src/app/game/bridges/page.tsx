@@ -127,21 +127,21 @@ export default function BridgesPage() {
       toast.warn('Авто-ставка остановлена — недостаточно средств');
       return;
     }
-    const id = setTimeout(() => void start(), 600);
+    const id = setTimeout(() => void startGame(), 600);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoEnabled, state?.state, balance?.amount, autoRemaining]);
+  }, [autoEnabled, state?.state, activeBalance, autoRemaining]);
 
-  const start = async () => {
+  const startGame = async () => {
     if (busy) return;
     if (amount <= 0) {
       toast.warn('Введите сумму ставки');
       return;
     }
-    const have = balance?.amount ?? 0;
+    const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
       );
       return;
     }
@@ -242,10 +242,6 @@ export default function BridgesPage() {
     setState(null);
   };
 
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'bridges');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
-
   const minBet = 1;
   const maxBet = useMemo(
     () => Math.max(minBet, Math.floor(activeBalance)),
@@ -313,7 +309,7 @@ export default function BridgesPage() {
             setAmount={setAmount}
             minBet={minBet}
             maxBet={maxBet}
-            onStart={start}
+            onStart={startGame}
             busy={busy}
             autoEnabled={autoEnabled}
             setAutoEnabled={(v) => {
@@ -323,7 +319,8 @@ export default function BridgesPage() {
             autoCount={autoCount}
             setAutoCount={setAutoCount}
             autoRemaining={autoRemaining}
-            balanceAmount={balance?.amount ?? 0}
+            disabled={false}
+            balanceAmount={activeBalance}
           />
         )}
 

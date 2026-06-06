@@ -60,6 +60,9 @@ const AUTO_INTERVAL_MS = 700;
 
 export default function PlinkoGamePage() {
   const { balance, fetchBalance } = useBalance();
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'plinko');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
 
   const [config, setConfig] = useState<PlinkoConfig>(DEFAULT_CONFIG);
   const [risk, setRisk] = useState<PlinkoRisk>('medium');
@@ -93,8 +96,8 @@ export default function PlinkoGamePage() {
     autoEnabledRef.current = autoEnabled;
   }, [autoEnabled]);
   useEffect(() => {
-    balanceRef.current = balance?.amount ?? 0;
-  }, [balance?.amount]);
+    balanceRef.current = activeBalance;
+  }, [activeBalance]);
   useEffect(() => {
     amountRef.current = amount;
   }, [amount]);
@@ -178,10 +181,10 @@ export default function PlinkoGamePage() {
       toast.warn('Введите сумму ставки');
       return;
     }
-    const have = balance?.amount ?? 0;
+    const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
       );
       return;
     }
@@ -315,9 +318,7 @@ export default function PlinkoGamePage() {
 
   /* ----------------------------------------------------------- derived */
 
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'plinko');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
 
   const minBet = 1;
   const maxBet = useMemo(
@@ -326,7 +327,7 @@ export default function PlinkoGamePage() {
   );
 
   /** True when the user can afford the current stake. */
-  const canAfford = (balance?.amount ?? 0) >= amount && amount >= minBet;
+  const canAfford = activeBalance >= amount && amount >= minBet;
 
   const multipliers = config.multipliers[risk];
 
