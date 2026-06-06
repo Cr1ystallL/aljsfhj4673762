@@ -316,14 +316,9 @@ export class BettingPipeline {
 
       try {
         await prisma.$transaction(async (tx) => {
-          const participant = await (tx as any).tournamentParticipant.findUnique({
-            where: { cycleId_userId: { cycleId: tournamentCycleId, userId: bet.userId } },
-          });
-          if (!participant) return;
-
           if (credit > 0) {
-            await (tx as any).tournamentParticipant.update({
-              where: { id: participant.id },
+            await (tx as any).tournamentParticipant.updateMany({
+              where: { cycleId: tournamentCycleId, userId: bet.userId },
               data: {
                 balance: { increment: credit },
                 reachedAt: new Date(),
@@ -494,14 +489,9 @@ export class BettingPipeline {
 
       try {
         await prisma.$transaction(async (tx) => {
-          const participant = await (tx as any).tournamentParticipant.findUnique({
-            where: { cycleId_userId: { cycleId: tournamentCycleId, userId: bet.userId } },
-          });
-          if (!participant) return;
-
           if (credit > 0) {
-            await (tx as any).tournamentParticipant.update({
-              where: { id: participant.id },
+            await (tx as any).tournamentParticipant.updateMany({
+              where: { cycleId: tournamentCycleId, userId: bet.userId },
               data: {
                 balance: { increment: credit },
                 reachedAt: new Date(),
