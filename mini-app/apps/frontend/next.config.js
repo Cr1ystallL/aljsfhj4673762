@@ -54,6 +54,10 @@ const nextConfig = {
       'framer-motion',
       '@telegram-apps/sdk-react',
     ],
+    // Low memory VPS optimizations
+    cpus: 1,
+    workerThreads: false,
+    memoryBasedWorkersCount: true,
   },
 
   // Image optimization
