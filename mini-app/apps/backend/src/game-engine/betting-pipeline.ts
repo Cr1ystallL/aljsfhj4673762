@@ -360,6 +360,7 @@ export class BettingPipeline {
     const credit = TWO_DP(capped);
 
     try {
+      const newBalance = await prisma.$transaction(async (tx) => {
         let balanceAfter = 0;
 
         if (credit > 0) {

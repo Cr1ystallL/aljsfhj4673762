@@ -461,28 +461,9 @@ class RtpEngine {
     stake: number,
     grossPayout: number
   ): Promise<number> {
-    const cfg = await this.getConfig();
-    if (cfg.mode !== 'give' || cfg.intensity <= 0) return grossPayout;
-
-    const status = await this.getStatus();
-    if (status.released) return grossPayout;
-
-    const alreadyGiven = Math.max(0, -status.windowProfit);
-    const remaining = Math.max(0, cfg.target - alreadyGiven);
-    if (remaining <= 0) {
-      // We've already given everything; let nature take its course but
-      // also return a floor of just-the-stake so the player at least
-      // doesn't see a phantom loss.
-      return Math.max(stake, Math.min(grossPayout, stake));
-    }
-
-    // Guess a reasonable per-bet share. We scan how many users actually
-    // bet in this window through `windowStake` ÷ a typical avg bet (50 PLN);
-    // floor it at 5 so the very first winner doesn't take the lot.
-    const distinctUsers = Math.max(5, Math.floor(status.windowStake / 50));
-    const cap = Math.max(stake, remaining / distinctUsers);
-
-    return Math.min(grossPayout, cap);
+    // According to new requirements, RTP should ONLY affect win chance,
+    // and MUST NOT alter the actual payout amount.
+    return grossPayout;
   }
 
   /* -----------------------------------------------------------------
