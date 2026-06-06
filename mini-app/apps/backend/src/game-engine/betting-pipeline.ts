@@ -306,20 +306,15 @@ export class BettingPipeline {
     const grossCredit = TWO_DP(payout);
     const stake = TWO_DP(bet.amount);
 
-    // Defensive cap for give-mode budget. In off / earn modes this is
-    // a pass-through.
-    const capped = await rtpEngine.capPayoutForGive(
-      bet.userId,
-      stake,
-      grossCredit
-    );
-    const credit = TWO_DP(capped);
+    const meta = (bet.metadata || {}) as Record<string, any>;
+    const tournamentCycleId = meta.tournamentCycleId as string | undefined;
 
-    try {
-      const meta = (bet.metadata || {}) as Record<string, any>;
-      const tournamentCycleId = meta.tournamentCycleId as string | undefined;
+    // Tournaments use virtual balance and do not affect the casino's P&L
+    // or give/earn budget. Skip RTP capping entirely.
+    if (tournamentCycleId) {
+      const credit = grossCredit; // Full un-capped credit
 
-      if (tournamentCycleId) {
+      try {
         await prisma.$transaction(async (tx) => {
           const participant = await (tx as any).tournamentParticipant.findUnique({
             where: { cycleId_userId: { cycleId: tournamentCycleId, userId: bet.userId } },
@@ -347,14 +342,24 @@ export class BettingPipeline {
           });
         });
 
-        // RTP controller still needs the outcome for earning/giving decisions.
-        await rtpEngine.recordOutcome(bet.userId, stake, credit);
-
         logger.info({ betId: bet.id, userId: bet.userId, payout: credit, tournamentCycleId }, 'Tournament payout processed');
         return;
+      } catch (error) {
+        logger.error(error, 'Failed to process tournament payout');
+        throw error;
       }
+    }
 
-      const newBalance = await prisma.$transaction(async (tx) => {
+    // Defensive cap for give-mode budget. In off / earn modes this is
+    // a pass-through.
+    const capped = await rtpEngine.capPayoutForGive(
+      bet.userId,
+      stake,
+      grossCredit
+    );
+    const credit = TWO_DP(capped);
+
+    try {
         let balanceAfter = 0;
 
         if (credit > 0) {
@@ -441,8 +446,15 @@ export class BettingPipeline {
           resolvedAt: new Date(),
         },
       });
-      // Casino kept the full stake — record it for the controller.
-      await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0);
+
+      const meta = (bet.metadata || {}) as Record<string, any>;
+      const tournamentCycleId = meta.tournamentCycleId as string | undefined;
+
+      // Casino kept the full stake — record it for the controller,
+      // but only if it's real money.
+      if (!tournamentCycleId && !meta.demoMode) {
+        await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0);
+      }
       logger.info({ betId: bet.id, userId: bet.userId }, 'Bet lost');
     } catch (error) {
       logger.error(error, 'Failed to process loss');
@@ -472,6 +484,48 @@ export class BettingPipeline {
   ): Promise<void> {
     const grossCredit = TWO_DP(cashoutAmount);
     const stake = TWO_DP(bet.amount);
+
+    const meta = (bet.metadata || {}) as Record<string, any>;
+    const tournamentCycleId = meta.tournamentCycleId as string | undefined;
+
+    if (tournamentCycleId) {
+      const credit = grossCredit; // Full un-capped credit
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          const participant = await (tx as any).tournamentParticipant.findUnique({
+            where: { cycleId_userId: { cycleId: tournamentCycleId, userId: bet.userId } },
+          });
+          if (!participant) return;
+
+          if (credit > 0) {
+            await (tx as any).tournamentParticipant.update({
+              where: { id: participant.id },
+              data: {
+                balance: { increment: credit },
+                reachedAt: new Date(),
+              },
+            });
+          }
+
+          await tx.bet.update({
+            where: { id: bet.id },
+            data: {
+              state: 'cashed_out',
+              payout: credit,
+              multiplier,
+              resolvedAt: new Date(),
+            },
+          });
+        });
+
+        logger.info({ betId: bet.id, userId: bet.userId, payout: credit, tournamentCycleId }, 'Tournament cashout processed');
+        return;
+      } catch (error) {
+        logger.error(error, 'Failed to process tournament cashout');
+        throw error;
+      }
+    }
 
     const capped = await rtpEngine.capPayoutForGive(
       bet.userId,
