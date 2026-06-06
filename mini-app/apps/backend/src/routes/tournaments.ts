@@ -9,11 +9,16 @@ const PERCENT_PAYOUTS = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
 
 const toNumber = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
 
-function cycleBounds(t: { startAtGmt1: Date; durationHours: number }, now = Date.now()) {
+function cycleBounds(t: { startAtGmt1: Date; durationHours: number; repeatType?: string }, now = Date.now()) {
   const offsetMs = 60 * 60 * 1000;
   const firstStartUtc = t.startAtGmt1.getTime() - offsetMs;
-  const dayMs = 24 * 3600 * 1000;
   const durationMs = t.durationHours * 3600 * 1000;
+
+  if (t.repeatType === 'once') {
+    return { startsAt: firstStartUtc, endsAt: firstStartUtc + durationMs };
+  }
+
+  const dayMs = 24 * 3600 * 1000;
   if (now <= firstStartUtc) return { startsAt: firstStartUtc, endsAt: firstStartUtc + durationMs };
   const daysPassed = Math.floor((now - firstStartUtc) / dayMs);
   const currentStart = firstStartUtc + daysPassed * dayMs;
@@ -23,7 +28,7 @@ function cycleBounds(t: { startAtGmt1: Date; durationHours: number }, now = Date
   return { startsAt: nextStart, endsAt: nextStart + durationMs };
 }
 
-async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: number; prizePool: Prisma.Decimal }) {
+async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: number; prizePool: Prisma.Decimal; repeatType?: string }) {
   const { startsAt, endsAt } = cycleBounds(t);
   let cycle = await (prisma as any).tournamentCycle.findFirst({
     where: { tournamentId: t.id, startsAt: new Date(startsAt) },
@@ -155,6 +160,13 @@ async function payoutCycle(t: any, cycle: any) {
       where: { id: cycle.id },
       data: { state: 'ended', endsAt: new Date() },
     });
+
+    if (t.repeatType === 'once') {
+      await (tx as any).tournament.update({
+        where: { id: t.id },
+        data: { active: false },
+      });
+    }
   });
 
   for (const userId of winnerIds) {
@@ -194,6 +206,40 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, tournaments: mapped });
   });
 
+  app.get<{ Params: { id: string } }>('/_x/tournaments/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
+    if (!t) return reply.code(404).send({ error: 'Not found' });
+    const cycle = await ensureCycle(t);
+    const participants = await (prisma as any).tournamentParticipant.findMany({
+      where: { cycleId: cycle.id },
+      include: { user: { select: { id: true, username: true, firstName: true } } },
+      orderBy: [
+        { balance: 'desc' },
+        { reachedAt: 'asc' },
+      ],
+      take: 200,
+    });
+    const enriched = {
+      ...t,
+      prizePool: toNumber(t.prizePool),
+      fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
+      startBalance: toNumber(t.startBalance),
+      entryFee: toNumber(t.entryFee),
+      startsAt: cycle.startsAt.getTime(),
+      endsAt: cycle.endsAt.getTime(),
+      cycleState: cycle.state,
+      participants: participants.map((p: any) => ({
+        id: p.id,
+        userId: p.userId,
+        username: p.user?.username,
+        firstName: p.user?.firstName,
+        balance: toNumber(p.balance),
+        joinedAt: p.joinedAt.getTime(),
+      })),
+    };
+    return reply.send({ ok: true, tournament: enriched });
+  });
+
   app.post<{
     Body: {
       title?: string;
@@ -208,6 +254,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       entryFee?: number;
       startAtGmt1?: number;
       durationHours?: number;
+      repeatType?: string;
     };
   }>('/_x/tournaments', { preHandler: adminOnly }, async (request, reply) => {
     const b = request.body ?? {};
@@ -219,6 +266,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     const entryFee = Number(b.entryFee ?? 0);
     const startAtGmt1 = Number(b.startAtGmt1 ?? Date.now());
     const durationHours = Number.isFinite(b.durationHours) && b.durationHours! > 0 ? Number(b.durationHours) : 10;
+    const repeatType = b.repeatType === 'once' ? 'once' : 'daily';
     const prizeMode: PrizeMode = b.prizeMode === 'fixed' ? 'fixed' : 'percent';
     const fixedPrize = prizeMode === 'fixed' ? Number(b.fixedPrize ?? 0) : null;
     const normalizedPrizePool =
@@ -248,6 +296,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         entryFee,
         startAtGmt1: new Date(startAtGmt1),
         durationHours,
+        repeatType,
         active: true,
       },
     });
@@ -255,7 +304,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, id: t.id });
   });
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; startBalance: number; entryFee: number; startAtGmt1: number; durationHours: number; active: boolean }> }>(
+  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; startBalance: number; entryFee: number; startAtGmt1: number; durationHours: number; repeatType: string; active: boolean }> }>(
     '/_x/tournaments/:id',
     { preHandler: adminOnly },
     async (request, reply) => {
@@ -287,6 +336,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
           startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1,
           durationHours: Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours,
+          repeatType: typeof b.repeatType === 'string' ? b.repeatType : t.repeatType,
           active: typeof b.active === 'boolean' ? b.active : t.active,
         },
       });
@@ -381,6 +431,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
           startBalance: toNumber(t.startBalance),
           entryFee: toNumber(t.entryFee),
+          repeatType: t.repeatType,
           startsAt: cycle.startsAt.getTime(),
           endsAt: cycle.endsAt.getTime(),
           joined: Boolean(participant),
@@ -488,6 +539,9 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
       if (!t) return reply.code(404).send({ error: 'Not found' });
       const cycle = await ensureCycle(t);
+      const participant = await (prisma as any).tournamentParticipant.findUnique({
+        where: { cycleId_userId: { cycleId: cycle.id, userId } },
+      });
       const rows = await (prisma as any).tournamentParticipant.findMany({
         where: { cycleId: cycle.id },
         orderBy: [
@@ -507,7 +561,26 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         place: selfIndex + 1,
         balance: toNumber(rows[selfIndex].balance),
       };
-      return reply.send({ ok: true, leaderboard: top, self });
+      const enrichedTournament = {
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        bannerUrl: t.bannerUrl,
+        gameType: t.gameType,
+        prizePool: toNumber(cycle.prizePool),
+        prizeMode: t.prizeMode,
+        winnersCount: t.winnersCount,
+        fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
+        startBalance: toNumber(t.startBalance),
+        entryFee: toNumber(t.entryFee),
+        repeatType: t.repeatType,
+        startsAt: cycle.startsAt.getTime(),
+        endsAt: cycle.endsAt.getTime(),
+        cycleState: cycle.state,
+        joined: Boolean(participant),
+        tournamentBalance: participant ? toNumber(participant.balance) : null,
+      };
+      return reply.send({ ok: true, leaderboard: top, self, tournament: enrichedTournament });
     }
   );
 }

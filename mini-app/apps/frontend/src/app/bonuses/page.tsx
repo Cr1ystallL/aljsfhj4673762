@@ -552,8 +552,10 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
     initialRotation: number;
   } | null>(null);
   const idleRotationRef = useRef(0);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const load = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
       const res = await fetch('/api/bonuses/wheel/state', {
         credentials: 'include',
@@ -565,13 +567,13 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
     } catch {
       // ignore
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     void load();
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [load, isAuthenticated]);
 
   const cooldownLeftMs = state?.cooldownEndsAt
     ? Math.max(0, state.cooldownEndsAt - now)
@@ -1210,11 +1212,14 @@ function ContestCard({
   const remainingMs = Math.max(0, contest.endsAt - now);
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
 
+  const router = useRouter();
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-card border border-white/10"
+      onClick={() => router.push(\`/tournaments/\${contest.id}\`)}
+      className="relative overflow-hidden rounded-card border border-white/10 cursor-pointer hover:border-white/20 transition-colors group"
     >
       {/* Banner art (admin-uploaded) — falls back to the gradient wash */}
       {contest.bannerUrl ? (
@@ -1247,12 +1252,14 @@ function ContestCard({
       <div className="relative px-5 py-4 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
-          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray group-hover:text-frost-white transition-colors">
             {contest.visibility === 'public'
               ? 'Публичный турнир'
               : contest.visibility === 'private'
                 ? 'Приватный турнир'
                 : 'Глобальный турнир'}
+            {' · '}
+            {contest.gameType.charAt(0).toUpperCase() + contest.gameType.slice(1)}
           </span>
         </div>
 
@@ -1287,7 +1294,7 @@ function ContestCard({
               {contest.participantCount}
             </span>
             <span className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-              до конца {remaining}
+              {(contest as any).cycleState === 'ended' ? 'до начала' : 'до конца'} {remaining}
             </span>
           </div>
           {contest.visibility === 'global' ? (
@@ -1300,8 +1307,8 @@ function ContestCard({
             </span>
           ) : (
             <button
-              onClick={onJoin}
-              disabled={busy}
+              onClick={(e) => { e.stopPropagation(); onJoin(); }}
+              disabled={busy || contest.joined}
               className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
             >
               Участвовать
@@ -1357,9 +1364,10 @@ function formatRemaining(ms: number): string {
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
   if (d > 0) return `${d} д ${h} ч`;
-  if (h > 0) return `${h} ч ${m} м`;
-  return `${m} м`;
+  if (h > 0) return `${h} ч ${m} м ${s} с`;
+  return `${m} м ${s} с`;
 }
 
 void AnimatePresence;

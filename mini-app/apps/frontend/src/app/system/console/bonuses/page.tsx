@@ -76,15 +76,16 @@ interface TournamentRow {
   startsAt: number;
   endsAt: number;
   cycleState?: string;
+  repeatType: string;
   active: boolean;
   createdAt: number;
   updatedAt: number;
 }
 
 function TournamentsTab() {
+  const router = useRouter();
   const [list, setList] = useState<TournamentRow[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [actionBusy, setActionBusy] = useState<Record<string, 'start' | 'end' | null>>({});
   const reload = useCallback(async () => {
     try {
       const res = await fetch('/api/_x/tournaments', {
@@ -115,38 +116,17 @@ function TournamentsTab() {
     });
   }, []);
 
-  const forceAction = useCallback(
-    async (id: string, mode: 'start' | 'end') => {
-      setActionBusy((prev) => ({ ...prev, [id]: mode }));
-      try {
-        await fetch(`/api/_x/tournaments/${id}/force-${mode}`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        await reload();
-      } finally {
-        setActionBusy((prev) => ({ ...prev, [id]: null }));
-      }
-    },
-    [reload]
-  );
-
-  const removeTournament = useCallback(
-    async (id: string) => {
-      if (!confirm('Удалить турнир? Все циклы и участники исчезнут навсегда!')) return;
-      setActionBusy((prev) => ({ ...prev, [id]: 'delete' }));
-      try {
-        await fetch(`/api/_x/tournaments/${id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        await reload();
-      } finally {
-        setActionBusy((prev) => ({ ...prev, [id]: null }));
-      }
-    },
-    [reload]
-  );
+  const formatDate = useCallback((ts?: number) => {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleString('ru-RU', {
+      timeZone: 'Europe/Warsaw',
+      hour12: false,
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, []);
 
   return (
     <div className="flex flex-col gap-3">
@@ -168,11 +148,12 @@ function TournamentsTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {list.map((t) => (
-            <div
+            <button
               key={t.id}
-              className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 text-left flex flex-col gap-2"
+              onClick={() => router.push(`/system/console/bonuses/tournaments/${t.id}`)}
+              className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 text-left flex flex-col gap-2 hover:bg-white/[0.06] transition-colors w-full"
             >
-              <div className="flex items-center justify-between text-[11px] text-whisper-gray">
+              <div className="flex w-full items-center justify-between text-[11px] text-whisper-gray">
                 <span className="inline-flex items-center gap-1 uppercase tracking-[0.18em]">
                   <Trophy size={12} strokeWidth={1.7} /> {t.gameType}
                 </span>
@@ -203,34 +184,9 @@ function TournamentsTab() {
               <div className="grid grid-cols-2 gap-2 text-[11px] text-whisper-gray tabular-nums">
                 <span>Тип: {t.entryFee > 0 ? 'С взносом' : 'Бесплатный'}</span>
                 <span>Длительность: {t.durationHours} ч.</span>
+                <span>Повтор: {t.repeatType === 'once' ? 'Единоразовый' : 'Ежедневный'}</span>
               </div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  onClick={() => forceAction(t.id, 'start')}
-                  disabled={actionBusy[t.id] === 'start'}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-[11px] text-frost-white hover:border-white/30 disabled:opacity-50"
-                >
-                  <Power size={12} />
-                  {actionBusy[t.id] === 'start' ? 'Стартуем…' : 'Стартовать сейчас'}
-                </button>
-                <button
-                  onClick={() => forceAction(t.id, 'end')}
-                  disabled={actionBusy[t.id] === 'end'}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-[11px] text-frost-white hover:border-white/30 disabled:opacity-50"
-                >
-                  <CheckCircle size={12} />
-                  {actionBusy[t.id] === 'end' ? 'Завершаем…' : 'Завершить и выплатить'}
-                </button>
-                <button
-                  onClick={() => removeTournament(t.id)}
-                  disabled={actionBusy[t.id] === 'delete'}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-[#ff8a76]/30 bg-[#ff8a76]/10 text-[11px] text-[#ff8a76] hover:bg-[#ff8a76]/20 disabled:opacity-50 ml-auto"
-                >
-                  <Trash2 size={12} />
-                  {actionBusy[t.id] === 'delete' ? 'Удаляем…' : 'Удалить'}
-                </button>
-              </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -264,6 +220,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
   const [entryFee, setEntryFee] = useState(0);
   const [startAt, setStartAt] = useState(() => isoLocalNow());
   const [durationHours, setDurationHours] = useState(10);
+  const [repeatType, setRepeatType] = useState<'daily' | 'once'>('daily');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -296,6 +253,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           entryFee: feeType === 'fee' ? Number(entryFee) : 0,
           startAtGmt1: new Date(startAt).getTime(),
           durationHours: Number(durationHours),
+          repeatType,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -326,7 +284,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
             className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
           />
         </Field>
-        <Field label="Баннер URL" colSpan={2}>
+        <Field label="Баннер URL (прямая ссылка на картинку)" colSpan={2}>
           <input
             value={bannerUrl}
             onChange={(e) => setBannerUrl(e.target.value)}
@@ -340,7 +298,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
             className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
           >
             {GAME_OPTIONS.map((g) => (
-              <option key={g.value} value={g.value} className="bg-midnight-canvas text-midnight-canvas">
+              <option key={g.value} value={g.value} className="bg-midnight-canvas text-frost-white">
                 {g.label}
               </option>
             ))}
@@ -406,6 +364,16 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
               С взносом
             </button>
           </div>
+        </Field>
+        <Field label="Повтор">
+          <select
+            value={repeatType}
+            onChange={(e) => setRepeatType(e.target.value as 'daily' | 'once')}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          >
+            <option value="daily" className="bg-midnight-canvas text-frost-white">Ежедневный</option>
+            <option value="once" className="bg-midnight-canvas text-frost-white">Единоразовый</option>
+          </select>
         </Field>
         {feeType === 'fee' && (
           <Field label="Взнос (real)">
