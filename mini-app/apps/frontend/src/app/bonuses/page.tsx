@@ -140,6 +140,7 @@ function TournamentsList() {
 }
 
 function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
+  const router = useRouter();
   const now = Date.now();
   const remainingMs = Math.max(0, tournament.endsAt - now);
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
@@ -148,7 +149,8 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-card border border-white/10"
+      onClick={() => router.push(`/tournaments/${tournament.id}`)}
+      className="relative overflow-hidden rounded-card border border-white/10 cursor-pointer"
     >
       {tournament.bannerUrl ? (
         <div
@@ -216,11 +218,18 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="font-roobert text-[11px] text-whisper-gray">Игра: {tournament.gameType}</div>
           <button
-            onClick={onJoin}
-            disabled={busy}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tournament.joined) {
+                router.push(`/tournaments/${tournament.id}`);
+              } else {
+                onJoin();
+              }
+            }}
+            disabled={busy && !tournament.joined}
             className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
           >
-            Участвовать
+            {tournament.joined ? 'К турниру' : 'Участвовать'}
             <ArrowRight size={11} strokeWidth={1.8} />
           </button>
         </div>

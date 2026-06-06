@@ -155,7 +155,6 @@ export const BottomNavigation = memo(function BottomNavigation({
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none"
-      aria-hidden={isCollapsed || forceHidden}
     >
       {/* Grip handle — only on hideable pages, only when collapsed. */}
       <AnimatePresence>
