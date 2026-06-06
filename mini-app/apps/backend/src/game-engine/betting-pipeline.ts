@@ -327,12 +327,13 @@ export class BettingPipeline {
           if (!participant) return;
 
           if (credit > 0) {
-            await tx.$queryRaw`
-              UPDATE tournament_participants
-              SET balance = balance + ${credit}::numeric,
-                  reached_at = NOW()
-              WHERE id::text = ${participant.id}::text
-            `;
+            await (tx as any).tournamentParticipant.update({
+              where: { id: participant.id },
+              data: {
+                balance: { increment: credit },
+                reachedAt: new Date(),
+              },
+            });
           }
 
           await tx.bet.update({
