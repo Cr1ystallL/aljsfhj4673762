@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import gsap from 'gsap';
-import { Disc3, ChevronDown } from 'lucide-react';
+import { Disc3, ChevronDown, Trophy } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
 import { useBalanceStore } from '@/store/balance-store';
