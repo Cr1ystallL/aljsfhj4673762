@@ -4,8 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Power, CheckCircle, Trash2, Trophy, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Spinner, Empty } from '@/components/ui/feedback';
-
 interface TournamentParticipant {
   id: string;
   userId: string;
@@ -112,13 +110,19 @@ export default function AdminTournamentPage() {
         <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-whisper-gray text-[12px] hover:text-frost-white w-fit">
           <ArrowLeft size={14} /> Назад
         </button>
-        <Empty text="Турнир не найден" />
+        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
+          Турнир не найден
+        </div>
       </div>
     );
   }
 
   if (!data) {
-    return <Spinner />;
+    return (
+      <div className="rounded-card border border-white/10 bg-white/[0.03] py-10 flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -202,7 +206,9 @@ export default function AdminTournamentPage() {
           <span className="font-roobert text-[12px] uppercase tracking-wider">Участники текущего цикла ({data.participants.length})</span>
         </div>
         {data.participants.length === 0 ? (
-          <Empty text="Пока нет участников" />
+          <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
+            Пока нет участников
+          </div>
         ) : (
           <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
             <div className="grid grid-cols-[30px_1fr_100px_100px] gap-2 px-4 py-2 border-b border-white/10 text-[10px] text-whisper-gray uppercase tracking-wider">

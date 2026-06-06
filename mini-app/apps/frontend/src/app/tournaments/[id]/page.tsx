@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trophy, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Spinner, Empty } from '@/components/ui/feedback';
 
 interface LeaderboardUser {
   place: number;
@@ -40,9 +39,9 @@ function formatRemaining(ms: number): string {
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (d > 0) return \`\${d} д \${h} ч\`;
-  if (h > 0) return \`\${h} ч \${m} м \${s} с\`;
-  return \`\${m} м \${s} с\`;
+  if (d > 0) return `${d} д ${h} ч`;
+  if (h > 0) return `${h} ч ${m} м ${s} с`;
+  return `${m} м ${s} с`;
 }
 
 export default function TournamentPage() {
@@ -54,7 +53,7 @@ export default function TournamentPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(\`/api/tournaments/\${id}/leaderboard\`, { credentials: 'include' });
+      const res = await fetch(`/api/tournaments/${id}/leaderboard`, { credentials: 'include' });
       if (!res.ok) {
         setError(true);
         return;
@@ -73,7 +72,7 @@ export default function TournamentPage() {
   const onJoin = async () => {
     setBusy(true);
     try {
-      const res = await fetch(\`/api/tournaments/\${id}/join\`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(`/api/tournaments/${id}/join`, { method: 'POST', credentials: 'include' });
       if (res.ok) {
         await load();
       }
@@ -97,13 +96,19 @@ export default function TournamentPage() {
         <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-whisper-gray text-[12px] hover:text-frost-white w-fit">
           <ArrowLeft size={14} /> Назад
         </button>
-        <Empty text="Турнир не найден" />
+        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
+          Турнир не найден
+        </div>
       </div>
     );
   }
 
   if (!data) {
-    return <div className="p-10"><Spinner /></div>;
+    return (
+      <div className="p-10 flex items-center justify-center">
+        <div className="w-5 h-5 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+      </div>
+    );
   }
 
   const { tournament: t, leaderboard, self } = data;
@@ -124,7 +129,7 @@ export default function TournamentPage() {
             aria-hidden
             className="absolute inset-0 opacity-45"
             style={{
-              backgroundImage: \`url(\${t.bannerUrl})\`,
+              backgroundImage: `url(${t.bannerUrl})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
@@ -202,7 +207,9 @@ export default function TournamentPage() {
         )}
         
         {leaderboard.length === 0 ? (
-          <Empty text="Пока никто не участвует" />
+          <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
+            Пока никто не участвует
+          </div>
         ) : (
           <div className="flex flex-col gap-2">
             {leaderboard.map((user) => (
