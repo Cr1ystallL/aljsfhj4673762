@@ -182,6 +182,12 @@ export class BettingPipeline {
       const tournamentCtx = await findTournamentContext(bet.userId, gt);
 
       if (tournamentCtx) {
+        bet.metadata = {
+          ...(bet.metadata || {}),
+          tournamentId: tournamentCtx.tournament.id,
+          tournamentCycleId: tournamentCtx.cycle.id,
+        };
+
         await prisma.$transaction(async (tx) => {
           const userRows = await tx.$queryRaw<
             Array<{ is_blocked: boolean }>
@@ -211,11 +217,7 @@ export class BettingPipeline {
               amount,
               state: bet.state,
               placedAt: new Date(bet.placedAt),
-              metadata: {
-                ...(bet.metadata || {}),
-                tournamentId: tournamentCtx.tournament.id,
-                tournamentCycleId: tournamentCtx.cycle.id,
-              },
+              metadata: bet.metadata,
             },
           });
         });

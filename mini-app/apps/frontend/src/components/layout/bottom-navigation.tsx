@@ -25,15 +25,9 @@ const SWIPE_HORIZONTAL_TOLERANCE = 24;
 function CoinGlyph({ active }: { active: boolean }) {
   const stroke = active ? '#ffffff' : 'rgba(255,255,255,0.65)';
   return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none">
-      <circle cx="12" cy="12" r="9" stroke={stroke} strokeWidth="1.7" />
-      <circle cx="12" cy="12" r="5.5" stroke={stroke} strokeWidth="1.3" opacity="0.55" />
-      <path
-        d="M10 8.5v7M14 8.5v7"
-        stroke={stroke}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5l1.2 2.7 2.8.4-2 2 .5 2.9-2.5-1.5-2.5 1.5.5-2.9-2-2 2.8-.4L12 7.5z" />
     </svg>
   );
 }
