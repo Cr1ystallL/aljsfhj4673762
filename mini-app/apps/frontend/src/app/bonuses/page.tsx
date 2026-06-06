@@ -181,7 +181,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
         <div className="flex items-center gap-2">
           <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-            Турнир · {tournament.gameType}
+            Турнир · {tournament.gameType ? tournament.gameType.charAt(0).toUpperCase() + tournament.gameType.slice(1) : ''}
           </span>
         </div>
 
@@ -1258,8 +1258,6 @@ function ContestCard({
               : contest.visibility === 'private'
                 ? 'Приватный турнир'
                 : 'Глобальный турнир'}
-            {' · '}
-            {contest.gameType.charAt(0).toUpperCase() + contest.gameType.slice(1)}
           </span>
         </div>
 
