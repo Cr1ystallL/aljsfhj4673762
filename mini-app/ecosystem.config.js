@@ -47,9 +47,9 @@ module.exports = {
     {
       name: 'macvbet-frontend',
       cwd: '/var/www/MACVBET/mini-app/apps/frontend',
-      script: 'npm',
-      args: 'run start -- -p 3000',
-      interpreter: 'none',
+      script: 'node_modules/.bin/next',
+      args: 'start -p 3000',
+      interpreter: 'node',
 
       autorestart: true,
       watch: false,
@@ -59,8 +59,7 @@ module.exports = {
 
       env: {
         NODE_ENV: 'production',
-        PORT: '3000',
-        NODE_OPTIONS: '--max-old-space-size=200',
+        PORT: '3000'
       },
 
       out_file: '/var/log/macvbet-frontend.log',
