@@ -435,101 +435,91 @@ function Gem() {
   return (
     <motion.svg
       viewBox="0 0 80 80"
-      className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_4px_22px_rgba(160,224,171,0.45)]"
-      animate={{ rotate: [-3, 3, -3] }}
-      transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+      className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_8px_24px_rgba(255,172,46,0.35)]"
+      animate={{ rotate: [-2, 2, -2], y: [-2, 2, -2] }}
+      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
     >
       <defs>
-        {/* Brilliant-cut diamond gradient: white-to-icy-blue with
-            a green-tinted bottom that hints at our brand palette. */}
-        <linearGradient id="diaCrown" x1="0" y1="0" x2="0" y2="1">
+        {/* Modern, vibrant gradients matching the promo banner */}
+        <linearGradient id="facetCrownCenter" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="55%" stopColor="#dff7ff" />
-          <stop offset="100%" stopColor="#9ec7d6" />
+          <stop offset="100%" stopColor="#fff1d6" />
         </linearGradient>
-        <linearGradient id="diaPavilion" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#9ec7d6" />
-          <stop offset="55%" stopColor="#7da7c0" />
-          <stop offset="100%" stopColor="#3b6478" />
+        <linearGradient id="facetCrownLeft" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#e3fff0" />
+          <stop offset="100%" stopColor="#a0e0ab" />
         </linearGradient>
-        <linearGradient id="diaTable" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#cdeaf6" />
+        <linearGradient id="facetCrownRight" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ffe6ba" />
+          <stop offset="100%" stopColor="#ffac2e" />
         </linearGradient>
+        
+        <linearGradient id="facetPavLeft" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#75cc84" />
+          <stop offset="100%" stopColor="#2c7038" />
+        </linearGradient>
+        <linearGradient id="facetPavCenter" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffc46b" />
+          <stop offset="100%" stopColor="#c46200" />
+        </linearGradient>
+        <linearGradient id="facetPavRight" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ff9a14" />
+          <stop offset="100%" stopColor="#8a2f00" />
+        </linearGradient>
+
         <radialGradient id="diaSparkle" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-          <stop offset="60%" stopColor="rgba(255,255,255,0.4)" />
+          <stop offset="50%" stopColor="rgba(255,255,255,0.5)" />
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </radialGradient>
       </defs>
 
-      {/* Pavilion (lower V) */}
-      <polygon
-        points="14,28 66,28 40,72"
-        fill="url(#diaPavilion)"
-        stroke="rgba(0,0,0,0.45)"
-        strokeWidth="1"
-      />
-      {/* Crown (upper trapezoid) */}
-      <polygon
-        points="14,28 66,28 56,12 24,12"
-        fill="url(#diaCrown)"
-        stroke="rgba(0,0,0,0.45)"
-        strokeWidth="1"
-      />
-      {/* Table (centre flat) */}
-      <polygon
-        points="24,12 56,12 50,20 30,20"
-        fill="url(#diaTable)"
-        stroke="rgba(0,0,0,0.30)"
-        strokeWidth="0.8"
+      {/* Main Facets */}
+      <polygon points="10,28 32,28 40,72" fill="url(#facetPavLeft)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" strokeLinejoin="round" />
+      <polygon points="32,28 48,28 40,72" fill="url(#facetPavCenter)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" strokeLinejoin="round" />
+      <polygon points="48,28 70,28 40,72" fill="url(#facetPavRight)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" strokeLinejoin="round" />
+
+      <polygon points="10,28 32,28 24,14" fill="url(#facetCrownLeft)" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" strokeLinejoin="round" />
+      <polygon points="70,28 48,28 56,14" fill="url(#facetCrownRight)" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" strokeLinejoin="round" />
+      <polygon points="24,14 56,14 48,28 32,28" fill="url(#facetCrownCenter)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" strokeLinejoin="round" />
+
+      {/* Girdle Line */}
+      <line x1="10" y1="28" x2="70" y2="28" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+      <line x1="24" y1="14" x2="56" y2="14" stroke="rgba(255,255,255,0.8)" strokeWidth="1.2" />
+
+      {/* Surface Glint */}
+      <motion.polygon
+        points="26,15 40,15 36,26 26,26"
+        fill="rgba(255,255,255,0.6)"
+        style={{ mixBlendMode: 'overlay' }}
+        animate={{ opacity: [0.1, 0.7, 0.1] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Facet seams */}
-      <line x1="14" y1="28" x2="40" y2="72" stroke="rgba(0,0,0,0.30)" strokeWidth="0.7" />
-      <line x1="66" y1="28" x2="40" y2="72" stroke="rgba(0,0,0,0.30)" strokeWidth="0.7" />
-      <line x1="24" y1="12" x2="14" y2="28" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
-      <line x1="56" y1="12" x2="66" y2="28" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
-      <line x1="30" y1="20" x2="14" y2="28" stroke="rgba(0,0,0,0.20)" strokeWidth="0.5" />
-      <line x1="50" y1="20" x2="66" y2="28" stroke="rgba(0,0,0,0.20)" strokeWidth="0.5" />
-      <line x1="40" y1="20" x2="40" y2="72" stroke="rgba(0,0,0,0.20)" strokeWidth="0.5" />
-      <line x1="14" y1="28" x2="66" y2="28" stroke="rgba(0,0,0,0.30)" strokeWidth="0.6" />
-
-      {/* Animated sparkles — three white-to-transparent dots that
-          fade in and out at staggered intervals so the diamond reads
-          as actually catching light. */}
+      {/* Sparkles */}
       <motion.circle
-        cx="32"
-        cy="16"
-        r="2.5"
+        cx="26"
+        cy="18"
+        r="3"
         fill="url(#diaSparkle)"
-        animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
+        animate={{ opacity: [0, 1, 0], scale: [0.5, 1.4, 0.5], rotate: [0, 90, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.circle
-        cx="48"
+        cx="58"
         cy="32"
-        r="1.8"
+        r="2"
         fill="url(#diaSparkle)"
-        animate={{ opacity: [0, 1, 0], scale: [0.4, 1.1, 0.4] }}
-        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.7 }}
+        animate={{ opacity: [0, 1, 0], scale: [0.4, 1.2, 0.4] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
       />
       <motion.circle
         cx="40"
-        cy="50"
-        r="1.4"
+        cy="56"
+        r="1.5"
         fill="url(#diaSparkle)"
-        animate={{ opacity: [0, 0.9, 0], scale: [0.3, 1, 0.3] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 1.4 }}
-      />
-
-      {/* Table-top hot highlight — a small swooshing glint along the
-          flat top of the diamond. */}
-      <motion.polygon
-        points="32,14 38,13 36,18 30,18"
-        fill="rgba(255,255,255,0.85)"
-        animate={{ opacity: [0.2, 0.95, 0.2] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0, 0.8, 0], scale: [0.3, 1, 0.3] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
       />
     </motion.svg>
   );
@@ -1198,7 +1188,7 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
     <section id="contests" className="flex flex-col gap-3 scroll-mt-4">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-          Турниры
+          Конкурсы
         </span>
         <span className="font-roobert text-[11px] text-whisper-gray">
           {list?.length ?? 0}
@@ -1211,7 +1201,7 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
         </div>
       ) : list.length === 0 ? (
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-          Сейчас турниров нет. Загляните позже.
+          Сейчас конкурсов нет. Загляните позже.
         </div>
       ) : (
         list.map((c) => (
@@ -1246,8 +1236,7 @@ function ContestCard({
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      onClick={() => router.push(`/tournaments/${contest.id}`)}
-      className="relative overflow-hidden rounded-card border border-white/10 cursor-pointer hover:border-white/20 transition-colors group"
+      className="relative overflow-hidden rounded-card border border-white/10 hover:border-white/20 transition-colors group"
     >
       {/* Banner art (admin-uploaded) — falls back to the gradient wash */}
       {contest.bannerUrl ? (
@@ -1282,10 +1271,10 @@ function ContestCard({
           <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray group-hover:text-frost-white transition-colors">
             {contest.visibility === 'public'
-              ? 'Публичный турнир'
+              ? 'Публичный конкурс'
               : contest.visibility === 'private'
-                ? 'Приватный турнир'
-                : 'Глобальный турнир'}
+                ? 'Приватный конкурс'
+                : 'Глобальный конкурс'}
           </span>
         </div>
 
