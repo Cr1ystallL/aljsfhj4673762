@@ -23,6 +23,7 @@ interface TournamentDetails {
   prizeMode: 'percent' | 'fixed';
   winnersCount: number;
   fixedPrize: number | null;
+  wagerMultiplier: number;
   startBalance: number;
   entryFee: number;
   startAtGmt1: string;
@@ -40,7 +41,7 @@ export default function AdminTournamentPage() {
   const router = useRouter();
   const [data, setData] = useState<TournamentDetails | null>(null);
   const [error, setError] = useState(false);
-  const [actionBusy, setActionBusy] = useState<'start' | 'end' | 'delete' | null>(null);
+  const [actionBusy, setActionBusy] = useState<'start' | 'end' | 'delete' | 'wager' | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +88,27 @@ export default function AdminTournamentPage() {
       if (res.ok) {
         router.push('/system/console/bonuses?tab=tournaments');
       }
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const editWager = async () => {
+    if (!data) return;
+    const val = prompt('Введите новый вейджер (множитель, 0 = без отыгрыша):', String(data.wagerMultiplier));
+    if (val === null) return;
+    const num = parseInt(val, 10);
+    if (!Number.isFinite(num) || num < 0) return;
+
+    setActionBusy('wager');
+    try {
+      await fetch(`/api/_x/tournaments/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wagerMultiplier: num }),
+      });
+      await load();
     } finally {
       setActionBusy(null);
     }
@@ -153,7 +175,14 @@ export default function AdminTournamentPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-3 border-y border-white/10 mt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 py-3 border-y border-white/10 mt-2">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-whisper-gray uppercase tracking-wider">Вейджер</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] text-frost-white tabular-nums">{data.wagerMultiplier > 0 ? `x${data.wagerMultiplier}` : 'Без вейджера'}</span>
+              <button onClick={editWager} disabled={actionBusy === 'wager'} className="text-[10px] text-whisper-gray hover:text-frost-white underline">изм.</button>
+            </div>
+          </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] text-whisper-gray uppercase tracking-wider">Тип</span>
             <span className="text-[12px] text-frost-white tabular-nums">{data.entryFee > 0 ? `Взнос ${data.entryFee} zł` : 'Бесплатно'}</span>

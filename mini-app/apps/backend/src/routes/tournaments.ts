@@ -151,6 +151,7 @@ async function payoutCycle(t: any, cycle: any) {
         tournamentId: t.id,
         cycleId: cycle.id,
         place: idx + 1,
+        wagerMultiplier: t.wagerMultiplier ?? 0,
         reason: 'payout',
       });
       winnerIds.push(p.userId);
@@ -195,6 +196,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           ...t,
           prizePool: toNumber(t.prizePool),
           fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
+          wagerMultiplier: t.wagerMultiplier ?? 0,
           startBalance: toNumber(t.startBalance),
           entryFee: toNumber(t.entryFee),
           startsAt: cycle.startsAt.getTime(),
@@ -223,6 +225,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       ...t,
       prizePool: toNumber(t.prizePool),
       fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
+      wagerMultiplier: t.wagerMultiplier ?? 0,
       startBalance: toNumber(t.startBalance),
       entryFee: toNumber(t.entryFee),
       startsAt: cycle.startsAt.getTime(),
@@ -250,6 +253,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       prizeMode?: PrizeMode;
       winnersCount?: number;
       fixedPrize?: number | null;
+      wagerMultiplier?: number;
       startBalance?: number;
       entryFee?: number;
       startAtGmt1?: number;
@@ -269,6 +273,8 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     const repeatType = b.repeatType === 'once' ? 'once' : 'daily';
     const prizeMode: PrizeMode = b.prizeMode === 'fixed' ? 'fixed' : 'percent';
     const fixedPrize = prizeMode === 'fixed' ? Number(b.fixedPrize ?? 0) : null;
+    const rawWager = Number(b.wagerMultiplier);
+    const wagerMultiplier = Number.isFinite(rawWager) && rawWager > 0 ? Math.floor(rawWager) : 0;
     const normalizedPrizePool =
       prizeMode === 'fixed' && fixedPrize !== null ? fixedPrize * winnersCount : prizePool;
 
@@ -292,6 +298,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         prizeMode,
         winnersCount,
         fixedPrize,
+        wagerMultiplier,
         startBalance,
         entryFee,
         startAtGmt1: new Date(startAtGmt1),
@@ -304,7 +311,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, id: t.id });
   });
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; startBalance: number; entryFee: number; startAtGmt1: number; durationHours: number; repeatType: string; active: boolean }> }>(
+  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; wagerMultiplier: number; startBalance: number; entryFee: number; startAtGmt1: number; durationHours: number; repeatType: string; active: boolean }> }>(
     '/_x/tournaments/:id',
     { preHandler: adminOnly },
     async (request, reply) => {
@@ -332,6 +339,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           prizeMode: nextPrizeMode,
           winnersCount: nextWinners,
           fixedPrize: nextPrizeMode === 'fixed' ? nextFixedPrize : null,
+          wagerMultiplier: Number.isFinite(b.wagerMultiplier) && b.wagerMultiplier! >= 0 ? Math.floor(Number(b.wagerMultiplier)) : t.wagerMultiplier,
           startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
           entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
           startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1,

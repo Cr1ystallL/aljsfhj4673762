@@ -97,6 +97,7 @@ interface TournamentRow {
   prizeMode: 'percent' | 'fixed';
   winnersCount: number;
   fixedPrize: number | null;
+  wagerMultiplier: number;
   startBalance: number;
   entryFee: number;
   startAtGmt1: number;
@@ -232,6 +233,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
   const [prizeMode, setPrizeMode] = useState<'percent' | 'fixed'>('percent');
   const [winnersCount, setWinnersCount] = useState(10);
   const [fixedPrize, setFixedPrize] = useState(50);
+  const [wagerMultiplier, setWagerMultiplier] = useState(0);
   const [startBalance, setStartBalance] = useState(200);
   const [feeType, setFeeType] = useState<'free' | 'fee'>('free');
   const [entryFee, setEntryFee] = useState(0);
@@ -266,6 +268,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           prizeMode,
           winnersCount: Number(winnersCount),
           fixedPrize: prizeMode === 'fixed' ? Number(fixedPrize) : null,
+          wagerMultiplier: Number(wagerMultiplier),
           startBalance: Number(startBalance),
           entryFee: feeType === 'fee' ? Number(entryFee) : 0,
           startAtGmt1: new Date(startAt).getTime(),
@@ -351,6 +354,9 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
             </Field>
           </>
         )}
+        <Field label="Вейджер (множитель отыгрыша, 0 = без вейджера)">
+          <NumInput value={wagerMultiplier} onChange={setWagerMultiplier} step={1} />
+        </Field>
         <Field label="Стартовый турнирный баланс">
           <NumInput value={startBalance} onChange={setStartBalance} step={10} />
         </Field>

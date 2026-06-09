@@ -312,23 +312,24 @@ model ContestParticipant {
 /// Tournament definition with daily 10h cycles. startAtGmt1 is the
 /// first cycle start in GMT+1; each following cycle starts +24h.
 model Tournament {
-  id            String   @id @default(uuid())
-  title         String
-  description   String?  @db.Text
-  bannerUrl     String?  @map("banner_url")
-  gameType      String   @map("game_type")
-  prizePool     Decimal  @map("prize_pool") @db.Decimal(20, 2)
-  prizeMode     String   @map("prize_mode") // 'percent' | 'fixed'
-  winnersCount  Int      @map("winners_count")
-  fixedPrize    Decimal? @map("fixed_prize") @db.Decimal(20, 2)
-  startBalance  Decimal  @map("start_balance") @db.Decimal(20, 2)
-  entryFee      Decimal  @map("entry_fee") @db.Decimal(20, 2)
-  startAtGmt1   DateTime @map("start_at_gmt1")
-  durationHours Int      @map("duration_hours")
-  repeatType    String   @default("daily") @map("repeat_type")
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  title           String
+  description     String?  @db.Text
+  bannerUrl       String?  @map("banner_url")
+  gameType        String   @map("game_type")
+  prizePool       Decimal  @map("prize_pool") @db.Decimal(20, 2)
+  prizeMode       String   @map("prize_mode") // 'percent' | 'fixed'
+  winnersCount    Int      @map("winners_count")
+  fixedPrize      Decimal? @map("fixed_prize") @db.Decimal(20, 2)
+  wagerMultiplier Int      @default(0) @map("wager_multiplier")
+  startBalance    Decimal  @map("start_balance") @db.Decimal(20, 2)
+  entryFee        Decimal  @map("entry_fee") @db.Decimal(20, 2)
+  startAtGmt1     DateTime @map("start_at_gmt1")
+  durationHours   Int      @map("duration_hours")
+  repeatType      String   @default("daily") @map("repeat_type")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   cycles TournamentCycle[]
 
