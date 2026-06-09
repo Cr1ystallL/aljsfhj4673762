@@ -325,25 +325,26 @@ export function HomeScreen() {
         {/* Section caption — Bot games */}
         <SectionLabel right={`${botGames.length}`}>Игры в боте</SectionLabel>
 
-        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
           {botGames.map((g) => (
             <button
               key={g.id}
               onClick={() =>
                 openTelegram(`https://t.me/${BOT_USERNAME}?start=${g.command}`)
               }
-              className="group relative aspect-square overflow-hidden rounded-card border border-white/10 bg-midnight-canvas active:scale-[0.97] transition-all"
+              className="group relative aspect-square overflow-hidden rounded-card border border-white/5 bg-white/[0.02] shadow-[0_4px_20px_rgba(0,0,0,0.15)] active:scale-[0.96] transition-all hover:border-white/15"
             >
               {/* Background art per game (Cyrillic filenames URL-encoded). */}
               {g.bg && (
                 <div
                   aria-hidden
-                  className="absolute inset-0 opacity-60 group-active:opacity-75 transition-opacity"
+                  className="absolute inset-0 opacity-40 group-hover:opacity-60 group-active:opacity-70 transition-opacity duration-300"
                   style={{
                     backgroundImage: `url(${g.bg})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     backgroundRepeat: 'no-repeat',
+                    filter: 'saturate(1.2)',
                   }}
                 />
               )}
@@ -352,20 +353,21 @@ export function HomeScreen() {
                 className="absolute inset-0"
                 style={{
                   background:
-                    'linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.55) 100%)',
+                    'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.7) 100%)',
                 }}
               />
-              <div className="relative h-full w-full flex flex-col items-center justify-center gap-1.5">
+              <div className="relative h-full w-full flex flex-col items-center justify-center gap-2 pt-1">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white/5 blur-xl rounded-full group-hover:bg-white/10 transition-colors" />
                 <g.Icon
-                  size={22}
+                  size={24}
                   strokeWidth={1.5}
-                  className="text-frost-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                  className="text-frost-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] group-hover:-translate-y-0.5 group-hover:scale-105 transition-transform duration-300"
                 />
-                <span className="font-roobert text-[11px] text-frost-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                <span className="font-roobert text-[11px] font-medium tracking-wide text-frost-white/95 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                   {g.label}
                 </span>
-                <span className="absolute top-1.5 right-1.5 text-frost-white/55">
-                  <Send size={9} strokeWidth={1.8} />
+                <span className="absolute top-2 right-2 text-white/30 group-hover:text-white/60 transition-colors">
+                  <Send size={10} strokeWidth={2} />
                 </span>
               </div>
             </button>

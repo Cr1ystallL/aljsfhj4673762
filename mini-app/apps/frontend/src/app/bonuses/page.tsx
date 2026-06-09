@@ -714,9 +714,13 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       </div>
 
       {/* Wheel canvas */}
-      <div className="relative px-3 pb-1 pt-2">
+      <div className="relative px-3 pb-1 pt-6">
+        {/* Glow / Aura effect behind the wheel */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[280px] rounded-full bg-[rgba(255,172,46,0.15)] blur-[40px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full bg-[rgba(160,224,171,0.1)] blur-[30px] pointer-events-none" />
+        
         <div
-          className="relative w-full max-w-[340px] mx-auto"
+          className="relative w-full max-w-[340px] mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02] duration-500"
           style={{ aspectRatio: '1 / 1' }}
         >
           <FullWheelCanvas
