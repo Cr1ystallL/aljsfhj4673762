@@ -1,4 +1,4 @@
-import { prisma } from './prisma.js';
+import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { telegramApi } from '../lib/telegram-api.js';
 
