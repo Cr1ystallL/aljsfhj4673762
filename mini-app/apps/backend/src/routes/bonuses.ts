@@ -426,14 +426,13 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           starts_at: Date;
           ends_at: Date;
           state: string;
-          banner_url: string | null;
           joined: boolean;
           participant_count: bigint;
         }>
       >`
         SELECT c.id, c.title, c.description, c.visibility,
                c.prize_pool::text, c.winners_count, c.prize_shares,
-               c.rules, c.starts_at, c.ends_at, c.state, c.banner_url,
+               c.rules, c.starts_at, c.ends_at, c.state,
                EXISTS (
                  SELECT 1 FROM contest_participants p
                   WHERE p.contest_id = c.id AND p.user_id = ${userId}
@@ -467,7 +466,6 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           startsAt: r.starts_at.getTime(),
           endsAt: r.ends_at.getTime(),
           state: r.state,
-          bannerUrl: r.banner_url,
           joined: !!r.joined,
           participantCount: Number(r.participant_count),
         })),
