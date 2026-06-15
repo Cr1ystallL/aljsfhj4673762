@@ -4007,7 +4007,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             users: records.map((r, index) => ({
               id: r.user.id,
               telegramId: Number(r.user.telegramId),
-              name: r.user.firstName || r.user.username || \`id${r.user.telegramId.toString().slice(-4)}\`,
+              name: r.user.firstName || r.user.username || `id${r.user.telegramId.toString().slice(-4)}`,
               isBlocked: r.user.isBlocked,
               withdrawalLocked: r.user.withdrawalLocked,
               createdAt: r.user.createdAt.getTime(),
