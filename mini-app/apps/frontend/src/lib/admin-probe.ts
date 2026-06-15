@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuthStore } from '../store/auth-store';
 
 /**
  * Admin discoverability probe.
@@ -30,14 +31,17 @@ async function probe(): Promise<boolean> {
         cache: 'no-store',
       });
       if (!res.ok) {
-        cached = false;
+        // Do not cache false permanently, because it might be a temporary
+        // unauthenticated state before the token is fully set.
         return false;
       }
       const json = await res.json().catch(() => null);
-      cached = json?.ok === true;
-      return cached;
+      if (json?.ok === true) {
+        cached = true;
+        return true;
+      }
+      return false;
     } catch {
-      cached = false;
       return false;
     } finally {
       inflight = null;
@@ -48,15 +52,27 @@ async function probe(): Promise<boolean> {
 
 export function useIsAdmin(): boolean {
   const [isAdmin, setIsAdmin] = useState<boolean>(cached ?? false);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  
   useEffect(() => {
+    if (!isAuthenticated) return;
+    
     let cancelled = false;
-    void probe().then((v) => {
-      if (!cancelled) setIsAdmin(v);
-    });
+
+    const doProbe = async () => {
+      const v = await probe();
+      if (!cancelled) {
+        setIsAdmin(v);
+      }
+    };
+    
+    void doProbe();
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
+
   return isAdmin;
 }
 
