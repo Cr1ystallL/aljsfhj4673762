@@ -644,7 +644,7 @@ export class CrashGameEngine extends BaseGameEngine {
     bet.multiplier = multiplier;
     bet.payout = cashoutAmount;
 
-    await bettingPipeline.processCashout(bet, cashoutAmount, multiplier, demoMode);
+    await bettingPipeline.processCashout(bet, cashoutAmount, multiplier, demoMode, multiplier >= 1.10);
 
     this.emitEvent('player:cashout', {
       userId,

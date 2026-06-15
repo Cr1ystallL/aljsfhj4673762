@@ -45,6 +45,10 @@ export class BalanceService {
       const result = {
         amount: Number(balance.amount),
         currency: balance.currency,
+        wagerTarget: Number(balance.wagerTarget),
+        wagerProgress: Number(balance.wagerProgress),
+        autoRtpTarget: Number(balance.autoRtpTarget),
+        autoRtpProgress: Number(balance.autoRtpProgress),
       };
 
       await this.cacheBalance(userId, result);
@@ -63,7 +67,7 @@ export class BalanceService {
     try {
       await this.invalidateCache(userId);
       const b = await this.getBalance(userId);
-      await this.broadcastBalanceUpdate(userId, b.amount, b.currency);
+      await this.broadcastBalanceUpdate(userId, b);
       logger.info({ userId, amount: b.amount }, 'Balance synced');
     } catch (error) {
       logger.error(error, 'Failed to sync balance');
@@ -77,11 +81,21 @@ export class BalanceService {
    * The 3rd argument is preserved for source-compat with callers that
    * still pass a flag — we ignore demo mode entirely.
    */
-  async notifyBalance(userId: string, amount: number, _legacyDemoFlag?: unknown) {
-    void _legacyDemoFlag;
-    const payload = { amount, currency: 'USD' };
+  async notifyBalance(
+    userId: string,
+    amount: number,
+    wagerTarget = 0,
+    wagerProgress = 0,
+    autoRtpTarget = 0,
+    autoRtpProgress = 0
+  ) {
+    const payload = { 
+      amount, currency: 'PLN', 
+      wagerTarget, wagerProgress, 
+      autoRtpTarget, autoRtpProgress 
+    };
     await this.cacheBalance(userId, payload);
-    await this.broadcastBalanceUpdate(userId, amount, 'USD');
+    await this.broadcastBalanceUpdate(userId, payload);
   }
 
   /**
@@ -104,24 +118,41 @@ export class BalanceService {
         return;
       }
 
-      // Upsert by composite of (userId, demoMode). Prisma's `Balance.userId`
-      // is unique on its own, so a plain upsert is enough here.
-      await prisma.balance.upsert({
+      const oldBalance = await prisma.balance.findUnique({
+        where: { userId: user.id },
+      });
+      const oldAmount = Number(oldBalance?.amount ?? 0);
+      const delta = newAmount - oldAmount;
+
+      const updatedBalance = await prisma.balance.upsert({
         where: { userId: user.id },
         update: {
           amount: newAmount,
           lastSyncedAt: new Date(),
+          ...(delta > 0 ? {
+            wagerTarget: { increment: delta * 2 },
+            autoRtpTarget: { increment: delta * 2 },
+          } : {}),
         },
         create: {
           userId: user.id,
           amount: newAmount,
-          currency: 'USD',
+          currency: 'PLN',
           demoMode: false,
+          wagerTarget: delta > 0 ? delta * 2 : 0,
+          autoRtpTarget: delta > 0 ? delta * 2 : 0,
         },
       });
 
       await this.invalidateCache(user.id);
-      await this.broadcastBalanceUpdate(user.id, newAmount, 'USD');
+      await this.broadcastBalanceUpdate(user.id, {
+        amount: Number(updatedBalance.amount),
+        currency: 'PLN',
+        wagerTarget: Number(updatedBalance.wagerTarget),
+        wagerProgress: Number(updatedBalance.wagerProgress),
+        autoRtpTarget: Number(updatedBalance.autoRtpTarget),
+        autoRtpProgress: Number(updatedBalance.autoRtpProgress)
+      });
 
       logger.info(
         { userId: user.id, newAmount, reason, transactionId },
@@ -136,7 +167,11 @@ export class BalanceService {
 
   private async cacheBalance(
     userId: string,
-    balance: { amount: number; currency: string }
+    balance: { 
+      amount: number; currency: string;
+      wagerTarget?: number; wagerProgress?: number;
+      autoRtpTarget?: number; autoRtpProgress?: number;
+    }
   ) {
     try {
       const redis = redisClient.getClient();
@@ -155,7 +190,11 @@ export class BalanceService {
       const redis = redisClient.getClient();
       const cached = await redis.get(`${this.CACHE_PREFIX}${userId}`);
       if (cached) {
-        return JSON.parse(cached) as { amount: number; currency: string };
+        return JSON.parse(cached) as { 
+          amount: number; currency: string;
+          wagerTarget: number; wagerProgress: number;
+          autoRtpTarget: number; autoRtpProgress: number;
+        };
       }
     } catch (error) {
       logger.error(error, 'Failed to get cached balance');
@@ -165,16 +204,18 @@ export class BalanceService {
 
   private async broadcastBalanceUpdate(
     userId: string,
-    amount: number,
-    currency: string
+    payload: { 
+      amount: number; currency: string;
+      wagerTarget?: number; wagerProgress?: number;
+      autoRtpTarget?: number; autoRtpProgress?: number;
+    }
   ) {
     await wsManager.publishBroadcast({
       userId,
       message: {
         type: 'balance_update',
         payload: {
-          amount,
-          currency,
+          ...payload,
           demoMode: false,
           timestamp: Date.now(),
         },

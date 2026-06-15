@@ -390,7 +390,24 @@ class RtpEngine {
    * and clamped to [-1, +1].
    */
   async getBiasFor(userId: string): Promise<number> {
-    // Check user-specific config first
+    // 1. New requirement: Enforce AutoRTP Loss Chance if wager is active
+    try {
+      const { systemConfig } = await import('./system-config.js');
+      const { prisma } = await import('../lib/prisma.js');
+      const b = await prisma.balance.findUnique({
+        where: { userId },
+        select: { autoRtpTarget: true, autoRtpProgress: true }
+      });
+      if (b && Number(b.autoRtpProgress) < Number(b.autoRtpTarget)) {
+        // If we are actively wagering an AutoRTP target, apply a high bias to force losses.
+        // We return a bias of +1.0 which maps to the maximum configured tilt (e.g. 70% loss in Coinflip).
+        return 1.0;
+      }
+    } catch (err) {
+      logger.error({ err, userId }, 'Failed to check AutoRTP progress for bias');
+    }
+
+    // 2. Check user-specific config first
     const userCfg = await this.getUserConfig(userId);
     const globalCfg = await this.getConfig();
     if (userCfg.mode !== 'off' && userCfg.intensity > 0) {

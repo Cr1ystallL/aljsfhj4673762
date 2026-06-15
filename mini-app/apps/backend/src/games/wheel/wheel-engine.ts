@@ -388,9 +388,23 @@ class WheelEngine extends EventEmitter {
     const round = this.round;
     this.phase = 'completed';
 
+    // Calculate coverage for each user to determine wagerQualifying
+    const userCoverage = new Map<string, number>();
+    for (const b of round.bets.values()) {
+      let segments = 0;
+      switch (b.pick) {
+        case 2: segments = 26; break;
+        case 3: segments = 17; break;
+        case 5: segments = 10; break;
+        case 30: segments = 1; break;
+      }
+      userCoverage.set(b.userId, (userCoverage.get(b.userId) || 0) + segments);
+    }
+
     // Settle all bets.
     const winners: Array<{ userId: string; pick: WheelMultiplier; amount: number; payout: number }> = [];
     for (const b of round.bets.values()) {
+      const wagerQualifying = (userCoverage.get(b.userId) || 0) <= 37; // >70% of 54 is >37.8
       const bet: Bet = {
         id: b.betId,
         userId: b.userId,
@@ -411,12 +425,12 @@ class WheelEngine extends EventEmitter {
           const payout = +(b.amount * b.pick).toFixed(2);
           bet.multiplier = b.pick;
           bet.payout = payout;
-          await bettingPipeline.processPayout(bet, payout, false);
+          await bettingPipeline.processPayout(bet, payout, false, wagerQualifying);
           winners.push({ userId: b.userId, pick: b.pick, amount: b.amount, payout });
         } else {
           bet.payout = 0;
           bet.multiplier = 0;
-          await bettingPipeline.processLoss(bet);
+          await bettingPipeline.processLoss(bet, false, wagerQualifying);
         }
       } catch (err) {
         logger.error(err, 'wheel settle failed');

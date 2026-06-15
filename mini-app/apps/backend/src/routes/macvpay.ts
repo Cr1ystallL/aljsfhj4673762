@@ -399,29 +399,40 @@ async function creditDeposit(
     const creditAmount = payload.paid;
     const userId = order.user_id;
 
-    // Credit the balance.
-    const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
+    // Credit the balance and update wager/RTP targets
+    const balanceRows = await tx.$queryRaw<Array<{ amount: string, wager_target: string, wager_progress: string, auto_rtp_target: string, auto_rtp_progress: string }>>`
       UPDATE balances
       SET amount = amount + ${creditAmount}::numeric,
+          wager_target = wager_target + (${creditAmount} * 2)::numeric,
+          auto_rtp_target = auto_rtp_target + (${creditAmount} * 2)::numeric,
           updated_at = NOW(),
           last_synced_at = NOW(),
           version = version + 1
       WHERE user_id = ${userId}
         AND demo_mode = false
-      RETURNING amount
+      RETURNING amount, wager_target, wager_progress, auto_rtp_target, auto_rtp_progress
     `;
 
     let afterAmount: number;
+    let wTarget = 0, wProg = 0, rTarget = 0, rProg = 0;
     if (balanceRows.length === 0) {
       // No balance row yet — create one.
-      const created = await tx.$queryRaw<Array<{ amount: string }>>`
-        INSERT INTO balances (id, user_id, amount, currency, demo_mode, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, NOW(), NOW())
-        RETURNING amount
+      const created = await tx.$queryRaw<Array<{ amount: string, wager_target: string, wager_progress: string, auto_rtp_target: string, auto_rtp_progress: string }>>`
+        INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
+        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, (${creditAmount} * 2)::numeric, (${creditAmount} * 2)::numeric, NOW(), NOW())
+        RETURNING amount, wager_target, wager_progress, auto_rtp_target, auto_rtp_progress
       `;
       afterAmount = Number(created[0]?.amount ?? creditAmount);
+      wTarget = Number(created[0]?.wager_target ?? 0);
+      wProg = Number(created[0]?.wager_progress ?? 0);
+      rTarget = Number(created[0]?.auto_rtp_target ?? 0);
+      rProg = Number(created[0]?.auto_rtp_progress ?? 0);
     } else {
       afterAmount = Number(balanceRows[0].amount);
+      wTarget = Number(balanceRows[0].wager_target ?? 0);
+      wProg = Number(balanceRows[0].wager_progress ?? 0);
+      rTarget = Number(balanceRows[0].auto_rtp_target ?? 0);
+      rProg = Number(balanceRows[0].auto_rtp_progress ?? 0);
     }
 
     const beforeAmount = afterAmount - creditAmount;
@@ -464,7 +475,7 @@ async function creditDeposit(
 
     // Notify the balance store so the frontend updates in real-time.
     await balanceService.invalidateCache(userId);
-    await balanceService.notifyBalance(userId, afterAmount, false);
+    await balanceService.notifyBalance(userId, afterAmount, wTarget, wProg, rTarget, rProg);
 
     // Auto-RTP hook: earn target = 80% от депозита, окно 6h, intensity 0.6
     try {

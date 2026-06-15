@@ -76,6 +76,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           request.headers['user-agent']
         );
 
+        // Security / Multi-account IP analysis (non-blocking)
+        import('../services/security-service.js').then(({ securityService }) => {
+          securityService.analyzeIpLogin(user.id, Number(user.telegramId), request.ip).catch(err => {
+            logger.error({ err }, 'Security service async failure');
+          });
+        });
+
         // Generate tokens
         const accessToken = jwtManager.generateAccessToken(
           user.id,
@@ -155,6 +162,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           request.ip,
           request.headers['user-agent']
         );
+
+        // Security / Multi-account IP analysis
+        import('../services/security-service.js').then(({ securityService }) => {
+          securityService.analyzeIpLogin(user.id, Number(user.telegramId), request.ip).catch(err => {
+            logger.error({ err }, 'Security service async failure');
+          });
+        });
 
         // Generate tokens
         const accessToken = jwtManager.generateAccessToken(

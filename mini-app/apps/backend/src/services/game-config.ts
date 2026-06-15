@@ -39,6 +39,11 @@ export interface GameConfig {
    * depending on the game.
    */
   houseEdge: number;
+  /**
+   * Contribution to wager progress (0.0 to 1.0).
+   * E.g. 0.3 means a 100 PLN bet counts as 30 PLN towards wager.
+   */
+  wagerContribution: number;
   /** Game-specific extras — kept loose so we don't need a migration to
    *  add a new field for one game. */
   extras?: Record<string, unknown>;
@@ -52,6 +57,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
+    wagerContribution: 1.0,
     extras: {
       waitingPhaseSeconds: 15,
       countdownSeconds: 0,
@@ -63,6 +69,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
+    wagerContribution: 0.3, // Mines default to 30% contribution
     extras: {
       minMines: 1,
       maxMines: 24,
@@ -75,6 +82,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
+    wagerContribution: 0.5, // Plinko default to 50%
     extras: {
       maxPayout: 1_000_000,
     },
@@ -85,6 +93,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.03,
+    wagerContribution: 1.0,
     extras: {
       stepMultiplier: 1.94,
       maxRounds: 20,
@@ -96,6 +105,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.0, // baked into the slot distribution
+    wagerContribution: 1.0,
     extras: {
       waitingPhaseSeconds: 9,
     },
@@ -106,6 +116,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
+    wagerContribution: 1.0,
     extras: {
       // 5 rows × 4 cells, broken cells per row by difficulty.
       rows: 5,
@@ -118,6 +129,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 10000,
     houseEdge: 0.01,
+    wagerContribution: 1.0,
     extras: {},
   },
 };
@@ -187,6 +199,8 @@ class GameConfigService {
     if (next.maxBet < next.minBet) next.maxBet = next.minBet;
     if (next.houseEdge < 0) next.houseEdge = 0;
     if (next.houseEdge > 0.5) next.houseEdge = 0.5;
+    if (next.wagerContribution < 0) next.wagerContribution = 0;
+    if (next.wagerContribution > 1) next.wagerContribution = 1;
 
     try {
       await redisClient

@@ -164,7 +164,7 @@ export class BettingPipeline {
     // Honour admin-controlled limits and pause flag. The engine knows
     // its game-type from `bet.gameId` (e.g. "crash_main_..." → "crash").
     const gt = bet.gameId.split('_')[0];
-    const supported: GameType[] = ['crash', 'mines', 'plinko', 'coinflip'];
+    const supported: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'];
     if (supported.includes(gt as GameType)) {
       const cfg = await gameConfig.get(gt as GameType);
       if (cfg.paused) {
@@ -277,8 +277,7 @@ export class BettingPipeline {
       });
 
       // Push fresh balance out to clients
-      await balanceService.invalidateCache(bet.userId);
-      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+      await balanceService.syncBalance(bet.userId);
 
       logger.info(
         { betId: bet.id, userId: bet.userId, amount, newBalance, demoMode },
@@ -304,7 +303,7 @@ export class BettingPipeline {
    * call `rtpEngine.capPayoutForGive` themselves and pass the capped
    * payout in here. This second call is a defensive belt-and-braces.
    */
-  async processPayout(bet: Bet, payout: number, demoMode: boolean = false): Promise<void> {
+  async processPayout(bet: Bet, payout: number, demoMode = false, wagerQualifying = true): Promise<void> {
     const grossCredit = TWO_DP(payout);
     const stake = TWO_DP(bet.amount);
 
@@ -384,29 +383,55 @@ export class BettingPipeline {
             },
           });
         } else {
-          // No payout - read current balance for return value
-          const b = await tx.balance.findFirst({
-            where: { userId: bet.userId, demoMode },
-            select: { amount: true },
-          });
-          balanceAfter = b ? Number(b.amount) : 0;
+            const curRows = await tx.$queryRaw<Array<{ amount: string }>>`SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = ${demoMode} LIMIT 1`;
+            balanceAfter = curRows[0] ? Number(curRows[0].amount) : 0;
         }
 
         await tx.bet.update({
-          where: { id: bet.id },
-          data: {
-            state: credit > 0 ? 'won' : 'lost',
-            payout: credit,
-            multiplier: bet.multiplier,
-            resolvedAt: new Date(),
-          },
+            where: { id: bet.id },
+            data: {
+              state: credit > 0 ? 'won' : 'lost',
+              payout: credit,
+              multiplier: bet.multiplier,
+              resolvedAt: new Date(),
+            },
         });
+        
+        const b = await tx.balance.findFirst({
+          where: { userId: bet.userId, demoMode },
+        });
+        
+        if (b) {
+          balanceAfter = Number(b.amount);
+          let { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress } = b;
+          let needsUpdate = false;
+
+          if (balanceAfter < 0.10 && !demoMode) {
+            wagerTarget = new Prisma.Decimal(0);
+            wagerProgress = new Prisma.Decimal(0);
+            autoRtpTarget = new Prisma.Decimal(0);
+            autoRtpProgress = new Prisma.Decimal(0);
+            needsUpdate = true;
+          } else if (!demoMode && wagerQualifying && Number(wagerProgress) < Number(wagerTarget)) {
+            const gt = bet.gameId.split('_')[0] as GameType;
+            const cfg = gameConfig.getCachedOrDefault(gt);
+            const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
+            wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
+            needsUpdate = true;
+          }
+
+          if (needsUpdate && b.id) {
+            await tx.balance.update({
+              where: { id: b.id },
+              data: { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress }
+            });
+          }
+        }
 
         return balanceAfter;
       });
 
-      await balanceService.invalidateCache(bet.userId);
-      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+      await balanceService.syncBalance(bet.userId);
 
       // Tell the auto-RTP controller about the outcome so it can
       // tighten / loosen the next bias.
@@ -434,15 +459,48 @@ export class BettingPipeline {
    * Process bet loss (no payout).
    * Sets state to 'lost' and timestamps it.
    */
-  async processLoss(bet: Bet): Promise<void> {
+  async processLoss(bet: Bet, demoMode = false, wagerQualifying = true): Promise<void> {
     try {
-      await prisma.bet.update({
-        where: { id: bet.id },
-        data: {
-          state: 'lost',
-          payout: 0,
-          resolvedAt: new Date(),
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.bet.update({
+          where: { id: bet.id },
+          data: {
+            state: 'lost',
+            payout: 0,
+            resolvedAt: new Date(),
+          },
+        });
+
+        const b = await tx.balance.findFirst({
+          where: { userId: bet.userId, demoMode },
+        });
+        
+        if (b) {
+          let { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress } = b;
+          let needsUpdate = false;
+          const balanceAfter = Number(b.amount);
+
+          if (balanceAfter < 0.10 && !demoMode) {
+            wagerTarget = new Prisma.Decimal(0);
+            wagerProgress = new Prisma.Decimal(0);
+            autoRtpTarget = new Prisma.Decimal(0);
+            autoRtpProgress = new Prisma.Decimal(0);
+            needsUpdate = true;
+          } else if (!demoMode && wagerQualifying && Number(wagerProgress) < Number(wagerTarget)) {
+            const gt = bet.gameId.split('_')[0] as GameType;
+            const cfg = gameConfig.getCachedOrDefault(gt);
+            const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
+            wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
+            needsUpdate = true;
+          }
+
+          if (needsUpdate && b.id) {
+            await tx.balance.update({
+              where: { id: b.id },
+              data: { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress }
+            });
+          }
+        }
       });
 
       const meta = (bet.metadata || {}) as Record<string, any>;
@@ -451,6 +509,7 @@ export class BettingPipeline {
       // Casino kept the full stake — record it for the controller,
       // but only if it's real money.
       if (!tournamentCycleId && !meta.demoMode) {
+        await balanceService.syncBalance(bet.userId);
         await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0);
       }
       logger.info({ betId: bet.id, userId: bet.userId }, 'Bet lost');
@@ -478,7 +537,8 @@ export class BettingPipeline {
     bet: Bet,
     cashoutAmount: number,
     multiplier: number,
-    demoMode: boolean = false
+    demoMode = false,
+    wagerQualifying = true
   ): Promise<void> {
     const grossCredit = TWO_DP(cashoutAmount);
     const stake = TWO_DP(bet.amount);
@@ -529,7 +589,7 @@ export class BettingPipeline {
 
     try {
       const newBalance = await prisma.$transaction(async (tx) => {
-        const balanceAfter = await this.creditBalance(tx, bet.userId, credit, demoMode);
+        let balanceAfter = await this.creditBalance(tx, bet.userId, credit, demoMode);
 
         await tx.transaction.create({
           data: {
@@ -561,12 +621,43 @@ export class BettingPipeline {
             resolvedAt: new Date(),
           },
         });
+        
+        const b = await tx.balance.findFirst({
+          where: { userId: bet.userId, demoMode },
+        });
+        
+        if (b) {
+          balanceAfter = Number(b.amount);
+          let { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress } = b;
+          let needsUpdate = false;
+
+          if (balanceAfter < 0.10 && !demoMode) {
+            wagerTarget = new Prisma.Decimal(0);
+            wagerProgress = new Prisma.Decimal(0);
+            autoRtpTarget = new Prisma.Decimal(0);
+            autoRtpProgress = new Prisma.Decimal(0);
+            needsUpdate = true;
+          } else if (!demoMode && wagerQualifying && Number(wagerProgress) < Number(wagerTarget)) {
+            const gt = bet.gameId.split('_')[0] as GameType;
+            const cfg = gameConfig.getCachedOrDefault(gt);
+            const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
+            wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
+            needsUpdate = true;
+          }
+
+          if (needsUpdate && b.id) {
+            await tx.balance.update({
+              where: { id: b.id },
+              data: { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress }
+            });
+          }
+        }
 
         return balanceAfter;
       });
 
       await balanceService.invalidateCache(bet.userId);
-      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+      await balanceService.syncBalance(bet.userId);
 
       await rtpEngine.recordOutcome(bet.userId, stake, credit);
 
@@ -628,8 +719,7 @@ export class BettingPipeline {
         return balanceAfter;
       });
 
-      await balanceService.invalidateCache(bet.userId);
-      await balanceService.notifyBalance(bet.userId, newBalance, demoMode);
+      await balanceService.syncBalance(bet.userId);
 
       logger.info(
         { betId: bet.id, userId: bet.userId, amount: refund, newBalance },

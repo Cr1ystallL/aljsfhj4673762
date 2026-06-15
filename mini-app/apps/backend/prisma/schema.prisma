@@ -12,29 +12,31 @@ datasource db {
 
 // User model
 model User {
-  id           String   @id @default(uuid())
-  telegramId   BigInt   @unique @map("telegram_id")
-  username     String?
-  firstName    String?  @map("first_name")
-  lastName     String?  @map("last_name")
-  languageCode String?  @map("language_code")
-  photoUrl     String?  @map("photo_url")
-  isPremium    Boolean  @default(false) @map("is_premium")
+  id               String   @id @default(uuid())
+  telegramId       BigInt   @unique @map("telegram_id")
+  username         String?
+  firstName        String?  @map("first_name")
+  lastName         String?  @map("last_name")
+  languageCode     String?  @map("language_code")
+  photoUrl         String?  @map("photo_url")
+  isPremium        Boolean  @default(false) @map("is_premium")
   // Admin moderation flags. `isBlocked` blocks the user from playing
   // and from withdrawing; `withdrawalLocked` lets them play but
   // prevents withdrawals while a case is investigated.
-  isBlocked    Boolean  @default(false) @map("is_blocked")
-  withdrawalLocked Boolean @default(false) @map("withdrawal_locked")
+  isBlocked        Boolean  @default(false) @map("is_blocked")
+  withdrawalLocked Boolean  @default(false) @map("withdrawal_locked")
   // Free-text moderation note set by admins.
-  adminNote    String?  @map("admin_note") @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  adminNote        String?  @map("admin_note") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  sessions     Session[]
-  balance      Balance?
-  bets         Bet[]
-  transactions Transaction[]
+  sessions               Session[]
+  balance                Balance?
+  bets                   Bet[]
+  transactions           Transaction[]
   tournamentParticipants TournamentParticipant[]
+  securityAlerts         SecurityAlert[]
+  userIpAddresses        UserIpAddress[]
 
   @@index([telegramId])
   @@index([isBlocked])
@@ -46,27 +48,51 @@ model Session {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   token     String   @unique
+  ipAddress String?  @map("ip_address")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([ipAddress])
   @@index([expiresAt])
   @@map("sessions")
 }
 
+// User IP Tracking
+model UserIpAddress {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  ipAddress String   @map("ip_address")
+  count     Int      @default(1)
+  isRoot    Boolean  @default(false) @map("is_root")
+  isVpn     Boolean  @default(false) @map("is_vpn")
+  firstSeen DateTime @default(now()) @map("first_seen")
+  lastSeen  DateTime @default(now()) @map("last_seen")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ipAddress])
+  @@index([ipAddress])
+  @@map("user_ip_addresses")
+}
+
 // Balance model (1:1 with User)
 model Balance {
-  id           String   @id @default(uuid())
-  userId       String   @unique @map("user_id")
-  amount       Decimal  @default(0) @db.Decimal(20, 2)
-  currency     String   @default("PLN")
-  demoMode     Boolean  @default(false) @map("demo_mode")
-  lastSyncedAt DateTime @default(now()) @map("last_synced_at")
-  version      Int      @default(0) // Optimistic locking
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  amount          Decimal  @default(0) @db.Decimal(20, 2)
+  currency        String   @default("PLN")
+  demoMode        Boolean  @default(false) @map("demo_mode")
+  wagerTarget     Decimal  @default(0) @map("wager_target") @db.Decimal(20, 2)
+  wagerProgress   Decimal  @default(0) @map("wager_progress") @db.Decimal(20, 2)
+  autoRtpTarget   Decimal  @default(0) @map("auto_rtp_target") @db.Decimal(20, 2)
+  autoRtpProgress Decimal  @default(0) @map("auto_rtp_progress") @db.Decimal(20, 2)
+  lastSyncedAt    DateTime @default(now()) @map("last_synced_at")
+  version         Int      @default(0) // Optimistic locking
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -74,11 +100,29 @@ model Balance {
   @@map("balances")
 }
 
+// Security Alerts for Anti-Fraud
+model SecurityAlert {
+  id          String   @id @default(uuid())
+  type        String // e.g. "multi_account"
+  severity    String // "low", "medium", "high", "critical"
+  userId      String   @map("user_id")
+  description String   @db.Text
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([resolved])
+  @@index([type])
+  @@map("security_alerts")
+}
+
 // Transaction model
 model Transaction {
   id            String   @id @default(uuid())
   userId        String   @map("user_id")
-  type          String   // bet, win, deposit, withdrawal, refund
+  type          String // bet, win, deposit, withdrawal, refund
   amount        Decimal  @db.Decimal(20, 2)
   balanceBefore Decimal  @map("balance_before") @db.Decimal(20, 2)
   balanceAfter  Decimal  @map("balance_after") @db.Decimal(20, 2)
@@ -99,12 +143,12 @@ model Transaction {
 model GameRound {
   id             String    @id @default(uuid())
   gameType       String    @map("game_type")
-  state          String    // idle, waiting, starting, active, resolving, completed, cancelled
+  state          String // idle, waiting, starting, active, resolving, completed, cancelled
   serverSeedHash String    @map("server_seed_hash")
   serverSeed     String?   @map("server_seed")
   clientSeed     String?   @map("client_seed")
   nonce          Int       @default(0)
-  result         Json?     // Game-specific result data
+  result         Json? // Game-specific result data
   metadata       Json?
   startedAt      DateTime? @map("started_at")
   endedAt        DateTime? @map("ended_at")
@@ -118,17 +162,17 @@ model GameRound {
 
 // Bet model
 model Bet {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  roundId     String    @map("round_id")
-  gameType    String    @map("game_type")
-  amount      Decimal   @db.Decimal(20, 2)
-  state       String    // pending, active, won, lost, cancelled, cashed_out
-  payout      Decimal?  @db.Decimal(20, 2)
-  multiplier  Decimal?  @db.Decimal(10, 4) // 4 decimals for crash precision
-  metadata    Json?
-  placedAt    DateTime  @default(now()) @map("placed_at")
-  resolvedAt  DateTime? @map("resolved_at")
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  roundId    String    @map("round_id")
+  gameType   String    @map("game_type")
+  amount     Decimal   @db.Decimal(20, 2)
+  state      String // pending, active, won, lost, cancelled, cashed_out
+  payout     Decimal?  @db.Decimal(20, 2)
+  multiplier Decimal?  @db.Decimal(10, 4) // 4 decimals for crash precision
+  metadata   Json?
+  placedAt   DateTime  @default(now()) @map("placed_at")
+  resolvedAt DateTime? @map("resolved_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -189,26 +233,26 @@ model AdminAuditLog {
 
 /// Promo code definition. Created by admins; redeemed by users.
 model PromoCode {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   /// Display code in upper-case (e.g. "WELCOME10"). Unique.
-  code            String   @unique
+  code            String    @unique
   /// Bonus amount credited per redemption.
-  amount          Decimal  @db.Decimal(20, 2)
-  currency        String   @default("PLN")
+  amount          Decimal   @db.Decimal(20, 2)
+  currency        String    @default("PLN")
   /// Max total redemptions across all users. NULL = unlimited.
-  maxRedemptions  Int?     @map("max_redemptions")
+  maxRedemptions  Int?      @map("max_redemptions")
   /// Max redemptions per single user. Default 1.
-  perUserLimit    Int      @default(1) @map("per_user_limit")
+  perUserLimit    Int       @default(1) @map("per_user_limit")
   /// Optional expiry. Past this timestamp the code becomes invalid.
   expiresAt       DateTime? @map("expires_at")
   /// Admin who created it.
-  createdByUserId String   @map("created_by_user_id")
+  createdByUserId String    @map("created_by_user_id")
   /// Soft-disable without deleting. Admin can re-enable later.
-  active          Boolean  @default(true)
+  active          Boolean   @default(true)
   /// Free-text comment so the admin remembers what the code was for.
-  note            String?  @db.Text
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  note            String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   redemptions PromoRedemption[]
 
@@ -227,9 +271,9 @@ model PromoRedemption {
 
   promoCode PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
 
+  @@unique([promoCodeId, userId, createdAt], map: "promo_redemptions_promocode_user_at_uq")
   @@index([promoCodeId])
   @@index([userId])
-  @@unique([promoCodeId, userId, createdAt], map: "promo_redemptions_promocode_user_at_uq")
   @@map("promo_redemptions")
 }
 
@@ -340,16 +384,16 @@ model Tournament {
 
 /// Per-day window of a tournament.
 model TournamentCycle {
-  id           String    @id @default(uuid())
-  tournamentId String    @map("tournament_id")
-  startsAt     DateTime  @map("starts_at")
-  endsAt       DateTime  @map("ends_at")
-  prizePool    Decimal   @map("prize_pool") @db.Decimal(20, 2)
-  state        String    @default("live")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  tournamentId String   @map("tournament_id")
+  startsAt     DateTime @map("starts_at")
+  endsAt       DateTime @map("ends_at")
+  prizePool    Decimal  @map("prize_pool") @db.Decimal(20, 2)
+  state        String   @default("live")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  tournament  Tournament            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament   Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   participants TournamentParticipant[]
 
   @@unique([tournamentId, startsAt])
@@ -369,7 +413,7 @@ model TournamentParticipant {
   lastRefreshAt DateTime? @map("last_refresh_at")
 
   cycle TournamentCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, userId])
   @@index([userId])

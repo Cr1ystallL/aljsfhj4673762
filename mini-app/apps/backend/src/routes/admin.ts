@@ -877,13 +877,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               amount: delta,
               currency: 'PLN',
               demoMode: false,
+              wagerTarget: delta > 0 ? delta * 2 : 0,
+              autoRtpTarget: delta > 0 ? delta * 2 : 0,
             },
             update: {
               amount: { increment: delta },
               lastSyncedAt: new Date(),
               version: { increment: 1 },
+              ...(delta > 0 ? {
+                wagerTarget: { increment: delta * 2 },
+                autoRtpTarget: { increment: delta * 2 },
+              } : {}),
             },
-            select: { amount: true },
+            select: { amount: true, wagerTarget: true, wagerProgress: true, autoRtpTarget: true, autoRtpProgress: true },
           });
           const afterAmount = Number(updated.amount);
 
@@ -901,11 +907,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             },
           });
 
-          return { beforeAmount, afterAmount };
+          return { 
+            beforeAmount, 
+            afterAmount,
+            wagerTarget: Number(updated.wagerTarget),
+            wagerProgress: Number(updated.wagerProgress),
+            autoRtpTarget: Number(updated.autoRtpTarget),
+            autoRtpProgress: Number(updated.autoRtpProgress)
+          };
         });
 
         await balanceService.invalidateCache(id);
-        await balanceService.notifyBalance(id, result.afterAmount, false);
+        await balanceService.notifyBalance(id, result.afterAmount, result.wagerTarget, result.wagerProgress, result.autoRtpTarget, result.autoRtpProgress);
 
         await audit({
           request: request as AuthenticatedRequest,
@@ -1998,12 +2011,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           return { wd, afterAmount };
         });
 
-        await balanceService.invalidateCache(result.wd.user_id);
-        await balanceService.notifyBalance(
-          result.wd.user_id,
-          result.afterAmount,
-          false
-        );
+        await balanceService.syncBalance(result.wd.user_id);
 
         await audit({
           request: request as AuthenticatedRequest,

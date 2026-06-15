@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID, randomBytes } from 'crypto';
+import { rtpEngine } from '../services/rtp-engine.js';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
@@ -163,6 +164,8 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           const after = +(before + amount).toFixed(2);
           await tx.$executeRaw`
             UPDATE balances SET amount = ${after}::numeric,
+                                wager_target = wager_target + (${amount} * 2)::numeric,
+                                auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
                                 version = version + 1,
                                 last_synced_at = NOW(),
                                 updated_at = NOW()
@@ -188,7 +191,30 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         // frontend store updates immediately rather than waiting up to
         // 60s for the next stale-cache hit.
         await balanceService.invalidateCache(userId);
-        await balanceService.notifyBalance(userId, result.balance, false);
+        const updatedBalance = await app.prisma.balance.findUnique({ where: { userId } });
+        await balanceService.notifyBalance(
+          userId, 
+          result.balance, 
+          Number(updatedBalance?.wagerTarget ?? 0), 
+          Number(updatedBalance?.wagerProgress ?? 0), 
+          Number(updatedBalance?.autoRtpTarget ?? 0), 
+          Number(updatedBalance?.autoRtpProgress ?? 0)
+        );
+
+        // --- Auto-RTP Hook ---
+        // Apply RTP "earn" mode with 80% loss intensity since it's a bonus
+        try {
+          const target = Math.max(0, result.amount * 0.8);
+          await rtpEngine.setUserConfig(userId, {
+            mode: target > 0 ? 'earn' : 'off',
+            target,
+            windowMs: 6 * 60 * 60 * 1000,
+            intensity: 0.8,
+          }, { reset: true });
+          await rtpEngine.getUserStatus(userId);
+        } catch (err) {
+          logger.warn({ err, userId }, 'Auto-RTP set failed on promo code');
+        }
 
         return reply.send({
           ok: true,
@@ -350,7 +376,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
       // Push fresh balance to the WS subscriber so the home pill and
       // the bonuses page header update without polling.
       await balanceService.invalidateCache(userId);
-      await balanceService.notifyBalance(userId, result.balance, false);
+      await balanceService.syncBalance(userId);
 
       return reply.send({
         ok: true,

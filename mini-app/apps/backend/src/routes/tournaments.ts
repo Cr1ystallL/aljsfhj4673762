@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { authenticate, adminOnly, type AuthenticatedRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { balanceService } from '../services/balance-service.js';
+import { logger } from '../utils/logger.js';
+import { rtpEngine } from '../services/rtp-engine.js';
 
 type PrizeMode = 'percent' | 'fixed';
 const PERCENT_PAYOUTS = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
@@ -101,14 +103,17 @@ async function creditRealBalance(
     create: { userId, amount: 0, currency: 'PLN', demoMode: false },
   });
 
-  const rows = await tx.$queryRaw<Array<{ before: string; after: string }>>`
+  const wagerMult = metadata.wagerMultiplier ? Number(metadata.wagerMultiplier) : 2;
+  const rows = await tx.$queryRaw<Array<{ before: string; after: string; wager_target: string; wager_progress: string; auto_rtp_target: string; auto_rtp_progress: string }>>`
     UPDATE balances
     SET amount = amount + ${amount}::numeric,
+        wager_target = wager_target + (${amount} * ${wagerMult})::numeric,
+        auto_rtp_target = auto_rtp_target + (${amount} * ${wagerMult})::numeric,
         updated_at = NOW(),
         last_synced_at = NOW(),
         version = version + 1
     WHERE user_id = ${userId}
-    RETURNING amount - ${amount}::numeric as before, amount as after
+    RETURNING amount - ${amount}::numeric as before, amount as after, wager_target, wager_progress, auto_rtp_target, auto_rtp_progress
   `;
 
   const before = rows[0] ? Number(rows[0].before) : 0;
@@ -171,7 +176,14 @@ async function payoutCycle(t: any, cycle: any) {
   });
 
   for (const userId of winnerIds) {
-    await balanceService.invalidateCache(userId);
+      await balanceService.syncBalance(userId);
+    try {
+      // Just applying a general earn target for tournament wins. Wait, we don't have the exact prize amount here easily unless we store it.
+      // We can just rely on the wager_target and autoRtpTarget incremented in creditRealBalance.
+      await rtpEngine.getUserStatus(userId);
+    } catch (e) {
+      logger.error(e, 'Failed to update rtp status for tournament winner');
+    }
   }
 
   return { winnersPaid: winnerIds.length };

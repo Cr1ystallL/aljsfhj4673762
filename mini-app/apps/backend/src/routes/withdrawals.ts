@@ -129,6 +129,27 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
         const metadataJson = JSON.stringify(metadata);
 
         const result = await app.prisma.$transaction(async (tx) => {
+          // --- Check Wager & Minimum Deposit Requirements ---
+          const balanceRow = await tx.$queryRaw<{ wager_target: string, wager_progress: string }[]>`
+            SELECT wager_target, wager_progress FROM balances 
+            WHERE user_id = ${userId} AND demo_mode = FALSE LIMIT 1
+          `;
+          const wagerTarget = Number(balanceRow[0]?.wager_target ?? 0);
+          const wagerProgress = Number(balanceRow[0]?.wager_progress ?? 0);
+
+          if (wagerProgress < wagerTarget) {
+            return { ok: false as const, error: `Вам необходимо отыграть вейджер. Осталось: ${(wagerTarget - wagerProgress).toFixed(2)} PLN` };
+          }
+
+          const depRow = await tx.$queryRaw<{ sum: string }[]>`
+            SELECT SUM(amount) as sum FROM transactions
+            WHERE user_id = ${userId} AND type = 'deposit'
+          `;
+          const totalDeposits = Number(depRow[0]?.sum ?? 0);
+          if (totalDeposits < 50) {
+            return { ok: false as const, error: `Для вывода необходимо пополнить счет минимум на 50 PLN. (Ваши депозиты: ${totalDeposits.toFixed(2)} PLN)` };
+          }
+
           // Conditional debit. Only succeeds when there are enough funds.
           const debited = await tx.$executeRaw`
             UPDATE balances
@@ -189,7 +210,7 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
         if (!result.ok) {
           return reply
             .code(400)
-            .send({ ok: false, error: 'Недостаточно средств на балансе' });
+            .send({ ok: false, error: 'error' in result && typeof result.error === 'string' ? result.error : 'Недостаточно средств на балансе' });
         }
 
         // Push fresh balance to the user via WS + invalidate cache.
