@@ -3942,6 +3942,94 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  /* ---------------------------------------------------------------- security */
+
+  app.get<{ Querystring: { page?: string; limit?: string } }>(
+    '/_x/security/ips',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+      const limit = Math.min(100, Math.max(10, parseInt(request.query.limit ?? '50', 10)));
+      const skip = (page - 1) * limit;
+
+      try {
+        // Find IPs that are shared among multiple users.
+        const ipsWithMulti = await app.prisma.$queryRaw<Array<{ ip_address: string; accounts: bigint }>>`
+          SELECT ip_address, COUNT(DISTINCT user_id) as accounts
+          FROM user_ip_addresses
+          GROUP BY ip_address
+          HAVING COUNT(DISTINCT user_id) > 1
+          ORDER BY accounts DESC
+          LIMIT ${limit} OFFSET ${skip}
+        `;
+
+        const totalRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>`
+          SELECT COUNT(*) as c FROM (
+            SELECT ip_address
+            FROM user_ip_addresses
+            GROUP BY ip_address
+            HAVING COUNT(DISTINCT user_id) > 1
+          ) t
+        `;
+        const total = Number(totalRows[0]?.c ?? 0);
+
+        if (ipsWithMulti.length === 0) {
+          return reply.send({ ok: true, total, page, limit, ips: [] });
+        }
+
+        const ipStrings = ipsWithMulti.map((x) => x.ip_address);
+        const relatedRecords = await app.prisma.userIpAddress.findMany({
+          where: { ipAddress: { in: ipStrings } },
+          include: {
+            user: {
+              select: {
+                id: true,
+                telegramId: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                isBlocked: true,
+                withdrawalLocked: true,
+                adminNote: true,
+                createdAt: true,
+              }
+            }
+          },
+          orderBy: { firstSeen: 'asc' }
+        });
+
+        // Group by IP
+        const grouped = ipsWithMulti.map((ipRow) => {
+          const records = relatedRecords.filter((r) => r.ipAddress === ipRow.ip_address);
+          return {
+            ipAddress: ipRow.ip_address,
+            accountsCount: Number(ipRow.accounts),
+            users: records.map((r, index) => ({
+              id: r.user.id,
+              telegramId: Number(r.user.telegramId),
+              name: r.user.firstName || r.user.username || \`id${r.user.telegramId.toString().slice(-4)}\`,
+              isBlocked: r.user.isBlocked,
+              withdrawalLocked: r.user.withdrawalLocked,
+              createdAt: r.user.createdAt.getTime(),
+              firstSeen: r.firstSeen.getTime(),
+              lastSeen: r.lastSeen.getTime(),
+              count: r.count,
+              isRoot: r.isRoot,
+              isVpn: r.isVpn,
+              adminNote: r.user.adminNote,
+              isMain: index === 0, // Oldest is considered main
+            }))
+          };
+        });
+
+        return reply.send({ ok: true, total, page, limit, ips: grouped });
+      } catch (error) {
+        logger.error(error, 'Admin security ips fetch failed');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
   void isAdminTelegramId;
 }
 

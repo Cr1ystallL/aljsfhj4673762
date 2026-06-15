@@ -110,6 +110,12 @@ const links: AdminLink[] = [
     href: '/system/console/alerts',
   },
   {
+    id: 'security',
+    label: 'Безопасность',
+    Icon: Shield,
+    href: '/system/console/security',
+  },
+  {
     id: 'sessions',
     label: 'Сессии',
     Icon: Network,
