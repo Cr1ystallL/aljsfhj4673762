@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -216,6 +216,26 @@ export default function ProfilePage() {
                   strokeWidth={1.8}
                 />
               </button>
+
+              {/* Active Wager Progress */}
+              {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
+                <div className="w-full mt-6 px-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-roobert text-[12px] text-whisper-gray">Отыгрыш бонуса</span>
+                    <span className="font-roobert text-[12px] text-frost-white tabular-nums">
+                      {balance.wagerProgress.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} zł
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-frost-white"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (balance.wagerProgress / balance.wagerTarget) * 100)}%` }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </motion.section>
 

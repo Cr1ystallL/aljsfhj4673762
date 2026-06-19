@@ -10,6 +10,8 @@ export const BalanceSchema = z.object({
   amount: z.number().nonnegative(),
   currency: z.string().default('USD'),
   demoMode: z.boolean().default(false),
+  wagerTarget: z.number().optional(),
+  wagerProgress: z.number().optional(),
   lastSyncedAt: z.date(),
 });
 

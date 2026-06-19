@@ -23,7 +23,7 @@ export function useBalance() {
     store.setLoading(true);
     try {
       const response = await apiClient.get<{
-        balance: { amount: number; currency: string };
+        balance: { amount: number; currency: string; wagerTarget?: number; wagerProgress?: number; };
         tournamentBalances?: Array<{ gameType: string; balance: number }>;
       }>(`/api/balance`);
       store.setBalance({
@@ -31,6 +31,8 @@ export function useBalance() {
         amount: response.balance.amount,
         currency: response.balance.currency,
         demoMode: false,
+        wagerTarget: response.balance.wagerTarget,
+        wagerProgress: response.balance.wagerProgress,
         lastSyncedAt: new Date(),
       }, response.tournamentBalances || []);
     } catch (error) {
@@ -43,7 +45,7 @@ export function useBalance() {
   const syncBalance = useCallback(async () => {
     try {
       const response = await apiClient.post<{
-        balance: { amount: number; currency: string };
+        balance: { amount: number; currency: string; wagerTarget?: number; wagerProgress?: number; };
         tournamentBalances?: Array<{ gameType: string; balance: number }>;
       }>('/api/balance/sync', {});
       useBalanceStore.getState().setBalance({
@@ -51,6 +53,8 @@ export function useBalance() {
         amount: response.balance.amount,
         currency: response.balance.currency,
         demoMode: false,
+        wagerTarget: response.balance.wagerTarget,
+        wagerProgress: response.balance.wagerProgress,
         lastSyncedAt: new Date(),
       }, response.tournamentBalances || []);
     } catch (error) {

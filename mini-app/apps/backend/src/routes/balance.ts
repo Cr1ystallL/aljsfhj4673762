@@ -45,6 +45,8 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
           amount: balance.amount,
           currency: balance.currency,
           demoMode: false,
+          wagerTarget: balance.wagerTarget,
+          wagerProgress: balance.wagerProgress,
         },
         tournamentBalances
       });
@@ -75,6 +77,8 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
           amount: balance.amount,
           currency: balance.currency,
           demoMode: false,
+          wagerTarget: balance.wagerTarget,
+          wagerProgress: balance.wagerProgress,
         },
       });
     } catch (error) {

@@ -969,14 +969,22 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             is_blocked: boolean;
             withdrawal_locked: boolean;
             admin_note: string | null;
+            telegram_id: bigint;
           }>
         >`
-          SELECT is_blocked, withdrawal_locked, admin_note
+          SELECT is_blocked, withdrawal_locked, admin_note, telegram_id
           FROM users WHERE id = ${id} LIMIT 1
         `;
         const before = beforeRows[0];
         if (!before) {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+        }
+
+        const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
+        if (adminIds.includes(String(before.telegram_id))) {
+          if (request.body.isBlocked === true || request.body.withdrawalLocked === true) {
+            return reply.code(403).send({ error: 'Cannot block or lock an admin account' });
+          }
         }
 
         const setFragments: Prisma.Sql[] = [];
