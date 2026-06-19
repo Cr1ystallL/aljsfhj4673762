@@ -58,7 +58,8 @@ module.exports = {
 
       env: {
         NODE_ENV: 'production',
-        PORT: '3000'
+        PORT: '3000',
+        NEXT_TELEMETRY_DISABLED: '1'
       },
 
       out_file: '/var/log/macvbet-frontend.log',
