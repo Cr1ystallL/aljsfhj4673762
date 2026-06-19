@@ -44,9 +44,15 @@ async function isUserBlocked(
   if (cached && cached.expiresAt > now) return cached.blocked;
   try {
     const rows = await (request.server as unknown as { prisma: { $queryRaw: <T>(s: TemplateStringsArray, ...vals: unknown[]) => Promise<T> } }).prisma.$queryRaw<
-      Array<{ is_blocked: boolean }>
-    >`SELECT is_blocked FROM users WHERE id::text = ${userId}::text LIMIT 1`;
-    const blocked = !!rows[0]?.is_blocked;
+      Array<{ is_blocked: boolean; telegram_id: bigint }>
+    >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${userId}::text LIMIT 1`;
+    let blocked = !!rows[0]?.is_blocked;
+    if (blocked && rows[0]?.telegram_id) {
+      const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
+      if (adminIds.includes(String(rows[0].telegram_id))) {
+        blocked = false;
+      }
+    }
     blockCache.set(userId, { blocked, expiresAt: now + BLOCK_CACHE_TTL_MS });
     return blocked;
   } catch (err) {

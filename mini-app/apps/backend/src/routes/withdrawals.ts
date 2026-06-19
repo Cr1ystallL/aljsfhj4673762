@@ -111,9 +111,18 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
       // we just skip the check rather than blowing up.
       try {
         const userRow = await app.prisma.$queryRaw<
-          { withdrawal_locked: boolean }[]
-        >`SELECT withdrawal_locked FROM users WHERE id = ${userId} LIMIT 1`;
-        if (userRow[0]?.withdrawal_locked) {
+          { withdrawal_locked: boolean; telegram_id: bigint }[]
+        >`SELECT withdrawal_locked, telegram_id FROM users WHERE id = ${userId} LIMIT 1`;
+        
+        let locked = userRow[0]?.withdrawal_locked;
+        if (locked && userRow[0]?.telegram_id) {
+          const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
+          if (adminIds.includes(String(userRow[0].telegram_id))) {
+            locked = false;
+          }
+        }
+        
+        if (locked) {
           return reply.code(403).send({
             ok: false,
             error: 'Вывод временно заблокирован администратором',

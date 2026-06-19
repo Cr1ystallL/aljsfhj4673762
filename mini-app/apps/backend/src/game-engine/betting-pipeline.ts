@@ -190,9 +190,16 @@ export class BettingPipeline {
 
         await prisma.$transaction(async (tx) => {
           const userRows = await tx.$queryRaw<
-            Array<{ is_blocked: boolean }>
-          >`SELECT is_blocked FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
-          if (userRows[0]?.is_blocked) {
+            Array<{ is_blocked: boolean; telegram_id: bigint }>
+          >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
+          let blocked = userRows[0]?.is_blocked;
+          if (blocked && userRows[0]?.telegram_id) {
+            const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
+            if (adminIds.includes(String(userRows[0].telegram_id))) {
+              blocked = false;
+            }
+          }
+          if (blocked) {
             throw new Error('Аккаунт заблокирован администратором');
           }
 
@@ -231,9 +238,16 @@ export class BettingPipeline {
         // We use a Prisma raw query so this works even when the client
         // hasn't been regenerated yet on the server (legacy build).
         const userRows = await tx.$queryRaw<
-          Array<{ is_blocked: boolean }>
-        >`SELECT is_blocked FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
-        if (userRows[0]?.is_blocked) {
+          Array<{ is_blocked: boolean; telegram_id: bigint }>
+        >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
+        let blocked = userRows[0]?.is_blocked;
+        if (blocked && userRows[0]?.telegram_id) {
+          const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
+          if (adminIds.includes(String(userRows[0].telegram_id))) {
+            blocked = false;
+          }
+        }
+        if (blocked) {
           throw new Error('Аккаунт заблокирован администратором');
         }
 
