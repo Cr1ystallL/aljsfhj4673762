@@ -37,7 +37,8 @@ const blockCache = new Map<string, { blocked: boolean; expiresAt: number }>();
 
 async function isUserBlocked(
   request: FastifyRequest,
-  userId: string
+  userId: string,
+  telegramId?: number
 ): Promise<boolean> {
   const now = Date.now();
   const cached = blockCache.get(userId);
@@ -47,10 +48,9 @@ async function isUserBlocked(
       Array<{ is_blocked: boolean; telegram_id: bigint }>
     >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${userId}::text LIMIT 1`;
     let blocked = !!rows[0]?.is_blocked;
-    if (blocked && rows[0]?.telegram_id) {
-      const telegramIdNum = Number(rows[0].telegram_id);
-      const isAdmin = await isAdminTelegramIdAsync(telegramIdNum);
-      logger.warn({ userId, telegramId: telegramIdNum, isAdmin, envAdmins: Array.from(ADMIN_TELEGRAM_IDS) }, 'Admin block bypass check');
+    if (blocked && telegramId) {
+      const isAdmin = await isAdminTelegramIdAsync(telegramId);
+      logger.warn({ userId, telegramId, isAdmin, envAdmins: Array.from(ADMIN_TELEGRAM_IDS) }, 'Admin block bypass check');
       if (isAdmin) {
         blocked = false;
       }
@@ -127,7 +127,7 @@ export async function authenticate(
 
     // Block check — never reveal a textual reason. Admins bypass this
     // through `adminOnly`, which has its own auth flow.
-    if (await isUserBlocked(request, decoded.userId)) {
+    if (await isUserBlocked(request, decoded.userId, decoded.telegramId)) {
       return reply.code(401).send({
         error: 'Unauthorized',
         message: 'Access denied',
