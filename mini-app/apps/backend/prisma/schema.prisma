@@ -340,6 +340,8 @@ model PromoCode {
   active          Boolean   @default(true)
   /// Free-text comment so the admin remembers what the code was for.
   note            String?   @db.Text
+  /// Extra rules for eligibility (e.g. deposit requirements)
+  rules           Json?     @default("[]")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
