@@ -412,12 +412,19 @@ export class BettingPipeline {
             autoRtpTarget = new Prisma.Decimal(0);
             autoRtpProgress = new Prisma.Decimal(0);
             needsUpdate = true;
-          } else if (!demoMode && wagerQualifying && Number(wagerProgress) < Number(wagerTarget)) {
+          } else if (!demoMode && wagerQualifying) {
             const gt = bet.gameId.split('_')[0] as GameType;
             const cfg = gameConfig.getCachedOrDefault(gt);
             const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
-            wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
-            needsUpdate = true;
+            
+            if (Number(wagerProgress) < Number(wagerTarget)) {
+              wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
+              needsUpdate = true;
+            }
+            if (Number(autoRtpProgress) < Number(autoRtpTarget)) {
+              autoRtpProgress = new Prisma.Decimal(Math.min(Number(autoRtpProgress) + bet.amount, Number(autoRtpTarget)));
+              needsUpdate = true;
+            }
           }
 
           if (needsUpdate && b.id) {
@@ -486,12 +493,19 @@ export class BettingPipeline {
             autoRtpTarget = new Prisma.Decimal(0);
             autoRtpProgress = new Prisma.Decimal(0);
             needsUpdate = true;
-          } else if (!demoMode && wagerQualifying && Number(wagerProgress) < Number(wagerTarget)) {
+          } else if (!demoMode && wagerQualifying) {
             const gt = bet.gameId.split('_')[0] as GameType;
             const cfg = gameConfig.getCachedOrDefault(gt);
             const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
-            wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
-            needsUpdate = true;
+            
+            if (Number(wagerProgress) < Number(wagerTarget)) {
+              wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
+              needsUpdate = true;
+            }
+            if (Number(autoRtpProgress) < Number(autoRtpTarget)) {
+              autoRtpProgress = new Prisma.Decimal(Math.min(Number(autoRtpProgress) + bet.amount, Number(autoRtpTarget)));
+              needsUpdate = true;
+            }
           }
 
           if (needsUpdate && b.id) {
@@ -636,12 +650,6 @@ export class BettingPipeline {
             wagerProgress = new Prisma.Decimal(0);
             autoRtpTarget = new Prisma.Decimal(0);
             autoRtpProgress = new Prisma.Decimal(0);
-            needsUpdate = true;
-          } else if (!demoMode && wagerQualifying && Number(wagerProgress) < Number(wagerTarget)) {
-            const gt = bet.gameId.split('_')[0] as GameType;
-            const cfg = gameConfig.getCachedOrDefault(gt);
-            const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
-            wagerProgress = new Prisma.Decimal(Math.min(Number(wagerProgress) + addedProgress, Number(wagerTarget)));
             needsUpdate = true;
           }
 

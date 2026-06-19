@@ -355,6 +355,8 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         const after = +(before + amount).toFixed(2);
         await tx.$executeRaw`
           UPDATE balances SET amount = ${after}::numeric,
+                              wager_target = wager_target + (${amount} * 2)::numeric,
+                              auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
                               version = version + 1,
                               last_synced_at = NOW(),
                               updated_at = NOW()
