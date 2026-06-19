@@ -656,7 +656,8 @@ async def dbdump_command(message: Message):
     await message.answer("⏳ Формирую дамп базы…")
 
     dump_path = f"/tmp/dbdump_{message.from_user.id}_{int(datetime.now().timestamp())}.dump"
-    cmd = f"pg_dump --dbname={os.getenv('DATABASE_URL', '')} --format=custom --file={dump_path}"
+    # Запускаем pg_dump внутри контейнера базы данных, а результат сохраняем на хост
+    cmd = f"docker exec -i casino-postgres pg_dump --dbname={os.getenv('DATABASE_URL', '')} --format=custom > {dump_path}"
 
     proc = await asyncio.create_subprocess_shell(
         cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
