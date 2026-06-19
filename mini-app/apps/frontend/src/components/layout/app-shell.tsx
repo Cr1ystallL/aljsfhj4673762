@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <>
+    <div className="relative mx-auto w-full max-w-[1920px] min-h-[100dvh] bg-midnight-canvas shadow-2xl sm:border-x sm:border-white/5 overflow-x-hidden">
       {children}
 
       <BottomNavigation
@@ -120,6 +120,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onGameSelect={handleGameSelect}
         isAuthenticated={isAuthenticated}
       />
-    </>
+    </div>
   );
 }

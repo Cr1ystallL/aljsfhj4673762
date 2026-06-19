@@ -269,7 +269,7 @@ export function HomeScreen() {
         {/* Section caption — Игры */}
         <SectionLabel right={`${visibleGames.length}`}>Игры</SectionLabel>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {visibleGames.map((g, i) => (
             <button
               key={g.id}
@@ -325,7 +325,7 @@ export function HomeScreen() {
         {/* Section caption — Bot games */}
         <SectionLabel right={`${botGames.length}`}>Игры в боте</SectionLabel>
 
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
           {botGames.map((g) => (
             <button
               key={g.id}
@@ -375,7 +375,7 @@ export function HomeScreen() {
         </div>
 
         {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-2 gap-3 pt-2 md:grid-cols-4">
           <QuickAction
             icon={<Wallet size={18} strokeWidth={1.5} />}
             label="Управление балансом"
@@ -507,7 +507,7 @@ function ContestHero({
             'radial-gradient(120% 100% at 100% 100%, rgba(255, 172, 46, 0.22) 0%, rgba(160, 224, 171, 0.12) 50%, transparent 80%)',
         }}
       />
-      <div className="relative px-5 py-6 sm:px-6 sm:py-7 flex flex-col gap-4">
+      <div className="relative px-5 py-6 sm:px-6 sm:py-7 md:px-10 md:py-12 lg:px-16 lg:py-16 flex flex-col gap-4">
         <span className="inline-flex items-center gap-2 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
           <Trophy size={11} className="text-[#ffac2e]" strokeWidth={1.7} />
           {contest.visibility === 'global'
@@ -579,7 +579,7 @@ function MacvJetHero({ onClick }: { onClick: () => void }) {
             'radial-gradient(120% 110% at 80% 110%, rgba(165, 45, 37, 0.40) 0%, rgba(255, 172, 46, 0.22) 35%, rgba(160, 224, 171, 0.12) 65%, transparent 85%)',
         }}
       />
-      <div className="relative px-5 py-6 sm:px-6 sm:py-7 flex flex-col gap-5">
+      <div className="relative px-5 py-6 sm:px-6 sm:py-7 md:px-10 md:py-12 lg:px-16 lg:py-16 flex flex-col gap-5">
         <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
           Рекомендуем · Фирменная игра
         </span>
