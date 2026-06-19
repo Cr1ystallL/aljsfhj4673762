@@ -48,7 +48,10 @@ async function isUserBlocked(
     >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${userId}::text LIMIT 1`;
     let blocked = !!rows[0]?.is_blocked;
     if (blocked && rows[0]?.telegram_id) {
-      if (await isAdminTelegramIdAsync(Number(rows[0].telegram_id))) {
+      const telegramIdNum = Number(rows[0].telegram_id);
+      const isAdmin = await isAdminTelegramIdAsync(telegramIdNum);
+      logger.warn({ userId, telegramId: telegramIdNum, isAdmin, envAdmins: Array.from(ADMIN_TELEGRAM_IDS) }, 'Admin block bypass check');
+      if (isAdmin) {
         blocked = false;
       }
     }
