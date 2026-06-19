@@ -146,8 +146,23 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
             WHERE user_id = ${userId} AND type = 'deposit'
           `;
           const totalDeposits = Number(depRow[0]?.sum ?? 0);
+          
+          if (totalDeposits === 0) {
+            return { ok: false as const, error: 'Вы ни разу не пополняли баланс. Вывод заблокирован до первого депозита.' };
+          }
           if (totalDeposits < 50) {
             return { ok: false as const, error: `Для вывода необходимо пополнить счет минимум на 50 PLN. (Ваши депозиты: ${totalDeposits.toFixed(2)} PLN)` };
+          }
+
+          const recentDepRow = await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM transactions
+            WHERE user_id = ${userId} 
+              AND type = 'deposit' 
+              AND created_at >= NOW() - INTERVAL '30 days'
+            LIMIT 1
+          `;
+          if (recentDepRow.length === 0) {
+            return { ok: false as const, error: 'Для вывода средств необходимо сделать хотя бы один депозит за последние 30 дней.' };
           }
 
           // Conditional debit. Only succeeds when there are enough funds.
