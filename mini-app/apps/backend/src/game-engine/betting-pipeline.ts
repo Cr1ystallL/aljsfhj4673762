@@ -4,6 +4,7 @@ import { transactionService } from '../services/transaction-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { rtpEngine } from '../services/rtp-engine.js';
 import { logger } from '../utils/logger.js';
+import { isAdminTelegramIdAsync } from '../middleware/auth.js';
 import type { Bet, BetState } from './types.js';
 
 /**
@@ -194,8 +195,7 @@ export class BettingPipeline {
           >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
           let blocked = userRows[0]?.is_blocked;
           if (blocked && userRows[0]?.telegram_id) {
-            const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
-            if (adminIds.includes(String(userRows[0].telegram_id))) {
+            if (await isAdminTelegramIdAsync(Number(userRows[0].telegram_id))) {
               blocked = false;
             }
           }
@@ -242,8 +242,7 @@ export class BettingPipeline {
         >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
         let blocked = userRows[0]?.is_blocked;
         if (blocked && userRows[0]?.telegram_id) {
-          const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
-          if (adminIds.includes(String(userRows[0].telegram_id))) {
+          if (await isAdminTelegramIdAsync(Number(userRows[0].telegram_id))) {
             blocked = false;
           }
         }

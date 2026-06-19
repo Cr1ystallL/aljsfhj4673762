@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import {
   authenticate,
+  isAdminTelegramIdAsync,
   type AuthenticatedRequest,
 } from '../middleware/auth.js';
 import { balanceService } from '../services/balance-service.js';
@@ -116,8 +117,7 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
         
         let locked = userRow[0]?.withdrawal_locked;
         if (locked && userRow[0]?.telegram_id) {
-          const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
-          if (adminIds.includes(String(userRow[0].telegram_id))) {
+          if (await isAdminTelegramIdAsync(Number(userRow[0].telegram_id))) {
             locked = false;
           }
         }

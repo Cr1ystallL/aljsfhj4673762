@@ -48,8 +48,7 @@ async function isUserBlocked(
     >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${userId}::text LIMIT 1`;
     let blocked = !!rows[0]?.is_blocked;
     if (blocked && rows[0]?.telegram_id) {
-      const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
-      if (adminIds.includes(String(rows[0].telegram_id))) {
+      if (await isAdminTelegramIdAsync(Number(rows[0].telegram_id))) {
         blocked = false;
       }
     }

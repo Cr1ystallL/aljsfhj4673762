@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import {
   adminOnly,
   isAdminTelegramId,
+  isAdminTelegramIdAsync,
   type AuthenticatedRequest,
 } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
@@ -980,8 +981,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const adminIds = process.env.ADMIN_TELEGRAM_IDS?.split(',').map(s => s.trim()) || [];
-        if (adminIds.includes(String(before.telegram_id))) {
+        if (await isAdminTelegramIdAsync(Number(before.telegram_id))) {
           if (request.body.isBlocked === true || request.body.withdrawalLocked === true) {
             return reply.code(403).send({ error: 'Cannot block or lock an admin account' });
           }
