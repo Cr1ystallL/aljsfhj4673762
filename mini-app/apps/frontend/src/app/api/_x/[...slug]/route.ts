@@ -17,6 +17,8 @@ function backendBaseUrl(): string {
   return 'http://127.0.0.1:4000';
 }
 
+export const dynamic = 'force-dynamic';
+
 async function proxy(
   request: NextRequest,
   slug: string[] | undefined,
@@ -39,7 +41,7 @@ async function proxy(
     body = await request.text();
   }
 
-  const res = await fetch(fullUrl, { method, headers, body });
+  const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
   const text = await res.text();
   const contentType = res.headers.get('content-type') || 'application/json';
 

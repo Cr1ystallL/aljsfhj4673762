@@ -60,10 +60,7 @@ export function useIsAdmin(): boolean {
     let cancelled = false;
 
     const doProbe = async () => {
-      // Force a fresh probe if it was previously false/null to ensure we catch late auth
-      if (cached === null) {
-          inflight = null; // clear inflight to force a real fetch
-      }
+      // If cached is null but inflight is running, probe() will await inflight.
       const v = await probe();
       if (!cancelled) {
         setIsAdmin(v);
