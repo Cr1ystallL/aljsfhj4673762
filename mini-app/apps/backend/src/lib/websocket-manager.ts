@@ -23,7 +23,14 @@ export class WebSocketManager {
   private maxConnectionsPerUser = 5;
 
   constructor() {
-    this.setupPubSub();
+    // Pub/sub setup moved to init() to ensure Redis is connected first
+  }
+
+  /**
+   * Initialize pub/sub after Redis connection is established
+   */
+  async init(): Promise<void> {
+    await this.setupPubSub();
   }
 
   /**

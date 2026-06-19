@@ -5,6 +5,7 @@ import { registerRoutes } from './routes/index.js';
 import { logger } from './utils/logger.js';
 import { redisClient } from './lib/redis.js';
 import { disconnectPrisma } from './lib/prisma.js';
+import { wsManager } from './lib/websocket-manager.js';
 
 /**
  * Main application entry point
@@ -30,6 +31,7 @@ async function start() {
   try {
     // Connect to Redis
     await redisClient.connect();
+    await wsManager.init();
 
     // Register plugins (CORS, JWT, WebSocket, etc.)
     await registerPlugins(app as any);
