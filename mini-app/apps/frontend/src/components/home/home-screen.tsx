@@ -205,7 +205,7 @@ export function HomeScreen() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
+      <div className="mx-auto w-full px-4 pt-4 pb-32 flex flex-col gap-5">
         {/* Top bar — wordmark | balance + avatar */}
         <header className="flex items-center justify-between">
           <BrandWordmark size={44} />
