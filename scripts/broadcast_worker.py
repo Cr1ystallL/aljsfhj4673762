@@ -98,6 +98,8 @@ async def _send_one(
     text = bc["text"]
     try:
         if media_url:
+            if media_url.startswith("/"):
+                media_url = f"https://macvbet.nl{media_url}"
             try:
                 await bot.send_photo(
                     chat_id=chat_id,
