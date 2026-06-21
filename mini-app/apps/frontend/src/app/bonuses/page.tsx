@@ -1244,14 +1244,11 @@ function ContestCard({
     >
       {/* Banner art (admin-uploaded) — falls back to the gradient wash */}
       {contest.bannerUrl ? (
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-45"
-          style={{
-            backgroundImage: `url(${contest.bannerUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
+        <img
+          src={contest.bannerUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover opacity-45"
         />
       ) : null}
       <div

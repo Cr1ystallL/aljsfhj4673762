@@ -480,15 +480,11 @@ function ContestHero({
       {/* Banner-art из админки, если есть. На обычные конкурсы кладут */}
       {/* фотофон, и Hero будет смотреться кинематографично. */}
       {contest.bannerUrl ? (
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-55"
-          style={{
-            backgroundImage: `url(${contest.bannerUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
+        <img
+          src={contest.bannerUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover opacity-55"
         />
       ) : null}
       <div

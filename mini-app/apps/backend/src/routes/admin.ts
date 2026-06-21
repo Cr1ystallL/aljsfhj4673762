@@ -2674,11 +2674,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
       try {
         // Compute total targets up-front so the UI shows the count.
-        const where = audienceWhere(audience);
-        const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
-          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
-        );
-        const totalTargets = Number(countRows[0]?.c ?? 0);
+        let totalTargets = 0;
+        if (audience.channelId) {
+          totalTargets = 1;
+        } else {
+          const where = audienceWhere(audience);
+          const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+            Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
+          );
+          totalTargets = Number(countRows[0]?.c ?? 0);
+        }
 
         const id =
           (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
