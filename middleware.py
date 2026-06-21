@@ -82,8 +82,20 @@ class UserActivityMiddleware(BaseMiddleware):
                     )
                 return
         
+        # Игнорируем любые сообщения в группах, кроме /mb_wheel
+        chat = getattr(event, "chat", None)
+        if not chat and hasattr(event, "message") and event.message:
+            chat = event.message.chat
+
+        if chat and chat.type in ('group', 'supergroup'):
+            if isinstance(event, Message):
+                if not event.text or not event.text.startswith('/mb_wheel'):
+                    return
+            else:
+                return
+
         # Обновляем активность пользователя
-        if event.from_user:
+        if getattr(event, "from_user", None):
             username = event.from_user.username
             first_name = event.from_user.first_name
             db.update_user_activity(event.from_user.id, username, first_name)

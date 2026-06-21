@@ -60,6 +60,8 @@ async def main():
     dp.include_router(rps.router)
     dp.include_router(spider.router)
     dp.include_router(referral.router)
+    from handlers import wheel
+    dp.include_router(wheel.router)
     dp.include_router(basic.router)
     
     logger.info("Бот запущен")

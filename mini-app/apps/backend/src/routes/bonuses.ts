@@ -562,6 +562,103 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /**
+   * POST /api/bonuses/_bot/wheel/spin
+   * Internal endpoint for the Telegram bot to spin the wheel.
+   */
+  app.post('/_bot/wheel/spin', async (request: any, reply: any) => {
+    // Only allow localhost
+    if (request.ip !== '127.0.0.1' && request.ip !== '::1') {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
+
+    const { telegramId } = request.body as { telegramId: number };
+    if (!telegramId) return reply.code(400).send({ error: 'telegramId required' });
+
+    try {
+      const userRows = await app.prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM users WHERE telegram_id = ${telegramId} LIMIT 1`;
+      if (!userRows.length) return reply.code(404).send({ error: 'User not found' });
+      const userId = userRows[0].id;
+
+      const result = await app.prisma.$transaction(async (tx: any) => {
+        const sinceMidnight = new Date();
+        sinceMidnight.setHours(0, 0, 0, 0);
+        const today = await tx.$queryRaw<
+          Array<{ n: bigint; last: Date | null }>
+        >`SELECT COUNT(*)::bigint AS n, MAX(created_at) AS last
+            FROM bonus_wheel_spins
+           WHERE user_id = ${userId} AND created_at >= ${sinceMidnight}`;
+        const usedToday = Number(today[0]?.n ?? 0n);
+        if (usedToday >= SPIN_DAILY_CAP) {
+          throw new HttpError(429, 'DAILY_CAP', 'No more spins today');
+        }
+        const lastAt = today[0]?.last ? new Date(today[0].last).getTime() : null;
+        if (lastAt !== null && Date.now() - lastAt < SPIN_COOLDOWN_MS) {
+          const remaining = Math.ceil(
+            (SPIN_COOLDOWN_MS - (Date.now() - lastAt)) / 1000
+          );
+          throw new HttpError(
+            429,
+            'COOLDOWN',
+            remaining.toString()
+          );
+        }
+
+        const { amount, index } = pickSector();
+
+        // Credit balance + write txn + spin row.
+        const balRows = await tx.$queryRaw<
+          Array<{ amount: string; version: number }>
+        >`SELECT amount::text, version FROM balances
+            WHERE user_id = ${userId} LIMIT 1 FOR UPDATE`;
+        const before = Number(balRows[0]?.amount ?? 0);
+        const after = +(before + amount).toFixed(2);
+        await tx.$executeRaw`
+          UPDATE balances SET amount = ${after}::numeric,
+                              wager_target = wager_target + (${amount} * 2)::numeric,
+                              auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
+                              version = version + 1,
+                              last_synced_at = NOW(),
+                              updated_at = NOW()
+            WHERE user_id = ${userId}`;
+        await tx.$executeRaw`
+          INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                     balance_after, game_type, metadata, created_at)
+          VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
+                  ${before}::numeric, ${after}::numeric, NULL,
+                  ${JSON.stringify({ kind: 'lucky_wheel', sector: index })}::jsonb,
+                  NOW())`;
+        await tx.$executeRaw`
+          INSERT INTO bonus_wheel_spins (id, user_id, amount, created_at)
+          VALUES (${randomUUID()}, ${userId}, ${amount}::numeric, NOW())`;
+
+        return { amount, index, balance: after, usedToday: usedToday + 1 };
+      });
+
+      // Push fresh balance to the WS subscriber
+      await balanceService.invalidateCache(userId);
+      await balanceService.syncBalance(userId);
+
+      return reply.send({
+        ok: true,
+        amount: result.amount,
+        sectorIndex: result.index,
+        balance: result.balance,
+        remaining: Math.max(0, SPIN_DAILY_CAP - result.usedToday),
+        cooldownEndsAt: Date.now() + SPIN_COOLDOWN_MS,
+      });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return reply.code(err.status).send({
+          error: err.code,
+          message: err.message,
+        });
+      }
+      logger.error(err, 'Bot wheel spin failed');
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
 }
 
 /* ================================================================ helpers */
