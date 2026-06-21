@@ -15,6 +15,7 @@ import { restartCrashEngine } from '../game-engine/crash-room-singleton.js';
 import { redisClient } from '../lib/redis.js';
 import { sessionManager } from '../lib/session-manager.js';
 import { rtpEngine } from '../services/rtp-engine.js';
+import { config } from '../config/index.js';
 
 /**
  * Admin Routes — covert.
@@ -2433,6 +2434,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     regBefore?: number;
     inactiveDays?: number;
     telegramIds?: number[];
+    channelId?: string;
   }
 
   interface BroadcastButton {
@@ -2485,6 +2487,35 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: adminOnly },
     async (request, reply) => {
       const audience = request.body?.audience ?? { all: true };
+      
+      // If targeting a specific channel/group, verify access via Telegram API
+      if (audience.channelId !== undefined) {
+        try {
+          const chatId = audience.channelId.trim();
+          if (!chatId) {
+            return reply.send({ ok: true, total: 0, sample: [] });
+          }
+          const tgRes = await fetch(
+            `https://api.telegram.org/bot${config.telegramBotToken}/getChat?chat_id=${chatId}`
+          );
+          const data = await tgRes.json();
+          if (!data.ok || !data.result) {
+            return reply.code(400).send({ error: data.description || 'Bot cannot access this channel/group' });
+          }
+          return reply.send({
+            ok: true,
+            total: 1,
+            sample: [{
+              telegramId: data.result.id,
+              name: data.result.title || data.result.username || String(data.result.id)
+            }]
+          });
+        } catch (error) {
+          logger.error(error, 'Channel preview failed');
+          return reply.code(400).send({ error: 'Failed to verify channel' });
+        }
+      }
+
       try {
         const where = audienceWhere(audience);
         const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(

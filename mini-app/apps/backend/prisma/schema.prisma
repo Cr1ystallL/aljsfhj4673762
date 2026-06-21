@@ -391,10 +391,13 @@ model Contest {
   /// "public" — visible on the bonuses page; "private" — joinable
   /// only via a referral link served by the bot.
   visibility      String   @default("public")
+  bannerUrl       String?  @map("banner_url") @db.Text
   /// Total prize pool in PLN.
   prizePool       Decimal  @map("prize_pool") @db.Decimal(20, 2)
   /// Number of winners selected at the end. Must be >= 1.
   winnersCount    Int      @map("winners_count")
+  /// Total wager a winner gets.
+  winnerWager     Decimal  @default(0) @map("winner_wager") @db.Decimal(20, 2)
   /// Per-place distribution. Array of `{ place: number, amount: number }`
   /// summing to `prizePool`. If the array length is shorter than
   /// `winnersCount`, the remainder splits the last entry equally.

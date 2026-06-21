@@ -30,6 +30,7 @@ interface AudienceFilter {
   regBefore?: number;
   inactiveDays?: number;
   telegramIds?: number[];
+  channelId?: string;
 }
 
 export default function NewBroadcastPage() {
@@ -40,12 +41,13 @@ export default function NewBroadcastPage() {
   const [buttons, setButtons] = useState<ButtonInput[]>([]);
 
   // Audience
-  const [audMode, setAudMode] = useState<'all' | 'filter' | 'specific'>('all');
+  const [audMode, setAudMode] = useState<'all' | 'filter' | 'specific' | 'channel'>('all');
   const [minBalance, setMinBalance] = useState<string>('');
   const [regAfter, setRegAfter] = useState<string>(''); // ISO date string
   const [regBefore, setRegBefore] = useState<string>('');
   const [inactiveDays, setInactiveDays] = useState<string>('');
   const [specificIds, setSpecificIds] = useState<string>('');
+  const [channelId, setChannelId] = useState<string>('');
 
   // Schedule
   const [sendNow, setSendNow] = useState(true);
@@ -64,6 +66,9 @@ export default function NewBroadcastPage() {
 
   const buildAudience = (): AudienceFilter => {
     if (audMode === 'all') return { all: true };
+    if (audMode === 'channel') {
+      return { channelId: channelId.trim() };
+    }
     if (audMode === 'specific') {
       const ids = specificIds
         .split(/[,\s]+/)
@@ -299,6 +304,7 @@ export default function NewBroadcastPage() {
                   ['all', 'Все игроки'],
                   ['filter', 'Фильтр'],
                   ['specific', 'Конкретные ID'],
+                  ['channel', 'Канал / Группа'],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -364,6 +370,20 @@ export default function NewBroadcastPage() {
                 placeholder="123456789, 987654321"
                 className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[12px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
               />
+            </Field>
+          )}
+
+          {audMode === 'channel' && (
+            <Field label="ID Канала / Группы (или Username)">
+              <input
+                value={channelId}
+                onChange={(e) => setChannelId(e.target.value)}
+                placeholder="Например: -100123456789 или @channel"
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+              />
+              <p className="text-whisper-gray mt-2 text-[11px] leading-tight">
+                Бот должен состоять в этом канале/группе с правами администратора (или хотя бы правом писать сообщения), чтобы рассылка прошла успешно.
+              </p>
             </Field>
           )}
 

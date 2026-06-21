@@ -187,12 +187,15 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
             audience = json.loads(audience)
         keyboard = _build_keyboard(bc.get("buttons"))
 
-        where, params = _audience_sql_where(audience)
-        cur.execute(
-            f"SELECT telegram_id FROM users{where}",
-            params,
-        )
-        targets: list[int] = [int(row["telegram_id"]) for row in cur.fetchall()]
+        if audience.get("channelId"):
+            targets = [audience["channelId"]]
+        else:
+            where, params = _audience_sql_where(audience)
+            cur.execute(
+                f"SELECT telegram_id FROM users{where}",
+                params,
+            )
+            targets = [int(row["telegram_id"]) for row in cur.fetchall()]
 
         delivered = 0
         failed = 0
