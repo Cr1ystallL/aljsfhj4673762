@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 
 # Загружаем переменные окружения
 load_dotenv()
-if not os.getenv('DATABASE_URL'):
-    load_dotenv('/var/www/MACVBET/mini-app/apps/backend/.env', override=True)
+load_dotenv('/var/www/MACVBET/mini-app/apps/backend/.env', override=True)
 
 
 class Config:

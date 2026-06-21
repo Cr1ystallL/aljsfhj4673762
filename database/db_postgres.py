@@ -23,6 +23,7 @@ class DatabasePostgres:
         """Инициализация базы данных - таблицы уже созданы через Prisma"""
         # Проверяем подключение
         try:
+            print(f"DEBUG: Connecting to {self.database_url.replace('postg', '***')}")
             conn = self._get_connection()
             conn.close()
             print("✅ PostgreSQL connection successful")
