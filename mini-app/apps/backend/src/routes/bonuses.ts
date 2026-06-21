@@ -421,6 +421,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           title: string;
           description: string | null;
           visibility: string;
+          banner_url: string | null;
           prize_pool: string;
           winners_count: number;
           prize_shares: unknown;
@@ -432,7 +433,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           participant_count: bigint;
         }>
       >`
-        SELECT c.id, c.title, c.description, c.visibility,
+        SELECT c.id, c.title, c.description, c.visibility, c.banner_url,
                c.prize_pool::text, c.winners_count, c.prize_shares,
                c.rules, c.starts_at, c.ends_at, c.state,
                EXISTS (
@@ -461,6 +462,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           title: r.title,
           description: r.description,
           visibility: r.visibility,
+          bannerUrl: r.banner_url,
           prizePool: Number(r.prize_pool),
           winnersCount: r.winners_count,
           prizeShares: r.prize_shares,

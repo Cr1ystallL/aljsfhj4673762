@@ -61,6 +61,7 @@ export default function NewBroadcastPage() {
     total: number;
     sample: Array<{ telegramId: number; name: string }>;
   } | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const [busy, setBusy] = useState(false);
 
@@ -105,9 +106,14 @@ export default function NewBroadcastPage() {
         if (res.ok) {
           const j = await res.json();
           setPreview({ total: j.total, sample: j.sample });
+          setPreviewError(null);
+        } else {
+          const j = await res.json().catch(() => null);
+          setPreview({ total: 0, sample: [] });
+          setPreviewError(j?.error || 'Ошибка проверки аудитории');
         }
       } catch {
-        // ignore
+        setPreviewError('Ошибка сети');
       }
     }, 350);
     return () => clearTimeout(handler);
@@ -387,8 +393,17 @@ export default function NewBroadcastPage() {
             </Field>
           )}
 
+          {/* Preview Error */}
+          {previewError && (
+            <div className="rounded-card border border-red-500/20 bg-red-500/10 px-3 py-2.5">
+              <span className="font-roobert text-[12px] text-red-400">
+                {previewError}
+              </span>
+            </div>
+          )}
+
           {/* Preview */}
-          {preview && (
+          {preview && !previewError && (
             <div className="rounded-card border border-white/10 bg-white/[0.03] px-3 py-2.5">
               <div className="flex items-center justify-between">
                 <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
