@@ -83,7 +83,7 @@ async def cmd_mb_wheel(message: Message):
                 text = (
                     f"🎰 <b>Выпало:</b> {amount} zł\n\n"
                     f"У вас осталось: {remaining} спинов\n"
-                    f"⏳ Ещё раз прокрутить можно через: 15 минут"
+                    f"⏳ Ещё раз прокрутить можно через: 20 минут"
                 )
                 
                 try:
