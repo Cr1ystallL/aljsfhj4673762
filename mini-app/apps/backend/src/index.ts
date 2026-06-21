@@ -26,6 +26,7 @@ async function start() {
     trustProxy: true,
     requestIdHeader: 'x-request-id',
     requestIdLogLabel: 'reqId',
+    bodyLimit: 104857600, // 100MB
   });
 
   try {
