@@ -56,5 +56,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(maintenanceRoutes, { prefix: '/api' });
 
   // WebSocket
-  await app.register(websocketRoutes);
+  await app.register(websocketRoutes, { prefix: '/api' });
 }

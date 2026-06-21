@@ -753,6 +753,7 @@ export class CrashGameEngine extends BaseGameEngine {
     const userIds = new Set<string>();
     let totalWagered = 0;
     for (const [key, bet] of this.crashState.slotBets.entries()) {
+      if (bet.metadata?.tournamentId) continue;
       const [userId] = key.split(':');
       userIds.add(userId);
       totalWagered += bet.amount;

@@ -120,13 +120,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         users24h,
         users7d,
         balances,
-        betCount,
-        wagerAgg,
-        payoutAgg,
+        betCountRows,
+        wagerAggRows,
+        payoutAggRows,
         perGameRaw,
         topPlayersRaw,
         timelineRaw,
-        biggestWin,
+        biggestWinRaw,
       ] = await Promise.all([
         app.prisma.user.count(),
         app.prisma.user.count({ where: { createdAt: { gte: since24h } } }),
@@ -134,44 +134,52 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         app.prisma.balance.findMany({
           select: { amount: true, demoMode: true, currency: true },
         }),
-        app.prisma.bet.count(),
-        app.prisma.bet.aggregate({ _sum: { amount: true } }),
-        app.prisma.bet.aggregate({ _sum: { payout: true } }),
-        app.prisma.bet.groupBy({
-          by: ['gameType'],
-          _count: { _all: true },
-          _sum: { amount: true, payout: true },
-          _max: { multiplier: true },
-        }),
-        app.prisma.bet.groupBy({
-          by: ['userId'],
-          _sum: { amount: true, payout: true },
-          _count: { _all: true },
-          orderBy: { _sum: { amount: 'desc' } },
-          take: 10,
-        }),
-        app.prisma.bet.findMany({
-          where: { placedAt: { gte: since14d } },
-          select: { placedAt: true, amount: true, payout: true },
-        }),
-        app.prisma.bet.findFirst({
-          where: { payout: { not: null } },
-          orderBy: { payout: 'desc' },
-          select: {
-            payout: true,
-            multiplier: true,
-            gameType: true,
-            placedAt: true,
-            user: {
-              select: {
-                firstName: true,
-                username: true,
-                telegramId: true,
-              },
-            },
-          },
-        }),
+        app.prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) as count FROM bets WHERE metadata->>'tournamentId' IS NULL`,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT SUM(amount) as sum FROM bets WHERE metadata->>'tournamentId' IS NULL`,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT SUM(payout) as sum FROM bets WHERE metadata->>'tournamentId' IS NULL`,
+        app.prisma.$queryRaw<{ game_type: string, count: bigint, sum_amount: number, sum_payout: number, max_multiplier: number }[]>`
+          SELECT game_type, COUNT(*) as count, SUM(amount) as sum_amount, SUM(payout) as sum_payout, MAX(multiplier) as max_multiplier
+          FROM bets
+          WHERE metadata->>'tournamentId' IS NULL
+          GROUP BY game_type
+        `,
+        app.prisma.$queryRaw<{ user_id: string, sum_amount: number, sum_payout: number, count: bigint }[]>`
+          SELECT user_id, SUM(amount) as sum_amount, SUM(payout) as sum_payout, COUNT(*) as count
+          FROM bets
+          WHERE metadata->>'tournamentId' IS NULL
+          GROUP BY user_id
+          ORDER BY sum_amount DESC
+          LIMIT 10
+        `,
+        app.prisma.$queryRaw<{ placed_at: Date, amount: number, payout: number }[]>`
+          SELECT placed_at, amount, payout
+          FROM bets
+          WHERE placed_at >= ${since14d} AND metadata->>'tournamentId' IS NULL
+        `,
+        app.prisma.$queryRaw<any[]>`
+          SELECT b.payout, b.multiplier, b.game_type, b.placed_at, u.first_name, u.username, u.telegram_id
+          FROM bets b
+          JOIN users u ON u.id = b.user_id
+          WHERE b.payout IS NOT NULL AND b.metadata->>'tournamentId' IS NULL
+          ORDER BY b.payout DESC
+          LIMIT 1
+        `,
       ]);
+
+      const betCount = Number(betCountRows[0]?.count || 0);
+      const wagerAgg = { _sum: { amount: wagerAggRows[0]?.sum || 0 } };
+      const payoutAgg = { _sum: { payout: payoutAggRows[0]?.sum || 0 } };
+      const biggestWin = biggestWinRaw[0] ? {
+        payout: biggestWinRaw[0].payout,
+        multiplier: biggestWinRaw[0].multiplier,
+        gameType: biggestWinRaw[0].game_type,
+        placedAt: biggestWinRaw[0].placed_at,
+        user: {
+          firstName: biggestWinRaw[0].first_name,
+          username: biggestWinRaw[0].username,
+          telegramId: biggestWinRaw[0].telegram_id,
+        }
+      } : null;
 
       const totalLiability = balances
         .filter((b) => !b.demoMode)
@@ -185,15 +193,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const ggr = totalWagered - totalPaidOut;
 
       const perGame = perGameRaw.map((g) => ({
-        gameType: g.gameType,
-        count: g._count._all,
-        wagered: Number(g._sum.amount ?? 0),
-        paidOut: Number(g._sum.payout ?? 0),
-        ggr: Number(g._sum.amount ?? 0) - Number(g._sum.payout ?? 0),
-        maxMultiplier: Number(g._max.multiplier ?? 0),
+        gameType: g.game_type,
+        count: Number(g.count || 0),
+        wagered: Number(g.sum_amount ?? 0),
+        paidOut: Number(g.sum_payout ?? 0),
+        ggr: Number(g.sum_amount ?? 0) - Number(g.sum_payout ?? 0),
+        maxMultiplier: Number(g.max_multiplier ?? 0),
       }));
 
-      const topUserIds = topPlayersRaw.map((t) => t.userId);
+      const topUserIds = topPlayersRaw.map((t) => t.user_id);
       const topUsers =
         topUserIds.length > 0
           ? await app.prisma.user.findMany({
@@ -209,11 +217,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           : [];
       const topUsersById = new Map(topUsers.map((u) => [u.id, u]));
       const topPlayers = topPlayersRaw.map((t) => {
-        const u = topUsersById.get(t.userId);
-        const wagered = Number(t._sum.amount ?? 0);
-        const paid = Number(t._sum.payout ?? 0);
+        const u = topUsersById.get(t.user_id);
+        const wagered = Number(t.sum_amount ?? 0);
+        const paid = Number(t.sum_payout ?? 0);
         return {
-          userId: t.userId,
+          userId: t.user_id,
           name:
             u?.firstName ||
             u?.username ||
@@ -222,7 +230,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               : 'Игрок'),
           photoUrl: u?.photoUrl ?? null,
           telegramId: u?.telegramId ? Number(u.telegramId) : null,
-          bets: t._count._all,
+          bets: Number(t.count || 0),
           wagered,
           paidOut: paid,
           ggr: wagered - paid,
@@ -239,7 +247,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         buckets.set(key, { wagered: 0, paidOut: 0, bets: 0 });
       }
       for (const b of timelineRaw) {
-        const key = b.placedAt.toISOString().slice(0, 10);
+        const key = new Date(b.placed_at).toISOString().slice(0, 10);
         const slot = buckets.get(key);
         if (!slot) continue;
         slot.wagered += Number(b.amount);

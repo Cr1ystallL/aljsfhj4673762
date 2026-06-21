@@ -489,6 +489,7 @@ class WheelEngine extends EventEmitter {
     const users = new Set<string>();
     let total = 0;
     for (const b of this.round.bets.values()) {
+      if (b.isTournament) continue;
       users.add(b.userId);
       total += b.amount;
     }

@@ -9,12 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * 404, same as for any unknown route.
  */
 function backendBaseUrl(): string {
-  const b =
-    process.env.INTERNAL_API_URL ||
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL;
-  if (b) return b.replace(/\/$/, '');
-  return 'http://127.0.0.1:4000';
+  return process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
 }
 
 export const dynamic = 'force-dynamic';

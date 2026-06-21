@@ -32,8 +32,12 @@ export function useCrashLive(): {
   // once and memo the stream instance keyed by sessionId.
   const wsUrl = useMemo(() => {
     const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-    const base = baseRaw.replace(/\/$/, '');
-    return /\/ws$/.test(base) ? base : `${base}/ws`;
+    let base = baseRaw.replace(/\/$/, '');
+    if (!base.endsWith('/api')) {
+      // If deployed with wss://macvbet.nl, append /api
+      base = base.replace(/\/ws$/, '');
+    }
+    return base.endsWith('/api/ws') ? base : `${base.replace(/\/api$/, '')}/api/ws`;
   }, []);
 
   const streamRef = useRef<CrashLiveStream | null>(null);
