@@ -40,7 +40,7 @@ const LUCKY_SECTORS: ReadonlyArray<{ amount: number; weight: number }> = [
 ];
 
 const SPIN_DAILY_CAP = 10;
-const SPIN_COOLDOWN_MS = 20 * 60 * 1000;
+const SPIN_COOLDOWN_MS = 15 * 60 * 1000;
 
 function pickSector(): { amount: number; index: number } {
   const total = LUCKY_SECTORS.reduce((s, x) => s + x.weight, 0);
