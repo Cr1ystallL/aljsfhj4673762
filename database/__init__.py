@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 
 # Загружаем .env файл ПЕРЕД проверкой переменных
 load_dotenv()
+# Fallback to backend .env for DATABASE_URL if missing
+if not os.getenv('DATABASE_URL'):
+    load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'mini-app', 'apps', 'backend', '.env'))
 
 # Выбираем базу данных в зависимости от переменной окружения
 USE_POSTGRES = os.getenv('USE_POSTGRES', 'true').lower() in ('true', '1', 'yes')

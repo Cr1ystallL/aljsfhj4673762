@@ -5,8 +5,10 @@ import os
 from typing import List
 from dotenv import load_dotenv
 
-# Загружаем переменные из .env файла
+# Загружаем переменные окружения
 load_dotenv()
+if not os.getenv('DATABASE_URL'):
+    load_dotenv(os.path.join(os.path.dirname(__file__), 'mini-app', 'apps', 'backend', '.env'))
 
 
 class Config:
