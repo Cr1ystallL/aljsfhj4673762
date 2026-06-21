@@ -101,6 +101,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push('/profile');
   };
 
+  const isConsole = pathname.startsWith('/system/console');
+
   return (
     <>
       {children}
@@ -111,7 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onProfileClick={handleProfileClick}
         onBonusesClick={() => router.push('/bonuses')}
         onPartnerClick={() => router.push('/partner')}
-        forceHidden={isMenuOpen}
+        forceHidden={isMenuOpen || isConsole}
       />
 
       <MenuDrawer
