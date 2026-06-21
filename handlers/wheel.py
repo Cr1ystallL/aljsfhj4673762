@@ -32,21 +32,25 @@ async def cmd_mb_wheel(message: Message):
                         # В бэкенде мы возвращаем remaining в секундах в message
                         seconds = int(data.get('message', '0'))
                         minutes = max(1, round(seconds / 60))
-                        await message.answer(f"⏳ Ещё раз прокрутить можно через: {minutes} минут(ы)")
+                        msg = await message.answer(f"⏳ Ещё раз прокрутить можно через: {minutes} минут(ы)")
+                        asyncio.create_task(delete_message_later(msg, 15))
                         return
                     elif data.get('error') == 'DAILY_CAP':
-                        await message.answer("❌ У вас закончились вращения на сегодня. Возвращайтесь завтра!")
+                        msg = await message.answer("❌ У вас закончились вращения на сегодня. Возвращайтесь завтра!")
+                        asyncio.create_task(delete_message_later(msg, 15))
                         return
                 
                 if resp.status == 404:
-                    await message.answer(
+                    msg = await message.answer(
                         "❌ <b>Сначала зарегистрируйтесь</b>\n\n"
                         "Перейдите в личные сообщения @MacvBet_bot и отправьте команду /start"
                     )
+                    asyncio.create_task(delete_message_later(msg, 15))
                     return
                     
                 if resp.status != 200:
-                    await message.answer("❌ Произошла ошибка при вращении колеса. Попробуйте позже.")
+                    msg = await message.answer("❌ Произошла ошибка при вращении колеса. Попробуйте позже.")
+                    asyncio.create_task(delete_message_later(msg, 15))
                     return
                 
                 # Успешное вращение
@@ -100,7 +104,8 @@ async def cmd_mb_wheel(message: Message):
                     asyncio.create_task(delete_message_later(result_msg, 120))
                     
         except Exception as e:
-            await message.answer("❌ Сервер временно недоступен.")
+            msg = await message.answer("❌ Сервер временно недоступен.")
+            asyncio.create_task(delete_message_later(msg, 15))
 
 
 async def delete_message_later(message: Message, delay_seconds: int):
