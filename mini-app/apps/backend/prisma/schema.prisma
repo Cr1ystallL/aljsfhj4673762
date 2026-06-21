@@ -412,6 +412,8 @@ model Contest {
   rules           Json
   startsAt        DateTime @map("starts_at")
   endsAt          DateTime @map("ends_at")
+  /// Picked temporarily during /draw before confirmation
+  draftWinners    Json?    @map("draft_winners")
   /// Filled in by `/draw`: array of `{ userId, amount, place }` once
   /// winners are picked. Null while pending.
   resolvedWinners Json?    @map("resolved_winners")

@@ -112,7 +112,7 @@ export default function NewBroadcastPage() {
     }, 350);
     return () => clearTimeout(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audMode, minBalance, regAfter, regBefore, inactiveDays, specificIds]);
+  }, [audMode, minBalance, regAfter, regBefore, inactiveDays, specificIds, channelId]);
 
   const submit = async () => {
     if (text.trim().length < 1) {
