@@ -1,4 +1,7 @@
 import type { FastifyInstance } from 'fastify';
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
 import { Prisma } from '@prisma/client';
 import {
   adminOnly,
@@ -104,6 +107,29 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/_x/probe', { preHandler: adminOnly }, async (_req, reply) => {
     return reply.send({ ok: true });
+  });
+
+  /* ---------------------------------------------------------------- upload */
+
+  app.post('/_x/upload', { preHandler: adminOnly }, async (request, reply) => {
+    const data = await request.file();
+    if (!data) {
+      return reply.code(400).send({ error: 'No file uploaded' });
+    }
+
+    const ext = path.extname(data.filename) || '.png';
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
+
+    const uploadDir = path.resolve(process.cwd(), '../frontend/public/uploads');
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+
+    const filePath = path.join(uploadDir, filename);
+    await pipeline(data.file, fs.createWriteStream(filePath));
+
+    return reply.send({
+      ok: true,
+      url: `/uploads/${filename}`,
+    });
   });
 
   /* ---------------------------------------------------------------- stats */

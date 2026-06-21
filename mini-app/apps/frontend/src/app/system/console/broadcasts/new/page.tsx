@@ -38,6 +38,7 @@ export default function NewBroadcastPage() {
   const [text, setText] = useState('');
   const [parseMode, setParseMode] = useState<'HTML' | 'Markdown' | 'none'>('HTML');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [buttons, setButtons] = useState<ButtonInput[]>([]);
 
   // Audience
@@ -214,13 +215,43 @@ export default function NewBroadcastPage() {
               {text.length} / 4000
             </div>
           </Field>
-          <Field label="URL картинки (опционально)">
+          <Field label="Картинка (опционально)">
             <input
-              value={mediaUrl}
-              onChange={(e) => setMediaUrl(e.target.value)}
-              placeholder="https://…"
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+              type="file"
+              accept="image/*"
+              disabled={uploadingMedia}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploadingMedia(true);
+                setSubmitErr(null);
+                try {
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  const res = await fetch('/api/_x/upload', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const json = await res.json();
+                  if (json.ok && json.url) setMediaUrl(json.url);
+                  else setSubmitErr(json.error || 'Ошибка загрузки');
+                } catch {
+                  setSubmitErr('Ошибка загрузки');
+                } finally {
+                  setUploadingMedia(false);
+                }
+              }}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30 file:mr-4 file:py-1 file:px-3 file:rounded-pill file:border-0 file:text-[12px] file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20"
             />
+            {uploadingMedia && <div className="text-[12px] text-white/50 mt-1">Загрузка...</div>}
+            {mediaUrl.trim() && (
+              <img
+                src={mediaUrl.trim()}
+                alt="Preview"
+                className="mt-2 w-full h-32 object-cover rounded-card border border-white/10"
+                referrerPolicy="no-referrer"
+              />
+            )}
           </Field>
           <Field label="Кнопки (до 3)">
             <div className="flex flex-col gap-2">

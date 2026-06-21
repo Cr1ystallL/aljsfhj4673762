@@ -1251,6 +1251,7 @@ function ContestCreateModal({
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private' | 'global'>('public');
   const [bannerUrl, setBannerUrl] = useState('');
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [prizePool, setPrizePool] = useState(2000);
   const [autoPayout, setAutoPayout] = useState(true);
   const [winnersCount, setWinnersCount] = useState(20);
@@ -1398,13 +1399,35 @@ function ContestCreateModal({
               className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
             />
           </Field>
-          <Field label="Фото-фон (URL)" colSpan={2}>
+          <Field label="Фото-фон" colSpan={2}>
             <input
-              value={bannerUrl}
-              onChange={(e) => setBannerUrl(e.target.value)}
-              placeholder="https://example.com/banner.jpg"
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+              type="file"
+              accept="image/*"
+              disabled={uploadingBanner}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploadingBanner(true);
+                setErr(null);
+                try {
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  const res = await fetch('/api/_x/upload', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const json = await res.json();
+                  if (json.ok && json.url) setBannerUrl(json.url);
+                  else setErr(json.error || 'Ошибка загрузки');
+                } catch {
+                  setErr('Ошибка загрузки');
+                } finally {
+                  setUploadingBanner(false);
+                }
+              }}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30 file:mr-4 file:py-1 file:px-3 file:rounded-pill file:border-0 file:text-[12px] file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20"
             />
+            {uploadingBanner && <div className="text-[12px] text-white/50 mt-1">Загрузка...</div>}
             {bannerUrl.trim() && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -1982,6 +2005,7 @@ function ContestEditModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'private' | 'global'>('public');
   const [prizePool, setPrizePool] = useState(0);
   const [winnersCount, setWinnersCount] = useState(1);
@@ -2073,13 +2097,35 @@ function ContestEditModal({
                 className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
               />
             </Field>
-            <Field label="Фото-фон (URL)" colSpan={2}>
-              <input
-                value={bannerUrl}
-                onChange={(e) => setBannerUrl(e.target.value)}
-                placeholder="https://example.com/banner.jpg"
-                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
-              />
+            <Field label="Фото-фон" colSpan={2}>
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingBanner}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploadingBanner(true);
+                setErr(null);
+                try {
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  const res = await fetch('/api/_x/upload', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const json = await res.json();
+                  if (json.ok && json.url) setBannerUrl(json.url);
+                  else setErr(json.error || 'Ошибка загрузки');
+                } catch {
+                  setErr('Ошибка загрузки');
+                } finally {
+                  setUploadingBanner(false);
+                }
+              }}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30 file:mr-4 file:py-1 file:px-3 file:rounded-pill file:border-0 file:text-[12px] file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20"
+            />
+            {uploadingBanner && <div className="text-[12px] text-white/50 mt-1">Загрузка...</div>}
               {bannerUrl.trim() && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
