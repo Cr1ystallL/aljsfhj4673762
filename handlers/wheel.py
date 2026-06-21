@@ -7,7 +7,6 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 
-from database.db import db
 
 router = Router()
 
@@ -19,21 +18,6 @@ async def cmd_mb_wheel(message: Message):
     """
     user_id = message.from_user.id
     
-    # Проверяем, зарегистрирован ли пользователь
-    conn = db._get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
-    user_exists = cursor.fetchone()
-    conn.close()
-
-    if not user_exists:
-        # В БД бота пользователя нет, значит он не писал /start
-        await message.answer(
-            "❌ <b>Сначала запустите бота</b>\n\n"
-            "Перейдите в личные сообщения @MacvBet_bot и отправьте команду /start"
-        )
-        return
-
     # Запрашиваем бэкенд на предмет вращения
     url = 'http://localhost:4000/api/bonuses/_bot/wheel/spin'
     payload = {'telegramId': user_id}
