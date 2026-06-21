@@ -57,6 +57,9 @@ export default function NewBroadcastPage() {
   // Reason
   const [reason, setReason] = useState('');
 
+  // Upload Error
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+
   // Preview
   const [preview, setPreview] = useState<{
     total: number;
@@ -244,6 +247,7 @@ export default function NewBroadcastPage() {
               className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30 file:mr-4 file:py-1 file:px-3 file:rounded-pill file:border-0 file:text-[12px] file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20"
             />
             {uploadingMedia && <div className="text-[12px] text-white/50 mt-1">Загрузка...</div>}
+            {submitErr && <div className="text-[12px] text-red-400 mt-1">{submitErr}</div>}
             {mediaUrl.trim() && (
               <img
                 src={mediaUrl.trim()}
