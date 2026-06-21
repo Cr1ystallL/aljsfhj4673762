@@ -2524,7 +2524,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           const tgRes = await fetch(
             `https://api.telegram.org/bot${config.telegramBotToken}/getChat?chat_id=${chatId}`
           );
-          const data = (await tgRes.json()) as any;
+          interface TgChatResponse {
+            ok: boolean;
+            result?: {
+              id: number;
+              title?: string;
+              username?: string;
+            };
+            description?: string;
+          }
+          const data = (await tgRes.json()) as TgChatResponse;
           if (!data.ok || !data.result) {
             return reply.code(400).send({ error: data.description || 'Bot cannot access this channel/group' });
           }
