@@ -68,8 +68,7 @@ async def main():
     logger.info(f"Начальный баланс: {config.INITIAL_BALANCE}")
     logger.info(f"Диапазон ставок: {config.MIN_BET} - {config.MAX_BET}")
     
-    # Восстановление таймеров вывода
-    await payment.restore_pending_withdrawals(bot)
+    # (withdrawals removed)
 
     # Запуск broadcast-воркера фоном — раз в 10 секунд проверяет
     # таблицу `broadcasts` на запланированные рассылки.
