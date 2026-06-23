@@ -711,7 +711,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog] = await Promise.all([
+        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog, securityAlerts] = await Promise.all([
           app.prisma.balance.findUnique({
             where: { userId: id },
             select: { amount: true, currency: true, lastSyncedAt: true, wagerTarget: true, wagerProgress: true },
@@ -764,6 +764,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             ORDER BY created_at DESC
             LIMIT 30
           `),
+          app.prisma.securityAlert.findMany({
+            where: { userId: id },
+            orderBy: { createdAt: 'desc' },
+            take: 30,
+          }),
         ]);
 
         const wagered = Number(betsAgg._sum.amount ?? 0);
@@ -861,6 +866,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             payloadAfter: a.payload_after,
             reason: a.reason,
             createdAt: a.created_at.getTime(),
+          })),
+          securityAlerts: securityAlerts.map((sa) => ({
+            id: sa.id,
+            type: sa.type,
+            severity: sa.severity,
+            description: sa.description,
+            resolved: sa.resolved,
+            createdAt: sa.createdAt.getTime(),
           })),
         });
       } catch (error) {

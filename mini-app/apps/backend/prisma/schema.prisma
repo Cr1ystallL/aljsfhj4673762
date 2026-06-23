@@ -68,6 +68,7 @@ model UserIpAddress {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   ipAddress String   @map("ip_address")
+    deviceId  String?  @map("device_id")
   count     Int      @default(1)
   isRoot    Boolean  @default(false) @map("is_root")
   isVpn     Boolean  @default(false) @map("is_vpn")

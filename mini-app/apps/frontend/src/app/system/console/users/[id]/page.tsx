@@ -107,6 +107,14 @@ interface UserDetail {
     reason: string | null;
     createdAt: number;
   }>;
+  securityAlerts: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    description: string;
+    resolved: boolean;
+    createdAt: number;
+  }>;
 }
 
 type RtpMode = 'off' | 'earn' | 'give';
@@ -880,6 +888,37 @@ export default function UserDetailPage() {
             </div>
           )}
         </section>
+
+        {/* Security Alerts for this user */}
+        {data.securityAlerts && data.securityAlerts.length > 0 && (
+          <section>
+            <div className="flex items-baseline justify-between px-1 mb-2">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-[#ff4d4d]">
+                Алерты Безопасности
+              </span>
+              <span className="font-roobert text-[11px] text-[#ff4d4d]">
+                {data.securityAlerts.length}
+              </span>
+            </div>
+            <div className="rounded-card border border-[#ff4d4d]/30 bg-[#ff4d4d]/[0.05] overflow-hidden divide-y divide-[#ff4d4d]/10">
+              {data.securityAlerts.map((a) => (
+                <div key={a.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-roobert text-[12px] text-[#ff4d4d] font-bold">
+                      {a.type}
+                    </span>
+                    <span className="font-roobert text-[10px] text-[#ff4d4d]/80 tabular-nums">
+                      {new Date(a.createdAt).toLocaleString('ru-RU')}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-roobert text-[12px] text-frost-white">
+                    {a.description}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Admin log for this user */}
         <section>

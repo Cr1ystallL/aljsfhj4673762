@@ -133,6 +133,53 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
             if (ownCount >= promo.per_user_limit) {
               throw new HttpError(409, 'PROMO_USED', 'You have already redeemed this code');
             }
+
+            // [SECURITY] Check for Multi-Account Promo Abuse (same IP redeeming the same promo)
+            if (request.ip) {
+              const sameIpRedemptions = await app.prisma.$queryRaw<{ n: bigint }[]>`
+                SELECT COUNT(*)::bigint AS n FROM promo_redemptions pr
+                JOIN user_ip_addresses uia ON pr.user_id = uia.user_id
+                WHERE pr.promo_code_id = ${promo.id} 
+                  AND uia.ip_address = ${request.ip}
+                  AND pr.user_id != ${userId}
+              `;
+              if (Number(sameIpRedemptions[0]?.n || 0) > 0) {
+                // Another user on this EXACT IP already redeemed THIS promo. High probability of abuse!
+                
+                // 1. Block current user
+                await app.prisma.user.update({
+                  where: { id: userId },
+                  data: {
+                    isBlocked: true,
+                    adminNote: `Auto-blocked for Promo Abuse. Claimed promo ${promo.code} on shared IP ${request.ip}`,
+                  },
+                });
+
+                // 2. Log to admin audit
+                await app.prisma.adminAuditLog.create({
+                  data: {
+                    adminUserId: 'system',
+                    adminTelegramId: 0n,
+                    action: 'user.auto_ban_promo_abuse',
+                    targetType: 'user',
+                    targetId: userId,
+                    reason: `Автоматический бан: Абуз промокода ${promo.code} с IP адреса (${request.ip}), который уже использовал этот промокод на другом аккаунте.`,
+                  }
+                });
+
+                // 3. Create Security Alert
+                await app.prisma.securityAlert.create({
+                  data: {
+                    userId,
+                    type: 'promo_abuse_detected',
+                    severity: 'critical',
+                    description: `Strict Multi-Account ban applied. Promo abuse on IP: ${request.ip}.`,
+                  },
+                });
+
+                throw new HttpError(403, 'PROMO_ABUSE', 'Suspicious activity detected. Account blocked.');
+              }
+            }
           }
           // Global cap — values < 1 mean "unlimited" (sentinel from
           // the admin form, where -1 is the human input for ∞).

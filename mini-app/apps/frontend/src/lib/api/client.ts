@@ -59,6 +59,15 @@ export class APIClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    if (typeof window !== 'undefined') {
+      let deviceId = localStorage.getItem('macvbet_deviceId');
+      if (!deviceId) {
+        deviceId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('macvbet_deviceId', deviceId);
+      }
+      headers['x-device-id'] = deviceId;
+    }
+
     // Create abort controller for timeout
     const controller = createAbortController(timeout);
 
