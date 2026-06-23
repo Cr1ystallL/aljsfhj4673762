@@ -714,7 +714,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog] = await Promise.all([
           app.prisma.balance.findUnique({
             where: { userId: id },
-            select: { amount: true, currency: true, lastSyncedAt: true },
+            select: { amount: true, currency: true, lastSyncedAt: true, wagerTarget: true, wagerProgress: true },
           }),
           app.prisma.bet.aggregate({
             where: { userId: id },
@@ -744,7 +744,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           }),
           app.prisma.transaction.findMany({
             where: { userId: id },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             take: txLimit,
             select: {
               id: true,
@@ -799,6 +799,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             updatedAt: u.updated_at.getTime(),
             balance: balance ? Number(balance.amount) : 0,
             currency: balance?.currency ?? 'PLN',
+            wagerTarget: balance ? Number(balance.wagerTarget) : 0,
+            wagerProgress: balance ? Number(balance.wagerProgress) : 0,
           },
           stats: {
             totalBets: betsAgg._count._all,
@@ -975,6 +977,60 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const msg = (error as Error).message;
         logger.warn({ err: error, userId: id, delta }, 'Balance adjust failed');
         return reply.code(400).send({ error: 'Bad Request', message: msg });
+      }
+    }
+  );
+
+  /* ----------------------------------------------------- wager adjust */
+
+  app.patch<{
+    Params: { id: string };
+    Body: { wagerTarget?: number; wagerProgress?: number; reason: string };
+  }>(
+    '/_x/users/:id/wager',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { wagerTarget, wagerProgress, reason } = request.body;
+
+      if (!reason || reason.trim().length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+
+      try {
+        const updateData: any = {};
+        if (typeof wagerTarget === 'number') updateData.wagerTarget = wagerTarget;
+        if (typeof wagerProgress === 'number') updateData.wagerProgress = wagerProgress;
+
+        if (Object.keys(updateData).length === 0) {
+          return reply.code(400).send({ error: 'No data to update' });
+        }
+
+        const balance = await app.prisma.balance.update({
+          where: { userId: id },
+          data: updateData,
+        });
+
+        await balanceService.invalidateCache(id);
+        await balanceService.syncBalance(id);
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'user.wager.update',
+          targetType: 'user',
+          targetId: id,
+          payloadAfter: { wagerTarget, wagerProgress },
+          reason: reason.trim(),
+        });
+
+        return reply.send({
+          ok: true,
+          wagerTarget: Number(balance.wagerTarget),
+          wagerProgress: Number(balance.wagerProgress),
+        });
+      } catch (error) {
+        logger.error(error, 'Admin wager adjust failed');
+        return reply.code(400).send({ error: 'Bad Request' });
       }
     }
   );

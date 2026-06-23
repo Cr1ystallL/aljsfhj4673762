@@ -36,8 +36,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated || !sessionId || !userId) return;
 
     const baseRaw = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-    const base = baseRaw.replace(/\/$/, '');
-    const wsUrl = /\/ws$/.test(base) ? base : `${base}/ws`;
+    let base = baseRaw.replace(/\/$/, '');
+    if (!base.endsWith('/api')) {
+      base = base.replace(/\/ws$/, '');
+    }
+    const wsUrl = base.endsWith('/api/ws') ? base : `${base.replace(/\/api$/, '')}/api/ws`;
     const ws = createAuthenticatedWebSocket(wsUrl);
     wsRef.current = ws;
 

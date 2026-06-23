@@ -82,50 +82,6 @@ async def get_min_deposit_pln() -> float:
         return min_deposit
 
 
-async def lock_withdrawal(user_id: int, withdrawal_id: int, amount_usdt: float, amount_rub: float, bot):
-    await asyncio.sleep(300) # 5 минут холд
-    wid_data = db.get_withdrawal(withdrawal_id)
-    if wid_data and wid_data['status'] == 'pending_block':
-        db.update_withdrawal_status(withdrawal_id, 'cancelled')
-        db.confirm_held_balance(user_id, amount_rub) # списываем холд безвозвратно
-        try:
-            current_bal = db.get_balance(user_id)
-            db_postgres.add_withdrawal(
-                telegram_id=user_id,
-                amount=amount_rub,
-                balance_before=current_bal + amount_rub,
-                balance_after=current_bal,
-                metadata={'withdrawal_id': withdrawal_id, 'usdt': amount_usdt, 'status': 'blocked_forfeit'}
-            )
-        except Exception as e:
-            logging.error(f"Failed to record blocked withdrawal in Postgres: {e}")
-        try:
-            lang = db.get_user_language(user_id)
-            kbd = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=get_text(lang, 'btn_support'), url="https://t.me/macvbet_support")]
-            ])
-            await bot.send_message(user_id, get_text(lang, 'withdraw_blocked'), reply_markup=kbd)
-        except:
-            pass
-        if withdrawal_id in active_withdrawals:
-            del active_withdrawals[withdrawal_id]
-
-async def restore_pending_withdrawals(bot):
-    """Восстанавливает блокировки вывода после перезапуска бота"""
-    try:
-        from database.db import db
-        pending = db.get_pending_block_withdrawals()
-        for item in pending:
-            wid = item['id']
-            user_id = item['user_id']
-            amount_usdt = item['amount']
-            rate = fetch_usdt_pln_rate()
-            amount_rub = amount_usdt * rate
-            # Перезапускаем таймер на 5 минут
-            asyncio.create_task(lock_withdrawal(user_id, wid, amount_usdt, amount_rub, bot))
-    except Exception as e:
-        logging.error(f"Error restoring withdrawals: {e}")
-
 router = Router()
 
 # Состояния для FSM
@@ -133,13 +89,9 @@ class DepositStates(StatesGroup):
     waiting_for_amount = State()
     waiting_for_payment = State()
 
-class WithdrawalStates(StatesGroup):
-    waiting_for_amount = State()
-    waiting_for_check = State()
 
 # Хранилище активных инвойсов и заявок на вывод
 active_invoices: Dict[int, Dict[str, Any]] = {}
-active_withdrawals: Dict[int, Dict[str, Any]] = {}  # {withdrawal_id: {user_id, amount_usdt, amount_rub, method}}
 
 
 def fetch_usdt_pln_rate() -> float:
@@ -163,23 +115,6 @@ def get_deposit_methods_keyboard(lang: str) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-
-def get_withdrawal_methods_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Клавиатура выбора способа вывода"""
-    keyboard = [
-        [InlineKeyboardButton(text=get_text(lang, 'withdraw_cryptobot'), callback_data="withdraw_cryptobot")],
-        [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="back_to_profile")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-
-def get_withdraw_amount_cancel_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Отмена ввода суммы вывода"""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=get_text(lang, 'btn_withdraw_cancel'), callback_data="cancel_withdraw_input")]
-        ]
-    )
 
 
 def get_invoice_keyboard(lang: str, pay_url: str, invoice_id: int) -> InlineKeyboardMarkup:
@@ -217,7 +152,6 @@ async def back_to_profile(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance"),
-            InlineKeyboardButton(text=get_text(lang, 'btn_withdraw'), callback_data="withdraw_balance")
         ]
     ])
     
@@ -315,14 +249,17 @@ async def process_deposit_amount(message: Message, state: FSMContext):
             network = Networks.TEST_NET if config.CRYPTOPAY_TESTNET else Networks.MAIN_NET
             crypto = AioCryptoPay(token=config.CRYPTOPAY_TOKEN, network=network)
             
+            # Добавляем 3% комиссию к сумме инвойса
+            invoice_amount = amount * 1.03
+
             # Создаем инвойс
             invoice = await crypto.create_invoice(
                 asset='USDT',
-                amount=amount,
+                amount=invoice_amount,
                 description=f"Пополнение баланса пользователя {message.from_user.id}"
             )
             
-            # Пересчёт в PLN по офиц. курсу
+            # Пересчёт в PLN по офиц. курсу чистой суммы (без комиссии)
             pln_amount = amount * rate
             
             # Сохраняем инвойс
@@ -350,11 +287,11 @@ async def process_deposit_amount(message: Message, state: FSMContext):
             except Exception as e:
                 logging.error(f"Failed to upsert pending CryptoBot invoice: {e}")
 
-            # Формируем сообщение с обоими номиналами
+            # Формируем сообщение с обоими номиналами (показываем сумму к оплате с учетом 3%)
             text = get_text(
                 lang,
                 'deposit_invoice',
-                amount_usdt=f"{amount:.2f}",
+                amount_usdt=f"{invoice_amount:.2f}",
                 amount_pln=f"{pln_amount:.2f}",
             )
             
@@ -512,8 +449,10 @@ async def check_payment(callback: CallbackQuery):
                     invoice_data.get('amount_usdt') if invoice_data else float(invoice.amount)
                 )
                 rate = invoice_data.get('rate') if invoice_data else fetch_usdt_pln_rate()
+                # Если fallback: amount_usdt из invoice.amount уже включает 3% комиссию, вычитаем ее
+                fallback_pln = (amount_usdt / 1.03) * rate if not invoice_data else 0
                 pln_amount = (
-                    invoice_data.get('amount_pln') if invoice_data else amount_usdt * rate
+                    invoice_data.get('amount_pln') if invoice_data else fallback_pln
                 )
 
                 # Начисляем баланс
@@ -627,341 +566,3 @@ async def cancel_payment(callback: CallbackQuery, state: FSMContext):
 
 
 
-# ============= ВЫВОД СРЕДСТВ =============
-
-@router.callback_query(F.data == "withdraw_balance")
-async def withdraw_balance(callback: CallbackQuery):
-    """Показать способы вывода"""
-    user_id = callback.from_user.id
-    lang = db.get_user_language(user_id)
-    text = get_text(lang, 'withdraw_title')
-    
-    await callback.message.edit_text(text, reply_markup=get_withdrawal_methods_keyboard(lang))
-    await callback.answer()
-
-
-@router.callback_query(F.data == "withdraw_cryptobot")
-async def withdraw_cryptobot(callback: CallbackQuery, state: FSMContext):
-    """Начать процесс вывода через CryptoBot"""
-    user_id = callback.from_user.id
-    lang = db.get_user_language(user_id)
-    balance_rub = db.get_available_balance(user_id)
-    
-    # Получаем актуальный курс USDT→PLN
-    usdt_rate = fetch_usdt_pln_rate()
-    balance_usdt = balance_rub / usdt_rate
-    
-    text = get_text(lang, 'withdraw_enter_amount', available=f"{balance_usdt:.2f}")
-
-    msg = await callback.message.edit_text(text, reply_markup=get_withdraw_amount_cancel_keyboard(lang))
-    await state.update_data(
-        prompt_message_id=msg.message_id,
-        available_usdt=balance_usdt,
-        usdt_rate=usdt_rate
-    )
-    await state.set_state(WithdrawalStates.waiting_for_amount)
-    await callback.answer()
-
-
-@router.callback_query(F.data == "cancel_withdraw_input")
-async def cancel_withdraw_input(callback: CallbackQuery, state: FSMContext):
-    """Отмена ввода суммы вывода (кнопка)"""
-    await state.clear()
-    user_id = callback.from_user.id
-    lang = db.get_user_language(user_id)
-    balance = db.get_balance(user_id)
-    profile_text = get_text(lang, 'profile_balance', balance=format_amount(balance))
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance"),
-                InlineKeyboardButton(text=get_text(lang, 'btn_withdraw'), callback_data="withdraw_balance"),
-            ]
-        ]
-    )
-    await callback.message.edit_text(profile_text, reply_markup=keyboard)
-    await callback.answer()
-
-
-@router.message(WithdrawalStates.waiting_for_amount)
-async def process_withdrawal_amount(message: Message, state: FSMContext):
-    """Обработка введенной суммы для вывода"""
-    user_id = message.from_user.id
-    lang = db.get_user_language(user_id)
-    
-    try:
-        amount_usdt = float(message.text)
-        
-        # Получаем данные
-        data = await state.get_data()
-        available_usdt = data.get('available_usdt', 0)
-        usdt_rate = data.get('usdt_rate', 83.23)
-        prompt_message_id = data.get('prompt_message_id')
-        
-        # Минимум 5 USDT
-        if amount_usdt < 5:
-            error_msg = await message.answer(get_text(lang, 'withdraw_min_amount'))
-            try:
-                await message.delete()
-            except:
-                pass
-            await asyncio.sleep(3)
-            try:
-                await error_msg.delete()
-            except:
-                pass
-            return
-        
-        # Проверка достаточности средств
-        if amount_usdt > available_usdt:
-            error_msg = await message.answer(get_text(lang, 'withdraw_insufficient', available=f"{available_usdt:.2f}"))
-            try:
-                await message.delete()
-            except:
-                pass
-            await asyncio.sleep(3)
-            try:
-                await error_msg.delete()
-            except:
-                pass
-            return
-        
-        # Новые проверки!
-        if db.get_active_withdrawals_count(user_id) > 0:
-            error_msg = await message.answer(get_text(lang, 'withdraw_active_exists'))
-            try: await message.delete()
-            except: pass
-            await asyncio.sleep(3)
-            try: await error_msg.delete()
-            except: pass
-            return
-            
-        if db.get_active_bonus_bets(user_id) > 0:
-            error_msg = await message.answer(get_text(lang, 'withdraw_active_bonus'))
-            try: await message.delete()
-            except: pass
-            await asyncio.sleep(3)
-            try: await error_msg.delete()
-            except: pass
-            return
-
-        amount_rub = amount_usdt * usdt_rate
-        
-        if not db.hold_balance(user_id, amount_rub):
-            error_msg = await message.answer(get_text(lang, 'withdraw_hold_error'))
-            try: await message.delete()
-            except: pass
-            await asyncio.sleep(3)
-            try: await error_msg.delete()
-            except: pass
-            return
-        
-        try: await message.delete()
-        except: pass
-        try:
-            if prompt_message_id:
-                await message.bot.delete_message(message.chat.id, prompt_message_id)
-        except: pass
-        
-        amount_to_lose = db.get_amount_to_lose(user_id)
-        is_blocked = amount_to_lose > 0
-        
-        # Создаем заявку в БД
-        status = 'pending_block' if is_blocked else 'pending_admin'
-        wid = db.create_withdrawal(user_id, amount_usdt, status)
-        
-        active_withdrawals[wid] = {
-            'user_id': user_id,
-            'amount_usdt': amount_usdt,
-            'amount_rub': amount_rub,
-            'method': 'CryptoBot',
-            'username': message.from_user.username or 'Без username',
-            'first_name': message.from_user.first_name or 'Пользователь'
-        }
-        
-        if not is_blocked:
-            db.reset_wager_and_bonus(user_id)
-
-        if config.WITHDRAWAL_GROUP_ID:
-            group_text = (
-                f"💸 <b>Новая заявка на вывод {wid}</b>\n\n"
-                f"👤 Пользователь: {message.from_user.first_name}\n"
-                f"🆔 ID: <code>{user_id}</code>\n"
-                f"📱 Username: @{message.from_user.username or 'нет'}\n\n"
-                f"💰 Сумма: {amount_usdt} USDT (≈ {amount_rub:.2f} RUB)\n"
-                f"🌐 Метод: CryptoBot (@send)\n\n"
-            )
-            
-            if is_blocked:
-                group_text += f"\n⚠️ <b>ВНИМАНИЕ: Пользователь не отыграл депозит!</b> Осталось: {amount_to_lose:.2f} RUB\n"
-                group_text += "Вывод будет автоматически заблокирован через 5 минут.\n"
-                keyboard = None
-                asyncio.create_task(lock_withdrawal(user_id, wid, amount_usdt, amount_rub, message.bot))
-            else:
-                group_text += f"<i>Ответьте на это сообщение ссылкой с чеком для подтверждения</i>"
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_withdrawal:{wid}")]
-                ])
-            
-            try:
-                group_msg = await message.bot.send_message(
-                    config.WITHDRAWAL_GROUP_ID,
-                    group_text,
-                    reply_markup=keyboard
-                )
-                active_withdrawals[wid]['group_message_id'] = group_msg.message_id
-            except Exception as e:
-                db.release_held_balance(user_id, amount_rub)
-                db.update_withdrawal_status(wid, 'cancelled')
-                del active_withdrawals[wid]
-                await message.answer(f"❌ Ошибка отправки заявки: {str(e)}")
-                await state.clear()
-                return
-        
-        user_text = get_text(lang, 'withdraw_created', amount=amount_usdt)
-        
-        await message.answer(user_text)
-        await state.clear()
-        
-    except ValueError:
-        await message.answer(get_text(lang, 'deposit_invalid_amount'))
-
-
-@router.callback_query(F.data.startswith("reject_withdrawal:"))
-async def reject_withdrawal(callback: CallbackQuery):
-    """Отклонить заявку на вывод"""
-    withdrawal_id = int(callback.data.split(":")[1])
-    
-    if withdrawal_id not in active_withdrawals:
-        await callback.answer("❌ Заявка не найдена", show_alert=True)
-        return
-    
-    withdrawal_data = active_withdrawals[withdrawal_id]
-    user_id = withdrawal_data['user_id']
-    lang = db.get_user_language(user_id)
-    amount_rub = withdrawal_data['amount_rub']
-    amount_usdt = withdrawal_data['amount_usdt']
-    
-    # Возвращаем средства и ставим статус отменен
-    db.release_held_balance(user_id, amount_rub)
-    db.update_withdrawal_status(withdrawal_id, 'cancelled')
-    
-    # Уведомляем пользователя
-    try:
-        await callback.bot.send_message(
-            user_id,
-            get_text(lang, 'withdraw_rejected', amount=amount_usdt)
-        )
-    except:
-        pass
-    
-    # Обновляем сообщение в группе
-    await callback.message.edit_text(
-        callback.message.text + "\n\n❌ <b>ОТКЛОНЕНО</b>",
-        reply_markup=None
-    )
-    
-    # Удаляем заявку
-    del active_withdrawals[withdrawal_id]
-    
-    await callback.answer("✅ Заявка отклонена, средства возвращены")
-
-
-@router.message(F.reply_to_message)
-async def confirm_withdrawal_with_check(message: Message):
-    """Подтверждение вывода ссылкой на чек"""
-    # Проверяем, что это ответ на сообщение о выводе
-    if not message.reply_to_message:
-        return
-    
-    reply_text = message.reply_to_message.text or message.reply_to_message.caption or ""
-    
-    if "Новая заявка на вывод" not in reply_text:
-        return
-    
-    # Проверяем что в сообщении есть ссылка
-    if "t.me/" not in message.text and "https://" not in message.text:
-        await message.answer("❌ Отправьте ссылку на чек")
-        return
-    
-    # Извлекаем ID заявки из текста сообщения
-    try:
-        # Ищем ID пользователя в сообщении
-        import re
-        user_id_match = re.search(r'ID: <code>(\d+)</code>', reply_text)
-        if not user_id_match:
-            await message.answer("❌ Не удалось найти ID пользователя в заявке")
-            return
-        
-        user_id = int(user_id_match.group(1))
-        lang = db.get_user_language(user_id)
-        
-        # Ищем заявку этого пользователя
-        withdrawal_id = None
-        withdrawal_data = None
-        for wid, wdata in active_withdrawals.items():
-            if wdata['user_id'] == user_id:
-                withdrawal_id = wid
-                withdrawal_data = wdata
-                break
-        
-        if not withdrawal_id or not withdrawal_data:
-            await message.answer("❌ Заявка не найдена или уже обработана")
-            return
-        
-        amount_rub = withdrawal_data['amount_rub']
-        amount_usdt = withdrawal_data['amount_usdt']
-        check_url = message.text.strip()
-        
-        # Подтверждаем вывод (списываем с held_balance)
-        db.confirm_held_balance(user_id, amount_rub)
-        db.update_withdrawal_status(withdrawal_id, 'completed')
-        
-        # Записываем в Postgres
-        try:
-            current_bal = db.get_balance(user_id)
-            db_postgres.add_withdrawal(
-                telegram_id=user_id,
-                amount=amount_rub,
-                balance_before=current_bal + amount_rub,
-                balance_after=current_bal,
-                metadata={'withdrawal_id': withdrawal_id, 'usdt': amount_usdt, 'status': 'completed', 'check_url': check_url}
-            )
-        except Exception as e:
-            logging.error(f"Failed to record withdrawal in Postgres: {e}")
-        
-        # Отправляем чек пользователю
-        user_text = get_text(lang, 'withdraw_approved', amount=amount_usdt)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=get_text(lang, 'btn_get_funds'), url=check_url)]
-        ])
-        
-        try:
-            await message.bot.send_message(
-                user_id,
-                user_text,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            await message.answer(f"❌ Ошибка отправки пользователю: {str(e)}")
-            # Возвращаем средства если не удалось отправить
-            db.release_held_balance(user_id, amount_rub)
-            return
-        
-        # Обновляем сообщение в группе
-        try:
-            await message.reply_to_message.edit_text(
-                reply_text + "\n\n✅ <b>ПОДТВЕРЖДЕНО</b>",
-                reply_markup=None
-            )
-        except:
-            pass
-        
-        # Удаляем заявку
-        del active_withdrawals[withdrawal_id]
-        
-        await message.answer("✅ Вывод подтвержден, чек отправлен пользователю")
-        
-    except Exception as e:
-        await message.answer(f"❌ Ошибка обработки: {str(e)}")

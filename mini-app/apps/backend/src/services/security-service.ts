@@ -86,67 +86,67 @@ export class SecurityService {
 
       // Check for multi-accounting on this IP
       // @ts-ignore
-      const otherAccounts = await prisma.userIpAddress.findMany({
-        where: {
-          ipAddress,
-          userId: { not: userId },
-        },
+      const allAccountsOnIp = await prisma.userIpAddress.findMany({
+        where: { ipAddress },
         include: { user: true },
         orderBy: { firstSeen: 'asc' },
       });
 
-      if (otherAccounts.length > 0) {
-        // Someone else used this IP!
-        // Is it a VPN?
-        const isVpnContext = ipRecord.isVpn || otherAccounts.some((a: any) => a.isVpn);
+      if (allAccountsOnIp.length > 1) {
+        const mainIpRecord = allAccountsOnIp[0];
+        
+        // If the current user is NOT the main (oldest) account on this IP
+        if (mainIpRecord.userId !== userId) {
+          // Is it a VPN?
+          const isVpnContext = ipRecord.isVpn || allAccountsOnIp.some((a: any) => a.isVpn);
 
-        if (isVpnContext) {
-          // VPN IP matched. Just create a security alert.
-          await prisma.securityAlert.create({
-            data: {
-              userId,
-              type: 'multi_account_suspicion',
-              severity: 'medium',
-              description: `Shared VPN IP detected: ${ipAddress} (shared with ${otherAccounts.length} others)`,
-            },
-          });
-        } else {
-          // Real Multi-Account Detected!
-          // The oldest account on this IP is considered the Main (Old) account.
-          const mainAccount = otherAccounts[0].user;
+          if (isVpnContext) {
+            // VPN IP matched. Just create a security alert.
+            await prisma.securityAlert.create({
+              data: {
+                userId,
+                type: 'multi_account_suspicion',
+                severity: 'medium',
+                description: `Shared VPN IP detected: ${ipAddress} (shared with ${allAccountsOnIp.length - 1} others)`,
+              },
+            });
+          } else {
+            // Real Multi-Account Detected!
+            const mainAccount = mainIpRecord.user;
 
-          // 1. Block the current (New) account permanently
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              isBlocked: true,
-              adminNote: `Auto-blocked for multi-accounting. Matched IP ${ipAddress} with Main Account ${mainAccount.id}`,
-            },
-          });
+            // 1. Block the current (New) account permanently
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                isBlocked: true,
+                adminNote: `Auto-blocked for multi-accounting. Matched IP ${ipAddress} with Main Account ${mainAccount.id}`,
+              },
+            });
 
-          // 2. Lock withdrawals on the Main (Old) account
-          await prisma.user.update({
-            where: { id: mainAccount.id },
-            data: {
-              withdrawalLocked: true,
-              adminNote: `Auto-locked withdrawals. Secondary account detected on IP ${ipAddress}`,
-            },
-          });
+            // 2. Lock withdrawals on the Main (Old) account
+            await prisma.user.update({
+              where: { id: mainAccount.id },
+              data: {
+                withdrawalLocked: true,
+                adminNote: `Auto-locked withdrawals. Secondary account detected on IP ${ipAddress}`,
+              },
+            });
 
-          // 3. Send Telegram Message to the Main (Old) Account
-          const messageText = `⚠️ Предупреждение о нарушении правил платформы MacvBet\n\nУважаемый пользователь, наша система безопасности обнаружила, что вами был создан второй игровой аккаунт.\n\nСогласно пункту 2.1 Пользовательского соглашения, на платформе действует строгое правило одного аккаунта. Мультиаккаунтинг категорически запрещен и распространяется на использование одного IP-адреса, одного устройства и одного платежного кошелька.\n\nПринятые меры:\n• Ваш второй (дублирующий) аккаунт заблокирован навсегда.\n• Ваш основной аккаунт остается активным и не был тронут.\n\nНапоминаем, что в соответствии с правилами платформы, администрация отслеживает поведенческие маркеры. Повторное нарушение или попытка создания новых профилей приведет к полной и безвозвратной блокировке всех ваших аккаунтов (включая основной) и конфискации всех средств на балансе.\n\nПожалуйста, ознакомьтесь с полным текстом Пользовательского соглашения MacvBet (https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01), чтобы избежать подобных ситуаций в будущем.\n\nС уважением,\nАдминистрация MacvBet`;
-          
-          await telegramApi.sendMessage(Number(mainAccount.telegramId), messageText);
-          
-          // Log it as critical
-          await prisma.securityAlert.create({
-            data: {
-              userId,
-              type: 'multi_account_detected',
-              severity: 'critical',
-              description: `Strict Multi-Account ban applied. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
-            },
-          });
+            // 3. Send Telegram Message to the Main (Old) Account
+            const messageText = `⚠️ Предупреждение о нарушении правил платформы MacvBet\n\nУважаемый пользователь, наша система безопасности обнаружила, что вами был создан второй игровой аккаунт.\n\nСогласно пункту 2.1 Пользовательского соглашения, на платформе действует строгое правило одного аккаунта. Мультиаккаунтинг категорически запрещен и распространяется на использование одного IP-адреса, одного устройства и одного платежного кошелька.\n\nПринятые меры:\n• Ваш второй (дублирующий) аккаунт заблокирован навсегда.\n• Ваш основной аккаунт остается активным и не был тронут.\n\nНапоминаем, что в соответствии с правилами платформы, администрация отслеживает поведенческие маркеры. Повторное нарушение или попытка создания новых профилей приведет к полной и безвозвратной блокировке всех ваших аккаунтов (включая основной) и конфискации всех средств на балансе.\n\nПожалуйста, ознакомьтесь с полным текстом Пользовательского соглашения MacvBet (https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01), чтобы избежать подобных ситуаций в будущем.\n\nС уважением,\nАдминистрация MacvBet`;
+            
+            await telegramApi.sendMessage(Number(mainAccount.telegramId), messageText);
+            
+            // Log it as critical
+            await prisma.securityAlert.create({
+              data: {
+                userId,
+                type: 'multi_account_detected',
+                severity: 'critical',
+                description: `Strict Multi-Account ban applied. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
+              },
+            });
+          }
         }
       }
     } catch (error) {

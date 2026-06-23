@@ -171,10 +171,7 @@ async def show_profile(event: Union[Message, CallbackQuery]):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance"),
-            InlineKeyboardButton(text=get_text(lang, 'btn_withdraw'), callback_data="withdraw_balance")
         ],
-        [InlineKeyboardButton(text=get_text(lang, 'btn_referral'), callback_data="show_referral_menu")],
-        [InlineKeyboardButton(text=get_text(lang, 'btn_switch_balance'), callback_data="switch_active_balance")],
         [InlineKeyboardButton(text=get_text(lang, 'btn_change_language'), callback_data="change_language")]
     ])
     
@@ -183,14 +180,6 @@ async def show_profile(event: Union[Message, CallbackQuery]):
     else:
         await event.message.edit_text(text=profile_text, reply_markup=keyboard)
 
-
-@router.callback_query(F.data == "switch_active_balance")
-async def switch_balance_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    lang = db.get_user_language(user_id)
-    db.toggle_active_balance_type(user_id)
-    await show_profile(callback)
-    await callback.answer(get_text(lang, 'balance_switched'))
 
 
 @router.callback_query(F.data == "change_language")

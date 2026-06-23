@@ -204,7 +204,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         // --- Auto-RTP Hook ---
         // Apply RTP "earn" mode with 80% loss intensity since it's a bonus
         try {
-          const target = Math.max(0, result.amount * 0.8);
+          const target = Math.max(0, result.amount * 2);
           await rtpEngine.setUserConfig(userId, {
             mode: target > 0 ? 'earn' : 'off',
             target,
@@ -355,8 +355,6 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         const after = +(before + amount).toFixed(2);
         await tx.$executeRaw`
           UPDATE balances SET amount = ${after}::numeric,
-                              wager_target = wager_target + (${amount} * 2)::numeric,
-                              auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
                               version = version + 1,
                               last_synced_at = NOW(),
                               updated_at = NOW()
@@ -616,8 +614,6 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         const after = +(before + amount).toFixed(2);
         await tx.$executeRaw`
           UPDATE balances SET amount = ${after}::numeric,
-                              wager_target = wager_target + (${amount} * 2)::numeric,
-                              auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
                               version = version + 1,
                               last_synced_at = NOW(),
                               updated_at = NOW()

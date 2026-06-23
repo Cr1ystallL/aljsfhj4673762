@@ -52,6 +52,8 @@ interface UserDetail {
     updatedAt: number;
     balance: number;
     currency: string;
+    wagerTarget: number;
+    wagerProgress: number;
   };
   stats: {
     totalBets: number;
@@ -148,6 +150,9 @@ export default function UserDetailPage() {
     intensity: string;
   }>({ mode: 'off', target: '0', windowMs: '3600000', intensity: '0.6' });
 
+  const [wagerForm, setWagerForm] = useState({ target: '0', progress: '0' });
+  const [wagerBusy, setWagerBusy] = useState(false);
+
   // Action modal state — single modal driven by `action`.
   type Action = null | 'balance' | 'block' | 'lock';
   const [action, setAction] = useState<Action>(null);
@@ -167,6 +172,9 @@ export default function UserDetailPage() {
       }
       const j = (await res.json()) as UserDetail;
       setData(j);
+      if (j.user) {
+        setWagerForm({ target: String(j.user.wagerTarget), progress: String(j.user.wagerProgress) });
+      }
       setError(null);
     } catch {
       setError('not-found');
@@ -357,6 +365,36 @@ export default function UserDetailPage() {
     }
   };
 
+  const submitWager = async () => {
+    if (!data) return;
+    const reason = prompt('Причина изменения Вейджера (минимум 3 символа):');
+    if (!reason || reason.trim().length < 3) return;
+    setWagerBusy(true);
+    try {
+      const body = {
+        wagerTarget: parseFloat(wagerForm.target) || 0,
+        wagerProgress: parseFloat(wagerForm.progress) || 0,
+        reason: reason.trim(),
+      };
+      const res = await fetch(`/api/_x/users/${userId}/wager`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        await reload();
+        alert('Вейджер обновлён');
+      } else {
+        alert('Не удалось обновить Вейджер');
+      }
+    } catch {
+      alert('Ошибка сети при обновлении Вейджера');
+    } finally {
+      setWagerBusy(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col gap-5">
@@ -537,6 +575,46 @@ export default function UserDetailPage() {
                 className="px-4 py-2 rounded-pill border border-white/20 bg-white/[0.08] text-[12px] text-frost-white hover:border-white/30 disabled:opacity-50"
               >
                 {rtpBusy ? 'Сохраняю…' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Wager Controls */}
+        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+              Управление Вейджером
+            </span>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="font-roobert text-[11px] text-whisper-gray">Цель Вейджера (wagerTarget)</label>
+              <input
+                type="number"
+                value={wagerForm.target}
+                onChange={(e) => setWagerForm((f) => ({ ...f, target: e.target.value }))}
+                className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-roobert text-[11px] text-whisper-gray">Прогресс Вейджера (wagerProgress)</label>
+              <input
+                type="number"
+                value={wagerForm.progress}
+                onChange={(e) => setWagerForm((f) => ({ ...f, progress: e.target.value }))}
+                className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end px-4 pb-4">
+            <div className="flex gap-2">
+              <button
+                onClick={submitWager}
+                disabled={wagerBusy}
+                className="px-4 py-2 rounded-pill border border-white/20 bg-white/[0.08] text-[12px] text-frost-white hover:border-white/30 disabled:opacity-50"
+              >
+                {wagerBusy ? 'Сохраняю…' : 'Сохранить Вейджер'}
               </button>
             </div>
           </div>
@@ -774,7 +852,7 @@ export default function UserDetailPage() {
                 <div key={t.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3">
                   <div className="min-w-0">
                     <div className="font-roobert text-[13px] text-frost-white truncate">
-                      {t.type}
+                      {t.type} {t.gameType ? `(${t.gameType})` : ''}
                     </div>
                     <div className="flex items-center gap-2 font-roobert text-[10px] text-whisper-gray tabular-nums truncate">
                       <span>{new Date(t.createdAt).toLocaleString('ru-RU')}</span>
