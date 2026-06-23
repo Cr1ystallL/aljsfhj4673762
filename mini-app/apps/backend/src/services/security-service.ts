@@ -114,36 +114,15 @@ export class SecurityService {
             // Real Multi-Account Detected!
             const mainAccount = mainIpRecord.user;
 
-            // 1. Block the current (New) account permanently
-            await prisma.user.update({
-              where: { id: userId },
-              data: {
-                isBlocked: true,
-                adminNote: `Auto-blocked for multi-accounting. Matched IP ${ipAddress} with Main Account ${mainAccount.id}`,
-              },
-            });
-
-            // 2. Lock withdrawals on the Main (Old) account
-            await prisma.user.update({
-              where: { id: mainAccount.id },
-              data: {
-                withdrawalLocked: true,
-                adminNote: `Auto-locked withdrawals. Secondary account detected on IP ${ipAddress}`,
-              },
-            });
-
-            // 3. Send Telegram Message to the Main (Old) Account
-            const messageText = `⚠️ Предупреждение о нарушении правил платформы MacvBet\n\nУважаемый пользователь, наша система безопасности обнаружила, что вами был создан второй игровой аккаунт.\n\nСогласно пункту 2.1 Пользовательского соглашения, на платформе действует строгое правило одного аккаунта. Мультиаккаунтинг категорически запрещен и распространяется на использование одного IP-адреса, одного устройства и одного платежного кошелька.\n\nПринятые меры:\n• Ваш второй (дублирующий) аккаунт заблокирован навсегда.\n• Ваш основной аккаунт остается активным и не был тронут.\n\nНапоминаем, что в соответствии с правилами платформы, администрация отслеживает поведенческие маркеры. Повторное нарушение или попытка создания новых профилей приведет к полной и безвозвратной блокировке всех ваших аккаунтов (включая основной) и конфискации всех средств на балансе.\n\nПожалуйста, ознакомьтесь с полным текстом Пользовательского соглашения MacvBet (https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01), чтобы избежать подобных ситуаций в будущем.\n\nС уважением,\nАдминистрация MacvBet`;
+            // We no longer auto-ban purely by IP because of mobile networks and CGNAT 
+            // causing false positives. Instead, we create a high-priority alert for admins.
             
-            await telegramApi.sendMessage(Number(mainAccount.telegramId), messageText);
-            
-            // Log it as critical
             await prisma.securityAlert.create({
               data: {
                 userId,
-                type: 'multi_account_detected',
-                severity: 'critical',
-                description: `Strict Multi-Account ban applied. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
+                type: 'multi_account_suspicion',
+                severity: 'high',
+                description: `Possible Multi-Account detected by IP. IP: ${ipAddress}. Main Account: ${mainAccount.id} (${mainAccount.username || mainAccount.firstName}). Manual review required.`,
               },
             });
           }
