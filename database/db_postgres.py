@@ -590,10 +590,12 @@ class DatabasePostgres:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         user_uuid = self._ensure_user_uuid(telegram_id)
         
-        # Баланс
-        cursor.execute('SELECT amount FROM balances WHERE user_id = %s AND demo_mode = false', (user_uuid,))
+        # Баланс и отыгрыш
+        cursor.execute('SELECT amount, wager_target, wager_progress FROM balances WHERE user_id = %s AND demo_mode = false', (user_uuid,))
         balance_row = cursor.fetchone()
         balance = float(balance_row['amount']) if balance_row else 0.0
+        wager_target = float(balance_row['wager_target']) if balance_row and balance_row.get('wager_target') else 0.0
+        wager_progress = float(balance_row['wager_progress']) if balance_row and balance_row.get('wager_progress') else 0.0
 
         # Оборот (сумма всех ставок, то есть amount у type='bet')
         # Берем модуль суммы, так как ставки записываются с минусом
@@ -609,6 +611,8 @@ class DatabasePostgres:
         
         return {
             'balance': round(balance, 2),
+            'wager_target': round(wager_target, 2),
+            'wager_progress': round(wager_progress, 2),
             'turnover': round(turnover, 2),
             'games_count': bets_stats['games_count'] if bets_stats else 0,
             'max_x': round(float(bets_stats['max_x']), 2) if bets_stats else 0.0
