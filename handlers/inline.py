@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from aiogram import Router, F, Bot
 from aiogram.types import InlineQuery, InlineQueryResultPhoto
 
-from database import db
+from database.db import db
 
 router = Router()
 logger = logging.getLogger(__name__)
