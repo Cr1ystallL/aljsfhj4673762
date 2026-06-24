@@ -45,8 +45,8 @@ async def upload_image(image_bytes: bytes) -> str:
         
     return ""
 
-def create_profile_image(avatar_bytes: bytes, stats: dict) -> bytes:
-    """Generates the profile image with user stats and avatar"""
+def create_profile_image(stats: dict) -> bytes:
+    """Generates the profile image with user stats"""
     # 1. Load the template
     template = TEMPLATE_PATH
     if not os.path.exists(template):
@@ -57,41 +57,23 @@ def create_profile_image(avatar_bytes: bytes, stats: dict) -> bytes:
     else:
         # Fallback to a solid black image if template is completely missing
         logger.warning(f"Template not found at {TEMPLATE_PATH}. Using fallback.")
-        base = Image.new('RGB', (800, 450), color=(15, 15, 15))
+        base = Image.new('RGB', (1280, 720), color=(15, 15, 15))
         draw = ImageDraw.Draw(base)
-        draw.text((400, 20), "MACVBET PROFILE", fill=(255, 255, 255))
+        draw.text((640, 20), "MACVBET PROFILE", fill=(255, 255, 255))
 
     draw = ImageDraw.Draw(base)
     width, height = base.size
 
-    # 2. Draw Avatar
-    if avatar_bytes:
-        try:
-            avatar = Image.open(io.BytesIO(avatar_bytes)).convert('RGBA')
-            AVATAR_SIZE = int(height * 0.58)  # Approx 58% of height
-            AVATAR_X = int(width * 0.15)
-            AVATAR_Y = int(height * 0.15)
-
-            avatar = avatar.resize((AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
-            
-            # Create a circular mask
-            mask = Image.new('L', (AVATAR_SIZE, AVATAR_SIZE), 0)
-            mask_draw = ImageDraw.Draw(mask)
-            mask_draw.ellipse((0, 0, AVATAR_SIZE, AVATAR_SIZE), fill=255)
-            
-            base.paste(avatar, (AVATAR_X, AVATAR_Y), mask)
-        except Exception as e:
-            logger.error(f"Failed to draw avatar: {e}")
-
-    # 3. Draw Stats
+    # 2. Draw Stats
+    font_size = int(height * 0.045)  # Make text much larger and readable
     try:
-        font = ImageFont.truetype("arial.ttf", size=24)
+        font = ImageFont.truetype("arial.ttf", size=font_size)
     except IOError:
         font = ImageFont.load_default()
 
-    TEXT_X = int(width * 0.85)
-    START_Y = int(height * 0.15)
-    Y_STEP = int(height * 0.17)
+    TEXT_X = int(width * 0.86)
+    START_Y = int(height * 0.16)
+    Y_STEP = int(height * 0.20)
     
     stats_list = [
         (f"{stats['turnover']} zl", START_Y),
@@ -101,8 +83,12 @@ def create_profile_image(avatar_bytes: bytes, stats: dict) -> bytes:
     ]
 
     for text, y in stats_list:
-        box_width, box_height = 80, 40
-        draw.rectangle([TEXT_X - box_width, y - 5, TEXT_X + 20, y + box_height], fill=(0, 0, 0))
+        # Draw a black box to erase the existing dash "-"
+        box_x1 = TEXT_X - int(width * 0.15)
+        box_y1 = y - int(height * 0.02)
+        box_x2 = TEXT_X + int(width * 0.05)
+        box_y2 = y + font_size + int(height * 0.02)
+        draw.rectangle([box_x1, box_y1, box_x2, box_y2], fill=(0, 0, 0))
         
         if hasattr(font, 'getbbox'):
             bbox = font.getbbox(text)
@@ -128,19 +114,8 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
         logger.error(f"Failed to fetch stats for inline profile: {e}")
         return
 
-    avatar_bytes = None
     try:
-        user_profile_photos = await bot.get_user_profile_photos(user_id, limit=1)
-        if user_profile_photos.total_count > 0:
-            photo = user_profile_photos.photos[0][-1] 
-            file = await bot.get_file(photo.file_id)
-            avatar_io = await bot.download_file(file.file_path)
-            avatar_bytes = avatar_io.read()
-    except Exception as e:
-        logger.error(f"Failed to fetch user avatar: {e}")
-
-    try:
-        img_bytes = create_profile_image(avatar_bytes, stats)
+        img_bytes = create_profile_image(stats)
     except Exception as e:
         logger.error(f"Failed to create profile image: {e}")
         return
@@ -148,13 +123,15 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
     photo_url = await upload_image(img_bytes)
 
     caption = (
-        f"<tg-emoji emoji-id=\"5309901482890382924\">👤</tg-emoji> Пользователь {username}!\n\n"
-        f"<tg-emoji emoji-id=\"5303213613220121573\">📈</tg-emoji> Статистика:\n"
-        f"Оборот - {stats['turnover']} zl\n"
-        f"Баланс - {stats['balance']} zl\n"
-        f"Макс Х - {stats['max_x']}\n"
-        f"Кол-во Игр - {stats['games_count']}\n\n"
-        f"<tg-emoji emoji-id=\"5283080528818360566\">🚀</tg-emoji> Играйте только тут (http://t.me/macvbet_bot)."
+        f"👤 <b><i>Пользователь</i></b> <b>{username}</b>!\n\n"
+        f"📈 <b>Статистика:</b>\n"
+        f"<blockquote>\n"
+        f"<b><i>Оборот</i></b> - <b><u>{stats['turnover']} zl</u></b>\n"
+        f"<b><i>Баланс</i></b> - <b>{stats['balance']} zl</b>\n"
+        f"<b><i>Макс Х</i></b> - <b><u>{stats['max_x']}x</u></b>\n"
+        f"<b><i>Кол-во Игр</i></b> - <b><u>{stats['games_count']}</u></b>\n"
+        f"</blockquote>\n"
+        f"🚀 <b>Играйте только <a href=\"http://t.me/macvbet_bot\">тут</a></b>."
     )
 
     if photo_url:
@@ -162,16 +139,16 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
             id=str(uuid.uuid4()),
             photo_url=photo_url,
             thumbnail_url=photo_url,
-            title="Ваш Профиль",
-            description="Отправить карточку профиля",
+            title="MacvBet - Ваш профиль",
+            description="Показывает статистику вашего профиля",
             caption=caption,
             parse_mode="HTML"
         )
     else:
         result = InlineQueryResultArticle(
             id=str(uuid.uuid4()),
-            title="Ваш Профиль (Текст)",
-            description="Отправить текстовую карточку",
+            title="MacvBet - Ваш профиль",
+            description="Показывает статистику вашего профиля",
             input_message_content=InputTextMessageContent(
                 message_text=caption,
                 parse_mode="HTML"

@@ -596,7 +596,8 @@ class DatabasePostgres:
         balance = float(balance_row['amount']) if balance_row else 0.0
 
         # Оборот (сумма всех ставок, то есть amount у type='bet')
-        cursor.execute("SELECT COALESCE(SUM(amount), 0) as turnover FROM transactions WHERE user_id = %s AND type = 'bet'", (user_uuid,))
+        # Берем модуль суммы, так как ставки записываются с минусом
+        cursor.execute("SELECT COALESCE(SUM(ABS(amount)), 0) as turnover FROM transactions WHERE user_id = %s AND type = 'bet'", (user_uuid,))
         turnover_row = cursor.fetchone()
         turnover = float(turnover_row['turnover']) if turnover_row else 0.0
 
