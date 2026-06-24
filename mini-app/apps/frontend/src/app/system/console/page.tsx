@@ -506,6 +506,7 @@ function Kpi({
           </HelpButton>
         )}
       </div>
+      <div
         className={`font-roobert text-[22px] font-light leading-none tabular-nums ${
           accent === 'warn'
             ? 'text-[#ff8a76]'
