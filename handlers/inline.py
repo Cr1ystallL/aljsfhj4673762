@@ -3,7 +3,7 @@ import io
 import aiohttp
 import uuid
 import logging
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 from aiogram import Router, F, Bot
 from aiogram.types import InlineQuery, InlineQueryResultPhoto, InlineQueryResultArticle, InputTextMessageContent
 
