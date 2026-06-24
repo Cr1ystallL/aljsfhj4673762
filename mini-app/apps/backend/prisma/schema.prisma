@@ -24,6 +24,7 @@ model User {
   // Admin moderation flags. `isBlocked` blocks the user from playing
   // and from withdrawing; `withdrawalLocked` lets them play but
   // prevents withdrawals while a case is investigated.
+  ignoreIpCollision Boolean @default(false) @map("ignore_ip_collision")
   isBlocked        Boolean  @default(false) @map("is_blocked")
   withdrawalLocked Boolean  @default(false) @map("withdrawal_locked")
   // Free-text moderation note set by admins.

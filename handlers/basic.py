@@ -211,7 +211,7 @@ async def show_info(message: Message):
                 text=get_text(lang, 'btn_agreement'),
                 url="https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01",
             ),
-            InlineKeyboardButton(text=get_text(lang, 'btn_support'), url="https://t.me/macvbet_support")
+            InlineKeyboardButton(text=get_text(lang, 'btn_support'), url="https://t.me/MacvBetSupport")
         ]
     ])
     

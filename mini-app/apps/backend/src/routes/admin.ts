@@ -405,7 +405,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           Prisma.sql`
             SELECT id, telegram_id, username, first_name, last_name,
                    language_code, photo_url, is_premium,
-                   is_blocked, withdrawal_locked, admin_note,
+                   is_blocked, ignore_ip_collision, withdrawal_locked, admin_note,
                    created_at, updated_at
             FROM users${where}
             ORDER BY created_at DESC
@@ -448,8 +448,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             username: u.username,
             firstName: u.first_name,
             lastName: u.last_name,
-            photoUrl: u.photo_url,
+            isPremium: u.is_premium,
             isBlocked: u.is_blocked,
+            ignoreIpCollision: u.ignore_ip_collision,
             withdrawalLocked: u.withdrawal_locked,
             createdAt: u.created_at.getTime(),
             balance: balById.get(u.id) ?? 0,
@@ -735,7 +736,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           Prisma.sql`
             SELECT id, telegram_id, username, first_name, last_name,
                    language_code, photo_url, is_premium,
-                   is_blocked, withdrawal_locked, admin_note,
+                   is_blocked, ignore_ip_collision, withdrawal_locked, admin_note,
                    created_at, updated_at
             FROM users WHERE id = ${id} LIMIT 1
           `
@@ -832,6 +833,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             photoUrl: u.photo_url,
             isPremium: u.is_premium,
             isBlocked: u.is_blocked,
+            ignoreIpCollision: u.ignore_ip_collision,
             withdrawalLocked: u.withdrawal_locked,
             adminNote: u.admin_note,
             createdAt: u.created_at.getTime(),
@@ -1088,6 +1090,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     Params: { id: string };
     Body: {
       isBlocked?: boolean;
+      ignoreIpCollision?: boolean;
       withdrawalLocked?: boolean;
       adminNote?: string | null;
       reason: string;
@@ -1111,7 +1114,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             telegram_id: bigint;
           }>
         >`
-          SELECT is_blocked, withdrawal_locked, admin_note, telegram_id
+          SELECT is_blocked, ignore_ip_collision, withdrawal_locked, admin_note, telegram_id
           FROM users WHERE id = ${id} LIMIT 1
         `;
         const before = beforeRows[0];
@@ -1129,6 +1132,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         if (typeof request.body.isBlocked === 'boolean') {
           setFragments.push(
             Prisma.sql`is_blocked = ${request.body.isBlocked}`
+          );
+        }
+        if (typeof request.body.ignoreIpCollision === 'boolean') {
+          setFragments.push(
+            Prisma.sql`ignore_ip_collision = ${request.body.ignoreIpCollision}`
           );
         }
         if (typeof request.body.withdrawalLocked === 'boolean') {
@@ -4219,6 +4227,68 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /* ---------------------------------------------------------------- export/import configs */
+
+  app.get('/_x/system/export', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const dbConfigs = await app.prisma.systemConfig.findMany();
+      const redis = (app as any).redis;
+      let dynamicAdmins: string[] = [];
+      if (redis) {
+        dynamicAdmins = await redis.smembers('macvbet:admins');
+      }
+      return reply.send({
+        ok: true,
+        data: {
+          systemConfigs: dbConfigs,
+          dynamicAdmins,
+          exportedAt: new Date().toISOString(),
+        }
+      });
+    } catch (err) {
+      logger.error(err, 'Export configs failed');
+      return reply.code(500).send({ error: 'Failed to export configurations' });
+    }
+  });
+
+  app.post<{ Body: { data: string } }>('/_x/system/import', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const parsed = JSON.parse(request.body.data);
+      if (!parsed || !Array.isArray(parsed.systemConfigs)) {
+        return reply.code(400).send({ error: 'Invalid config format' });
+      }
+
+      for (const conf of parsed.systemConfigs) {
+        if (conf.key && conf.value !== undefined) {
+          await app.prisma.systemConfig.upsert({
+            where: { key: conf.key },
+            update: { value: conf.value },
+            create: { key: conf.key, value: conf.value },
+          });
+        }
+      }
+
+      const redis = (app as any).redis;
+      if (redis && Array.isArray(parsed.dynamicAdmins)) {
+        for (const adminStr of parsed.dynamicAdmins) {
+          await redis.sadd('macvbet:admins', adminStr);
+        }
+      }
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'system.import_configs',
+        targetType: 'system',
+        reason: 'Imported system configurations from JSON backup',
+      });
+
+      return reply.send({ ok: true });
+    } catch (err) {
+      logger.error(err, 'Import configs failed');
+      return reply.code(500).send({ error: 'Failed to import configurations' });
+    }
+  });
 
   void isAdminTelegramId;
 }

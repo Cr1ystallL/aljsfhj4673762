@@ -46,6 +46,7 @@ interface UserDetail {
     photoUrl: string | null;
     isPremium: boolean;
     isBlocked: boolean;
+    ignoreIpCollision: boolean;
     withdrawalLocked: boolean;
     adminNote: string | null;
     createdAt: number;
@@ -288,6 +289,21 @@ export default function UserDetailPage() {
           setBusy(false);
           return;
         }
+      } else if (action === 'whitelist') {
+        const res = await fetch(`/api/_x/users/${userId}/flags`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ignoreIpCollision: !data.user.ignoreIpCollision,
+            reason: reason.trim(),
+          }),
+        });
+        if (!res.ok) {
+          alert('Не удалось изменить белый список');
+          setBusy(false);
+          return;
+        }
       }
 
       // Success — refresh and close.
@@ -445,6 +461,11 @@ export default function UserDetailPage() {
                 {u.withdrawalLocked && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border border-amber-400/40 bg-amber-400/10 text-[10px] uppercase tracking-[0.18em] text-amber-200 font-roobert">
                     <Lock size={10} strokeWidth={1.8} /> Вывод
+                  </span>
+                )}
+                {u.ignoreIpCollision && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border border-emerald-400/40 bg-emerald-400/10 text-[10px] uppercase tracking-[0.18em] text-emerald-200 font-roobert">
+                    <Check size={10} strokeWidth={1.8} /> Whitelist
                   </span>
                 )}
               </div>
@@ -746,6 +767,14 @@ export default function UserDetailPage() {
               }
               onClick={() => {
                 setAction('lock');
+                setReason('');
+              }}
+            />
+            <ActionButton
+              label={u.ignoreIpCollision ? 'Убрать из Whitelist' : 'Добавить в Whitelist'}
+              hint="Игнорировать совпадение IP"
+              onClick={() => {
+                setAction('whitelist');
                 setReason('');
               }}
             />

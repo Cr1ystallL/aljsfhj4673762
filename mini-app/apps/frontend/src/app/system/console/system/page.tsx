@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, Eraser, RotateCcw } from 'lucide-react';
+import { Activity, Eraser, RotateCcw, Download, Upload } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
@@ -93,6 +93,40 @@ export default function SystemPage() {
       alert('Ошибка сети при обновлении тех. режима');
     } finally {
       setMaintBusy(false);
+    }
+  };
+  const exportConfig = async () => {
+    try {
+      const res = await fetch('/api/_x/system/export', { credentials: 'include' });
+      if (res.ok) {
+        const j = await res.json();
+        const jsonString = JSON.stringify(j.data, null, 2);
+        prompt('Скопируйте настройки (Ctrl+C):', jsonString);
+      } else {
+        alert('Не удалось экспортировать настройки');
+      }
+    } catch {
+      alert('Ошибка при экспорте настроек');
+    }
+  };
+
+  const importConfig = async () => {
+    const dataStr = prompt('Вставьте настройки (JSON):');
+    if (!dataStr || dataStr.trim().length < 10) return;
+    try {
+      const res = await fetch('/api/_x/system/import', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: dataStr }),
+      });
+      if (res.ok) {
+        alert('Настройки успешно импортированы');
+      } else {
+        alert('Не удалось импортировать настройки');
+      }
+    } catch {
+      alert('Ошибка при импорте настроек');
     }
   };
 
@@ -422,6 +456,26 @@ export default function SystemPage() {
               <div className="font-roobert text-[11px] text-whisper-gray mt-0.5">
                 Удалить ключи Redis <code>game_config:*</code>
               </div>
+            </button>
+            <button
+              onClick={exportConfig}
+              className="rounded-card border border-white/15 bg-white/[0.04] px-4 py-3 text-left hover:bg-white/[0.06] transition-colors"
+            >
+              <div className="flex items-center gap-2 text-frost-white">
+                <Download size={14} strokeWidth={1.7} />
+                <span className="font-roobert text-[14px]">Экспорт конфигов</span>
+              </div>
+              <div className="font-roobert text-[11px] text-whisper-gray mt-0.5">Скопировать текущие настройки системы</div>
+            </button>
+            <button
+              onClick={importConfig}
+              className="rounded-card border border-white/15 bg-white/[0.04] px-4 py-3 text-left hover:bg-white/[0.06] transition-colors"
+            >
+              <div className="flex items-center gap-2 text-frost-white">
+                <Upload size={14} strokeWidth={1.7} />
+                <span className="font-roobert text-[14px]">Импорт конфигов</span>
+              </div>
+              <div className="font-roobert text-[11px] text-whisper-gray mt-0.5">Вставить настройки системы из буфера</div>
             </button>
           </div>
         </section>
