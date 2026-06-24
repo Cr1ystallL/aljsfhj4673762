@@ -182,15 +182,13 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
     photo_url = await upload_image(img_bytes)
 
     caption = (
-        f"👤 <b><i>Пользователь</i></b> <b>{username}</b>!\n\n"
-        f"📈 <b>Статистика:</b>"
-        f"<blockquote>"
-        f"<b><i>Оборот</i></b> - <b><u>{stats['turnover']} zl</u></b>\n"
-        f"<b><i>Баланс</i></b> - <b>{stats['balance']} zl</b>\n"
+        f"<tg-emoji emoji-id=\"5309901482890382924\">👤</tg-emoji> <b><i>Пользователь</i></b> <b>{username}</b>!\n\n"
+        f"<tg-emoji emoji-id=\"5310300184704471216\">📈</tg-emoji> <b>Статистика:</b>\n"
+        f"<blockquote><b><i>Оборот</i></b> - <b><u>{stats['turnover']} zl</u></b>\n"
+        f"<b><i>Баланс</i></b> - <b><u>{stats['balance']} zl</u></b>\n"
         f"<b><i>Макс Х</i></b> - <b><u>{stats['max_x']}x</u></b>\n"
-        f"<b><i>Кол-во Игр</i></b> - <b><u>{stats['games_count']}</u></b>"
-        f"</blockquote>\n"
-        f"🚀 <b>Играйте только <a href=\"http://t.me/macvbet_bot\">тут</a></b>."
+        f"<b><i>Кол-во Игр</i></b> - <b><u>{stats['games_count']}</u></b></blockquote>\n"
+        f"<tg-emoji emoji-id=\"5283080528818360566\">🚀</tg-emoji> <b>Играйте только <a href=\"http://t.me/macvbet_bot\">тут</a></b>."
     )
 
     if photo_url:
