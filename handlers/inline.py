@@ -78,10 +78,23 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
 
     draw = ImageDraw.Draw(base, "RGBA")
 
-    # Load font for Name
-    try:
-        font_name = ImageFont.truetype("arial.ttf", size=200)
-    except IOError:
+    # Load font for Name (try common Linux fonts)
+    font_paths = [
+        "arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
+    ]
+    font_name = None
+    for path in font_paths:
+        try:
+            font_name = ImageFont.truetype(path, size=240)
+            break
+        except IOError:
+            continue
+            
+    if font_name is None:
         font_name = ImageFont.load_default()
 
     # 2. Draw Avatar (Circle)
@@ -149,7 +162,6 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
     output = io.BytesIO()
     base.convert('RGB').save(output, format='JPEG', quality=95)
     return output.getvalue()
-
 
 @router.inline_query(F.query.lower().in_(["профиль", "profile", ""]))
 async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
