@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  Activity,
   ChevronDown,
+  Clock,
   Coins,
   Radio,
   Sparkles,
   TrendingUp,
   Users,
   Wallet,
+  Zap,
 } from 'lucide-react';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 import { HelpButton } from '@/components/admin/help-button';
@@ -243,59 +246,36 @@ export default function AdminDashboardPage() {
               поэтому не нужно дёргать тяжелый /_x/stats чаще. */}
           <LivePresence />
 
-          {/* Timeline and Activity Graph grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-                  GGR · 14 дней
+          {/* New beautiful online analytics section */}
+          <OnlineAnalyticsSection graph={data.activityGraph} />
+          {/* Timeline */}
+          <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+                GGR · 14 дней
+              </span>
+              <div className="inline-flex items-center gap-2">
+                <span className="font-roobert text-[11px] text-whisper-gray">
+                  {data.timeline.length} точек
                 </span>
-                <div className="inline-flex items-center gap-2">
-                  <span className="font-roobert text-[11px] text-whisper-gray">
-                    {data.timeline.length} точек
-                  </span>
-                  <HelpButton title="График GGR за 14 дней">
-                    <p>
-                      Каждый столбик — один день. Высота равна модулю
-                      дневного GGR. Зелёно-оранжевые столбики вверх — день
-                      в плюс для казино, красные вниз — в минус.
-                    </p>
-                    <p>
-                      Тонкая горизонтальная линия посередине = ноль. Если
-                      видите много красных подряд — стоит проверить
-                      конкретные раунды и крупные выигрыши.
-                    </p>
-                  </HelpButton>
-                </div>
+                <HelpButton title="График GGR за 14 дней">
+                  <p>
+                    Каждый столбик — один день. Высота равна модулю
+                    дневного GGR. Зелёно-оранжевые столбики вверх — день
+                    в плюс для казино, красные вниз — в минус.
+                  </p>
+                  <p>
+                    Тонкая горизонтальная линия посередине = ноль. Если
+                    видите много красных подряд — стоит проверить
+                    конкретные раунды и крупные выигрыши.
+                  </p>
+                </HelpButton>
               </div>
-              <div className="px-4 py-4">
-                <TimelineChart points={data.timeline} />
-              </div>
-            </section>
-            
-            <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-                  Активность игроков · 24 часа
-                </span>
-                <div className="inline-flex items-center gap-2">
-                  <span className="font-roobert text-[11px] text-whisper-gray">
-                    {data.activityGraph.length} точек
-                  </span>
-                  <HelpButton title="График активности за 24 часа">
-                    <p>
-                      Каждый столбик — один час. Высота равна количеству
-                      ставок в этот час. Чем выше столбик, тем больше
-                      игроков было онлайн и тем активнее они играли.
-                    </p>
-                  </HelpButton>
-                </div>
-              </div>
-              <div className="px-4 py-4">
-                <ActivityChart points={data.activityGraph} />
-              </div>
-            </section>
-          </div>
+            </div>
+            <div className="px-4 py-4">
+              <TimelineChart points={data.timeline} />
+            </div>
+          </section>
 
           {/* Biggest win */}
           {data.biggestWin && (
@@ -608,14 +588,23 @@ function ActivityChart({ points }: { points: AdminStats['activityGraph'] }) {
   if (n === 0) return null;
 
   const max = Math.max(...points.map((p) => p.count), 1);
-  const barWidth = innerW / n;
+  const stepX = innerW / Math.max(n - 1, 1);
+
+  const linePath = points.map((p, i) => {
+    const x = padX + i * stepX;
+    const heightRaw = (p.count / max) * innerH;
+    const y = padY + innerH - heightRaw;
+    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+  }).join(' ');
+
+  const areaPath = `${linePath} L ${padX + (n - 1) * stepX} ${padY + innerH} L ${padX} ${padY + innerH} Z`;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-32">
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-32 overflow-visible">
       <defs>
         <linearGradient id="act-pos" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="rgb(99, 102, 241)" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="rgb(168, 85, 247)" stopOpacity="0.4" />
+          <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0.0" />
         </linearGradient>
       </defs>
       <line
@@ -626,26 +615,76 @@ function ActivityChart({ points }: { points: AdminStats['activityGraph'] }) {
         stroke="rgba(255,255,255,0.08)"
         strokeWidth="1"
       />
+      <path d={areaPath} fill="url(#act-pos)" />
+      <path d={linePath} fill="none" stroke="rgb(168, 85, 247)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       {points.map((p, i) => {
-        const x = padX + i * barWidth + 1;
+        const x = padX + i * stepX;
         const heightRaw = (p.count / max) * innerH;
         const y = padY + innerH - heightRaw;
         return (
-          <rect
-            key={p.hour}
-            x={x}
-            y={y}
-            width={Math.max(1, barWidth - 2)}
-            height={heightRaw}
-            fill="url(#act-pos)"
-            rx={1.5}
-          />
+          <circle key={p.hour} cx={x} cy={y} r={3} fill="rgb(168, 85, 247)" className="drop-shadow-lg" />
         );
       })}
     </svg>
   );
 }
 
+
+function OnlineAnalyticsSection({ graph }: { graph: AdminStats['activityGraph'] }) {
+  const totalBets = graph.reduce((sum, p) => sum + p.count, 0);
+  const maxOnline = Math.max(...graph.map(p => p.count), 0);
+  const avgOnline = Math.round(totalBets / Math.max(graph.length, 1));
+  const currentOnline = graph.length > 0 ? graph[graph.length - 1].count : 0;
+
+  return (
+    <section className="mt-8 flex flex-col gap-4">
+      <h2 className="text-xl font-bold font-roobert text-white flex items-center gap-2">
+        <Activity size={20} className="text-purple-400" />
+        Аналитика онлайна
+      </h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Kpi
+          icon={<Zap size={14} strokeWidth={1.6} />}
+          label="Сейчас онлайн"
+          value={currentOnline.toLocaleString('ru-RU')}
+          hint="Ставок за последний час"
+          help={{ title: 'Текущая активность', body: <p>Количество ставок, сделанных в текущем часе.</p> }}
+        />
+        <Kpi
+          icon={<TrendingUp size={14} strokeWidth={1.6} />}
+          label="Пиковый онлайн"
+          value={maxOnline.toLocaleString('ru-RU')}
+          hint="Максимум за сутки"
+          help={{ title: 'Пик', body: <p>Самое активное время за последние 24 часа.</p> }}
+        />
+        <Kpi
+          icon={<Activity size={14} strokeWidth={1.6} />}
+          label="Средний онлайн"
+          value={avgOnline.toLocaleString('ru-RU')}
+          hint="В среднем за час"
+          help={{ title: 'Среднее', body: <p>Среднее количество ставок в час за 24 часа.</p> }}
+        />
+        <Kpi
+          icon={<Clock size={14} strokeWidth={1.6} />}
+          label="Всего ставок"
+          value={totalBets.toLocaleString('ru-RU')}
+          hint="За последние 24ч"
+          help={{ title: 'Всего', body: <p>Общее число ставок за 24 часа.</p> }}
+        />
+      </div>
+      <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+            График активности
+          </span>
+        </div>
+        <div className="px-4 py-4">
+          <ActivityChart points={graph} />
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* Live presence widget                                                       */
