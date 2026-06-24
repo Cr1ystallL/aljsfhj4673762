@@ -899,10 +899,11 @@ export class BettingPipeline {
         // Check if balance exceeded 2x
         if (balanceAfter > Number(session.startBalance) * 2 && Number(session.startBalance) > 0) {
           // They doubled their money!
-          const { ADMIN_TELEGRAM_IDS } = await import('../middleware/auth.js');
+          const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');
           
-          for (const adminId of ADMIN_TELEGRAM_IDS) {
+          const adminIds = await getAllAdminTelegramIds();
+          for (const adminId of adminIds) {
             await telegramApi.sendMessage(
               adminId,
               `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ</b> 🚨\n\n` +
@@ -914,13 +915,18 @@ export class BettingPipeline {
             );
           }
 
-          // Trigger strict RTP
-          await rtpEngine.setUserConfig(user.id, {
-            mode: 'earn',
-            target: balanceAfter * 2, // Take back 2x
-            windowMs: 24 * 60 * 60 * 1000, // 24 hours
-            intensity: 1.0 // Max intensity
-          });
+          // Trigger strict RTP by setting the autoRtpTarget on the balance.
+          // This ensures rtpEngine.getBiasFor immediately returns 1.0.
+          const b = await prisma.balance.findFirst({ where: { userId, demoMode: false } });
+          if (b) {
+            await prisma.balance.update({
+              where: { id: b.id },
+              data: {
+                autoRtpTarget: balanceAfter * 2,
+                autoRtpProgress: 0,
+              }
+            });
+          }
         }
       }
 
@@ -930,35 +936,34 @@ export class BettingPipeline {
 
       if (isWin) {
         if (nextStreak === 3 && !streakActive) {
-          // Trigger Auto-RTP on 3rd win
-          const currentConfig = await rtpEngine.getUserConfig(userId);
-          
+          // Trigger Auto-RTP on 3rd win by updating balance.autoRtpTarget
           let nextTarget = balanceAfter * 1.5;
-          let nextWindow = 12 * 60 * 60 * 1000;
-          let nextIntensity = 0.9;
 
-          if (currentConfig.mode === 'earn') {
-            nextTarget = currentConfig.target * 2.5;
-            nextWindow = currentConfig.windowMs * 1.5;
-            nextIntensity = 1.0;
+          const b = await prisma.balance.findFirst({ where: { userId, demoMode: false } });
+          if (b) {
+            if (Number(b.autoRtpTarget) > Number(b.autoRtpProgress)) {
+              // Already active? Increase it heavily
+              nextTarget = Number(b.autoRtpTarget) * 2.5;
+            }
+            await prisma.balance.update({
+              where: { id: b.id },
+              data: {
+                autoRtpTarget: nextTarget,
+                autoRtpProgress: 0,
+              }
+            });
           }
-
-          await rtpEngine.setUserConfig(userId, {
-            mode: 'earn',
-            target: nextTarget,
-            windowMs: nextWindow,
-            intensity: nextIntensity
-          });
 
           streakActive = true;
         }
 
         if (nextStreak >= 4) {
           // Send Telegram notification to admins
-          const { ADMIN_TELEGRAM_IDS } = await import('../middleware/auth.js');
+          const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');
           
-          for (const adminId of ADMIN_TELEGRAM_IDS) {
+          const adminIds = await getAllAdminTelegramIds();
+          for (const adminId of adminIds) {
             await telegramApi.sendMessage(
               adminId,
               `🔥 <b>ИГРОК ПРОДОЛЖАЕТ ВИН СТРИК!</b> 🔥\n\n` +

@@ -269,6 +269,15 @@ export async function isAdminTelegramIdAsync(telegramId: number): Promise<boolea
 }
 
 /**
+ * Returns an array of all active admin Telegram IDs (both from env and dynamic Redis set).
+ * Useful for broadcasting security alerts.
+ */
+export async function getAllAdminTelegramIds(): Promise<number[]> {
+  const dyn = await getDynamicAdmins();
+  return Array.from(new Set([...ADMIN_TELEGRAM_IDS, ...dyn]));
+}
+
+/**
  * Cache for the withdrawal-only admin set. Same TTL as `admins:dynamic`.
  * Members of `admins:withdrawal` can review withdrawal requests but
  * have no powers anywhere else in the admin panel — useful for ops
