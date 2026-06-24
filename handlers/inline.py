@@ -5,7 +5,7 @@ import uuid
 import logging
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from aiogram import Router, F, Bot
-from aiogram.types import InlineQuery, InlineQueryResultPhoto
+from aiogram.types import InlineQuery, InlineQueryResultPhoto, InlineQueryResultArticle, InputTextMessageContent
 
 from database.db import db
 
@@ -17,8 +17,7 @@ TEMPLATE_PATH = '/var/www/MACVBET/mini-app/apps/frontend/public/profile_inline.j
 LOCAL_TEMPLATE_PATH = 'mini-app/apps/frontend/public/profile_inline.jpg'
 
 async def upload_image(image_bytes: bytes) -> str:
-    """Uploads an image to telegra.ph, with a fallback to catbox.moe"""
-    # 1. Try Telegraph
+    """Uploads an image to telegra.ph with fallback to catbox.moe"""
     try:
         async with aiohttp.ClientSession() as session:
             data = aiohttp.FormData()
@@ -29,9 +28,8 @@ async def upload_image(image_bytes: bytes) -> str:
                     if isinstance(res, list) and len(res) > 0 and 'src' in res[0]:
                         return "https://telegra.ph" + res[0]['src']
     except Exception as e:
-        logger.error(f"Telegraph upload failed: {e}")
+        logger.error(f"Error uploading to telegraph: {e}")
 
-    # 2. Try Catbox.moe as fallback
     try:
         async with aiohttp.ClientSession() as session:
             data = aiohttp.FormData()
@@ -47,39 +45,106 @@ async def upload_image(image_bytes: bytes) -> str:
         
     return ""
 
+def create_profile_image(avatar_bytes: bytes, stats: dict) -> bytes:
+    """Generates the profile image with user stats and avatar"""
+    # 1. Load the template
+    template = TEMPLATE_PATH
+    if not os.path.exists(template):
+        template = LOCAL_TEMPLATE_PATH
+    
+    if os.path.exists(template):
+        base = Image.open(template).convert('RGB')
+    else:
+        # Fallback to a solid black image if template is completely missing
+        logger.warning(f"Template not found at {TEMPLATE_PATH}. Using fallback.")
+        base = Image.new('RGB', (800, 450), color=(15, 15, 15))
+        draw = ImageDraw.Draw(base)
+        draw.text((400, 20), "MACVBET PROFILE", fill=(255, 255, 255))
+
+    draw = ImageDraw.Draw(base)
+    width, height = base.size
+
+    # 2. Draw Avatar
+    if avatar_bytes:
+        try:
+            avatar = Image.open(io.BytesIO(avatar_bytes)).convert('RGBA')
+            AVATAR_SIZE = int(height * 0.58)  # Approx 58% of height
+            AVATAR_X = int(width * 0.15)
+            AVATAR_Y = int(height * 0.15)
+
+            avatar = avatar.resize((AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
+            
+            # Create a circular mask
+            mask = Image.new('L', (AVATAR_SIZE, AVATAR_SIZE), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse((0, 0, AVATAR_SIZE, AVATAR_SIZE), fill=255)
+            
+            base.paste(avatar, (AVATAR_X, AVATAR_Y), mask)
+        except Exception as e:
+            logger.error(f"Failed to draw avatar: {e}")
+
+    # 3. Draw Stats
+    try:
+        font = ImageFont.truetype("arial.ttf", size=24)
+    except IOError:
+        font = ImageFont.load_default()
+
+    TEXT_X = int(width * 0.85)
+    START_Y = int(height * 0.15)
+    Y_STEP = int(height * 0.17)
+    
+    stats_list = [
+        (f"{stats['turnover']} zl", START_Y),
+        (f"{stats['balance']} zl", START_Y + Y_STEP * 1),
+        (f"{stats['max_x']}x", START_Y + Y_STEP * 2),
+        (f"{stats['games_count']}", START_Y + Y_STEP * 3)
+    ]
+
+    for text, y in stats_list:
+        box_width, box_height = 80, 40
+        draw.rectangle([TEXT_X - box_width, y - 5, TEXT_X + 20, y + box_height], fill=(0, 0, 0))
+        
+        if hasattr(font, 'getbbox'):
+            bbox = font.getbbox(text)
+            text_width = bbox[2] - bbox[0]
+        else:
+            text_width = font.getsize(text)[0]
+            
+        draw.text((TEXT_X - text_width, y), text, fill=(255, 255, 255), font=font)
+
+    output = io.BytesIO()
+    base.save(output, format='JPEG', quality=95)
+    return output.getvalue()
+
 
 @router.inline_query(F.query.lower().in_(["профиль", "profile", ""]))
 async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
     user_id = inline_query.from_user.id
     username = inline_query.from_user.username or inline_query.from_user.first_name
     
-    # Fetch stats
     try:
         stats = db.get_profile_stats(user_id)
     except Exception as e:
         logger.error(f"Failed to fetch stats for inline profile: {e}")
         return
 
-    # Fetch avatar
     avatar_bytes = None
     try:
         user_profile_photos = await bot.get_user_profile_photos(user_id, limit=1)
         if user_profile_photos.total_count > 0:
-            photo = user_profile_photos.photos[0][-1] # best resolution
+            photo = user_profile_photos.photos[0][-1] 
             file = await bot.get_file(photo.file_id)
             avatar_io = await bot.download_file(file.file_path)
             avatar_bytes = avatar_io.read()
     except Exception as e:
         logger.error(f"Failed to fetch user avatar: {e}")
 
-    # Generate image
     try:
         img_bytes = create_profile_image(avatar_bytes, stats)
     except Exception as e:
         logger.error(f"Failed to create profile image: {e}")
         return
     
-    # Upload to host
     photo_url = await upload_image(img_bytes)
 
     caption = (
@@ -103,8 +168,6 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
             parse_mode="HTML"
         )
     else:
-        from aiogram.types import InlineQueryResultArticle, InputTextMessageContent
-        logger.error("Failed to upload image. Using text-only fallback.")
         result = InlineQueryResultArticle(
             id=str(uuid.uuid4()),
             title="Ваш Профиль (Текст)",
