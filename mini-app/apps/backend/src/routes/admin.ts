@@ -154,6 +154,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         topPlayersRaw,
         timelineRaw,
         biggestWinRaw,
+        depositsRaw,
+        withdrawalsRaw,
+        activityRaw,
       ] = await Promise.all([
         app.prisma.user.count(),
         app.prisma.user.count({ where: { createdAt: { gte: since24h } } }),
@@ -191,6 +194,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           ORDER BY b.payout DESC
           LIMIT 1
         `,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT SUM(amount) as sum FROM transactions WHERE type = 'deposit'`,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT SUM(amount) as sum FROM transactions WHERE type = 'withdrawal'`,
+        app.prisma.$queryRaw<{ hour: Date, count: bigint }[]>`
+          SELECT date_trunc('hour', placed_at) as hour, COUNT(*) as count
+          FROM bets
+          WHERE placed_at >= NOW() - INTERVAL '24 hours' AND metadata->>'demoMode' IS NULL
+          GROUP BY date_trunc('hour', placed_at)
+          ORDER BY hour ASC
+        `,
       ]);
 
       const betCount = Number(betCountRows[0]?.count || 0);
@@ -218,6 +230,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const totalWagered = Number(wagerAgg._sum.amount ?? 0);
       const totalPaidOut = Number(payoutAgg._sum.payout ?? 0);
       const ggr = totalWagered - totalPaidOut;
+
+      const casinoProfit = Number(depositsRaw[0]?.sum || 0) - Number(withdrawalsRaw[0]?.sum || 0);
+      const activityGraph = activityRaw.map((a) => ({
+        hour: a.hour,
+        count: Number(a.count || 0)
+      }));
 
       const perGame = perGameRaw.map((g) => ({
         gameType: g.game_type,
@@ -319,6 +337,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                 `id${biggestWin.user.telegramId.toString().slice(-4)}`,
             }
           : null,
+        casinoProfit,
+        activityGraph,
       });
     } catch (error) {
       logger.error(error, 'Admin stats fetch failed');

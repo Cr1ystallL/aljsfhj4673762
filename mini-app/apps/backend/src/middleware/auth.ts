@@ -206,7 +206,7 @@ export async function optionalAuth(
  * Runtime admins (added via the admin UI) live in Redis set
  * `admins:dynamic` and are checked dynamically in `isAdminTelegramId`.
  */
-const ADMIN_TELEGRAM_IDS: ReadonlySet<number> = (() => {
+export const ADMIN_TELEGRAM_IDS: ReadonlySet<number> = (() => {
   // Accept both names. The backend was originally configured via
   // ADMIN_TELEGRAM_IDS, but the Python bot in the same repo uses
   // ADMIN_IDS for the exact same purpose. Allowing either keeps

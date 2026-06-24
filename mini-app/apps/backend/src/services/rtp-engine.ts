@@ -144,17 +144,23 @@ class RtpEngine {
 
   async getConfig(): Promise<RtpConfig> {
     try {
-      const r = redisClient.getClient();
-      const raw = await r.hgetall(CONFIG_KEY);
-      if (!raw || Object.keys(raw).length === 0) return { ...DEFAULT_CONFIG };
-      return {
-        mode:
-          raw.mode === 'earn' || raw.mode === 'give' ? raw.mode : 'off',
-        target: numOr(raw.target, 0),
-        windowMs: numOr(raw.windowMs, DEFAULT_CONFIG.windowMs),
-        intensity: clamp(numOr(raw.intensity, 0.5), 0, 1),
-        earnBiasBoost: numOr(raw.earnBiasBoost, DEFAULT_CONFIG.earnBiasBoost ?? 1),
-      };
+      const { prisma } = await import('../lib/prisma.js');
+      const sysConfig = await prisma.systemConfig.findUnique({
+        where: { key: 'rtp_global' }
+      });
+      
+      if (sysConfig && sysConfig.value) {
+        const raw = sysConfig.value as any;
+        return {
+          mode: raw.mode === 'earn' || raw.mode === 'give' ? raw.mode : 'off',
+          target: numOr(raw.target, 0),
+          windowMs: numOr(raw.windowMs, DEFAULT_CONFIG.windowMs),
+          intensity: clamp(numOr(raw.intensity, 0.5), 0, 1),
+          earnBiasBoost: numOr(raw.earnBiasBoost, DEFAULT_CONFIG.earnBiasBoost ?? 1),
+        };
+      }
+      
+      return { ...DEFAULT_CONFIG };
     } catch (err) {
       logger.warn({ err }, 'rtp.getConfig failed');
       return { ...DEFAULT_CONFIG };
@@ -176,17 +182,31 @@ class RtpEngine {
       intensity: clamp(numOr(patch.intensity, current.intensity), 0, 1),
       earnBiasBoost: numOr(patch.earnBiasBoost, current.earnBiasBoost ?? 1),
     };
-    const r = redisClient.getClient();
-    await r.hset(CONFIG_KEY, {
-      mode: next.mode,
-      target: String(next.target),
-      windowMs: String(next.windowMs),
-      intensity: String(next.intensity),
-      earnBiasBoost: String(next.earnBiasBoost ?? 1),
-    });
-    if (opts.reset) {
-      await r.del(WINDOW_KEY);
-      await this.clearUserAccumulators();
+    
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      await prisma.systemConfig.upsert({
+        where: { key: 'rtp_global' },
+        update: { value: next as any },
+        create: { key: 'rtp_global', value: next as any }
+      });
+      
+      // Also update Redis for quick access by other parts if needed
+      const r = redisClient.getClient();
+      await r.hset(CONFIG_KEY, {
+        mode: next.mode,
+        target: String(next.target),
+        windowMs: String(next.windowMs),
+        intensity: String(next.intensity),
+        earnBiasBoost: String(next.earnBiasBoost ?? 1),
+      });
+
+      if (opts.reset) {
+        await r.del(WINDOW_KEY);
+        await this.clearUserAccumulators();
+      }
+    } catch (err) {
+      logger.error({ err }, 'Failed to set global RTP config');
     }
     return next;
   }
@@ -202,20 +222,23 @@ class RtpEngine {
 
   async getUserConfig(userId: string): Promise<RtpConfig> {
     try {
-      const r = redisClient.getClient();
-      const raw = await r.hgetall(USER_CONFIG_KEY(userId));
-      if (!raw || Object.keys(raw).length === 0) {
+      const { prisma } = await import('../lib/prisma.js');
+      const dbConfig = await prisma.userRtpConfig.findUnique({
+        where: { userId }
+      });
+
+      if (!dbConfig) {
         return { ...this.buildUserDefaults(await this.getConfig()) };
       }
       const base = await this.getConfig();
       return {
         mode:
-          raw.mode === 'earn' || raw.mode === 'give' || raw.mode === 'off'
-            ? raw.mode
+          dbConfig.mode === 'earn' || dbConfig.mode === 'give' || dbConfig.mode === 'off'
+            ? (dbConfig.mode as RtpMode)
             : 'off',
-        target: numOr(raw.target, 0),
-        windowMs: Math.max(60_000, numOr(raw.windowMs, base.windowMs)),
-        intensity: clamp(numOr(raw.intensity, base.intensity), 0, 1),
+        target: numOr(dbConfig.target, 0),
+        windowMs: Math.max(60_000, numOr(dbConfig.windowMs, base.windowMs)),
+        intensity: clamp(numOr(dbConfig.intensity, base.intensity), 0, 1),
       };
     } catch (err) {
       logger.warn({ err, userId }, 'rtp.getUserConfig failed');
@@ -241,6 +264,24 @@ class RtpEngine {
       intensity: clamp(numOr(patch.intensity, current.intensity ?? base.intensity), 0, 1),
     };
     try {
+      const { prisma } = await import('../lib/prisma.js');
+      await prisma.userRtpConfig.upsert({
+        where: { userId },
+        update: {
+          mode: next.mode,
+          target: next.target,
+          windowMs: next.windowMs,
+          intensity: next.intensity,
+        },
+        create: {
+          userId,
+          mode: next.mode,
+          target: next.target,
+          windowMs: next.windowMs,
+          intensity: next.intensity,
+        }
+      });
+      
       const r = redisClient.getClient();
       await r.hset(USER_CONFIG_KEY(userId), {
         mode: next.mode,
@@ -248,6 +289,7 @@ class RtpEngine {
         windowMs: String(next.windowMs),
         intensity: String(next.intensity),
       });
+
       if (opts.reset) {
         await r.del(USER_WINDOW_KEY(userId));
         await this.clearUserAccumulator(userId);
@@ -257,6 +299,7 @@ class RtpEngine {
     }
     return next;
   }
+
 
   private async ensureUserWindow(userId: string, cfg: RtpConfig): Promise<{ profit: number; stake: number; windowStart: number }> {
     const r = redisClient.getClient();

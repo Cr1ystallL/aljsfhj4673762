@@ -76,7 +76,7 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
   // Rate limiting
   await app.register(rateLimit, {
     global: true,
-    max: config.rateLimitMax,
+    max: 50000, // Increased heavily to prevent 429s for active players
     timeWindow: config.rateLimitWindowMs,
     errorResponseBuilder: () => ({
       statusCode: 429,

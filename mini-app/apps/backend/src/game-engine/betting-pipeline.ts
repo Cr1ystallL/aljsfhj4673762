@@ -457,6 +457,16 @@ export class BettingPipeline {
       // tighten / loosen the next bias.
       await rtpEngine.recordOutcome(bet.userId, stake, credit);
 
+      // Handle Win Streak and Session Tracking
+      await this.handleWinStreakAndSession(
+        bet.userId,
+        stake,
+        credit,
+        newBalance,
+        demoMode,
+        bet.gameId.split('_')[0]
+      );
+
       logger.info(
         {
           betId: bet.id,
@@ -481,6 +491,7 @@ export class BettingPipeline {
    */
   async processLoss(bet: Bet, demoMode = false, wagerQualifying = true): Promise<void> {
     try {
+      let finalBalance = 0;
       await prisma.$transaction(async (tx) => {
         await tx.bet.update({
           where: { id: bet.id },
@@ -499,6 +510,7 @@ export class BettingPipeline {
           let { wagerTarget, wagerProgress, autoRtpTarget, autoRtpProgress } = b;
           let needsUpdate = false;
           const balanceAfter = Number(b.amount);
+          finalBalance = balanceAfter;
 
           if (balanceAfter < 0.10 && !demoMode) {
             wagerTarget = new Prisma.Decimal(0);
@@ -538,6 +550,16 @@ export class BettingPipeline {
       if (!tournamentCycleId && !meta.demoMode) {
         await balanceService.syncBalance(bet.userId);
         await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0);
+        
+        // Handle Win Streak and Session Tracking
+        await this.handleWinStreakAndSession(
+          bet.userId,
+          Number(bet.amount),
+          0,
+          finalBalance,
+          demoMode,
+          bet.gameId.split('_')[0]
+        );
       }
       logger.info({ betId: bet.id, userId: bet.userId }, 'Bet lost');
     } catch (error) {
@@ -824,6 +846,142 @@ export class BettingPipeline {
     } catch (error) {
       logger.error(error, 'Failed to get active bets');
       return [];
+    }
+  }
+
+  /**
+   * Handle Win Streak and Game Session logic
+   */
+  async handleWinStreakAndSession(
+    userId: string,
+    stake: number,
+    credit: number,
+    balanceAfter: number,
+    demoMode: boolean,
+    gameType: string
+  ): Promise<void> {
+    if (demoMode) return;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, currentWinStreak: true, winStreakActive: true, username: true }
+      });
+
+      if (!user) return;
+
+      const isWin = credit > stake;
+
+      // 1. Session tracking
+      let session = await prisma.gameSession.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      const now = new Date();
+      if (!session || (now.getTime() - session.lastActivityAt.getTime() > 20 * 60 * 1000)) {
+        // Start a new session if none exists or last activity > 20 mins
+        // Note: Start balance is the balance before this bet (+ stake since balanceAfter is after deduction)
+        session = await prisma.gameSession.create({
+          data: {
+            userId,
+            startBalance: balanceAfter, // Approximated
+            lastActivityAt: now,
+          }
+        });
+      } else {
+        // Update activity
+        session = await prisma.gameSession.update({
+          where: { id: session.id },
+          data: { lastActivityAt: now }
+        });
+
+        // Check if balance exceeded 2x
+        if (balanceAfter > Number(session.startBalance) * 2 && Number(session.startBalance) > 0) {
+          // They doubled their money!
+          const { ADMIN_TELEGRAM_IDS } = await import('../middleware/auth.js');
+          const { telegramApi } = await import('../lib/telegram-api.js');
+          
+          for (const adminId of ADMIN_TELEGRAM_IDS) {
+            await telegramApi.sendMessage(
+              adminId,
+              `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ</b> 🚨\n\n` +
+              `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
+              `Старт сессии: <b>${Number(session.startBalance)} PLN</b>\n` +
+              `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+              `Игра: ${gameType}\n\n` +
+              `<i>Жесткий Авто-РТП включен.</i>`
+            );
+          }
+
+          // Trigger strict RTP
+          await rtpEngine.setUserConfig(user.id, {
+            mode: 'earn',
+            target: balanceAfter * 2, // Take back 2x
+            windowMs: 24 * 60 * 60 * 1000, // 24 hours
+            intensity: 1.0 // Max intensity
+          });
+        }
+      }
+
+      // 2. Win Streak Tracking
+      let nextStreak = isWin ? user.currentWinStreak + 1 : 0;
+      let streakActive = isWin ? user.winStreakActive : false;
+
+      if (isWin) {
+        if (nextStreak === 3 && !streakActive) {
+          // Trigger Auto-RTP on 3rd win
+          const currentConfig = await rtpEngine.getUserConfig(userId);
+          
+          let nextTarget = balanceAfter * 1.5;
+          let nextWindow = 12 * 60 * 60 * 1000;
+          let nextIntensity = 0.9;
+
+          if (currentConfig.mode === 'earn') {
+            nextTarget = currentConfig.target * 2.5;
+            nextWindow = currentConfig.windowMs * 1.5;
+            nextIntensity = 1.0;
+          }
+
+          await rtpEngine.setUserConfig(userId, {
+            mode: 'earn',
+            target: nextTarget,
+            windowMs: nextWindow,
+            intensity: nextIntensity
+          });
+
+          streakActive = true;
+        }
+
+        if (nextStreak >= 4) {
+          // Send Telegram notification to admins
+          const { ADMIN_TELEGRAM_IDS } = await import('../middleware/auth.js');
+          const { telegramApi } = await import('../lib/telegram-api.js');
+          
+          for (const adminId of ADMIN_TELEGRAM_IDS) {
+            await telegramApi.sendMessage(
+              adminId,
+              `🔥 <b>ИГРОК ПРОДОЛЖАЕТ ВИН СТРИК!</b> 🔥\n\n` +
+              `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
+              `Побед подряд: <b>${nextStreak}</b>\n` +
+              `Выигрыш в этом раунде: <b>${credit} PLN</b>\n` +
+              `Игра: ${gameType}\n` +
+              `Текущий баланс: <b>${balanceAfter} PLN</b>\n`
+            );
+          }
+        }
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          currentWinStreak: nextStreak,
+          winStreakActive: streakActive
+        }
+      });
+
+    } catch (err) {
+      logger.error(err, 'Failed to handle win streak and session logic');
     }
   }
 }
