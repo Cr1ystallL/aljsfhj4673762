@@ -16,103 +16,36 @@ logger = logging.getLogger(__name__)
 TEMPLATE_PATH = '/var/www/MACVBET/mini-app/apps/frontend/public/profile_inline.jpg'
 LOCAL_TEMPLATE_PATH = 'mini-app/apps/frontend/public/profile_inline.jpg'
 
-async def upload_to_telegraph(image_bytes: bytes) -> str:
-    """Uploads an image to telegra.ph and returns the URL"""
+async def upload_image(image_bytes: bytes) -> str:
+    """Uploads an image to telegra.ph, with a fallback to catbox.moe"""
+    # 1. Try Telegraph
     try:
         async with aiohttp.ClientSession() as session:
             data = aiohttp.FormData()
             data.add_field('file', image_bytes, filename='profile.jpg', content_type='image/jpeg')
-            async with session.post('https://telegra.ph/upload', data=data, timeout=10) as resp:
+            async with session.post('https://telegra.ph/upload', data=data, timeout=5) as resp:
                 if resp.status == 200:
                     res = await resp.json()
                     if isinstance(res, list) and len(res) > 0 and 'src' in res[0]:
                         return "https://telegra.ph" + res[0]['src']
     except Exception as e:
-        logger.error(f"Error uploading to telegraph: {e}")
-    return ""
+        logger.error(f"Telegraph upload failed: {e}")
 
-def create_profile_image(avatar_bytes: bytes, stats: dict) -> bytes:
-    """Generates the profile image with user stats and avatar"""
-    # 1. Load the template
-    template = TEMPLATE_PATH
-    if not os.path.exists(template):
-        template = LOCAL_TEMPLATE_PATH
-    
-    if os.path.exists(template):
-        base = Image.open(template).convert('RGB')
-    else:
-        # Fallback to a solid black image if template is completely missing
-        logger.warning(f"Template not found at {TEMPLATE_PATH}. Using fallback.")
-        base = Image.new('RGB', (800, 450), color=(15, 15, 15))
-        draw = ImageDraw.Draw(base)
-        draw.text((400, 20), "MACVBET PROFILE", fill=(255, 255, 255))
-
-    draw = ImageDraw.Draw(base)
-    width, height = base.size
-
-    # 2. Draw Avatar
-    if avatar_bytes:
-        try:
-            avatar = Image.open(io.BytesIO(avatar_bytes)).convert('RGBA')
-            # The circle in the template is on the left.
-            # Assuming template is around 800x450, and the circle is roughly size 280x280 at (100, 85)
-            # You can tweak these coordinates based on the exact template!
-            AVATAR_SIZE = int(height * 0.58)  # Approx 58% of height
-            AVATAR_X = int(width * 0.15)
-            AVATAR_Y = int(height * 0.15)
-
-            avatar = avatar.resize((AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
-            
-            # Create a circular mask
-            mask = Image.new('L', (AVATAR_SIZE, AVATAR_SIZE), 0)
-            mask_draw = ImageDraw.Draw(mask)
-            mask_draw.ellipse((0, 0, AVATAR_SIZE, AVATAR_SIZE), fill=255)
-            
-            base.paste(avatar, (AVATAR_X, AVATAR_Y), mask)
-        except Exception as e:
-            logger.error(f"Failed to draw avatar: {e}")
-
-    # 3. Draw Stats
-    # Try to load a nice font, fallback to default
+    # 2. Try Catbox.moe as fallback
     try:
-        font = ImageFont.truetype("arial.ttf", size=24)
-    except IOError:
-        font = ImageFont.load_default()
-
-    # The right side has 4 slots: Оборот, Баланс, Макс Х, Кол-во Игр
-    # We will draw a black rectangle to cover the default "-" dashes in the template
-    # Coordinate guesses (to be adjusted if needed):
-    TEXT_X = int(width * 0.85)
-    START_Y = int(height * 0.15)
-    Y_STEP = int(height * 0.17)
-    
-    # We draw text right-aligned so it looks neat
-    stats_list = [
-        (f"{stats['turnover']} zl", START_Y),
-        (f"{stats['balance']} zl", START_Y + Y_STEP * 1),
-        (f"{stats['max_x']}x", START_Y + Y_STEP * 2),
-        (f"{stats['games_count']}", START_Y + Y_STEP * 3)
-    ]
-
-    for text, y in stats_list:
-        # Draw a small black box to erase the existing dash "-"
-        box_width, box_height = 80, 40
-        draw.rectangle([TEXT_X - box_width, y - 5, TEXT_X + 20, y + box_height], fill=(0, 0, 0))
+        async with aiohttp.ClientSession() as session:
+            data = aiohttp.FormData()
+            data.add_field('reqtype', 'fileupload')
+            data.add_field('fileToUpload', image_bytes, filename='profile.jpg', content_type='image/jpeg')
+            async with session.post('https://catbox.moe/user/api.php', data=data, timeout=10) as resp:
+                if resp.status == 200:
+                    url = await resp.text()
+                    if url.startswith("http"):
+                        return url.strip()
+    except Exception as e:
+        logger.error(f"Catbox upload failed: {e}")
         
-        # Determine text width to right-align it
-        # Handle different Pillow versions
-        if hasattr(font, 'getbbox'):
-            bbox = font.getbbox(text)
-            text_width = bbox[2] - bbox[0]
-        else:
-            text_width = font.getsize(text)[0]
-            
-        draw.text((TEXT_X - text_width, y), text, fill=(255, 255, 255), font=font)
-
-    # Convert to JPEG bytes
-    output = io.BytesIO()
-    base.save(output, format='JPEG', quality=95)
-    return output.getvalue()
+    return ""
 
 
 @router.inline_query(F.query.lower().in_(["профиль", "profile", ""]))
@@ -140,13 +73,14 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
         logger.error(f"Failed to fetch user avatar: {e}")
 
     # Generate image
-    img_bytes = create_profile_image(avatar_bytes, stats)
-    
-    # Upload to telegraph
-    photo_url = await upload_to_telegraph(img_bytes)
-    if not photo_url:
-        # Fallback if telegraph fails (e.g. timeout)
+    try:
+        img_bytes = create_profile_image(avatar_bytes, stats)
+    except Exception as e:
+        logger.error(f"Failed to create profile image: {e}")
         return
+    
+    # Upload to host
+    photo_url = await upload_image(img_bytes)
 
     caption = (
         f"<tg-emoji emoji-id=\"5309901482890382924\">👤</tg-emoji> Пользователь {username}!\n\n"
@@ -158,14 +92,30 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
         f"<tg-emoji emoji-id=\"5283080528818360566\">🚀</tg-emoji> Играйте только тут (http://t.me/macvbet_bot)."
     )
 
-    result = InlineQueryResultPhoto(
-        id=str(uuid.uuid4()),
-        photo_url=photo_url,
-        thumbnail_url=photo_url,
-        title="Ваш Профиль",
-        description="Отправить карточку профиля",
-        caption=caption,
-        parse_mode="HTML"
-    )
+    if photo_url:
+        result = InlineQueryResultPhoto(
+            id=str(uuid.uuid4()),
+            photo_url=photo_url,
+            thumbnail_url=photo_url,
+            title="Ваш Профиль",
+            description="Отправить карточку профиля",
+            caption=caption,
+            parse_mode="HTML"
+        )
+    else:
+        from aiogram.types import InlineQueryResultArticle, InputTextMessageContent
+        logger.error("Failed to upload image. Using text-only fallback.")
+        result = InlineQueryResultArticle(
+            id=str(uuid.uuid4()),
+            title="Ваш Профиль (Текст)",
+            description="Отправить текстовую карточку",
+            input_message_content=InputTextMessageContent(
+                message_text=caption,
+                parse_mode="HTML"
+            )
+        )
 
-    await inline_query.answer([result], cache_time=10, is_personal=True)
+    try:
+        await inline_query.answer([result], cache_time=5, is_personal=True)
+    except Exception as e:
+        logger.error(f"Failed to answer inline query: {e}")
