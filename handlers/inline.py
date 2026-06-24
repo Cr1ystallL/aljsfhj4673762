@@ -80,7 +80,7 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
 
     # Load font for Name
     try:
-        font_name = ImageFont.truetype("arial.ttf", size=120)
+        font_name = ImageFont.truetype("arial.ttf", size=200)
     except IOError:
         font_name = ImageFont.load_default()
 
@@ -213,6 +213,6 @@ async def inline_profile_handler(inline_query: InlineQuery, bot: Bot):
         )
 
     try:
-        await inline_query.answer([result], cache_time=5, is_personal=True)
+        await inline_query.answer([result], is_personal=True, cache_time=0)
     except Exception as e:
-        logger.error(f"Failed to answer inline query: {e}")
+        logger.error(f"Error handling inline query: {e}")
