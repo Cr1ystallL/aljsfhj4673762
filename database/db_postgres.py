@@ -580,6 +580,38 @@ class DatabasePostgres:
         
         conn.commit()
         conn.close()
+
+    def get_profile_stats(self, telegram_id: int) -> dict:
+        """
+        Получить статистику профиля для инлайн-режима:
+        баланс, оборот, макс кф, кол-во игр.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        user_uuid = self._ensure_user_uuid(telegram_id)
+        
+        # Баланс
+        cursor.execute('SELECT amount FROM balances WHERE user_id = %s AND demo_mode = false', (user_uuid,))
+        balance_row = cursor.fetchone()
+        balance = float(balance_row['amount']) if balance_row else 0.0
+
+        # Оборот (сумма всех ставок, то есть amount у type='bet')
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) as turnover FROM transactions WHERE user_id = %s AND type = 'bet'", (user_uuid,))
+        turnover_row = cursor.fetchone()
+        turnover = float(turnover_row['turnover']) if turnover_row else 0.0
+
+        # Кол-во игр и Макс Х
+        cursor.execute('SELECT COUNT(*) as games_count, COALESCE(MAX(multiplier), 0) as max_x FROM bets WHERE user_id = %s', (user_uuid,))
+        bets_stats = cursor.fetchone()
+
+        conn.close()
+        
+        return {
+            'balance': round(balance, 2),
+            'turnover': round(turnover, 2),
+            'games_count': bets_stats['games_count'] if bets_stats else 0,
+            'max_x': round(float(bets_stats['max_x']), 2) if bets_stats else 0.0
+        }
     
     def get_total_users_count(self) -> int:
         """

@@ -3,3 +3,5 @@ python-dotenv==1.0.0
 aiocryptopay==0.4.8
 psycopg2-binary==2.9.9
 redis==5.0.4
+Pillow==10.3.0
+ 
