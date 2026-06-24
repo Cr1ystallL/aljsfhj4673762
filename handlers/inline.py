@@ -46,8 +46,8 @@ async def upload_image(image_bytes: bytes) -> str:
     return ""
 
 def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats: dict) -> bytes:
-    """Generates the profile image with blurred avatar background and circular avatar only"""
-    width, height = 480, 480
+    """Generates the profile image with blurred avatar background, circular avatar, and large nickname (16:9)"""
+    width, height = 1280, 720
     
     # 1. Base / Background
     base = Image.new('RGB', (width, height), color=(10, 10, 12))
@@ -78,10 +78,17 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
 
     draw = ImageDraw.Draw(base, "RGBA")
 
-    # 2. Draw Avatar (Circle) in the center
-    AVATAR_SIZE = 240
+    # Load font for Name
+    try:
+        font_name = ImageFont.truetype("arial.ttf", size=80)
+    except IOError:
+        font_name = ImageFont.load_default()
+
+    # 2. Draw Avatar (Circle)
+    AVATAR_SIZE = 320
     avatar_x = (width - AVATAR_SIZE) // 2
-    avatar_y = (height - AVATAR_SIZE) // 2
+    # Move avatar a bit up from center to leave room for text
+    avatar_y = (height - AVATAR_SIZE) // 2 - 40
 
     if avatar:
         avatar_small = avatar.resize((AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
@@ -90,23 +97,27 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
         mask_draw.ellipse((0, 0, AVATAR_SIZE, AVATAR_SIZE), fill=255)
         base.paste(avatar_small, (avatar_x, avatar_y), mask)
         # Draw border
-        draw.ellipse((avatar_x, avatar_y, avatar_x + AVATAR_SIZE, avatar_y + AVATAR_SIZE), outline=(255, 255, 255, 60), width=3)
+        draw.ellipse((avatar_x, avatar_y, avatar_x + AVATAR_SIZE, avatar_y + AVATAR_SIZE), outline=(255, 255, 255, 60), width=4)
     else:
         # Placeholder initials
-        draw.ellipse((avatar_x, avatar_y, avatar_x + AVATAR_SIZE, avatar_y + AVATAR_SIZE), fill=(255, 255, 255, 15), outline=(255, 255, 255, 40), width=3)
+        draw.ellipse((avatar_x, avatar_y, avatar_x + AVATAR_SIZE, avatar_y + AVATAR_SIZE), fill=(255, 255, 255, 15), outline=(255, 255, 255, 40), width=4)
         initials = (username[0].upper() if username else "U")
-        try:
-            font_name = ImageFont.truetype("arial.ttf", size=80)
-        except IOError:
-            font_name = ImageFont.load_default()
-            
         if hasattr(font_name, 'getbbox'):
             bbox = font_name.getbbox(initials)
             tw = bbox[2] - bbox[0]
             th = bbox[3] - bbox[1]
         else:
             tw, th = font_name.getsize(initials)
-        draw.text((avatar_x + (AVATAR_SIZE - tw) // 2, avatar_y + (AVATAR_SIZE - th) // 2 - 10), initials, fill=(255, 255, 255), font=font_name)
+        draw.text((avatar_x + (AVATAR_SIZE - tw) // 2, avatar_y + (AVATAR_SIZE - th) // 2 - 15), initials, fill=(255, 255, 255), font=font_name)
+
+    # 3. Draw Username
+    if hasattr(font_name, 'getbbox'):
+        bbox = font_name.getbbox(username)
+        tw = bbox[2] - bbox[0]
+    else:
+        tw = font_name.getsize(username)[0]
+    name_y = avatar_y + AVATAR_SIZE + 40
+    draw.text(((width - tw) // 2, name_y), username, fill=(255, 255, 255), font=font_name)
 
     output = io.BytesIO()
     base.convert('RGB').save(output, format='JPEG', quality=95)
