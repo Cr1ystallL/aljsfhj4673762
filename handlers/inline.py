@@ -89,7 +89,7 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
     font_name = None
     for path in font_paths:
         try:
-            font_name = ImageFont.truetype(path, size=240)
+            font_name = ImageFont.truetype(path, size=60)
             break
         except IOError:
             continue
