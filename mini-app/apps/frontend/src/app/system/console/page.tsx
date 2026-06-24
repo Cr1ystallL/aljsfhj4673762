@@ -81,6 +81,7 @@ interface AdminStats {
   } | null;
   casinoProfit: number;
   activityGraph: Array<{ hour: string; count: number }>;
+  newUsersGraph: Array<{ hour: string; count: number }>;
 }
 
 export default function AdminDashboardPage() {
@@ -247,7 +248,7 @@ export default function AdminDashboardPage() {
           <LivePresence />
 
           {/* New beautiful online analytics section */}
-          <OnlineAnalyticsSection graph={data.activityGraph} />
+          <OnlineAnalyticsSection graph={data.activityGraph} newUsersGraph={data.newUsersGraph} />
           {/* Timeline */}
           <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
             <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
@@ -505,7 +506,6 @@ function Kpi({
           </HelpButton>
         )}
       </div>
-      <div
         className={`font-roobert text-[22px] font-light leading-none tabular-nums ${
           accent === 'warn'
             ? 'text-[#ff8a76]'
@@ -577,18 +577,25 @@ function TimelineChart({ points }: { points: AdminStats['timeline'] }) {
   );
 }
 
+type TimeFilter = '6h' | '24h' | '7d' | '30d';
+
 function ActivityChart({ points }: { points: AdminStats['activityGraph'] }) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
   const w = 640;
   const h = 140;
-  const padX = 8;
+  const padX = 0;
   const padY = 14;
   const innerW = w - padX * 2;
   const innerH = h - padY * 2;
   const n = points.length;
-  if (n === 0) return null;
+  
+  if (n === 0) {
+    return <div className="h-40 flex items-center justify-center text-whisper-gray text-xs">Нет данных за выбранный период</div>;
+  }
 
   const max = Math.max(...points.map((p) => p.count), 1);
-  const stepX = innerW / Math.max(n - 1, 1);
+  const stepX = n > 1 ? innerW / (n - 1) : innerW;
 
   const linePath = points.map((p, i) => {
     const x = padX + i * stepX;
@@ -597,89 +604,198 @@ function ActivityChart({ points }: { points: AdminStats['activityGraph'] }) {
     return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
   }).join(' ');
 
-  const areaPath = `${linePath} L ${padX + (n - 1) * stepX} ${padY + innerH} L ${padX} ${padY + innerH} Z`;
+  const areaPath = n > 1 ? `${linePath} L ${padX + (n - 1) * stepX} ${padY + innerH} L ${padX} ${padY + innerH} Z` : linePath;
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(1, x / rect.width));
+    const index = Math.round(percent * (n - 1));
+    setHoverIndex(index);
+  };
+
+  const handleMouseLeave = () => setHoverIndex(null);
+
+  // Helper for X axis labels
+  const formatHour = (isoString: string) => {
+    const d = new Date(isoString);
+    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  };
+  const formatDate = (isoString: string) => {
+    const d = new Date(isoString);
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  };
+
+  const hoveredPoint = hoverIndex !== null ? points[hoverIndex] : null;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-32 overflow-visible">
-      <defs>
-        <linearGradient id="act-pos" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0.0" />
-        </linearGradient>
-      </defs>
-      <line
-        x1={padX}
-        x2={w - padX}
-        y1={padY + innerH}
-        y2={padY + innerH}
-        stroke="rgba(255,255,255,0.08)"
-        strokeWidth="1"
-      />
-      <path d={areaPath} fill="url(#act-pos)" />
-      <path d={linePath} fill="none" stroke="rgb(168, 85, 247)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      {points.map((p, i) => {
-        const x = padX + i * stepX;
-        const heightRaw = (p.count / max) * innerH;
-        const y = padY + innerH - heightRaw;
-        return (
-          <circle key={p.hour} cx={x} cy={y} r={3} fill="rgb(168, 85, 247)" className="drop-shadow-lg" />
-        );
-      })}
-    </svg>
+    <div className="relative">
+      <div 
+        className="relative w-full h-32 cursor-crosshair"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
+          <defs>
+            <linearGradient id="act-pos" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+          <line
+            x1={padX}
+            x2={w - padX}
+            y1={padY + innerH}
+            y2={padY + innerH}
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth="1"
+          />
+          {n > 1 && <path d={areaPath} fill="url(#act-pos)" />}
+          <path d={linePath} fill="none" stroke="rgb(168, 85, 247)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+
+        {/* Hover overlay */ }
+        {hoveredPoint && hoverIndex !== null && (
+          <>
+            <div 
+              className="absolute top-0 bottom-0 w-px bg-white/30 pointer-events-none"
+              style={{ left: `${(hoverIndex / Math.max(n - 1, 1)) * 100}%` }}
+            />
+            <div 
+              className="absolute top-2 -translate-x-1/2 bg-black/80 backdrop-blur-md border border-white/10 rounded-md px-3 py-2 pointer-events-none shadow-xl z-10 flex flex-col items-center min-w-max"
+              style={{ left: `${(hoverIndex / Math.max(n - 1, 1)) * 100}%` }}
+            >
+              <span className="text-[10px] uppercase tracking-wider text-whisper-gray mb-1">
+                {formatDate(hoveredPoint.hour)} {formatHour(hoveredPoint.hour)}
+              </span>
+              <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                <Users size={12} className="text-purple-400" />
+                {hoveredPoint.count} чел.
+              </span>
+            </div>
+            <div 
+              className="absolute w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ 
+                left: `${(hoverIndex / Math.max(n - 1, 1)) * 100}%`,
+                top: `${(padY + innerH - (hoveredPoint.count / max) * innerH) / h * 100}%`
+              }}
+            />
+          </>
+        )}
+      </div>
+      
+      {/* X Axis Labels */}
+      <div className="flex justify-between items-center mt-2 text-[10px] text-white/40 px-1 select-none">
+        {n > 0 && <span>{formatDate(points[0].hour)} {formatHour(points[0].hour)}</span>}
+        {n > 2 && <span>{formatDate(points[Math.floor(n/2)].hour)} {formatHour(points[Math.floor(n/2)].hour)}</span>}
+        {n > 1 && <span>{formatDate(points[n - 1].hour)} {formatHour(points[n - 1].hour)}</span>}
+      </div>
+    </div>
   );
 }
 
+function OnlineAnalyticsSection({ graph, newUsersGraph }: { graph: AdminStats['activityGraph'], newUsersGraph: AdminStats['newUsersGraph'] }) {
+  const [filter, setFilter] = useState<TimeFilter>('24h');
 
-function OnlineAnalyticsSection({ graph }: { graph: AdminStats['activityGraph'] }) {
-  const totalBets = graph.reduce((sum, p) => sum + p.count, 0);
-  const maxOnline = Math.max(...graph.map(p => p.count), 0);
-  const avgOnline = Math.round(totalBets / Math.max(graph.length, 1));
+  const filterPoints = (points: Array<{hour: string, count: number}>, period: TimeFilter) => {
+    const hours = period === '6h' ? 6 : period === '24h' ? 24 : period === '7d' ? 168 : 720;
+    return points.slice(-hours);
+  };
+
+  const filteredGraph = useMemo(() => filterPoints(graph, filter), [graph, filter]);
+  const filteredNewUsers = useMemo(() => filterPoints(newUsersGraph, filter), [newUsersGraph, filter]);
+
+  const maxOnline = Math.max(...filteredGraph.map(p => p.count), 0);
   const currentOnline = graph.length > 0 ? graph[graph.length - 1].count : 0;
+  const totalNewUsers = filteredNewUsers.reduce((sum, p) => sum + p.count, 0);
+
+  // Active time logic
+  const timeBuckets = { 'Утро (06-12)': 0, 'День (12-18)': 0, 'Вечер (18-00)': 0, 'Ночь (00-06)': 0 };
+  const timeCounts = { 'Утро (06-12)': 0, 'День (12-18)': 0, 'Вечер (18-00)': 0, 'Ночь (00-06)': 0 };
+  
+  filteredGraph.forEach(p => {
+    const h = new Date(p.hour).getHours();
+    let bucket: keyof typeof timeBuckets = 'Ночь (00-06)';
+    if (h >= 6 && h < 12) bucket = 'Утро (06-12)';
+    else if (h >= 12 && h < 18) bucket = 'День (12-18)';
+    else if (h >= 18) bucket = 'Вечер (18-00)';
+    
+    timeBuckets[bucket] += p.count;
+    timeCounts[bucket] += 1;
+  });
+
+  let bestTime = 'Неизвестно';
+  let bestAvg = -1;
+  for (const [bucket, total] of Object.entries(timeBuckets)) {
+     const count = timeCounts[bucket as keyof typeof timeCounts];
+     const avg = count > 0 ? total / count : 0;
+     if (avg > bestAvg && count > 0) {
+       bestAvg = avg;
+       bestTime = bucket.split(' ')[0]; // Только слово "Утро", "День", "Вечер", "Ночь"
+     }
+  }
 
   return (
     <section className="mt-8 flex flex-col gap-4">
-      <h2 className="text-xl font-bold font-roobert text-white flex items-center gap-2">
-        <Activity size={20} className="text-purple-400" />
-        Аналитика онлайна
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold font-roobert text-white flex items-center gap-2">
+          <Activity size={20} className="text-purple-400" />
+          Аналитика онлайна
+        </h2>
+        <div className="flex bg-white/5 rounded-md p-1 border border-white/10">
+          {(['6h', '24h', '7d', '30d'] as TimeFilter[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setFilter(t)}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                filter === t ? "bg-purple-500/20 text-purple-300" : "text-whisper-gray hover:text-white"
+              )}
+            >
+              {t === '6h' ? '6 ч' : t === '24h' ? '24 ч' : t === '7d' ? '7 дн' : '30 дн'}
+            </button>
+          ))}
+        </div>
+      </div>
+      
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Kpi
           icon={<Zap size={14} strokeWidth={1.6} />}
           label="Сейчас онлайн"
           value={currentOnline.toLocaleString('ru-RU')}
-          hint="Ставок за последний час"
-          help={{ title: 'Текущая активность', body: <p>Количество ставок, сделанных в текущем часе.</p> }}
+          hint="Активные за последний час"
+          help={{ title: 'Текущая активность', body: <p>Количество уникальных игроков в текущем часе.</p> }}
         />
         <Kpi
           icon={<TrendingUp size={14} strokeWidth={1.6} />}
           label="Пиковый онлайн"
           value={maxOnline.toLocaleString('ru-RU')}
-          hint="Максимум за сутки"
-          help={{ title: 'Пик', body: <p>Самое активное время за последние 24 часа.</p> }}
-        />
-        <Kpi
-          icon={<Activity size={14} strokeWidth={1.6} />}
-          label="Средний онлайн"
-          value={avgOnline.toLocaleString('ru-RU')}
-          hint="В среднем за час"
-          help={{ title: 'Среднее', body: <p>Среднее количество ставок в час за 24 часа.</p> }}
+          hint={filter === '6h' ? 'За последние 6ч' : filter === '24h' ? 'За сутки' : filter === '7d' ? 'За неделю' : 'За месяц'}
+          help={{ title: 'Пик', body: <p>Самое активное время за выбранный период.</p> }}
         />
         <Kpi
           icon={<Clock size={14} strokeWidth={1.6} />}
-          label="Всего ставок"
-          value={totalBets.toLocaleString('ru-RU')}
-          hint="За последние 24ч"
-          help={{ title: 'Всего', body: <p>Общее число ставок за 24 часа.</p> }}
+          label="Активное время"
+          value={bestTime}
+          hint={filter === '6h' ? 'За последние 6ч' : filter === '24h' ? 'За сутки' : filter === '7d' ? 'За неделю' : 'За месяц'}
+          help={{ title: 'Активное время', body: <p>Время суток, когда в среднем больше всего игроков онлайн.</p> }}
+        />
+        <Kpi
+          icon={<Users size={14} strokeWidth={1.6} />}
+          label="Новых игроков"
+          value={totalNewUsers.toLocaleString('ru-RU')}
+          hint={filter === '6h' ? 'За последние 6ч' : filter === '24h' ? 'За сутки' : filter === '7d' ? 'За неделю' : 'За месяц'}
+          help={{ title: 'Новые игроки', body: <p>Общее число регистраций за выбранный период.</p> }}
         />
       </div>
       <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
           <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-            График активности
+            Динамика уникальных игроков
           </span>
         </div>
         <div className="px-4 py-4">
-          <ActivityChart points={graph} />
+          <ActivityChart points={filteredGraph} />
         </div>
       </div>
     </section>
