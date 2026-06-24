@@ -80,7 +80,7 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
 
     # Load font for Name
     try:
-        font_name = ImageFont.truetype("arial.ttf", size=80)
+        font_name = ImageFont.truetype("arial.ttf", size=120)
     except IOError:
         font_name = ImageFont.load_default()
 
@@ -110,14 +110,41 @@ def create_profile_image(avatar_bytes: bytes, username: str, user_id: int, stats
             tw, th = font_name.getsize(initials)
         draw.text((avatar_x + (AVATAR_SIZE - tw) // 2, avatar_y + (AVATAR_SIZE - th) // 2 - 15), initials, fill=(255, 255, 255), font=font_name)
 
-    # 3. Draw Username
+    # 3. Draw Username (Gradient)
     if hasattr(font_name, 'getbbox'):
         bbox = font_name.getbbox(username)
         tw = bbox[2] - bbox[0]
     else:
         tw = font_name.getsize(username)[0]
+    
     name_y = avatar_y + AVATAR_SIZE + 40
-    draw.text(((width - tw) // 2, name_y), username, fill=(255, 255, 255), font=font_name)
+    text_x = (width - tw) // 2
+    
+    # Create mask for text
+    text_mask = Image.new('L', (width, height), 0)
+    mask_draw = ImageDraw.Draw(text_mask)
+    mask_draw.text((text_x, name_y), username, fill=255, font=font_name)
+    
+    # Create gradient layer
+    gradient = Image.new('RGB', (width, height))
+    grad_draw = ImageDraw.Draw(gradient)
+    
+    for x in range(tw):
+        progress = x / max(1, tw - 1)
+        if progress < 0.5:
+            p = progress * 2
+            r = int(160 + (255 - 160) * p)
+            g = int(224 + (172 - 224) * p)
+            b = int(171 + (46 - 171) * p)
+        else:
+            p = (progress - 0.5) * 2
+            r = int(255 + (165 - 255) * p)
+            g = int(172 + (45 - 172) * p)
+            b = int(46 + (37 - 46) * p)
+        grad_draw.line([(text_x + x, 0), (text_x + x, height)], fill=(r, g, b))
+        
+    # Paste gradient onto base using text_mask
+    base.paste(gradient, (0, 0), text_mask)
 
     output = io.BytesIO()
     base.convert('RGB').save(output, format='JPEG', quality=95)
