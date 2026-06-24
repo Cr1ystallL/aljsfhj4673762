@@ -44,6 +44,7 @@ interface RawUserRow {
   photo_url: string | null;
   is_premium: boolean;
   is_blocked: boolean;
+  ignore_ip_collision: boolean;
   withdrawal_locked: boolean;
   admin_note: string | null;
   created_at: Date;
