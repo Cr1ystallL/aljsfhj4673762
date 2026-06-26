@@ -361,7 +361,7 @@ function TournamentEditModal({ data, onClose, onSaved }: { data: TournamentDetai
   const [feeType, setFeeType] = useState<'free' | 'fee'>(data.entryFee > 0 ? 'fee' : 'free');
   const [entryFee, setEntryFee] = useState(data.entryFee);
   const [rebuyFee, setRebuyFee] = useState(data.rebuyFee);
-  const [startAt, setStartAt] = useState(() => isoLocalNow(data.startsAt));
+  const [startAt, setStartAt] = useState(() => isoLocalNow(new Date(data.startAtGmt1).getTime()));
   const [durationHours, setDurationHours] = useState(data.durationHours);
   const [repeatType, setRepeatType] = useState<'daily' | 'once'>(data.repeatType as 'daily' | 'once');
   const [active, setActive] = useState(data.active);
