@@ -16,11 +16,15 @@ async function main() {
     
     const bestCycle = cycles[0];
     if (bestCycle._count.participants > 0) {
+      // cycleBounds does: firstStartUtc = startAtGmt1 - 1 hour.
+      // So to make firstStartUtc === bestCycle.startsAt, we need:
+      // startAtGmt1 = bestCycle.startsAt + 1 hour.
+      const correctStartAtGmt1 = new Date(bestCycle.startsAt.getTime() + 60 * 60 * 1000);
       await prisma.tournament.update({
         where: { id: t.id },
-        data: { startAtGmt1: bestCycle.startsAt }
+        data: { startAtGmt1: correctStartAtGmt1 }
       });
-      console.log(`[OK] Восстановлен турнир "${t.title}": цикл с ${bestCycle._count.participants} участниками снова привязан.`);
+      console.log(`[OK] Восстановлен турнир "${t.title}": startAtGmt1 установлен на ${correctStartAtGmt1.toISOString()} (чтобы совпасть с циклом ${bestCycle.startsAt.toISOString()})`);
     }
   }
 }
