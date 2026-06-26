@@ -414,15 +414,16 @@ export class CrashGameEngine extends BaseGameEngine {
 
     // Final floor so we never produce a sub-1.01 crash, UNLESS loss mode (houseEdge >= 1.0) is active
     // If loss mode is active and there are real bets, force crashPoint to 1.00.
-    const isLossMode = this.config.houseEdge >= 1.0;
+    const cfg = await gameConfig.get('crash').catch(() => null);
+    const isLossMode = cfg && cfg.houseEdge >= 1.0;
     const hasBets = Array.from(this.crashState.slotBets.values()).some((b) => !b.metadata?.demoMode);
 
     if (isLossMode && hasBets) {
       crashPoint = 1.00;
     } else {
       crashPoint = Math.max(1.01, crashPoint);
-      if (this.config.extras?.maxCrashX && typeof this.config.extras.maxCrashX === 'number') {
-        crashPoint = Math.min(crashPoint, this.config.extras.maxCrashX);
+      if (cfg && cfg.extras?.maxCrashX && typeof cfg.extras.maxCrashX === 'number') {
+        crashPoint = Math.min(crashPoint, cfg.extras.maxCrashX as number);
       }
     }
 

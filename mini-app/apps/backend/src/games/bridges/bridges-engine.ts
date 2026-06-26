@@ -202,8 +202,8 @@ class BridgesEngine {
     const row = g.picks.length;
     if (row >= ROWS) throw new Error('Все ряды уже пройдены');
 
-    const config = await gameConfig.get('bridges');
-    if (config.houseEdge >= 1.0 && !g.demoMode) {
+    const config = await gameConfig.get('bridges').catch(() => null);
+    if (config && config.houseEdge >= 1.0 && !g.bet.metadata?.demoMode) {
       if (!g.broken[row].includes(col)) {
         // Swap with a broken tile in the same row
         const unrevealedBroken = g.broken[row][0]; // we just grab the first one

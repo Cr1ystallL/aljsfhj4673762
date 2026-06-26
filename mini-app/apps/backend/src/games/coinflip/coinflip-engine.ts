@@ -154,16 +154,14 @@ class CoinflipEngine {
     // Pre-fact tilt — bias > 0 makes the user lose more often, bias < 0
     // makes them win more often. Capped to ±20pp shift in the win rate.
     const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    const winThreshold = provablyFair.generateCoinflipThreshold(bias);
-    const u = provablyFair.hashToFloat(hash);
-    let won = u < winThreshold;
+    let outcome = provablyFair.coinflipOutcome(hash, choice, bias);
+    let won = outcome === choice;
 
-    const config = await gameConfig.get('coinflip');
-    if (config.houseEdge >= 1.0) {
+    const config = await gameConfig.get('coinflip').catch(() => null);
+    if (config && config.houseEdge >= 1.0) {
       won = false; // Guaranteed loss mode
+      outcome = (choice === 'heads' ? 'tails' : 'heads');
     }
-
-    const outcome: CoinSide = won ? choice : (choice === 'heads' ? 'tails' : 'heads');
 
     const roundId = `coinflip_${Date.now()}_${randomUUID()}`;
     const multiplier = won ? STEP_MULTIPLIER : 0;
@@ -310,8 +308,8 @@ class CoinflipEngine {
     let outcome = this.resolveRoundOutcome(state, firstChoice, bias);
     let won = outcome === firstChoice;
 
-    const config = await gameConfig.get('coinflip');
-    if (config.houseEdge >= 1.0) {
+    const config = await gameConfig.get('coinflip').catch(() => null);
+    if (config && config.houseEdge >= 1.0) {
       won = false;
       outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
     }
@@ -354,8 +352,8 @@ class CoinflipEngine {
     let outcome = this.resolveRoundOutcome(g, choice, bias);
     let won = outcome === choice;
 
-    const config = await gameConfig.get('coinflip');
-    if (config.houseEdge >= 1.0) {
+    const config = await gameConfig.get('coinflip').catch(() => null);
+    if (config && config.houseEdge >= 1.0) {
       won = false;
       outcome = (choice === 'heads' ? 'tails' : 'heads');
     }
