@@ -296,14 +296,8 @@ class WheelEngine extends EventEmitter {
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
     const bias = await rtpEngine.getGlobalBias().catch(() => 0);
-    let segmentIndex = pickSegment(hash, bias);
-    let multiplier = SLOT_LAYOUT[segmentIndex];
-
-    const cfg = await gameConfig.get('wheel').catch(() => null);
-    if (cfg && cfg.houseEdge >= 1.0) {
-      segmentIndex = SLOT_LAYOUT.findIndex((m) => m === 0);
-      multiplier = 0;
-    }
+    const segmentIndex = pickSegment(hash, bias);
+    const multiplier = SLOT_LAYOUT[segmentIndex];
 
     const roundId = `wheel_${Date.now()}_${randomUUID().slice(0, 8)}`;
     this.round = {
@@ -366,6 +360,34 @@ class WheelEngine extends EventEmitter {
     this.currentSpinDurationMs = Math.round(
       SPIN_DURATION_MIN_MS + u * (SPIN_DURATION_MAX_MS - SPIN_DURATION_MIN_MS)
     );
+
+    // --- Loss Mode ---
+    const cfg = await gameConfig.get('wheel').catch(() => null);
+    if (cfg && cfg.houseEdge >= 1.0) {
+      const realBets = Array.from(this.round.bets.values());
+      if (realBets.length > 0) {
+        const counts: Record<number, number> = { 2: 0, 3: 0, 5: 0, 30: 0 };
+        for (const b of realBets) {
+          counts[b.pick] = (counts[b.pick] || 0) + 1;
+        }
+        
+        const candidates = [2, 3];
+        let minPick = 2;
+        let minCount = Infinity;
+        for (const pick of candidates) {
+          if (counts[pick] < minCount) {
+            minCount = counts[pick];
+            minPick = pick;
+          }
+        }
+        
+        const possibleIndices = SLOT_LAYOUT.map((m, i) => m === minPick ? i : -1).filter(i => i !== -1);
+        if (possibleIndices.length > 0) {
+          this.round.segmentIndex = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
+          this.round.multiplier = minPick as WheelMultiplier;
+        }
+      }
+    }
 
     this.emit('event', {
       type: 'phase:spinning',
