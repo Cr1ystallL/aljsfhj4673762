@@ -198,7 +198,7 @@ class GameConfigService {
     if (next.minBet < 0) next.minBet = 0;
     if (next.maxBet < next.minBet) next.maxBet = next.minBet;
     if (next.houseEdge < 0) next.houseEdge = 0;
-    if (next.houseEdge > 0.5) next.houseEdge = 0.5;
+    if (next.houseEdge > 1.0) next.houseEdge = 1.0;
     if (next.wagerContribution < 0) next.wagerContribution = 0;
     if (next.wagerContribution > 1) next.wagerContribution = 1;
 
