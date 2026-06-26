@@ -434,6 +434,54 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...result });
   });
 
+  app.patch<{ Params: { id: string; userId: string }; Body: { balance: number; reason?: string } }>(
+    '/_x/tournaments/:id/participants/:userId/balance',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id, userId } = request.params;
+      const { balance, reason } = request.body;
+
+      if (!Number.isFinite(balance) || balance < 0) {
+        return reply.code(400).send({ error: 'Invalid balance' });
+      }
+
+      if (!reason || reason.trim().length < 3) {
+        return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
+      }
+
+      const t = await (prisma as any).tournament.findUnique({ where: { id } });
+      if (!t) return reply.code(404).send({ error: 'Tournament not found' });
+
+      const cycle = await (prisma as any).tournamentCycle.findFirst({
+        where: { tournamentId: t.id },
+        orderBy: { startsAt: 'desc' },
+      });
+      if (!cycle) return reply.code(404).send({ error: 'Cycle not found' });
+
+      const participant = await (prisma as any).tournamentParticipant.findUnique({
+        where: { cycleId_userId: { cycleId: cycle.id, userId } },
+      });
+      if (!participant) return reply.code(404).send({ error: 'Participant not found' });
+
+      await (prisma as any).tournamentParticipant.update({
+        where: { id: participant.id },
+        data: { balance: balance },
+      });
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'tournament.participant_balance.update',
+        targetType: 'user',
+        targetId: userId,
+        payloadBefore: { balance: Number(participant.balance) },
+        payloadAfter: { balance },
+        reason: reason.trim(),
+      });
+
+      return reply.send({ ok: true });
+    }
+  );
+
   /* ------------------------------ public ------------------------------- */
   app.get('/tournaments', { preHandler: authenticate }, async (req, reply) => {
     const { userId } = (req as AuthenticatedRequest).user;

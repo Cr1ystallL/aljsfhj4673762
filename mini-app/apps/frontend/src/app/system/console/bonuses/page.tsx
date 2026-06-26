@@ -2050,6 +2050,17 @@ function ContestEditModal({
   const [winnerWager, setWinnerWager] = useState(0);
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  
+  // New state from Create Modal
+  const [splitEqual, setSplitEqual] = useState(true);
+  const [customShares, setCustomShares] = useState('');
+  const [requireDeposit, setRequireDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<number>(10);
+  const [depositPeriodMonths, setDepositPeriodMonths] = useState<number>(12);
+  const [depositCount, setDepositCount] = useState<number>(1);
+  const [depositMin, setDepositMin] = useState<number>(10);
+  const [extraRules, setExtraRules] = useState<RuleDraft[]>([]);
+
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -2073,6 +2084,37 @@ function ContestEditModal({
       setWinnerWager(c.winnerWager ?? 0);
       setStartsAt(toLocalIso(c.startsAt));
       setEndsAt(toLocalIso(c.endsAt));
+
+      if (c.prizeShares === 'equal') {
+        setSplitEqual(true);
+      } else if (Array.isArray(c.prizeShares)) {
+        setSplitEqual(false);
+        setCustomShares(c.prizeShares.map((x: any) => x.amount).join(', '));
+      }
+
+      let depAmount = 10, depMonths = 12, depCnt = 1, depMin = 10;
+      let hasDep = false;
+      const ex: RuleDraft[] = [];
+      if (Array.isArray(c.rules)) {
+        for (const r of c.rules) {
+          if (r.type === 'deposit_window') {
+            hasDep = true;
+            depAmount = r.amount;
+            depMonths = Math.max(1, Math.round((r.days || 30) / 30));
+            depCnt = r.count || 1;
+            depMin = r.min || 10;
+          } else {
+            ex.push({ ...r, id: Math.random().toString() });
+          }
+        }
+      }
+      setRequireDeposit(hasDep);
+      setDepositAmount(depAmount);
+      setDepositPeriodMonths(depMonths);
+      setDepositCount(depCnt);
+      setDepositMin(depMin);
+      setExtraRules(ex);
+
       setLoaded(true);
     })();
   }, [id]);
@@ -2082,6 +2124,35 @@ function ContestEditModal({
       setErr('Причина обязательна');
       return;
     }
+    let prizeShares: unknown = 'equal';
+    if (!splitEqual) {
+      const parsed = customShares
+        .split(',')
+        .map((s) => parseFloat(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (parsed.length === 0) {
+        setErr('Список призов по местам пуст');
+        return;
+      }
+      prizeShares = parsed.map((amount, i) => ({ place: i + 1, amount }));
+    }
+
+    const builtRules: object[] = [];
+    if (requireDeposit && depositAmount > 0) {
+      const days = Math.max(1, Math.round(depositPeriodMonths * 30));
+      builtRules.push({
+        type: 'deposit_window',
+        amount: Math.max(depositAmount, depositMin),
+        days,
+        count: depositCount,
+        min: depositMin,
+      });
+    }
+    for (const r of extraRules) {
+      const ser = serializeRule(r);
+      if (ser) builtRules.push(ser);
+    }
+
     setBusy(true);
     setErr(null);
     try {
@@ -2099,6 +2170,8 @@ function ContestEditModal({
           winnerWager,
           startsAt: new Date(startsAt).getTime(),
           endsAt: new Date(endsAt).getTime(),
+          prizeShares,
+          rules: builtRules,
           reason: reason.trim(),
         }),
       });
@@ -2119,116 +2192,82 @@ function ContestEditModal({
         <Spinner />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Название" colSpan={2}>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-              />
-            </Field>
-            <Field label="Описание" colSpan={2}>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
-              />
-            </Field>
-            <Field label="Фото-фон" colSpan={2}>
-            <input
-              type="file"
-              accept="image/*"
-              disabled={uploadingBanner}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setUploadingBanner(true);
-                setErr(null);
-                try {
-                  const formData = new FormData();
-                  formData.append('file', file);
-                  const res = await fetch('/api/_x/upload', {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  const json = await res.json();
-                  if (json.ok && json.url) setBannerUrl(json.url);
-                  else setErr(json.error || 'Ошибка загрузки');
-                } catch {
-                  setErr('Ошибка загрузки');
-                } finally {
-                  setUploadingBanner(false);
-                }
-              }}
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30 file:mr-4 file:py-1 file:px-3 file:rounded-pill file:border-0 file:text-[12px] file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20"
-            />
-            {uploadingBanner && <div className="text-[12px] text-white/50 mt-1">Загрузка...</div>}
-              {bannerUrl.trim() && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={bannerUrl.trim()}
-                  alt="Preview"
-                  className="mt-2 w-full h-32 object-cover rounded-card border border-white/10"
-                  referrerPolicy="no-referrer"
-                />
-              )}
-            </Field>
-            <Field label="Видимость">
-              <select
-                value={visibility}
-                onChange={(e) =>
-                  setVisibility(e.target.value as 'public' | 'private' | 'global')
-                }
-                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-              >
-                <option value="public">Публичный</option>
-                <option value="private">Приватный</option>
-                <option value="global">Глобальный (авто-участие)</option>
-              </select>
-            </Field>
-            <Field label="Призовой пул (zł)">
-              <NumInput value={prizePool} step={50} min={1} onChange={setPrizePool} />
-            </Field>
-            <Field label="Победителей">
-              <NumInput value={winnersCount} step={1} min={1} onChange={setWinnersCount} />
-            </Field>
-            <Field label="Вейджер победителей (x)" colSpan={2}>
+          <SectionCard icon={<Trophy size={14} strokeWidth={1.7} />} title="Основное">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Название" colSpan={2}>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30" />
+              </Field>
+              <Field label="Описание" colSpan={2}>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none" />
+              </Field>
+              <Field label="Фото-фон" colSpan={2}>
+                <div className="flex gap-2">
+                  <input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} className="flex-1 bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30" placeholder="https://..." />
+                </div>
+              </Field>
+              <Field label="Видимость" colSpan={2}>
+                <select value={visibility} onChange={(e) => setVisibility(e.target.value as 'public' | 'private' | 'global')} className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30">
+                  <option value="public" className="bg-midnight-canvas text-frost-white">Публичный</option>
+                  <option value="private" className="bg-midnight-canvas text-frost-white">Приватный</option>
+                  <option value="global" className="bg-midnight-canvas text-frost-white">Глобальный (авто-участие)</option>
+                </select>
+              </Field>
+            </div>
+          </SectionCard>
+
+          <SectionCard icon={<Gift size={14} strokeWidth={1.7} />} title="Призовой фонд">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Сумма (zł)" colSpan={2}>
+                <NumInput value={prizePool} step={50} min={1} onChange={setPrizePool} />
+              </Field>
+              <Field label="Количество победителей" colSpan={2}>
+                <NumInput value={winnersCount} step={1} min={1} onChange={setWinnersCount} />
+              </Field>
+            </div>
+            <Toggle checked={splitEqual} onChange={setSplitEqual} label="Разделить фонд поровну между победителями" hint={splitEqual ? `Каждому ≈ ${(prizePool / Math.max(1, winnersCount)).toFixed(2)} zł` : 'Можно задать разные суммы по местам'} />
+            <div className="mt-3">
               <WagerPicker value={winnerWager} onChange={setWinnerWager} />
+            </div>
+            {!splitEqual && (
+              <Field label="Призы по местам (через запятую)" colSpan={2}>
+                <input value={customShares} onChange={(e) => setCustomShares(e.target.value)} placeholder="500, 300, 100, 50, 30..." className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30" />
+              </Field>
+            )}
+          </SectionCard>
+
+          <SectionCard icon={<SettingsIcon size={14} strokeWidth={1.7} />} title="Настройки времени">
+            <Field label="Старт" colSpan={2}>
+              <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30" />
             </Field>
-            <Field label="Старт">
-              <input
-                type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-              />
+            <Field label="Окончание" colSpan={2}>
+              <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30" />
             </Field>
-            <Field label="Окончание">
-              <input
-                type="datetime-local"
-                value={endsAt}
-                onChange={(e) => setEndsAt(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-              />
-            </Field>
-          </div>
+          </SectionCard>
+
+          <SectionCard icon={<WalletIcon size={14} strokeWidth={1.7} />} title="Требования к депозитам" right={<Toggle inline checked={requireDeposit} onChange={setRequireDeposit} label="Включить" />}>
+            {requireDeposit && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <Field label="Сумма депозита (zł)"><NumInput value={depositAmount} step={5} min={0} onChange={setDepositAmount} /></Field>
+                <Field label="Период (месяцев)">
+                  <select value={depositPeriodMonths} onChange={(e) => setDepositPeriodMonths(Number(e.target.value))} className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30">
+                    {[1, 3, 6, 12, 24].map((m) => (<option key={m} value={m} className="bg-midnight-canvas text-frost-white">за {m} мес</option>))}
+                  </select>
+                </Field>
+                <Field label="Количество депозитов"><NumInput value={depositCount} step={1} min={1} onChange={setDepositCount} /></Field>
+                <Field label="Минимальный депозит (zł)"><NumInput value={depositMin} step={5} min={0} onChange={setDepositMin} /></Field>
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard icon={<SettingsIcon size={14} strokeWidth={1.7} />} title="Дополнительные правила">
+            <RuleBuilder rules={extraRules} onChange={setExtraRules} />
+          </SectionCard>
+
           <ReasonField reason={reason} onChange={setReason} />
-          {err && <div className="font-roobert text-[12px] text-[#ff8a76]">{err}</div>}
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
-            >
-              Отмена
-            </button>
-            <button
-              onClick={submit}
-              disabled={busy}
-              className="px-4 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] disabled:opacity-50"
-            >
-              {busy ? 'Сохранение…' : 'Сохранить'}
-            </button>
+          {err && <div className="font-roobert text-[12px] text-[#ff8a76] mt-2">{err}</div>}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10 mt-3">
+            <button onClick={onClose} className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85">Отмена</button>
+            <button onClick={submit} disabled={busy} className="px-4 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] disabled:opacity-50">{busy ? 'Сохранение…' : 'Сохранить'}</button>
           </div>
         </>
       )}
