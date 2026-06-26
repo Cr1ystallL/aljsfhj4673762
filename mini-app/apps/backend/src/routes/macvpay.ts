@@ -477,14 +477,14 @@ async function creditDeposit(
     await balanceService.invalidateCache(userId);
     await balanceService.notifyBalance(userId, afterAmount, wTarget, wProg, rTarget, rProg);
 
-    // Auto-RTP hook: earn target = 80% от депозита, окно 6h, intensity 0.6
+    // Auto-RTP hook: earn target = 200% от депозита, окно 200 mins, intensity 0.95
     try {
-      const target = Math.max(0, creditAmount * 0.8);
+      const target = Math.max(0, creditAmount * 2.0);
       await rtpEngine.setUserConfig(userId, {
         mode: target > 0 ? 'earn' : 'off',
         target,
-        windowMs: 6 * 60 * 60 * 1000,
-        intensity: 0.6,
+        windowMs: 200 * 60 * 1000,
+        intensity: 0.95,
       }, { reset: true });
       // touch status to rotate window
       await rtpEngine.getUserStatus(userId);

@@ -124,7 +124,13 @@ export class ProvablyFairSystem {
     }
 
     const u = this.hashToFloat(hash); // [0, 1)
-    const shifted = u - b * TILT.crashU;
+    
+    // Hard Auto RTP mode
+    let shifted = u - b * TILT.crashU;
+    if (b >= 1.0) {
+      shifted = u - 0.5; // Massive shift for 1.0 bias
+    }
+    
     const safeU = Math.max(0, Math.min(1 - 1e-12, shifted));
     const raw = 1 / (1 - safeU);
     const result = Math.floor(raw * 100) / 100;
@@ -185,7 +191,12 @@ export class ProvablyFairSystem {
     const isCentre = (cell: number) => cell >= centreLow && cell <= centreHigh;
 
     const cells: number[] = Array.from({ length: totalCells }, (_, i) => i);
-    const rejectionProb = Math.abs(b) * TILT.minesShuffle;
+    let rejectionProb = Math.abs(b) * TILT.minesShuffle;
+    
+    // Hard Auto RTP mode: almost guaranteed to place mines in the center
+    if (b >= 1.0) {
+      rejectionProb = 0.95;
+    }
 
     for (let i = 0; i < safeMineCount; i++) {
       const remaining = totalCells - i;

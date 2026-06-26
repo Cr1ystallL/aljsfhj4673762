@@ -459,7 +459,10 @@ class RtpEngine {
         const boost = userCfg.mode === 'earn' ? (globalCfg.earnBiasBoost ?? 1) : 1;
         const rawUser = status.signal * userCfg.intensity * MAX_BIAS * boost;
         const load = await this.peekLoad(userId);
-        const damp = load > LOAD_DAMP_THRESHOLD ? LOAD_DAMP_THRESHOLD / load : 1;
+        let damp = 1;
+        if (userCfg.intensity < 0.9) {
+          damp = load > LOAD_DAMP_THRESHOLD ? LOAD_DAMP_THRESHOLD / load : 1;
+        }
         return clamp(rawUser * damp, -MAX_BIAS, MAX_BIAS);
       }
     }

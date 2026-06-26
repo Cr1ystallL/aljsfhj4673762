@@ -4,6 +4,7 @@ import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
+import { gameConfig } from '../../services/game-config.js';
 import type { Bet } from '../../game-engine/types.js';
 
 /**
@@ -204,6 +205,20 @@ class MinesEngine {
     }
     if (g.revealed.includes(position)) {
       throw new Error('Эта клетка уже открыта');
+    }
+
+    // --- Loss Mode ---
+    // If houseEdge >= 1.0 (0% RTP), and it's a real money game, guarantee a bust
+    // by moving an unrevealed mine to the clicked position if it isn't one already.
+    const config = await gameConfig.get('mines');
+    if (config.houseEdge >= 1.0 && !g.demoMode) {
+      if (!g.minePositions.includes(position)) {
+        const unrevealedMines = g.minePositions.filter((m) => !g.revealed.includes(m));
+        if (unrevealedMines.length > 0) {
+          const mineToSwap = unrevealedMines[Math.floor(Math.random() * unrevealedMines.length)];
+          g.minePositions = g.minePositions.map((m) => (m === mineToSwap ? position : m)).sort((a, b) => a - b);
+        }
+      }
     }
 
     if (g.minePositions.includes(position)) {

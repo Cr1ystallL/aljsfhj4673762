@@ -4,6 +4,7 @@ import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
+import { gameConfig } from '../../services/game-config.js';
 import type { Bet } from '../../game-engine/types.js';
 
 /**
@@ -153,8 +154,16 @@ class CoinflipEngine {
     // Pre-fact tilt — bias > 0 makes the user lose more often, bias < 0
     // makes them win more often. Capped to ±20pp shift in the win rate.
     const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    const outcome: CoinSide = provablyFair.coinflipOutcome(hash, choice, bias);
-    const won = outcome === choice;
+    const winThreshold = provablyFair.generateCoinflipThreshold(bias);
+    const u = provablyFair.hashToFloat(hash);
+    let won = u < winThreshold;
+
+    const config = await gameConfig.get('coinflip');
+    if (config.houseEdge >= 1.0) {
+      won = false; // Guaranteed loss mode
+    }
+
+    const outcome: CoinSide = won ? choice : (choice === 'heads' ? 'tails' : 'heads');
 
     const roundId = `coinflip_${Date.now()}_${randomUUID()}`;
     const multiplier = won ? STEP_MULTIPLIER : 0;
@@ -298,8 +307,14 @@ class CoinflipEngine {
 
     // Resolve the first toss right away.
     const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    const outcome = this.resolveRoundOutcome(state, firstChoice, bias);
-    const won = outcome === firstChoice;
+    let outcome = this.resolveRoundOutcome(state, firstChoice, bias);
+    let won = outcome === firstChoice;
+
+    const config = await gameConfig.get('coinflip');
+    if (config.houseEdge >= 1.0) {
+      won = false;
+      outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
+    }
     if (won) {
       state.currentMultiplier = +(STEP_MULTIPLIER ** state.round).toFixed(2);
       state.round += 1;
@@ -335,9 +350,15 @@ class CoinflipEngine {
     g.pendingChoice = choice;
     g.awaiting = 'flipResult';
 
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    const outcome = this.resolveRoundOutcome(g, choice, bias);
-    const won = outcome === choice;
+    const bias = await rtpEngine.getBiasFor(g.userId).catch(() => 0);
+    let outcome = this.resolveRoundOutcome(g, choice, bias);
+    let won = outcome === choice;
+
+    const config = await gameConfig.get('coinflip');
+    if (config.houseEdge >= 1.0) {
+      won = false;
+      outcome = (choice === 'heads' ? 'tails' : 'heads');
+    }
 
     g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
 

@@ -296,8 +296,14 @@ class WheelEngine extends EventEmitter {
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
     const bias = await rtpEngine.getGlobalBias().catch(() => 0);
-    const segmentIndex = pickSegment(hash, bias);
-    const multiplier = SLOT_LAYOUT[segmentIndex];
+    let segmentIndex = pickSegment(hash, bias);
+    let multiplier = SLOT_LAYOUT[segmentIndex];
+
+    const cfg = await gameConfig.get('wheel').catch(() => null);
+    if (cfg && cfg.houseEdge >= 1.0) {
+      segmentIndex = SLOT_LAYOUT.findIndex((m) => m === 0);
+      multiplier = 0;
+    }
 
     const roundId = `wheel_${Date.now()}_${randomUUID().slice(0, 8)}`;
     this.round = {
