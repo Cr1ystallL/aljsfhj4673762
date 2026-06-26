@@ -468,6 +468,42 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         data: { balance: balance },
       });
 
+      async function audit(params: {
+        request: AuthenticatedRequest;
+        action: string;
+        targetType: string;
+        targetId?: string | null;
+        payloadBefore?: unknown;
+        payloadAfter?: unknown;
+        reason?: string;
+      }) {
+        try {
+          const auditId = (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID() ??
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          await (prisma as any).$executeRaw`
+            INSERT INTO admin_audit_log (
+              id, admin_user_id, admin_telegram_id, action,
+              target_type, target_id, payload_before, payload_after,
+              reason, ip_address, created_at
+            ) VALUES (
+              ${auditId},
+              ${params.request.user.userId},
+              ${BigInt(params.request.user.telegramId)},
+              ${params.action},
+              ${params.targetType},
+              ${params.targetId ?? null},
+              ${params.payloadBefore !== undefined ? JSON.stringify(params.payloadBefore) : null}::jsonb,
+              ${params.payloadAfter !== undefined ? JSON.stringify(params.payloadAfter) : null}::jsonb,
+              ${params.reason ?? null},
+              ${params.request.ip ?? null},
+              NOW()
+            )
+          `;
+        } catch (err) {
+          logger.error({ err, params }, 'Failed to record admin audit log');
+        }
+      }
+
       await audit({
         request: request as AuthenticatedRequest,
         action: 'tournament.participant_balance.update',
