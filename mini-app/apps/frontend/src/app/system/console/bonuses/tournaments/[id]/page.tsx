@@ -26,6 +26,7 @@ interface TournamentDetails {
   wagerMultiplier: number;
   startBalance: number;
   entryFee: number;
+  rebuyFee: number;
   startAtGmt1: string;
   durationHours: number;
   startsAt: number;
@@ -186,6 +187,10 @@ export default function AdminTournamentPage() {
           <div className="flex flex-col gap-1">
             <span className="text-[10px] text-whisper-gray uppercase tracking-wider">Тип</span>
             <span className="text-[12px] text-frost-white tabular-nums">{data.entryFee > 0 ? `Взнос ${data.entryFee} zł` : 'Бесплатно'}</span>
+          </div>
+          <div className="flex flex-col gap-1 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+            <span className="text-[11px] text-whisper-gray">Докупка баланса (Rebuy)</span>
+            <span className="text-[12px] text-frost-white tabular-nums">{data.rebuyFee > 0 ? `${data.rebuyFee} zł` : '0 zł'}</span>
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] text-whisper-gray uppercase tracking-wider">Повтор</span>

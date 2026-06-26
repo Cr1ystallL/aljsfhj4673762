@@ -211,6 +211,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           wagerMultiplier: t.wagerMultiplier ?? 0,
           startBalance: toNumber(t.startBalance),
           entryFee: toNumber(t.entryFee),
+          rebuyFee: toNumber(t.rebuyFee),
           startsAt: cycle.startsAt.getTime(),
           endsAt: cycle.endsAt.getTime(),
           cycleState: cycle.state,
@@ -240,6 +241,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       wagerMultiplier: t.wagerMultiplier ?? 0,
       startBalance: toNumber(t.startBalance),
       entryFee: toNumber(t.entryFee),
+      rebuyFee: toNumber(t.rebuyFee),
       startsAt: cycle.startsAt.getTime(),
       endsAt: cycle.endsAt.getTime(),
       cycleState: cycle.state,
@@ -268,6 +270,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       wagerMultiplier?: number;
       startBalance?: number;
       entryFee?: number;
+      rebuyFee?: number;
       startAtGmt1?: number;
       durationHours?: number;
       repeatType?: string;
@@ -280,6 +283,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     const winnersCount = Number.isFinite(b.winnersCount) ? Number(b.winnersCount) : 10;
     const startBalance = Number(b.startBalance ?? 0);
     const entryFee = Number(b.entryFee ?? 0);
+    const rebuyFee = Number(b.rebuyFee ?? 0);
     const startAtGmt1 = Number(b.startAtGmt1 ?? Date.now());
     const durationHours = Number.isFinite(b.durationHours) && b.durationHours! > 0 ? Number(b.durationHours) : 10;
     const repeatType = b.repeatType === 'once' ? 'once' : 'daily';
@@ -313,6 +317,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         wagerMultiplier,
         startBalance,
         entryFee,
+        rebuyFee,
         startAtGmt1: new Date(startAtGmt1),
         durationHours,
         repeatType,
@@ -323,7 +328,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, id: t.id });
   });
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; wagerMultiplier: number; startBalance: number; entryFee: number; startAtGmt1: number; durationHours: number; repeatType: string; active: boolean }> }>(
+  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; description: string | null; bannerUrl: string | null; gameType: string; prizePool: number; prizeMode: PrizeMode; winnersCount: number; fixedPrize: number | null; wagerMultiplier: number; startBalance: number; entryFee: number; rebuyFee: number; startAtGmt1: number; durationHours: number; repeatType: string; active: boolean }> }>(
     '/_x/tournaments/:id',
     { preHandler: adminOnly },
     async (request, reply) => {
@@ -354,6 +359,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           wagerMultiplier: Number.isFinite(b.wagerMultiplier) && b.wagerMultiplier! >= 0 ? Math.floor(Number(b.wagerMultiplier)) : t.wagerMultiplier,
           startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
           entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
+          rebuyFee: Number.isFinite(b.rebuyFee) ? Number(b.rebuyFee) : t.rebuyFee,
           startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1,
           durationHours: Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours,
           repeatType: typeof b.repeatType === 'string' ? b.repeatType : t.repeatType,
@@ -451,6 +457,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
           startBalance: toNumber(t.startBalance),
           entryFee: toNumber(t.entryFee),
+          rebuyFee: toNumber(t.rebuyFee),
           repeatType: t.repeatType,
           startsAt: cycle.startsAt.getTime(),
           endsAt: cycle.endsAt.getTime(),
@@ -553,7 +560,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           if (!participant) throw new Error('Not registered');
           if (toNumber(participant.balance) > 0) throw new Error('Balance must be <= 0 to refresh');
 
-          const fee = toNumber(t.entryFee);
+          const fee = toNumber(t.rebuyFee);
           if (fee > 0) {
             await debitRealBalance(tx, userId, fee, { tournamentId: t.id, cycleId: cycle.id, reason: 'refresh' });
             await (tx as any).tournamentCycle.update({
@@ -625,6 +632,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         fixedPrize: t.fixedPrize ? toNumber(t.fixedPrize) : null,
         startBalance: toNumber(t.startBalance),
         entryFee: toNumber(t.entryFee),
+        rebuyFee: toNumber(t.rebuyFee),
         repeatType: t.repeatType,
         startsAt: cycle.startsAt.getTime(),
         endsAt: cycle.endsAt.getTime(),

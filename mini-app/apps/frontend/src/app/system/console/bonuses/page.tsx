@@ -237,6 +237,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
   const [startBalance, setStartBalance] = useState(200);
   const [feeType, setFeeType] = useState<'free' | 'fee'>('free');
   const [entryFee, setEntryFee] = useState(0);
+  const [rebuyFee, setRebuyFee] = useState(0);
   const [startAt, setStartAt] = useState(() => isoLocalNow());
   const [durationHours, setDurationHours] = useState(10);
   const [repeatType, setRepeatType] = useState<'daily' | 'once'>('daily');
@@ -271,6 +272,7 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           wagerMultiplier: Number(wagerMultiplier),
           startBalance: Number(startBalance),
           entryFee: feeType === 'fee' ? Number(entryFee) : 0,
+          rebuyFee: feeType === 'fee' ? Number(rebuyFee) : 0,
           startAtGmt1: new Date(startAt).getTime(),
           durationHours: Number(durationHours),
           repeatType,
@@ -399,9 +401,14 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
           </select>
         </Field>
         {feeType === 'fee' && (
-          <Field label="Взнос (real)">
-            <NumInput value={entryFee} onChange={setEntryFee} step={10} />
-          </Field>
+          <>
+            <Field label="Взнос (real)">
+              <NumInput value={entryFee} onChange={setEntryFee} step={10} />
+            </Field>
+            <Field label="Rebuy Fee (real)">
+              <NumInput value={rebuyFee} onChange={setRebuyFee} step={10} />
+            </Field>
+          </>
         )}
         <Field label="Старт (GMT+1)" colSpan={2}>
           {repeatType === 'daily' ? (

@@ -473,6 +473,7 @@ model Tournament {
   wagerMultiplier Int      @default(0) @map("wager_multiplier")
   startBalance    Decimal  @map("start_balance") @db.Decimal(20, 2)
   entryFee        Decimal  @map("entry_fee") @db.Decimal(20, 2)
+  rebuyFee        Decimal  @default(0) @map("rebuy_fee") @db.Decimal(20, 2)
   startAtGmt1     DateTime @map("start_at_gmt1")
   durationHours   Int      @map("duration_hours")
   repeatType      String   @default("daily") @map("repeat_type")

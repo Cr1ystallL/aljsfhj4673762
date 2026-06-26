@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trophy, ArrowLeft, ArrowRight, LogOut } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Modal } from '@/components/ui/modal'; // Assuming Modal exists, let's use standard div if not. Wait, I will just inline a simple modal.
 
 interface LeaderboardUser {
   place: number;
@@ -25,6 +26,7 @@ interface Tournament {
   fixedPrize: number | null;
   startBalance: number;
   entryFee: number;
+  rebuyFee: number;
   startsAt: number;
   endsAt: number;
   cycleState: string;
@@ -100,6 +102,32 @@ export default function TournamentPage() {
     const int = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(int);
   }, []);
+
+  const [showRebuyModal, setShowRebuyModal] = useState(false);
+
+  useEffect(() => {
+    if (data?.self && data.self.balance === 0 && data.tournament.rebuyFee >= 0) {
+      setShowRebuyModal(true);
+    } else {
+      setShowRebuyModal(false);
+    }
+  }, [data?.self?.balance, data?.tournament?.rebuyFee]);
+
+  const onRebuy = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/tournaments/${id}/refresh`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        setShowRebuyModal(false);
+        await load();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Ошибка при докупке баланса');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const remainingMs = data ? Math.max(0, data.tournament.endsAt - now) : 0;
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
@@ -195,18 +223,29 @@ export default function TournamentPage() {
                 Завершен
               </span>
             ) : t.joined ? (
-              <div className="flex items-center gap-2 p-1.5 rounded-pill bg-white/5 border border-white/5 shadow-inner">
-                <span className="inline-flex items-center gap-2 px-6 h-12 rounded-pill bg-[rgba(160,224,171,0.15)] text-[rgba(160,224,171,0.9)] font-roobert text-[14px] uppercase tracking-[0.15em]">
-                  Участвую
-                </span>
-                <button
-                  onClick={onLeave}
-                  disabled={busy}
-                  title="Покинуть турнир"
-                  className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-transparent hover:bg-[rgba(255,110,110,0.15)] text-whisper-gray hover:text-[#ff6e6e] transition-colors disabled:opacity-50"
-                >
-                  <LogOut size={18} strokeWidth={2} />
-                </button>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <div className="flex items-center gap-2 p-1.5 rounded-pill bg-white/5 border border-white/5 shadow-inner">
+                  <span className="inline-flex items-center gap-2 px-6 h-12 rounded-pill bg-[rgba(160,224,171,0.15)] text-[rgba(160,224,171,0.9)] font-roobert text-[14px] uppercase tracking-[0.15em]">
+                    Участвую
+                  </span>
+                  <button
+                    onClick={onLeave}
+                    disabled={busy}
+                    title="Покинуть турнир"
+                    className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-transparent hover:bg-[rgba(255,110,110,0.15)] text-whisper-gray hover:text-[#ff6e6e] transition-colors disabled:opacity-50"
+                  >
+                    <LogOut size={18} strokeWidth={2} />
+                  </button>
+                </div>
+                {self && self.balance <= 0 && (
+                  <button
+                    onClick={onRebuy}
+                    disabled={busy}
+                    className="inline-flex items-center justify-center h-12 px-6 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[13px] uppercase tracking-wider active:scale-[0.97] transition-transform disabled:opacity-50"
+                  >
+                    Докупить баланс ({t.rebuyFee > 0 ? `${t.rebuyFee} zł` : 'Бесплатно'})
+                  </button>
+                )}
               </div>
             ) : (
               <button
@@ -272,6 +311,55 @@ export default function TournamentPage() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {showRebuyModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowRebuyModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-[400px] bg-midnight-canvas border border-white/15 rounded-[24px] overflow-hidden shadow-2xl flex flex-col items-center text-center p-6 sm:p-8"
+            >
+              <button
+                onClick={() => setShowRebuyModal(false)}
+                className="absolute top-4 right-4 text-whisper-gray hover:text-frost-white transition-colors"
+              >
+                <LogOut size={20} className="rotate-45" />
+              </button>
+              <div className="w-16 h-16 rounded-full bg-[#ffac2e]/20 flex items-center justify-center text-[#ffac2e] mb-4">
+                <Trophy size={32} />
+              </div>
+              <h2 className="font-roobert text-[20px] text-frost-white mb-2">Кончился турнирный баланс?</h2>
+              <p className="font-roobert text-[14px] text-whisper-gray mb-6 leading-relaxed">
+                Не беда! Вы можете докупить его за {t.rebuyFee > 0 ? <strong className="text-frost-white">{t.rebuyFee} zł</strong> : 'бесплатно'} и продолжить соревнование.
+              </p>
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={() => setShowRebuyModal(false)}
+                  className="flex-1 h-12 rounded-pill border border-white/15 bg-white/5 font-roobert text-[14px] text-frost-white hover:bg-white/10 transition-colors"
+                >
+                  Закрыть
+                </button>
+                <button
+                  onClick={onRebuy}
+                  disabled={busy}
+                  className="flex-1 h-12 rounded-pill bg-[#ffac2e] text-black font-roobert text-[14px] font-medium hover:bg-[#e09828] active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {busy ? 'Покупка...' : 'К Турниру'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
