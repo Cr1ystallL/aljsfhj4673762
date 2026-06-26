@@ -244,6 +244,30 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    setBusy(true);
+    try {
+      const res = await fetch('/api/_x/upload', {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.url) setBannerUrl(json.url);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setErr(json.error || 'Ошибка загрузки файла');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
     if (!title.trim()) {
       setErr('Название обязательно');
@@ -306,12 +330,19 @@ function TournamentCreateModal({ onClose, onCreated }: { onClose: () => void; on
             className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
           />
         </Field>
-        <Field label="Баннер URL (прямая ссылка на картинку)" colSpan={2}>
-          <input
-            value={bannerUrl}
-            onChange={(e) => setBannerUrl(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          />
+        <Field label="Баннер (Файл или ссылка)" colSpan={2}>
+          <div className="flex gap-2">
+            <input
+              value={bannerUrl}
+              onChange={(e) => setBannerUrl(e.target.value)}
+              className="flex-1 bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+              placeholder="https://... или /uploads/..."
+            />
+            <label className="cursor-pointer inline-flex items-center justify-center px-4 rounded-pill bg-white/[0.1] hover:bg-white/[0.15] border border-white/15 text-frost-white font-roobert text-[13px] transition-colors shrink-0">
+              Загрузить файл
+              <input type="file" className="hidden" accept="image/*" onChange={handleUpload} />
+            </label>
+          </div>
         </Field>
         <Field label="Игра">
           <select
