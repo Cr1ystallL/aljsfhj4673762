@@ -179,6 +179,7 @@ model MacvpayOrder {
   uniqueAmount    Decimal  @map("unique_amount") @db.Decimal(12, 2)
   currency        String
   paymentType     String   @map("payment_type")
+  paidAmount      Decimal? @map("paid_amount") @db.Decimal(12, 2)
   card            String?
   recipient       String?
   details         String?
