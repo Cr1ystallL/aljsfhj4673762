@@ -134,7 +134,7 @@ async function creditRealBalance(
   return after;
 }
 
-async function payoutCycle(t: any, cycle: any) {
+export async function payoutCycle(t: any, cycle: any) {
   const participants = await (prisma as any).tournamentParticipant.findMany({
     where: { cycleId: cycle.id },
     orderBy: [

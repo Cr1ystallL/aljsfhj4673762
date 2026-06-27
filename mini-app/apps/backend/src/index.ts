@@ -45,6 +45,10 @@ async function start() {
     // worker start. Crash engine is bootstrapped through a separate
     // singleton imported by the routes module.
     await import('./games/wheel/wheel-singleton.js');
+    
+    // Start automated background jobs
+    const { startTournamentCron } = await import('./services/tournament-cron.js');
+    startTournamentCron();
 
     // Start server
     await app.listen({
@@ -65,6 +69,8 @@ async function start() {
 async function shutdown() {
   logger.info('Shutting down gracefully');
   try {
+    const { stopTournamentCron } = await import('./services/tournament-cron.js');
+    stopTournamentCron();
     await redisClient.disconnect();
     await disconnectPrisma();
   } catch (error) {
