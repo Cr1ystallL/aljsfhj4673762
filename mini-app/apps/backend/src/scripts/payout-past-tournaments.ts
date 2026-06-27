@@ -59,9 +59,22 @@ async function main() {
         const txs = await prisma.transaction.count({
           where: { type: 'tournament_prize', metadata: { path: ['cycleId'], equals: c.id } }
         });
+        
+        const participants = await prisma.tournamentParticipant.findMany({
+          where: { cycleId: c.id },
+          include: { user: { select: { username: true, firstName: true } } },
+          orderBy: [{ balance: 'desc' }, { reachedAt: 'asc' }],
+          take: 3
+        });
+
         console.log(`Турнир: "${c.tournament.title}" (ID цикла: ${c.id})`);
         console.log(`Завершен: ${c.endsAt.toLocaleString()}`);
         console.log(`Выдано призов (транзакций): ${txs > 0 ? txs : '0 (ПРИЗЫ НЕ ВЫПЛАЧЕНЫ)'}`);
+        console.log(`Топ участники:`);
+        participants.forEach((p, i) => {
+          console.log(`  ${i+1}. ${p.user.firstName || p.user.username} (Баланс: ${p.balance})`);
+        });
+        
         console.log(`Для принудительной выплаты запустите: npx tsx src/scripts/payout-past-tournaments.ts ${c.id}`);
         console.log('---');
       }
