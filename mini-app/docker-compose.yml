@@ -5,6 +5,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: casino-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -23,6 +24,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: casino-redis
+    restart: unless-stopped
     ports:
       - '127.0.0.1:6379:6379'
     volumes:
