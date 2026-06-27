@@ -8,12 +8,17 @@ async function main() {
   
   const now = new Date();
   
-  // Ищем все циклы, у которых время вышло, но они все еще 'live'
+  // Ищем ТОЛЬКО ОДИН последний зависший цикл (самый свежий по времени окончания),
+  // у которого время вышло, но он все еще 'live' (то есть призы НЕ выдавались)
   const expiredCycles = await prisma.tournamentCycle.findMany({
     where: {
       state: 'live',
       endsAt: { lte: now }
     },
+    orderBy: {
+      endsAt: 'desc'
+    },
+    take: 1,
     include: {
       tournament: true
     }
