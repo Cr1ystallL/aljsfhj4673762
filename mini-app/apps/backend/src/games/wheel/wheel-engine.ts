@@ -361,26 +361,29 @@ class WheelEngine extends EventEmitter {
       SPIN_DURATION_MIN_MS + u * (SPIN_DURATION_MAX_MS - SPIN_DURATION_MIN_MS)
     );
 
-    // --- Loss Mode ---
-    const cfg = await gameConfig.get('wheel').catch(() => null);
-    if (cfg && cfg.houseEdge >= 1.0) {
-      const realBets = Array.from(this.round.bets.values());
-      if (realBets.length > 0) {
-        const counts: Record<number, number> = { 2: 0, 3: 0, 5: 0, 30: 0 };
-        for (const b of realBets) {
-          counts[b.pick] = (counts[b.pick] || 0) + 1;
+    // --- Custom Logic ---
+    const realBets = Array.from(this.round.bets.values());
+    if (realBets.length > 0) {
+      const counts: Record<number, number> = { 2: 0, 3: 0 };
+      for (const b of realBets) {
+        if (b.pick === 2 || b.pick === 3) {
+          counts[b.pick]++;
         }
-        
-        const candidates = [2, 3];
-        let minPick = 2;
-        let minCount = Infinity;
-        for (const pick of candidates) {
-          if (counts[pick] < minCount) {
-            minCount = counts[pick];
-            minPick = pick;
-          }
+      }
+      
+      let minPick = 2;
+      let minCount = Infinity;
+      for (const pick of [2, 3]) {
+        if (counts[pick] < minCount) {
+          minCount = counts[pick];
+          minPick = pick;
+        } else if (counts[pick] === minCount) {
+          if (Math.random() < 0.5) minPick = pick;
         }
-        
+      }
+      
+      // 80% chance to force the outcome with fewest players (between 2x and 3x)
+      if (Math.random() < 0.8) {
         const possibleIndices = SLOT_LAYOUT.map((m, i) => m === minPick ? i : -1).filter(i => i !== -1);
         if (possibleIndices.length > 0) {
           this.round.segmentIndex = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
