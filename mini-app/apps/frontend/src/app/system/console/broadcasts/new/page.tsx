@@ -42,7 +42,7 @@ export default function NewBroadcastPage() {
   const [buttons, setButtons] = useState<ButtonInput[]>([]);
 
   // Audience
-  const [audMode, setAudMode] = useState<'all' | 'filter' | 'specific' | 'channel'>('all');
+  const [audModes, setAudModes] = useState<string[]>(['all']);
   const [minBalance, setMinBalance] = useState<string>('');
   const [regAfter, setRegAfter] = useState<string>(''); // ISO date string
   const [regBefore, setRegBefore] = useState<string>('');
@@ -70,29 +70,32 @@ export default function NewBroadcastPage() {
   const [busy, setBusy] = useState(false);
 
   const buildAudience = (): AudienceFilter => {
-    if (audMode === 'all') return { all: true };
-    if (audMode === 'channel') {
-      return { channelId: channelId.trim() };
+    const f: AudienceFilter = {};
+    if (audModes.includes('all')) {
+      f.all = true;
     }
-    if (audMode === 'specific') {
-      const ids = specificIds
+    if (audModes.includes('channel') && channelId.trim()) {
+      f.channels = channelId.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+    }
+    if (audModes.includes('specific')) {
+      f.telegramIds = specificIds
         .split(/[,\s]+/)
         .map((s) => s.trim())
         .filter(Boolean)
         .map((s) => Number(s))
         .filter((n) => Number.isFinite(n) && n > 0);
-      return { telegramIds: ids };
     }
-    const f: AudienceFilter = {};
-    if (minBalance) {
-      const v = Number(minBalance);
-      if (Number.isFinite(v) && v > 0) f.minBalance = v;
-    }
-    if (regAfter) f.regAfter = new Date(regAfter).getTime();
-    if (regBefore) f.regBefore = new Date(regBefore).getTime();
-    if (inactiveDays) {
-      const v = Number(inactiveDays);
-      if (Number.isFinite(v) && v > 0) f.inactiveDays = v;
+    if (audModes.includes('filter')) {
+      if (minBalance) {
+        const v = Number(minBalance);
+        if (Number.isFinite(v) && v > 0) f.minBalance = v;
+      }
+      if (regAfter) f.regAfter = new Date(regAfter).getTime();
+      if (regBefore) f.regBefore = new Date(regBefore).getTime();
+      if (inactiveDays) {
+        const v = Number(inactiveDays);
+        if (Number.isFinite(v) && v > 0) f.inactiveDays = v;
+      }
     }
     return f;
   };
@@ -122,7 +125,7 @@ export default function NewBroadcastPage() {
     }, 350);
     return () => clearTimeout(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audMode, minBalance, regAfter, regBefore, inactiveDays, specificIds, channelId]);
+  }, [audModes, minBalance, regAfter, regBefore, inactiveDays, specificIds, channelId]);
 
   const submit = async () => {
     if (text.trim().length < 1) {
@@ -338,32 +341,47 @@ export default function NewBroadcastPage() {
             ),
           }}
         >
-          <Field label="Тип">
+          <Field label="Тип (можно выбрать несколько)">
             <div className="flex items-center gap-2 flex-wrap">
               {(
                 [
                   ['all', 'Все игроки'],
                   ['filter', 'Фильтр'],
                   ['specific', 'Конкретные ID'],
-                  ['channel', 'Канал / Группа'],
+                  ['channel', 'Каналы / Группы'],
                 ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setAudMode(key)}
-                  className={`px-3 py-1 rounded-pill border font-roobert text-[12px] transition-colors ${
-                    audMode === key
-                      ? 'border-white/30 bg-white/[0.06] text-frost-white'
-                      : 'border-white/10 bg-white/[0.03] text-frost-white/65'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+              ).map(([key, label]) => {
+                const isActive = audModes.includes(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setAudModes((prev) => {
+                        // All and Filter are mutually exclusive for user targeting
+                        if (key === 'all') return [...prev.filter((k) => k !== 'filter' && k !== 'all'), 'all'];
+                        if (key === 'filter') return [...prev.filter((k) => k !== 'all' && k !== 'filter'), 'filter'];
+                        
+                        if (prev.includes(key)) {
+                          if (prev.length === 1) return prev; // prevent empty
+                          return prev.filter((k) => k !== key);
+                        }
+                        return [...prev, key];
+                      });
+                    }}
+                    className={`px-3 py-1 rounded-pill border font-roobert text-[12px] transition-colors ${
+                      isActive
+                        ? 'border-white/30 bg-white/[0.06] text-frost-white'
+                        : 'border-white/10 bg-white/[0.03] text-frost-white/65'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </Field>
 
-          {audMode === 'filter' && (
+          {audModes.includes('filter') && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Минимальный баланс, zł">
                 <input
@@ -402,7 +420,7 @@ export default function NewBroadcastPage() {
             </div>
           )}
 
-          {audMode === 'specific' && (
+          {audModes.includes('specific') && (
             <Field label="Telegram IDs (через запятую или пробел)">
               <textarea
                 value={specificIds}
@@ -414,16 +432,16 @@ export default function NewBroadcastPage() {
             </Field>
           )}
 
-          {audMode === 'channel' && (
+          {audModes.includes('channel') && (
             <Field label="ID Канала / Группы (или Username)">
               <input
                 value={channelId}
                 onChange={(e) => setChannelId(e.target.value)}
-                placeholder="Например: -100123456789 или @channel"
+                placeholder="Например: -100123456789, @channel1, @channel2"
                 className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
               />
               <p className="text-whisper-gray mt-2 text-[11px] leading-tight">
-                Бот должен состоять в этом канале/группе с правами администратора (или хотя бы правом писать сообщения), чтобы рассылка прошла успешно.
+                Можно ввести несколько через запятую. Бот должен состоять в этих каналах/группах с правами писать сообщения.
               </p>
             </Field>
           )}

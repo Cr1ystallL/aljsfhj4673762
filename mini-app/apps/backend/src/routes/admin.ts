@@ -2626,72 +2626,92 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const audience = request.body?.audience ?? { all: true };
       
-      // If targeting a specific channel/group, verify access via Telegram API
-      if (audience.channelId !== undefined) {
-        try {
-          const chatId = audience.channelId.trim();
-          if (!chatId) {
-            return reply.send({ ok: true, total: 0, sample: [] });
-          }
-          const tgRes = await fetch(
-            `https://api.telegram.org/bot${config.telegramBotToken}/getChat?chat_id=${chatId}`
-          );
-          interface TgChatResponse {
-            ok: boolean;
-            result?: {
-              id: number;
-              title?: string;
-              username?: string;
-            };
-            description?: string;
-          }
-          const data = (await tgRes.json()) as TgChatResponse;
-          if (!data.ok || !data.result) {
-            return reply.code(400).send({ error: data.description || 'Bot cannot access this channel/group' });
-          }
-          return reply.send({
-            ok: true,
-            total: 1,
-            sample: [{
+      let total = 0;
+      const sample: Array<{ telegramId: number; name: string }> = [];
+
+      // Process channels if any
+      if (audience.channels && Array.isArray(audience.channels) && audience.channels.length > 0) {
+        for (const ch of audience.channels) {
+          const chatId = typeof ch === 'string' ? ch.trim() : String(ch).trim();
+          if (!chatId) continue;
+          try {
+            const tgRes = await fetch(
+              `https://api.telegram.org/bot${config.telegramBotToken}/getChat?chat_id=${chatId}`
+            );
+            const data = (await tgRes.json()) as any;
+            if (!data.ok || !data.result) {
+              return reply.code(400).send({ error: `Бот не имеет доступа к ${chatId}: ${data.description || 'Unknown'}` });
+            }
+            total += 1;
+            sample.push({
               telegramId: data.result.id,
               name: data.result.title || data.result.username || String(data.result.id)
-            }]
-          });
-        } catch (error) {
-          logger.error(error, 'Channel preview failed');
-          return reply.code(400).send({ error: 'Failed to verify channel' });
+            });
+          } catch (error) {
+            logger.error(error, `Channel preview failed for ${chatId}`);
+            return reply.code(400).send({ error: `Ошибка проверки канала ${chatId}` });
+          }
+        }
+      } else if (audience.channelId !== undefined) {
+        // Backwards compatibility
+        const chatId = String(audience.channelId).trim();
+        if (chatId) {
+          try {
+            const tgRes = await fetch(
+              `https://api.telegram.org/bot${config.telegramBotToken}/getChat?chat_id=${chatId}`
+            );
+            const data = (await tgRes.json()) as any;
+            if (!data.ok || !data.result) {
+              return reply.code(400).send({ error: data.description || 'Bot cannot access this channel/group' });
+            }
+            total += 1;
+            sample.push({
+              telegramId: data.result.id,
+              name: data.result.title || data.result.username || String(data.result.id)
+            });
+          } catch (error) {
+            logger.error(error, 'Channel preview failed');
+            return reply.code(400).send({ error: 'Failed to verify channel' });
+          }
         }
       }
 
+      const hasUserFilters = audience.all || audience.minBalance || audience.regAfter || audience.regBefore || audience.inactiveDays || audience.telegramIds;
+
       try {
-        const where = audienceWhere(audience);
-        const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
-          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
-        );
-        const sample = await app.prisma.$queryRaw<
-          Array<{
-            telegram_id: bigint;
-            first_name: string | null;
-            username: string | null;
-          }>
-        >(
-          Prisma.sql`
-            SELECT telegram_id, first_name, username
-            FROM users${where}
-            ORDER BY created_at DESC
-            LIMIT 5
-          `
-        );
-        return reply.send({
-          ok: true,
-          total: Number(countRows[0]?.c ?? 0),
-          sample: sample.map((s) => ({
+        if (hasUserFilters) {
+          const where = audienceWhere(audience);
+          const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+            Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
+          );
+          const sampleUsers = await app.prisma.$queryRaw<
+            Array<{
+              telegram_id: bigint;
+              first_name: string | null;
+              username: string | null;
+            }>
+          >(
+            Prisma.sql`
+              SELECT telegram_id, first_name, username
+              FROM users${where}
+              ORDER BY created_at DESC
+              LIMIT 5
+            `
+          );
+          total += Number(countRows[0]?.c ?? 0);
+          sample.push(...sampleUsers.map((s) => ({
             telegramId: Number(s.telegram_id),
             name:
               s.first_name ||
               s.username ||
               `id${s.telegram_id.toString().slice(-4)}`,
-          })),
+          })));
+        }
+
+        return reply.send({
+          ok: true,
+          total: total,
+          sample: sample.slice(0, 5),
         });
       } catch (error) {
         logger.error(error, 'Broadcast preview failed');

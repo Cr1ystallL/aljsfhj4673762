@@ -189,15 +189,22 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
             audience = json.loads(audience)
         keyboard = _build_keyboard(bc.get("buttons"))
 
+        targets = []
         if audience.get("channelId"):
-            targets = [audience["channelId"]]
-        else:
+            targets.append(audience["channelId"])
+        if audience.get("channels"):
+            targets.extend(audience["channels"])
+            
+        has_user_filters = any(k in audience for k in ["minBalance", "regAfter", "regBefore", "inactiveDays", "telegramIds"])
+        if audience.get("all") or has_user_filters:
             where, params = _audience_sql_where(audience)
             cur.execute(
                 f"SELECT telegram_id FROM users{where}",
                 params,
             )
-            targets = [int(row["telegram_id"]) for row in cur.fetchall()]
+            targets.extend([int(row["telegram_id"]) for row in cur.fetchall()])
+
+        targets = list(dict.fromkeys(targets))
 
         delivered = 0
         failed = 0
