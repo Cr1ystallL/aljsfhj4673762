@@ -102,8 +102,8 @@ export class ProvablyFairSystem {
    *
    * Formula:
    *   - 1% baseline house-edge: with probability `houseEdge + bias * 0.06`
-   *     the round busts at exactly 1.00× (clamped to [0, 0.5] so the cap
-   *     is never absurd). Negative bias never reduces this below 0.
+   *     the round busts at exactly 1.00× (clamped to [0, 1.0] so 0% RTP is possible).
+   *     Negative bias never reduces this below 0.
    *   - Otherwise sample U' = U - bias * 0.15 ∈ [0, 1) and return
    *     1 / (1 - U'). Player tilt thus spends extra probability mass on
    *     the high-end; casino tilt spends it on early busts.
@@ -112,7 +112,7 @@ export class ProvablyFairSystem {
     const b = clampBias(bias);
     const baseHouseEdge = 0.01;
     const instantBust = Math.min(
-      0.5,
+      1.0,
       Math.max(0, baseHouseEdge + b * TILT.crashInstantBust)
     );
 
