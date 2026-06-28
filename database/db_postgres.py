@@ -689,13 +689,34 @@ class DatabasePostgres:
         return 0.0  # Пока не используем
     
     def is_user_blocked(self, user_id: int) -> bool:
-        return False  # Пока не используем
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute('SELECT is_blocked FROM users WHERE telegram_id = %s', (user_id,))
+                    row = cursor.fetchone()
+                    return row[0] if row else False
+        except Exception as e:
+            print(f"Error checking if user is blocked in postgres: {e}")
+            return False
     
     def block_user(self, user_id: int) -> None:
-        pass
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute('UPDATE users SET is_blocked = TRUE WHERE telegram_id = %s', (user_id,))
+                conn.commit()
+        except Exception as e:
+            print(f"Error blocking user in postgres: {e}")
     
     def unblock_user(self, user_id: int) -> None:
-        pass
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    # Unblock both account and withdrawals
+                    cursor.execute('UPDATE users SET is_blocked = FALSE, withdrawal_locked = FALSE WHERE telegram_id = %s', (user_id,))
+                conn.commit()
+        except Exception as e:
+            print(f"Error unblocking user in postgres: {e}")
     
     def get_dep_bonus_state(self, user_id: int) -> int:
         return 0

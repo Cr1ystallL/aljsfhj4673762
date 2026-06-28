@@ -116,9 +116,8 @@ export class SecurityService {
               },
             });
           } else {
-            // Real Multi-Account Detected! (Either Same Device OR Same Non-VPN IP)
+            // Real Multi-Account Detected! Exact IP Match (or VPN + Exact Device ID)
             const mainAccount = mainIpRecord.user;
-            const matchReason = hasSameDevice ? 'Device ID + IP' : 'IP Address';
 
             // Check Whitelist (ignoreIpCollision)
             // @ts-ignore: ignoreIpCollision is new field
@@ -130,7 +129,7 @@ export class SecurityService {
                   userId,
                   type: 'multi_account_suspicion',
                   severity: 'low',
-                  description: `Whitelisted IP collision ignored. Match: ${matchReason}. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
+                  description: `Whitelisted IP collision ignored. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
                 },
               });
             } else {
@@ -139,7 +138,7 @@ export class SecurityService {
                 where: { id: userId },
                 data: {
                   isBlocked: true,
-                  adminNote: `Auto-blocked for multi-accounting (${matchReason} Match). Matched IP ${ipAddress} with Main Account ${mainAccount.id}`,
+                  adminNote: `Auto-blocked for multi-accounting. Matched IP ${ipAddress} with Main Account ${mainAccount.id}`,
                 },
               });
 
@@ -148,7 +147,7 @@ export class SecurityService {
                 where: { id: mainAccount.id },
                 data: {
                   withdrawalLocked: true,
-                  adminNote: `Auto-locked withdrawals. Secondary account detected on ${matchReason} ${ipAddress}`,
+                  adminNote: `Auto-locked withdrawals. Secondary account detected on IP ${ipAddress}`,
                 },
               });
 
@@ -160,12 +159,12 @@ export class SecurityService {
                   action: 'user.auto_ban_multi_account',
                   targetType: 'user',
                   targetId: userId,
-                  reason: `Автоматический бан: Совпадение ${matchReason} (${ipAddress}) с основным аккаунтом ${mainAccount.id}.`,
+                  reason: `Автоматический бан: Совпадение IP адреса (${ipAddress}) с основным аккаунтом ${mainAccount.id}.`,
                 }
               });
 
               // 4. Send Telegram Message to the Main (Old) Account
-              const messageText = `⚠️ Предупреждение о нарушении правил платформы MacvBet\n\nУважаемый пользователь, наша система безопасности обнаружила, что вами был создан второй игровой аккаунт.\n\nСогласно пункту 2.1 Пользовательского соглашения, на платформе действует строгое правило одного аккаунта. Мультиаккаунтинг категорически запрещен и распространяется на использование одного IP-адреса, одного устройства и одного платежного кошелька.\n\nПринятые меры:\n• Ваш второй (дублирующий) аккаунт заблокирован навсегда.\n• Ваш основной аккаунт остается активным и не был тронут.\n\nВывод средств на основном аккаунте временно заморожен до выяснения обстоятельств.\n\nНапоминаем, что в соответствии с правилами платформы, администрация отслеживает поведенческие маркеры. Повторное нарушение или попытка создания новых профилей приведет к полной и безвозвратной блокировке всех ваших аккаунтов (включая основной) и конфискации всех средств на балансе.\n\nПожалуйста, ознакомьтесь с полным текстом Пользовательского соглашения MacvBet (https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01), чтобы избежать подобных ситуаций в будущем.\n\nС уважением,\nАдминистрация MacvBet`;
+              const messageText = `⚠️ Предупреждение о нарушении правил платформы MacvBet\n\nУважаемый пользователь, наша система безопасности обнаружила, что вами был создан второй игровой аккаунт.\n\nСогласно пункту 2.1 Пользовательского соглашения, на платформе действует строгое правило одного аккаунта. Мультиаккаунтинг категорически запрещен и распространяется на использование одного IP-адреса, одного устройства и одного платежного кошелька.\n\nПринятые меры:\n• Ваш второй (дублирующий) аккаунт заблокирован навсегда.\n• Ваш основной аккаунт остается активным и не был тронут, но вывод средств временно заморожен.\n\nНапоминаем, что в соответствии с правилами платформы, администрация отслеживает поведенческие маркеры. Повторное нарушение или попытка создания новых профилей приведет к полной и безвозвратной блокировке всех ваших аккаунтов (включая основной) и конфискации всех средств на балансе.\n\nПожалуйста, ознакомьтесь с полным текстом Пользовательского соглашения MacvBet, чтобы избежать подобных ситуаций в будущем.\n\nС уважением,\nАдминистрация MacvBet`;
               await telegramApi.sendMessage(Number(mainAccount.telegramId), messageText);
               
               await prisma.securityAlert.create({
@@ -173,10 +172,11 @@ export class SecurityService {
                   userId,
                   type: 'multi_account_detected',
                   severity: 'critical',
-                  description: `Strict Multi-Account ban applied. Match: ${matchReason}. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
+                  description: `Strict Multi-Account ban applied. IP: ${ipAddress}. Main Account: ${mainAccount.id}`,
                 },
               });
             }
+
           }
         }
       }

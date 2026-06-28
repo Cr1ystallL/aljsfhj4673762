@@ -56,7 +56,7 @@ function inferCode(text: string): string | null {
   if (v.includes('insufficient') || v.includes('недостаточно')) {
     return 'INSUFFICIENT_BALANCE';
   }
-  if (v.includes('заблокирован')) {
+  if (v.includes('аккаунт заблокирован')) {
     return 'ACCOUNT_BLOCKED';
   }
   if (v.includes('вывод временно')) {
