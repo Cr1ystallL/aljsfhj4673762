@@ -36,13 +36,14 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
     where: { tournamentId: t.id, startsAt: new Date(startsAt) },
   });
   if (!cycle) {
+    const now = Date.now();
     cycle = await (prisma as any).tournamentCycle.create({
       data: {
         tournamentId: t.id,
         startsAt: new Date(startsAt),
         endsAt: new Date(endsAt),
         prizePool: t.prizePool,
-        state: 'live',
+        state: now < startsAt ? 'waiting' : 'live',
       },
     });
   }
@@ -680,11 +681,25 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       const t = await (prisma as any).tournament.findUnique({ where: { id: request.params.id } });
       if (!t) return reply.code(404).send({ error: 'Not found' });
       const cycle = await ensureCycle(t);
+      let targetCycle = cycle;
+      let isPreviousCycle = false;
+
+      if (cycle.state === 'waiting') {
+        const prevCycle = await (prisma as any).tournamentCycle.findFirst({
+          where: { tournamentId: t.id, state: 'ended', endsAt: { lte: cycle.startsAt } },
+          orderBy: { endsAt: 'desc' }
+        });
+        if (prevCycle) {
+          targetCycle = prevCycle;
+          isPreviousCycle = true;
+        }
+      }
+
       const participant = await (prisma as any).tournamentParticipant.findUnique({
-        where: { cycleId_userId: { cycleId: cycle.id, userId } },
+        where: { cycleId_userId: { cycleId: targetCycle.id, userId } },
       });
       const rows = await (prisma as any).tournamentParticipant.findMany({
-        where: { cycleId: cycle.id },
+        where: { cycleId: targetCycle.id },
         include: { user: { select: { username: true, firstName: true, photoUrl: true } } },
         orderBy: [
           { balance: 'desc' },
@@ -724,7 +739,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         joined: Boolean(participant),
         tournamentBalance: participant ? toNumber(participant.balance) : null,
       };
-      return reply.send({ ok: true, leaderboard: top, self, tournament: enrichedTournament });
+      return reply.send({ ok: true, leaderboard: top, self, tournament: enrichedTournament, isPreviousCycle });
     }
   );
 }

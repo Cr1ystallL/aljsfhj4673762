@@ -57,23 +57,25 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
     where: { tournamentId: t.id, startsAt: new Date(startsAt) },
   });
   if (!cycle) {
+    const now = Date.now();
     cycle = await (prisma as any).tournamentCycle.create({
       data: {
         tournamentId: t.id,
         startsAt: new Date(startsAt),
         endsAt: new Date(endsAt),
         prizePool: t.prizePool,
-        state: 'live',
+        state: now < startsAt ? 'waiting' : 'live',
       },
     });
   }
-  return cycle as { id: string; startsAt: Date; endsAt: Date; prizePool: Prisma.Decimal };
+  return cycle as { id: string; startsAt: Date; endsAt: Date; prizePool: Prisma.Decimal; state: string };
 }
 
 async function findTournamentContext(userId: string, gameType: string) {
   const t = await (prisma as any).tournament.findFirst({ where: { active: true, gameType }, orderBy: { createdAt: 'desc' } });
   if (!t) return null;
   const cycle = await ensureCycle(t);
+  if (cycle.state !== 'live') return null;
   const now = Date.now();
   if (now < cycle.startsAt.getTime() || now > cycle.endsAt.getTime()) return null;
   const participant = await (prisma as any).tournamentParticipant.findUnique({

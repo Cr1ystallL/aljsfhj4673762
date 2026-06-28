@@ -50,7 +50,7 @@ function formatRemaining(ms: number): string {
 export default function TournamentPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
-  const [data, setData] = useState<{ leaderboard: LeaderboardUser[]; self: any; tournament: Tournament } | null>(null);
+  const [data, setData] = useState<{ leaderboard: LeaderboardUser[]; self: any; tournament: Tournament; isPreviousCycle?: boolean } | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -129,7 +129,8 @@ export default function TournamentPage() {
     }
   };
 
-  const remainingMs = data ? Math.max(0, data.tournament.endsAt - now) : 0;
+  const isWaiting = data?.tournament.cycleState === 'waiting';
+  const remainingMs = data ? Math.max(0, isWaiting ? data.tournament.startsAt - now : data.tournament.endsAt - now) : 0;
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
 
   if (error) {
@@ -212,7 +213,7 @@ export default function TournamentPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-white/10 mt-2">
             <div className="flex flex-col gap-1">
               <span className="font-roobert text-[12px] text-whisper-gray tabular-nums">
-                {t.cycleState === 'ended' ? 'завершено' : 'до конца'}
+                {t.cycleState === 'ended' ? 'завершено' : isWaiting ? 'до начала' : 'до конца'}
               </span>
               <span className="font-roobert text-[14px] text-frost-white tabular-nums">
                 {t.cycleState === 'ended' ? '—' : remaining}
@@ -221,6 +222,10 @@ export default function TournamentPage() {
             {t.cycleState === 'ended' ? (
               <span className="inline-flex items-center gap-1.5 px-6 h-12 rounded-pill bg-white/5 text-whisper-gray font-roobert text-[14px] uppercase tracking-[0.2em]">
                 Завершен
+              </span>
+            ) : isWaiting ? (
+              <span className="inline-flex items-center gap-1.5 px-6 h-12 rounded-pill bg-[rgba(255,172,46,0.15)] text-[#ffac2e] font-roobert text-[14px] uppercase tracking-[0.2em] shadow-[0_0_15px_rgba(255,172,46,0.2)]">
+                Ожидание турнира
               </span>
             ) : t.joined ? (
               <div className="flex flex-col sm:flex-row items-center gap-2">
@@ -241,7 +246,7 @@ export default function TournamentPage() {
                   <button
                     onClick={onRebuy}
                     disabled={busy}
-                    className="inline-flex items-center justify-center h-12 px-6 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[13px] uppercase tracking-wider active:scale-[0.97] transition-transform disabled:opacity-50"
+                    className="inline-flex items-center justify-center h-12 px-6 rounded-pill bg-gradient-to-r from-[#ffac2e] to-[#ff7e2e] text-[#1a1a1a] font-roobert font-bold text-[13px] uppercase tracking-wider hover:shadow-[0_0_20px_rgba(255,172,46,0.4)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50"
                   >
                     Докупить баланс ({t.rebuyFee > 0 ? `${t.rebuyFee} zł` : 'Бесплатно'})
                   </button>
@@ -251,10 +256,13 @@ export default function TournamentPage() {
               <button
                 onClick={onJoin}
                 disabled={busy}
-                className="inline-flex items-center gap-2 px-8 h-12 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[14px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
+                className="relative overflow-hidden group inline-flex items-center gap-2 px-8 h-12 rounded-pill bg-gradient-to-r from-[#a0e0ab] to-[#60d075] text-[#0a1a0f] font-roobert font-bold text-[14px] uppercase tracking-[0.2em] hover:shadow-[0_0_25px_rgba(160,224,171,0.5)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50"
               >
-                Участвовать
-                <ArrowRight size={16} strokeWidth={1.8} />
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-out" />
+                <span className="relative z-10 flex items-center gap-2">
+                  Участвовать
+                  <ArrowRight size={16} strokeWidth={2.5} />
+                </span>
               </button>
             )}
           </div>
@@ -262,7 +270,9 @@ export default function TournamentPage() {
       </motion.section>
 
       <div className="flex flex-col gap-4 mt-4">
-        <h2 className="font-roobert text-[18px] text-frost-white">Таблица лидеров</h2>
+        <h2 className="font-roobert text-[18px] text-frost-white">
+          {data.isPreviousCycle ? 'Результаты прошлого турнира' : 'Таблица лидеров'}
+        </h2>
         {self && (
           <div className="rounded-[16px] border border-[#a0e0ab]/30 bg-[#a0e0ab]/5 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
