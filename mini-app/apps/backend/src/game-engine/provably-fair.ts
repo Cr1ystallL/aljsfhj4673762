@@ -191,12 +191,11 @@ export class ProvablyFairSystem {
     const isCentre = (cell: number) => cell >= centreLow && cell <= centreHigh;
 
     const cells: number[] = Array.from({ length: totalCells }, (_, i) => i);
-    let rejectionProb = Math.abs(b) * TILT.minesShuffle;
     
-    // Hard Auto RTP mode: almost guaranteed to place mines in the center
-    if (b >= 1.0) {
-      rejectionProb = 0.95;
-    }
+    // Soft tilt: max rejection probability capped at 0.35 (35% chance to re-roll
+    // if the mine lands in an unfavorable spot). This prevents the "obvious" 
+    // 1st-click loss while still pushing the overall odds toward the house.
+    let rejectionProb = Math.min(Math.abs(b) * TILT.minesShuffle, 0.35);
 
     for (let i = 0; i < safeMineCount; i++) {
       const remaining = totalCells - i;
