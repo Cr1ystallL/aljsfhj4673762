@@ -191,10 +191,11 @@ export async function payoutCycle(t: any, cycle: any) {
 }
 
 function computePrize(pool: number, mode: PrizeMode, idx: number, winnersCount: number, fixedPrize: number | null) {
+  if (idx >= winnersCount) return 0;
   if (mode === 'percent') {
     return +(pool * (PERCENT_PAYOUTS[idx] ? PERCENT_PAYOUTS[idx] / 100 : 0)).toFixed(2);
   }
-  if (mode === 'fixed' && idx < winnersCount) return fixedPrize ?? 0;
+  if (mode === 'fixed') return fixedPrize ?? 0;
   return 0;
 }
 
@@ -346,22 +347,25 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
             ? Number(b.prizePool)
             : t.prizePool;
 
-      await (prisma as any).tournament.update({
-        where: { id: t.id },
-        data: {
-          title: b.title ?? t.title,
-          description: b.description ?? t.description,
-          bannerUrl: b.bannerUrl ?? t.bannerUrl,
-          gameType: b.gameType ?? t.gameType,
-          prizePool: nextPrizePool,
-          prizeMode: nextPrizeMode,
-          winnersCount: nextWinners,
-          fixedPrize: nextPrizeMode === 'fixed' ? nextFixedPrize : null,
-          wagerMultiplier: Number.isFinite(b.wagerMultiplier) && b.wagerMultiplier! >= 0 ? Math.floor(Number(b.wagerMultiplier)) : t.wagerMultiplier,
-          startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
-          entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
-          rebuyFee: Number.isFinite(b.rebuyFee) ? Number(b.rebuyFee) : t.rebuyFee,
-          startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1,
+          const newStartAt = Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1;
+          const nextStartAt = Math.abs(newStartAt.getTime() - t.startAtGmt1.getTime()) < 60000 ? t.startAtGmt1 : newStartAt;
+          
+          await (prisma as any).tournament.update({
+            where: { id: t.id },
+            data: {
+              title: b.title ?? t.title,
+              description: b.description ?? t.description,
+              bannerUrl: b.bannerUrl ?? t.bannerUrl,
+              gameType: b.gameType ?? t.gameType,
+              prizePool: nextPrizePool,
+              prizeMode: nextPrizeMode,
+              winnersCount: nextWinners,
+              fixedPrize: nextPrizeMode === 'fixed' ? nextFixedPrize : null,
+              wagerMultiplier: Number.isFinite(b.wagerMultiplier) && b.wagerMultiplier! >= 0 ? Math.floor(Number(b.wagerMultiplier)) : t.wagerMultiplier,
+              startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
+              entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
+              rebuyFee: Number.isFinite(b.rebuyFee) ? Number(b.rebuyFee) : t.rebuyFee,
+              startAtGmt1: nextStartAt,
           durationHours: Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours,
           repeatType: typeof b.repeatType === 'string' ? b.repeatType : t.repeatType,
           active: typeof b.active === 'boolean' ? b.active : t.active,
