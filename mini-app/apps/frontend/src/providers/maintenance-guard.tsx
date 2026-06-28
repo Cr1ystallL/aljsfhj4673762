@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { checkIsAdmin } from '@/lib/admin-probe';
+import { checkIsAdmin, useIsAdmin } from '@/lib/admin-probe';
 import { Wrench } from 'lucide-react';
 
 interface MaintenanceContextType {
@@ -22,17 +22,11 @@ export function useMaintenance() {
 export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = loading
+  const isAdmin = useIsAdmin();
   const pathname = usePathname();
 
   useEffect(() => {
     let active = true;
-
-    void checkIsAdmin().then((ok) => {
-      if (active) {
-        setIsAdmin(ok);
-      }
-    });
 
     const checkMaint = async () => {
       try {
@@ -62,6 +56,8 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   // 1. If we are in the system console area, never block (so admins can fix things)
   // 2. If the user is an admin, never block
   const isConsolePath = pathname?.startsWith('/system/console');
+  // If the user is an admin (isAdmin === true) or loading (null), we do not block.
+  // If they are explicitly not an admin (isAdmin === false), we block.
   const shouldBlock = enabled && !isConsolePath && isAdmin === false;
 
   if (shouldBlock) {

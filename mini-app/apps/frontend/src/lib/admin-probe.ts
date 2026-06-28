@@ -50,8 +50,8 @@ async function probe(): Promise<boolean> {
   return inflight;
 }
 
-export function useIsAdmin(): boolean {
-  const [isAdmin, setIsAdmin] = useState<boolean>(cached ?? false);
+export function useIsAdmin(): boolean | null {
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(cached);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   useEffect(() => {
