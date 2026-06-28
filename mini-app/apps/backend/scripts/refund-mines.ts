@@ -117,29 +117,34 @@ async function main() {
     console.log('\n=== МАССОВЫЙ ВОЗВРАТ ЗАВЕРШЕН ===');
 
   } else {
-    // Режим для одного пользователя
-    const telegramId = arg;
-    console.log(`Ищем пользователя с Telegram ID: ${telegramId}...`);
-    const user = await prisma.user.findUnique({
-      where: { telegramId: BigInt(telegramId) }
-    });
+    // Режим для одного или нескольких пользователей (через запятую)
+    const telegramIds = arg.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    
+    console.log(`Ищем пользователей с Telegram ID: ${telegramIds.join(', ')}...`);
+    
+    for (const telegramId of telegramIds) {
+      const user = await prisma.user.findUnique({
+        where: { telegramId: BigInt(telegramId) }
+      });
 
-    if (!user) {
-      console.error('❌ Пользователь не найден.');
-      process.exit(1);
+      if (!user) {
+        console.error(`❌ Пользователь с Telegram ID ${telegramId} не найден. Пропускаем.`);
+        continue;
+      }
+
+      const lastBonus = await prisma.transaction.findFirst({
+        where: { userId: user.id, type: 'bonus' },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!lastBonus) {
+        console.log(`⚠️ У пользователя ${telegramId} нет транзакций типа "bonus". Пропускаем.`);
+        continue;
+      }
+
+      await processUser(user, lastBonus);
     }
-
-    const lastBonus = await prisma.transaction.findFirst({
-      where: { userId: user.id, type: 'bonus' },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (!lastBonus) {
-      console.log('⚠️ У пользователя нет транзакций типа "bonus" (он не получал призов).');
-      process.exit(1);
-    }
-
-    await processUser(user, lastBonus);
+    console.log('\n=== ВОЗВРАТ ПО СПИСКУ ЗАВЕРШЕН ===');
   }
 }
 
