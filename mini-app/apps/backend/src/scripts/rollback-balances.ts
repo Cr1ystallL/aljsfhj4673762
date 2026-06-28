@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { redis } from '../lib/redis.js';
+import { redisClient } from '../lib/redis.js';
 
 const prisma = new PrismaClient();
 
@@ -8,6 +8,8 @@ const TARGET_TIME = new Date('2026-06-27T22:00:00.000Z');
 
 async function main() {
   console.log(`[ROLLBACK] Начинаем откат всех балансов к состоянию на ${TARGET_TIME.toISOString()}...`);
+  
+  await redisClient.connect();
 
   // Находим всех пользователей, у которых были транзакции ПОСЛЕ целевого времени
   const usersWithChanges = await prisma.transaction.findMany({
@@ -68,7 +70,7 @@ async function main() {
       });
 
       // Сбрасываем кэш в Redis
-      await redis.del(`balance:${userId}`);
+      await redisClient.getClient().del(`balance:${userId}`);
 
       console.log(`[ROLLBACK] Пользователь ${userId}: Баланс откачен с ${beforeAmount} до ${targetBalance}. Вейджер установлен на ${newWagerTarget}.`);
       successCount++;
@@ -84,6 +86,6 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    redis.disconnect();
+    await redisClient.disconnect();
     process.exit(0);
   });
