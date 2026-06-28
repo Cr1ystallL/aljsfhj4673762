@@ -12,7 +12,6 @@ import { withdrawalRoutes } from './withdrawals.js';
 import { bonusesRoutes } from './bonuses.js';
 import { presenceRoutes } from './presence.js';
 import { tournamentRoutes } from './tournaments.js';
-import hiloRoutes from './hilo.js';
 
 /**
  * Register all application routes
@@ -29,7 +28,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Games
   await app.register(gameRoutes, { prefix: '/api/games' });
-  await app.register(hiloRoutes, { prefix: '/api/games' });
 
   // MacvPay deposits
   await app.register(macvpayRoutes, { prefix: '/api/macvpay' });

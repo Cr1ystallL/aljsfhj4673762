@@ -1,7 +1,8 @@
 import { randomBytes } from 'crypto';
 import { prisma } from '../../lib/prisma.js';
-import { dbops } from '../dbops.js';
+import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { gameConfig } from '../../services/game-config.js';
+import type { Bet } from '../../game-engine/types.js';
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 export type Rank = number; // 1 (Ace) to 13 (King)
@@ -17,6 +18,7 @@ export interface HiloState {
   userId: string;
   status: HiloStatus;
   betAmount: number;
+  bet: Bet | null;
   currentMultiplier: number;
   currentCard: Card | null;
   history: Card[];
@@ -26,9 +28,7 @@ export interface HiloState {
 // In-memory store
 const states = new Map<string, HiloState>();
 
-export function getHiloMultipliers(currentRank: number): { red: number; black: number; higher: number; lower: number } {
-  // Extract edge, fallback to 0.04 (RTP 96%)
-  const edge = gameConfig?.hilo?.edge ?? 0.04;
+export function getHiloMultipliers(currentRank: number, edge: number = 0.04): { red: number; black: number; higher: number; lower: number } {
   const rtp = 1 - edge;
 
   const redBlack = +(2.0 * rtp).toFixed(2);
@@ -47,19 +47,21 @@ export function getHiloMultipliers(currentRank: number): { red: number; black: n
 }
 
 export const hiloEngine = {
-  getState(userId: string): HiloState {
+  async getState(userId: string): Promise<HiloState> {
     let state = states.get(userId);
     if (!state) {
       state = {
         userId,
         status: 'idle',
         betAmount: 0,
+        bet: null,
         currentMultiplier: 1.0,
-        currentCard: hiloEngine.generateCard(),
+        currentCard: this.generateCard(),
         history: [],
         nextMultipliers: null,
       };
-      state.nextMultipliers = getHiloMultipliers(state.currentCard.rank);
+      const cfg = await gameConfig.get('hilo');
+      state.nextMultipliers = getHiloMultipliers(state.currentCard!.rank, cfg.houseEdge);
       states.set(userId, state);
     }
     return state;
@@ -74,32 +76,33 @@ export const hiloEngine = {
     return { suit: suits[suitIdx], rank };
   },
 
-  swap(userId: string): HiloState {
-    const state = this.getState(userId);
+  async swap(userId: string): Promise<HiloState> {
+    const state = await this.getState(userId);
     if (state.status === 'playing') {
       throw new Error('Cannot swap while playing');
     }
     state.currentCard = this.generateCard();
     state.status = 'idle'; // Ensure it's idle
     state.history = []; // Clear history
-    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank);
+    
+    const cfg = await gameConfig.get('hilo');
+    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank, cfg.houseEdge);
     return state;
   },
 
   async start(userId: string, amount: number): Promise<HiloState> {
     if (amount < 1) throw new Error('Min bet is 1');
-    const state = this.getState(userId);
+    const state = await this.getState(userId);
     if (state.status === 'playing') throw new Error('Game already in progress');
 
-    // Deduct balance
-    const user = await prisma.user.findUnique({ where: { telegramId: userId } });
-    if (!user) throw new Error('User not found');
-    if (Number(user.balance) < amount) throw new Error('Insufficient balance');
-
-    await dbops.subtractBalance(userId, amount, 'hilo:bet');
+    // Deduct balance via betting pipeline (demoMode = false for now)
+    const bet = await bettingPipeline.placeBet(userId, 'hilo', amount, false, {
+      hilo: true
+    });
 
     state.status = 'playing';
     state.betAmount = amount;
+    state.bet = bet;
     state.currentMultiplier = 1.0;
     // Keep current card
     state.history = state.currentCard ? [state.currentCard] : [];
@@ -109,13 +112,15 @@ export const hiloEngine = {
       state.currentCard = this.generateCard();
       state.history = [state.currentCard];
     }
-    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank);
+    
+    const cfg = await gameConfig.get('hilo');
+    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank, cfg.houseEdge);
 
     return state;
   },
 
   async guess(userId: string, choice: 'red' | 'black' | 'higher' | 'lower'): Promise<HiloState> {
-    const state = this.getState(userId);
+    const state = await this.getState(userId);
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (!state.currentCard) throw new Error('No current card');
 
@@ -124,7 +129,9 @@ export const hiloEngine = {
     
     let won = false;
     let stepMultiplier = 0;
-    const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank);
+    
+    const cfg = await gameConfig.get('hilo');
+    const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, cfg.houseEdge);
 
     const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
     const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
@@ -150,7 +157,7 @@ export const hiloEngine = {
 
     state.currentCard = nextCard;
     state.history.push(nextCard);
-    state.nextMultipliers = getHiloMultipliers(nextCard.rank);
+    state.nextMultipliers = getHiloMultipliers(nextCard.rank, cfg.houseEdge);
 
     if (won) {
       // Step win
@@ -168,7 +175,9 @@ export const hiloEngine = {
       state.status = 'busted';
       state.nextMultipliers = null;
       // Record to history
-      await this.recordHistory(userId, state.betAmount, 0, state.history);
+      if (state.bet) {
+        await bettingPipeline.resolveBet(state.bet.id, state.betAmount, 0, 0, { cards: state.history });
+      }
       this.forget(userId);
     }
 
@@ -176,17 +185,18 @@ export const hiloEngine = {
   },
 
   async cashout(userId: string): Promise<HiloState> {
-    const state = this.getState(userId);
+    const state = await this.getState(userId);
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (state.currentMultiplier <= 1.0) throw new Error('No winnings to cash out');
 
     const winAmount = +(state.betAmount * state.currentMultiplier).toFixed(2);
     
-    await dbops.addBalance(userId, winAmount, 'hilo:win');
+    if (state.bet) {
+      await bettingPipeline.resolveBet(state.bet.id, state.betAmount, winAmount, state.currentMultiplier, { cards: state.history });
+    }
 
     state.status = 'cashed_out';
     state.nextMultipliers = null;
-    await this.recordHistory(userId, state.betAmount, winAmount, state.history);
     this.forget(userId);
 
     return { ...state }; // Return copy
@@ -194,22 +204,5 @@ export const hiloEngine = {
 
   forget(userId: string) {
     states.delete(userId);
-  },
-
-  async recordHistory(userId: string, betAmount: number, winAmount: number, history: Card[]) {
-    try {
-      await prisma.gameBet.create({
-        data: {
-          telegramId: userId,
-          gameType: 'hilo',
-          betAmount,
-          winAmount,
-          multiplier: winAmount > 0 ? +(winAmount / betAmount).toFixed(2) : 0,
-          metadata: { cards: history },
-        },
-      });
-    } catch (err) {
-      console.error('Failed to save hilo history', err);
-    }
   }
 };

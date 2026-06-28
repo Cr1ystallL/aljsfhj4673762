@@ -22,6 +22,7 @@ import {
   BRIDGES_LEVELS,
   type BridgesLevel,
 } from '../games/bridges/bridges-engine.js';
+import { hiloEngine } from '../games/hilo/hilo-engine.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
@@ -1298,6 +1299,74 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
     bridgesEngine.forget(userId);
     return reply.send({ success: true });
+  });
+
+  // ==========================================
+  // HI-LO API
+  // ==========================================
+
+  app.get('/hilo/state', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('hilo', request as AuthenticatedRequest, reply))) return;
+    const state = await hiloEngine.getState(userId);
+    return reply.send({ ok: true, state });
+  });
+
+  app.post('/hilo/swap', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('hilo', request as AuthenticatedRequest, reply))) return;
+    if (!checkRateLimit(userId, 'hilo:swap')) return reply.status(429).send({ error: 'Too many requests' });
+    try {
+      const state = await hiloEngine.swap(userId);
+      return reply.send({ ok: true, state });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
+  });
+
+  app.post('/hilo/start', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('hilo', request as AuthenticatedRequest, reply))) return;
+    if (!checkRateLimit(userId, 'hilo:start')) return reply.status(429).send({ error: 'Too many requests' });
+
+    const { amount } = request.body as { amount: number };
+    try {
+      const state = await hiloEngine.start(userId, amount);
+      return reply.send({ ok: true, state });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
+  });
+
+  app.post('/hilo/guess', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('hilo', request as AuthenticatedRequest, reply))) return;
+    if (!checkRateLimit(userId, 'hilo:guess')) return reply.status(429).send({ error: 'Too many requests' });
+
+    const { choice } = request.body as { choice: 'red' | 'black' | 'higher' | 'lower' };
+    if (!['red', 'black', 'higher', 'lower'].includes(choice)) {
+      return reply.status(400).send({ error: 'Invalid choice' });
+    }
+
+    try {
+      const state = await hiloEngine.guess(userId, choice);
+      return reply.send({ ok: true, state });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
+  });
+
+  app.post('/hilo/cashout', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    if (!(await ensureVisible('hilo', request as AuthenticatedRequest, reply))) return;
+    if (!checkRateLimit(userId, 'hilo:cashout')) return reply.status(429).send({ error: 'Too many requests' });
+
+    try {
+      const state = await hiloEngine.cashout(userId);
+      return reply.send({ ok: true, state });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
   });
 }
 

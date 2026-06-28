@@ -133,6 +133,15 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     wagerContribution: 1.0,
     extras: {},
   },
+  hilo: {
+    paused: false,
+    hidden: false,
+    minBet: 1,
+    maxBet: 50000,
+    houseEdge: 0.04,
+    wagerContribution: 1.0,
+    extras: {},
+  },
 };
 
 const TTL_MS = 5_000; // engine-side cache TTL.
