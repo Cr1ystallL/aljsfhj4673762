@@ -46,6 +46,11 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
         state: now < startsAt ? 'waiting' : 'live',
       },
     });
+  } else if (Number(cycle.prizePool) !== Number(t.prizePool)) {
+    cycle = await (prisma as any).tournamentCycle.update({
+      where: { id: cycle.id },
+      data: { prizePool: t.prizePool },
+    });
   }
   return cycle;
 }
