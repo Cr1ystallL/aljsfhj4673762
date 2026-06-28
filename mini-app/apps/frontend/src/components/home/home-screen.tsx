@@ -196,10 +196,14 @@ export function HomeScreen() {
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   const visibleGames = useMemo(() => {
-    // Если не смогли загрузить доступность, по умолчанию скрываем Blackjack для неадминов.
-    const hidden = availability?.hidden ?? { cards: true };
+    // Если не смогли загрузить доступность, по умолчанию скрываем недоделанные игры
+    const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
+      // Жестко скрываем эти три игры от обычных игроков
+      if ((g.id === 'hilo' || g.id === 'blackjack' || g.id === 'baccarat') && !isAdmin) {
+        return false;
+      }
       if (hidden[g.id] && !isAdmin) return false;
       return true;
     });
