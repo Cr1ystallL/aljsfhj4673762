@@ -425,20 +425,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           balances.map((b) => [b.userId, Number(b.amount)])
         );
 
-        const aggs = userIds.length
-          ? await app.prisma.bet.groupBy({
-              by: ['userId'],
-              where: { userId: { in: userIds } },
-              _sum: { amount: true, payout: true },
-              _count: { _all: true },
-            })
+        const aggsRaw = userIds.length
+          ? await app.prisma.$queryRaw<{ user_id: string; sum_amount: number; sum_payout: number; count: bigint }[]>`
+              SELECT user_id, SUM(amount) as sum_amount, SUM(payout) as sum_payout, COUNT(*) as count
+              FROM bets
+              WHERE user_id IN (${Prisma.join(userIds)}) AND metadata->>'tournamentId' IS NULL
+              GROUP BY user_id
+            `
           : [];
-        const aggsById = new Map(aggs.map((a) => [a.userId, a]));
+        const aggsById = new Map(aggsRaw.map((a) => [a.user_id, a]));
 
         const users = rows.map((u) => {
           const a = aggsById.get(u.id);
-          const wagered = Number(a?._sum.amount ?? 0);
-          const paid = Number(a?._sum.payout ?? 0);
+          const wagered = Number(a?.sum_amount ?? 0);
+          const paid = Number(a?.sum_payout ?? 0);
           return {
             id: u.id,
             telegramId: Number(u.telegram_id),
@@ -752,12 +752,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             where: { userId: id },
             select: { amount: true, currency: true, lastSyncedAt: true, wagerTarget: true, wagerProgress: true },
           }),
-          app.prisma.bet.aggregate({
-            where: { userId: id },
-            _count: { _all: true },
-            _sum: { amount: true, payout: true },
-            _max: { multiplier: true, amount: true },
-          }),
+          app.prisma.$queryRaw<{ count: bigint; sum_amount: number; sum_payout: number; max_multiplier: number; max_amount: number }[]>(Prisma.sql`
+            SELECT COUNT(*) as count, SUM(amount) as sum_amount, SUM(payout) as sum_payout, MAX(multiplier) as max_multiplier, MAX(amount) as max_amount
+            FROM bets
+            WHERE user_id = ${id} AND metadata->>'tournamentId' IS NULL
+          `),
           app.prisma.bet.findMany({
             where: { userId: id },
             orderBy: { placedAt: 'desc' },
@@ -807,8 +806,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           }),
         ]);
 
-        const wagered = Number(betsAgg._sum.amount ?? 0);
-        const paidOut = Number(betsAgg._sum.payout ?? 0);
+        const betsAggRaw = (betsAgg as any)[0] || {};
+        const betsAggObj = {
+          _count: { _all: Number(betsAggRaw.count || 0) },
+          _sum: { amount: Number(betsAggRaw.sum_amount || 0), payout: Number(betsAggRaw.sum_payout || 0) },
+        };
+        const wagered = betsAggObj._sum.amount;
+        const paidOut = betsAggObj._sum.payout;
         const asMillis = (value: unknown): number => {
           if (typeof value === 'number') return value;
           if (!value) return 0;
@@ -845,7 +849,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             wagerProgress: balance ? Number(balance.wagerProgress) : 0,
           },
           stats: {
-            totalBets: betsAgg._count._all,
+            totalBets: betsAggObj._count._all,
             wagered,
             paidOut,
             ggr: wagered - paidOut,

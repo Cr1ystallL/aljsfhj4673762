@@ -646,6 +646,17 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
           if (!participant) throw new Error('Not registered');
           if (toNumber(participant.balance) > 0) throw new Error('Balance must be <= 0 to refresh');
 
+          // Check for unresolved bets
+          const [{ count: activeBets }] = await (tx as any).$queryRaw`
+            SELECT COUNT(*) as count FROM bets
+            WHERE user_id = ${userId}
+              AND state = 'active'
+              AND metadata->>'tournamentCycleId' = ${cycle.id}
+          `;
+          if (Number(activeBets) > 0) {
+            throw new Error('Нельзя обновить баланс, пока есть незавершенные турнирные ставки');
+          }
+
           const fee = toNumber(t.rebuyFee);
           if (fee > 0) {
             await debitRealBalance(tx, userId, fee, { tournamentId: t.id, cycleId: cycle.id, reason: 'refresh' });

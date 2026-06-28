@@ -850,7 +850,9 @@ export default function UserDetailPage() {
                 return (
                   <div
                     key={b.id}
-                    className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3"
+                    className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${
+                      b.metadata?.tournamentId ? 'border-l-2 border-l-[#ffac2e] bg-[#ffac2e]/[0.02]' : ''
+                    }`}
                   >
                     <div className="min-w-0">
                       <div className="font-roobert text-[13px] text-frost-white truncate">
