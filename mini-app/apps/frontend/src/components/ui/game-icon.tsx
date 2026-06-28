@@ -34,9 +34,9 @@ export type GameKey =
   | 'wheel'
   | 'bridges'
   | 'blackjack'
-  | 'baccarat'
   | 'cards'
   | 'hilo'
+  | 'baccarat'
   | 'unknown';
 
 /**
