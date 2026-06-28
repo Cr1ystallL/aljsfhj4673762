@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { prisma } from '../../lib/prisma.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { gameConfig } from '../../services/game-config.js';
@@ -95,10 +95,19 @@ export const hiloEngine = {
     const state = await this.getState(userId);
     if (state.status === 'playing') throw new Error('Game already in progress');
 
-    // Deduct balance via betting pipeline (demoMode = false for now)
-    const bet = await bettingPipeline.placeBet(userId, 'hilo', amount, false, {
-      hilo: true
-    });
+    const roundId = `hilo_${Date.now()}_${randomUUID()}`;
+    const bet: Bet = {
+      id: `bet_${Date.now()}_${randomUUID()}`,
+      userId,
+      gameId: roundId,
+      roundId,
+      amount,
+      state: 'pending',
+      placedAt: Date.now(),
+      metadata: { gameType: 'hilo' },
+    };
+    await bettingPipeline.processBet(bet, false);
+    bet.state = 'active';
 
     state.status = 'playing';
     state.betAmount = amount;
@@ -176,7 +185,8 @@ export const hiloEngine = {
       state.nextMultipliers = null;
       // Record to history
       if (state.bet) {
-        await bettingPipeline.resolveBet(state.bet.id, state.betAmount, 0, 0, { cards: state.history });
+        state.bet.metadata = { ...state.bet.metadata, cards: state.history };
+        await bettingPipeline.processLoss(state.bet, false);
       }
       this.forget(userId);
     }
@@ -192,7 +202,9 @@ export const hiloEngine = {
     const winAmount = +(state.betAmount * state.currentMultiplier).toFixed(2);
     
     if (state.bet) {
-      await bettingPipeline.resolveBet(state.bet.id, state.betAmount, winAmount, state.currentMultiplier, { cards: state.history });
+      state.bet.multiplier = state.currentMultiplier;
+      state.bet.metadata = { ...state.bet.metadata, cards: state.history };
+      await bettingPipeline.processPayout(state.bet, winAmount, false);
     }
 
     state.status = 'cashed_out';
