@@ -64,7 +64,7 @@ async function main() {
           where: { cycleId: c.id },
           include: { user: { select: { username: true, firstName: true } } },
           orderBy: [{ balance: 'desc' }, { reachedAt: 'asc' }],
-          take: 3
+          take: 10
         });
 
         console.log(`Турнир: "${c.tournament.title}" (ID цикла: ${c.id})`);
@@ -92,8 +92,8 @@ async function main() {
         ]
       });
 
-      console.log(`\nУчастники турнира (топ 5):`);
-      for (let i = 0; i < Math.min(5, participants.length); i++) {
+      console.log(`\nУчастники турнира (топ 10):`);
+      for (let i = 0; i < Math.min(10, participants.length); i++) {
         const p = participants[i];
         console.log(`${i + 1}. ${p.user.firstName || p.user.username} - Баланс: ${p.balance}`);
       }
