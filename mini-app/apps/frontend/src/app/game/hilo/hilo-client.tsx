@@ -16,6 +16,7 @@ interface HiloState {
   currentMultiplier: number;
   currentCard: Card | null;
   history: Card[];
+  nextMultipliers: { red: number; black: number; higher: number; lower: number } | null;
 }
 
 function getCardColor(suit: string) {
@@ -226,7 +227,7 @@ export function HiloClient() {
                   className="flex flex-col items-center justify-center rounded-lg bg-red-500/20 border border-red-500/30 p-3 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
                 >
                   <span className="text-sm font-medium text-red-200">RED</span>
-                  <span className="text-xs text-red-300/70">1.92x</span>
+                  <span className="text-xs text-red-300/70">{state.nextMultipliers?.red.toFixed(2) || '1.92'}x</span>
                 </button>
                 <button
                   onClick={() => handleGuess('black')}
@@ -234,7 +235,7 @@ export function HiloClient() {
                   className="flex flex-col items-center justify-center rounded-lg bg-slate-800 border border-slate-600 p-3 hover:bg-slate-700 disabled:opacity-50 transition-colors"
                 >
                   <span className="text-sm font-medium text-white">BLACK</span>
-                  <span className="text-xs text-white/50">1.92x</span>
+                  <span className="text-xs text-white/50">{state.nextMultipliers?.black.toFixed(2) || '1.92'}x</span>
                 </button>
                 <button
                   onClick={() => handleGuess('higher')}
@@ -242,7 +243,7 @@ export function HiloClient() {
                   className="flex flex-col items-center justify-center rounded-lg bg-blue-500/20 border border-blue-500/30 p-3 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
                 >
                   <span className="text-sm font-medium text-blue-200">HIGHER</span>
-                  <span className="text-xs text-blue-300/70">1.92x</span>
+                  <span className="text-xs text-blue-300/70">{state.nextMultipliers?.higher.toFixed(2) || '1.92'}x</span>
                 </button>
                 <button
                   onClick={() => handleGuess('lower')}
@@ -250,7 +251,7 @@ export function HiloClient() {
                   className="flex flex-col items-center justify-center rounded-lg bg-amber-500/20 border border-amber-500/30 p-3 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
                 >
                   <span className="text-sm font-medium text-amber-200">LOWER</span>
-                  <span className="text-xs text-amber-300/70">1.92x</span>
+                  <span className="text-xs text-amber-300/70">{state.nextMultipliers?.lower.toFixed(2) || '1.92'}x</span>
                 </button>
               </div>
 

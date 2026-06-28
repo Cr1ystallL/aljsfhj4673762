@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { prisma } from '../../lib/prisma.js';
 import { dbops } from '../dbops.js';
+import { gameConfig } from '../../services/game-config.js';
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 export type Rank = number; // 1 (Ace) to 13 (King)
@@ -19,12 +20,31 @@ export interface HiloState {
   currentMultiplier: number;
   currentCard: Card | null;
   history: Card[];
+  nextMultipliers: { red: number; black: number; higher: number; lower: number } | null;
 }
 
 // In-memory store
 const states = new Map<string, HiloState>();
 
-const FIXED_MULTIPLIER = 1.92;
+export function getHiloMultipliers(currentRank: number): { red: number; black: number; higher: number; lower: number } {
+  // Extract edge, fallback to 0.04 (RTP 96%)
+  const edge = gameConfig?.hilo?.edge ?? 0.04;
+  const rtp = 1 - edge;
+
+  const redBlack = +(2.0 * rtp).toFixed(2);
+
+  // Higher or same
+  const higherCards = 14 - currentRank;
+  const probHigher = higherCards / 13;
+  const higher = +( (1 / probHigher) * rtp ).toFixed(2);
+
+  // Lower or same
+  const lowerCards = currentRank;
+  const probLower = lowerCards / 13;
+  const lower = +( (1 / probLower) * rtp ).toFixed(2);
+
+  return { red: redBlack, black: redBlack, higher, lower };
+}
 
 export const hiloEngine = {
   getState(userId: string): HiloState {
@@ -37,7 +57,9 @@ export const hiloEngine = {
         currentMultiplier: 1.0,
         currentCard: hiloEngine.generateCard(),
         history: [],
+        nextMultipliers: null,
       };
+      state.nextMultipliers = getHiloMultipliers(state.currentCard.rank);
       states.set(userId, state);
     }
     return state;
@@ -60,6 +82,7 @@ export const hiloEngine = {
     state.currentCard = this.generateCard();
     state.status = 'idle'; // Ensure it's idle
     state.history = []; // Clear history
+    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank);
     return state;
   },
 
@@ -86,6 +109,7 @@ export const hiloEngine = {
       state.currentCard = this.generateCard();
       state.history = [state.currentCard];
     }
+    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank);
 
     return state;
   },
@@ -99,33 +123,41 @@ export const hiloEngine = {
     const currentCard = state.currentCard;
     
     let won = false;
+    let stepMultiplier = 0;
+    const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank);
+
     const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
     const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
 
     switch (choice) {
       case 'red':
         won = isRed;
+        stepMultiplier = mults.red;
         break;
       case 'black':
         won = isBlack;
+        stepMultiplier = mults.black;
         break;
       case 'higher':
         won = nextCard.rank >= currentCard.rank;
+        stepMultiplier = mults.higher;
         break;
       case 'lower':
         won = nextCard.rank <= currentCard.rank;
+        stepMultiplier = mults.lower;
         break;
     }
 
     state.currentCard = nextCard;
     state.history.push(nextCard);
+    state.nextMultipliers = getHiloMultipliers(nextCard.rank);
 
     if (won) {
       // Step win
       if (state.currentMultiplier === 1.0) {
-        state.currentMultiplier = FIXED_MULTIPLIER;
+        state.currentMultiplier = stepMultiplier;
       } else {
-        state.currentMultiplier *= FIXED_MULTIPLIER;
+        state.currentMultiplier *= stepMultiplier;
       }
       
       // Prevent floating point errors
@@ -134,6 +166,7 @@ export const hiloEngine = {
     } else {
       // Busted
       state.status = 'busted';
+      state.nextMultipliers = null;
       // Record to history
       await this.recordHistory(userId, state.betAmount, 0, state.history);
       this.forget(userId);
@@ -152,6 +185,7 @@ export const hiloEngine = {
     await dbops.addBalance(userId, winAmount, 'hilo:win');
 
     state.status = 'cashed_out';
+    state.nextMultipliers = null;
     await this.recordHistory(userId, state.betAmount, winAmount, state.history);
     this.forget(userId);
 
