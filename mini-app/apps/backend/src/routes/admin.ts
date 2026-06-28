@@ -2573,6 +2573,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     inactiveDays?: number;
     telegramIds?: number[];
     channelId?: string;
+    channels?: string[];
   }
 
   interface BroadcastButton {

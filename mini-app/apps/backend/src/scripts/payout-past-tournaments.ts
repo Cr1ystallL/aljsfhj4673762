@@ -105,7 +105,7 @@ async function main() {
         output: process.stdout
       });
 
-      const answer = await new Promise(resolve => {
+      const answer = await new Promise<string>(resolve => {
         rl.question(`\nВыплатить призы за этот турнир? (y/N): `, resolve);
       });
       
