@@ -455,7 +455,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             withdrawalLocked: u.withdrawal_locked,
             createdAt: u.created_at.getTime(),
             balance: balById.get(u.id) ?? 0,
-            bets: a?._count._all ?? 0,
+            bets: Number(a?.count ?? 0),
             wagered,
             ggr: wagered - paid,
           };
@@ -810,6 +810,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const betsAggObj = {
           _count: { _all: Number(betsAggRaw.count || 0) },
           _sum: { amount: Number(betsAggRaw.sum_amount || 0), payout: Number(betsAggRaw.sum_payout || 0) },
+          _max: { multiplier: Number(betsAggRaw.max_multiplier || 0), amount: Number(betsAggRaw.max_amount || 0) }
         };
         const wagered = betsAggObj._sum.amount;
         const paidOut = betsAggObj._sum.payout;
@@ -853,8 +854,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             wagered,
             paidOut,
             ggr: wagered - paidOut,
-            maxMultiplier: Number(betsAgg._max.multiplier ?? 0),
-            maxBet: Number(betsAgg._max.amount ?? 0),
+            maxMultiplier: Number(betsAggObj._max.multiplier ?? 0),
+            maxBet: Number(betsAggObj._max.amount ?? 0),
           },
           lastSeenAt,
           sessions: sessions.map((s) => ({
@@ -896,7 +897,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                   : null,
           })),
           totals: {
-            bets: betsAgg._count._all,
+            bets: betsAggObj._count._all,
             transactions: txAgg._count._all,
           },
           adminLog: adminLog.map((a) => ({

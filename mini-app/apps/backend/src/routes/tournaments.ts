@@ -141,23 +141,16 @@ export async function payoutCycle(t: any, cycle: any) {
     orderBy: [
       { balance: 'desc' },
       { reachedAt: 'asc' },
+    ],
   });
-
-  const activeBettors = await prisma.$queryRaw<{ user_id: string }[]>`
-    SELECT DISTINCT user_id 
-    FROM bets 
-    WHERE metadata->>'tournamentCycleId' = ${cycle.id}
-  `;
-  const activeUserIds = new Set(activeBettors.map(b => b.user_id));
-  const activeParticipants = participants.filter(p => activeUserIds.has(p.userId));
 
   const winnerIds: string[] = [];
   const pool = toNumber(cycle.prizePool);
   const fixedPrize = t.fixedPrize ? toNumber(t.fixedPrize) : null;
 
   await prisma.$transaction(async (tx) => {
-    for (let idx = 0; idx < Math.min(t.winnersCount, activeParticipants.length); idx += 1) {
-      const p = activeParticipants[idx];
+    for (let idx = 0; idx < Math.min(t.winnersCount, participants.length); idx += 1) {
+      const p = participants[idx];
       const prize = computePrize(pool, t.prizeMode as PrizeMode, idx, t.winnersCount, fixedPrize);
       if (prize <= 0) continue;
       await creditRealBalance(tx, p.userId, prize, {
