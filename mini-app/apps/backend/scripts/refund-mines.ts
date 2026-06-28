@@ -120,6 +120,7 @@ async function main() {
     console.log('--- АВТОМАТИЧЕСКИЙ ПОИСК ПОСЛЕДНИХ ТУРНИРОВ И КОНКУРСОВ ---');
     
     const userIdsToRefund = new Set<string>();
+    // Храним фейковый объект lastBonus с правильным временем (время выплаты приза)
     const userBonuses = new Map<string, any>();
 
     // 1. Ищем последний выплаченный конкурс
@@ -134,12 +135,12 @@ async function main() {
       for (const w of winners) {
         if (w.userId) {
           userIdsToRefund.add(w.userId);
-          // Найдем транзакцию бонуса для этого юзера
-          const bonusTx = await prisma.transaction.findFirst({
-            where: { userId: w.userId, type: 'bonus' },
-            orderBy: { createdAt: 'desc' }
+          // Вместо поиска случайного последнего бонуса (который может быть ежедневкой),
+          // мы жестко задаем время выплаты конкурса как точку отсчета.
+          userBonuses.set(w.userId, {
+            amount: w.amount,
+            createdAt: lastContest.updatedAt
           });
-          if (bonusTx) userBonuses.set(w.userId, bonusTx);
         }
       }
       console.log(`   -> Добавлено ${winners.length} победителей конкурса.`);
@@ -165,7 +166,11 @@ async function main() {
 
       for (const b of cycleBonuses) {
         userIdsToRefund.add(b.userId);
-        userBonuses.set(b.userId, b);
+        // Точка отсчета - точное время создания бонусной транзакции за турнир
+        userBonuses.set(b.userId, {
+          amount: b.amount,
+          createdAt: b.createdAt
+        });
       }
       console.log(`   -> Добавлено ${cycleBonuses.length} победителей турнира.`);
     } else {
