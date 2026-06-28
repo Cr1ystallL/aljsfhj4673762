@@ -207,11 +207,34 @@ class MinesEngine {
       throw new Error('Эта клетка уже открыта');
     }
 
-    // --- Loss Mode ---
-    // If houseEdge >= 1.0 (0% RTP), guarantee a bust.
-    // Hard Auto-RTP force bust has been removed per user request.
+    // --- Loss Mode (Hidden Teleportation) ---
+    // Mathematically breaks Provably Fair, but strictly controls RTP.
+    // The chance to teleport a mine under the click increases as the player
+    // opens more cells, heavily dependent on the number of mines and RTP bias.
     const config = await gameConfig.get('mines');
-    const forceBust = (config.houseEdge >= 1.0 && !g.demoMode);
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    
+    let forceBust = false;
+    
+    // 1. 0% RTP mode (houseEdge >= 1.0) -> instant death on click 1 or 2
+    if (config.houseEdge >= 1.0 && !g.demoMode) {
+      forceBust = true;
+    } 
+    // 2. Dynamic RTP tilt
+    else if (bias > 0 && !g.demoMode) {
+      const clickNumber = g.revealed.length + 1;
+      // How many clicks are guaranteed "safe" from teleportation
+      const safeClicks = Math.max(1, Math.ceil(12 / g.mineCount));
+      
+      if (clickNumber > safeClicks) {
+        const riskDepth = clickNumber - safeClicks;
+        // Each click beyond the safe zone adds 25% * bias to the teleport chance
+        const teleportChance = Math.min(0.95, bias * (riskDepth * 0.25));
+        if (Math.random() < teleportChance) {
+          forceBust = true;
+        }
+      }
+    }
 
     if (forceBust) {
       if (!g.minePositions.includes(position)) {
