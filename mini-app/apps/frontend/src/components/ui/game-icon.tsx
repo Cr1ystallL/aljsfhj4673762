@@ -34,6 +34,8 @@ export type GameKey =
   | 'wheel'
   | 'bridges'
   | 'blackjack'
+  | 'cards'
+  | 'hilo'
   | 'unknown';
 
 /**
@@ -125,6 +127,8 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   wheel: { label: 'Wheel', Icon: Disc3 },
   bridges: { label: 'Bridges', Icon: Footprints },
   blackjack: { label: 'Blackjack', Icon: Spade },
+  cards: { label: 'Card Games', Icon: Spade },
+  hilo: { label: 'Hi-Lo', Icon: Spade },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 
@@ -143,6 +147,8 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('wheel')) return 'wheel';
   if (v.startsWith('bridges')) return 'bridges';
   if (v.startsWith('blackjack')) return 'blackjack';
+  if (v.startsWith('cards')) return 'cards';
+  if (v.startsWith('hilo')) return 'hilo';
   return 'unknown';
 }
 

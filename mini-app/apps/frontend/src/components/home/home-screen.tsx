@@ -45,7 +45,7 @@ interface InAppGame {
 const inAppGames: InAppGame[] = [
   { id: 'crash', name: 'MacvJet', href: '/game/crash', bg: '/MacvJet.png' },
   { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
-  { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/BLACKJACK.png', wide: true },
+  { id: 'cards', name: 'Card Games', href: '/game/cards', bg: '/cardgames.png', wide: true },
   { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
@@ -195,7 +195,7 @@ export function HomeScreen() {
 
   const visibleGames = useMemo(() => {
     // Если не смогли загрузить доступность, по умолчанию скрываем Blackjack для неадминов.
-    const hidden = availability?.hidden ?? { blackjack: true };
+    const hidden = availability?.hidden ?? { cards: true };
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
       if (hidden[g.id] && !isAdmin) return false;

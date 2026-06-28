@@ -23,7 +23,8 @@ export type GameType =
   | 'coinflip'
   | 'wheel'
   | 'bridges'
-  | 'blackjack';
+  | 'blackjack'
+  | 'hilo';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve

@@ -55,7 +55,7 @@ interface MenuDrawerProps {
 const inAppGames: Array<{ id: GameKey }> = [
   { id: 'crash' },
   { id: 'mines' },
-  { id: 'blackjack' },
+  { id: 'cards' },
   { id: 'plinko' },
   { id: 'coinflip' },
   { id: 'wheel' },
@@ -166,7 +166,7 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect, isAuthenticated = tr
 
   const visibleGames = useMemo(() => {
     if (!availabilityLoaded) return [] as typeof inAppGames;
-    const hiddenFallback: Partial<Record<GameKey, boolean>> = isAuthenticated ? {} : { blackjack: true };
+    const hiddenFallback: Partial<Record<GameKey, boolean>> = isAuthenticated ? {} : { cards: true };
     const hidden: Partial<Record<GameKey, boolean>> = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {

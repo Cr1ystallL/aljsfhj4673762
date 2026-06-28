@@ -3,7 +3,7 @@
  * Shared type definitions for all games
  */
 
-export type GameType = 'crash' | 'mines' | 'plinko' | 'keno' | 'coinflip' | 'cookies' | 'nuts';
+export type GameType = 'crash' | 'mines' | 'plinko' | 'keno' | 'coinflip' | 'cookies' | 'nuts' | 'hilo';
 
 export type GameState = 
   | 'idle'
