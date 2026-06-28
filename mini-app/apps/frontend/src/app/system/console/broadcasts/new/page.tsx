@@ -357,14 +357,14 @@ export default function NewBroadcastPage() {
                     key={key}
                     onClick={() => {
                       setAudModes((prev) => {
-                        // All and Filter are mutually exclusive for user targeting
-                        if (key === 'all') return [...prev.filter((k) => k !== 'filter' && k !== 'all'), 'all'];
-                        if (key === 'filter') return [...prev.filter((k) => k !== 'all' && k !== 'filter'), 'filter'];
-                        
                         if (prev.includes(key)) {
                           if (prev.length === 1) return prev; // prevent empty
                           return prev.filter((k) => k !== key);
                         }
+                        // Adding the key
+                        if (key === 'all') return [...prev.filter((k) => k !== 'filter'), 'all'];
+                        if (key === 'filter') return [...prev.filter((k) => k !== 'all'), 'filter'];
+                        
                         return [...prev, key];
                       });
                     }}
