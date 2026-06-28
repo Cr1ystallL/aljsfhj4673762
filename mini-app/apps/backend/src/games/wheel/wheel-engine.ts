@@ -435,7 +435,7 @@ class WheelEngine extends EventEmitter {
     // Settle all bets.
     const winners: Array<{ userId: string; pick: WheelMultiplier; amount: number; payout: number }> = [];
     for (const b of round.bets.values()) {
-      const wagerQualifying = (userCoverage.get(b.userId) || 0) <= 37; // >70% of 54 is >37.8
+      const wagerQualifying = !b.isTournament && (userCoverage.get(b.userId) || 0) <= 37; // >70% of 54 is >37.8
       const bet: Bet = {
         id: b.betId,
         userId: b.userId,

@@ -155,12 +155,13 @@ export default function UserDetailPage() {
   const [rtpForm, setRtpForm] = useState<{
     mode: RtpMode;
     target: string;
-    windowMs: string;
+    windowMinutes: string;
     intensity: string;
-  }>({ mode: 'off', target: '0', windowMs: '3600000', intensity: '0.6' });
+  }>({ mode: 'off', target: '0', windowMinutes: '60', intensity: '0.6' });
 
   const [wagerForm, setWagerForm] = useState({ target: '0', progress: '0' });
   const [wagerBusy, setWagerBusy] = useState(false);
+  const [wagerHistory, setWagerHistory] = useState<any[]>([]);
 
   // Action modal state — single modal driven by `action`.
   type Action = null | 'balance' | 'block' | 'lock';
@@ -202,9 +203,23 @@ export default function UserDetailPage() {
       setRtpForm({
         mode: j.config.mode,
         target: String(j.config.target),
-        windowMs: String(j.config.windowMs),
+        windowMinutes: String(Math.floor(j.config.windowMs / 60000)),
         intensity: String(j.config.intensity),
       });
+    } catch {
+      // ignore
+    }
+  }, [userId]);
+
+  const loadWagerHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/_x/users/${userId}/wager-history`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      if (j.history) setWagerHistory(j.history);
     } catch {
       // ignore
     }
@@ -217,6 +232,10 @@ export default function UserDetailPage() {
   useEffect(() => {
     void loadRtp();
   }, [loadRtp]);
+
+  useEffect(() => {
+    void loadWagerHistory();
+  }, [loadWagerHistory]);
 
   const handleCopyId = async () => {
     if (!data) return;
@@ -359,7 +378,7 @@ export default function UserDetailPage() {
       const body = {
         mode: rtpForm.mode,
         target: parseFloat(rtpForm.target) || 0,
-        windowMs: parseInt(rtpForm.windowMs, 10) || 3600000,
+        windowMs: Math.round((parseFloat(rtpForm.windowMinutes) || 60) * 60000),
         intensity: Math.min(1, Math.max(0, parseFloat(rtpForm.intensity) || 0)),
         reason: reason.trim(),
       };
@@ -375,7 +394,7 @@ export default function UserDetailPage() {
         setRtpForm({
           mode: j.config.mode,
           target: String(j.config.target),
-          windowMs: String(j.config.windowMs),
+          windowMinutes: String(Math.floor(j.config.windowMs / 60000)),
           intensity: String(j.config.intensity),
         });
         alert('Персональный RTP обновлён');
@@ -558,11 +577,11 @@ export default function UserDetailPage() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="font-roobert text-[11px] text-whisper-gray">Окно (мс)</label>
+              <label className="font-roobert text-[11px] text-whisper-gray">Окно (минуты)</label>
               <input
                 type="number"
-                value={rtpForm.windowMs}
-                onChange={(e) => setRtpForm((f) => ({ ...f, windowMs: e.target.value }))}
+                value={rtpForm.windowMinutes}
+                onChange={(e) => setRtpForm((f) => ({ ...f, windowMinutes: e.target.value }))}
                 className="rounded-card border border-white/10 bg-white/[0.04] px-3 py-2 text-frost-white text-[13px]"
               />
             </div>
@@ -636,7 +655,7 @@ export default function UserDetailPage() {
               />
             </div>
           </div>
-          <div className="flex items-center justify-end px-4 pb-4">
+          <div className="flex items-center justify-end px-4 pb-4 border-b border-white/10">
             <div className="flex gap-2">
               <button
                 onClick={submitWager}
@@ -646,6 +665,24 @@ export default function UserDetailPage() {
                 {wagerBusy ? 'Сохраняю…' : 'Сохранить Вейджер'}
               </button>
             </div>
+          </div>
+          <div className="p-4">
+            <h3 className="font-roobert text-[11px] text-whisper-gray mb-3 uppercase tracking-wider">История изменения вейджера</h3>
+            {wagerHistory.length === 0 ? (
+              <div className="text-[12px] text-white/50 italic">История пуста.</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {wagerHistory.map((item, i) => (
+                  <div key={i} className="flex justify-between items-center text-[12px] bg-white/[0.02] p-2 rounded-lg border border-white/5">
+                    <div>
+                      <span className="text-frost-white font-medium">{item.reason}</span>
+                      <span className="text-white/40 ml-2 text-[10px]">{formatDate(new Date(item.date).getTime())}</span>
+                      <div className="text-[10px] text-whisper-gray mt-1">Тип: {item.action} {item.amount ? `· Сумма: ${item.amount} PLN` : ''}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 

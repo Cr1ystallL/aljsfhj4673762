@@ -208,10 +208,14 @@ class MinesEngine {
     }
 
     // --- Loss Mode ---
-    // If houseEdge >= 1.0 (0% RTP), and it's a real money game, guarantee a bust
-    // by moving an unrevealed mine to the clicked position if it isn't one already.
+    // If houseEdge >= 1.0 (0% RTP), guarantee a bust.
+    // Or if Hard Auto-RTP is active (bias >= 1.0), force bust with 90% probability.
     const config = await gameConfig.get('mines');
-    if (config.houseEdge >= 1.0 && !g.demoMode) {
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const forceBust = (config.houseEdge >= 1.0 && !g.demoMode) || 
+                      (bias >= 1.0 && !g.demoMode && Math.random() < 0.90);
+
+    if (forceBust) {
       if (!g.minePositions.includes(position)) {
         const unrevealedMines = g.minePositions.filter((m) => !g.revealed.includes(m));
         if (unrevealedMines.length > 0) {

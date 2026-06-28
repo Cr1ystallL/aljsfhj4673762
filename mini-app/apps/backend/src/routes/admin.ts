@@ -1085,6 +1085,77 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ----------------------------------------------------- wager history */
+  app.get<{ Params: { id: string } }>(
+    '/_x/users/:id/wager-history',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      
+      const auditLogs = await app.prisma.adminAuditLog.findMany({
+        where: {
+          targetId: id,
+          action: { in: ['user.wager.update', 'balance.credit'] }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      });
+
+      const transactions = await app.prisma.transaction.findMany({
+        where: {
+          userId: id,
+          type: 'deposit'
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      });
+      
+      const promoRedemptions = await app.prisma.promoRedemption.findMany({
+        where: { userId: id },
+        include: { promoCode: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      });
+
+      const history: any[] = [];
+      
+      for (const log of auditLogs) {
+        history.push({
+          type: 'admin',
+          action: log.action,
+          reason: log.reason,
+          date: log.createdAt.toISOString(),
+          payloadBefore: log.payloadBefore,
+          payloadAfter: log.payloadAfter,
+        });
+      }
+      
+      for (const tx of transactions) {
+        history.push({
+          type: 'deposit',
+          action: 'deposit',
+          reason: 'Депозит',
+          amount: Number(tx.amount),
+          date: tx.createdAt.toISOString(),
+        });
+      }
+      
+      for (const promo of promoRedemptions) {
+        history.push({
+          type: 'promo',
+          action: 'promo_redemption',
+          reason: `Промокод: ${promo.promoCode.code}`,
+          amount: Number(promo.amount),
+          date: promo.createdAt.toISOString(),
+        });
+      }
+      
+      history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      return reply.send({ history: history.slice(0, 30) });
+    }
+  );
+
   /* ------------------------------------------------------------- flags */
 
   app.post<{
