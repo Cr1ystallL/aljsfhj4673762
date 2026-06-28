@@ -25,9 +25,7 @@ export function startTournamentCron() {
       });
 
       for (const cycle of expiredCycles) {
-        if (!cycle.tournament.active) continue;
-        
-        logger.info({ cycleId: cycle.id, tournamentId: cycle.tournament.id }, 'Automatically settling expired tournament cycle');
+        logger.info({ cycleId: cycle.id, tournamentId: cycle.tournament.id, active: cycle.tournament.active }, 'Automatically settling expired tournament cycle');
         
         try {
           await payoutCycle(cycle.tournament, cycle);
