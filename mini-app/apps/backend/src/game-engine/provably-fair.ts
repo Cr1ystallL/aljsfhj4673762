@@ -192,10 +192,9 @@ export class ProvablyFairSystem {
 
     const cells: number[] = Array.from({ length: totalCells }, (_, i) => i);
     
-    // Soft tilt: max rejection probability capped at 0.35 (35% chance to re-roll
-    // if the mine lands in an unfavorable spot). This prevents the "obvious" 
-    // 1st-click loss while still pushing the overall odds toward the house.
-    let rejectionProb = Math.min(Math.abs(b) * TILT.minesShuffle, 0.35);
+    // Bias for mines is completely disabled as per user request to ensure 
+    // a 100% fair board. The mine positions will be perfectly random.
+    let rejectionProb = 0;
 
     for (let i = 0; i < safeMineCount; i++) {
       const remaining = totalCells - i;
