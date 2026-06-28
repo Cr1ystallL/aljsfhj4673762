@@ -45,11 +45,13 @@ interface InAppGame {
 const inAppGames: InAppGame[] = [
   { id: 'crash', name: 'MacvJet', href: '/game/crash', bg: '/MacvJet.png' },
   { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
-  { id: 'cards', name: 'Card Games', href: '/game/cards', bg: '/cardgames.png', wide: true },
+  { id: 'hilo', name: 'Hi-Lo', href: '/game/hilo', bg: '/hilo.png', wide: true },
   { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
+  { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/bj.png', wide: true },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
+  { id: 'baccarat', name: 'Baccarat', href: '/game/baccarat', bg: '/baccarat.png', wide: true },
 ];
 
 const BOT_USERNAME =
