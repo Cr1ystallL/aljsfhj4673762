@@ -116,6 +116,79 @@ async function main() {
     
     console.log('\n=== МАССОВЫЙ ВОЗВРАТ ЗАВЕРШЕН ===');
 
+  } else if (arg.toLowerCase() === 'auto') {
+    console.log('--- АВТОМАТИЧЕСКИЙ ПОИСК ПОСЛЕДНИХ ТУРНИРОВ И КОНКУРСОВ ---');
+    
+    const userIdsToRefund = new Set<string>();
+    const userBonuses = new Map<string, any>();
+
+    // 1. Ищем последний выплаченный конкурс
+    const lastContest = await prisma.contest.findFirst({
+      where: { state: 'paid' },
+      orderBy: { endsAt: 'desc' }
+    });
+
+    if (lastContest && lastContest.resolvedWinners) {
+      console.log(`✅ Нашёлся последний конкурс: "${lastContest.title}" (ID: ${lastContest.id})`);
+      const winners = lastContest.resolvedWinners as any[];
+      for (const w of winners) {
+        if (w.userId) {
+          userIdsToRefund.add(w.userId);
+          // Найдем транзакцию бонуса для этого юзера
+          const bonusTx = await prisma.transaction.findFirst({
+            where: { userId: w.userId, type: 'bonus' },
+            orderBy: { createdAt: 'desc' }
+          });
+          if (bonusTx) userBonuses.set(w.userId, bonusTx);
+        }
+      }
+      console.log(`   -> Добавлено ${winners.length} победителей конкурса.`);
+    } else {
+      console.log('⚠️ Выплаченных конкурсов не найдено.');
+    }
+
+    // 2. Ищем последний выплаченный турнир (цикл)
+    const lastCycle = await prisma.tournamentCycle.findFirst({
+      where: { state: 'paid' },
+      orderBy: { endsAt: 'desc' }
+    });
+
+    if (lastCycle) {
+      console.log(`✅ Нашёлся последний завершенный турнир (Цикл ID: ${lastCycle.id})`);
+      
+      const cycleBonuses = await prisma.$queryRaw<any[]>`
+        SELECT id, user_id as "userId", amount, created_at as "createdAt"
+        FROM transactions 
+        WHERE type = 'bonus' 
+          AND metadata->>'tournamentCycleId' = ${lastCycle.id}
+      `;
+
+      for (const b of cycleBonuses) {
+        userIdsToRefund.add(b.userId);
+        userBonuses.set(b.userId, b);
+      }
+      console.log(`   -> Добавлено ${cycleBonuses.length} победителей турнира.`);
+    } else {
+      console.log('⚠️ Выплаченных турнирных циклов не найдено.');
+    }
+
+    if (userIdsToRefund.size === 0) {
+      console.log('❌ Не найдено ни одного победителя. Выход.');
+      process.exit(0);
+    }
+
+    console.log(`\nНайдено ${userIdsToRefund.size} уникальных победителей. Начинаем возврат...`);
+
+    for (const userId of userIdsToRefund) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const lastBonus = userBonuses.get(userId);
+      if (user && lastBonus) {
+        await processUser(user, lastBonus);
+      }
+    }
+
+    console.log('\n=== АВТОМАТИЧЕСКИЙ ВОЗВРАТ ЗАВЕРШЕН ===');
+
   } else {
     // Режим для одного или нескольких пользователей (через запятую)
     const telegramIds = arg.split(',').map(id => id.trim()).filter(id => id.length > 0);
