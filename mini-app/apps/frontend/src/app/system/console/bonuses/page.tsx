@@ -177,10 +177,11 @@ function TournamentsTab() {
                 <span
                   className={cn(
                     'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04]',
-                    t.cycleState === 'ended' && 'text-[#ffb199] border-[#ffb199]/50'
+                    t.cycleState === 'ended' && 'text-[#ffb199] border-[#ffb199]/50',
+                    t.cycleState === 'waiting' && 'text-[#ffac2e] border-[#ffac2e]/50'
                   )}
                 >
-                  {t.cycleState === 'ended' ? 'Завершён' : t.active ? 'Активен' : 'Выключен'}
+                  {t.cycleState === 'ended' ? 'Завершён' : t.cycleState === 'waiting' ? 'Ожидание' : t.active ? 'Активен' : 'Выключен'}
                 </span>
               </div>
               <div className="font-roobert text-[15px] text-frost-white truncate">{t.title}</div>

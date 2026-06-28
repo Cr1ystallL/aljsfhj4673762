@@ -226,8 +226,14 @@ export default function AdminTournamentPage() {
         <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-whisper-gray text-[12px] hover:text-frost-white transition-colors">
           <ArrowLeft size={14} /> Назад
         </button>
-        <span className={cn('px-2 py-1 rounded-pill text-[10px] uppercase tracking-wider border', data.cycleState === 'ended' ? 'text-[#ffb199] border-[#ffb199]/50 bg-[#ffb199]/10' : data.active ? 'text-[#a0e0ab] border-[#a0e0ab]/50 bg-[#a0e0ab]/10' : 'text-whisper-gray border-white/20')}>
-          {data.cycleState === 'ended' ? 'Цикл завершён' : data.active ? 'Активен' : 'Выключен'}
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.03] text-[12px]',
+            data.cycleState === 'ended' && 'text-[#ffb199] border-[#ffb199]/50',
+            data.cycleState === 'waiting' && 'text-[#ffac2e] border-[#ffac2e]/50'
+          )}
+        >
+          {data.cycleState === 'ended' ? 'Цикл завершён' : data.cycleState === 'waiting' ? 'Ожидание' : data.active ? 'Активен' : 'Выключен'}
         </span>
         <button onClick={() => setEditOpen(true)} className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] text-[12px] text-frost-white hover:border-white/30 transition-colors">
           <SettingsIcon size={14} /> Редактировать
