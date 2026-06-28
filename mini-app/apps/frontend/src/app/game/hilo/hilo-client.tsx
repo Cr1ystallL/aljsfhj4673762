@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, RefreshCw, HandCoins, Diamond, Heart, Club, Spade } from 'lucide-react';
-import { useAuth } from '@/components/auth/auth-context';
-import { api } from '@/lib/api';
-import { GameLayout } from '@/components/game/game-layout';
+import { useAuthStore } from '@/store/auth-store';
+import { useBalance } from '@/hooks/use-balance';
+import { apiClient } from '@/lib/api/client';
+import { GameTopBar } from '@/components/game/game-top-bar';
 
 type Card = { suit: 'hearts' | 'diamonds' | 'clubs' | 'spades'; rank: number };
 type HiloStatus = 'idle' | 'playing' | 'cashed_out' | 'busted';
@@ -40,7 +41,8 @@ function SuitIcon({ suit, className }: { suit: string, className?: string }) {
 
 export function HiloClient() {
   const router = useRouter();
-  const { user, mutateBalance } = useAuth();
+  const user = useAuthStore((s) => s.user);
+  const { syncBalance } = useBalance();
   
   const [state, setState] = useState<HiloState | null>(null);
   const [betAmount, setBetAmount] = useState<string>('10');
@@ -51,9 +53,9 @@ export function HiloClient() {
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    api.get('/api/games/hilo/state')
-      .then((res) => {
-        if (res.data?.state) setState(res.data.state);
+    apiClient.get('/games/hilo/state')
+      .then((res: any) => {
+        if (res.state) setState(res.state);
       })
       .catch((err) => console.error('Failed to fetch hilo state', err))
       .finally(() => setLoading(false));
@@ -64,8 +66,8 @@ export function HiloClient() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.post('/api/games/hilo/swap');
-      if (res.data?.state) setState(res.data.state);
+      const res: any = await apiClient.post('/games/hilo/swap');
+      if (res.state) setState(res.state);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to swap');
     } finally {
@@ -82,10 +84,10 @@ export function HiloClient() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.post('/api/games/hilo/start', { amount });
-      if (res.data?.state) {
-        setState(res.data.state);
-        mutateBalance();
+      const res: any = await apiClient.post('/games/hilo/start', { amount });
+      if (res.state) {
+        setState(res.state);
+        syncBalance();
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to start');
@@ -99,10 +101,10 @@ export function HiloClient() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.post('/api/games/hilo/guess', { choice });
-      if (res.data?.state) {
-        setState(res.data.state);
-        if (res.data.state.status === 'busted') {
+      const res: any = await apiClient.post('/games/hilo/guess', { choice });
+      if (res.state) {
+        setState(res.state);
+        if (res.state.status === 'busted') {
           // You could show a bust animation here
         }
       }
@@ -118,10 +120,10 @@ export function HiloClient() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.post('/api/games/hilo/cashout');
-      if (res.data?.state) {
-        setState(res.data.state);
-        mutateBalance();
+      const res: any = await apiClient.post('/games/hilo/cashout');
+      if (res.state) {
+        setState(res.state);
+        syncBalance();
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to cashout');
@@ -131,8 +133,9 @@ export function HiloClient() {
   };
 
   return (
-    <GameLayout game="hilo">
-      <div className="flex flex-col gap-4">
+    <main className="min-h-screen bg-midnight-canvas text-frost-white pb-20">
+      <GameTopBar gameId="hilo" />
+      <div className="mx-auto max-w-[800px] px-4 pt-4 flex flex-col gap-4">
         {/* Play Area */}
         <div className="relative min-h-[300px] rounded-xl border border-white/10 bg-gradient-to-b from-green-900/40 to-green-950/40 p-6 flex flex-col items-center justify-center">
           
@@ -269,6 +272,6 @@ export function HiloClient() {
           )}
         </div>
       </div>
-    </GameLayout>
+    </main>
   );
 }
