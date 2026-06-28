@@ -24,14 +24,14 @@ async function processUser(user: any, lastBonus: any) {
   let totalWins = 0;
 
   for (const tx of minesTxs) {
-    if (tx.type === 'bet') totalBets += Number(tx.amount);
-    if (tx.type === 'win') totalWins += Number(tx.amount);
+    if (tx.type === 'bet') totalBets += Math.abs(Number(tx.amount));
+    if (tx.type === 'win') totalWins += Math.abs(Number(tx.amount));
   }
 
   const netLoss = totalBets - totalWins;
 
-  console.log(`  -> Ставки в мины: ${totalBets}`);
-  console.log(`  -> Выигрыши в мины: ${totalWins}`);
+  console.log(`  -> Общая сумма ставок: ${totalBets}`);
+  console.log(`  -> Общая сумма выигрышей: ${totalWins}`);
 
   if (netLoss <= 0) {
     console.log(`  ✅ Пользователь в плюсе (или при своих) на ${-netLoss}. Возврат не требуется.`);
