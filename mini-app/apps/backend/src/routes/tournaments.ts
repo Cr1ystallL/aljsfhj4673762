@@ -564,6 +564,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
       if (!t || !t.active) return reply.code(404).send({ error: 'Not found' });
       const cycle = await ensureCycle(t);
       const now = Date.now();
+      if (cycle.state === 'waiting') return reply.code(400).send({ error: 'Турнир еще не начался' });
       if (cycle.state === 'ended' || now > cycle.endsAt.getTime()) return reply.code(400).send({ error: 'Цикл завершён' });
 
       try {

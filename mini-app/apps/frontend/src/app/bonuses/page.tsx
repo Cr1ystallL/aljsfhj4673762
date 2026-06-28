@@ -239,7 +239,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (tournament.joined) {
+              if (tournament.joined || isBeforeStart) {
                 router.push(`/tournaments/${tournament.id}`);
               } else {
                 onJoin();
@@ -248,7 +248,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
             disabled={busy && !tournament.joined}
             className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
           >
-            {tournament.joined ? 'К турниру' : 'Участвовать'}
+            {tournament.joined || isBeforeStart ? 'К турниру' : 'Участвовать'}
             <ArrowRight size={11} strokeWidth={1.8} />
           </button>
         </div>
