@@ -42,14 +42,15 @@ async function processUser(user: any, lastBonus: any) {
   console.log(`  ⏳ Делаем возврат...`);
 
   await prisma.$transaction(async (tx) => {
-    const u = await tx.user.findUnique({ where: { id: user.id }, select: { balance: true } });
-    if (!u) return;
+    const b = await tx.balance.findUnique({ where: { userId: user.id } });
+    if (!b) return;
 
-    const newBalance = Number(u.balance) + netLoss;
+    const oldBalance = Number(b.amount);
+    const newBalance = oldBalance + netLoss;
 
-    await tx.user.update({
-      where: { id: user.id },
-      data: { balance: newBalance }
+    await tx.balance.update({
+      where: { userId: user.id },
+      data: { amount: newBalance }
     });
 
     await tx.transaction.create({
@@ -57,14 +58,14 @@ async function processUser(user: any, lastBonus: any) {
         userId: user.id,
         type: 'refund',
         amount: netLoss,
-        balanceBefore: u.balance,
+        balanceBefore: oldBalance,
         balanceAfter: newBalance,
         metadata: { reason: 'Возврат проигрыша в минах после бага с хард-режимом' }
       }
     });
   });
 
-  console.log(`  🎉 Возврат успешно выполнен! Новый баланс пользователя: ${Number(user.balance) + netLoss}`);
+  console.log(`  🎉 Возврат успешно выполнен!`);
 }
 
 async function main() {
