@@ -15,6 +15,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { PlayingCard, Suit, Rank, CardData, getCardColor, getRankName } from '@/components/game/hilo/playing-card';
+import { HiloHistory, type HiloHistoryEntry } from '@/components/game/hilo/hilo-history';
 
 type HiloStatus = 'idle' | 'playing' | 'cashed_out' | 'busted';
 
@@ -39,10 +40,22 @@ export function HiloClient() {
   const [betAmount, setBetAmount] = useState<string>('10');
   const [loading, setLoading] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [history, setHistory] = useState<HiloHistoryEntry[]>([]);
+
+  const refreshHistory = async () => {
+    try {
+      const res = await fetch('/api/games/hilo/history?limit=20', { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json();
+        setHistory(json.history ?? []);
+      }
+    } catch {}
+  };
 
   // Sound init & fetch initial state
   useEffect(() => {
     soundManager.initialize();
+    refreshHistory();
     if (!user) return;
     
     let alive = true;
@@ -51,7 +64,7 @@ export function HiloClient() {
     const init = async () => {
       try {
         await fetchBalance();
-        const res: any = await apiClient.get('/games/hilo/state');
+        const res: any = await apiClient.get('/api/games/hilo/state');
         if (alive && res.state) setState(res.state);
       } catch (err) {
         console.error('Failed to fetch hilo state', err);
@@ -61,14 +74,22 @@ export function HiloClient() {
     };
     init();
 
-    return () => { alive = false; };
+    // Poll history every 8 seconds
+    const interval = setInterval(() => {
+      if (alive) refreshHistory();
+    }, 8000);
+
+    return () => { 
+      alive = false; 
+      clearInterval(interval);
+    };
   }, [user]);
 
   const handleSwap = async () => {
     if (state?.status === 'playing' || loading) return;
     try {
       setLoading(true);
-      const res: any = await apiClient.post('/games/hilo/swap');
+      const res: any = await apiClient.post('/api/games/hilo/swap');
       if (res.state) setState(res.state);
       soundManager.play('game.click');
     } catch (err: any) {
@@ -90,11 +111,12 @@ export function HiloClient() {
     }
     try {
       setLoading(true);
-      const res: any = await apiClient.post('/games/hilo/start', { amount });
+      const res: any = await apiClient.post('/api/games/hilo/start', { amount });
       if (res.state) {
         setState(res.state);
         soundManager.play('game.bet_placed');
         fetchBalance();
+        refreshHistory();
       }
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to start');
@@ -107,11 +129,13 @@ export function HiloClient() {
     if (state?.status !== 'playing' || loading) return;
     try {
       setLoading(true);
-      const res: any = await apiClient.post('/games/hilo/guess', { choice });
+      const res: any = await apiClient.post('/api/games/hilo/guess', { choice });
       if (res.state) {
         setState(res.state);
         if (res.state.status === 'busted') {
           soundManager.play('game.lose');
+          fetchBalance();
+          refreshHistory();
         } else {
           soundManager.play('game.win');
         }
@@ -131,12 +155,12 @@ export function HiloClient() {
     }
     try {
       setLoading(true);
-      const res: any = await apiClient.post('/games/hilo/cashout');
+      const res: any = await apiClient.post('/api/games/hilo/cashout');
       if (res.state) {
         setState(res.state);
         soundManager.play('game.cashout');
-        toast.cashout(res.state.currentMultiplier, 'Cashed out');
         fetchBalance();
+        refreshHistory();
       }
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to cashout');
@@ -158,10 +182,10 @@ export function HiloClient() {
   const higherProb = ((14 - currentRank) / 13) * 100;
   const lowerProb = (currentRank / 13) * 100;
   
-  const currentBet = isPlaying || isBusted || isCashed ? state?.betAmount || 0 : parseFloat(betAmount) || 0;
+  const currentBet = state?.betAmount || parseFloat(betAmount) || 0;
   
-  const higherMult = state?.nextMultipliers?.higher || 1.0;
-  const lowerMult = state?.nextMultipliers?.lower || 1.0;
+  const higherMult = state?.nextMultipliers?.higher || 0;
+  const lowerMult = state?.nextMultipliers?.lower || 0;
   
   const profitHigher = currentBet * higherMult;
   const profitLower = currentBet * lowerMult;
@@ -221,18 +245,18 @@ export function HiloClient() {
           <div className="grid grid-cols-2 gap-3 w-full relative z-10 mt-2">
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
               <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
-                Прибыль, если выше ({higherMult.toFixed(2)}×)
+                Прибыль, если выше ({higherMult > 0 ? higherMult.toFixed(2) + '×' : '--'})
               </div>
               <div className="text-sm font-roobert text-frost-white font-medium">
-                {profitHigher.toFixed(2)} zł
+                {higherMult > 0 ? profitHigher.toFixed(2) + ' zł' : '--'}
               </div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
               <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
-                Прибыль, если ниже ({lowerMult.toFixed(2)}×)
+                Прибыль, если ниже ({lowerMult > 0 ? lowerMult.toFixed(2) + '×' : '--'})
               </div>
               <div className="text-sm font-roobert text-frost-white font-medium">
-                {profitLower.toFixed(2)} zł
+                {lowerMult > 0 ? profitLower.toFixed(2) + ' zł' : '--'}
               </div>
             </div>
           </div>
@@ -272,7 +296,7 @@ export function HiloClient() {
             
             <div className={`flex items-center justify-between rounded-pill border transition-colors ${isPlaying ? 'border-white/5 bg-white/[0.02] opacity-50' : 'border-white/15 bg-white/[0.04] focus-within:border-white/30'}`}>
               <div className="flex items-center pl-4 w-1/2">
-                <span className="text-white/40 font-roobert mr-1">$</span>
+                <span className="text-white/40 font-roobert mr-1">zł</span>
                 <input
                   type="number"
                   value={isPlaying ? currentBet : betAmount}
@@ -309,7 +333,7 @@ export function HiloClient() {
               <button
                 onClick={isBusted || isCashed ? handleNewBet : handleStart}
                 disabled={loading}
-                className="w-full h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
+                className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Ставка
               </button>
@@ -317,7 +341,7 @@ export function HiloClient() {
               <button
                 onClick={handleCashout}
                 disabled={loading || state.currentMultiplier <= 1.0}
-                className="w-full h-12 rounded-pill bg-emerald-500 text-black font-roobert text-[14px] font-semibold tracking-wide hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50"
+                className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-emerald-500 text-black font-roobert text-[14px] font-semibold tracking-wide hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Забрать {(currentBet * state.currentMultiplier).toFixed(2)} zł
               </button>
@@ -367,6 +391,9 @@ export function HiloClient() {
             </button>
           </div>
         </section>
+
+        {/* Live History Ticker */}
+        <HiloHistory entries={history} currency={tBal ? '🏆' : 'zł'} />
       </div>
       
       {/* Hide scrollbar styles injected */}

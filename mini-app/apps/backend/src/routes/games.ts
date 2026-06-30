@@ -1368,5 +1368,50 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: err.message });
     }
   });
+
+  app.get('/hilo/my-history', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    const { limit = '10' } = request.query as { limit?: string };
+    const parsedLimit = Math.min(Math.max(1, parseInt(limit, 10) || 10), 100);
+
+    try {
+      const bets = await prisma.bet.findMany({
+        where: { userId, gameId: { startsWith: 'hilo_' }, state: { in: ['completed', 'failed'] } },
+        orderBy: { placedAt: 'desc' },
+        take: parsedLimit,
+        include: { user: { select: { name: true, photoUrl: true } } }
+      });
+      const history = bets.map((b) => ({
+        id: b.id, name: b.user.name || 'Anonymous', photoUrl: b.user.photoUrl,
+        betAmount: b.amount, multiplier: b.multiplier ?? 0, payout: b.payout ?? 0, timestamp: b.placedAt
+      }));
+      return reply.send({ success: true, history });
+    } catch (error) {
+      logger.error(error, 'Failed to fetch hilo my-history');
+      return reply.status(500).send({ success: false, message: 'history fetch failed' });
+    }
+  });
+
+  app.get('/hilo/history', { preHandler: authenticate }, async (request, reply) => {
+    const { limit = '20' } = request.query as { limit?: string };
+    const parsedLimit = Math.min(Math.max(1, parseInt(limit, 10) || 20), 100);
+
+    try {
+      const bets = await prisma.bet.findMany({
+        where: { gameId: { startsWith: 'hilo_' }, state: { in: ['completed', 'failed'] } },
+        orderBy: { placedAt: 'desc' },
+        take: parsedLimit,
+        include: { user: { select: { name: true, photoUrl: true } } }
+      });
+      const history = bets.map((b) => ({
+        id: b.id, name: b.user.name || 'Anonymous', photoUrl: b.user.photoUrl,
+        betAmount: b.amount, multiplier: b.multiplier ?? 0, payout: b.payout ?? 0, timestamp: b.placedAt
+      }));
+      return reply.send({ success: true, history });
+    } catch (error) {
+      logger.error(error, 'Failed to fetch hilo history');
+      return reply.status(500).send({ success: false, message: 'history fetch failed' });
+    }
+  });
 }
 
