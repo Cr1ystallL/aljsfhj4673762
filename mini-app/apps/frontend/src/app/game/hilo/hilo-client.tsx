@@ -14,8 +14,9 @@ import { toast } from '@/store/toast-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { PlayingCard, Suit, Rank, CardData, getCardColor, getRankName } from '@/components/game/hilo/playing-card';
+import { CardData, PlayingCard } from '@/components/game/hilo/playing-card';
 import { HiloHistory, type HiloHistoryEntry } from '@/components/game/hilo/hilo-history';
+import { getCardColor, getRankName } from '@/components/game/hilo/playing-card';
 
 type HiloStatus = 'idle' | 'playing' | 'cashed_out' | 'busted';
 
@@ -38,10 +39,10 @@ export function HiloClient() {
 
   const [state, setState] = useState<HiloState | null>(null);
   const [betAmount, setBetAmount] = useState<string>('10');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [history, setHistory] = useState<HiloHistoryEntry[]>([]);
-
+  
   const refreshHistory = async () => {
     try {
       const res = await fetch('/api/games/hilo/history?limit=20', { credentials: 'include' });
@@ -51,6 +52,16 @@ export function HiloClient() {
       }
     } catch {}
   };
+  const [allCardsHistory, setAllCardsHistory] = useState<CardData[]>([]);
+  const prevCardRef = useRef<CardData | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll history
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, [allCardsHistory.length]);
 
   // Sound init & fetch initial state
   useEffect(() => {
@@ -64,7 +75,10 @@ export function HiloClient() {
     const refreshState = async () => {
       try {
         const res: any = await apiClient.get('/api/games/hilo/state');
-        if (alive && res.state) setState(res.state);
+        if (alive && res.state) {
+            setState(res.state);
+            if (res.state.history) setAllCardsHistory(res.state.history);
+        }
       } catch (err) {
         console.error('Failed to fetch hilo state', err);
       }
@@ -91,7 +105,16 @@ export function HiloClient() {
       alive = false; 
       clearInterval(interval);
     };
-  }, [user]);
+  }, [user, fetchBalance]);
+
+  useEffect(() => {
+    if (state?.currentCard) {
+      if (prevCardRef.current !== state.currentCard) {
+        setAllCardsHistory(prev => [...prev, state.currentCard!]);
+        prevCardRef.current = state.currentCard;
+      }
+    }
+  }, [state?.currentCard]);
 
   const handleSwap = async () => {
     if (state?.status === 'playing' || loading) return;
@@ -236,6 +259,16 @@ export function HiloClient() {
 
         {/* Play Area */}
         <section className="relative rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center gap-6 overflow-hidden">
+          
+          {/* Status Message */}
+          {(isBusted || isCashed) && (
+            <div className={`w-full text-center py-2 rounded-lg bg-black/30 backdrop-blur-md border ${isBusted ? 'border-[#ff4949]/30 text-[#ff4949]' : 'border-emerald-500/30 text-emerald-400'}`}>
+              <span className="font-roobert font-medium text-sm tracking-wide uppercase">
+                {isBusted ? 'Ставка проиграна' : `Выиграно +${(currentBet * state!.currentMultiplier).toFixed(2)} zł`}
+              </span>
+            </div>
+          )}
+
           {/* Backdrop Glow */}
           <div
             aria-hidden
@@ -263,8 +296,9 @@ export function HiloClient() {
               
               {/* Current Card (Center) */}
               <PlayingCard 
-                key={`current-${state?.history?.length}`}
+                key={`current-${Math.max(1, state?.history?.length || 1)}`}
                 card={state?.currentCard || null} 
+                animateKey={`current-${Math.max(1, state?.history?.length || 1)}`}
                 className="w-36 h-52 absolute z-10 shadow-2xl" 
                 direction="right-to-left"
               />
@@ -308,13 +342,20 @@ export function HiloClient() {
           )}
 
           {/* History Strip */}
-          <div className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4rem] px-2 hide-scrollbar">
-            {state?.history?.map((card, idx) => (
-              <div key={idx} className={`flex h-12 w-9 shrink-0 flex-col items-center justify-center rounded bg-white shadow-sm ring-1 ring-black/5 ${getCardColor(card.suit)}`}>
-                <span className="text-[11px] font-bold font-roobert leading-none tracking-tighter">{getRankName(card.rank)}</span>
-                <span className="text-[10px] leading-none mt-[2px]">{card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠'}</span>
-              </div>
+          <div ref={scrollRef} className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4.5rem] px-2 hide-scrollbar scroll-smooth">
+            {allCardsHistory.map((card, idx) => (
+              <motion.div 
+                key={idx}
+                initial={{ opacity: 0, x: 20, scale: 0.8 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className={`flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded bg-white shadow-sm ring-1 ring-black/5 ${getCardColor(card.suit)}`}
+              >
+                <span className="text-[12px] font-bold font-roobert leading-none tracking-tighter">{getRankName(card.rank)}</span>
+                <span className="text-[12px] leading-none mt-[2px]">{card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠'}</span>
+              </motion.div>
             ))}
+            <div className="w-1 shrink-0" />
           </div>
         </section>
 

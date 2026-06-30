@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
@@ -136,7 +136,7 @@ export function HiloHistory({ entries, currency = 'zl' }: HiloHistoryProps) {
                     won ? 'text-frost-white' : 'text-[#ff8a76]/85'
                   )}
                 >
-                  {won ? '+' : '?'}
+                  {won ? '+' : '-'}
                   {(won
                     ? row.payout
                     : row.betAmount
