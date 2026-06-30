@@ -112,7 +112,7 @@ export function HiloClient() {
       if (res.state) setState(res.state);
       soundManager.play('game.click');
     } catch (err: any) {
-      reportApiError(null, err?.response?.data || err, 'Failed to skip card');
+      toast.error(err?.response?.data?.error || 'Failed to skip card');
       refreshState();
     } finally {
       setLoading(false);
@@ -197,7 +197,7 @@ export function HiloClient() {
         refreshHistory();
       }
     } catch (err: any) {
-      reportApiError(null, err?.response?.data || err, 'Failed to cashout');
+      toast.error(err?.response?.data?.error || 'Failed to cashout');
       const refreshState = async () => {
         try {
           const r: any = await apiClient.get('/api/games/hilo/state');

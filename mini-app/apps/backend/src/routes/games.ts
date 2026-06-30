@@ -1320,6 +1320,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const state = await hiloEngine.swap(userId);
       return reply.send({ ok: true, state });
     } catch (err: any) {
+      console.error('Hilo Swap Error:', err);
       return reply.status(400).send({ error: err.message });
     }
   });
@@ -1365,6 +1366,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const state = await hiloEngine.cashout(userId);
       return reply.send({ ok: true, state });
     } catch (err: any) {
+      console.error('Hilo Cashout Error:', err);
       return reply.status(400).send({ error: err.message });
     }
   });
