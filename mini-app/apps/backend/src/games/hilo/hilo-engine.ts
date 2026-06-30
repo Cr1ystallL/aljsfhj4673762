@@ -135,7 +135,7 @@ export const hiloEngine = {
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (!state.currentCard) throw new Error('No current card');
 
-    const bias = await rtpEngine.getBiasFor(userId, 'hilo');
+    const bias = await rtpEngine.getBiasFor(userId);
     let shouldWin: boolean | null = null;
     if (bias > 0 && Math.random() < bias) shouldWin = false; // Casino favours, player loses
     else if (bias < 0 && Math.random() < -bias) shouldWin = true; // Player favours, player wins
