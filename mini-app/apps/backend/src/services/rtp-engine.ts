@@ -443,8 +443,8 @@ class RtpEngine {
       });
       if (b && Number(b.autoRtpProgress) < Number(b.autoRtpTarget)) {
         // If we are actively wagering an AutoRTP target, apply a high bias to force losses.
-        // We return a bias of +1.0 which maps to the maximum configured tilt (e.g. 70% loss in Coinflip).
-        return 1.0;
+        const sysCfg = await systemConfig.get();
+        return sysCfg.autoRtpLossChance;
       }
     } catch (err) {
       logger.error({ err, userId }, 'Failed to check AutoRTP progress for bias');
