@@ -48,7 +48,12 @@ export function getHiloMultipliers(currentRank: number, edge: number = 0.04): { 
   const probLower = lowerCards / 13;
   const lower = +( (1 / probLower) * rtp ).toFixed(2);
 
-  return { red: redBlack, black: redBlack, higher, lower };
+  return { 
+    red: Math.max(1.01, redBlack), 
+    black: Math.max(1.01, redBlack), 
+    higher: Math.max(1.01, higher), 
+    lower: Math.max(1.01, lower) 
+  };
 }
 
 export const hiloEngine = {
@@ -140,9 +145,18 @@ export const hiloEngine = {
     if (!state.currentCard) throw new Error('No current card');
 
     const bias = await rtpEngine.getBiasFor(userId);
+    const cfg = await gameConfig.get('hilo');
+    
+    // Hilo-specific RTP forced loss mechanic based on house edge setting
+    // If house edge is 100 (which is RTP 0%), localBias is 1.0 (100% loss)
+    const localBias = cfg.houseEdge >= 1 ? cfg.houseEdge / 100 : cfg.houseEdge;
+    
+    // Total bias towards casino winning
+    const totalBias = Math.max(bias, localBias);
+
     let shouldWin: boolean | null = null;
-    if (bias > 0 && Math.random() < bias) shouldWin = false; // Casino favours, player loses
-    else if (bias < 0 && Math.random() < -bias) shouldWin = true; // Player favours, player wins
+    if (totalBias > 0 && Math.random() < totalBias) shouldWin = false; // Casino favours, player loses
+    else if (totalBias < 0 && Math.random() < -totalBias) shouldWin = true; // Player favours, player wins
     
     let nextCard = this.generateCard();
     const currentCard = state.currentCard;

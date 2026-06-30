@@ -265,7 +265,7 @@ export function HiloClient() {
               {/* Previous Card (Faded on Left) */}
               {prevCard && (
                 <PlayingCard 
-                  key={`prev-${state?.history?.length}`}
+                  key={`prev-${prevCard.rank}-${prevCard.suit}-${state?.history?.length}`}
                   card={prevCard} 
                   faded 
                   className="w-24 h-36 absolute left-4 sm:left-12" 
@@ -275,9 +275,9 @@ export function HiloClient() {
               
               {/* Current Card (Center) */}
               <PlayingCard 
-                key={`current-${Math.max(1, state?.history?.length || 1)}`}
+                key={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
                 card={state?.currentCard || null} 
-                animateKey={`current-${Math.max(1, state?.history?.length || 1)}`}
+                animateKey={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
                 className="w-36 h-52 absolute z-10 shadow-2xl" 
                 direction="right-to-left"
               />
