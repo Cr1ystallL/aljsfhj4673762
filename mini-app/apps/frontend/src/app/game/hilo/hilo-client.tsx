@@ -61,6 +61,17 @@ export function HiloClient() {
     }
   }, [state?.history?.length]);
 
+  const refreshState = async () => {
+    try {
+      const res: any = await apiClient.get('/api/games/hilo/state');
+      if (res.state) {
+        setState(res.state);
+      }
+    } catch (err) {
+      console.error('Failed to fetch hilo state', err);
+    }
+  };
+
   // Sound init & fetch initial state
   useEffect(() => {
     soundManager.initialize();
@@ -70,17 +81,6 @@ export function HiloClient() {
     let alive = true;
     setLoading(true);
 
-    const refreshState = async () => {
-      try {
-        const res: any = await apiClient.get('/api/games/hilo/state');
-        if (alive && res.state) {
-            setState(res.state);
-        }
-      } catch (err) {
-        console.error('Failed to fetch hilo state', err);
-      }
-    };
-    
     const init = async () => {
       try {
         await fetchBalance();
@@ -113,7 +113,7 @@ export function HiloClient() {
       soundManager.play('game.click');
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to skip card');
-      init();
+      refreshState();
     } finally {
       setLoading(false);
     }
@@ -210,8 +210,9 @@ export function HiloClient() {
     }
   };
 
-  const handleNewBet = () => {
-    setState((s) => s ? { ...s, status: 'idle', history: s.currentCard ? [s.currentCard] : [] } : null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Calculations
@@ -392,7 +393,7 @@ export function HiloClient() {
             {/* Start / Cashout Button */}
             {!isPlaying ? (
               <button
-                onClick={isBusted || isCashed ? handleNewBet : handleStart}
+                onClick={handleStart}
                 disabled={!isStateLoaded || loading}
                 className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
               >
