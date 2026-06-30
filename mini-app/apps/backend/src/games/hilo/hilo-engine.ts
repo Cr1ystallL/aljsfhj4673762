@@ -197,7 +197,6 @@ export const hiloEngine = {
   async cashout(userId: string): Promise<HiloState> {
     const state = await this.getState(userId);
     if (state.status !== 'playing') throw new Error('Game not in progress');
-    if (state.currentMultiplier <= 1.0) throw new Error('No winnings to cash out');
 
     const winAmount = +(state.betAmount * state.currentMultiplier).toFixed(2);
     

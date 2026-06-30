@@ -66,11 +66,11 @@ export function PlayingCard({
   // Framer motion variants for sliding in
   const variants = {
     initial: {
-      x: direction === 'right-to-left' ? initialOffset : 0,
-      y: direction === 'right-to-left' ? -20 : 0,
-      rotate: direction === 'right-to-left' ? 15 : 0,
+      x: direction === 'right-to-left' ? 180 : 0,
+      y: direction === 'right-to-left' ? -15 : 0,
+      rotate: direction === 'right-to-left' ? 25 : 0,
       opacity: 0,
-      scale: 0.8,
+      scale: 0.85,
     },
     animate: {
       x: 0,
@@ -80,18 +80,18 @@ export function PlayingCard({
       scale: 1,
       transition: {
         type: 'spring',
-        stiffness: 250,
-        damping: 25,
+        stiffness: 120,
+        damping: 20,
         mass: 1,
       },
     },
     exit: {
-      x: direction === 'right-to-left' ? -initialOffset : 0,
-      y: direction === 'right-to-left' ? 20 : 0,
-      rotate: direction === 'right-to-left' ? -15 : 0,
+      x: direction === 'right-to-left' ? -180 : 0,
+      y: direction === 'right-to-left' ? 15 : 0,
+      rotate: direction === 'right-to-left' ? -25 : 0,
       opacity: 0,
-      scale: 0.8,
-      transition: { duration: 0.3, ease: 'easeOut' },
+      scale: 0.85,
+      transition: { duration: 0.35, ease: 'easeOut' },
     },
   };
 
