@@ -11,3 +11,4 @@ The following rules must be strictly adhered to by any agent or subagent working
 - Whenever you need the user to run commands on their remote VPS, you MUST provide ALL the commands consolidated into a **single markdown `bash` code block** at the very end of your message.
 - This allows the user to click "Copy" once and paste everything into their SSH terminal.
 - Add descriptive `# comments` inside the bash block explaining what each step does.
+- You must ALWAYS include the `clear` command at the very beginning of the bash script block so the terminal is cleared before execution.
