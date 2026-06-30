@@ -2,74 +2,77 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, RefreshCw, HandCoins, Diamond, Heart, Club, Spade } from 'lucide-react';
+import { RefreshCw, HandCoins, ChevronUp, ChevronDown, ChevronsRight } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+
 import { useAuthStore } from '@/store/auth-store';
 import { useBalance } from '@/hooks/use-balance';
+import { useBalanceStore } from '@/store/balance-store';
 import { apiClient } from '@/lib/api/client';
-import { GameTopBar } from '@/components/game/game-top-bar';
+import { reportApiError } from '@/lib/api/errors';
+import { toast } from '@/store/toast-store';
+import { soundManager } from '@/lib/sound/sound-manager';
 
-type Card = { suit: 'hearts' | 'diamonds' | 'clubs' | 'spades'; rank: number };
+import { GameTopBar } from '@/components/game/game-top-bar';
+import { PlayingCard, Suit, Rank, CardData, getCardColor, getRankName } from '@/components/game/hilo/playing-card';
+
 type HiloStatus = 'idle' | 'playing' | 'cashed_out' | 'busted';
 
 interface HiloState {
   status: HiloStatus;
   betAmount: number;
   currentMultiplier: number;
-  currentCard: Card | null;
-  history: Card[];
+  currentCard: CardData | null;
+  history: CardData[];
   nextMultipliers: { red: number; black: number; higher: number; lower: number } | null;
-}
-
-function getCardColor(suit: string) {
-  return suit === 'hearts' || suit === 'diamonds' ? 'text-red-500' : 'text-slate-800';
-}
-
-function getRankName(rank: number) {
-  if (rank === 1) return 'A';
-  if (rank === 11) return 'J';
-  if (rank === 12) return 'Q';
-  if (rank === 13) return 'K';
-  return rank.toString();
-}
-
-function SuitIcon({ suit, className }: { suit: string, className?: string }) {
-  if (suit === 'hearts') return <Heart className={className} fill="currentColor" />;
-  if (suit === 'diamonds') return <Diamond className={className} fill="currentColor" />;
-  if (suit === 'clubs') return <Club className={className} fill="currentColor" />;
-  return <Spade className={className} fill="currentColor" />;
 }
 
 export function HiloClient() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { syncBalance } = useBalance();
-  
+  const { balance, fetchBalance } = useBalance();
+  const tBals = useBalanceStore((s) => s.tournamentBalances);
+  const tBal = tBals.find((t) => t.gameType === 'hilo');
+  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+
   const [state, setState] = useState<HiloState | null>(null);
   const [betAmount, setBetAmount] = useState<string>('10');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [rulesOpen, setRulesOpen] = useState(false);
 
-  // Fetch initial state
+  // Sound init & fetch initial state
   useEffect(() => {
+    soundManager.initialize();
     if (!user) return;
+    
+    let alive = true;
     setLoading(true);
-    apiClient.get('/games/hilo/state')
-      .then((res: any) => {
-        if (res.state) setState(res.state);
-      })
-      .catch((err) => console.error('Failed to fetch hilo state', err))
-      .finally(() => setLoading(false));
+    
+    const init = async () => {
+      try {
+        await fetchBalance();
+        const res: any = await apiClient.get('/games/hilo/state');
+        if (alive && res.state) setState(res.state);
+      } catch (err) {
+        console.error('Failed to fetch hilo state', err);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    init();
+
+    return () => { alive = false; };
   }, [user]);
 
   const handleSwap = async () => {
-    if (state?.status === 'playing') return;
+    if (state?.status === 'playing' || loading) return;
     try {
       setLoading(true);
-      setError('');
       const res: any = await apiClient.post('/games/hilo/swap');
       if (res.state) setState(res.state);
+      soundManager.play('game.click');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to swap');
+      reportApiError(null, err?.response?.data || err, 'Failed to skip card');
     } finally {
       setLoading(false);
     }
@@ -77,201 +80,300 @@ export function HiloClient() {
 
   const handleStart = async () => {
     const amount = parseFloat(betAmount);
-    if (isNaN(amount) || amount < 1) {
-      setError('Invalid bet amount');
+    if (isNaN(amount) || amount <= 0) {
+      toast.warn('Введите корректную сумму ставки');
+      return;
+    }
+    if (amount > activeBalance) {
+      toast.warn(`Недостаточно средств — у вас ${activeBalance.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`);
       return;
     }
     try {
       setLoading(true);
-      setError('');
       const res: any = await apiClient.post('/games/hilo/start', { amount });
       if (res.state) {
         setState(res.state);
-        syncBalance();
+        soundManager.play('game.bet_placed');
+        fetchBalance();
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to start');
+      reportApiError(null, err?.response?.data || err, 'Failed to start');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGuess = async (choice: 'red' | 'black' | 'higher' | 'lower') => {
-    if (state?.status !== 'playing') return;
+  const handleGuess = async (choice: 'higher' | 'lower') => {
+    if (state?.status !== 'playing' || loading) return;
     try {
       setLoading(true);
-      setError('');
       const res: any = await apiClient.post('/games/hilo/guess', { choice });
       if (res.state) {
         setState(res.state);
         if (res.state.status === 'busted') {
-          // You could show a bust animation here
+          soundManager.play('game.lose');
+        } else {
+          soundManager.play('game.win');
         }
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to guess');
+      reportApiError(null, err?.response?.data || err, 'Failed to guess');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCashout = async () => {
-    if (state?.status !== 'playing') return;
+    if (state?.status !== 'playing' || loading) return;
+    if (state.currentMultiplier <= 1.0) {
+      toast.warn('Сначала выиграйте хотя бы один раунд');
+      return;
+    }
     try {
       setLoading(true);
-      setError('');
       const res: any = await apiClient.post('/games/hilo/cashout');
       if (res.state) {
         setState(res.state);
-        syncBalance();
+        soundManager.play('game.cashout');
+        toast.cashout(res.state.currentMultiplier, 'Cashed out');
+        fetchBalance();
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to cashout');
+      reportApiError(null, err?.response?.data || err, 'Failed to cashout');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleNewBet = () => {
+    setState((s) => s ? { ...s, status: 'idle', history: s.currentCard ? [s.currentCard] : [] } : null);
+  };
+
+  // Calculations
+  const isPlaying = state?.status === 'playing';
+  const isBusted = state?.status === 'busted';
+  const isCashed = state?.status === 'cashed_out';
+
+  const currentRank = state?.currentCard?.rank || 1;
+  const higherProb = ((14 - currentRank) / 13) * 100;
+  const lowerProb = (currentRank / 13) * 100;
+  
+  const currentBet = isPlaying || isBusted || isCashed ? state?.betAmount || 0 : parseFloat(betAmount) || 0;
+  
+  const higherMult = state?.nextMultipliers?.higher || 1.0;
+  const lowerMult = state?.nextMultipliers?.lower || 1.0;
+  
+  const profitHigher = currentBet * higherMult;
+  const profitLower = currentBet * lowerMult;
+
+  const prevCard = state?.history?.length > 1 ? state.history[state.history.length - 2] : null;
+
   return (
-    <main className="min-h-screen bg-midnight-canvas text-frost-white pb-20">
-      <GameTopBar title="Hi-Lo" Icon={Spade} />
-      <div className="mx-auto max-w-[800px] px-4 pt-4 flex flex-col gap-4">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-3">
+        <GameTopBar title="Hi-Lo" Icon={ChevronUp} onHowToPlay={() => setRulesOpen(true)} />
+
         {/* Play Area */}
-        <div className="relative min-h-[300px] rounded-xl border border-white/10 bg-gradient-to-b from-green-900/40 to-green-950/40 p-6 flex flex-col items-center justify-center">
-          
-          {error && (
-            <div className="absolute top-4 left-4 right-4 rounded bg-red-500/20 border border-red-500/50 p-2 text-center text-sm text-red-200">
-              {error}
-            </div>
-          )}
+        <section className="relative rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center gap-6 overflow-hidden">
+          {/* Backdrop Glow */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-40"
+            style={{
+              background: isBusted 
+                ? 'radial-gradient(50% 50% at 50% 50%, rgba(255, 73, 73, 0.15) 0%, transparent 100%)'
+                : 'radial-gradient(50% 50% at 50% 50%, rgba(133, 150, 255, 0.1) 0%, transparent 100%)',
+            }}
+          />
 
-          {/* Current Card */}
-          {state?.currentCard ? (
-            <div className={`relative flex h-48 w-32 flex-col justify-between rounded-xl bg-white p-3 shadow-xl ring-1 ring-black/10 transition-all ${getCardColor(state.currentCard.suit)} ${state.status === 'busted' ? 'opacity-50 grayscale' : ''}`}>
-              <div className="flex items-center gap-1">
-                <span className="text-2xl font-bold">{getRankName(state.currentCard.rank)}</span>
-                <SuitIcon suit={state.currentCard.suit} className="w-5 h-5" />
-              </div>
-              <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                <SuitIcon suit={state.currentCard.suit} className="w-20 h-20" />
-              </div>
-              <div className="flex items-center justify-end gap-1 rotate-180">
-                <span className="text-2xl font-bold">{getRankName(state.currentCard.rank)}</span>
-                <SuitIcon suit={state.currentCard.suit} className="w-5 h-5" />
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-48 w-32 items-center justify-center rounded-xl border-2 border-dashed border-white/20 bg-white/5">
-              <span className="text-white/40">No Card</span>
-            </div>
-          )}
-
-          {/* Status Text */}
-          <div className="mt-6 h-8 flex items-center justify-center">
-            {state?.status === 'busted' && (
-              <span className="text-red-400 font-semibold text-lg">Вы проиграли</span>
-            )}
-            {state?.status === 'cashed_out' && (
-              <span className="text-emerald-400 font-semibold text-lg">Выиграно {+(state.betAmount * state.currentMultiplier).toFixed(2)} zl</span>
-            )}
-            {state?.status === 'playing' && (
-              <span className="text-white/80">Текущий множитель: <strong className="text-white">{state.currentMultiplier}x</strong></span>
-            )}
+          {/* Cards Display */}
+          <div className="relative flex items-center justify-center w-full h-52">
+            <AnimatePresence mode="popLayout">
+              {/* Previous Card (Faded on Left) */}
+              {prevCard && (
+                <PlayingCard 
+                  key={`prev-${state?.history?.length}`}
+                  card={prevCard} 
+                  faded 
+                  className="w-24 h-36 absolute left-4 sm:left-12" 
+                  direction="right-to-left"
+                />
+              )}
+              
+              {/* Current Card (Center) */}
+              <PlayingCard 
+                key={`current-${state?.history?.length}`}
+                card={state?.currentCard || null} 
+                className="w-36 h-52 absolute z-10 shadow-2xl" 
+                direction="right-to-left"
+              />
+              
+              {/* Next Card Deck Placeholder (Right) */}
+              <PlayingCard 
+                key="deck"
+                card={null} 
+                className="w-24 h-36 absolute right-4 sm:right-12 z-0" 
+              />
+            </AnimatePresence>
           </div>
 
-          {/* History */}
-          <div className="mt-4 flex gap-2 h-16 w-full max-w-sm overflow-x-auto p-2 justify-center">
-            {state?.history.map((card, idx) => (
-              <div key={idx} className={`flex h-12 w-8 shrink-0 flex-col items-center justify-center rounded bg-white shadow ${getCardColor(card.suit)}`}>
-                <span className="text-xs font-bold">{getRankName(card.rank)}</span>
-                <SuitIcon suit={card.suit} className="w-3 h-3" />
+          {/* Profit Indicators */}
+          <div className="grid grid-cols-2 gap-3 w-full relative z-10 mt-2">
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
+              <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
+                Прибыль, если выше ({higherMult.toFixed(2)}×)
+              </div>
+              <div className="text-sm font-roobert text-frost-white font-medium">
+                {profitHigher.toFixed(2)} zł
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
+              <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
+                Прибыль, если ниже ({lowerMult.toFixed(2)}×)
+              </div>
+              <div className="text-sm font-roobert text-frost-white font-medium">
+                {profitLower.toFixed(2)} zł
+              </div>
+            </div>
+          </div>
+
+          {/* Status Message */}
+          {(isBusted || isCashed) && (
+            <div className={`absolute top-4 left-0 w-full text-center py-1 bg-black/40 backdrop-blur-md border-y ${isBusted ? 'border-[#ff4949]/30 text-[#ff4949]' : 'border-emerald-500/30 text-emerald-400'}`}>
+              <span className="font-roobert font-medium text-sm tracking-wide uppercase">
+                {isBusted ? 'Ставка проиграна' : `Выиграно +${(currentBet * state!.currentMultiplier).toFixed(2)} zł`}
+              </span>
+            </div>
+          )}
+
+          {/* History Strip */}
+          <div className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4rem] px-2 hide-scrollbar">
+            {state?.history?.map((card, idx) => (
+              <div key={idx} className={`flex h-12 w-9 shrink-0 flex-col items-center justify-center rounded bg-white shadow-sm ring-1 ring-black/5 ${getCardColor(card.suit)}`}>
+                <span className="text-[11px] font-bold font-roobert leading-none tracking-tighter">{getRankName(card.rank)}</span>
+                <span className="text-[10px] leading-none mt-[2px]">{card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠'}</span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Controls */}
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-4">
-          
-          {(!state || state.status === 'idle' || state.status === 'cashed_out' || state.status === 'busted') ? (
-            <div className="flex items-end gap-3">
-              <div className="flex-1 space-y-1">
-                <label className="text-xs text-white/50 uppercase">Ставка (zl)</label>
+        {/* Controls Area */}
+        <section className="flex flex-col gap-3">
+          {/* Bet Amount Panel */}
+          <div className="rounded-card border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="font-roobert text-[12px] uppercase tracking-[0.2em] text-white/50">
+                Сумма ставки
+              </span>
+              <span className="font-roobert text-[12px] text-frost-white">
+                {isPlaying ? `${currentBet.toFixed(2)} zł` : `${activeBalance.toFixed(2)} zł`}
+              </span>
+            </div>
+            
+            <div className={`flex items-center justify-between rounded-pill border transition-colors ${isPlaying ? 'border-white/5 bg-white/[0.02] opacity-50' : 'border-white/15 bg-white/[0.04] focus-within:border-white/30'}`}>
+              <div className="flex items-center pl-4 w-1/2">
+                <span className="text-white/40 font-roobert mr-1">$</span>
                 <input
                   type="number"
-                  value={betAmount}
+                  value={isPlaying ? currentBet : betAmount}
                   onChange={(e) => setBetAmount(e.target.value)}
-                  disabled={loading}
-                  className="w-full rounded-lg bg-black/40 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                  disabled={isPlaying || loading}
+                  className="w-full bg-transparent outline-none font-roobert text-[16px] text-frost-white tabular-nums placeholder:text-white/20"
+                  placeholder="0.00"
                 />
               </div>
-              <button
-                onClick={handleSwap}
-                disabled={loading}
-                className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20 transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={18} />
-                Swap
-              </button>
-              <button
-                onClick={handleStart}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-6 py-2 font-semibold text-black hover:bg-emerald-400 transition-colors disabled:opacity-50"
-              >
-                BET
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="flex items-center h-11">
+                <div className="w-[1px] h-6 bg-white/10 mx-1" />
                 <button
-                  onClick={() => handleGuess('red')}
-                  disabled={loading}
-                  className="flex flex-col items-center justify-center rounded-lg bg-red-500/20 border border-red-500/30 p-3 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
+                  type="button"
+                  disabled={isPlaying || loading}
+                  onClick={() => setBetAmount((prev) => (Math.max(1, parseFloat(prev || '0') / 2)).toFixed(2))}
+                  className="h-full px-4 font-roobert text-[12px] font-medium text-white/70 hover:text-white transition-colors"
                 >
-                  <span className="text-sm font-medium text-red-200">RED</span>
-                  <span className="text-xs text-red-300/70">{state.nextMultipliers?.red.toFixed(2) || '1.92'}x</span>
+                  ½
                 </button>
+                <div className="w-[1px] h-6 bg-white/10" />
                 <button
-                  onClick={() => handleGuess('black')}
-                  disabled={loading}
-                  className="flex flex-col items-center justify-center rounded-lg bg-slate-800 border border-slate-600 p-3 hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                  type="button"
+                  disabled={isPlaying || loading}
+                  onClick={() => setBetAmount((prev) => (parseFloat(prev || '0') * 2).toFixed(2))}
+                  className="h-full px-4 font-roobert text-[12px] font-medium text-white/70 hover:text-white transition-colors pr-5"
                 >
-                  <span className="text-sm font-medium text-white">BLACK</span>
-                  <span className="text-xs text-white/50">{state.nextMultipliers?.black.toFixed(2) || '1.92'}x</span>
-                </button>
-                <button
-                  onClick={() => handleGuess('higher')}
-                  disabled={loading}
-                  className="flex flex-col items-center justify-center rounded-lg bg-blue-500/20 border border-blue-500/30 p-3 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
-                >
-                  <span className="text-sm font-medium text-blue-200">HIGHER</span>
-                  <span className="text-xs text-blue-300/70">{state.nextMultipliers?.higher.toFixed(2) || '1.92'}x</span>
-                </button>
-                <button
-                  onClick={() => handleGuess('lower')}
-                  disabled={loading}
-                  className="flex flex-col items-center justify-center rounded-lg bg-amber-500/20 border border-amber-500/30 p-3 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
-                >
-                  <span className="text-sm font-medium text-amber-200">LOWER</span>
-                  <span className="text-xs text-amber-300/70">{state.nextMultipliers?.lower.toFixed(2) || '1.92'}x</span>
+                  2×
                 </button>
               </div>
-
-              {state.currentMultiplier > 1.0 && (
-                <button
-                  onClick={handleCashout}
-                  disabled={loading}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 py-3 font-semibold text-black hover:bg-emerald-400 transition-colors disabled:opacity-50"
-                >
-                  <HandCoins size={20} />
-                  Забрать {+(state.betAmount * state.currentMultiplier).toFixed(2)} zl
-                </button>
-              )}
             </div>
-          )}
-        </div>
+
+            {/* Start / Cashout Button */}
+            {!isPlaying ? (
+              <button
+                onClick={isBusted || isCashed ? handleNewBet : handleStart}
+                disabled={loading}
+                className="w-full h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                Ставка
+              </button>
+            ) : (
+              <button
+                onClick={handleCashout}
+                disabled={loading || state.currentMultiplier <= 1.0}
+                className="w-full h-12 rounded-pill bg-emerald-500 text-black font-roobert text-[14px] font-semibold tracking-wide hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                Забрать {(currentBet * state.currentMultiplier).toFixed(2)} zł
+              </button>
+            )}
+
+            {/* Skip Card */}
+            <button
+              onClick={handleSwap}
+              disabled={isPlaying || loading}
+              className="w-full h-10 rounded-pill bg-white/[0.05] border border-white/5 text-white/70 font-roobert text-[12px] tracking-wide hover:bg-white/[0.1] hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              Пропустить карту
+              <ChevronsRight size={14} />
+            </button>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleGuess('higher')}
+              disabled={!isPlaying || loading}
+              className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
+            >
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#8596ff]/30 group-hover:bg-[#8596ff]/50 transition-colors" />
+              <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
+                Выше или равная
+                <ChevronUp size={16} className="text-[#8596ff]" />
+              </div>
+              <div className="text-[11px] text-[#8596ff] font-roobert mt-0.5 tracking-wider">
+                {higherProb.toFixed(2)}%
+              </div>
+            </button>
+            
+            <button
+              onClick={() => handleGuess('lower')}
+              disabled={!isPlaying || loading}
+              className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
+            >
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff8a76]/30 group-hover:bg-[#ff8a76]/50 transition-colors" />
+              <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
+                Ниже или равная
+                <ChevronDown size={16} className="text-[#ff8a76]" />
+              </div>
+              <div className="text-[11px] text-[#ff8a76] font-roobert mt-0.5 tracking-wider">
+                {lowerProb.toFixed(2)}%
+              </div>
+            </button>
+          </div>
+        </section>
       </div>
+      
+      {/* Hide scrollbar styles injected */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
     </main>
   );
 }
