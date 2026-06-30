@@ -210,11 +210,6 @@ export function HiloClient() {
     }
   };
 
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Calculations
   const isStateLoaded = state !== null;
   const isPlaying = state?.status === 'playing';
