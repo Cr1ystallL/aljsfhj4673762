@@ -22,7 +22,7 @@ import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack';
+type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo';
 
 interface GameCfg {
   paused: boolean;
@@ -39,7 +39,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges'];
+const ORDER: GameType[] = ['crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);

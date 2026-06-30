@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { prisma } from '../../lib/prisma.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { gameConfig } from '../../services/game-config.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import type { Bet } from '../../game-engine/types.js';
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
@@ -60,6 +61,7 @@ export const hiloEngine = {
         history: [],
         nextMultipliers: null,
       };
+      state.history = [state.currentCard!];
       const cfg = await gameConfig.get('hilo');
       state.nextMultipliers = getHiloMultipliers(state.currentCard!.rank, cfg.houseEdge);
       states.set(userId, state);
@@ -83,7 +85,7 @@ export const hiloEngine = {
     }
     state.currentCard = this.generateCard();
     state.status = 'idle'; // Ensure it's idle
-    state.history = []; // Clear history
+    state.history = [state.currentCard]; // Include the new card in history
     
     const cfg = await gameConfig.get('hilo');
     state.nextMultipliers = getHiloMultipliers(state.currentCard.rank, cfg.houseEdge);
@@ -133,7 +135,12 @@ export const hiloEngine = {
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (!state.currentCard) throw new Error('No current card');
 
-    const nextCard = this.generateCard();
+    const bias = await rtpEngine.getBiasFor(userId, 'hilo');
+    let shouldWin: boolean | null = null;
+    if (bias > 0 && Math.random() < bias) shouldWin = false; // Casino favours, player loses
+    else if (bias < 0 && Math.random() < -bias) shouldWin = true; // Player favours, player wins
+    
+    let nextCard = this.generateCard();
     const currentCard = state.currentCard;
     
     let won = false;
@@ -142,26 +149,20 @@ export const hiloEngine = {
     const cfg = await gameConfig.get('hilo');
     const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, cfg.houseEdge);
 
-    const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
-    const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
+    // Regenerate up to 50 times if we need to force an outcome
+    for (let loop = 0; loop < 50; loop++) {
+      const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
+      const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
 
-    switch (choice) {
-      case 'red':
-        won = isRed;
-        stepMultiplier = mults.red;
-        break;
-      case 'black':
-        won = isBlack;
-        stepMultiplier = mults.black;
-        break;
-      case 'higher':
-        won = nextCard.rank >= currentCard.rank;
-        stepMultiplier = mults.higher;
-        break;
-      case 'lower':
-        won = nextCard.rank <= currentCard.rank;
-        stepMultiplier = mults.lower;
-        break;
+      switch (choice) {
+        case 'red': won = isRed; stepMultiplier = mults.red; break;
+        case 'black': won = isBlack; stepMultiplier = mults.black; break;
+        case 'higher': won = nextCard.rank >= currentCard.rank; stepMultiplier = mults.higher; break;
+        case 'lower': won = nextCard.rank <= currentCard.rank; stepMultiplier = mults.lower; break;
+      }
+      
+      if (shouldWin === null || won === shouldWin) break;
+      nextCard = this.generateCard();
     }
 
     state.currentCard = nextCard;

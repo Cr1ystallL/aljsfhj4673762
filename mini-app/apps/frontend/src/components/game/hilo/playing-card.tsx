@@ -70,7 +70,7 @@ export function PlayingCard({
       y: direction === 'right-to-left' ? -15 : 0,
       rotate: direction === 'right-to-left' ? 25 : 0,
       opacity: 0,
-      scale: 0.85,
+      scale: 0.5,
     },
     animate: {
       x: 0,
