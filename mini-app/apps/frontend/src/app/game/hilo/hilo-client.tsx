@@ -45,12 +45,13 @@ export function HiloClient() {
   
   const refreshHistory = async () => {
     try {
-      const res = await fetch('/api/games/hilo/history?limit=20', { credentials: 'include' });
-      if (res.ok) {
-        const json = await res.json();
-        setHistory(json.history ?? []);
+      const res: any = await apiClient.get('/api/games/hilo/history?limit=20');
+      if (res.history) {
+        setHistory(res.history);
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to fetch hilo history', err);
+    }
   };
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -105,7 +106,7 @@ export function HiloClient() {
   }, [user, fetchBalance]);
 
   const handleSwap = async () => {
-    if (state?.status === 'playing' || loading) return;
+    if (loading) return;
     try {
       setLoading(true);
       const res: any = await apiClient.post('/api/games/hilo/swap');
