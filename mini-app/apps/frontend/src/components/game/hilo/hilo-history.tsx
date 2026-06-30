@@ -1,11 +1,11 @@
-'use client';
+п»ї'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Hilo History — Monopo Saigon Style
+ * Hilo History вЂ” Monopo Saigon Style
  *
  * Live ticker of recent completed Hilo bets across all players. Same
  * shape as the Plinko history component for consistency.
@@ -48,8 +48,8 @@ export function HiloHistory({ entries, currency = 'zl' }: HiloHistoryProps) {
     <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
         {[
-          { key: 'all', label: 'Все ставки' },
-          { key: 'rare', label: 'Крупные выигрыши' },
+          { key: 'all', label: 'Р’СЃРµ СЃС‚Р°РІРєРё' },
+          { key: 'rare', label: 'РљСЂСѓРїРЅС‹Рµ РІС‹РёРіСЂС‹С€Рё' },
         ].map((t) => {
           const active = t.key === tab;
           return (
@@ -127,7 +127,7 @@ export function HiloHistory({ entries, currency = 'zl' }: HiloHistoryProps) {
                       : 'border-white/15 text-frost-white/85 bg-white/[0.05]'
                   )}
                 >
-                  {won ? `x${row.multiplier.toFixed(2)}` : 'Проигрыш'}
+                  {won ? `x${row.multiplier.toFixed(2)}` : 'РџСЂРѕРёРіСЂС‹С€'}
                 </span>
 
                 <span
@@ -154,8 +154,8 @@ export function HiloHistory({ entries, currency = 'zl' }: HiloHistoryProps) {
         {visible.length === 0 && (
           <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
             {tab === 'rare'
-              ? 'Крупных выигрышей пока нет.'
-              : 'Недавние ставки появятся здесь в реальном времени.'}
+              ? 'РљСЂСѓРїРЅС‹С… РІС‹РёРіСЂС‹С€РµР№ РїРѕРєР° РЅРµС‚.'
+              : 'РќРµРґР°РІРЅРёРµ СЃС‚Р°РІРєРё РїРѕСЏРІСЏС‚СЃСЏ Р·РґРµСЃСЊ РІ СЂРµР°Р»СЊРЅРѕРј РІСЂРµРјРµРЅРё.'}
           </div>
         )}
       </div>

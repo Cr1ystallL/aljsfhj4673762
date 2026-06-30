@@ -1375,15 +1375,15 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const parsedLimit = Math.min(Math.max(1, parseInt(limit, 10) || 10), 100);
 
     try {
-      const bets = await prisma.bet.findMany({
-        where: { userId, gameId: { startsWith: 'hilo_' }, state: { in: ['completed', 'failed'] } },
-        orderBy: { placedAt: 'desc' },
+      const bets = await app.prisma.bet.findMany({
+        where: { userId, gameType: 'hilo', payout: { not: null } },
+        orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
         take: parsedLimit,
-        include: { user: { select: { name: true, photoUrl: true } } }
+        select: { id: true, amount: true, payout: true, multiplier: true, placedAt: true, resolvedAt: true }
       });
       const history = bets.map((b) => ({
-        id: b.id, name: b.user.name || 'Anonymous', photoUrl: b.user.photoUrl,
-        betAmount: b.amount, multiplier: b.multiplier ?? 0, payout: b.payout ?? 0, timestamp: b.placedAt
+        id: b.id, name: 'You', photoUrl: null,
+        betAmount: Number(b.amount), multiplier: Number(b.multiplier ?? 0), payout: Number(b.payout ?? 0), timestamp: (b.resolvedAt ?? b.placedAt).getTime()
       }));
       return reply.send({ success: true, history });
     } catch (error) {
@@ -1397,15 +1397,18 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const parsedLimit = Math.min(Math.max(1, parseInt(limit, 10) || 20), 100);
 
     try {
-      const bets = await prisma.bet.findMany({
-        where: { gameId: { startsWith: 'hilo_' }, state: { in: ['completed', 'failed'] } },
-        orderBy: { placedAt: 'desc' },
+      const bets = await app.prisma.bet.findMany({
+        where: { gameType: 'hilo', payout: { not: null } },
+        orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
         take: parsedLimit,
-        include: { user: { select: { name: true, photoUrl: true } } }
+        select: {
+          id: true, amount: true, payout: true, multiplier: true, placedAt: true, resolvedAt: true,
+          user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true } }
+        }
       });
       const history = bets.map((b) => ({
-        id: b.id, name: b.user.name || 'Anonymous', photoUrl: b.user.photoUrl,
-        betAmount: b.amount, multiplier: b.multiplier ?? 0, payout: b.payout ?? 0, timestamp: b.placedAt
+        id: b.id, name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`, photoUrl: b.user.photoUrl ?? null,
+        betAmount: Number(b.amount), multiplier: Number(b.multiplier ?? 0), payout: Number(b.payout ?? 0), timestamp: (b.resolvedAt ?? b.placedAt).getTime()
       }));
       return reply.send({ success: true, history });
     } catch (error) {
