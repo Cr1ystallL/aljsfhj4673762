@@ -30,7 +30,11 @@ export interface HiloState {
 const states = new Map<string, HiloState>();
 
 export function getHiloMultipliers(currentRank: number, edge: number = 0.04): { red: number; black: number; higher: number; lower: number } {
-  const rtp = 1 - edge;
+  // If edge is provided as a whole number (e.g. 100), treat it as a percentage
+  if (edge >= 1) edge = edge / 100;
+  
+  // Clamp RTP between 0.01 and 1.0
+  const rtp = Math.max(0.01, Math.min(1.0, 1 - edge));
 
   const redBlack = +(2.0 * rtp).toFixed(2);
 

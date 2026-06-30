@@ -182,8 +182,8 @@ export function HiloClient() {
   };
 
   const handleCashout = async () => {
-    if (state?.status !== 'playing' || loading) return;
-    if (state.currentMultiplier <= 1.0) {
+    if (!isPlaying) return;
+    if (state.history.length <= 1) {
       toast.warn('Сначала выиграйте хотя бы один раунд');
       return;
     }
@@ -392,7 +392,7 @@ export function HiloClient() {
                 disabled={!isStateLoaded || loading}
                 className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                Ставка
+                {isBusted || isCashed ? 'Новая игра' : 'Ставка'}
               </button>
             ) : (
               <button
