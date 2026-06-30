@@ -60,12 +60,20 @@ export function HiloClient() {
     
     let alive = true;
     setLoading(true);
+
+    const refreshState = async () => {
+      try {
+        const res: any = await apiClient.get('/api/games/hilo/state');
+        if (alive && res.state) setState(res.state);
+      } catch (err) {
+        console.error('Failed to fetch hilo state', err);
+      }
+    };
     
     const init = async () => {
       try {
         await fetchBalance();
-        const res: any = await apiClient.get('/api/games/hilo/state');
-        if (alive && res.state) setState(res.state);
+        await refreshState();
       } catch (err) {
         console.error('Failed to fetch hilo state', err);
       } finally {
@@ -94,6 +102,13 @@ export function HiloClient() {
       soundManager.play('game.click');
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to skip card');
+      const refreshState = async () => {
+        try {
+          const r: any = await apiClient.get('/api/games/hilo/state');
+          if (r.state) setState(r.state);
+        } catch (e) {}
+      };
+      refreshState();
     } finally {
       setLoading(false);
     }
@@ -120,6 +135,13 @@ export function HiloClient() {
       }
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to start');
+      const refreshState = async () => {
+        try {
+          const r: any = await apiClient.get('/api/games/hilo/state');
+          if (r.state) setState(r.state);
+        } catch (e) {}
+      };
+      refreshState();
     } finally {
       setLoading(false);
     }
@@ -142,6 +164,13 @@ export function HiloClient() {
       }
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to guess');
+      const refreshState = async () => {
+        try {
+          const r: any = await apiClient.get('/api/games/hilo/state');
+          if (r.state) setState(r.state);
+        } catch (e) {}
+      };
+      refreshState();
     } finally {
       setLoading(false);
     }
@@ -164,6 +193,13 @@ export function HiloClient() {
       }
     } catch (err: any) {
       reportApiError(null, err?.response?.data || err, 'Failed to cashout');
+      const refreshState = async () => {
+        try {
+          const r: any = await apiClient.get('/api/games/hilo/state');
+          if (r.state) setState(r.state);
+        } catch (e) {}
+      };
+      refreshState();
     } finally {
       setLoading(false);
     }
@@ -174,6 +210,7 @@ export function HiloClient() {
   };
 
   // Calculations
+  const isStateLoaded = state !== null;
   const isPlaying = state?.status === 'playing';
   const isBusted = state?.status === 'busted';
   const isCashed = state?.status === 'cashed_out';
@@ -301,7 +338,7 @@ export function HiloClient() {
                   type="number"
                   value={isPlaying ? currentBet : betAmount}
                   onChange={(e) => setBetAmount(e.target.value)}
-                  disabled={isPlaying || loading}
+                  disabled={!isStateLoaded || isPlaying || loading}
                   className="w-full bg-transparent outline-none font-roobert text-[16px] text-frost-white tabular-nums placeholder:text-white/20"
                   placeholder="0.00"
                 />
@@ -310,7 +347,7 @@ export function HiloClient() {
                 <div className="w-[1px] h-6 bg-white/10 mx-1" />
                 <button
                   type="button"
-                  disabled={isPlaying || loading}
+                  disabled={!isStateLoaded || isPlaying || loading}
                   onClick={() => setBetAmount((prev) => (Math.max(1, parseFloat(prev || '0') / 2)).toFixed(2))}
                   className="h-full px-4 font-roobert text-[12px] font-medium text-white/70 hover:text-white transition-colors"
                 >
@@ -319,7 +356,7 @@ export function HiloClient() {
                 <div className="w-[1px] h-6 bg-white/10" />
                 <button
                   type="button"
-                  disabled={isPlaying || loading}
+                  disabled={!isStateLoaded || isPlaying || loading}
                   onClick={() => setBetAmount((prev) => (parseFloat(prev || '0') * 2).toFixed(2))}
                   className="h-full px-4 font-roobert text-[12px] font-medium text-white/70 hover:text-white transition-colors pr-5"
                 >
@@ -332,7 +369,7 @@ export function HiloClient() {
             {!isPlaying ? (
               <button
                 onClick={isBusted || isCashed ? handleNewBet : handleStart}
-                disabled={loading}
+                disabled={!isStateLoaded || loading}
                 className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Ставка
@@ -350,7 +387,7 @@ export function HiloClient() {
             {/* Skip Card */}
             <button
               onClick={handleSwap}
-              disabled={isPlaying || loading}
+              disabled={!isStateLoaded || isPlaying || loading}
               className="w-full h-10 rounded-pill bg-white/[0.05] border border-white/5 text-white/70 font-roobert text-[12px] tracking-wide hover:bg-white/[0.1] hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               Пропустить карту
@@ -362,7 +399,7 @@ export function HiloClient() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => handleGuess('higher')}
-              disabled={!isPlaying || loading}
+              disabled={!isStateLoaded || !isPlaying || loading}
               className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
             >
               <div className="absolute top-0 left-0 w-full h-[2px] bg-[#8596ff]/30 group-hover:bg-[#8596ff]/50 transition-colors" />
@@ -377,7 +414,7 @@ export function HiloClient() {
             
             <button
               onClick={() => handleGuess('lower')}
-              disabled={!isPlaying || loading}
+              disabled={!isStateLoaded || !isPlaying || loading}
               className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
             >
               <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff8a76]/30 group-hover:bg-[#ff8a76]/50 transition-colors" />
