@@ -52,8 +52,6 @@ export function HiloClient() {
       }
     } catch {}
   };
-  const [allCardsHistory, setAllCardsHistory] = useState<CardData[]>([]);
-  const prevCardRef = useRef<CardData | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll history
@@ -61,7 +59,7 @@ export function HiloClient() {
     if (scrollRef.current) {
       scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
     }
-  }, [allCardsHistory.length]);
+  }, [state?.history?.length]);
 
   // Sound init & fetch initial state
   useEffect(() => {
@@ -77,7 +75,6 @@ export function HiloClient() {
         const res: any = await apiClient.get('/api/games/hilo/state');
         if (alive && res.state) {
             setState(res.state);
-            if (res.state.history) setAllCardsHistory(res.state.history);
         }
       } catch (err) {
         console.error('Failed to fetch hilo state', err);
@@ -106,15 +103,6 @@ export function HiloClient() {
       clearInterval(interval);
     };
   }, [user, fetchBalance]);
-
-  useEffect(() => {
-    if (state?.currentCard) {
-      if (prevCardRef.current !== state.currentCard) {
-        setAllCardsHistory(prev => [...prev, state.currentCard!]);
-        prevCardRef.current = state.currentCard;
-      }
-    }
-  }, [state?.currentCard]);
 
   const handleSwap = async () => {
     if (state?.status === 'playing' || loading) return;
@@ -343,7 +331,7 @@ export function HiloClient() {
 
           {/* History Strip */}
           <div ref={scrollRef} className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4.5rem] px-2 hide-scrollbar scroll-smooth">
-            {allCardsHistory.map((card, idx) => (
+            {state?.history?.map((card, idx) => (
               <motion.div 
                 key={idx}
                 initial={{ opacity: 0, x: 20, scale: 0.8 }}
