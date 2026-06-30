@@ -106,7 +106,7 @@ export function HiloClient() {
   }, [user, fetchBalance]);
 
   const handleSwap = async () => {
-    if (loading) return;
+    if (state?.status === 'playing' || loading) return;
     try {
       setLoading(true);
       const res: any = await apiClient.post('/api/games/hilo/swap');
@@ -406,14 +406,16 @@ export function HiloClient() {
             )}
 
             {/* Skip Card */}
-            <button
-              onClick={handleSwap}
-              disabled={!isStateLoaded || isPlaying || loading}
-              className="w-full h-10 rounded-pill bg-white/[0.05] border border-white/5 text-white/70 font-roobert text-[12px] tracking-wide hover:bg-white/[0.1] hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              Пропустить карту
-              <ChevronsRight size={14} />
-            </button>
+            {!isPlaying && (
+              <button
+                onClick={handleSwap}
+                disabled={!isStateLoaded || loading}
+                className="w-full h-10 rounded-pill bg-white/[0.05] border border-white/5 text-white/70 font-roobert text-[12px] tracking-wide hover:bg-white/[0.1] hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                Пропустить карту
+                <ChevronsRight size={14} />
+              </button>
+            )}
           </div>
 
           {/* Action Buttons */}

@@ -84,13 +84,12 @@ export const hiloEngine = {
 
   async swap(userId: string): Promise<HiloState> {
     const state = await this.getState(userId);
-    
-    state.currentCard = this.generateCard();
-    if (state.status === 'idle') {
-      state.history = [state.currentCard];
-    } else {
-      state.history.push(state.currentCard);
+    if (state.status === 'playing') {
+      throw new Error('Cannot swap while playing');
     }
+    state.currentCard = this.generateCard();
+    state.status = 'idle'; // Ensure it's idle
+    state.history = [state.currentCard]; // Include the new card in history
     
     const cfg = await gameConfig.get('hilo');
     state.nextMultipliers = getHiloMultipliers(state.currentCard.rank, cfg.houseEdge);
