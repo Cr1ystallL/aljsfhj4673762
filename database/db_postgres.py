@@ -690,7 +690,7 @@ class DatabasePostgres:
     
     def is_user_blocked(self, user_id: int) -> bool:
         try:
-            with self.get_connection() as conn:
+            with self._get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute('SELECT is_blocked FROM users WHERE telegram_id = %s', (user_id,))
                     row = cursor.fetchone()
@@ -701,7 +701,7 @@ class DatabasePostgres:
     
     def block_user(self, user_id: int) -> None:
         try:
-            with self.get_connection() as conn:
+            with self._get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute('UPDATE users SET is_blocked = TRUE WHERE telegram_id = %s', (user_id,))
                 conn.commit()
@@ -710,7 +710,7 @@ class DatabasePostgres:
     
     def unblock_user(self, user_id: int) -> None:
         try:
-            with self.get_connection() as conn:
+            with self._get_connection() as conn:
                 with conn.cursor() as cursor:
                     # Unblock both account and withdrawals
                     cursor.execute('UPDATE users SET is_blocked = FALSE, withdrawal_locked = FALSE WHERE telegram_id = %s', (user_id,))
