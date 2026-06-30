@@ -163,8 +163,6 @@ export const hiloEngine = {
     
     let won = false;
     let stepMultiplier = 0;
-    
-    const cfg = await gameConfig.get('hilo');
     const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, cfg.houseEdge);
 
     // Regenerate up to 50 times if we need to force an outcome
