@@ -2,12 +2,12 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  AlertTriangle,
-  CheckCircle2,
+  TriangleAlert,
+  CircleCheckBig,
   Info,
   Sparkles,
   Trophy,
-  XCircle,
+  CircleX,
   X,
 } from 'lucide-react';
 import { useEffect } from 'react';
@@ -53,21 +53,21 @@ const KIND_TINT: Record<
   success: {
     border: 'border-[#a0e0ab]/45',
     tint: 'rgba(20,30,22,0.96)',
-    icon: CheckCircle2,
+    icon: CircleCheckBig,
     iconColor: 'text-[#a0e0ab]',
     title: 'Готово',
   },
   warn: {
     border: 'border-[#ffac2e]/45',
     tint: 'rgba(30,24,16,0.96)',
-    icon: AlertTriangle,
+    icon: TriangleAlert,
     iconColor: 'text-[#ffac2e]',
     title: 'Внимание',
   },
   error: {
     border: 'border-[#ff8a76]/45',
     tint: 'rgba(36,18,16,0.96)',
-    icon: XCircle,
+    icon: CircleX,
     iconColor: 'text-[#ff8a76]',
     title: 'Ошибка',
   },
