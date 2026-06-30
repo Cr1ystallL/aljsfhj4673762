@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, HandCoins, ChevronUp, ChevronDown, ChevronsRight } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuthStore } from '@/store/auth-store';
 import { useBalance } from '@/hooks/use-balance';
