@@ -222,12 +222,12 @@ class WheelEngine extends EventEmitter {
       throw new Error('You already bet on this multiplier');
     }
 
-    // Per-round cap: at most 2 different multipliers per user per round.
+    // Per-round cap: at most 1 multiplier per user per round to prevent 2x + 3x overlap strategy.
     const ownPickCount = Array.from(this.round.bets.values()).filter(
       (b) => b.userId === userId
     ).length;
-    if (ownPickCount >= 2) {
-      throw new Error('Limit reached — max 2 bets per round');
+    if (ownPickCount >= 1) {
+      throw new Error('Limit reached — max 1 bet per round');
     }
 
     const bet: Bet = {
@@ -424,9 +424,9 @@ class WheelEngine extends EventEmitter {
     for (const b of round.bets.values()) {
       let segments = 0;
       switch (b.pick) {
-        case 2: segments = 26; break;
-        case 3: segments = 17; break;
-        case 5: segments = 10; break;
+        case 2: segments = 6; break;
+        case 3: segments = 5; break;
+        case 5: segments = 3; break;
         case 30: segments = 1; break;
       }
       userCoverage.set(b.userId, (userCoverage.get(b.userId) || 0) + segments);
@@ -435,7 +435,8 @@ class WheelEngine extends EventEmitter {
     // Settle all bets.
     const winners: Array<{ userId: string; pick: WheelMultiplier; amount: number; payout: number }> = [];
     for (const b of round.bets.values()) {
-      const wagerQualifying = !b.isTournament && (userCoverage.get(b.userId) || 0) <= 37; // >70% of 54 is >37.8
+      // 70% of 15 segments is 10.5. If they cover <= 10 segments, it qualifies for wager.
+      const wagerQualifying = !b.isTournament && (userCoverage.get(b.userId) || 0) <= 10;
       const bet: Bet = {
         id: b.betId,
         userId: b.userId,
