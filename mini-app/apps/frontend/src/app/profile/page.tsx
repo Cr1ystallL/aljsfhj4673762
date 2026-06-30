@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy,
   Check,
@@ -11,6 +11,8 @@ import {
   Sparkles,
   ChevronRight,
   Wallet,
+  HelpCircle,
+  X,
 } from 'lucide-react';
 
 import { PageTransition } from '@/components/ui/page-transition';
@@ -47,6 +49,7 @@ export default function ProfilePage() {
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
   const [copied, setCopied] = useState(false);
+  const [isWagerModalOpen, setIsWagerModalOpen] = useState(false);
   const isAdmin = useIsAdmin();
 
   // Pull a fresh balance on mount and again whenever the user navigates back
@@ -221,7 +224,16 @@ export default function ProfilePage() {
               {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
                 <div className="w-full mt-6 px-2 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-roobert text-[12px] text-whisper-gray">Отыгрыш бонуса</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-roobert text-[12px] text-whisper-gray">Отыгрыш бонуса</span>
+                      <button 
+                        onClick={() => setIsWagerModalOpen(true)}
+                        className="text-whisper-gray/70 hover:text-frost-white transition-colors p-0.5"
+                        aria-label="Что такое отыгрыш?"
+                      >
+                        <HelpCircle size={14} strokeWidth={2} />
+                      </button>
+                    </div>
                     <span className="font-roobert text-[12px] text-frost-white tabular-nums">
                       {balance.wagerProgress.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} zł
                     </span>
@@ -321,6 +333,58 @@ export default function ProfilePage() {
           )}
         </div>
       </main>
+
+      {/* Wager Explanation Modal */}
+      <AnimatePresence>
+        {isWagerModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsWagerModalOpen(false)}
+              className="absolute inset-0 bg-midnight-canvas/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-[340px] rounded-[16px] border border-white/10 bg-[#161a20] p-5 shadow-2xl"
+            >
+              <button
+                onClick={() => setIsWagerModalOpen(false)}
+                className="absolute right-4 top-4 p-1 text-whisper-gray/70 hover:text-frost-white transition-colors"
+              >
+                <X size={18} strokeWidth={2} />
+              </button>
+              
+              <div className="mb-4 flex items-center gap-2 text-frost-white">
+                <HelpCircle size={20} className="text-white/80" strokeWidth={1.8} />
+                <h3 className="font-roobert text-[16px] font-medium">Как работает отыгрыш?</h3>
+              </div>
+              
+              <div className="space-y-3 font-roobert text-[13px] text-whisper-gray/90 leading-relaxed">
+                <p>
+                  <strong className="text-frost-white">Отыгрыш (вейджер)</strong> — это сумма ставок, которую необходимо сделать в играх, чтобы разблокировать бонусные средства для вывода.
+                </p>
+                <p>
+                  <strong>Пример:</strong> Если вы получили бонус 100 zł с вейджером x5, вам нужно сделать ставок на общую сумму 500 zł (100 × 5).
+                </p>
+                <p>
+                  В счет отыгрыша идут как выигрышные, так и проигрышные ставки. Как только шкала прогресса заполнится до 100%, ваши средства станут доступны для снятия.
+                </p>
+              </div>
+              
+              <button
+                onClick={() => setIsWagerModalOpen(false)}
+                className="mt-6 w-full rounded-pill bg-white/10 hover:bg-white/15 py-2.5 font-roobert text-[13px] text-frost-white transition-colors"
+              >
+                Понятно
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </PageTransition>
   );
 }
