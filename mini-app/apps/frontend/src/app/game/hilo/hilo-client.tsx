@@ -134,7 +134,7 @@ export function HiloClient() {
 
   return (
     <main className="min-h-screen bg-midnight-canvas text-frost-white pb-20">
-      <GameTopBar gameId="hilo" />
+      <GameTopBar title="Hi-Lo" Icon={Spade} />
       <div className="mx-auto max-w-[800px] px-4 pt-4 flex flex-col gap-4">
         {/* Play Area */}
         <div className="relative min-h-[300px] rounded-xl border border-white/10 bg-gradient-to-b from-green-900/40 to-green-950/40 p-6 flex flex-col items-center justify-center">

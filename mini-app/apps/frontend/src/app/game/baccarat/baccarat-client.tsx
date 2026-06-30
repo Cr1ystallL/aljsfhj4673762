@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Clock } from 'lucide-react';
+import { ArrowLeft, Clock, Spade } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 
 export function BaccaratClient() {
@@ -9,7 +9,7 @@ export function BaccaratClient() {
 
   return (
     <main className="min-h-screen bg-midnight-canvas text-frost-white pb-20">
-      <GameTopBar gameId="baccarat" />
+      <GameTopBar title="Baccarat" Icon={Spade} />
       <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-4 pt-4">
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="mb-6 rounded-full bg-white/5 p-4 text-white/20">

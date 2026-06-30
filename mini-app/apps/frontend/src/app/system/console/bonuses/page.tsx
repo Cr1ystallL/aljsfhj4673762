@@ -2261,7 +2261,8 @@ function ContestEditModal({
           </SectionCard>
 
           <SectionCard icon={<SettingsIcon size={14} strokeWidth={1.7} />} title="Дополнительные правила">
-            <RuleBuilder rules={extraRules} onChange={setExtraRules} />
+            {/* <RuleBuilder rules={extraRules} onChange={setExtraRules} /> */}
+            <div className="font-roobert text-[12px] text-whisper-gray">RuleBuilder не реализован</div>
           </SectionCard>
 
           <ReasonField reason={reason} onChange={setReason} />
