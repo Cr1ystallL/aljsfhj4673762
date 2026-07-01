@@ -345,13 +345,17 @@ export class CrashLiveStream extends EventEmitter {
       }
 
       const phaseEndsAt = typeof s.phaseEndsAt === 'number' ? s.phaseEndsAt : null;
+      const serverNow = typeof s.serverNow === 'number' ? s.serverNow : Date.now();
       let countdown: number | null = this.snapshot.countdown;
       let waitingEndsAt: number | null = this.snapshot.waitingEndsAt;
+      
       if (phase === 'starting' && phaseEndsAt !== null) {
-        countdown = Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000));
-        waitingEndsAt = phaseEndsAt; // Keep endsAt so timer works in CrashStage
-      } else if (phase === 'waiting') {
-        waitingEndsAt = phaseEndsAt;
+        const remainingMs = Math.max(0, phaseEndsAt - serverNow);
+        countdown = Math.ceil(remainingMs / 1000);
+        waitingEndsAt = Date.now() + remainingMs;
+      } else if (phase === 'waiting' && phaseEndsAt !== null) {
+        const remainingMs = Math.max(0, phaseEndsAt - serverNow);
+        waitingEndsAt = Date.now() + remainingMs;
         countdown = null;
       } else if (phase === 'active' || phase === 'completed') {
         countdown = null;
@@ -522,10 +526,7 @@ export class CrashLiveStream extends EventEmitter {
       }
 
       case 'phase:waiting': {
-        const endsAt =
-          typeof p.endsAt === 'number'
-            ? p.endsAt
-            : Date.now() + (p.duration ?? 0);
+        const endsAt = Date.now() + (p.duration ?? 9000);
         this.fast = {
           displayMultiplier: 1,
           graphPoints: [{ time: 0, multiplier: 1 }],
@@ -559,7 +560,7 @@ export class CrashLiveStream extends EventEmitter {
         };
         this.emitTick();
         
-        const endsAt = typeof p.endsAt === 'number' ? p.endsAt : Date.now() + (p.duration ?? 3000);
+        const endsAt = Date.now() + (p.duration ?? 3000);
         
         this.updateSlow({
           phase: 'starting',

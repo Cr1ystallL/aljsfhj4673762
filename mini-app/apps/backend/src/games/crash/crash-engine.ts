@@ -299,6 +299,7 @@ export class CrashGameEngine extends BaseGameEngine {
   getCurrentState(): unknown {
     return {
       phase: this.room.state,
+      serverNow: Date.now(),
       multiplier: this.crashState.currentMultiplier,
       elapsedTime: this.crashState.elapsedTime,
       phaseEndsAt: this.currentPhaseEndsAt,
