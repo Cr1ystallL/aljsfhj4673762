@@ -56,7 +56,7 @@ export function ProvablyFairCalculator() {
     await new Promise(r => setTimeout(r, 400));
 
     try {
-      const message = `${clientSeed}:${nonce}:0`;
+      const message = `${clientSeed}:${nonce}`;
       const hash = await hmacSha256(serverSeed, message);
       const u = hashToFloat(hash);
       
