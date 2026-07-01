@@ -248,8 +248,8 @@ export class CrashGameEngine extends BaseGameEngine {
     if (!VALID_SLOTS.has(slot)) {
       throw new Error('Invalid slot');
     }
-    if (this.room.state === 'active' || this.room.state === 'resolving') {
-      throw new Error('Cannot cancel: round already started');
+    if (this.room.state !== 'waiting') {
+      throw new Error('Cannot cancel: betting is closed');
     }
     const key = this.slotKey(userId, slot);
     const bet = this.crashState.slotBets.get(key);
@@ -476,7 +476,7 @@ export class CrashGameEngine extends BaseGameEngine {
   }
 
   protected canPlaceBet(): boolean {
-    return this.room.state === 'waiting' || this.room.state === 'starting';
+    return this.room.state === 'waiting';
   }
 
   protected getTickState(): unknown {

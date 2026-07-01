@@ -73,8 +73,9 @@ export const CrashBetPanel = memo(function CrashBetPanel({
       case 'idle':
         return bettingClosed ? 'Round in progress' : 'Play';
       case 'queued':
-      case 'locked':
         return 'Cancel';
+      case 'locked':
+        return 'Locked';
       case 'cashable':
         return `Cash Out · x${multiplier.toFixed(2)}`;
       case 'finished_won':
@@ -87,13 +88,13 @@ export const CrashBetPanel = memo(function CrashBetPanel({
   const ctaActive =
     slotPhase === 'cashable' ||
     (slotPhase === 'idle' && !bettingClosed) ||
-    slotPhase === 'queued' ||
-    slotPhase === 'locked';
+    slotPhase === 'queued';
 
   const ctaDisabled =
     busy ||
     slotPhase === 'finished_won' ||
     slotPhase === 'finished_lost' ||
+    slotPhase === 'locked' ||
     (slotPhase === 'idle' && bettingClosed);
 
   const decAmount = () =>

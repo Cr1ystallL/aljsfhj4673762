@@ -268,7 +268,7 @@ export default function CrashGamePage() {
     [activeBalance]
   );
 
-  const bettingClosed = snapshot.phase === 'active' || snapshot.phase === 'completed' || snapshot.phase === 'resolving';
+  const bettingClosed = snapshot.phase === 'starting' || snapshot.phase === 'active' || snapshot.phase === 'completed' || snapshot.phase === 'resolving';
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
