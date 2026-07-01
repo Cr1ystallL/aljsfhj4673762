@@ -344,7 +344,7 @@ export function HomeScreen() {
               {g.bg && (
                 <div
                   aria-hidden
-                  className="absolute inset-0 opacity-40 group-hover:opacity-60 group-active:opacity-70 transition-opacity duration-300"
+                  className="absolute inset-0 opacity-70 group-hover:opacity-100 transition-opacity duration-500"
                   style={{
                     backgroundImage: `url(${g.bg})`,
                     backgroundSize: 'cover',

@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { EventEmitter } from 'events';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { gameConfig } from '../../services/game-config.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
@@ -362,6 +362,7 @@ class WheelEngine extends EventEmitter {
     );
 
     // --- Custom Logic ---
+    /*
     const realBets = Array.from(this.round.bets.values());
     if (realBets.length > 0) {
       const counts: Record<number, number> = { 2: 0, 3: 0 };
@@ -391,6 +392,7 @@ class WheelEngine extends EventEmitter {
         }
       }
     }
+    */
 
     this.emit('event', {
       type: 'phase:spinning',

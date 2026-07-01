@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
@@ -510,7 +510,7 @@ export class BlackjackEngine extends EventEmitter {
         }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
 
         // Record outcome for RTP
-        await rtpEngine.recordOutcome(player.userId, player.bet, payout);
+        // await rtpEngine.recordOutcome(player.userId, player.bet, payout);
 
       } catch (err) {
         logger.error({ err, userId: player.userId }, 'Failed to settle blackjack bet');
@@ -585,8 +585,8 @@ export class BlackjackEngine extends EventEmitter {
   private drawCard(userId: string): Card {
     // Apply RTP bias based on user
     const biasPromise = userId === 'dealer' 
-      ? rtpEngine.getGlobalBias() 
-      : rtpEngine.getBiasFor(userId);
+      ? 0 // rtpEngine.getGlobalBias() 
+      : 0; // rtpEngine.getBiasFor(userId);
 
     // For simplicity, we draw from deck but bias affects the "quality" of card
     // In a full implementation, bias would weight the probability space

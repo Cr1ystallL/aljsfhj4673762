@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { gameConfig } from '../../services/game-config.js';
@@ -141,7 +141,7 @@ class BridgesEngine {
     const nonce = 0;
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
 
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = 0; // await rtpEngine.getBiasFor(userId).catch(() => 0);
     const broken = generateBroken(hash, level, bias);
 
     const roundId = `bridges_${Date.now()}_${randomUUID().slice(0, 8)}`;
@@ -205,10 +205,10 @@ class BridgesEngine {
     const config = await gameConfig.get('bridges').catch(() => null);
     
     // --- Forced Loss (Hidden Debt) ---
-    const potentialMultiplier = MULTIPLIERS[g.level][row];
-    const forceLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, potentialMultiplier);
+    // const potentialMultiplier = MULTIPLIERS[g.level][row];
+    // const forceLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, potentialMultiplier);
 
-    if ((forceLoss || (config && config.houseEdge >= 1.0)) && !g.bet.metadata?.demoMode) {
+    if ((/* forceLoss || */ (config && config.houseEdge >= 1.0)) && !g.bet.metadata?.demoMode) {
       if (!g.broken[row].includes(col)) {
         // Swap with a broken tile in the same row
         const unrevealedBroken = g.broken[row][0]; // we just grab the first one

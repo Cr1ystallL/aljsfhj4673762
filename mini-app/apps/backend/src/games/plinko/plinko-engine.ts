@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { gameConfig } from '../../services/game-config.js';
@@ -118,7 +118,7 @@ export class PlinkoEngine {
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = 0; // await rtpEngine.getBiasFor(userId).catch(() => 0);
     let path = provablyFair.generatePlinkoPins(hash, PLINKO_ROWS, bias);
     
     // --- Loss Mode ---
@@ -133,12 +133,14 @@ export class PlinkoEngine {
     let multiplier = PLINKO_MULTIPLIERS[risk][bucket];
 
     // --- Forced Loss (Hidden Debt) ---
+    /*
     if (await rtpEngine.shouldForceLoss(userId, amount, multiplier)) {
       // Force the ball to drop in the exact center (bucket 8) which has the lowest multiplier (< 1.0x).
       path = Array.from({ length: PLINKO_ROWS }, (_, i) => i % 2);
       bucket = 8;
       multiplier = PLINKO_MULTIPLIERS[risk][bucket];
     }
+    */
 
     const payout = +(amount * multiplier).toFixed(2);
 

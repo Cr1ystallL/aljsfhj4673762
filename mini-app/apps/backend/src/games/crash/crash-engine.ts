@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { BaseGameEngine } from '../../game-engine/base-game-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { provablyFair } from '../../game-engine/provably-fair.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { gameConfig } from '../../services/game-config.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
@@ -391,6 +391,8 @@ export class CrashGameEngine extends BaseGameEngine {
     // `BUDGET_FRACTION` of the rolling 24h profit. This is a soft
     // safety net — the controller (rtp-engine) already does the
     // primary smoothing.
+    /* 
+    // RTP Engine logic commented out to enforce 100% pure RNG
     try {
       const status = await rtpEngine.getStatus();
       const totalStake = Array.from(this.crashState.slotBets.values()).reduce(
@@ -411,6 +413,7 @@ export class CrashGameEngine extends BaseGameEngine {
     } catch {
       // best-effort, fall through
     }
+    */
 
     // Final floor so we never produce a sub-1.01 crash, UNLESS loss mode (houseEdge >= 1.0) is active
     // If loss mode is active and there are real bets, force crashPoint to 1.00.
@@ -581,19 +584,28 @@ export class CrashGameEngine extends BaseGameEngine {
       history: this.history.slice(-20).reverse(),
       stats: this.getRoomStats(),
     });
-    // Skip the countdown phase — once betting closes, the round flips
-    // to `active` immediately so the curve starts without a 3-2-1
-    // ceremony. Admin's `countdownSeconds` config is therefore ignored.
+    // Proceed to countdown phase. Admin's `countdownSeconds` config is applied.
     this.waitingTimeout = setTimeout(
-      () => this.activateRound(),
+      () => this.startCountdown(),
       this.waitingTimeMs
     );
   }
 
   private startCountdown(): void {
-    // Retained as a no-op for binary compatibility with any caller that
-    // still references it. The lifecycle now goes waiting → active.
-    this.activateRound();
+    this.clearTimeouts();
+    this.room.state = 'starting';
+    const endsAt = Date.now() + this.countdownTimeMs;
+    this.currentPhaseEndsAt = endsAt;
+    
+    this.emitEvent('phase:countdown', {
+      duration: this.countdownTimeMs,
+      endsAt,
+    });
+    
+    this.countdownTimeout = setTimeout(
+      () => this.activateRound(),
+      this.countdownTimeMs
+    );
   }
 
   private clearTimeouts(): void {

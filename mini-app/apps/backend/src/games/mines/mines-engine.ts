@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { gameConfig } from '../../services/game-config.js';
@@ -31,7 +31,7 @@ const MIN_MINES = 1;
 const MAX_MINES = 24;
 const MIN_BET = 1;
 const MAX_BET = 10000;
-const HOUSE_RTP = 0.99;
+const HOUSE_RTP = 0.956;
 
 interface MinesGameState {
   userId: string;
@@ -133,7 +133,7 @@ class MinesEngine {
     // Pre-fact tilt: the controller may push mines toward the centre
     // (where humans click first) when the casino is lagging the earn
     // target, or toward the corners when we want to give back.
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = 0; // await rtpEngine.getBiasFor(userId).catch(() => 0);
     const minePositions = provablyFair.generateMinesPositions(
       hash,
       5,
@@ -212,7 +212,7 @@ class MinesEngine {
     // The chance to teleport a mine under the click increases as the player
     // opens more cells, heavily dependent on the number of mines and RTP bias.
     const config = await gameConfig.get('mines');
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    // const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
     
     let forceBust = false;
     
@@ -221,6 +221,7 @@ class MinesEngine {
       forceBust = true;
     } 
     // 2. Dynamic RTP tilt
+    /*
     else if (bias > 0 && !g.demoMode) {
       const clickNumber = g.revealed.length + 1;
       // How many clicks are guaranteed "safe" from teleportation
@@ -235,6 +236,7 @@ class MinesEngine {
         }
       }
     }
+    */
 
     if (forceBust) {
       if (!g.minePositions.includes(position)) {

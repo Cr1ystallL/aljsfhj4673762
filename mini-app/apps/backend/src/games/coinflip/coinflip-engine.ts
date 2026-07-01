@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { gameConfig } from '../../services/game-config.js';
@@ -153,15 +153,17 @@ class CoinflipEngine {
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
     // Pre-fact tilt — bias > 0 makes the user lose more often, bias < 0
     // makes them win more often. Capped to ±20pp shift in the win rate.
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = 0; // await rtpEngine.getBiasFor(userId).catch(() => 0);
     let outcome = provablyFair.coinflipOutcome(hash, choice, bias);
     let won = outcome === choice;
 
     // --- Forced Loss (Hidden Debt) ---
+    /*
     if (await rtpEngine.shouldForceLoss(userId, amount, STEP_MULTIPLIER)) {
       won = false;
       outcome = (choice === 'heads' ? 'tails' : 'heads');
     }
+    */
 
     const config = await gameConfig.get('coinflip').catch(() => null);
     if (config && config.houseEdge >= 1.0) {
@@ -310,15 +312,17 @@ class CoinflipEngine {
     this.rooms.set(userId, state);
 
     // Resolve the first toss right away.
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = 0; // await rtpEngine.getBiasFor(userId).catch(() => 0);
     let outcome = this.resolveRoundOutcome(state, firstChoice, bias);
     let won = outcome === firstChoice;
 
     // --- Forced Loss (Hidden Debt) ---
+    /*
     if (await rtpEngine.shouldForceLoss(userId, amount, STEP_MULTIPLIER)) {
       won = false;
       outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
     }
+    */
 
     const config = await gameConfig.get('coinflip').catch(() => null);
     if (config && config.houseEdge >= 1.0) {
@@ -360,16 +364,18 @@ class CoinflipEngine {
     g.pendingChoice = choice;
     g.awaiting = 'flipResult';
 
-    const bias = await rtpEngine.getBiasFor(g.userId).catch(() => 0);
+    const bias = 0; // await rtpEngine.getBiasFor(g.userId).catch(() => 0);
     let outcome = this.resolveRoundOutcome(g, choice, bias);
     let won = outcome === choice;
 
     // --- Forced Loss (Hidden Debt) ---
     const potentialMultiplier = +(g.currentMultiplier * STEP_MULTIPLIER).toFixed(2);
+    /*
     if (await rtpEngine.shouldForceLoss(g.userId, g.betAmount, potentialMultiplier)) {
       won = false;
       outcome = (choice === 'heads' ? 'tails' : 'heads');
     }
+    */
 
     const config = await gameConfig.get('coinflip').catch(() => null);
     if (config && config.houseEdge >= 1.0) {

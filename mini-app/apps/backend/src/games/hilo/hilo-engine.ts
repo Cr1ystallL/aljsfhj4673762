@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { prisma } from '../../lib/prisma.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { gameConfig } from '../../services/game-config.js';
-import { rtpEngine } from '../../services/rtp-engine.js';
+// import { rtpEngine } from '../../services/rtp-engine.js';
 import type { Bet } from '../../game-engine/types.js';
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
@@ -144,7 +144,7 @@ export const hiloEngine = {
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (!state.currentCard) throw new Error('No current card');
 
-    const bias = await rtpEngine.getBiasFor(userId);
+    const bias = 0; // await rtpEngine.getBiasFor(userId);
     const cfg = await gameConfig.get('hilo');
     
     // Hilo-specific RTP forced loss mechanic based on house edge setting
@@ -174,10 +174,10 @@ export const hiloEngine = {
     }
 
     // --- Forced Loss (Hidden Debt) ---
-    const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
-    if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier)) {
-      shouldWin = false;
-    }
+    // const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
+    // if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier)) {
+    //   shouldWin = false;
+    // }
 
     // Regenerate up to 50 times if we need to force an outcome
     for (let loop = 0; loop < 50; loop++) {

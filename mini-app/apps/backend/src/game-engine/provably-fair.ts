@@ -109,6 +109,8 @@ export class ProvablyFairSystem {
    *     the high-end; casino tilt spends it on early busts.
    */
   generateCrashMultiplier(hash: string, bias: number = 0): number {
+    /*
+    // Old implementation with instant bust and bias:
     const b = clampBias(bias);
     const baseHouseEdge = 0.01;
     const instantBust = Math.min(
@@ -135,6 +137,15 @@ export class ProvablyFairSystem {
     const raw = 1 / (1 - safeU);
     const result = Math.floor(raw * 100) / 100;
     return Math.max(1.01, Math.min(10000, result));
+    */
+
+    // New 95.6% RTP (4.4% House Edge) Implementation
+    const u = this.hashToFloat(hash); // [0, 1)
+    const raw = 0.956 / (1 - u);
+    const result = Math.floor(raw * 100) / 100;
+    
+    // Fallback if raw is somehow less than 1.00 (which it shouldn't be often unless u is very small)
+    return Math.max(1.00, Math.min(10000, result));
   }
 
   /** ---------------------------------------------------------------- */

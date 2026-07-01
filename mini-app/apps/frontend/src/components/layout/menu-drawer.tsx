@@ -343,36 +343,13 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect, isAuthenticated = tr
                   <button
                     onClick={() => {
                       onClose();
-                      openExternal('https://t.me/+m9rl_ptr8fZiNzcy');
+                      goInternal('/info');
                     }}
                     className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors"
                   >
-                    <Bell size={14} strokeWidth={1.7} />
+                    <Shield size={14} strokeWidth={1.7} />
                     <span className="font-roobert text-[12px] uppercase tracking-[0.22em]">
-                      Ссылки на ресурсы
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onClose();
-                      openExternal(
-                        'https://telegra.ph/POLZOVATELSKOE-SOGLASHENIE-I-PRAVILA-IGROVOJ-PLATFORMY-MACVBET-06-01'
-                      );
-                    }}
-                    className="inline-flex items-center justify-center gap-2 w-full py-2 rounded-pill border border-white/15 bg-white/[0.02] text-whisper-gray hover:text-frost-white hover:border-white/25 transition-colors"
-                  >
-                    <Shield size={12} strokeWidth={1.7} />
-                    <span className="font-roobert text-[10px] uppercase tracking-[0.22em]">
-                      Пользовательское соглашение
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => goInternal('/legal/privacy')}
-                    className="inline-flex items-center justify-center gap-2 w-full py-2 text-whisper-gray hover:text-frost-white transition-colors"
-                  >
-                    <Shield size={12} strokeWidth={1.7} />
-                    <span className="font-roobert text-[10px] uppercase tracking-[0.22em]">
-                      Политика конфиденциальности
+                      Информация и Правила
                     </span>
                   </button>
                 </div>
