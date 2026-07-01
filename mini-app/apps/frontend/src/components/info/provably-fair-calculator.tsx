@@ -56,8 +56,14 @@ export function ProvablyFairCalculator() {
     await new Promise(r => setTimeout(r, 400));
 
     try {
-      const message = `${clientSeed}:${nonce}`;
-      const hash = await hmacSha256(serverSeed, message);
+      // Calculate SHA256 using Web Crypto API
+      const message = `${serverSeed}${clientSeed}:${nonce}`;
+      const encoder = new TextEncoder();
+      const data = encoder.encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
       const u = hashToFloat(hash);
       
       let finalValue: string | number = '';
@@ -114,7 +120,7 @@ export function ProvablyFairCalculator() {
             <select 
               value={game}
               onChange={(e) => setGame(e.target.value as any)}
-              className="w-full bg-black/20 border border-white/5 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all appearance-none font-medium"
+              className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all appearance-none font-medium"
             >
               <option value="crash">MacvJet (Crash)</option>
               <option value="coinflip">Coinflip</option>
@@ -142,7 +148,7 @@ export function ProvablyFairCalculator() {
               type="text" 
               value={serverSeed}
               onChange={(e) => setServerSeed(e.target.value)}
-              className="w-full bg-black/20 border border-white/5 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all placeholder-white/20 font-mono"
+              className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all placeholder-white/20 font-mono"
               placeholder="e.g. 5b9f7a..."
             />
           </div>
@@ -157,7 +163,7 @@ export function ProvablyFairCalculator() {
                 type="text" 
                 value={clientSeed}
                 onChange={(e) => setClientSeed(e.target.value)}
-                className="w-full bg-black/20 border border-white/5 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all placeholder-white/20 font-mono"
+                className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all placeholder-white/20 font-mono"
                 placeholder="Ваш seed"
               />
             </div>
@@ -171,7 +177,7 @@ export function ProvablyFairCalculator() {
                 type="number" 
                 value={nonce}
                 onChange={(e) => setNonce(e.target.value)}
-                className="w-full bg-black/20 border border-white/5 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all placeholder-white/20 font-mono"
+                className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all placeholder-white/20 font-mono"
                 placeholder="Раунд"
               />
             </div>

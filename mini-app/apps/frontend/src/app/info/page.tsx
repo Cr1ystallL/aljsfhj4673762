@@ -232,7 +232,8 @@ export default function InfoPage() {
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Общие вопросы и Аккаунт</h3>\n                <Accordion 
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Общие вопросы и Аккаунт</h3>
+                <Accordion 
                   question="Как пополнить баланс и как долго идет вывод?" 
                   answer="Вы можете пополнить баланс в разделе &quot;Кошелёк&quot;. Мы поддерживаем криптовалюты и банковские карты. Пополнение криптой происходит после 1-го подтверждения сети. Выводы в криптовалюте автоматизированы и занимают 5-15 минут. Выводы на банковские карты могут занимать от нескольких часов до 1 суток." 
                 />
@@ -272,7 +273,8 @@ export default function InfoPage() {
                   question="Защищены ли мои персональные данные?" 
                   answer="Да, все данные передаются по защищенному протоколу TLS и хранятся в зашифрованных базах данных с ограниченным доступом." 
                 />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Финансы: Пополнение и Вывод</h3>\n                <Accordion 
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Финансы: Пополнение и Вывод</h3>
+                <Accordion 
                   question="Взимается ли комиссия за вывод средств?" 
                   answer="Платформа не берет свою комиссию, однако комиссия сети блокчейна или банка-эмитента вычитается из суммы вывода." 
                 />
@@ -312,7 +314,8 @@ export default function InfoPage() {
                   question="Нужно ли отыгрывать депозит перед выводом?" 
                   answer="Да, в целях противодействия отмыванию денег (AML) любой депозит должен быть проставлен с вейджером x1 перед выводом." 
                 />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Бонусы и Промоакции</h3>\n                <Accordion 
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Бонусы и Промоакции</h3>
+                <Accordion 
                   question="Как работают бонусы?" 
                   answer="Бонусы зачисляются на бонусный счет и имеют требование по отыгрышу (вейджеру). Пока вейджер не выполнен, вывод бонусных средств невозможен." 
                 />
@@ -352,7 +355,8 @@ export default function InfoPage() {
                   question="Можно ли злоупотреблять бонусами?" 
                   answer="Любые стратегии игры с минимальным риском на бонусные деньги признаются абузом. Выигрыши будут аннулированы." 
                 />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Безопасность и Честность (Provably Fair)</h3>\n                <Accordion 
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Безопасность и Честность (Provably Fair)</h3>
+                <Accordion 
                   question="Что такое Provably Fair (Доказуемая Честность)?" 
                   answer="Это криптографическая система (HMAC-SHA256), гарантирующая честность каждого раунда. Исход формируется до вашей ставки и объединяет Server Seed и Client Seed." 
                 />
@@ -392,7 +396,8 @@ export default function InfoPage() {
                   question="Могут ли другие игроки повлиять на мой результат?" 
                   answer="Нет, в одиночных играх (Mines, Plinko) ваш Client Seed влияет только на вас. В многопользовательских (MacvJet) Client Seed формируется из хэша первого сделавшего ставку игрока." 
                 />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Правила Игр (In-House)</h3>\n                <Accordion 
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Правила Игр (In-House)</h3>
+                <Accordion 
                   question="🚀 Как играть в MacvJet (Crash)?" 
                   answer="MacvJet — наша фирменная краш-игра. Ракета взлетает, и множитель начинает расти от 1.00x. Ваша задача — нажать кнопку &quot;Забрать&quot;, прежде чем ракета улетит. Если вы успеете, ставка умножится на коэффициент. Если нет — сгорает." 
                 />
@@ -429,10 +434,11 @@ export default function InfoPage() {
                   answer="Вы должны перебраться на другую сторону моста. На каждом шаге вам предлагается несколько блоков. Часть из них безопасна, часть — рушится. Чем дальше пройдете, тем выше награда." 
                 />
                 <Accordion 
-                  question="🃏 Как играть в Blackjack?" 
-                  answer="Соберите карты с суммой очков ближе к 21, чем у дилера, но не превышайте 21. Валет, Дама, Король = 10 очков. Туз = 1 или 11." 
+                  question="🃏 Как играть в Hi Lo?" 
+                  answer="В Hi Lo вам предстоит угадать, будет ли следующая карта старше (Hi) или младше (Lo) текущей. Чем меньше вероятность события, тем выше множитель выигрыша. Вы можете забрать выигрыш после любого успешного шага!" 
                 />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Технические Вопросы</h3>\n                <Accordion 
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Технические Вопросы</h3>
+                <Accordion 
                   question="Почему игра тормозит?" 
                   answer="Убедитесь, что у вас стабильное интернет-соединение. Если проблема сохраняется, попробуйте очистить кэш Telegram или перезапустить приложение." 
                 />
