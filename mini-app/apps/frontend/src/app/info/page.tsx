@@ -2,128 +2,316 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Shield, CheckCircle2, HelpCircle, Scale } from 'lucide-react';
+import { ChevronLeft, Shield, CheckCircle2, HelpCircle, Scale, ChevronDown } from 'lucide-react';
 import { ProvablyFairCalculator } from '@/components/info/provably-fair-calculator';
+
+function Accordion({ question, answer }: { question: string, answer: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className="border border-white/5 rounded-2xl bg-white/[0.02] overflow-hidden transition-all duration-300 hover:bg-white/[0.04]">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
+      >
+        <h4 className="font-semibold text-frost-white text-sm sm:text-base pr-4">{question}</h4>
+        <ChevronDown size={18} className={`text-frost-white/50 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180 text-macvbet-red' : ''}`} />
+      </button>
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out`}
+        style={{ maxHeight: isOpen ? '1000px' : '0px', opacity: isOpen ? 1 : 0 }}
+      >
+        <div className="p-5 pt-0 text-sm text-frost-white/70 leading-relaxed border-t border-white/5 mt-1">
+          {answer}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function InfoPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'rules' | 'privacy' | 'faq' | 'fairness'>('rules');
 
   const tabs = [
-    { id: 'rules', label: 'Правила', icon: Shield },
+    { id: 'rules', label: 'Соглашение', icon: Shield },
     { id: 'privacy', label: 'Политика', icon: CheckCircle2 },
     { id: 'faq', label: 'FAQ', icon: HelpCircle },
     { id: 'fairness', label: 'Честная игра', icon: Scale },
   ] as const;
 
   return (
-    <main className="min-h-screen bg-midnight-canvas text-frost-white flex flex-col pb-safe">
-      <header className="sticky top-0 z-50 bg-midnight-canvas/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex flex-col gap-3">
-        <div className="flex items-center gap-3">
+    <main className="min-h-screen bg-midnight-canvas text-frost-white flex flex-col pb-safe selection:bg-macvbet-red/30">
+      <header className="sticky top-0 z-50 bg-midnight-canvas/90 backdrop-blur-xl border-b border-white/5 px-4 py-4 flex flex-col gap-4 shadow-2xl shadow-black/50">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 hover:bg-white/10 transition-all active:scale-95 text-frost-white/80 hover:text-white"
           >
-            <ChevronLeft size={24} className="text-frost-white/80" />
+            <ChevronLeft size={24} />
           </button>
-          <h1 className="font-roobert font-bold text-xl tracking-wide uppercase">
+          <h1 className="font-roobert font-bold text-xl tracking-wide uppercase bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
             Информация
           </h1>
         </div>
         
         {/* Scrollable tabs */}
-        <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-1">
+        <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-1 mask-linear-fade">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-pill whitespace-nowrap transition-colors border ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all duration-300 border ${
                 activeTab === t.id
-                  ? 'bg-macvbet-red/20 border-macvbet-red text-macvbet-red'
-                  : 'bg-white/5 border-white/10 text-frost-white/60 hover:text-frost-white/90'
+                  ? 'bg-macvbet-red/10 border-macvbet-red/30 text-macvbet-red shadow-[0_0_15px_rgba(255,42,76,0.15)]'
+                  : 'bg-white/5 border-transparent text-frost-white/60 hover:bg-white/10 hover:text-frost-white/90'
               }`}
             >
-              <t.icon size={14} />
-              <span className="font-roobert text-sm tracking-wide">{t.label}</span>
+              <t.icon size={16} className={activeTab === t.id ? 'drop-shadow-glow' : ''} />
+              <span className="font-roobert text-sm font-medium tracking-wide">{t.label}</span>
             </button>
           ))}
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        {activeTab === 'rules' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold font-roobert text-macvbet-red">Пользовательское соглашение</h2>
-            <div className="text-frost-white/80 space-y-4 text-sm leading-relaxed">
-              <p>Добро пожаловать в MACVBET. Пользуясь нашей платформой, вы соглашаетесь со следующими правилами.</p>
-              <h3 className="text-lg font-semibold text-frost-white mt-4">1. Возрастные ограничения</h3>
-              <p>Пользоваться платформой могут только лица, достигшие 18 лет.</p>
-              <h3 className="text-lg font-semibold text-frost-white mt-4">2. Риски</h3>
-              <p>Участие в играх несет финансовые риски. Вы играете на свой страх и риск и обязуетесь не использовать средства, потерю которых вы не можете себе позволить.</p>
-              <h3 className="text-lg font-semibold text-frost-white mt-4">3. Ответственность</h3>
-              <p>Платформа предоставляет развлекательные услуги "как есть". Мы не несем ответственности за технические сбои на стороне пользователя.</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'privacy' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold font-roobert text-macvbet-red">Политика конфиденциальности</h2>
-            <div className="text-frost-white/80 space-y-4 text-sm leading-relaxed">
-              <p>Мы ценим вашу конфиденциальность и защищаем ваши персональные данные.</p>
-              <h3 className="text-lg font-semibold text-frost-white mt-4">1. Сбор данных</h3>
-              <p>Мы собираем только ту информацию, которая необходима для работы сервиса: ваш ID Telegram, публичное имя и аватар.</p>
-              <h3 className="text-lg font-semibold text-frost-white mt-4">2. Использование данных</h3>
-              <p>Ваши данные используются исключительно для аутентификации и отображения в таблицах лидеров.</p>
-              <h3 className="text-lg font-semibold text-frost-white mt-4">3. Передача третьим лицам</h3>
-              <p>Мы не передаем ваши личные данные третьим лицам, за исключением случаев, предусмотренных законодательством.</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'faq' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold font-roobert text-macvbet-red">Часто задаваемые вопросы (FAQ)</h2>
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                <h4 className="font-semibold text-frost-white">Как пополнить баланс?</h4>
-                <p className="text-sm text-frost-white/70 mt-2">Вы можете пополнить баланс в разделе "Кошелёк", используя доступные методы оплаты, включая криптовалюты и банковские карты.</p>
+        <div className="max-w-2xl mx-auto">
+          
+          {/* TAB: RULES */}
+          {activeTab === 'rules' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="text-center space-y-3 mb-8">
+                <div className="w-16 h-16 rounded-full bg-macvbet-red/10 flex items-center justify-center mx-auto mb-4 border border-macvbet-red/20">
+                  <Shield size={32} className="text-macvbet-red" />
+                </div>
+                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ И ПРАВИЛА ИГРОВОЙ ПЛАТФОРМЫ MACVBET</h2>
+                <p className="text-xs text-frost-white/40 uppercase tracking-widest font-mono">MacvBet | Редакция от 1 Июня 2026</p>
               </div>
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                <h4 className="font-semibold text-frost-white">Как долго обрабатывается вывод средств?</h4>
-                <p className="text-sm text-frost-white/70 mt-2">Выводы в криптовалюте обычно обрабатываются в течение 10-15 минут. Выводы на карты могут занимать от 1 до 24 часов.</p>
+
+              <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-200/90 text-sm flex gap-3 items-start">
+                <span className="text-xl">⚠️</span>
+                <p>Регистрация, запуск бота и участие в играх в интерфейсе Telegram Web App означают автоматическое и безоговорочное согласие Пользователя со всеми пунктами данного Соглашения. Если вы не согласны с условиями — немедленно прекратите использование Платформы.</p>
               </div>
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                <h4 className="font-semibold text-frost-white">Что такое Provably Fair?</h4>
-                <p className="text-sm text-frost-white/70 mt-2">Это криптографическая система, которая доказывает, что казино не может вмешаться в результат игры. Вы можете проверить любую ставку во вкладке "Честная игра".</p>
-              </div>
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                <h4 className="font-semibold text-frost-white">Можно ли иметь несколько аккаунтов?</h4>
-                <p className="text-sm text-frost-white/70 mt-2">Нет, создание мультиаккаунтов строго запрещено и может привести к блокировке всех связанных учетных записей.</p>
+
+              <div className="text-frost-white/80 space-y-6 text-sm leading-relaxed">
+                <section className="space-y-3">
+                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">1. Специфика использования Telegram Web App (TWA)</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-white">1.1. Жёсткая привязка к Telegram ID</h4>
+                      <p>Учётная запись Пользователя на Платформе неразрывно связана с его уникальным цифровым идентификатором Telegram ID. Любые действия, совершённые через данный аккаунт Telegram, признаются действиями самого Пользователя. Перепривязка игрового профиля на другой Telegram ID не допускается ни при каких обстоятельствах.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">1.2. Противодействие Telegram-фермам</h4>
+                      <p>Категорически запрещено использование аккаунтов Telegram, зарегистрированных на виртуальные, временные или арендованные номера телефонов, а также оформленных на подставных лиц (дропов). При обнаружении признаков массовой регистрации или управления сетью аккаунтов вся сеть блокируется навсегда без права вывода средств.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">1.3. Ответственность за безопасность профиля</h4>
+                      <p>Компания не несёт ответственности за сохранность личного Telegram-аккаунта Пользователя. В случае угона, утери, удаления или блокировки аккаунта мессенджером Telegram доступ к игровому балансу теряется безвозвратно.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">1.4. Запрет на парсинг и эмуляцию</h4>
+                      <p>Взаимодействие с Платформой разрешено исключительно через официальный интерфейс Telegram Web App. Использование сторонних клиентов, эмуляторов, скриптов автоматизации, а также прямых API-запросов признаётся несанкционированным доступом. Аккаунт нарушителя ликвидируется мгновенно.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">2. Мультиаккаунтинг, верификация (KYC) и борьба с ИИ</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-white">2.1. Правило одного аккаунта</h4>
+                      <p>Одно физическое лицо имеет право владеть только одним игровым счётом. Данное правило распространяется на один IP-адрес/подсеть, одно физическое устройство и одну платёжную карту/кошелёк.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">2.2. Процедура верификации (KYC)</h4>
+                      <p>Компания имеет право в любой момент заморозить вывод средств и потребовать от Пользователя подтверждения личности (фото документов, селфи, видеоинтервью). До успешного завершения верификации все финансовые операции приостанавливаются.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">2.3. Запрет на автоматизацию и ИИ</h4>
+                      <p>Запрещено использование любых подсказчиков, ботов, ИИ-алгоритмов или кликеров. Компания использует внутренние поведенческие маркеры. Любая аномальная сессионная активность ведёт к блокировке.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">2.4. Возраст Пользователя</h4>
+                      <p>Платформа предназначена исключительно для лиц, достигших 18 лет. При обнаружении нарушения аккаунт блокируется, средства замораживаются.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">3. Бонусная политика и технические сбои</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-white">3.1. Злоупотребление бонусами</h4>
+                      <p>Запрещены любые стратегии отыгрыша бонусных средств с минимальным риском. Все выигрыши, полученные с использованием уязвимостей бонусной механики, признаются недействительными.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">3.2. Технические сбои («Palpable Errors»)</h4>
+                      <p>В случае программных ошибок, сбоёв ГСЧ, задержек передачи данных или трансляции неверных коэффициентов все затронутые ставки аннулируются с возвратом суммы исходной ставки.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">3.3. Ограничения выплат</h4>
+                      <p>Компания устанавливает максимальные лимиты единовременного вывода. При выигрышах, превышающих стандартные лимиты, проводится дополнительная проверка.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">4. Финансовые правила</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-white">4.1. Принципиальный отказ от чарджбэков</h4>
+                      <p>В случае инициации возврата платежей (Chargeback) Платформа немедленно блокирует аккаунт, аннулирует баланс и вправе передать данные в антифрод-системы.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">4.2. Запрет платёжных средств третьих лиц</h4>
+                      <p>Использование карт и кошельков, принадлежащих третьим лицам, категорически запрещено.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">5. Абсолютное дискреционное право</h3>
+                  <p>Компания оставляет за собой право изменять правила без уведомления, а также закрыть учётную запись любого Пользователя по собственному усмотрению (с возвратом остатка реального депозита, если нет нарушений).</p>
+                </section>
+                
+                <section className="space-y-3">
+                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">6. Интеллектуальная собственность</h3>
+                  <p>Все объекты интеллектуальной собственности Платформы — торговая марка MacvBet, программный код, дизайн, контент и игровые механики — являются собственностью Компании. Использование без разрешения запрещено.</p>
+                </section>
+
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'fairness' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold font-roobert text-macvbet-red">Честная игра (Provably Fair)</h2>
-            <div className="text-frost-white/80 space-y-4 text-sm leading-relaxed mb-8">
-              <p>На нашей платформе используется система <strong>Provably Fair</strong>. Это значит, что результат каждой игры генерируется заранее и мы не можем его изменить после вашей ставки.</p>
-              
-              <h3 className="text-lg font-semibold text-frost-white mt-4">Как это работает?</h3>
-              <ol className="list-decimal pl-4 space-y-2">
-                <li>Сервер генерирует случайный <strong>Server Seed</strong>, но показывает вам только его зашифрованный хэш (SHA256).</li>
-                <li>Ваше устройство отправляет свой случайный <strong>Client Seed</strong>.</li>
-                <li>Оба Seed-а объединяются с номером раунда (<strong>Nonce</strong>) с использованием HMAC-SHA256, чтобы создать финальный результат.</li>
-              </ol>
-              
-              <p>Вы можете проверить любой прошедший раунд с помощью нашего калькулятора ниже, вставив незашифрованный Server Seed, Client Seed и Nonce.</p>
+          {/* TAB: PRIVACY */}
+          {activeTab === 'privacy' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="text-center space-y-3 mb-8">
+                <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
+                  <CheckCircle2 size={32} className="text-blue-400" />
+                </div>
+                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">Политика Конфиденциальности</h2>
+              </div>
+
+              <div className="text-frost-white/80 space-y-6 text-sm leading-relaxed bg-white/[0.02] p-6 rounded-3xl border border-white/5">
+                <p>Мы в MACVBET серьезно относимся к защите ваших персональных данных. Данная политика описывает, как мы собираем, используем и защищаем вашу информацию в рамках Telegram Web App.</p>
+                
+                <h3 className="text-lg font-semibold text-white mt-6 mb-3">1. Какую информацию мы собираем?</h3>
+                <ul className="list-disc pl-5 space-y-2 text-frost-white/70">
+                  <li><strong>Данные профиля Telegram:</strong> Ваш уникальный Telegram ID, публичное имя (First Name / Last Name), username и URL аватара. Эти данные передаются нам самим мессенджером при запуске бота.</li>
+                  <li><strong>Финансовая информация:</strong> История транзакций, депозитов, выводов и игровых ставок, совершенных на платформе. Реквизиты банковских карт мы не храним — все платежи обрабатываются через защищенные шлюзы партнеров.</li>
+                  <li><strong>Технические данные:</strong> IP-адреса, метаданные устройства, User-Agent и история сессий в целях предотвращения мошенничества и мультиаккаунтинга.</li>
+                </ul>
+
+                <h3 className="text-lg font-semibold text-white mt-6 mb-3">2. Как мы используем ваши данные?</h3>
+                <ul className="list-disc pl-5 space-y-2 text-frost-white/70">
+                  <li>Для создания и управления вашей игровой учетной записью.</li>
+                  <li>Для проведения платежей и вывода выигрышей.</li>
+                  <li>Для обеспечения безопасности платформы: выявления ботов, ферм и нарушений пользовательского соглашения.</li>
+                  <li>Для составления публичных таблиц лидеров (в публичном доступе может отображаться ваше имя Telegram и часть баланса/выигрыша).</li>
+                </ul>
+
+                <h3 className="text-lg font-semibold text-white mt-6 mb-3">3. Передача данных третьим лицам</h3>
+                <p>Мы не продаем и не передаем ваши данные третьим лицам в маркетинговых целях. Данные могут быть раскрыты только по официальному запросу правоохранительных органов или переданы провайдерам антифрод-защиты для проверки платежей.</p>
+
+                <h3 className="text-lg font-semibold text-white mt-6 mb-3">4. Хранение и безопасность</h3>
+                <p>Все данные передаются по защищенному протоколу TLS и хранятся в зашифрованных базах данных с ограниченным доступом сотрудников. В случае прекращения использования сервиса, мы храним финансовую историю в течение 5 лет в соответствии с правилами AML (противодействие отмыванию денег).</p>
+              </div>
             </div>
+          )}
 
-            <ProvablyFairCalculator />
-          </div>
-        )}
+          {/* TAB: FAQ */}
+          {activeTab === 'faq' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="text-center space-y-3 mb-8">
+                <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-4 border border-purple-500/20">
+                  <HelpCircle size={32} className="text-purple-400" />
+                </div>
+                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">База Знаний & FAQ</h2>
+                <p className="text-sm text-frost-white/50">Ответы на все ваши вопросы об играх и платформе.</p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mb-4 px-2">Общие вопросы</h3>
+                <Accordion 
+                  question="Как пополнить баланс и как долго идет вывод?" 
+                  answer="Вы можете пополнить баланс в разделе 'Кошелёк'. Мы поддерживаем криптовалюты и банковские карты. Пополнение криптой происходит после 1-го подтверждения сети. Выводы в криптовалюте автоматизированы и занимают 5-15 минут. Выводы на банковские карты могут занимать от нескольких часов до 1 суток." 
+                />
+                <Accordion 
+                  question="Что такое Provably Fair (Честная игра)?" 
+                  answer="Это криптографическая система, гарантирующая честность каждого раунда. Исход игры формируется до вашей ставки и объединяет Server Seed (от нас) и Client Seed (от вас). Вы можете проверить любой раунд в калькуляторе, убедившись, что результат не был подменен." 
+                />
+                <Accordion 
+                  question="Разрешено ли создавать несколько аккаунтов (мультиаккаунты)?" 
+                  answer="Категорически нет. Это прямое нарушение Пользовательского соглашения. Наша антифрод-система анализирует IP-адреса, отпечатки устройств и поведенческие факторы. При обнаружении фермы или мультиаккаунта все средства конфискуются, а профили блокируются." 
+                />
+
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Об играх</h3>
+                <Accordion 
+                  question="🚀 Как играть в MacvJet (Crash)?" 
+                  answer="MacvJet — наша фирменная краш-игра. Ракета взлетает, и множитель начинает расти от 1.00x. Ваша задача — нажать кнопку 'Забрать', прежде чем ракета улетит. Если вы успеете, ваша ставка умножится на текущий коэффициент. Если нет — ставка сгорает." 
+                />
+                <Accordion 
+                  question="💣 В чем суть игры Mines?" 
+                  answer="Перед вами поле 5x5. Под некоторыми ячейками спрятаны мины (вы сами выбираете их количество от 1 до 24). Открывая алмазы, ваш множитель растет. Вы можете забрать выигрыш в любой момент. Если попадаете на мину — раунд окончен, ставка проиграна." 
+                />
+                <Accordion 
+                  question="🔺 Как работает Plinko?" 
+                  answer="Вы запускаете шарик сверху пирамиды. Он падает сквозь колышки, случайным образом отскакивая влево или вправо. Внизу находятся ячейки с множителями (по краям — высокие, в центре — низкие). Вы можете менять уровень риска и количество рядов пирамиды." 
+                />
+                <Accordion 
+                  question="🪙 Правила игры Coinflip?" 
+                  answer="Классический бросок монеты. Вы выбираете Орла (Heads) или Решку (Tails). Шанс выигрыша составляет 50%. В случае победы ваша ставка удваивается (с учетом минимальной комиссии платформы)." 
+                />
+                <Accordion 
+                  question="🎡 Что такое Wheel (Колесо)?" 
+                  answer="Колесо фортуны, разделенное на цветные сектора с разными множителями. Вы выбираете уровень риска. Чем выше риск, тем выше потенциальные множители, но меньше шансов на их выпадение. Просто крутите колесо и забирайте приз!" 
+                />
+                <Accordion 
+                  question="🌉 Как проходить Bridges?" 
+                  answer="Вы должны перебраться на другую сторону моста. На каждом шаге вам предлагается несколько блоков. Часть из них безопасна, часть — рушится. Выбирайте правильные блоки, чтобы увеличивать множитель. Чем дальше пройдете, тем выше награда." 
+                />
+              </div>
+            </div>
+          )}
+
+          {/* TAB: FAIRNESS */}
+          {activeTab === 'fairness' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="text-center space-y-3 mb-8">
+                <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4 border border-green-500/20">
+                  <Scale size={32} className="text-green-400" />
+                </div>
+                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">Provably Fair</h2>
+                <p className="text-sm text-frost-white/50 max-w-md mx-auto">Абсолютная прозрачность. Вы можете лично верифицировать исход каждого сыгранного раунда.</p>
+              </div>
+
+              <div className="text-frost-white/80 space-y-4 text-sm leading-relaxed bg-white/[0.02] p-6 rounded-3xl border border-white/5 shadow-inner">
+                <p>Наша система <strong>Provably Fair (Доказуемая Честность)</strong> построена на криптографическом алгоритме HMAC-SHA256.</p>
+                
+                <h3 className="text-base font-semibold text-white mt-4 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-xs">1</span>
+                  Генерация
+                </h3>
+                <p className="pl-8 text-frost-white/60">Сервер генерирует случайный <strong>Server Seed</strong> и сразу выдает вам его зашифрованный хэш. Таким образом, мы обязуемся не менять результат, а вы не знаете его до окончания игры.</p>
+
+                <h3 className="text-base font-semibold text-white mt-4 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-xs">2</span>
+                  Участие клиента
+                </h3>
+                <p className="pl-8 text-frost-white/60">Ваш браузер или вы сами задаете <strong>Client Seed</strong>. Это гарантирует, что мы не можем подстроить Server Seed под ваш стиль игры.</p>
+
+                <h3 className="text-base font-semibold text-white mt-4 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-xs">3</span>
+                  Результат
+                </h3>
+                <p className="pl-8 text-frost-white/60">Seeds и номер раунда (Nonce) объединяются. Полученный хэш конвертируется в число, определяющее множитель или выпавший сектор.</p>
+              </div>
+
+              <ProvablyFairCalculator />
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
