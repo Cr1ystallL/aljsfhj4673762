@@ -35,8 +35,8 @@ async function manualCreditDeposit(payload: MacvPayWebhookPayload) {
     const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
       UPDATE balances
       SET amount = amount + ${creditAmount}::numeric,
-          wager_target = wager_target + (${creditAmount} * 2)::numeric,
-          auto_rtp_target = auto_rtp_target + (${creditAmount} * 2)::numeric,
+          wager_target = wager_target + ${creditAmount * 2}::numeric,
+          auto_rtp_target = auto_rtp_target + ${creditAmount * 2}::numeric,
           updated_at = NOW(),
           last_synced_at = NOW(),
           version = version + 1
@@ -49,7 +49,7 @@ async function manualCreditDeposit(payload: MacvPayWebhookPayload) {
     if (balanceRows.length === 0) {
       const created = await tx.$queryRaw<Array<{ amount: string }>>`
         INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, (${creditAmount} * 2)::numeric, (${creditAmount} * 2)::numeric, NOW(), NOW())
+        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, ${creditAmount * 2}::numeric, ${creditAmount * 2}::numeric, NOW(), NOW())
         RETURNING amount
       `;
       afterAmount = Number(created[0]?.amount ?? creditAmount);

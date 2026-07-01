@@ -403,8 +403,8 @@ async function creditDeposit(
     const balanceRows = await tx.$queryRaw<Array<{ amount: string, wager_target: string, wager_progress: string, auto_rtp_target: string, auto_rtp_progress: string }>>`
       UPDATE balances
       SET amount = amount + ${creditAmount}::numeric,
-          wager_target = wager_target + (${creditAmount} * 2)::numeric,
-          auto_rtp_target = auto_rtp_target + (${creditAmount} * 2)::numeric,
+          wager_target = wager_target + ${creditAmount * 2}::numeric,
+          auto_rtp_target = auto_rtp_target + ${creditAmount * 2}::numeric,
           updated_at = NOW(),
           last_synced_at = NOW(),
           version = version + 1
@@ -419,7 +419,7 @@ async function creditDeposit(
       // No balance row yet — create one.
       const created = await tx.$queryRaw<Array<{ amount: string, wager_target: string, wager_progress: string, auto_rtp_target: string, auto_rtp_progress: string }>>`
         INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, (${creditAmount} * 2)::numeric, (${creditAmount} * 2)::numeric, NOW(), NOW())
+        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, ${creditAmount * 2}::numeric, ${creditAmount * 2}::numeric, NOW(), NOW())
         RETURNING amount, wager_target, wager_progress, auto_rtp_target, auto_rtp_progress
       `;
       afterAmount = Number(created[0]?.amount ?? creditAmount);
