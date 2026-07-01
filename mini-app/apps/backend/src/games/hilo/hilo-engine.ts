@@ -165,6 +165,20 @@ export const hiloEngine = {
     let stepMultiplier = 0;
     const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, cfg.houseEdge);
 
+    // Calculate potential step multiplier first
+    switch (choice) {
+      case 'red': stepMultiplier = mults.red; break;
+      case 'black': stepMultiplier = mults.black; break;
+      case 'higher': stepMultiplier = mults.higher; break;
+      case 'lower': stepMultiplier = mults.lower; break;
+    }
+
+    // --- Forced Loss (Hidden Debt) ---
+    const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
+    if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier)) {
+      shouldWin = false;
+    }
+
     // Regenerate up to 50 times if we need to force an outcome
     for (let loop = 0; loop < 50; loop++) {
       const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';

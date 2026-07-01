@@ -295,7 +295,7 @@ class WheelEngine extends EventEmitter {
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
-    const bias = await rtpEngine.getGlobalBias().catch(() => 0);
+    const bias = 0; // Auto-RTP disabled for Wheel
     const segmentIndex = pickSegment(hash, bias);
     const multiplier = SLOT_LAYOUT[segmentIndex];
 

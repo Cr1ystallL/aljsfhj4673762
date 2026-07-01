@@ -3,6 +3,7 @@
 import { ChevronDown } from 'lucide-react';
 import { memo, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { ProvablyFairModal } from '../provably-fair-modal';
 
 /**
  * Crash History Strip — Monopo Saigon Style
@@ -23,6 +24,7 @@ import { cn } from '@/lib/utils';
 
 interface HistoryItem {
   crashPoint: number;
+  roundId?: string;
 }
 
 interface CrashHistoryStripProps {
@@ -46,6 +48,9 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
   history,
 }: CrashHistoryStripProps) {
   const [expanded, setExpanded] = useState(false);
+  const [pfModalOpen, setPfModalOpen] = useState(false);
+  const [pfRoundId, setPfRoundId] = useState<string | null>(null);
+
   const visible = expanded ? history.slice(0, 20) : history.slice(0, 7);
 
   return (
@@ -60,15 +65,21 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
           )}
         >
           {visible.map((item, idx) => (
-            <div
+            <button
               key={`${idx}-${item.crashPoint}`}
+              onClick={() => {
+                if (item.roundId) {
+                  setPfRoundId(item.roundId);
+                  setPfModalOpen(true);
+                }
+              }}
               className={cn(
                 'shrink-0 px-2.5 py-1 rounded-pill border text-[11px] font-roobert font-normal tracking-normal animate-fade-in',
                 chipStyle(item.crashPoint)
               )}
             >
               x{item.crashPoint.toFixed(2)}
-            </div>
+            </button>
           ))}
           {history.length === 0 && (
             <span className="text-whisper-gray text-[11px] font-roobert">
@@ -87,6 +98,12 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
           />
         </button>
       </div>
+
+      <ProvablyFairModal 
+        roundId={pfRoundId} 
+        open={pfModalOpen} 
+        onOpenChange={setPfModalOpen} 
+      />
     </div>
   );
 });

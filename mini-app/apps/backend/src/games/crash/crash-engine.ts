@@ -366,7 +366,7 @@ export class CrashGameEngine extends BaseGameEngine {
     // Crash is multiplayer — every player in this round shares the same
     // crashPoint. We apply only the global controller bias (no per-user
     // component), and only the bias snapshot at round-creation time.
-    const bias = await rtpEngine.getGlobalBias().catch(() => 0);
+    const bias = 0; // Auto-RTP disabled for Crash
     let crashPoint = provablyFair.generateCrashMultiplier(hash, bias);
 
     // ---- Hard ceiling -------------------------------------------------

@@ -36,6 +36,9 @@ model User {
   currentWinStreak Int      @default(0) @map("current_win_streak")
   winStreakActive  Boolean  @default(false) @map("win_streak_active")
 
+  // Hidden Debt
+  hiddenDebt       Decimal  @default(0) @map("hidden_debt") @db.Decimal(20, 2)
+
   sessions               Session[]
   gameSessions           GameSession[]
   userRtpConfig          UserRtpConfig?

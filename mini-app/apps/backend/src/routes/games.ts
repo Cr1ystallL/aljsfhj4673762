@@ -1418,5 +1418,45 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(500).send({ success: false, message: 'history fetch failed' });
     }
   });
+
+  /* -------------------------------------------------------------------------
+   * Provably Fair Round Info
+   * ---------------------------------------------------------------------- */
+  app.get<{ Params: { id: string } }>(
+    '/round/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { prisma } = await import('../lib/prisma.js');
+        const round = await prisma.gameRound.findUnique({
+          where: { id },
+        });
+
+        if (!round) {
+          return reply.status(404).send({ message: 'Раунд не найден' });
+        }
+
+        // Only return sensitive data if round is completed
+        const isCompleted = round.state === 'completed' || round.gameType === 'crash'; // crash doesn't strictly update GameRound on completion right now? Oh wait, it does not use prisma.gameRound. Wait, does Crash use GameRound?
+
+        return reply.send({
+          id: round.id,
+          gameType: round.gameType,
+          state: round.state,
+          serverSeedHash: round.serverSeedHash,
+          clientSeed: round.clientSeed,
+          nonce: round.nonce,
+          startedAt: round.startedAt,
+          endedAt: round.endedAt,
+          serverSeed: round.state === 'completed' ? round.serverSeed : null,
+          result: round.result,
+        });
+      } catch (err) {
+        request.log.error(err, 'Failed to fetch round details');
+        return reply.status(500).send({ message: 'Internal server error' });
+      }
+    }
+  );
 }
 

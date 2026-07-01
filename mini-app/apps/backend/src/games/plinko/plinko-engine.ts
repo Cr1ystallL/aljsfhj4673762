@@ -129,8 +129,17 @@ export class PlinkoEngine {
       path = Array.from({ length: PLINKO_ROWS }, (_, i) => i % 2);
     }
 
-    const bucket = path.reduce((acc, x) => acc + x, 0);
-    const multiplier = PLINKO_MULTIPLIERS[risk][bucket];
+    let bucket = path.reduce((acc, x) => acc + x, 0);
+    let multiplier = PLINKO_MULTIPLIERS[risk][bucket];
+
+    // --- Forced Loss (Hidden Debt) ---
+    if (await rtpEngine.shouldForceLoss(userId, amount, multiplier)) {
+      // Force the ball to drop in the exact center (bucket 8) which has the lowest multiplier (< 1.0x).
+      path = Array.from({ length: PLINKO_ROWS }, (_, i) => i % 2);
+      bucket = 8;
+      multiplier = PLINKO_MULTIPLIERS[risk][bucket];
+    }
+
     const payout = +(amount * multiplier).toFixed(2);
 
     const roundId = `plinko_${Date.now()}_${randomUUID()}`;

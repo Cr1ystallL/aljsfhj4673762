@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import gsap from 'gsap';
 import { Disc3, ChevronDown, Trophy } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
+import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { useBalance } from '@/hooks/use-balance';
 import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -551,9 +552,12 @@ function PhaseBar({
 function HistoryStrip({
   history,
 }: {
-  history: Array<{ multiplier: number }>;
+  history: Array<{ multiplier: number; roundId: string }>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [pfModalOpen, setPfModalOpen] = useState(false);
+  const [pfRoundId, setPfRoundId] = useState<string | null>(null);
+
   const visible = expanded ? history.slice(0, 20) : history.slice(0, 12);
 
   return (
@@ -578,9 +582,13 @@ function HistoryStrip({
             visible.map((h, i) => {
               const c = SEG_COLOR[h.multiplier] ?? SEG_COLOR[2];
               return (
-                <span
+                <button
                   key={i}
-                  className="shrink-0 inline-flex items-center justify-center font-sans tabular-nums"
+                  onClick={() => {
+                    setPfRoundId(h.roundId);
+                    setPfModalOpen(true);
+                  }}
+                  className="shrink-0 inline-flex items-center justify-center font-sans tabular-nums cursor-pointer"
                   style={{
                     fontSize: 11,
                     fontWeight: 400,
@@ -592,7 +600,7 @@ function HistoryStrip({
                   }}
                 >
                   ×{h.multiplier}
-                </span>
+                </button>
               );
             })
           )}
@@ -613,6 +621,12 @@ function HistoryStrip({
           />
         </button>
       </div>
+
+      <ProvablyFairModal 
+        roundId={pfRoundId} 
+        open={pfModalOpen} 
+        onOpenChange={setPfModalOpen} 
+      />
     </div>
   );
 }
