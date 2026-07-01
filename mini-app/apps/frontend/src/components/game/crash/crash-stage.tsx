@@ -68,13 +68,13 @@ export const CrashStage = memo(function CrashStage({
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (phase !== 'waiting' || !waitingEndsAt) return;
+    if ((phase !== 'waiting' && phase !== 'starting') || !waitingEndsAt) return;
     const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
   }, [phase, waitingEndsAt]);
 
-  const waitingSeconds =
-    phase === 'waiting' && waitingEndsAt
+  const timeRemaining =
+    (phase === 'waiting' || phase === 'starting') && waitingEndsAt
       ? Math.max(0, Math.ceil((waitingEndsAt - now) / 1000))
       : null;
 
@@ -525,10 +525,28 @@ export const CrashStage = memo(function CrashStage({
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
                   Betting open
                 </span>
-                {waitingSeconds !== null && (
+                {timeRemaining !== null && (
                   <span className="font-roobert text-frost-white text-[13px] tabular-nums leading-none">
-                    {String(Math.floor(waitingSeconds / 60)).padStart(2, '0')}:
-                    {String(waitingSeconds % 60).padStart(2, '0')}
+                    {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:
+                    {String(timeRemaining % 60).padStart(2, '0')}
+                  </span>
+                )}
+              </motion.div>
+            )}
+            {phase === 'starting' && (
+              <motion.div
+                key="starting"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-[rgba(255,172,46,0.1)] border border-[rgba(255,172,46,0.3)] shadow-[0_0_15px_rgba(255,172,46,0.15)]"
+              >
+                <span className="text-[11px] uppercase tracking-[0.18em] text-[#ffac2e] font-roobert">
+                  Starting in
+                </span>
+                {timeRemaining !== null && (
+                  <span className="font-roobert text-[#ffac2e] text-[13px] tabular-nums leading-none font-bold">
+                    {timeRemaining}s
                   </span>
                 )}
               </motion.div>

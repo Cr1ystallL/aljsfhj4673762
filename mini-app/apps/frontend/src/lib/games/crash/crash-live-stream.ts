@@ -349,7 +349,7 @@ export class CrashLiveStream extends EventEmitter {
       let waitingEndsAt: number | null = this.snapshot.waitingEndsAt;
       if (phase === 'starting' && phaseEndsAt !== null) {
         countdown = Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000));
-        waitingEndsAt = null;
+        waitingEndsAt = phaseEndsAt; // Keep endsAt so timer works in CrashStage
       } else if (phase === 'waiting') {
         waitingEndsAt = phaseEndsAt;
         countdown = null;
@@ -551,24 +551,22 @@ export class CrashLiveStream extends EventEmitter {
       }
 
       case 'phase:countdown': {
-        // Countdown phase has been removed from the engine — the round
-        // now flips waiting → active immediately. If a stale event ever
-        // arrives (older backend in-flight), we collapse it into an
-        // immediate active hint so the UI doesn't print 3-2-1 ghosts.
-        this.activeStartedAt = Date.now();
-        this.activeStartMultiplier = 1;
+        this.activeStartedAt = null;
+        this.stopAnim();
         this.fast = {
           displayMultiplier: 1,
           graphPoints: [{ time: 0, multiplier: 1 }],
         };
         this.emitTick();
+        
+        const endsAt = typeof p.endsAt === 'number' ? p.endsAt : Date.now() + (p.duration ?? 3000);
+        
         this.updateSlow({
-          phase: 'active',
-          countdown: null,
-          waitingEndsAt: null,
+          phase: 'starting',
+          countdown: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+          waitingEndsAt: endsAt, // Set this so CrashStage timer logic picks it up
           serverMultiplier: 1,
         });
-        this.startAnim();
         return;
       }
 
