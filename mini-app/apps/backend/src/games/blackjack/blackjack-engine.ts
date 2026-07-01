@@ -584,16 +584,18 @@ export class BlackjackEngine extends EventEmitter {
 
   private drawCard(userId: string): Card {
     // Apply RTP bias based on user
+    /*
     const biasPromise = userId === 'dealer' 
-      ? 0 // rtpEngine.getGlobalBias() 
-      : 0; // rtpEngine.getBiasFor(userId);
+      ? rtpEngine.getGlobalBias() 
+      : rtpEngine.getBiasFor(userId);
+    */
 
     // For simplicity, we draw from deck but bias affects the "quality" of card
     // In a full implementation, bias would weight the probability space
     const card = this.deck.pop()!;
     
     // Async bias fetch (fire and forget for RTP tracking)
-    biasPromise.catch(() => {});
+    // biasPromise.catch(() => {});
     
     return card;
   }
