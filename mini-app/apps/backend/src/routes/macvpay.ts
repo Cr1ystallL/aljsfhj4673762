@@ -41,7 +41,7 @@ import { rtpEngine } from '../services/rtp-engine.js';
 function webhookUrl(request: { hostname: string }): string {
   const base =
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
-    `https://${request.hostname}`;
+    `https://${request.hostname === 'localhost' || request.hostname === '127.0.0.1' ? 'macvbet.nl' : request.hostname}`;
   return `${base}/api/macvpay/webhook`;
 }
 
