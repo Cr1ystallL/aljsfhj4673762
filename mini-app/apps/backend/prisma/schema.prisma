@@ -180,6 +180,8 @@ model MacvpayOrder {
   currency        String
   paymentType     String   @map("payment_type")
   paidAmount      Decimal? @map("paid_amount") @db.Decimal(12, 2)
+  paidAt          DateTime? @map("paid_at")
+  creditTxId      String?  @map("credit_tx_id")
   card            String?
   recipient       String?
   details         String?
