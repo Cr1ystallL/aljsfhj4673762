@@ -21,13 +21,13 @@ export interface PartnerStatsResponse {
 
 export const partnerService = {
   async getStats(): Promise<PartnerStatsResponse> {
-    const data = await apiClient.get<PartnerStatsResponse>('/partner/stats');
+    const data = await apiClient.get<PartnerStatsResponse>('/api/partner/stats');
     return data;
   },
 
   async createPromo(code: string): Promise<{ success: boolean; code?: string; error?: string }> {
     try {
-      const data = await apiClient.post<{ success: boolean; code: string }>('/partner/promo', { code });
+      const data = await apiClient.post<{ success: boolean; code: string }>('/api/partner/promo', { code });
       return data;
     } catch (e: any) {
       if (e.response?.data?.error) {
