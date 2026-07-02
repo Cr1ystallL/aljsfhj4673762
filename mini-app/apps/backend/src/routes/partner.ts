@@ -36,6 +36,10 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
       orderBy: { date: 'asc' }
     });
 
+    const registrations = await prisma.user.count({
+      where: { referrerTelegramId: user.telegramId }
+    });
+
     // Generate link if promo exists
     let link = null;
     if (promo) {

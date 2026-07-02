@@ -829,8 +829,8 @@ class DatabasePostgres:
             SELECT u.telegram_id 
             FROM affiliate_promo_codes pc
             JOIN users u ON u.id = pc.user_id
-            WHERE pc.code = %s
-        ''', (code.lower(),))
+            WHERE LOWER(pc.code) = LOWER(%s)
+        ''', (code,))
         res = cursor.fetchone()
         conn.close()
         return res[0] if res else None

@@ -304,7 +304,7 @@ export default function PartnerPage() {
                 <div className="w-10 h-10 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center mb-1">
                   <Activity size={20} />
                 </div>
-                <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Регистрации</span>
+                <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Всего рефералов</span>
                 <span className="text-3xl font-light">{stats.registrations || 0}</span>
               </div>
               <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
@@ -393,6 +393,44 @@ export default function PartnerPage() {
         ) : null}
 
       </div>
+      
+      <AnimatePresence>
+        {showWithdrawModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#111111] border border-white/10 rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 shadow-2xl"
+            >
+              <h3 className="text-xl font-medium text-frost-white">Запрос на вывод</h3>
+              <p className="text-sm text-frost-white/70">
+                Вы уверены, что хотите перевести {stats?.balance?.toFixed(2)} zl на ваш основной баланс?
+              </p>
+              {withdrawMutation.error && (
+                <p className="text-xs text-red-400">{withdrawMutation.error.message}</p>
+              )}
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setShowWithdrawModal(false)}
+                  disabled={withdrawMutation.isPending}
+                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 bg-white/5 font-medium text-frost-white/80 hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={() => withdrawMutation.mutate()}
+                  disabled={withdrawMutation.isPending}
+                  className="flex-1 px-4 py-3 rounded-xl bg-macvbet-yellow text-black font-semibold hover:bg-yellow-400 transition-colors shadow-lg shadow-macvbet-yellow/20 disabled:opacity-50"
+                >
+                  {withdrawMutation.isPending ? 'Загрузка...' : 'Подтвердить'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </main>
   );
 }

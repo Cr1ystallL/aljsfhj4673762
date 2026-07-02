@@ -100,7 +100,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           const promo = rows[0];
           if (!promo) {
             // Check if it's an affiliate code instead
-            const affRows = await tx.$queryRaw<Array<{ user_id: string }>>`SELECT user_id FROM affiliate_promo_codes WHERE code = ${code.toLowerCase()} LIMIT 1`;
+            const affRows = await tx.$queryRaw<Array<{ user_id: string }>>`SELECT user_id FROM affiliate_promo_codes WHERE LOWER(code) = ${code.toLowerCase()} LIMIT 1`;
             const affPromo = affRows[0];
             if (affPromo) {
               const currentUser = await tx.user.findUnique({ where: { id: userId } });

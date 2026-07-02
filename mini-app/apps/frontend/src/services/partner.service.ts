@@ -17,6 +17,7 @@ export interface PartnerStatsResponse {
   promoCode: string | null;
   link: string;
   minWithdrawal: number;
+  registrations: number;
   stats: AffiliateDailyStat[];
 }
 
