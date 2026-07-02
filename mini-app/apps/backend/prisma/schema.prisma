@@ -1,4 +1,4 @@
-﻿// Prisma schema for PostgreSQL database
+// Prisma schema for PostgreSQL database
 // This is the initial schema - will be expanded in later phases
 
 generator client {
