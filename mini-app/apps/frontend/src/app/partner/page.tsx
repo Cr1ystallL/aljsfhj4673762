@@ -38,7 +38,7 @@ export default function PartnerPage() {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/partner/withdraw', {
         method: 'POST',
-        headers: { 'Authorization': \`Bearer \${token}\` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

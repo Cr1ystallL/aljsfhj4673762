@@ -96,7 +96,7 @@ export default function AdminPartnersPage() {
                       <td className="px-5 py-3">
                         <div className="flex flex-col">
                           <span className="font-medium text-frost-white">
-                            {p.firstName} {p.username ? \`@\${p.username}\` : ''}
+                            {p.firstName} {p.username ? `@${p.username}` : ''}
                           </span>
                           <span className="text-xs text-frost-white/40">{p.telegramId}</span>
                         </div>
@@ -114,7 +114,7 @@ export default function AdminPartnersPage() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <button
-                          onClick={() => router.push(\`/system/console/partners/\${p.id}\`)}
+                          onClick={() => router.push(`/system/console/partners/${p.id}`)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-frost-white transition-colors text-xs font-medium"
                         >
                           Подробнее <ExternalLink size={14} />

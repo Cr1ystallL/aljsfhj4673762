@@ -17,7 +17,7 @@ export default function AdminPartnerDetailPage({ params }: { params: Promise<{ i
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(\`/api/_x/partners/\${id}\`, {
+      const res = await fetch(`/api/_x/partners/${id}`, {
         credentials: 'include',
         cache: 'no-store',
       });
@@ -41,7 +41,7 @@ export default function AdminPartnerDetailPage({ params }: { params: Promise<{ i
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(\`/api/_x/partners/\${id}/balance\`, {
+      const res = await fetch(`/api/_x/partners/${id}/balance`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -84,7 +84,7 @@ export default function AdminPartnerDetailPage({ params }: { params: Promise<{ i
         </button>
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-medium tracking-tight">
-            {user.firstName} {user.username ? \`@\${user.username}\` : ''}
+            {user.firstName} {user.username ? `@${user.username}` : ''}
           </h1>
           <p className="text-sm text-frost-white/60">
             ID: {user.telegramId} • Рефералов: {user._count.referrals}

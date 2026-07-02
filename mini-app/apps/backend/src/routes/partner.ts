@@ -155,7 +155,7 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
 
       const balance = Number(user.revshareBalance);
       if (balance < minWithdrawal) {
-        return reply.code(400).send({ error: \`Минимальная сумма вывода: \${minWithdrawal}\` });
+        return reply.code(400).send({ error: `Минимальная сумма вывода: ${minWithdrawal}` });
       }
 
       if (balance <= 0) {
