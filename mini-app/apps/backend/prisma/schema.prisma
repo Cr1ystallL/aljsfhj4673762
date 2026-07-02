@@ -1,4 +1,4 @@
-// Prisma schema for PostgreSQL database
+﻿// Prisma schema for PostgreSQL database
 // This is the initial schema - will be expanded in later phases
 
 generator client {
@@ -293,11 +293,11 @@ model Bet {
   @@map("bets")
 }
 
-// Admin audit log — every mutating admin action is recorded here.
+// Admin audit log вЂ” every mutating admin action is recorded here.
 //
 // SECURITY: this is append-only. There is no UI to delete rows, and
 // every endpoint that records here uses `prisma.adminAuditLog.create`
-// directly — never raw SQL. The log lives forever; we cap visibility
+// directly вЂ” never raw SQL. The log lives forever; we cap visibility
 // in the UI with paging, but the rows are never trimmed automatically.
 model AdminAuditLog {
   id              String   @id @default(uuid())
@@ -329,15 +329,15 @@ model AdminAuditLog {
 // =====================================================================
 //
 // Three pillars:
-//   1. Promo codes — admin-created codes a player redeems for a fixed
+//   1. Promo codes вЂ” admin-created codes a player redeems for a fixed
 //      bonus amount. Each code has a usage cap (per-user + total).
-//   2. Lucky Wheel — daily free spins, payout 0.05..1.00 PLN. Cooldown
+//   2. Lucky Wheel вЂ” daily free spins, payout 0.05..1.00 PLN. Cooldown
 //      between spins is enforced.
-//   3. Contests — admins create a pool with eligibility rules; the
+//   3. Contests вЂ” admins create a pool with eligibility rules; the
 //      winners are picked at end-of-window from the qualifying set.
 //
 // All bonus payouts go to the user's main balance (no separate bonus
-// wallet) — keeps accounting simple and matches what the user
+// wallet) вЂ” keeps accounting simple and matches what the user
 // requested.
 
 /// Promo code definition. Created by admins; redeemed by users.
@@ -408,7 +408,7 @@ model Contest {
   id              String   @id @default(uuid())
   title           String
   description     String?  @db.Text
-  /// "public" — visible on the bonuses page; "private" — joinable
+  /// "public" вЂ” visible on the bonuses page; "private" вЂ” joinable
   /// only via a referral link served by the bot.
   visibility      String   @default("public")
   bannerUrl       String?  @map("banner_url") @db.Text
@@ -457,7 +457,7 @@ model ContestParticipant {
   id        String   @id @default(uuid())
   contestId String   @map("contest_id")
   userId    String   @map("user_id")
-  /// True when the admin disqualifies the user — they stay listed but
+  /// True when the admin disqualifies the user вЂ” they stay listed but
   /// can no longer be picked as a winner. Set via the contest card.
   banned    Boolean  @default(false)
   joinedAt  DateTime @default(now()) @map("joined_at")
@@ -582,43 +582,3 @@ model UserRtpConfig {
   @@map("user_rtp_configs")
 }
 
-// -----------------------------------------------------------------------------
-// Affiliate & RevShare
-// -----------------------------------------------------------------------------
-
-model PromoCode {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id") // ID of the affiliate
-  code      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([code])
-  @@index([userId])
-  @@map("promo_codes")
-}
-
-model AffiliateClick {
-  id               String   @id @default(uuid())
-  affiliateTelegramId BigInt   @map("affiliate_telegram_id")
-  timestamp        DateTime @default(now())
-
-  @@index([affiliateTelegramId])
-  @@map("affiliate_clicks")
-}
-
-model AffiliateStatsDaily {
-  id               String   @id @default(uuid())
-  date             DateTime @db.Date
-  affiliateTelegramId BigInt   @map("affiliate_telegram_id")
-  clicks           Int      @default(0)
-  fdCount          Int      @default(0) @map("fd_count")
-  rdCount          Int      @default(0) @map("rd_count")
-  depSum           Decimal  @default(0) @map("dep_sum") @db.Decimal(20, 2)
-  ggr              Decimal  @default(0) @db.Decimal(20, 2)
-  ngr              Decimal  @default(0) @db.Decimal(20, 2)
-  income           Decimal  @default(0) @db.Decimal(20, 2)
-
-  @@unique([date, affiliateTelegramId])
-  @@index([affiliateTelegramId])
-  @@map("affiliate_stats_daily")
-}
