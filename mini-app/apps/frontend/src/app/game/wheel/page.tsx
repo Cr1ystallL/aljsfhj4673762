@@ -377,11 +377,17 @@ export default function WheelPage() {
                   step={1}
                   min={minBet}
                   max={maxBet}
-                  value={amount}
+                  value={amountInput}
                   onChange={(e) => {
+                    setAmountInput(e.target.value);
+                  }}
+                  onBlur={(e) => {
                     const v = parseFloat(e.target.value);
-                    if (Number.isFinite(v))
-                      setAmount(Math.max(minBet, Math.min(maxBet, v)));
+                    if (Number.isFinite(v)) {
+                      setAmountInput(Math.max(minBet, Math.min(maxBet, v)).toString());
+                    } else {
+                      setAmountInput(minBet.toString());
+                    }
                   }}
                   className="flex-1 min-w-0 bg-transparent text-[#ffffff] font-sans tabular-nums focus:outline-none"
                   style={{ fontSize: 22, fontWeight: 300, lineHeight: 1.15 }}
@@ -464,7 +470,7 @@ export default function WheelPage() {
           {[10, 50, 100, 500].map((v) => (
             <button
               key={v}
-              onClick={() => setAmount(Math.min(v, maxBet))}
+              onClick={() => setAmountInput(Math.min(v, maxBet).toString())}
               className="font-sans tabular-nums transition-colors"
               style={{
                 fontSize: 11,
@@ -484,7 +490,7 @@ export default function WheelPage() {
             </button>
           ))}
           <button
-            onClick={() => setAmount(maxBet)}
+            onClick={() => setAmountInput(maxBet.toString())}
             className="font-sans transition-colors"
             style={{
               fontSize: 11,

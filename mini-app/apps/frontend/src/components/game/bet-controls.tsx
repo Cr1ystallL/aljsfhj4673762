@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Minus, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,7 +38,13 @@ export function BetControls({
   isLoading = false,
 }: BetControlsProps) {
   const [betAmount, setBetAmount] = useState(minBet);
+  const [inputValue, setInputValue] = useState(minBet.toString());
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync betAmount -> inputValue when betAmount changes externally (presets, min/max bounds)
+  useEffect(() => {
+    setInputValue(betAmount.toString());
+  }, [betAmount]);
 
   const handleIncrease = () => {
     setBetAmount((prev) => Math.min(prev * 2, maxBet, balance));
@@ -105,8 +111,9 @@ export function BetControls({
         <div className="flex-1 text-center">
           <input
             type="number"
-            value={betAmount}
-            onChange={(e) => {
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onBlur={(e) => {
               const value = parseFloat(e.target.value) || minBet;
               setBetAmount(Math.max(minBet, Math.min(maxBet, balance, value)));
             }}

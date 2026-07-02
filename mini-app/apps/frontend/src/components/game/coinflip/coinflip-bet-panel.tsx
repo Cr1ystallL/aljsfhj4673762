@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -55,8 +55,12 @@ export function CoinflipBetPanel({
   const [menuRect, setMenuRect] = useState<{
     top: number;
     left: number;
-    width: number;
   } | null>(null);
+
+  const [inputValue, setInputValue] = useState(amount.toString());
+  useEffect(() => {
+    setInputValue(amount.toString());
+  }, [amount]);
 
   const halve = () =>
     onAmountChange(Math.max(minBet, +(amount / 2 || minBet).toFixed(2)));
@@ -137,11 +141,15 @@ export function CoinflipBetPanel({
             <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
             <input
               type="number"
-              value={amount}
-              onChange={(e) => {
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onBlur={(e) => {
                 const v = parseFloat(e.target.value);
-                if (!isNaN(v))
+                if (!isNaN(v)) {
                   onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
+                } else {
+                  setInputValue(amount.toString());
+                }
               }}
               disabled={locked}
               className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[20px] font-light tabular-nums focus:outline-none"

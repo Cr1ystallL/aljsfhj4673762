@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import { motion } from 'framer-motion';
 import { Bomb, Gem, Minus, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -54,6 +55,11 @@ export function MinesBetPanel({
   onPrimary,
 }: MinesBetPanelProps) {
   const inputsLocked = phase !== 'idle';
+
+  const [inputValue, setInputValue] = useState(amount.toString());
+  useEffect(() => {
+    setInputValue(amount.toString());
+  }, [amount]);
 
   const ctaLabel = (() => {
     if (busy) return '…';
@@ -112,11 +118,15 @@ export function MinesBetPanel({
             <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
             <input
               type="number"
-              value={amount}
-              onChange={(e) => {
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onBlur={(e) => {
                 const v = parseFloat(e.target.value);
-                if (!isNaN(v))
+                if (!isNaN(v)) {
                   onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
+                } else {
+                  setInputValue(amount.toString());
+                }
               }}
               disabled={inputsLocked}
               className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[22px] font-light tabular-nums focus:outline-none"

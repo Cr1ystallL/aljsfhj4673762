@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Minus, Plus } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -68,6 +68,11 @@ export const CrashBetPanel = memo(function CrashBetPanel({
 }: CrashBetPanelProps) {
   const inputsLocked = slotPhase !== 'idle';
 
+  const [inputValue, setInputValue] = useState(amount.toString());
+  useEffect(() => {
+    setInputValue(amount.toString());
+  }, [amount]);
+
   const ctaLabel = (() => {
     switch (slotPhase) {
       case 'idle':
@@ -126,11 +131,15 @@ export const CrashBetPanel = memo(function CrashBetPanel({
             </button>
             <input
               type="number"
-              value={amount}
-              onChange={(e) => {
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onBlur={(e) => {
                 const v = parseFloat(e.target.value);
-                if (!isNaN(v))
+                if (!isNaN(v)) {
                   onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
+                } else {
+                  setInputValue(amount.toString());
+                }
               }}
               disabled={inputsLocked}
               className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[22px] font-light tabular-nums focus:outline-none text-center"
