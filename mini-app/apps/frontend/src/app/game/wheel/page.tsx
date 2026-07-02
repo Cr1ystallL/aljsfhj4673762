@@ -805,8 +805,8 @@ function WheelCanvas({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const w = canvas.width / (window.devicePixelRatio || 1);
-      const h = canvas.height / (window.devicePixelRatio || 1);
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
       if (!w || !h) return;
 
       ctx.clearRect(0, 0, w, h);
