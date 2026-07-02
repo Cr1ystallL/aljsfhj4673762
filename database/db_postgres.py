@@ -453,6 +453,26 @@ class DatabasePostgres:
         
         conn.close()
         return False
+        
+    def bind_referrer_if_empty(self, user_id: int, referrer_id: int) -> bool:
+        """
+        Привязать реферера к существующему пользователю, если у него его еще нет.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Check if user has no referrer
+        cursor.execute('SELECT referrer_telegram_id FROM users WHERE telegram_id = %s', (user_id,))
+        row = cursor.fetchone()
+        
+        if row and row[0] is None:
+            cursor.execute('UPDATE users SET referrer_telegram_id = %s WHERE telegram_id = %s', (referrer_id, user_id))
+            conn.commit()
+            conn.close()
+            return True
+            
+        conn.close()
+        return False
     
     def update_user_activity(self, user_id: int, username: str = None, first_name: str = None) -> None:
         """

@@ -4431,6 +4431,111 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  /* ---------------------------------------------------------------- partner management */
+
+  app.get('/_x/partners', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const partners = await app.prisma.user.findMany({
+        where: {
+          OR: [
+            { revshareBalance: { gt: 0 } },
+            { negativeCarryover: { lt: 0 } },
+            { affiliatePromoCodes: { some: {} } },
+            { referrals: { some: {} } }
+          ]
+        },
+        select: {
+          id: true,
+          telegramId: true,
+          firstName: true,
+          username: true,
+          revshareBalance: true,
+          negativeCarryover: true,
+          _count: { select: { referrals: true } }
+        },
+        orderBy: [{ revshareBalance: 'desc' }, { createdAt: 'desc' }],
+        take: 100
+      });
+
+      return reply.send({ ok: true, data: partners });
+    } catch (e) {
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.get<{ Params: { id: string } }>('/_x/partners/:id', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const user = await app.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          telegramId: true,
+          firstName: true,
+          username: true,
+          revshareBalance: true,
+          negativeCarryover: true,
+          createdAt: true,
+          affiliatePromoCodes: true,
+          _count: { select: { referrals: true } }
+        }
+      });
+      if (!user) return reply.code(404).send({ error: 'Not found' });
+
+      const stats = await app.prisma.affiliateStatsDaily.findMany({
+        where: { affiliateTelegramId: user.telegramId },
+        orderBy: { date: 'desc' },
+        take: 30
+      });
+
+      // Aggregate all time totals
+      const allTimeStatsRows = await app.prisma.affiliateStatsDaily.aggregate({
+        where: { affiliateTelegramId: user.telegramId },
+        _sum: { clicks: true, fdCount: true, rdCount: true, depSum: true, income: true, ggr: true }
+      });
+
+      const allTimeStats = {
+        clicks: allTimeStatsRows._sum.clicks || 0,
+        fds: allTimeStatsRows._sum.fdCount || 0,
+        rds: allTimeStatsRows._sum.rdCount || 0,
+        depSum: Number(allTimeStatsRows._sum.depSum || 0),
+        income: Number(allTimeStatsRows._sum.income || 0),
+        ggr: Number(allTimeStatsRows._sum.ggr || 0)
+      };
+
+      return reply.send({ ok: true, data: { user, stats, allTimeStats } });
+    } catch (e) {
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.put<{ Params: { id: string }, Body: { revshareBalance?: number, negativeCarryover?: number } }>('/_x/partners/:id/balance', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const { revshareBalance, negativeCarryover } = request.body;
+
+      const user = await app.prisma.user.update({
+        where: { id },
+        data: {
+          ...(revshareBalance !== undefined && { revshareBalance }),
+          ...(negativeCarryover !== undefined && { negativeCarryover })
+        }
+      });
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'system.update_partner_balance',
+        targetType: 'user',
+        targetId: id,
+        payloadAfter: { revshareBalance, negativeCarryover }
+      });
+
+      return reply.send({ ok: true, data: user });
+    } catch (e) {
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
   void isAdminTelegramId;
 }
 

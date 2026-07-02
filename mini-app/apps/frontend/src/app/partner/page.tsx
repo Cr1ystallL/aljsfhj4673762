@@ -18,7 +18,9 @@ export default function PartnerPage() {
   });
 
   const [promoInput, setPromoInput] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copiedPromo, setCopiedPromo] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [promoError, setPromoError] = useState('');
 
   const createPromoMutation = useMutation({
@@ -31,10 +33,36 @@ export default function PartnerPage() {
     }
   });
 
-  const handleCopy = (text: string) => {
+  const withdrawMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/partner/withdraw', {
+        method: 'POST',
+        headers: { 'Authorization': \`Bearer \${token}\` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      setShowWithdrawModal(false);
+      router.push('/balance');
+    },
+    onError: (e: Error) => {
+      alert(e.message);
+    }
+  });
+
+  const handleCopyPromo = (text: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedPromo(true);
+    setTimeout(() => setCopiedPromo(false), 2000);
+  };
+
+  const handleCopyLink = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleCreatePromo = (e: React.FormEvent) => {
@@ -86,6 +114,39 @@ export default function PartnerPage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden">
+      <AnimatePresence>
+        {showWithdrawModal && stats && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#12141A] border border-white/10 p-6 rounded-2xl shadow-2xl max-w-sm w-full"
+            >
+              <h3 className="text-xl font-medium mb-3">Вывод средств</h3>
+              <p className="text-frost-white/80 mb-6 text-sm">
+                Вы уверены, что хотите вывести средства? Выведется вся сумма ({stats.balance.toFixed(2)} zl) на ваш основной баланс.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowWithdrawModal(false)}
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-medium transition-colors"
+                >
+                  Нет
+                </button>
+                <button
+                  onClick={() => withdrawMutation.mutate()}
+                  disabled={withdrawMutation.isPending}
+                  className="flex-1 py-3 bg-macvbet-yellow text-black hover:bg-yellow-400 rounded-xl font-medium transition-colors disabled:opacity-50"
+                >
+                  {withdrawMutation.isPending ? 'Запрос...' : 'Да'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
         
         {/* Header */}
@@ -138,7 +199,10 @@ export default function PartnerPage() {
                   </div>
                 )}
 
-                <button className="mt-5 w-full bg-macvbet-yellow hover:bg-yellow-400 text-black font-semibold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(255,172,46,0.3)] hover:shadow-[0_0_30px_rgba(255,172,46,0.5)] active:scale-[0.98] text-lg">
+                <button 
+                  onClick={() => setShowWithdrawModal(true)}
+                  className="mt-5 w-full bg-macvbet-yellow hover:bg-yellow-400 text-black font-semibold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(255,172,46,0.3)] hover:shadow-[0_0_30px_rgba(255,172,46,0.5)] active:scale-[0.98] text-lg"
+                >
                   Запросить вывод
                 </button>
                 <p className="text-xs text-frost-white/40 text-center mt-3">
@@ -161,10 +225,10 @@ export default function PartnerPage() {
                         {stats.promoCode}
                       </div>
                       <button 
-                        onClick={() => handleCopy(stats.promoCode as string)}
+                        onClick={() => handleCopyPromo(stats.promoCode as string)}
                         className="bg-white/10 hover:bg-white/20 p-3.5 rounded-lg transition-colors flex-shrink-0"
                       >
-                        {copied ? <CheckCircle2 size={24} className="text-green-400" /> : <Copy size={24} />}
+                        {copiedPromo ? <CheckCircle2 size={24} className="text-green-400" /> : <Copy size={24} />}
                       </button>
                     </div>
 
@@ -176,11 +240,11 @@ export default function PartnerPage() {
                         {stats.link}
                       </div>
                       <button 
-                        onClick={() => handleCopy(stats.link)}
+                        onClick={() => handleCopyLink(stats.link)}
                         type="button"
                         className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors flex-shrink-0 text-frost-white/60"
                       >
-                        {copied ? <CheckCircle2 size={16} className="text-green-400" /> : <Copy size={16} />}
+                        {copiedLink ? <CheckCircle2 size={16} className="text-green-400" /> : <Copy size={16} />}
                       </button>
                     </div>
                   </>
@@ -215,11 +279,11 @@ export default function PartnerPage() {
                         {stats.link}
                       </div>
                       <button 
-                        onClick={() => handleCopy(stats.link)}
+                        onClick={() => handleCopyLink(stats.link)}
                         type="button"
                         className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors flex-shrink-0 text-frost-white/60"
                       >
-                        {copied ? <CheckCircle2 size={16} className="text-green-400" /> : <Copy size={16} />}
+                        {copiedLink ? <CheckCircle2 size={16} className="text-green-400" /> : <Copy size={16} />}
                       </button>
                     </div>
                   </form>
@@ -241,7 +305,7 @@ export default function PartnerPage() {
                   <Activity size={20} />
                 </div>
                 <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Регистрации</span>
-                <span className="text-3xl font-light">{aggregate.fds}</span>
+                <span className="text-3xl font-light">{stats.registrations || 0}</span>
               </div>
               <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
                 <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center mb-1">
@@ -317,7 +381,10 @@ export default function PartnerPage() {
                   <div className="w-8 h-8 shrink-0 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center font-bold">3</div>
                   <div>
                     <h3 className="text-frost-white font-medium mb-1">Получайте 50% от прибыли (RevShare)</h3>
-                    <p className="text-frost-white/60 text-xs">Вам начисляется ровно половина от чистой прибыли казино (GGR) с каждого приведенного игрока.</p>
+                    <p className="text-frost-white/60 text-xs leading-relaxed">
+                      Вам начисляется ровно половина от чистой прибыли казино (GGR) с каждого приведенного игрока.<br/><br/>
+                      <strong className="text-frost-white/80">GGR (Gross Gaming Revenue)</strong> — это разница между суммой всех ставок игрока и суммой его выигрышей. Если игрок проигрывает, 50% его проигрыша зачисляется вам на баланс. Если игрок выигрывает больше, чем поставил, ваш баланс может уйти в минус (Negative Carryover). Этот минус спишется с вашей будущей прибыли, вы ничего не должны оплачивать. Балансы партнеров обновляются автоматически каждый день по результатам активности рефералов.
+                    </p>
                   </div>
                 </div>
               </div>

@@ -71,12 +71,18 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
       } catch (e) {}
     }
 
+    // Fetch registrations count
+    const registrations = await prisma.user.count({
+      where: { referrerTelegramId: user.telegramId }
+    });
+
     return {
       balance: Number(user.revshareBalance),
       negativeCarryover: Number(user.negativeCarryover),
       promoCode: promo?.code || null,
       link,
       minWithdrawal,
+      registrations,
       stats: serializedStats
     };
   });
@@ -122,6 +128,65 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
       if (e instanceof z.ZodError) {
         return reply.code(400).send({ error: e.errors[0].message });
       }
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.post('/withdraw', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    const { prisma } = await import('../lib/prisma.js');
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { telegramId: true, revshareBalance: true }
+      });
+
+      if (!user) return reply.code(404).send({ error: 'User not found' });
+
+      // Check min withdrawal
+      const minWithdrawalConfig = await prisma.systemConfig.findUnique({
+        where: { key: 'MIN_PARTNER_WITHDRAWAL' }
+      });
+      let minWithdrawal = 50;
+      if (minWithdrawalConfig && minWithdrawalConfig.value) {
+        try { minWithdrawal = Number(JSON.parse(minWithdrawalConfig.value as string)) || 50; } catch (e) {}
+      }
+
+      const balance = Number(user.revshareBalance);
+      if (balance < minWithdrawal) {
+        return reply.code(400).send({ error: \`Минимальная сумма вывода: \${minWithdrawal}\` });
+      }
+
+      if (balance <= 0) {
+        return reply.code(400).send({ error: 'Недостаточно средств' });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // Move revshareBalance to balance
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            revshareBalance: 0,
+            balance: { increment: balance }
+          }
+        });
+
+        // Add a transaction record for auditing
+        await tx.transaction.create({
+          data: {
+            userId,
+            amount: balance,
+            type: 'affiliate_withdrawal',
+            currency: 'PLN',
+            status: 'completed',
+            metadata: { type: 'transfer_to_main_balance' }
+          }
+        });
+      });
+
+      return { success: true, amount: balance };
+    } catch (e) {
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });

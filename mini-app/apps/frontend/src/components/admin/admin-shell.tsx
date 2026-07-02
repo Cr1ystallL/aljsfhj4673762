@@ -28,6 +28,7 @@ import {
   Users,
   Wallet,
   Database,
+  Handshake,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -96,6 +97,12 @@ const links: AdminLink[] = [
     label: 'Бонусы',
     Icon: Sparkles,
     href: '/system/console/bonuses',
+  },
+  {
+    id: 'partners',
+    label: 'Партнеры',
+    Icon: Handshake,
+    href: '/system/console/partners',
   },
   {
     id: 'broadcasts',

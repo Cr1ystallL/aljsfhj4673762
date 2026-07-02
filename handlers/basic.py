@@ -63,8 +63,18 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         if is_new_user:
             try:
                 await message.bot.send_message(referrer_id, "🤝 <b>Новый игрок!</b>\nПо вашей реферальной ссылке/промокоду зарегистрировался новый пользователь.")
+                await message.answer("✅ Вы успешно привязаны к партнеру!")
             except:
                 pass
+        else:
+            # Пытаемся привязать реферала, если он существует но у него нет реферера
+            bound = db.bind_referrer_if_empty(user_id, referrer_id)
+            if bound:
+                try:
+                    await message.bot.send_message(referrer_id, "🤝 <b>Новый игрок!</b>\nПо вашей реферальной ссылке/промокоду зарегистрировался новый пользователь.")
+                    await message.answer("✅ Вы успешно привязаны к партнеру!")
+                except:
+                    pass
     else:
         is_new_user = db.create_user(user_id)
     

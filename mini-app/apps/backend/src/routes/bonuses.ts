@@ -122,9 +122,8 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
               
               // Add click stat
               await tx.$executeRaw`
-                INSERT INTO affiliate_clicks (affiliate_telegram_id, date, count)
-                VALUES (${affiliate.telegramId}, CURRENT_DATE, 1)
-                ON CONFLICT (affiliate_telegram_id, date) DO UPDATE SET count = affiliate_clicks.count + 1
+                INSERT INTO affiliate_clicks (id, affiliate_telegram_id, timestamp)
+                VALUES (${randomUUID()}, ${affiliate.telegramId}, NOW())
               `;
 
               return { isAffiliate: true };

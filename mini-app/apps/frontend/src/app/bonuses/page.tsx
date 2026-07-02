@@ -349,6 +349,15 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
         reportApiError(res, json, 'Не удалось активировать промокод');
         return;
       }
+      if (json.isAffiliate) {
+        toast.success(
+          'Вы успешно привязаны к партнеру!',
+          { title: 'Промокод применён' }
+        );
+        setCode('');
+        return;
+      }
+      
       toast.success(
         `+${Number(json.amount).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
         { title: 'Промокод применён' }
