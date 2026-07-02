@@ -4360,7 +4360,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         action: 'system.update_partner_config',
         targetType: 'system',
         targetId: 'MIN_PARTNER_WITHDRAWAL',
-        details: { value: val }
+        payloadAfter: { value: val }
       });
       
       return reply.send({ ok: true, minWithdrawal: val });
