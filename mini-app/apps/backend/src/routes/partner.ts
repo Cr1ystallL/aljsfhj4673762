@@ -163,13 +163,23 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await prisma.$transaction(async (tx) => {
-        // Move revshareBalance to balance
+        // Find user balance
+        const bal = await tx.balance.findUnique({ where: { userId } });
+        if (!bal) throw new Error('Balance not found');
+        
+        const balanceBefore = Number(bal.amount);
+        const balanceAfter = balanceBefore + balance;
+
+        // Reset revshareBalance
         await tx.user.update({
           where: { id: userId },
-          data: {
-            revshareBalance: 0,
-            balance: { increment: balance }
-          }
+          data: { revshareBalance: 0 }
+        });
+        
+        // Add to main balance
+        await tx.balance.update({
+          where: { userId },
+          data: { amount: { increment: balance } }
         });
 
         // Add a transaction record for auditing
@@ -177,9 +187,9 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
           data: {
             userId,
             amount: balance,
+            balanceBefore,
+            balanceAfter,
             type: 'affiliate_withdrawal',
-            currency: 'PLN',
-            status: 'completed',
             metadata: { type: 'transfer_to_main_balance' }
           }
         });

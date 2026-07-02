@@ -4435,13 +4435,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/_x/partners', { preHandler: adminOnly }, async (request, reply) => {
     try {
-      const partners = await app.prisma.user.findMany({
+      const promos = await app.prisma.affiliatePromoCode.findMany();
+      const promoUserIds = Array.from(new Set(promos.map(p => p.userId)));
+
+      const referrers = await app.prisma.user.groupBy({
+        by: ['referrerTelegramId'],
+        where: { referrerTelegramId: { not: null } },
+        _count: { referrerTelegramId: true }
+      });
+      const referrerMap = new Map();
+      const referrerTelegramIds: bigint[] = [];
+      for (const r of referrers) {
+        if (r.referrerTelegramId) {
+          referrerMap.set(String(r.referrerTelegramId), r._count.referrerTelegramId);
+          referrerTelegramIds.push(r.referrerTelegramId);
+        }
+      }
+
+      const users = await app.prisma.user.findMany({
         where: {
           OR: [
             { revshareBalance: { gt: 0 } },
             { negativeCarryover: { lt: 0 } },
-            { affiliatePromoCodes: { some: {} } },
-            { referrals: { some: {} } }
+            { id: { in: promoUserIds } },
+            { telegramId: { in: referrerTelegramIds } }
           ]
         },
         select: {
@@ -4450,12 +4467,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           firstName: true,
           username: true,
           revshareBalance: true,
-          negativeCarryover: true,
-          _count: { select: { referrals: true } }
+          negativeCarryover: true
         },
-        orderBy: [{ revshareBalance: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ revshareBalance: 'desc' }],
         take: 100
       });
+
+      const partners = users.map(u => ({
+        ...u,
+        telegramId: String(u.telegramId),
+        _count: { referrals: referrerMap.get(String(u.telegramId)) || 0 }
+      }));
 
       return reply.send({ ok: true, data: partners });
     } catch (e) {
@@ -4475,20 +4497,33 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           username: true,
           revshareBalance: true,
           negativeCarryover: true,
-          createdAt: true,
-          affiliatePromoCodes: true,
-          _count: { select: { referrals: true } }
+          createdAt: true
         }
       });
       if (!user) return reply.code(404).send({ error: 'Not found' });
+
+      const referrals = await app.prisma.user.count({
+        where: { referrerTelegramId: user.telegramId }
+      });
+
+      const affiliatePromoCodes = await app.prisma.affiliatePromoCode.findMany({
+        where: { userId: user.id }
+      });
+
+      const fullUser = {
+        ...user,
+        telegramId: String(user.telegramId),
+        _count: { referrals },
+        affiliatePromoCodes
+      };
 
       const stats = await app.prisma.affiliateStatsDaily.findMany({
         where: { affiliateTelegramId: user.telegramId },
         orderBy: { date: 'desc' },
         take: 30
       });
+      const serializedStats = stats.map(s => ({ ...s, affiliateTelegramId: String(s.affiliateTelegramId) }));
 
-      // Aggregate all time totals
       const allTimeStatsRows = await app.prisma.affiliateStatsDaily.aggregate({
         where: { affiliateTelegramId: user.telegramId },
         _sum: { clicks: true, fdCount: true, rdCount: true, depSum: true, income: true, ggr: true }
@@ -4503,7 +4538,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         ggr: Number(allTimeStatsRows._sum.ggr || 0)
       };
 
-      return reply.send({ ok: true, data: { user, stats, allTimeStats } });
+      return reply.send({ ok: true, data: { user: fullUser, stats: serializedStats, allTimeStats } });
     } catch (e) {
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
