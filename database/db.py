@@ -57,7 +57,10 @@ class Database:
             ("last_cpa_payout", "TIMESTAMP"),
             ("last_ggr_payout", "TIMESTAMP"),
             ("dep_bonus_state", "INTEGER NOT NULL DEFAULT 0"),
-            ("language", "TEXT DEFAULT 'ru'")
+            ("language", "TEXT DEFAULT 'ru'"),
+            ("revshare_balance", "REAL NOT NULL DEFAULT 0"),
+            ("negative_carryover", "REAL NOT NULL DEFAULT 0"),
+            ("withdrawal_details", "TEXT")
         ]
         
         for column_name, column_type in columns_to_add:
@@ -65,6 +68,42 @@ class Database:
                 cursor.execute(f"SELECT {column_name} FROM users LIMIT 1")
             except sqlite3.OperationalError:
                 cursor.execute(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}")
+        
+        # Создаем таблицу для промокодов
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                code TEXT UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Таблица кликов
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS affiliate_clicks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                affiliate_id INTEGER NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Дневная статистика
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS affiliate_stats_daily (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                affiliate_id INTEGER NOT NULL,
+                clicks INTEGER DEFAULT 0,
+                fd_count INTEGER DEFAULT 0,
+                rd_count INTEGER DEFAULT 0,
+                dep_sum REAL DEFAULT 0,
+                ggr REAL DEFAULT 0,
+                ngr REAL DEFAULT 0,
+                income REAL DEFAULT 0,
+                UNIQUE(date, affiliate_id)
+            )
+        ''')
         
         # Создаем таблицу для истории ставок
         cursor.execute('''
@@ -928,6 +967,122 @@ class Database:
         conn.commit()
         conn.close()
         return True, amount
+        
+    # --- REVSHARE & PROMO CODES ---
+    
+    def get_promo_code_owner(self, code: str) -> Optional[int]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id FROM promo_codes WHERE code = ?', (code.lower(),))
+        res = cursor.fetchone()
+        conn.close()
+        return res[0] if res else None
+        
+    def get_user_promo_code(self, user_id: int) -> Optional[str]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT code FROM promo_codes WHERE user_id = ?', (user_id,))
+        res = cursor.fetchone()
+        conn.close()
+        return res[0] if res else None
+        
+    def create_promo_code(self, user_id: int, code: str) -> bool:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('INSERT INTO promo_codes (user_id, code) VALUES (?, ?)', (user_id, code.lower()))
+            conn.commit()
+            success = True
+        except sqlite3.IntegrityError:
+            success = False
+        finally:
+            conn.close()
+        return success
+        
+    def add_affiliate_click(self, affiliate_id: int) -> None:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO affiliate_clicks (affiliate_id) VALUES (?)', (affiliate_id,))
+        conn.commit()
+        conn.close()
+        
+    def get_revshare_stats_all_time(self, affiliate_id: int) -> dict:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        # Get clicks
+        cursor.execute('SELECT COUNT(*) FROM affiliate_clicks WHERE affiliate_id = ?', (affiliate_id,))
+        clicks = cursor.fetchone()[0]
+        # Get FD, RD, Dep sum, Income from daily stats
+        cursor.execute('''
+            SELECT SUM(fd_count), SUM(rd_count), SUM(dep_sum), SUM(income)
+            FROM affiliate_stats_daily WHERE affiliate_id = ?
+        ''', (affiliate_id,))
+        stats = cursor.fetchone()
+        
+        cursor.execute('SELECT revshare_balance, negative_carryover FROM users WHERE user_id = ?', (affiliate_id,))
+        bal = cursor.fetchone()
+        
+        conn.close()
+        
+        return {
+            'clicks': clicks,
+            'fd_count': stats[0] or 0,
+            'rd_count': stats[1] or 0,
+            'dep_sum': stats[2] or 0.0,
+            'total_income': stats[3] or 0.0,
+            'revshare_balance': bal[0] if bal else 0.0,
+            'negative_carryover': bal[1] if bal else 0.0
+        }
+        
+    def claim_revshare_balance(self, affiliate_id: int) -> tuple:
+        """Списывает revshare_balance и создает заявку на вывод (через payment handler) или переводит на основной счет"""
+        # Пока просто возвращаем сумму. Сама логика создания заявки будет в хендлере.
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT revshare_balance FROM users WHERE user_id = ?', (affiliate_id,))
+        res = cursor.fetchone()
+        if not res or res[0] <= 0:
+            conn.close()
+            return False, 0.0
+            
+        amount = res[0]
+        cursor.execute('UPDATE users SET revshare_balance = 0 WHERE user_id = ?', (affiliate_id,))
+        conn.commit()
+        conn.close()
+        return True, amount
+
+    def check_and_ban_fraud(self, affiliate_telegram_id: int, affiliate_credentials: str) -> bool:
+        """
+        Проверяет на твинководство: совпадение реквизитов вывода с рефералами.
+        Возвращает True если обнаружен фрод (и банит).
+        В SQLite нет IP и is_blocked, поэтому баним обнулением балансов.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        fraud_found = False
+        twinks_to_ban = []
+        
+        cursor.execute('SELECT user_id FROM users WHERE referrer_id = ?', (affiliate_telegram_id,))
+        referrals = [r[0] for r in cursor.fetchall()]
+        
+        for ref_id in referrals:
+            # Check credentials directly in users table (since we added withdrawal_details)
+            cursor.execute('SELECT withdrawal_details FROM users WHERE user_id = ?', (ref_id,))
+            res = cursor.fetchone()
+            if res and res[0] and res[0].strip() == affiliate_credentials.strip():
+                fraud_found = True
+                twinks_to_ban.append(ref_id)
+                
+        if fraud_found:
+            for t_id in twinks_to_ban:
+                cursor.execute('UPDATE users SET balance = 0, revshare_balance = 0 WHERE user_id = ?', (t_id,))
+            cursor.execute('UPDATE users SET balance = 0, revshare_balance = 0 WHERE user_id = ?', (affiliate_telegram_id,))
+            conn.commit()
+            
+        conn.close()
+        return fraud_found
+
     
     def get_user_language(self, user_id: int) -> str:
         """

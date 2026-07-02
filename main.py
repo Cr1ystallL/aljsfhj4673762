@@ -80,6 +80,14 @@ async def main():
     except Exception as e:
         logger.warning(f"Broadcast worker did not start: {e}")
 
+    # Запуск фонового подсчета RevShare (ежедневно)
+    try:
+        from daily_revshare import revshare_worker_loop
+        asyncio.create_task(revshare_worker_loop(bot))
+        logger.info("RevShare daily worker scheduled")
+    except Exception as e:
+        logger.warning(f"RevShare worker did not start: {e}")
+
     # Запуск polling
     await dp.start_polling(bot)
 

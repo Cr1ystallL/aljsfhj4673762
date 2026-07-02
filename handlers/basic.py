@@ -26,29 +26,43 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
     user_id = message.from_user.id
     username = message.from_user.first_name
     
-    # Проверка на реферальную ссылку
+    # Проверка на реферальную ссылку/промокод
     referrer_id = None
-    ref_type = None
 
     if command.args:
-        if command.args.startswith("cpa_"):
+        arg = command.args.strip()
+        # 1. Поиск по промокоду
+        aff_id = db.get_promo_code_owner(arg)
+        if aff_id:
+            referrer_id = aff_id
+        else:
+            # 2. Поиск по ID (поддержка старых ссылок)
             try:
-                referrer_id = int(command.args.replace("cpa_", ""))
-                ref_type = 'cpa'
-            except: pass
-        elif command.args.startswith("ggr_"):
+                if arg.startswith("cpa_"):
+                    referrer_id = int(arg.replace("cpa_", ""))
+                elif arg.startswith("ggr_"):
+                    referrer_id = int(arg.replace("ggr_", ""))
+                else:
+                    referrer_id = int(arg)
+            except:
+                pass
+                
+        if referrer_id == user_id:
+            await message.answer("❌ Нельзя использовать свой же промокод или реферальную ссылку.")
+            referrer_id = None
+        elif referrer_id:
+            # Трекинг клика/перехода
             try:
-                referrer_id = int(command.args.replace("ggr_", ""))
-                ref_type = 'ggr'
-            except: pass
+                db.add_affiliate_click(referrer_id)
+            except Exception as e:
+                pass
 
     # Создаем пользователя
-    if referrer_id and referrer_id != user_id:
-        is_new_user = db.create_user(user_id, referrer_id=referrer_id, ref_type=ref_type)
-        if is_new_user and ref_type == 'cpa':
-            db.add_ref_cpa_balance(referrer_id, 100.0)
+    if referrer_id:
+        is_new_user = db.create_user(user_id, referrer_id=referrer_id, ref_type='ggr') # По умолчанию RevShare
+        if is_new_user:
             try:
-                await message.bot.send_message(referrer_id, "🤝 <b>Новый реферал!</b>\nПо вашей CPA-ссылке зарегистрировался пользователь.\nВам начислено <b>100 ₽</b> на CPA-баланс.")
+                await message.bot.send_message(referrer_id, "🤝 <b>Новый игрок!</b>\nПо вашей реферальной ссылке/промокоду зарегистрировался новый пользователь.")
             except:
                 pass
     else:

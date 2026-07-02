@@ -434,10 +434,10 @@ class DatabasePostgres:
         if not cursor.fetchone():
             # Создаем пользователя
             cursor.execute('''
-                INSERT INTO users (id, telegram_id, created_at, updated_at)
-                VALUES (gen_random_uuid(), %s, NOW(), NOW())
+                INSERT INTO users (id, telegram_id, referrer_telegram_id, created_at, updated_at)
+                VALUES (gen_random_uuid(), %s, %s, NOW(), NOW())
                 RETURNING id
-            ''', (user_id,))
+            ''', (user_id, referrer_id))
             
             user_uuid = cursor.fetchone()[0]
             
@@ -799,6 +799,169 @@ class DatabasePostgres:
     
     def claim_all_ref_balance(self, user_id: int) -> tuple:
         return False, 0.0
+        
+    # --- REVSHARE & PROMO CODES ---
+    
+    def get_promo_code_owner(self, code: str) -> Optional[int]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT u.telegram_id 
+            FROM promo_codes pc
+            JOIN users u ON u.id::text = pc.user_id
+            WHERE pc.code = %s
+        ''', (code.lower(),))
+        res = cursor.fetchone()
+        conn.close()
+        return res[0] if res else None
+        
+    def get_user_promo_code(self, user_id: int) -> Optional[str]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT pc.code 
+            FROM promo_codes pc
+            JOIN users u ON u.id::text = pc.user_id
+            WHERE u.telegram_id = %s
+        ''', (user_id,))
+        res = cursor.fetchone()
+        conn.close()
+        return res[0] if res else None
+        
+    def create_promo_code(self, user_id: int, code: str) -> bool:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT id FROM users WHERE telegram_id = %s', (user_id,))
+            user_uuid_row = cursor.fetchone()
+            if not user_uuid_row:
+                return False
+            user_uuid = str(user_uuid_row[0])
+            
+            cursor.execute('''
+                INSERT INTO promo_codes (id, user_id, code, created_at) 
+                VALUES (gen_random_uuid(), %s, %s, NOW())
+            ''', (user_uuid, code.lower()))
+            conn.commit()
+            success = True
+        except psycopg2.IntegrityError:
+            conn.rollback()
+            success = False
+        finally:
+            conn.close()
+        return success
+        
+    def add_affiliate_click(self, affiliate_id: int) -> None:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO affiliate_clicks (id, affiliate_telegram_id, timestamp) 
+            VALUES (gen_random_uuid(), %s, NOW())
+        ''', (affiliate_id,))
+        conn.commit()
+        conn.close()
+        
+    def get_revshare_stats_all_time(self, affiliate_id: int) -> dict:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        # Get clicks
+        cursor.execute('SELECT COUNT(*) FROM affiliate_clicks WHERE affiliate_telegram_id = %s', (affiliate_id,))
+        clicks = cursor.fetchone()[0]
+        # Get FD, RD, Dep sum, Income from daily stats
+        cursor.execute('''
+            SELECT SUM(fd_count), SUM(rd_count), SUM(dep_sum), SUM(income)
+            FROM affiliate_stats_daily WHERE affiliate_telegram_id = %s
+        ''', (affiliate_id,))
+        stats = cursor.fetchone()
+        
+        cursor.execute('SELECT revshare_balance, negative_carryover FROM users WHERE telegram_id = %s', (affiliate_id,))
+        bal = cursor.fetchone()
+        
+        conn.close()
+        
+        return {
+            'clicks': clicks,
+            'fd_count': int(stats[0] or 0) if stats else 0,
+            'rd_count': int(stats[1] or 0) if stats else 0,
+            'dep_sum': float(stats[2] or 0.0) if stats else 0.0,
+            'total_income': float(stats[3] or 0.0) if stats else 0.0,
+            'revshare_balance': float(bal[0] or 0.0) if bal else 0.0,
+            'negative_carryover': float(bal[1] or 0.0) if bal else 0.0
+        }
+        
+    def claim_revshare_balance(self, affiliate_id: int) -> tuple:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT revshare_balance FROM users WHERE telegram_id = %s', (affiliate_id,))
+        res = cursor.fetchone()
+        if not res or res[0] <= 0:
+            conn.close()
+            return False, 0.0
+            
+        amount = float(res[0])
+        cursor.execute('UPDATE users SET revshare_balance = 0 WHERE telegram_id = %s', (affiliate_id,))
+        conn.commit()
+        conn.close()
+        return True, amount
+        
+    def check_and_ban_fraud(self, affiliate_telegram_id: int, affiliate_credentials: str) -> bool:
+        """
+        Проверяет на твинководство: совпадение IP или реквизитов вывода с рефералами.
+        Возвращает True если обнаружен фрод (и банит).
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        fraud_found = False
+        twinks_to_ban = []
+        
+        # 1. Get affiliate's user ID (uuid)
+        cursor.execute('SELECT id FROM users WHERE telegram_id = %s', (affiliate_telegram_id,))
+        aff_row = cursor.fetchone()
+        if not aff_row:
+            conn.close()
+            return False
+            
+        aff_uuid = str(aff_row[0])
+        
+        # 2. Get affiliate's IPs
+        cursor.execute('SELECT ip_address FROM user_ip_addresses WHERE user_id = %s', (aff_uuid,))
+        aff_ips = [r[0] for r in cursor.fetchall()]
+        
+        # 3. Find all referrals (twinks)
+        cursor.execute('SELECT id, telegram_id FROM users WHERE referrer_telegram_id = %s', (affiliate_telegram_id,))
+        referrals = cursor.fetchall()
+        
+        for ref_uuid, ref_tg_id in referrals:
+            ref_uuid_str = str(ref_uuid)
+            is_twink = False
+            
+            # Check IPs
+            if aff_ips:
+                cursor.execute('SELECT 1 FROM user_ip_addresses WHERE user_id = %s AND ip_address = ANY(%s)', (ref_uuid_str, aff_ips))
+                if cursor.fetchone():
+                    is_twink = True
+                    
+            # Check credentials (macvpay_orders / withdrawal_details)
+            if not is_twink:
+                cursor.execute('SELECT 1 FROM macvpay_orders WHERE user_id = %s AND destination = %s', (ref_uuid_str, affiliate_credentials))
+                if cursor.fetchone():
+                    is_twink = True
+                    
+            if is_twink:
+                fraud_found = True
+                twinks_to_ban.append(ref_uuid_str)
+                
+        if fraud_found:
+            # Ban twinks
+            if twinks_to_ban:
+                cursor.execute('UPDATE users SET is_blocked = true WHERE id = ANY(%s)', (twinks_to_ban,))
+            # Ban affiliate
+            cursor.execute('UPDATE users SET is_blocked = true WHERE id = %s', (aff_uuid,))
+            conn.commit()
+            
+        conn.close()
+        return fraud_found
     
     def get_user_language(self, user_id: int) -> str:
         """Получить язык пользователя — дефолт 'ru' если не установлен."""

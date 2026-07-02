@@ -106,8 +106,13 @@ export default function WheelPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [clockSkew, setClockSkew] = useState(0);
   const [pick, setPick] = useState<number>(2);
-  const [amount, setAmount] = useState(10);
   const [busy, setBusy] = useState(false);
+  const [amountInput, setAmountInput] = useState<string>('10');
+  const amount = useMemo(() => {
+    const parsed = parseFloat(amountInput);
+    if (isNaN(parsed)) return 0;
+    return parsed;
+  }, [amountInput]);
 
   const lastPhaseRef = useRef<Phase | null>(null);
   const lastUiPhaseRef = useRef<Phase | null>(null);

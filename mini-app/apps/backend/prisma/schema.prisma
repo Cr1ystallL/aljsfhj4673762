@@ -39,6 +39,11 @@ model User {
   // Hidden Debt
   hiddenDebt       Decimal  @default(0) @map("hidden_debt") @db.Decimal(20, 2)
 
+  // Affiliate & RevShare
+  referrerTelegramId BigInt?  @map("referrer_telegram_id")
+  revshareBalance    Decimal  @default(0) @map("revshare_balance") @db.Decimal(20, 2)
+  negativeCarryover  Decimal  @default(0) @map("negative_carryover") @db.Decimal(20, 2)
+
   sessions               Session[]
   gameSessions           GameSession[]
   userRtpConfig          UserRtpConfig?
@@ -575,4 +580,45 @@ model UserRtpConfig {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_rtp_configs")
+}
+
+// -----------------------------------------------------------------------------
+// Affiliate & RevShare
+// -----------------------------------------------------------------------------
+
+model PromoCode {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id") // ID of the affiliate
+  code      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([code])
+  @@index([userId])
+  @@map("promo_codes")
+}
+
+model AffiliateClick {
+  id               String   @id @default(uuid())
+  affiliateTelegramId BigInt   @map("affiliate_telegram_id")
+  timestamp        DateTime @default(now())
+
+  @@index([affiliateTelegramId])
+  @@map("affiliate_clicks")
+}
+
+model AffiliateStatsDaily {
+  id               String   @id @default(uuid())
+  date             DateTime @db.Date
+  affiliateTelegramId BigInt   @map("affiliate_telegram_id")
+  clicks           Int      @default(0)
+  fdCount          Int      @default(0) @map("fd_count")
+  rdCount          Int      @default(0) @map("rd_count")
+  depSum           Decimal  @default(0) @map("dep_sum") @db.Decimal(20, 2)
+  ggr              Decimal  @default(0) @db.Decimal(20, 2)
+  ngr              Decimal  @default(0) @db.Decimal(20, 2)
+  income           Decimal  @default(0) @db.Decimal(20, 2)
+
+  @@unique([date, affiliateTelegramId])
+  @@index([affiliateTelegramId])
+  @@map("affiliate_stats_daily")
 }
