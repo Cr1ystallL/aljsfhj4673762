@@ -330,7 +330,7 @@ export default function PartnerPage() {
                 <span className="text-xs text-frost-white/50 bg-white/5 px-3 py-1.5 rounded-md">За 14 дней</span>
               </div>
               
-              <div className="h-[220px] w-full p-4 rounded-[16px] border border-white/5 bg-white/[0.02] flex items-end justify-between gap-1.5 relative overflow-hidden">
+              <div className="h-[180px] w-full p-4 rounded-[16px] border border-white/5 bg-white/[0.02] flex items-end justify-between gap-1.5 relative overflow-hidden">
                 {/* Horizontal Guide lines */}
                 <div className="absolute inset-0 flex flex-col justify-between px-4 py-4 pointer-events-none">
                   {[...Array(4)].map((_, i) => (

@@ -53,6 +53,19 @@
     --radius-buttons: 75.024px;
     --radius-full: 75.024px;
   }
+
+  /* Fix for inputs being black text on black background */
+  input, textarea, select {
+    color: var(--color-frost-white);
+    background-color: transparent;
+  }
+
+  /* Fix for Telegram SVG avatars rendering small */
+  img[src*=".svg"] {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
   
   body {
     @apply bg-midnight-canvas text-frost-white;
