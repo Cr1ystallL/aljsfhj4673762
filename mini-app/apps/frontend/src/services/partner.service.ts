@@ -16,6 +16,7 @@ export interface PartnerStatsResponse {
   negativeCarryover: number;
   promoCode: string | null;
   link: string;
+  minWithdrawal: number;
   stats: AffiliateDailyStat[];
 }
 

@@ -99,6 +99,37 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
               FROM promo_codes WHERE code = ${code} LIMIT 1 FOR UPDATE`;
           const promo = rows[0];
           if (!promo) {
+            // Check if it's an affiliate code instead
+            const affRows = await tx.$queryRaw<Array<{ user_id: string }>>`SELECT user_id FROM affiliate_promo_codes WHERE code = ${code.toLowerCase()} LIMIT 1`;
+            const affPromo = affRows[0];
+            if (affPromo) {
+              const currentUser = await tx.user.findUnique({ where: { id: userId } });
+              if (!currentUser) throw new HttpError(404, 'USER_NOT_FOUND', 'User not found');
+              if (currentUser.referrerTelegramId) {
+                throw new HttpError(400, 'ALREADY_HAVE_REFERRER', 'У вас уже есть реферер');
+              }
+              
+              const affiliate = await tx.user.findUnique({ where: { id: affPromo.user_id } });
+              if (!affiliate || affiliate.telegramId === currentUser.telegramId) {
+                 throw new HttpError(400, 'INVALID_CODE', 'Нельзя использовать свой же промокод');
+              }
+              
+              // Link user
+              await tx.user.update({
+                where: { id: userId },
+                data: { referrerTelegramId: affiliate.telegramId }
+              });
+              
+              // Add click stat
+              await tx.$executeRaw`
+                INSERT INTO affiliate_clicks (affiliate_telegram_id, date, count)
+                VALUES (${affiliate.telegramId}, CURRENT_DATE, 1)
+                ON CONFLICT (affiliate_telegram_id, date) DO UPDATE SET count = affiliate_clicks.count + 1
+              `;
+
+              return { isAffiliate: true };
+            }
+
             throw new HttpError(404, 'PROMO_NOT_FOUND', 'Promo code not found');
           }
           if (!promo.active) {
@@ -233,6 +264,14 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
 
           return { amount, balance: after };
         });
+
+        // Handle affiliate promo code return
+        if ('isAffiliate' in result) {
+          return reply.send({
+            ok: true,
+            message: 'Реферальный код успешно применён',
+          });
+        }
 
         // Invalidate the balance cache + push WS notification so the
         // frontend store updates immediately rather than waiting up to

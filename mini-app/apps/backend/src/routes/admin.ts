@@ -4326,6 +4326,49 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ---------------------------------------------------------------- partner config */
+  
+  app.get('/_x/system/config/partner', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const conf = await app.prisma.systemConfig.findUnique({ where: { key: 'MIN_PARTNER_WITHDRAWAL' } });
+      let val = 50;
+      if (conf && conf.value) {
+        try {
+          const parsed = Number(JSON.parse(conf.value as string));
+          if (!isNaN(parsed)) val = parsed;
+        } catch (e) {}
+      }
+      return reply.send({ ok: true, minWithdrawal: val });
+    } catch (e) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  app.patch<{ Body: { minWithdrawal: number } }>('/_x/system/config/partner', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const val = Number(request.body.minWithdrawal);
+      if (isNaN(val) || val < 0) return reply.code(400).send({ error: 'Invalid value' });
+      
+      await app.prisma.systemConfig.upsert({
+        where: { key: 'MIN_PARTNER_WITHDRAWAL' },
+        update: { value: JSON.stringify(val) },
+        create: { key: 'MIN_PARTNER_WITHDRAWAL', value: JSON.stringify(val) }
+      });
+      
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'system.update_partner_config',
+        targetType: 'system',
+        targetId: 'MIN_PARTNER_WITHDRAWAL',
+        details: { value: val }
+      });
+      
+      return reply.send({ ok: true, minWithdrawal: val });
+    } catch (e) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
   /* ---------------------------------------------------------------- export/import configs */
 
   app.get('/_x/system/export', { preHandler: adminOnly }, async (request, reply) => {

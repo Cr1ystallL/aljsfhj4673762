@@ -57,11 +57,26 @@ export async function partnerRoutes(app: FastifyInstance): Promise<void> {
       income: Number(s.income)
     }));
 
+    // Fetch minimum withdrawal limit
+    const minWithdrawalConfig = await prisma.systemConfig.findUnique({
+      where: { key: 'MIN_PARTNER_WITHDRAWAL' }
+    });
+    
+    // Parse value, fallback to 50
+    let minWithdrawal = 50;
+    if (minWithdrawalConfig && minWithdrawalConfig.value) {
+      try {
+        const parsed = Number(JSON.parse(minWithdrawalConfig.value as string));
+        if (!isNaN(parsed)) minWithdrawal = parsed;
+      } catch (e) {}
+    }
+
     return {
       balance: Number(user.revshareBalance),
       negativeCarryover: Number(user.negativeCarryover),
       promoCode: promo?.code || null,
       link,
+      minWithdrawal,
       stats: serializedStats
     };
   });

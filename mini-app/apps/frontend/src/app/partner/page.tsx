@@ -92,10 +92,10 @@ export default function PartnerPage() {
         <div className="flex items-center justify-between gap-2 px-1">
           <button
             onClick={() => router.push('/')}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors"
           >
-            <ArrowLeft size={12} strokeWidth={1.8} />
-            <span className="font-roobert text-[12px]">Назад</span>
+            <ArrowLeft size={18} strokeWidth={1.8} />
+            <span className="font-roobert text-sm">Назад</span>
           </button>
           <BrandLockup size={48} />
           <span className="w-[64px]" aria-hidden />
@@ -121,28 +121,28 @@ export default function PartnerPage() {
                 }}
               />
               <div className="relative z-10 flex flex-col gap-1">
-                <span className="text-frost-white/60 text-sm font-medium uppercase tracking-wider flex items-center gap-1.5">
-                  <DollarSign size={14} /> Доступно к выводу
+                <span className="text-frost-white/60 text-sm font-medium uppercase tracking-wider flex items-center gap-2">
+                  <DollarSign size={20} /> Доступно к выводу
                 </span>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-4xl font-light tracking-tight">{stats.balance.toFixed(2)}</span>
-                  <span className="text-macvbet-yellow font-medium">zl</span>
+                  <span className="text-macvbet-yellow font-medium text-lg">zl</span>
                 </div>
 
                 {stats.negativeCarryover < 0 && (
                   <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 w-fit">
-                    <AlertCircle size={12} className="text-red-400" />
+                    <AlertCircle size={14} className="text-red-400" />
                     <span className="text-xs text-red-400 font-medium">
                       Отрицательный баланс: {stats.negativeCarryover.toFixed(2)} zl (спишется с будущей прибыли)
                     </span>
                   </div>
                 )}
 
-                <button className="mt-5 w-full bg-macvbet-yellow hover:bg-yellow-400 text-black font-semibold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,172,46,0.3)] hover:shadow-[0_0_30px_rgba(255,172,46,0.5)] active:scale-[0.98]">
+                <button className="mt-5 w-full bg-macvbet-yellow hover:bg-yellow-400 text-black font-semibold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(255,172,46,0.3)] hover:shadow-[0_0_30px_rgba(255,172,46,0.5)] active:scale-[0.98] text-lg">
                   Запросить вывод
                 </button>
-                <p className="text-[10px] text-frost-white/40 text-center mt-2">
-                  Минимальная сумма вывода 50 zl. Вывод производится через бота.
+                <p className="text-xs text-frost-white/40 text-center mt-3">
+                  Минимальная сумма вывода {stats.minWithdrawal ?? 50} zl. Вывод производится через бота.
                 </p>
               </div>
             </section>
@@ -154,17 +154,33 @@ export default function PartnerPage() {
                 {stats.promoCode ? (
                   <>
                     <p className="text-sm text-frost-white/70">
-                      Поделитесь ссылкой с друзьями и получайте 50% с прибыли казино пожизненно.
+                      Ваш промокод:
                     </p>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm font-mono truncate text-macvbet-yellow/90">
+                      <div className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-lg font-mono font-bold truncate text-macvbet-yellow/90">
+                        {stats.promoCode}
+                      </div>
+                      <button 
+                        onClick={() => handleCopy(stats.promoCode as string)}
+                        className="bg-white/10 hover:bg-white/20 p-3.5 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        {copied ? <CheckCircle2 size={24} className="text-green-400" /> : <Copy size={24} />}
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-frost-white/40 mt-2">
+                      Стандартная реферальная ссылка:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-xs font-mono truncate text-frost-white/60">
                         {stats.link}
                       </div>
                       <button 
                         onClick={() => handleCopy(stats.link)}
-                        className="bg-white/10 hover:bg-white/20 p-2.5 rounded-lg transition-colors flex-shrink-0"
+                        type="button"
+                        className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors flex-shrink-0 text-frost-white/60"
                       >
-                        {copied ? <CheckCircle2 size={18} className="text-green-400" /> : <Copy size={18} />}
+                        {copied ? <CheckCircle2 size={16} className="text-green-400" /> : <Copy size={16} />}
                       </button>
                     </div>
                   </>
@@ -179,12 +195,12 @@ export default function PartnerPage() {
                         value={promoInput}
                         onChange={e => setPromoInput(e.target.value)}
                         placeholder="Например: VIP2026"
-                        className="flex-1 bg-black/40 border border-white/10 focus:border-macvbet-yellow rounded-lg px-3 py-2.5 text-sm outline-none transition-colors"
+                        className="flex-1 bg-black/40 border border-white/10 focus:border-macvbet-yellow rounded-lg px-4 py-3 text-base outline-none transition-colors"
                       />
                       <button 
                         type="submit"
                         disabled={createPromoMutation.isPending}
-                        className="bg-macvbet-yellow text-black font-medium px-4 py-2.5 rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
+                        className="bg-macvbet-yellow text-black font-medium px-5 py-3 rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
                       >
                         {createPromoMutation.isPending ? '...' : 'Создать'}
                       </button>
@@ -203,7 +219,7 @@ export default function PartnerPage() {
                         type="button"
                         className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors flex-shrink-0 text-frost-white/60"
                       >
-                        {copied ? <CheckCircle2 size={14} className="text-green-400" /> : <Copy size={14} />}
+                        {copied ? <CheckCircle2 size={16} className="text-green-400" /> : <Copy size={16} />}
                       </button>
                     </div>
                   </form>
@@ -212,45 +228,45 @@ export default function PartnerPage() {
             </section>
 
             {/* Overall Stats Grid */}
-            <section className="grid grid-cols-2 gap-3">
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-1">
-                  <Users size={16} />
+            <section className="grid grid-cols-2 gap-4">
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-1">
+                  <Users size={20} />
                 </div>
                 <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Переходы</span>
-                <span className="text-2xl font-light">{aggregate.clicks}</span>
+                <span className="text-3xl font-light">{aggregate.clicks}</span>
               </div>
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
-                <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center mb-1">
-                  <Activity size={16} />
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+                <div className="w-10 h-10 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center mb-1">
+                  <Activity size={20} />
                 </div>
                 <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Регистрации</span>
-                <span className="text-2xl font-light">{aggregate.fds}</span>
+                <span className="text-3xl font-light">{aggregate.fds}</span>
               </div>
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
-                <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center mb-1">
-                  <TrendingUp size={16} />
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center mb-1">
+                  <TrendingUp size={20} />
                 </div>
                 <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Депозиты (zl)</span>
-                <span className="text-2xl font-light">{aggregate.depSum.toFixed(2)}</span>
+                <span className="text-3xl font-light">{aggregate.depSum.toFixed(2)}</span>
               </div>
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
-                <div className="w-8 h-8 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center mb-1">
-                  <DollarSign size={16} />
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+                <div className="w-10 h-10 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center mb-1">
+                  <DollarSign size={20} />
                 </div>
                 <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Доход (zl)</span>
-                <span className="text-2xl font-light text-macvbet-yellow">{aggregate.income.toFixed(2)}</span>
+                <span className="text-3xl font-light text-macvbet-yellow">{aggregate.income.toFixed(2)}</span>
               </div>
             </section>
 
             {/* Income Chart */}
-            <section className="flex flex-col gap-3 mt-2">
+            <section className="flex flex-col gap-4 mt-4">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-lg font-medium">Динамика дохода</h2>
-                <span className="text-xs text-frost-white/50 bg-white/5 px-2 py-1 rounded-md">За 14 дней</span>
+                <h2 className="text-xl font-medium">Динамика дохода</h2>
+                <span className="text-xs text-frost-white/50 bg-white/5 px-3 py-1.5 rounded-md">За 14 дней</span>
               </div>
               
-              <div className="h-48 w-full p-4 rounded-[16px] border border-white/5 bg-white/[0.02] flex items-end justify-between gap-1 relative">
+              <div className="h-[220px] w-full p-4 rounded-[16px] border border-white/5 bg-white/[0.02] flex items-end justify-between gap-1.5 relative overflow-hidden">
                 {/* Horizontal Guide lines */}
                 <div className="absolute inset-0 flex flex-col justify-between px-4 py-4 pointer-events-none">
                   {[...Array(4)].map((_, i) => (
@@ -262,17 +278,48 @@ export default function PartnerPage() {
                 {chartData.map((d, i) => (
                   <div key={i} className="relative flex flex-col justify-end items-center h-full w-full group">
                     {/* Tooltip on hover */}
-                    <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 border border-white/10 text-xs px-2 py-1 rounded-md pointer-events-none whitespace-nowrap z-20">
-                      {d.displayDate}: <span className="text-macvbet-yellow">{d.income.toFixed(2)}</span>
+                    <div className="absolute bottom-full mb-3 opacity-0 group-hover:opacity-100 transition-opacity bg-black border border-white/10 text-sm px-3 py-1.5 rounded-lg pointer-events-none whitespace-nowrap z-20 shadow-xl">
+                      {d.displayDate}: <span className="text-macvbet-yellow font-bold">{d.income.toFixed(2)} zl</span>
                     </div>
                     <motion.div 
                       initial={{ height: 0 }}
                       animate={{ height: `${Math.max(d.heightPercent, 2)}%` }} // min 2% for visual presence
                       transition={{ duration: 0.8, delay: i * 0.03, ease: "easeOut" }}
-                      className="w-full max-w-[12px] bg-gradient-to-t from-macvbet-yellow/40 to-macvbet-yellow rounded-t-sm z-10"
+                      className="w-full max-w-[16px] bg-gradient-to-t from-macvbet-yellow/40 to-macvbet-yellow rounded-t-md z-10 hover:opacity-80 transition-opacity cursor-pointer"
                     />
                   </div>
                 ))}
+              </div>
+            </section>
+
+            {/* How it works */}
+            <section className="mt-6 flex flex-col gap-3">
+              <h2 className="text-xl font-medium px-1">Как это работает?</h2>
+              <div className="p-5 rounded-[16px] border border-white/5 bg-white/[0.02] text-frost-white/80 text-sm leading-relaxed flex flex-col gap-4">
+                <p>
+                  Партнерская программа MacvBet позволяет вам зарабатывать реальные деньги на привлечении новых игроков.
+                </p>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 shrink-0 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center font-bold">1</div>
+                  <div>
+                    <h3 className="text-frost-white font-medium mb-1">Распространяйте ссылку</h3>
+                    <p className="text-frost-white/60 text-xs">Делитесь вашим промокодом или реферальной ссылкой в социальных сетях, каналах или с друзьями.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 shrink-0 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center font-bold">2</div>
+                  <div>
+                    <h3 className="text-frost-white font-medium mb-1">Игроки регистрируются</h3>
+                    <p className="text-frost-white/60 text-xs">Пользователь, перешедший по вашей ссылке или активировавший ваш промокод, навсегда закрепляется за вами.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 shrink-0 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center font-bold">3</div>
+                  <div>
+                    <h3 className="text-frost-white font-medium mb-1">Получайте 50% от прибыли (RevShare)</h3>
+                    <p className="text-frost-white/60 text-xs">Вам начисляется ровно половина от чистой прибыли казино (GGR) с каждого приведенного игрока.</p>
+                  </div>
+                </div>
               </div>
             </section>
           </>

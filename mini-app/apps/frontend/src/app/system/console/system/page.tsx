@@ -48,6 +48,9 @@ export default function SystemPage() {
   const [maintMessage, setMaintMessage] = useState<string>('');
   const [maintBusy, setMaintBusy] = useState<boolean>(false);
 
+  const [minPartnerWithdrawal, setMinPartnerWithdrawal] = useState<string>('50');
+  const [partnerBusy, setPartnerBusy] = useState(false);
+
   const loadMaintStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/_x/maintenance', {
@@ -58,6 +61,21 @@ export default function SystemPage() {
         const j = await res.json();
         setMaintEnabled(j.config.enabled);
         setMaintMessage(j.config.message ?? '');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const loadPartnerConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/_x/system/config/partner', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const j = await res.json();
+        setMinPartnerWithdrawal(j.minWithdrawal.toString());
       }
     } catch {
       // ignore
@@ -95,6 +113,35 @@ export default function SystemPage() {
       setMaintBusy(false);
     }
   };
+
+  const updatePartnerConfig = async () => {
+    const val = Number(minPartnerWithdrawal);
+    if (isNaN(val) || val < 0) {
+      alert('Введите корректную сумму');
+      return;
+    }
+    setPartnerBusy(true);
+    try {
+      const res = await fetch('/api/_x/system/config/partner', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minWithdrawal: val }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        setMinPartnerWithdrawal(j.minWithdrawal.toString());
+        alert('Настройки партнёрки обновлены');
+      } else {
+        alert('Ошибка при обновлении');
+      }
+    } catch {
+      alert('Ошибка сети при обновлении');
+    } finally {
+      setPartnerBusy(false);
+    }
+  };
+
   const exportConfig = async () => {
     try {
       const res = await fetch('/api/_x/system/export', { credentials: 'include' });
@@ -169,9 +216,10 @@ export default function SystemPage() {
   useEffect(() => {
     void reloadStatus();
     void loadMaintStatus();
+    void loadPartnerConfig();
     const id = setInterval(reloadStatus, 10_000);
     return () => clearInterval(id);
-  }, [reloadStatus, loadMaintStatus]);
+  }, [reloadStatus, loadMaintStatus, loadPartnerConfig]);
 
   useEffect(() => {
     void reloadLogs(logService);
@@ -397,6 +445,43 @@ export default function SystemPage() {
                   className="px-4 py-2 rounded-card border border-white/15 bg-white/[0.04] hover:bg-white/[0.06] font-roobert text-[13px] text-frost-white transition-colors"
                 >
                   Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Partner Config */}
+        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden mt-6">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+              Партнёрская Программа
+            </span>
+            <HelpButton title="Настройки партнерки">
+              <p>
+                Минимальная сумма вывода для партнеров. Отображается на странице партнерской программы и может учитываться ботом.
+              </p>
+            </HelpButton>
+          </div>
+          <div className="p-4 flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="font-roobert text-[12px] text-whisper-gray">
+                Мин. сумма вывода (zl)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={minPartnerWithdrawal}
+                  onChange={(e) => setMinPartnerWithdrawal(e.target.value)}
+                  placeholder="50"
+                  className="flex-1 max-w-[200px] rounded-card border border-white/10 bg-white/[0.02] px-3 py-2 font-roobert text-[13px] text-frost-white placeholder:text-white/20 focus:border-white/20 focus:outline-none"
+                />
+                <button
+                  onClick={updatePartnerConfig}
+                  disabled={partnerBusy}
+                  className="px-4 py-2 rounded-card border border-white/15 bg-white/[0.04] hover:bg-white/[0.06] font-roobert text-[13px] text-frost-white transition-colors"
+                >
+                  {partnerBusy ? 'Загрузка...' : 'Сохранить'}
                 </button>
               </div>
             </div>

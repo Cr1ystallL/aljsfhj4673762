@@ -16,6 +16,7 @@ const config: Config = {
         'whisper-gray': '#6d6d6d',
         'misty-gray': '#636363',
         'deep-ocean': '#a0e0ab',
+        'macvbet-yellow': '#ffac2e',
         
         // Legacy aliases for compatibility
         background: '#000000',

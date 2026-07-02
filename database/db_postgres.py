@@ -807,8 +807,8 @@ class DatabasePostgres:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT u.telegram_id 
-            FROM promo_codes pc
-            JOIN users u ON u.id::text = pc.user_id
+            FROM affiliate_promo_codes pc
+            JOIN users u ON u.id = pc.user_id
             WHERE pc.code = %s
         ''', (code.lower(),))
         res = cursor.fetchone()
@@ -820,8 +820,8 @@ class DatabasePostgres:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT pc.code 
-            FROM promo_codes pc
-            JOIN users u ON u.id::text = pc.user_id
+            FROM affiliate_promo_codes pc
+            JOIN users u ON u.id = pc.user_id
             WHERE u.telegram_id = %s
         ''', (user_id,))
         res = cursor.fetchone()
