@@ -12,6 +12,7 @@ import { withdrawalRoutes } from './withdrawals.js';
 import { bonusesRoutes } from './bonuses.js';
 import { presenceRoutes } from './presence.js';
 import { tournamentRoutes } from './tournaments.js';
+import { partnerRoutes } from './partner.js';
 
 /**
  * Register all application routes
@@ -57,4 +58,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // WebSocket
   await app.register(websocketRoutes, { prefix: '/api' });
+
+  // Partner (RevShare)
+  await app.register(partnerRoutes, { prefix: '/api/partner' });
 }

@@ -1,22 +1,94 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Megaphone, ArrowLeft } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Users, Copy, CheckCircle2, TrendingUp, DollarSign, Activity, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { partnerService } from '@/services/partner.service';
 import { BrandLockup } from '@/components/ui/brand-mark';
 
-/**
- * Partner — placeholder page reachable from the bottom nav.
- *
- * The full referral / affiliate program lives on the roadmap; this
- * page exists so the bottom-nav link routes somewhere meaningful and
- * can announce that the surface is in development without breaking
- * the navigation flow.
- */
 export default function PartnerPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  
+  const { data: stats, isLoading, error } = useQuery({
+    queryKey: ['partner-stats'],
+    queryFn: partnerService.getStats,
+  });
+
+  const [promoInput, setPromoInput] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [promoError, setPromoError] = useState('');
+
+  const createPromoMutation = useMutation({
+    mutationFn: partnerService.createPromo,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['partner-stats'] });
+    },
+    onError: (e: Error) => {
+      setPromoError(e.message);
+    }
+  });
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCreatePromo = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPromoError('');
+    if (!promoInput || promoInput.length < 3) {
+      setPromoError('Минимум 3 символа');
+      return;
+    }
+    createPromoMutation.mutate(promoInput);
+  };
+
+  // Derive aggregates
+  const aggregate = useMemo(() => {
+    if (!stats?.stats) return { clicks: 0, fds: 0, income: 0, depSum: 0 };
+    return stats.stats.reduce((acc, curr) => ({
+      clicks: acc.clicks + curr.clicks,
+      fds: acc.fds + curr.fdCount,
+      income: acc.income + curr.income,
+      depSum: acc.depSum + curr.depSum,
+    }), { clicks: 0, fds: 0, income: 0, depSum: 0 });
+  }, [stats]);
+
+  // Chart preparation (last 14 days)
+  const chartData = useMemo(() => {
+    if (!stats?.stats) return [];
+    // Ensure we have at least 14 days of data for the chart padding
+    const data = [...stats.stats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const last14 = data.slice(-14);
+    
+    // If less than 14, pad it with empty days at the beginning
+    while (last14.length < 14) {
+      const firstDate = last14.length > 0 ? new Date(last14[0].date) : new Date();
+      firstDate.setDate(firstDate.getDate() - 1);
+      last14.unshift({
+        date: firstDate.toISOString(),
+        clicks: 0, fdCount: 0, rdCount: 0, depSum: 0, ggr: 0, ngr: 0, income: 0
+      });
+    }
+
+    const maxIncome = Math.max(...last14.map(d => d.income), 10); // min scale 10
+    
+    return last14.map(d => ({
+      ...d,
+      heightPercent: (d.income / maxIncome) * 100,
+      displayDate: new Date(d.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+    }));
+  }, [stats]);
+
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
+        
+        {/* Header */}
         <div className="flex items-center justify-between gap-2 px-1">
           <button
             onClick={() => router.push('/')}
@@ -29,32 +101,183 @@ export default function PartnerPage() {
           <span className="w-[64px]" aria-hidden />
         </div>
 
-        <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
-          <div
-            aria-hidden
-            className="absolute inset-0 opacity-50"
-            style={{
-              background:
-                'radial-gradient(120% 110% at 50% 0%, rgba(160, 224, 171, 0.20) 0%, rgba(255, 172, 46, 0.12) 50%, transparent 80%)',
-            }}
-          />
-          <div className="relative px-6 py-12 flex flex-col items-center text-center gap-4">
-            <span className="w-16 h-16 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center">
-              <Megaphone size={28} strokeWidth={1.5} />
-            </span>
-            <h1 className="font-roobert text-frost-white text-[28px] font-light leading-tight">
-              Партнёрская программа
-            </h1>
-            <p className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-              Скоро запустим
-            </p>
-            <p className="font-roobert text-[14px] text-frost-white/75 max-w-[320px] leading-snug">
-              Здесь появится реферальная программа: процент от каждого
-              друга которого приведёшь, статистика приглашений и быстрые
-              выплаты на основной счёт.
-            </p>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="w-6 h-6 border-2 border-macvbet-yellow border-t-transparent rounded-full animate-spin" />
           </div>
-        </section>
+        ) : error ? (
+          <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 text-center text-sm">
+            Ошибка загрузки данных
+          </div>
+        ) : stats ? (
+          <>
+            {/* Balance Card */}
+            <section className="relative overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02] p-6 shadow-2xl">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-40 pointer-events-none"
+                style={{
+                  background: 'radial-gradient(120% 110% at 50% 0%, rgba(255, 172, 46, 0.15) 0%, rgba(160, 224, 171, 0.05) 50%, transparent 80%)',
+                }}
+              />
+              <div className="relative z-10 flex flex-col gap-1">
+                <span className="text-frost-white/60 text-sm font-medium uppercase tracking-wider flex items-center gap-1.5">
+                  <DollarSign size={14} /> Доступно к выводу
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-light tracking-tight">{stats.balance.toFixed(2)}</span>
+                  <span className="text-macvbet-yellow font-medium">zl</span>
+                </div>
+
+                {stats.negativeCarryover < 0 && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 w-fit">
+                    <AlertCircle size={12} className="text-red-400" />
+                    <span className="text-xs text-red-400 font-medium">
+                      Отрицательный баланс: {stats.negativeCarryover.toFixed(2)} zl (спишется с будущей прибыли)
+                    </span>
+                  </div>
+                )}
+
+                <button className="mt-5 w-full bg-macvbet-yellow hover:bg-yellow-400 text-black font-semibold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,172,46,0.3)] hover:shadow-[0_0_30px_rgba(255,172,46,0.5)] active:scale-[0.98]">
+                  Запросить вывод
+                </button>
+                <p className="text-[10px] text-frost-white/40 text-center mt-2">
+                  Минимальная сумма вывода 50 zl. Вывод производится через бота.
+                </p>
+              </div>
+            </section>
+
+            {/* Promo Code Generation */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-lg font-medium px-1">Ваша ссылка</h2>
+              <div className="p-4 rounded-[16px] border border-white/5 bg-white/[0.03] flex flex-col gap-3">
+                {stats.promoCode ? (
+                  <>
+                    <p className="text-sm text-frost-white/70">
+                      Поделитесь ссылкой с друзьями и получайте 50% с прибыли казино пожизненно.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm font-mono truncate text-macvbet-yellow/90">
+                        {stats.link}
+                      </div>
+                      <button 
+                        onClick={() => handleCopy(stats.link)}
+                        className="bg-white/10 hover:bg-white/20 p-2.5 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        {copied ? <CheckCircle2 size={18} className="text-green-400" /> : <Copy size={18} />}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <form onSubmit={handleCreatePromo} className="flex flex-col gap-3">
+                    <p className="text-sm text-frost-white/70">
+                      Создайте красивый промокод для вашей реферальной ссылки.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        value={promoInput}
+                        onChange={e => setPromoInput(e.target.value)}
+                        placeholder="Например: VIP2026"
+                        className="flex-1 bg-black/40 border border-white/10 focus:border-macvbet-yellow rounded-lg px-3 py-2.5 text-sm outline-none transition-colors"
+                      />
+                      <button 
+                        type="submit"
+                        disabled={createPromoMutation.isPending}
+                        className="bg-macvbet-yellow text-black font-medium px-4 py-2.5 rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
+                      >
+                        {createPromoMutation.isPending ? '...' : 'Создать'}
+                      </button>
+                    </div>
+                    {promoError && <p className="text-xs text-red-400">{promoError}</p>}
+                    
+                    <p className="text-xs text-frost-white/40 mt-1">
+                      Или используйте стандартную ссылку по ID:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-xs font-mono truncate text-frost-white/60">
+                        {stats.link}
+                      </div>
+                      <button 
+                        onClick={() => handleCopy(stats.link)}
+                        type="button"
+                        className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors flex-shrink-0 text-frost-white/60"
+                      >
+                        {copied ? <CheckCircle2 size={14} className="text-green-400" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </section>
+
+            {/* Overall Stats Grid */}
+            <section className="grid grid-cols-2 gap-3">
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-1">
+                  <Users size={16} />
+                </div>
+                <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Переходы</span>
+                <span className="text-2xl font-light">{aggregate.clicks}</span>
+              </div>
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
+                <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center mb-1">
+                  <Activity size={16} />
+                </div>
+                <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Регистрации</span>
+                <span className="text-2xl font-light">{aggregate.fds}</span>
+              </div>
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
+                <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center mb-1">
+                  <TrendingUp size={16} />
+                </div>
+                <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Депозиты (zl)</span>
+                <span className="text-2xl font-light">{aggregate.depSum.toFixed(2)}</span>
+              </div>
+              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col gap-1">
+                <div className="w-8 h-8 rounded-full bg-macvbet-yellow/20 text-macvbet-yellow flex items-center justify-center mb-1">
+                  <DollarSign size={16} />
+                </div>
+                <span className="text-frost-white/60 text-xs font-medium uppercase tracking-wider">Доход (zl)</span>
+                <span className="text-2xl font-light text-macvbet-yellow">{aggregate.income.toFixed(2)}</span>
+              </div>
+            </section>
+
+            {/* Income Chart */}
+            <section className="flex flex-col gap-3 mt-2">
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-lg font-medium">Динамика дохода</h2>
+                <span className="text-xs text-frost-white/50 bg-white/5 px-2 py-1 rounded-md">За 14 дней</span>
+              </div>
+              
+              <div className="h-48 w-full p-4 rounded-[16px] border border-white/5 bg-white/[0.02] flex items-end justify-between gap-1 relative">
+                {/* Horizontal Guide lines */}
+                <div className="absolute inset-0 flex flex-col justify-between px-4 py-4 pointer-events-none">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="w-full border-b border-white/[0.03]" />
+                  ))}
+                </div>
+                
+                {/* Chart Bars */}
+                {chartData.map((d, i) => (
+                  <div key={i} className="relative flex flex-col justify-end items-center h-full w-full group">
+                    {/* Tooltip on hover */}
+                    <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 border border-white/10 text-xs px-2 py-1 rounded-md pointer-events-none whitespace-nowrap z-20">
+                      {d.displayDate}: <span className="text-macvbet-yellow">{d.income.toFixed(2)}</span>
+                    </div>
+                    <motion.div 
+                      initial={{ height: 0 }}
+                      animate={{ height: `${Math.max(d.heightPercent, 2)}%` }} // min 2% for visual presence
+                      transition={{ duration: 0.8, delay: i * 0.03, ease: "easeOut" }}
+                      className="w-full max-w-[12px] bg-gradient-to-t from-macvbet-yellow/40 to-macvbet-yellow rounded-t-sm z-10"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : null}
+
       </div>
     </main>
   );
