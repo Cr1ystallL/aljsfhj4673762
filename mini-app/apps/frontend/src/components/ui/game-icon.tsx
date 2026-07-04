@@ -6,7 +6,7 @@ import {
   Disc3,
   Footprints,
   Spade,
-  Grid3X3,
+  Dice5,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
@@ -133,7 +133,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   baccarat: { label: 'Baccarat', Icon: Spade },
   cards: { label: 'Card Games', Icon: Spade },
   hilo: { label: 'Hi-Lo', Icon: Spade },
-  keno: { label: 'Keno', Icon: Grid3X3 },
+  keno: { label: 'Keno', Icon: Dice5 },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 

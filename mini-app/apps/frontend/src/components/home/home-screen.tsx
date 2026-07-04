@@ -51,7 +51,7 @@ const inAppGames: InAppGame[] = [
   { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/bj.png', wide: true },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
-  { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png' },
+  { id: 'keno', name: 'Keno', href: '/game/keno' },
   { id: 'baccarat', name: 'Baccarat', href: '/game/baccarat', bg: '/baccarat.png', wide: true },
 ];
 
@@ -201,8 +201,8 @@ export function HomeScreen() {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
-      // Жестко скрываем эти три игры от обычных игроков
-      if ((g.id === 'blackjack' || g.id === 'baccarat') && !isAdmin) {
+      // Жестко скрываем эти игры от обычных игроков
+      if ((g.id === 'blackjack' || g.id === 'baccarat' || g.id === 'keno') && !isAdmin) {
         return false;
       }
       if (hidden[g.id] && !isAdmin) return false;
