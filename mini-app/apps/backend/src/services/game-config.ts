@@ -20,6 +20,7 @@ export type GameType =
   | 'crash'
   | 'mines'
   | 'plinko'
+  | 'keno'
   | 'coinflip'
   | 'wheel'
   | 'bridges'
@@ -139,6 +140,15 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 50000,
     houseEdge: 0.04,
+    wagerContribution: 1.0,
+    extras: {},
+  },
+  keno: {
+    paused: false,
+    hidden: false,
+    minBet: 1,
+    maxBet: 10000,
+    houseEdge: 0.01,
     wagerContribution: 1.0,
     extras: {},
   },

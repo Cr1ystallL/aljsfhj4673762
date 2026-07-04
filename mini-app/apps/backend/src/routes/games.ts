@@ -1420,6 +1420,36 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /* -------------------------------------------------------------------------
+   * Keno
+   * ---------------------------------------------------------------------- */
+  app.post<{
+    Body: { betAmount: number; picks: number[]; risk: 'classic' | 'low' | 'medium' | 'high' };
+  }>('/keno/bet', { preHandler: authenticate }, async (request, reply) => {
+    const { betAmount, picks, risk } = request.body;
+    if (!await ensureVisible('keno', request, reply)) return;
+    if (!checkRateLimit(request.user.userId, 'keno_bet')) {
+      return reply.status(429).send({ error: 'Too many requests' });
+    }
+
+    try {
+      const { kenoEngine } = await import('../games/keno/keno-engine.js');
+      const result = await kenoEngine.processBet(request.user.userId, {
+        amount: betAmount,
+        currency: 'TON', // Defaulting to TON as per platform standard, could be passed in
+        picks,
+        risk,
+      });
+      return reply.send({ success: true, result });
+    } catch (error: any) {
+      logger.error({ err: error, userId: request.user.userId }, 'Keno bet failed');
+      return reply.status(400).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Bet failed',
+      });
+    }
+  });
+
+  /* -------------------------------------------------------------------------
    * Provably Fair Round Info
    * ---------------------------------------------------------------------- */
   app.get<{ Params: { id: string } }>(
