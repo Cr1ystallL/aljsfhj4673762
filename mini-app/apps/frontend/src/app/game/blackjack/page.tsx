@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { BlackjackClient } from './blackjack-client';
+import { BlackjackClient } from '@/components/game/blackjack/blackjack-client';
 
 export const metadata: Metadata = {
   title: 'Blackjack',

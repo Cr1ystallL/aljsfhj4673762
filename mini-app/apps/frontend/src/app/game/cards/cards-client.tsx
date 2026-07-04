@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 
 const CARD_GAMES = [
   { key: 'hilo', title: 'HI-LO', subtitle: 'Угадай следующую карту', image: '/cardgames.png', href: '/game/hilo', active: true },
-  { key: 'blackjack', title: 'BLACKJACK', subtitle: 'Live против дилера (Скоро)', image: '/BLACKJACK.png', href: '#', active: false },
+  { key: 'blackjack', title: 'BLACKJACK', subtitle: 'Premium 3D Blackjack', image: '/BLACKJACK.png', href: '/game/blackjack', active: true },
   { key: 'baccarat', title: 'BACCARAT', subtitle: 'Live против дилера (Скоро)', image: '/cardgames.png', href: '#', active: false },
 ];
 
