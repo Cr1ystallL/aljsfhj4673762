@@ -1424,8 +1424,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
    * ---------------------------------------------------------------------- */
   app.post<{
     Body: { betAmount: number; picks: number[]; risk: 'classic' | 'low' | 'medium' | 'high' };
-  }>('/keno/bet', { preHandler: authenticate }, async (request, reply) => {
-    const { betAmount, picks, risk } = request.body;
+  }>('/keno/bet', { preHandler: authenticate }, async (req, reply) => {
+    const request = req as AuthenticatedRequest;
+    const { betAmount, picks, risk } = request.body as { betAmount: number; picks: number[]; risk: 'classic' | 'low' | 'medium' | 'high' };
     if (!await ensureVisible('keno', request, reply)) return;
     if (!checkRateLimit(request.user.userId, 'keno_bet')) {
       return reply.status(429).send({ error: 'Too many requests' });

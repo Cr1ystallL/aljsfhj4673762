@@ -1,8 +1,8 @@
-import { Decimal } from 'decimal.js';
 import crypto from 'crypto';
-import { bettingPipeline, type GameResultInfo } from '../../game-engine/betting-pipeline.js';
+import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { gameConfig } from '../../services/game-config.js';
 import { logger } from '../../utils/logger.js';
+import type { Bet } from '../../game-engine/types.js';
 
 export type KenoRisk = 'classic' | 'low' | 'medium' | 'high';
 
@@ -78,6 +78,7 @@ export interface KenoResult {
   drawnNumbers: number[];
   hits: number;
   multiplier: number;
+  payout: number;
 }
 
 class KenoEngine {
@@ -108,7 +109,7 @@ class KenoEngine {
     return draw.sort((a, b) => a - b);
   }
 
-  async processBet(userId: string, params: KenoBetParams): Promise<GameResultInfo & KenoResult> {
+  async processBet(userId: string, params: KenoBetParams, demoMode: boolean = false): Promise<KenoResult> {
     if (params.picks.length < KENO_MIN_PICKS || params.picks.length > KENO_MAX_PICKS) {
       throw new Error(`Keno picks must be between ${KENO_MIN_PICKS} and ${KENO_MAX_PICKS}`);
     }
@@ -127,51 +128,67 @@ class KenoEngine {
 
     const cfg = gameConfig.getCachedOrDefault('keno');
 
-    // Run through the betting pipeline
-    return bettingPipeline.processSinglePlayerGame(
-      {
-        userId,
-        gameType: 'keno',
-        betAmount: params.amount,
-        currency: params.currency,
-        minBet: cfg.minBet,
-        maxBet: cfg.maxBet,
-      },
-      async (seed) => {
-        // Generate the 10 numbers for this round
-        const drawnNumbers = this.generateDraw(seed.serverSeed + seed.clientSeed + seed.nonce.toString());
-        
-        // Count the hits
-        let hits = 0;
-        for (const pick of params.picks) {
-          if (drawnNumbers.includes(pick)) {
-            hits++;
-          }
-        }
-        
-        // Get the multiplier based on Risk, Pick Count, and Hits
-        const pickCount = params.picks.length;
-        const table = KENO_MULTIPLIERS[params.risk][pickCount];
-        
-        // The house edge is already considered when determining payouts (or apply a multiplier reduction if you want).
-        // Standard crypto Keno tables are already tuned to ~1% house edge.
-        let rawMultiplier = table[hits];
-        
-        // Optionally apply dynamic house edge from config if desired
-        // (but usually not necessary if the hardcoded table is designed for 99% RTP)
-        // rawMultiplier = rawMultiplier * (1 - cfg.houseEdge);
+    if (params.amount < cfg.minBet) {
+      throw new Error(`Минимальная ставка ${cfg.minBet}`);
+    }
+    if (params.amount > cfg.maxBet) {
+      throw new Error(`Максимальная ставка ${cfg.maxBet}`);
+    }
 
-        return {
-          multiplier: rawMultiplier,
-          gameData: {
-            picks: params.picks,
-            risk: params.risk,
-            drawnNumbers,
-            hits,
-          },
-        };
+    const betId = crypto.randomUUID();
+    const roundId = crypto.randomUUID();
+    
+    const bet: Bet = {
+      id: betId,
+      userId,
+      gameId: `keno_${betId}`,
+      roundId,
+      amount: params.amount,
+      state: 'placed',
+      placedAt: new Date().toISOString(),
+      metadata: {
+        picks: params.picks,
+        risk: params.risk,
       }
-    ) as Promise<GameResultInfo & KenoResult>;
+    };
+
+    // Run through the betting pipeline
+    await bettingPipeline.processBet(bet, demoMode);
+
+    try {
+      // Generate the 10 numbers for this round
+      const seed = crypto.randomBytes(32).toString('hex');
+      const drawnNumbers = this.generateDraw(seed);
+      
+      // Count the hits
+      let hits = 0;
+      for (const pick of params.picks) {
+        if (drawnNumbers.includes(pick)) {
+          hits++;
+        }
+      }
+      
+      // Get the multiplier based on Risk, Pick Count, and Hits
+      const pickCount = params.picks.length;
+      const rawMultiplier = KENO_MULTIPLIERS[params.risk][pickCount][hits];
+      const payout = params.amount * rawMultiplier;
+
+      if (payout > 0) {
+        await bettingPipeline.processPayout(bet, payout, demoMode, true);
+      } else {
+        await bettingPipeline.processLoss(bet, demoMode, true);
+      }
+
+      return {
+        drawnNumbers,
+        hits,
+        multiplier: rawMultiplier,
+        payout
+      };
+    } catch (e) {
+      logger.error(e, 'Failed to resolve keno bet');
+      throw e;
+    }
   }
 }
 
