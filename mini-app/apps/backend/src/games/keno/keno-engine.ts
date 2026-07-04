@@ -144,8 +144,8 @@ class KenoEngine {
       gameId: `keno_${betId}`,
       roundId,
       amount: params.amount,
-      state: 'placed',
-      placedAt: new Date().toISOString(),
+      state: 'pending',
+      placedAt: Date.now(),
       metadata: {
         picks: params.picks,
         risk: params.risk,
