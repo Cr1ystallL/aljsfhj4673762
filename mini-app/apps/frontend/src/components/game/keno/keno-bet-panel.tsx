@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Coins, Dice5, Trash2 } from 'lucide-react';
 
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import type { KenoRisk } from '@/lib/game-engine/types';
@@ -81,9 +79,9 @@ export function KenoBetPanel({
       {/* Bet Amount */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs uppercase tracking-wider text-white/50">
+          <label className="text-xs uppercase tracking-wider text-white/50">
             Сумма ставки
-          </Label>
+          </label>
           <span className="text-xs text-white/70 font-mono">
             {activeBalance.toFixed(2)} {currency}
           </span>
@@ -92,12 +90,12 @@ export function KenoBetPanel({
           <div className="pl-3 text-white/40">
             <Coins className="w-4 h-4" />
           </div>
-          <Input
+          <input
             type="number"
             value={amountStr}
             onChange={(e) => handleAmountStr(e.target.value)}
             disabled={disabled}
-            className="border-0 bg-transparent focus-visible:ring-0 text-white font-mono text-lg"
+            className="w-full h-10 px-3 py-2 border-0 bg-transparent outline-none focus-visible:ring-0 text-white font-mono text-lg"
           />
           <div className="flex pr-1 space-x-1">
             <Button
@@ -133,9 +131,9 @@ export function KenoBetPanel({
 
       {/* Risk Selector */}
       <div className="space-y-2">
-        <Label className="text-xs uppercase tracking-wider text-white/50">
+        <label className="text-xs uppercase tracking-wider text-white/50">
           Риск
-        </Label>
+        </label>
         <div className="grid grid-cols-4 gap-1 p-1 bg-black/40 rounded-lg border border-white/10">
           {(['classic', 'low', 'medium', 'high'] as KenoRisk[]).map((r) => (
             <button
