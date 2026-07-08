@@ -283,58 +283,6 @@ export function HomeScreen() {
           ))}
         </div>
 
-        {/* Section caption — Bot games */}
-        <SectionLabel right={`${botGames.length}`}>Игры в боте</SectionLabel>
-
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-          {botGames.map((g) => (
-            <button
-              key={g.id}
-              onClick={() =>
-                openTelegram(`https://t.me/${BOT_USERNAME}?start=${g.command}`)
-              }
-              className="group relative aspect-square overflow-hidden rounded-card border border-white/5 bg-white/[0.02] shadow-[0_4px_20px_rgba(0,0,0,0.15)] active:scale-[0.96] transition-all hover:border-white/15"
-            >
-              {/* Background art per game (Cyrillic filenames URL-encoded). */}
-              {g.bg && (
-                <div
-                  aria-hidden
-                  className="absolute inset-0 opacity-70 group-hover:opacity-100 transition-opacity duration-500"
-                  style={{
-                    backgroundImage: `url(${g.bg})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    filter: 'saturate(1.2)',
-                  }}
-                />
-              )}
-              <div
-                aria-hidden
-                className="absolute inset-0"
-                style={{
-                  background:
-                    'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.7) 100%)',
-                }}
-              />
-              <div className="relative h-full w-full flex flex-col items-center justify-center gap-2 pt-1">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white/5 blur-xl rounded-full group-hover:bg-white/10 transition-colors" />
-                <g.Icon
-                  size={24}
-                  strokeWidth={1.5}
-                  className="text-frost-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] group-hover:-translate-y-0.5 group-hover:scale-105 transition-transform duration-300"
-                />
-                <span className="font-roobert text-[11px] font-medium tracking-wide text-frost-white/95 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                  {g.label}
-                </span>
-                <span className="absolute top-2 right-2 text-white/30 group-hover:text-white/60 transition-colors">
-                  <Send size={10} strokeWidth={2} />
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-
         {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3 pt-2">
           <QuickAction

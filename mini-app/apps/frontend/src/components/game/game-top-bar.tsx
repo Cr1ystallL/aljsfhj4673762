@@ -28,6 +28,7 @@ interface GameTopBarProps {
   Icon?: LucideIcon;
   iconRotate?: number;
   onHowToPlay?: () => void;
+  hideBalance?: boolean;
   // Fallbacks for games still passing these
   balance?: number;
   currency?: string;
@@ -39,6 +40,7 @@ export function GameTopBar({
   Icon,
   iconRotate = 0,
   onHowToPlay,
+  hideBalance = false,
 }: GameTopBarProps) {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -60,7 +62,7 @@ export function GameTopBar({
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 backdrop-blur-xl border-b border-white/10 shadow-lg relative z-40">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 backdrop-blur-xl shadow-lg relative z-40">
       {/* Left cluster: brand → home, title, glyph */}
       <div className="flex items-center gap-4 min-w-0">
         <button
@@ -88,24 +90,26 @@ export function GameTopBar({
 
       {/* Right cluster: balance → wallet, avatar → profile, rules */}
       <div className="flex items-center gap-3 shrink-0">
-        <button
-          onClick={() => router.push('/balance')}
-          aria-label="Кошелёк"
-          className="group flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
-        >
-          <Wallet size={14} className="text-white" strokeWidth={2} />
-          <div className="flex items-baseline gap-1">
-            <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight group-hover:text-emerald-50 transition-colors">
-              {balanceAmount.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-            <span className="font-roobert text-white/40 text-[11px] uppercase font-bold tracking-wider">
-              {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
-            </span>
-          </div>
-        </button>
+        {!hideBalance && (
+          <button
+            onClick={() => router.push('/balance')}
+            aria-label="Кошелёк"
+            className="group flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
+          >
+            <Wallet size={14} className="text-white" strokeWidth={2} />
+            <div className="flex items-baseline gap-1">
+              <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight group-hover:text-emerald-50 transition-colors">
+                {balanceAmount.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span className="font-roobert text-white/40 text-[11px] uppercase font-bold tracking-wider">
+                {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
+              </span>
+            </div>
+          </button>
+        )}
 
         <button
           onClick={() => router.push('/profile')}

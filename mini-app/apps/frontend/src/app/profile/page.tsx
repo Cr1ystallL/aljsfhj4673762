@@ -80,8 +80,8 @@ export default function ProfilePage() {
 
   return (
     <PageTransition>
-      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
-        <GameTopBar title="Аккаунт" />
+      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden pb-32">
+      <GameTopBar title="Профиль" hideBalance={true} />
         <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-4">
 
           {/* Identity card */}
