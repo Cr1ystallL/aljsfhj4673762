@@ -14,6 +14,9 @@ import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
+import { KENO_MULTIPLIERS, type KenoRisk } from '@/components/game/keno/keno-multipliers';
+import { reportApiError } from '@/lib/api/errors';
+import { toast } from '@/store/toast-store';
 
 import type { GameResultInfo } from '@/lib/game-engine/types';
 
@@ -88,9 +91,8 @@ export default function KenoGamePage() {
     if (phase !== 'idle') return;
     const pool = Array.from({ length: 40 }, (_, i) => i + 1);
     const shuffled = pool.sort(() => 0.5 - Math.random());
-    // Auto pick random count between 1 and 10, or just fill to 10
-    const count = Math.max(1, Math.floor(Math.random() * MAX_PICKS) + 1);
-    const selected = shuffled.slice(0, count).sort((a, b) => a - b);
+    // Auto pick always exactly 8 (user requested max 8, auto-picking the max allowed for this mode)
+    const selected = shuffled.slice(0, 8).sort((a, b) => a - b);
     setPicks(selected);
     soundManager.play('click');
   };
@@ -173,16 +175,22 @@ export default function KenoGamePage() {
     }
     
     fetchBalance();
-    setPhase('idle');
     void refreshHistory(); // Refresh history immediately after round
+
+    // 1.5s delay to show final dark overlay
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setFinalMultiplier(null);
+    setPhase('idle');
   };
+
+  const hitsCount = picks.filter(p => drawnNumbers.includes(p)).length;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       <GameTopBar
         title="Keno"
         balance={activeBalance}
-        currency={tBal ? 'T-COIN' : 'TON'}
+        currency={tBal ? 'T-COIN' : 'zł'}
         serverSeedHash={serverSeedHash ?? undefined}
       />
 
@@ -190,21 +198,49 @@ export default function KenoGamePage() {
         {/* Main Game Area */}
         <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-8 relative">
           
+          {/* Multiplier Strip */}
+          {picks.length > 0 && (
+            <div className="w-full max-w-2xl mb-4 flex gap-1 overflow-x-auto pb-2">
+              {KENO_MULTIPLIERS[risk as KenoRisk][picks.length].map((mult, idx) => (
+                <div 
+                  key={idx} 
+                  className={cn(
+                    "flex-1 min-w-[3rem] py-1.5 px-1 rounded flex flex-col items-center justify-center border transition-colors",
+                    phase !== 'idle' && hitsCount === idx && drawnNumbers.length === 10
+                      ? "bg-white/20 border-white text-white shadow-[0_0_10px_rgba(255,255,255,0.5)]" 
+                      : "bg-black/40 border-white/5 text-white/50",
+                    mult === 0 && "opacity-50"
+                  )}
+                >
+                  <span className="text-[10px] uppercase font-bold leading-none mb-0.5">{idx}x</span>
+                  <span className="text-xs font-black leading-none">{mult}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Multiplier Display (Shown at end of round) */}
           <AnimatePresence>
-            {finalMultiplier !== null && phase === 'idle' && (
+            {finalMultiplier !== null && (
               <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.8 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className={cn(
-                  "absolute top-4 lg:top-8 px-6 py-3 rounded-2xl font-bold text-3xl shadow-xl z-20 backdrop-blur-md border",
-                  finalMultiplier > 1 
-                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" 
-                    : "bg-black/40 text-white/50 border-white/10"
-                )}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl m-4 lg:m-8"
               >
-                x{finalMultiplier.toFixed(2)}
+                <motion.div
+                  initial={{ scale: 0.8, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.8, y: -20 }}
+                  className={cn(
+                    "px-10 py-8 rounded-3xl font-black text-6xl shadow-2xl border-4",
+                    finalMultiplier > 1 
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.3)]" 
+                      : "bg-black/60 text-white/40 border-white/10"
+                  )}
+                >
+                  x{finalMultiplier.toFixed(2)}
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -233,10 +269,10 @@ export default function KenoGamePage() {
             busy={busy}
             maxPick={MAX_PICKS}
             activeBalance={activeBalance}
-            currency={tBal ? 'T-COIN' : 'TON'}
+            currency={tBal ? 'T-COIN' : 'zł'}
           />
 
-          <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'TON'} />
+          <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'zł'} />
           
           {/* Provably Fair Hook */}
           {lastRoundId && phase === 'idle' && (

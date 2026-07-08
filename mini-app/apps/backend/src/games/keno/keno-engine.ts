@@ -173,6 +173,10 @@ class KenoEngine {
       const rawMultiplier = KENO_MULTIPLIERS[params.risk][pickCount][hits];
       const payout = params.amount * rawMultiplier;
 
+      // Ensure the multiplier and payout are saved to the DB
+      bet.multiplier = rawMultiplier;
+      bet.payout = payout;
+
       if (payout > 0) {
         await bettingPipeline.processPayout(bet, payout, demoMode, true);
       } else {
