@@ -25,9 +25,13 @@ import { useBalance } from '@/hooks/use-balance';
  */
 interface GameTopBarProps {
   title: string;
-  Icon: LucideIcon;
+  Icon?: LucideIcon;
   iconRotate?: number;
   onHowToPlay?: () => void;
+  // Fallbacks for games still passing these
+  balance?: number;
+  currency?: string;
+  serverSeedHash?: string;
 }
 
 export function GameTopBar({
@@ -38,7 +42,7 @@ export function GameTopBar({
 }: GameTopBarProps) {
   const router = useRouter();
   const { user } = useAuthStore();
-  const balance = useBalanceStore((s) => s.balance);
+  const balanceStore = useBalanceStore((s) => s.balance);
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
   const { fetchBalance } = useBalance();
   const pathname = usePathname();
@@ -52,7 +56,7 @@ export function GameTopBar({
     void fetchBalance();
   }, [fetchBalance]);
 
-  const balanceAmount = activeTournamentBalance ? activeTournamentBalance.balance : (balance?.amount ?? 0);
+  const balanceAmount = activeTournamentBalance ? activeTournamentBalance.balance : (balanceStore?.amount ?? 0);
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
@@ -68,12 +72,14 @@ export function GameTopBar({
           <BrandLockup size={40} />
         </button>
         <div className="flex items-center gap-2.5 min-w-0 pl-2 border-l border-white/10">
-          <Icon
-            size={18}
-            className="text-white/60 shrink-0"
-            strokeWidth={2}
-            style={iconRotate ? { transform: `rotate(${iconRotate}deg)` } : undefined}
-          />
+          {Icon && (
+            <Icon
+              size={18}
+              className="text-white/60 shrink-0"
+              strokeWidth={2}
+              style={iconRotate ? { transform: `rotate(${iconRotate}deg)` } : undefined}
+            />
+          )}
           <span className="font-roobert text-white text-lg font-semibold tracking-wide truncate">
             {title}
           </span>
