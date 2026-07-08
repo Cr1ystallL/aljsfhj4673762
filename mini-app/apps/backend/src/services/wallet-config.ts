@@ -1,4 +1,5 @@
 import { redisClient } from '../lib/redis.js';
+import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -44,22 +45,39 @@ class WalletConfigService {
   async get(): Promise<WalletConfig> {
     try {
       const raw = await redisClient.getClient().get(KEY);
-      if (!raw) return { ...DEFAULTS };
-      const parsed = JSON.parse(raw) as Partial<WalletConfig>;
-      // Strip any legacy fields that may still live in Redis from older
-      // deployments (cryptoUsdtTrc20, *ApiKey, *Fee). They're ignored
-      // server-side too; the spread just picks our known keys.
-      return {
-        minDeposit: numOr(parsed.minDeposit, DEFAULTS.minDeposit),
-        maxDeposit: numOr(parsed.maxDeposit, DEFAULTS.maxDeposit),
-        minWithdrawal: numOr(parsed.minWithdrawal, DEFAULTS.minWithdrawal),
-        maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
-        wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
-      };
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<WalletConfig>;
+        return {
+          minDeposit: numOr(parsed.minDeposit, DEFAULTS.minDeposit),
+          maxDeposit: numOr(parsed.maxDeposit, DEFAULTS.maxDeposit),
+          minWithdrawal: numOr(parsed.minWithdrawal, DEFAULTS.minWithdrawal),
+          maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
+          wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
+        };
+      }
     } catch (err) {
-      logger.warn({ err }, 'Failed to read wallet config; using defaults');
-      return { ...DEFAULTS };
+      logger.warn({ err }, 'Failed to read wallet config from Redis');
     }
+
+    try {
+      const row = await prisma.systemConfig.findUnique({ where: { key: KEY } });
+      if (row && row.value) {
+        const parsed = row.value as Partial<WalletConfig>;
+        const config = {
+          minDeposit: numOr(parsed.minDeposit, DEFAULTS.minDeposit),
+          maxDeposit: numOr(parsed.maxDeposit, DEFAULTS.maxDeposit),
+          minWithdrawal: numOr(parsed.minWithdrawal, DEFAULTS.minWithdrawal),
+          maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
+          wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
+        };
+        await redisClient.getClient().set(KEY, JSON.stringify(config)).catch(() => {});
+        return config;
+      }
+    } catch (err) {
+      logger.error({ err }, 'Failed to read wallet config from DB');
+    }
+
+    return { ...DEFAULTS };
   }
 
   /**
@@ -87,6 +105,11 @@ class WalletConfigService {
     if (next.wagerMultiplier > 100) next.wagerMultiplier = 100;
 
     try {
+      await prisma.systemConfig.upsert({
+        where: { key: KEY },
+        update: { value: next as any },
+        create: { key: KEY, value: next as any },
+      });
       await redisClient.getClient().set(KEY, JSON.stringify(next));
     } catch (err) {
       logger.error({ err }, 'Failed to persist wallet config');

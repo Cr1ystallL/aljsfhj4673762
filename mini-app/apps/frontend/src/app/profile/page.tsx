@@ -14,8 +14,9 @@ import {
   HelpCircle,
   X,
 } from 'lucide-react';
-
+import { cn } from '@/lib/utils';
 import { PageTransition } from '@/components/ui/page-transition';
+import { GameTopBar } from '@/components/game/game-top-bar';
 import { GameIconTile, gameLabel, resolveGameKey } from '@/components/ui/game-icon';
 import { useBalance } from '@/hooks/use-balance';
 import { useTransactions } from '@/hooks/use-transactions';
@@ -79,14 +80,9 @@ export default function ProfilePage() {
 
   return (
     <PageTransition>
-      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
+        <GameTopBar title="Аккаунт" />
         <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-4">
-          {/* Header */}
-          <div className="flex items-center justify-between px-1">
-            <span className="font-roobert text-frost-white text-[24px] font-normal leading-none">
-              Аккаунт
-            </span>
-          </div>
 
           {/* Identity card */}
           <motion.section

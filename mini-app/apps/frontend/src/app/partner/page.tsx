@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth-store';
+import { GameTopBar } from '@/components/game/game-top-bar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Users, Copy, CheckCircle2, TrendingUp, DollarSign, Activity, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -113,7 +115,8 @@ export default function PartnerPage() {
   }, [stats]);
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden flex flex-col">
+      <GameTopBar title="Партнёрам" Icon={Users} />
       <AnimatePresence>
         {showWithdrawModal && stats && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -148,19 +151,6 @@ export default function PartnerPage() {
       </AnimatePresence>
 
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2 px-1">
-          <button
-            onClick={() => router.push('/')}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/85 hover:text-frost-white hover:border-white/25 transition-colors"
-          >
-            <ArrowLeft size={18} strokeWidth={1.8} />
-            <span className="font-roobert text-sm">Назад</span>
-          </button>
-          <BrandLockup size={48} />
-          <span className="w-[64px]" aria-hidden />
-        </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center h-48">

@@ -18,6 +18,7 @@ import { useBalance } from '@/hooks/use-balance';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
+import { GameTopBar } from '@/components/game/game-top-bar';
 
 /**
  * Bonuses Page — Monopo Saigon Style, redesigned.
@@ -281,34 +282,10 @@ export default function BonusesPage() {
   const { fetchBalance } = useBalance();
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
+      <GameTopBar title="Бонусы" Icon={Sparkles} />
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-2 px-1">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            aria-label="Home"
-            className="rounded-card transition-opacity hover:opacity-80"
-          >
-            <BrandLockup size={48} />
-          </button>
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-roobert text-frost-white text-[22px] font-normal leading-none truncate">
-              Бонусы
-            </span>
-            <Sparkles size={16} className="text-frost-white/85 shrink-0" strokeWidth={1.6} />
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill border border-white/15 bg-white/[0.04]">
-            <span className="font-roobert text-frost-white text-[12px] tabular-nums leading-none">
-              {(balance?.amount ?? 0).toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-            <span className="font-roobert text-whisper-gray text-[10px] leading-none">zł</span>
-          </div>
-        </div>
+
 
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 

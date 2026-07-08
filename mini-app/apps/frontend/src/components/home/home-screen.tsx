@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Send, Sparkles, Trophy, Wallet } from 'lucide-react';
 import { BrandWordmark, BrandLockup } from '@/components/ui/brand-mark';
+import { GameTopBar } from '@/components/game/game-top-bar';
 import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
 import {
   BasketballIcon,
@@ -212,55 +213,8 @@ export function HomeScreen() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+      <GameTopBar title="Главная" />
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-        {/* Top bar — wordmark | balance + avatar */}
-        <header className="flex items-center justify-between">
-          <BrandWordmark size={44} />
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push('/balance')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
-              aria-label="Кошелёк"
-            >
-              <Wallet
-                size={13}
-                className="text-frost-white/70"
-                strokeWidth={1.8}
-              />
-              <span className="font-roobert text-frost-white text-[14px] tabular-nums leading-none">
-                {balanceAmount.toLocaleString('ru-RU', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span className="font-roobert text-whisper-gray text-[11px] leading-none">
-                zł
-              </span>
-            </button>
-
-            <button
-              onClick={() => router.push('/profile')}
-              aria-label="Профиль"
-              className="relative w-10 h-10 rounded-pill overflow-hidden border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors flex items-center justify-center"
-            >
-              {user?.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.photoUrl}
-                  alt={user.firstName || 'Профиль'}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                  draggable={false}
-                />
-              ) : (
-                <span className="font-roobert text-[14px] text-frost-white">
-                  {initials}
-                </span>
-              )}
-            </button>
-          </div>
-        </header>
 
         {/* Hero — рандомный конкурс из публичных/глобальных, либо
             фолбэк на фирменную игру MacvJet. */}

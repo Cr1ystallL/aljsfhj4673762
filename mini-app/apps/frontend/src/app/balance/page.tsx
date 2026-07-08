@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +22,7 @@ import { useBalanceStore } from '@/store/balance-store';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
+import { GameTopBar } from '@/components/game/game-top-bar';
 
 /**
  * Balance Management — Monopo Saigon Style
@@ -216,22 +217,9 @@ export default function BalancePage() {
   // -------- Render ----------------------------------------------------------
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
+      <GameTopBar title="Кошелёк" />
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-        {/* Header */}
-        <header className="flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            aria-label="Назад"
-            className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform"
-          >
-            <ChevronLeft size={18} strokeWidth={1.8} />
-          </button>
-          <span className="font-roobert text-[14px] uppercase tracking-[0.28em] text-whisper-gray">
-            Кошелёк
-          </span>
-          <span className="w-11 h-11" />
-        </header>
 
         {/* Balance plate */}
         <BalancePlate amount={amount} />

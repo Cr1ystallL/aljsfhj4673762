@@ -192,7 +192,7 @@ export default function KenoGamePage() {
   const hitsCount = picks.filter(p => drawnNumbers.includes(p)).length;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex flex-col min-h-[calc(100vh-64px)] overflow-y-auto">
       <GameTopBar
         title="Keno"
         balance={displayBalance}
@@ -200,7 +200,7 @@ export default function KenoGamePage() {
         serverSeedHash={serverSeedHash ?? undefined}
       />
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+      <div className="flex-1 flex flex-col lg:flex-row relative">
         {/* Main Game Area */}
         <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-8 relative">
           
@@ -261,7 +261,7 @@ export default function KenoGamePage() {
         </div>
 
         {/* Sidebar Controls */}
-        <div className="w-full lg:w-[350px] border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 overflow-y-auto flex flex-col gap-4">
+        <div className="w-full lg:w-[350px] border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 flex flex-col gap-4">
           <KenoBetPanel
             amount={amount}
             onAmountChange={setAmount}
@@ -278,7 +278,9 @@ export default function KenoGamePage() {
             currency={tBal ? 'T-COIN' : 'zł'}
           />
 
-          <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'zł'} />
+          <div className="flex-1 w-full pt-2 min-h-[400px] lg:min-h-0">
+            <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'zł'} />
+          </div>
           
           {/* Provably Fair Hook */}
           {lastRoundId && phase === 'idle' && (
