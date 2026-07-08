@@ -42,7 +42,7 @@ export function KenoBoard({
           const isPicked = picks.includes(num);
           const isDrawn = drawnNumbers.includes(num);
           const isHit = isPicked && isDrawn;
-          const isMiss = isPicked && !isDrawn && phase === 'revealing' && drawnNumbers.length === 10;
+          const isMiss = isPicked && !isDrawn && phase === 'revealing' && drawnNumbers.length === 7;
           
           return (
             <motion.button

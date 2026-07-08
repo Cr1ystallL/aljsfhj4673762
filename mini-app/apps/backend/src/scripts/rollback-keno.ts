@@ -5,22 +5,16 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting Keno rollback...');
 
-  // Target time: 21:34 local MSK = 18:34 UTC. Let's use 18:35 UTC to be safe.
-  const targetDate = new Date('2026-07-08T18:35:00.000Z');
-
   const kenoBets = await prisma.bet.findMany({
     where: {
       gameType: 'keno',
-      placedAt: {
-        lt: targetDate,
-      },
       state: {
         in: ['won', 'lost']
       }
     },
   });
 
-  console.log(`Found ${kenoBets.length} completed Keno bets to rollback before ${targetDate.toISOString()}`);
+  console.log(`Found ${kenoBets.length} completed Keno bets to rollback in total`);
 
   let totalRefunded = 0;
   let totalDeducted = 0;

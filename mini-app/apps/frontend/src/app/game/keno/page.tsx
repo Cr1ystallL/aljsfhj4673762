@@ -30,7 +30,7 @@ export default function KenoGamePage() {
   const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
 
   // Game configuration
-  const MAX_PICKS = 10;
+  const MAX_PICKS = 7;
   
   // State
   const [phase, setPhase] = useState<KenoPhase>('idle');
@@ -79,25 +79,44 @@ export default function KenoGamePage() {
     return () => clearInterval(id);
   }, []);
 
-  const handleTogglePick = (num: number) => {
-    if (drawnNumbers.length > 0) setDrawnNumbers([]);
-    setPicks((prev) => {
-      if (prev.includes(num)) {
-        return prev.filter((p) => p !== num);
-      }
-      if (prev.length >= MAX_PICKS) return prev;
-      return [...prev, num].sort((a, b) => a - b);
-    });
+  const handlePick = (num: number) => {
+    if (phase !== 'idle' || busy) return;
+    
+    // If we're interacting after a round, clear the previous draw
+    if (drawnNumbers.length > 0) {
+      setDrawnNumbers([]);
+      setFinalMultiplier(null);
+    }
+    
+    let selected = [...picks];
+    if (selected.includes(num)) {
+      selected = selected.filter((p) => p !== num);
+    } else {
+      if (selected.length >= MAX_PICKS) return;
+      selected.push(num);
+    }
+    setPicks(selected);
+    soundManager.play('click');
   };
 
   const handleAutoPick = () => {
-    if (phase !== 'idle') return;
-    if (drawnNumbers.length > 0) setDrawnNumbers([]);
+    if (phase !== 'idle' || busy) return;
+    
+    if (drawnNumbers.length > 0) {
+      setDrawnNumbers([]);
+      setFinalMultiplier(null);
+    }
+
+    const newPicks: number[] = [];
     const pool = Array.from({ length: 40 }, (_, i) => i + 1);
-    const shuffled = pool.sort(() => 0.5 - Math.random());
-    // Auto pick always exactly 8 (user requested max 8, auto-picking the max allowed for this mode)
-    const selected = shuffled.slice(0, 8).sort((a, b) => a - b);
-    setPicks(selected);
+    
+    for (let i = 0; i < MAX_PICKS; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      newPicks.push(pool[idx]);
+      pool.splice(idx, 1);
+    }
+    
+    setPicks(newPicks);
     soundManager.play('click');
   };
 
@@ -212,7 +231,7 @@ export default function KenoGamePage() {
                   key={idx} 
                   className={cn(
                     "flex-1 min-w-[3.5rem] max-w-[4.5rem] py-1.5 px-1 rounded-lg flex flex-col items-center justify-center border transition-all",
-                    phase !== 'idle' && hitsCount === idx && drawnNumbers.length === 10
+                    phase !== 'idle' && hitsCount === idx && drawnNumbers.length === 7
                       ? "bg-white/20 border-white text-white shadow-[0_0_15px_rgba(255,255,255,0.4)] scale-105" 
                       : "bg-black/40 border-white/5 text-white/60 hover:bg-white/5",
                     mult === 0 && "opacity-40"
@@ -253,7 +272,7 @@ export default function KenoGamePage() {
 
           <KenoBoard
             picks={picks}
-            onTogglePick={handleTogglePick}
+            onTogglePick={handlePick}
             drawnNumbers={drawnNumbers}
             phase={phase}
             maxPick={MAX_PICKS}
