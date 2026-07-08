@@ -56,53 +56,55 @@ export function GameTopBar({
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
-    <div className="flex items-center justify-between gap-2 px-1">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 backdrop-blur-xl border-b border-white/10 shadow-lg relative z-40">
       {/* Left cluster: brand → home, title, glyph */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-4 min-w-0">
         <button
           type="button"
           onClick={() => router.push('/')}
           aria-label="Главная"
-          className="rounded-card transition-opacity hover:opacity-80"
+          className="p-1 rounded-xl transition-all hover:scale-105 hover:bg-white/5 active:scale-95"
         >
-          <BrandLockup size={48} />
+          <BrandLockup size={40} />
         </button>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-roobert text-frost-white text-[22px] font-normal leading-none truncate">
-            {title}
-          </span>
+        <div className="flex items-center gap-2.5 min-w-0 pl-2 border-l border-white/10">
           <Icon
-            size={16}
-            className="text-frost-white/85 shrink-0"
-            strokeWidth={1.6}
+            size={18}
+            className="text-white/60 shrink-0"
+            strokeWidth={2}
             style={iconRotate ? { transform: `rotate(${iconRotate}deg)` } : undefined}
           />
+          <span className="font-roobert text-white text-lg font-semibold tracking-wide truncate">
+            {title}
+          </span>
         </div>
       </div>
 
       {/* Right cluster: balance → wallet, avatar → profile, rules */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-3 shrink-0">
         <button
           onClick={() => router.push('/balance')}
           aria-label="Кошелёк"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
+          className="group flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
         >
-          <Wallet size={12} className="text-frost-white/70" strokeWidth={1.8} />
-          <span className="font-roobert text-frost-white text-[12px] tabular-nums leading-none">
-            {balanceAmount.toLocaleString('ru-RU', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-          <span className="font-roobert text-whisper-gray text-[10px] leading-none">
-            {activeTournamentBalance ? <Trophy size={11} strokeWidth={2} /> : 'zł'}
-          </span>
+          <Wallet size={14} className="text-emerald-400" strokeWidth={2} />
+          <div className="flex items-baseline gap-1">
+            <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight group-hover:text-emerald-50 transition-colors">
+              {balanceAmount.toLocaleString('ru-RU', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            <span className="font-roobert text-white/40 text-[11px] uppercase font-bold tracking-wider">
+              {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
+            </span>
+          </div>
         </button>
 
         <button
           onClick={() => router.push('/profile')}
           aria-label="Профиль"
-          className="relative w-9 h-9 rounded-pill overflow-hidden border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors flex items-center justify-center"
+          className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-white/10 bg-white/5 hover:border-white/25 transition-all active:scale-95 flex items-center justify-center shadow-inner"
         >
           {user?.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -114,7 +116,7 @@ export function GameTopBar({
               draggable={false}
             />
           ) : (
-            <span className="font-roobert text-[13px] text-frost-white">
+            <span className="font-roobert font-bold text-sm text-white/80">
               {initials}
             </span>
           )}
@@ -124,9 +126,9 @@ export function GameTopBar({
           <button
             onClick={onHowToPlay}
             aria-label="Как играть"
-            className="inline-flex items-center justify-center w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white/80 hover:text-frost-white hover:border-white/25 transition-colors"
+            className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
           >
-            <HelpCircle size={14} strokeWidth={1.7} />
+            <HelpCircle size={16} strokeWidth={2} />
           </button>
         )}
       </div>

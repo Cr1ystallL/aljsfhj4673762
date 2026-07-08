@@ -82,9 +82,6 @@ export function KenoBetPanel({
           <label className="text-[10px] uppercase tracking-wider text-white/50">
             Сумма ставки
           </label>
-          <span className="text-[10px] text-white/70 font-mono">
-            {activeBalance.toFixed(2)} {currency}
-          </span>
         </div>
         <div className="relative flex items-center bg-black/40 border border-white/10 rounded-lg focus-within:border-primary/50 transition-colors h-9">
           <div className="pl-2.5 text-white/40">

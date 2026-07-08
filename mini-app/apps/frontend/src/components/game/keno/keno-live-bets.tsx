@@ -34,14 +34,14 @@ function tintFor(seed: string): string {
 
 export function KenoLiveBets({ entries, currency = 'TON' }: KenoLiveBetsProps) {
   return (
-    <section className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md overflow-hidden mt-2">
+    <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-white/10 bg-black/40 backdrop-blur-md overflow-hidden mt-2">
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-white/5">
         <span className="text-xs uppercase tracking-wider text-white/50 font-bold">
           Live Ставки
         </span>
       </div>
 
-      <div className="max-h-[220px] overflow-y-auto scrollbar-hide divide-y divide-white/5">
+      <div className="flex-1 overflow-y-auto scrollbar-hide divide-y divide-white/5">
         <AnimatePresence initial={false}>
           {entries.map((row) => {
             const won = row.payout > 0 && row.multiplier > 0;

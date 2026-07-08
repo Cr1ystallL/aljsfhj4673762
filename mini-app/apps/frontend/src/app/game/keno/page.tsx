@@ -167,7 +167,6 @@ export default function KenoGamePage() {
     
     if (multiplier > 1) {
       soundManager.play('win'); // Or a bigger jackpot sound
-      toast.success(`Победа! x${multiplier.toFixed(2)}`);
     } else {
       soundManager.play('lose');
     }
@@ -198,20 +197,20 @@ export default function KenoGamePage() {
           
           {/* Multiplier Strip */}
           {picks.length > 0 && (
-            <div className="w-full max-w-2xl mb-4 flex gap-1 overflow-x-auto pb-2">
+            <div className="w-full max-w-2xl mb-4 flex flex-wrap justify-center gap-1.5 pb-2">
               {KENO_MULTIPLIERS[risk as KenoRisk][picks.length].map((mult, idx) => (
                 <div 
                   key={idx} 
                   className={cn(
-                    "flex-1 min-w-[3rem] py-1.5 px-1 rounded flex flex-col items-center justify-center border transition-colors",
+                    "flex-1 min-w-[3.5rem] max-w-[4.5rem] py-1.5 px-1 rounded-lg flex flex-col items-center justify-center border transition-all",
                     phase !== 'idle' && hitsCount === idx && drawnNumbers.length === 10
-                      ? "bg-white/20 border-white text-white shadow-[0_0_10px_rgba(255,255,255,0.5)]" 
-                      : "bg-black/40 border-white/5 text-white/50",
-                    mult === 0 && "opacity-50"
+                      ? "bg-white/20 border-white text-white shadow-[0_0_15px_rgba(255,255,255,0.4)] scale-105" 
+                      : "bg-black/40 border-white/5 text-white/60 hover:bg-white/5",
+                    mult === 0 && "opacity-40"
                   )}
                 >
-                  <span className="text-[10px] uppercase font-bold leading-none mb-0.5">{idx}x</span>
-                  <span className="text-xs font-black leading-none">{mult}</span>
+                  <span className="text-[8px] uppercase font-bold leading-none mb-1 opacity-70 tracking-widest">{idx} ПОПАД.</span>
+                  <span className="text-[13px] font-black leading-none">x{mult}</span>
                 </div>
               ))}
             </div>
@@ -253,7 +252,7 @@ export default function KenoGamePage() {
         </div>
 
         {/* Sidebar Controls */}
-        <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 overflow-y-auto flex flex-col gap-4">
+        <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 flex flex-col gap-4">
           <KenoBetPanel
             amount={amount}
             onAmountChange={setAmount}
