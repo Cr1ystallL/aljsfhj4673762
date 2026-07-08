@@ -52,7 +52,7 @@ const inAppGames: InAppGame[] = [
   { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/bj.png', wide: true },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
-  { id: 'keno', name: 'Keno', href: '/game/keno' },
+  { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png', wide: true },
   { id: 'baccarat', name: 'Baccarat', href: '/game/baccarat', bg: '/baccarat.png', wide: true },
 ];
 
