@@ -252,7 +252,7 @@ export default function KenoGamePage() {
         </div>
 
         {/* Sidebar Controls */}
-        <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 flex flex-col gap-4">
+        <div className="w-full lg:w-[350px] border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 flex flex-col gap-4">
           <KenoBetPanel
             amount={amount}
             onAmountChange={setAmount}

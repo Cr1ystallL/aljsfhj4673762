@@ -36,8 +36,8 @@ export function KenoBoard({
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center py-2 px-4">
-      <div className="grid grid-cols-8 gap-1.5 sm:gap-2 w-full max-w-[600px] aspect-[8/5]">
+    <div className="w-full h-full flex flex-col items-center justify-center py-2 px-4 lg:px-8">
+      <div className="grid grid-cols-8 gap-1.5 sm:gap-2 lg:gap-3 w-full max-w-[850px] aspect-[8/5]">
         {cells.map((num) => {
           const isPicked = picks.includes(num);
           const isDrawn = drawnNumbers.includes(num);
