@@ -197,10 +197,9 @@ export default function AdminDashboardPage() {
               icon={<TrendingUp size={14} strokeWidth={1.6} />}
               label="GGR"
               value={`${formatPln(data.bets.ggr)} zł`}
-              hint={`RTP ${(data.bets.rtp * 100).toFixed(2)}%`}
               accent={data.bets.ggr >= 0 ? 'good' : 'warn'}
               help={{
-                title: 'GGR и RTP',
+                title: 'GGR',
                 body: (
                   <>
                     <p>
@@ -210,12 +209,6 @@ export default function AdminDashboardPage() {
                       казино платит больше чем получает (это нормально
                       на коротких отрезках при больших выигрышах одного
                       игрока).
-                    </p>
-                    <p>
-                      <strong>RTP</strong> — Return To Player, процент
-                      выплат от ставок (=выплаты ÷ ставки). Целевое
-                      значение по нашей конфигурации ~99%, на длинной
-                      дистанции ровно столько и должно быть.
                     </p>
                   </>
                 ),

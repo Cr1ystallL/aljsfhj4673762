@@ -203,8 +203,6 @@ function GameCard({
     }));
   };
 
-  const rtp = (1 - form.houseEdge) * 100;
-
   return (
     <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
       <button
@@ -237,9 +235,6 @@ function GameCard({
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-            RTP {rtp.toFixed(2)}%
-          </span>
           {isOpen ? (
             <ChevronUp size={14} strokeWidth={1.7} />
           ) : (
@@ -354,50 +349,6 @@ function GameCard({
             </button>
           </Field>
 
-          {/* House edge */}
-          <Field
-            label="House Edge"
-            help={{
-              title: 'House Edge / RTP',
-              body: (
-                <>
-                  <p>
-                    <strong>House Edge</strong> — доля, которую казино
-                    удерживает в долгосрочной перспективе от каждой
-                    ставки. 0.01 = 1% (стандарт индустрии для
-                    провайдер-фер игр).
-                  </p>
-                  <p>
-                    <strong>RTP</strong> = 100% − Edge. При edge 1% игроки
-                    в среднем получают 99% обратно — на короткой
-                    дистанции возможны большие отклонения.
-                  </p>
-                  <p>
-                    Меняя edge выше — увеличиваете прибыль казино, но
-                    игра становится менее привлекательной для игроков.
-                    Хардкап на стороне сервера: 50%.
-                  </p>
-                </>
-              ),
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={1.0}
-                step={0.001}
-                value={form.houseEdge}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, houseEdge: parseFloat(e.target.value) }))
-                }
-                className="flex-1 accent-frost-white"
-              />
-              <span className="font-roobert text-[13px] tabular-nums text-frost-white w-20 text-right">
-                {(form.houseEdge * 100).toFixed(2)}%
-              </span>
-            </div>
-          </Field>
 
           {/* Game-specific extras */}
           {gameType === 'crash' && (
