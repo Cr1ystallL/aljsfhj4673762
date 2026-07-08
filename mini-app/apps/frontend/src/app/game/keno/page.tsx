@@ -38,7 +38,7 @@ export default function KenoGamePage() {
   
   // Bet parameters
   const [amount, setAmount] = useState(10);
-  const [risk, setRisk] = useState('classic');
+  const [risk, setRisk] = useState('low');
   const [picks, setPicks] = useState<number[]>([]);
   
   // Game round data
@@ -46,6 +46,10 @@ export default function KenoGamePage() {
   const [serverSeedHash, setServerSeedHash] = useState<string | null>(null);
   const [lastRoundId, setLastRoundId] = useState<string | null>(null);
   const [finalMultiplier, setFinalMultiplier] = useState<number | null>(null);
+
+  // Freeze balance to prevent WS jumps spoiling the game
+  const [frozenBalance, setFrozenBalance] = useState<number | null>(null);
+  const displayBalance = frozenBalance !== null ? frozenBalance : activeBalance;
 
   // Live bets
   const [history, setHistory] = useState<KenoLiveBetEntry[]>([]);
@@ -76,6 +80,7 @@ export default function KenoGamePage() {
   }, []);
 
   const handleTogglePick = (num: number) => {
+    if (drawnNumbers.length > 0) setDrawnNumbers([]);
     setPicks((prev) => {
       if (prev.includes(num)) {
         return prev.filter((p) => p !== num);
@@ -87,6 +92,7 @@ export default function KenoGamePage() {
 
   const handleAutoPick = () => {
     if (phase !== 'idle') return;
+    if (drawnNumbers.length > 0) setDrawnNumbers([]);
     const pool = Array.from({ length: 40 }, (_, i) => i + 1);
     const shuffled = pool.sort(() => 0.5 - Math.random());
     // Auto pick always exactly 8 (user requested max 8, auto-picking the max allowed for this mode)
@@ -98,6 +104,7 @@ export default function KenoGamePage() {
   const handleClear = () => {
     if (phase !== 'idle') return;
     setPicks([]);
+    setDrawnNumbers([]);
     soundManager.play('click');
   };
 
@@ -110,6 +117,7 @@ export default function KenoGamePage() {
     }
 
     setBusy(true);
+    setFrozenBalance(activeBalance - amount);
     setDrawnNumbers([]);
     setFinalMultiplier(null);
     setServerSeedHash(null);
@@ -178,6 +186,7 @@ export default function KenoGamePage() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setFinalMultiplier(null);
     setPhase('idle');
+    setFrozenBalance(null);
   };
 
   const hitsCount = picks.filter(p => drawnNumbers.includes(p)).length;
@@ -186,7 +195,7 @@ export default function KenoGamePage() {
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       <GameTopBar
         title="Keno"
-        balance={activeBalance}
+        balance={displayBalance}
         currency={tBal ? 'T-COIN' : 'zł'}
         serverSeedHash={serverSeedHash ?? undefined}
       />
@@ -252,7 +261,7 @@ export default function KenoGamePage() {
         </div>
 
         {/* Sidebar Controls */}
-        <div className="w-full lg:w-[350px] border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 flex flex-col gap-4">
+        <div className="w-full lg:w-[350px] border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 overflow-y-auto flex flex-col gap-4">
           <KenoBetPanel
             amount={amount}
             onAmountChange={setAmount}
@@ -265,7 +274,7 @@ export default function KenoGamePage() {
             onBet={handleBet}
             busy={busy}
             maxPick={MAX_PICKS}
-            activeBalance={activeBalance}
+            activeBalance={displayBalance}
             currency={tBal ? 'T-COIN' : 'zł'}
           />
 

@@ -64,7 +64,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               demoMode: boolean;
               timestamp: number;
             };
-            const prev = useBalanceStore.getState().balance?.amount ?? null;
             useBalanceStore.getState().setBalance({
               userId,
               amount: payload.amount,
@@ -72,25 +71,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               demoMode: payload.demoMode,
               lastSyncedAt: new Date(payload.timestamp),
             }, useBalanceStore.getState().tournamentBalances);
-            // Surface a toast for "external" credits (deposits paid in,
-            // admin balance adjustments) so the player notices money
-            // arriving from outside the games. We deliberately ignore
-            // tiny deltas (<= 0.01) to avoid noise from rounding, and
-            // we don't toast debits — those are usually bets, which
-            // already announce themselves.
-            if (
-              prev !== null &&
-              payload.amount - prev > 0.01 &&
-              payload.amount - prev > 1
-            ) {
-              const delta = payload.amount - prev;
-              toast.success(
-                `+${delta.toLocaleString('ru-RU', {
-                  maximumFractionDigits: 2,
-                })} ${payload.currency}`,
-                { title: 'Баланс пополнен' }
-              );
-            }
           }
         });
 

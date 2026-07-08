@@ -1,18 +1,6 @@
-export type KenoRisk = 'classic' | 'low' | 'medium' | 'high';
+export type KenoRisk = 'low' | 'medium' | 'high';
 
 export const KENO_MULTIPLIERS: Record<KenoRisk, Record<number, number[]>> = {
-  classic: {
-    1: [0, 3.8],
-    2: [0, 1.7, 5.2],
-    3: [0, 0, 2.7, 48],
-    4: [0, 0, 1.7, 10, 84],
-    5: [0, 0, 1.4, 4, 14, 290],
-    6: [0, 0, 0, 3, 9, 160, 700],
-    7: [0, 0, 0, 2, 7, 30, 280, 800],
-    8: [0, 0, 0, 2, 5, 15, 50, 400, 900],
-    9: [0, 0, 0, 1, 4, 10, 26, 120, 500, 1000],
-    10: [0, 0, 0, 1, 3, 6, 20, 80, 400, 700, 1000],
-  },
   low: {
     1: [0, 3.8],
     2: [0.2, 1.7, 3.8],

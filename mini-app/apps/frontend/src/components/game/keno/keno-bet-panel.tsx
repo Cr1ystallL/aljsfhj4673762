@@ -131,8 +131,8 @@ export function KenoBetPanel({
         <label className="text-[10px] uppercase tracking-wider text-white/50 px-1">
           Риск
         </label>
-        <div className="grid grid-cols-4 gap-1 p-1 bg-black/40 rounded-lg border border-white/10">
-          {(['classic', 'low', 'medium', 'high'] as KenoRisk[]).map((r) => (
+        <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-lg border border-white/10">
+          {(['low', 'medium', 'high'] as KenoRisk[]).map((r) => (
             <button
               key={r}
               disabled={disabled}

@@ -93,7 +93,7 @@ export function GameTopBar({
           aria-label="Кошелёк"
           className="group flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
         >
-          <Wallet size={14} className="text-emerald-400" strokeWidth={2} />
+          <Wallet size={14} className="text-white" strokeWidth={2} />
           <div className="flex items-baseline gap-1">
             <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight group-hover:text-emerald-50 transition-colors">
               {balanceAmount.toLocaleString('ru-RU', {
