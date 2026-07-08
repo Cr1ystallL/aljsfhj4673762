@@ -75,35 +75,35 @@ export function KenoBetPanel({
   const canBet = picks.length >= 1 && picks.length <= maxPick && !disabled;
 
   return (
-    <div className="flex flex-col gap-6 p-4 rounded-xl border border-white/5 bg-black/40 backdrop-blur-md">
+    <div className="flex flex-col gap-3 p-3 rounded-xl border border-white/5 bg-black/40 backdrop-blur-md">
       {/* Bet Amount */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-xs uppercase tracking-wider text-white/50">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[10px] uppercase tracking-wider text-white/50">
             Сумма ставки
           </label>
-          <span className="text-xs text-white/70 font-mono">
+          <span className="text-[10px] text-white/70 font-mono">
             {activeBalance.toFixed(2)} {currency}
           </span>
         </div>
-        <div className="relative flex items-center bg-black/40 border border-white/10 rounded-lg focus-within:border-primary/50 transition-colors">
-          <div className="pl-3 text-white/40">
-            <Coins className="w-4 h-4" />
+        <div className="relative flex items-center bg-black/40 border border-white/10 rounded-lg focus-within:border-primary/50 transition-colors h-9">
+          <div className="pl-2.5 text-white/40">
+            <Coins className="w-3.5 h-3.5" />
           </div>
           <input
             type="number"
             value={amountStr}
             onChange={(e) => handleAmountStr(e.target.value)}
             disabled={disabled}
-            className="w-full h-10 px-3 py-2 border-0 bg-transparent outline-none focus-visible:ring-0 text-white font-mono text-lg"
+            className="w-full h-full px-2 py-1 border-0 bg-transparent outline-none focus-visible:ring-0 text-white font-mono text-sm"
           />
-          <div className="flex pr-1 space-x-1">
+          <div className="flex pr-1 space-x-0.5">
             <Button
               variant="ghost"
               size="sm"
               disabled={disabled}
               onClick={handleHalve}
-              className="h-8 px-2 text-xs hover:bg-white/10 text-white/70"
+              className="h-7 px-1.5 text-[10px] hover:bg-white/10 text-white/70"
             >
               1/2
             </Button>
@@ -112,7 +112,7 @@ export function KenoBetPanel({
               size="sm"
               disabled={disabled}
               onClick={handleDouble}
-              className="h-8 px-2 text-xs hover:bg-white/10 text-white/70"
+              className="h-7 px-1.5 text-[10px] hover:bg-white/10 text-white/70"
             >
               2x
             </Button>
@@ -121,7 +121,7 @@ export function KenoBetPanel({
               size="sm"
               disabled={disabled}
               onClick={handleMax}
-              className="h-8 px-2 text-xs hover:bg-white/10 text-white/70"
+              className="h-7 px-1.5 text-[10px] hover:bg-white/10 text-white/70"
             >
               MAX
             </Button>
@@ -130,8 +130,8 @@ export function KenoBetPanel({
       </div>
 
       {/* Risk Selector */}
-      <div className="space-y-2">
-        <label className="text-xs uppercase tracking-wider text-white/50">
+      <div className="space-y-1.5">
+        <label className="text-[10px] uppercase tracking-wider text-white/50 px-1">
           Риск
         </label>
         <div className="grid grid-cols-4 gap-1 p-1 bg-black/40 rounded-lg border border-white/10">
@@ -144,7 +144,7 @@ export function KenoBetPanel({
                 soundManager.play('click');
               }}
               className={cn(
-                'py-2 text-xs font-medium rounded-md capitalize transition-all duration-200',
+                'py-1.5 text-[11px] font-medium rounded-md capitalize transition-all duration-200',
                 risk === r
                   ? 'bg-white/10 text-white shadow-sm'
                   : 'text-white/40 hover:text-white/70 hover:bg-white/5 disabled:opacity-50'
@@ -156,42 +156,43 @@ export function KenoBetPanel({
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* Controls & Play */}
+      <div className="flex flex-col gap-2 mt-1">
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            disabled={disabled}
+            onClick={onAutoPick}
+            className="h-8 border-white/10 hover:bg-white/5 text-white/70 text-xs"
+          >
+            <Dice5 className="w-3.5 h-3.5 mr-1.5" />
+            Авто
+          </Button>
+          <Button
+            variant="outline"
+            disabled={disabled || picks.length === 0}
+            onClick={onClear}
+            className="h-8 border-white/10 hover:bg-destructive/20 hover:text-destructive text-white/70 text-xs"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Сброс
+          </Button>
+        </div>
+        
         <Button
-          variant="outline"
-          disabled={disabled}
-          onClick={onAutoPick}
-          className="border-white/10 hover:bg-white/5 text-white/70"
+          disabled={!canBet}
+          onClick={onBet}
+          className={cn(
+            'w-full h-10 text-sm font-bold shadow-lg shadow-primary/20 transition-all duration-300',
+            canBet ? 'hover:scale-[1.02] active:scale-[0.98]' : ''
+          )}
         >
-          <Dice5 className="w-4 h-4 mr-2" />
-          Авто
-        </Button>
-        <Button
-          variant="outline"
-          disabled={disabled || picks.length === 0}
-          onClick={onClear}
-          className="border-white/10 hover:bg-destructive/20 hover:text-destructive text-white/70"
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          Сброс
+          {phase === 'revealing' ? 'Игра идет...' : busy ? 'Загрузка...' : 'СТАВКА'}
         </Button>
       </div>
 
-      {/* Play Button */}
-      <Button
-        disabled={!canBet}
-        onClick={onBet}
-        className={cn(
-          'w-full py-6 text-lg font-bold shadow-lg shadow-primary/20 transition-all duration-300',
-          canBet ? 'hover:scale-[1.02] active:scale-[0.98]' : ''
-        )}
-      >
-        {phase === 'revealing' ? 'Игра идет...' : busy ? 'Загрузка...' : 'СТАВКА'}
-      </Button>
-
-      <div className="text-center">
-        <span className="text-xs text-white/40">
+      <div className="text-center mt-[-4px]">
+        <span className="text-[10px] text-white/40">
           Выбрано: {picks.length} / {maxPick}
         </span>
       </div>

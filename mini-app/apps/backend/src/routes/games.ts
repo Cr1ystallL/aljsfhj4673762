@@ -1450,6 +1450,70 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.get<{ Querystring: { limit?: string } }>(
+    '/keno/history',
+    {
+      preHandler: authenticate,
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: { limit: { type: 'string' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      if (!(await ensureVisible('keno', request as AuthenticatedRequest, reply))) return;
+      const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
+      try {
+        const bets = await app.prisma.bet.findMany({
+          where: {
+            gameType: 'keno',
+            payout: { not: null },
+          },
+          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
+          take: limit,
+          select: {
+            id: true,
+            amount: true,
+            payout: true,
+            multiplier: true,
+            placedAt: true,
+            resolvedAt: true,
+            user: {
+              select: {
+                firstName: true,
+                username: true,
+                photoUrl: true,
+                telegramId: true,
+              },
+            },
+          },
+        });
+
+        const history = bets.map((b) => ({
+          id: b.id,
+          name:
+            b.user.firstName ||
+            b.user.username ||
+            `id${b.user.telegramId.toString().slice(-4)}`,
+          photoUrl: b.user.photoUrl ?? null,
+          betAmount: Number(b.amount),
+          multiplier: Number(b.multiplier ?? 0),
+          payout: Number(b.payout ?? 0),
+          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
+        }));
+
+        return reply.send({ success: true, history });
+      } catch (error) {
+        logger.error(error, 'Failed to fetch keno history');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'history fetch failed',
+        });
+      }
+    }
+  );
+
   /* -------------------------------------------------------------------------
    * Provably Fair Round Info
    * ---------------------------------------------------------------------- */

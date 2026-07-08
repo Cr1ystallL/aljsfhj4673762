@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { KenoBoard } from '@/components/game/keno/keno-board';
 import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-panel';
+import { KenoLiveBets, type KenoLiveBetEntry } from '@/components/game/keno/keno-live-bets';
 import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { useBalance } from '@/hooks/use-balance';
 import { useBalanceStore } from '@/store/balance-store';
@@ -44,9 +46,32 @@ export default function KenoGamePage() {
   const [lastRoundId, setLastRoundId] = useState<string | null>(null);
   const [finalMultiplier, setFinalMultiplier] = useState<number | null>(null);
 
+  // Live bets
+  const [history, setHistory] = useState<KenoLiveBetEntry[]>([]);
+
   // Sound init
   useEffect(() => {
     soundManager.initialize();
+  }, []);
+
+  const refreshHistory = async () => {
+    try {
+      const res = await fetch('/api/games/keno/history?limit=20', {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.success && data.history) {
+        setHistory(data.history);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    void refreshHistory();
+    const id = setInterval(refreshHistory, 8000);
+    return () => clearInterval(id);
   }, []);
 
   const handleTogglePick = (num: number) => {
@@ -149,6 +174,7 @@ export default function KenoGamePage() {
     
     fetchBalance();
     setPhase('idle');
+    void refreshHistory(); // Refresh history immediately after round
   };
 
   return (
@@ -193,7 +219,7 @@ export default function KenoGamePage() {
         </div>
 
         {/* Sidebar Controls */}
-        <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 overflow-y-auto">
+        <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 overflow-y-auto flex flex-col gap-4">
           <KenoBetPanel
             amount={amount}
             onAmountChange={setAmount}
@@ -209,10 +235,12 @@ export default function KenoGamePage() {
             activeBalance={activeBalance}
             currency={tBal ? 'T-COIN' : 'TON'}
           />
+
+          <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'TON'} />
           
           {/* Provably Fair Hook */}
           {lastRoundId && phase === 'idle' && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-2 flex justify-center">
               <ProvablyFairModal roundId={lastRoundId} />
             </div>
           )}
