@@ -217,7 +217,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
           userId: order.user_id,
           amount: paidAmount,
           type: 'deposit',
-          description: \`FoluxPay deposit \${orderId}\`,
+          description: `FoluxPay deposit ${orderId}`,
           tx: tx as Prisma.TransactionClient,
         });
 
@@ -291,7 +291,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
                 userId: order.user_id,
                 amount: paidAmount,
                 type: 'deposit',
-                description: \`FoluxPay reconciliation \${orderId}\`,
+                description: `FoluxPay reconciliation ${orderId}`,
                 tx: tx as Prisma.TransactionClient,
               });
               await rtpEngine.recordDeposit(order.user_id, paidAmount, tx as Prisma.TransactionClient);
@@ -304,7 +304,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      return reply.send({ ok: true, msg: \`Order is \${remoteStatus.status}\` });
+      return reply.send({ ok: true, msg: `Order is ${remoteStatus.status}` });
     }
   );
 }
