@@ -70,16 +70,16 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
             currency, payment_type, card, recipient, details,
             status, expires_at, created_at, updated_at
           ) VALUES (
-            ${result.order_id},
+            ${result.id},
             ${userId},
             ${externalId},
             ${amount}::numeric,
-            ${result.amount}::numeric,
+            ${result.price}::numeric,
             'PLN',
             ${type},
-            ${result.requisites.card},
+            ${result.card},
             NULL,
-            NULL,
+            ${result.details},
             'pending',
             ${expiresAt},
             NOW(), NOW()
@@ -87,23 +87,23 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
           ON CONFLICT (id) DO NOTHING
         `;
       } catch (err) {
-        logger.error({ err, orderId: result.order_id }, 'Failed to persist FoluxPay order');
+        logger.error({ err, orderId: result.id }, 'Failed to persist FoluxPay order');
       }
 
       logger.info(
-        { userId, orderId: result.order_id, amount, uniqueAmount: result.amount },
+        { userId, orderId: result.id, amount, uniqueAmount: result.price },
         'FoluxPay order created'
       );
 
       return reply.send({
         ok: true,
-        orderId: result.order_id,
-        uniqueAmount: result.amount,
-        currency: result.currency,
-        type: type,
-        card: result.requisites.card,
+        orderId: result.id,
+        uniqueAmount: result.price,
+        currency: 'PLN',
+        type: result.type || type,
+        card: result.card,
         recipient: null,
-        details: null,
+        details: result.details,
         expiresInMinutes: result.minutes,
       });
     }

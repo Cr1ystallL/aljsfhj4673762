@@ -13,14 +13,12 @@ const API_KEY = process.env.FOLUXPAY_API_KEY ?? 'pk_fbe22845e665ebd46f99c78a9d9d
 
 export interface FoluxPayOrderResponse {
   success: true;
-  order_id: string;
-  amount: number;
-  currency: string;
+  id: string;
+  price: number;
   minutes: number;
-  method: string;
-  requisites: {
-    card: string;
-  };
+  card: string;
+  details: string;
+  type: string;
 }
 
 export interface FoluxPayErrorResponse {
