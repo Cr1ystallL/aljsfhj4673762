@@ -2,15 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import {
-  createOrder,
-  cancelOrder,
+  getFoluxPayUrl,
   getOrderStatus,
   type FoluxPayWebhookPayload,
 } from '../services/foluxpay.js';
 import { walletConfig } from '../services/wallet-config.js';
 import { logger } from '../utils/logger.js';
-import { balanceService } from '../services/balance-service.js';
-import { rtpEngine } from '../services/rtp-engine.js';
 
 /**
  * FoluxPay deposit routes.
@@ -200,11 +197,55 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await app.prisma.$transaction(async (tx) => {
+        const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
+          UPDATE balances
+          SET amount = amount + ${paidAmount}::numeric,
+              wager_target = wager_target + ${paidAmount * 2}::numeric,
+              auto_rtp_target = auto_rtp_target + ${paidAmount * 2}::numeric,
+              updated_at = NOW(),
+              last_synced_at = NOW(),
+              version = version + 1
+          WHERE user_id = ${order.user_id}
+            AND demo_mode = false
+          RETURNING amount
+        `;
+
+        let afterAmount: number;
+        if (balanceRows.length === 0) {
+          const created = await tx.$queryRaw<Array<{ amount: string }>>`
+            INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
+            VALUES (gen_random_uuid(), ${order.user_id}, ${paidAmount}::numeric, 'PLN', false, ${paidAmount * 2}::numeric, ${paidAmount * 2}::numeric, NOW(), NOW())
+            RETURNING amount
+          `;
+          afterAmount = Number(created[0]?.amount ?? paidAmount);
+        } else {
+          afterAmount = Number(balanceRows[0].amount);
+        }
+
+        const beforeAmount = afterAmount - paidAmount;
+        const txId = `dep_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+        await tx.transaction.create({
+          data: {
+            id: txId,
+            userId: order.user_id,
+            type: 'deposit',
+            amount: paidAmount,
+            balanceBefore: beforeAmount,
+            balanceAfter: afterAmount,
+            metadata: {
+              foluxPayOrderId: orderId,
+              provider: 'foluxpay',
+            },
+          },
+        });
+
         const updateCount = await tx.$executeRaw`
           UPDATE macvpay_orders
           SET status = 'credited',
               paid_amount = ${paidAmount},
               paid_at = NOW(),
+              credit_tx_id = ${txId},
               updated_at = NOW()
           WHERE id = ${orderId} AND status = 'pending'
         `;
@@ -212,16 +253,6 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
         if (updateCount === 0) {
           throw new Error('Concurrent modification detected');
         }
-
-        await balanceService.adjustBalance({
-          userId: order.user_id,
-          amount: paidAmount,
-          type: 'deposit',
-          description: `FoluxPay deposit ${orderId}`,
-          tx: tx as Prisma.TransactionClient,
-        });
-
-        await rtpEngine.recordDeposit(order.user_id, paidAmount, tx as Prisma.TransactionClient);
       });
 
       logger.info(
@@ -243,11 +274,8 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { userId } = (request as AuthenticatedRequest).user;
       
-      const user = await app.prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-      });
-      if (user?.role !== 'admin') {
+      const telegramId = Number((request as AuthenticatedRequest).user.telegramId);
+      if (!(await isAdminTelegramIdAsync(telegramId))) {
         return reply.code(403).send({ error: 'Admin only' });
       }
 
@@ -278,24 +306,59 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
 
         try {
           await app.prisma.$transaction(async (tx) => {
+            const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
+              UPDATE balances
+              SET amount = amount + ${paidAmount}::numeric,
+                  wager_target = wager_target + ${paidAmount * 2}::numeric,
+                  auto_rtp_target = auto_rtp_target + ${paidAmount * 2}::numeric,
+                  updated_at = NOW(),
+                  last_synced_at = NOW(),
+                  version = version + 1
+              WHERE user_id = ${order.user_id}
+                AND demo_mode = false
+              RETURNING amount
+            `;
+
+            let afterAmount: number;
+            if (balanceRows.length === 0) {
+              const created = await tx.$queryRaw<Array<{ amount: string }>>`
+                INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
+                VALUES (gen_random_uuid(), ${order.user_id}, ${paidAmount}::numeric, 'PLN', false, ${paidAmount * 2}::numeric, ${paidAmount * 2}::numeric, NOW(), NOW())
+                RETURNING amount
+              `;
+              afterAmount = Number(created[0]?.amount ?? paidAmount);
+            } else {
+              afterAmount = Number(balanceRows[0].amount);
+            }
+
+            const beforeAmount = afterAmount - paidAmount;
+            const txId = `dep_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+            await tx.transaction.create({
+              data: {
+                id: txId,
+                userId: order.user_id,
+                type: 'deposit',
+                amount: paidAmount,
+                balanceBefore: beforeAmount,
+                balanceAfter: afterAmount,
+                metadata: {
+                  foluxPayOrderId: orderId,
+                  provider: 'foluxpay',
+                  source: 'miniapp_manual_reconcile',
+                },
+              },
+            });
+
             const count = await tx.$executeRaw`
               UPDATE macvpay_orders
               SET status = 'credited',
                   paid_amount = ${paidAmount},
                   paid_at = NOW(),
+                  credit_tx_id = ${txId},
                   updated_at = NOW()
               WHERE id = ${orderId} AND status != 'credited'
             `;
-            if (count > 0) {
-              await balanceService.adjustBalance({
-                userId: order.user_id,
-                amount: paidAmount,
-                type: 'deposit',
-                description: `FoluxPay reconciliation ${orderId}`,
-                tx: tx as Prisma.TransactionClient,
-              });
-              await rtpEngine.recordDeposit(order.user_id, paidAmount, tx as Prisma.TransactionClient);
-            }
           });
           return reply.send({ ok: true, msg: 'Reconciled and credited' });
         } catch (err) {
