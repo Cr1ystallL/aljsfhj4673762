@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
-import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticate, type AuthenticatedRequest, isAdminTelegramIdAsync } from '../middleware/auth.js';
 import {
   createOrder,
   cancelOrder,
@@ -8,7 +8,6 @@ import {
   type FoluxPayWebhookPayload,
 } from '../services/foluxpay.js';
 import { walletConfig } from '../services/wallet-config.js';
-import { isAdminTelegramIdAsync } from './admin.js';
 import { logger } from '../utils/logger.js';
 
 /**
