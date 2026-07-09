@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Proxy MacvPay API to the Fastify backend.
+ * Proxy FoluxPay API to the Fastify backend.
  * Mirrors the pattern used by the game proxies.
  */
 function backendBaseUrl(): string {
@@ -20,7 +20,7 @@ async function proxy(
 ) {
   const cleanBase = backendBaseUrl();
   const pathSeg = slug?.length ? slug.join('/') : '';
-  const fullUrl = `${cleanBase}/api/macvpay${
+  const fullUrl = `${cleanBase}/api/foluxpay${
     pathSeg ? `/${pathSeg}` : ''
   }${request.nextUrl.search}`;
 

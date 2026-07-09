@@ -2427,7 +2427,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * GET /api/_x/deposits
-   * MacvPay-aware deposit list. Returns the live order status (pending,
+   * FoluxPay-aware deposit list. Returns the live order status (pending,
    * paid, cancelled, expired) for each request so the admin UI can show
    * the lifecycle, not just confirmed deposits. Falls back to the
    * `transaction.type='deposit'` rows for legacy deposits that pre-date
@@ -2445,10 +2445,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const normalizedStatus =
         statusFilter && statusFilter !== 'all' ? statusFilter : undefined;
       try {
-        // ---- MacvPay orders ---------------------------------------------
-        // Raw query — table is created via the macvpay migration and may
+        // ---- FoluxPay orders ---------------------------------------------
+        // Raw query — table is created via the foluxpay migration and may
         // not exist in the Prisma client schema yet on every deployment.
-        interface MacvpayOrderRow {
+        interface FoluxpayOrderRow {
           id: string;
           user_id: string;
           external_id: string;
@@ -2468,9 +2468,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const where = normalizedStatus
           ? Prisma.sql` WHERE status = ${normalizedStatus}`
           : Prisma.empty;
-        let orders: MacvpayOrderRow[] = [];
+        let orders: FoluxpayOrderRow[] = [];
         try {
-          orders = await app.prisma.$queryRaw<MacvpayOrderRow[]>(Prisma.sql`
+          orders = await app.prisma.$queryRaw<FoluxpayOrderRow[]>(Prisma.sql`
             SELECT id, user_id, external_id, requested_amount, unique_amount,
                    currency, payment_type, status, card, recipient, details,
                    expires_at, paid_at, created_at

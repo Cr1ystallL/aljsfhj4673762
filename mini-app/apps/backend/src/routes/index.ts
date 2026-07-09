@@ -7,7 +7,7 @@ import { gameRoutes } from './games.js';
 import { adminRoutes } from './admin.js';
 import { dbOpsRoutes } from './dbops.js';
 import { maintenanceRoutes } from './maintenance.js';
-import { macvpayRoutes } from './macvpay.js';
+import { foluxpayRoutes } from './foluxpay.js';
 import { withdrawalRoutes } from './withdrawals.js';
 import { bonusesRoutes } from './bonuses.js';
 import { presenceRoutes } from './presence.js';
@@ -31,7 +31,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(gameRoutes, { prefix: '/api/games' });
 
   // MacvPay deposits
-  await app.register(macvpayRoutes, { prefix: '/api/macvpay' });
+  await app.register(foluxpayRoutes, { prefix: '/api/foluxpay' });
 
   // User withdrawal requests (admin-reviewed)
   await app.register(withdrawalRoutes, { prefix: '/api/withdrawals' });

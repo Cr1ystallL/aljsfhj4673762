@@ -42,7 +42,7 @@ import { GameTopBar } from '@/components/game/game-top-bar';
 type Tab = 'deposit' | 'withdraw';
 type WithdrawKind = 'blik' | 'card';
 
-interface MacvPayOrder {
+interface FoluxPayOrder {
   orderId: string;
   uniqueAmount: number;
   currency: string;
@@ -62,7 +62,7 @@ export default function BalancePage() {
 
   // -------- Deposit state ---------------------------------------------------
   const [depositAmount, setDepositAmount] = useState<string>('100');
-  const [order, setOrder] = useState<MacvPayOrder | null>(null);
+  const [order, setOrder] = useState<FoluxPayOrder | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export default function BalancePage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/macvpay/deposit', {
+      const res = await fetch('/api/foluxpay/deposit', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +100,7 @@ export default function BalancePage() {
         const msg = reportApiError(res, j, 'Не удалось создать заявку');
         setError(msg);
       } else {
-        setOrder(j as MacvPayOrder);
+        setOrder(j as FoluxPayOrder);
         toast.success('Заявка создана. Переведите указанную сумму.');
       }
     } catch {
@@ -114,7 +114,7 @@ export default function BalancePage() {
   const cancelDeposit = useCallback(async () => {
     if (!order) return;
     try {
-      await fetch('/api/macvpay/cancel', {
+      await fetch('/api/foluxpay/cancel', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -483,7 +483,7 @@ function PaymentDetails({
   onCopy,
   onCancel,
 }: {
-  order: MacvPayOrder;
+  order: FoluxPayOrder;
   copied: string | null;
   onCopy: (text: string, key: string) => void;
   onCancel: () => void;

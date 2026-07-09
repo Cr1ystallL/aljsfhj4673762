@@ -33,63 +33,58 @@ async function manualCreditDeposit(payload: MacvPayWebhookPayload) {
     console.log(`Crediting ${creditAmount} PLN to user ${userId}...`);
 
     const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
-      UPDATE balances
-      SET amount = amount + ${creditAmount}::numeric,
-          wager_target = wager_target + ${creditAmount * 2}::numeric,
-          auto_rtp_target = auto_rtp_target + ${creditAmount * 2}::numeric,
-          updated_at = NOW(),
-          last_synced_at = NOW(),
-          version = version + 1
-      WHERE user_id = ${userId}
-        AND demo_mode = false
-      RETURNING amount
-    `;
-
-    let afterAmount: number;
-    if (balanceRows.length === 0) {
-      const created = await tx.$queryRaw<Array<{ amount: string }>>`
-        INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${userId}, ${creditAmount}::numeric, 'PLN', false, ${creditAmount * 2}::numeric, ${creditAmount * 2}::numeric, NOW(), NOW())
-        RETURNING amount
-      `;
-      afterAmount = Number(created[0]?.amount ?? creditAmount);
-    } else {
-      afterAmount = Number(balanceRows[0].amount);
+    if (order.status === 'paid' || order.status === 'credited') {
+      console.log(`Order ${orderId} is already processed (status: ${order.status}).`);
+      return false;
     }
 
-    const beforeAmount = afterAmount - creditAmount;
+    await prisma.$transaction(async (tx) => {
+      // 1. Balance adjustment via transactions table
+      const [user] = await tx.$queryRaw<{ balance: number }[]>`
+        SELECT balance FROM "users" WHERE id = ${order.user_id} FOR UPDATE
+      `;
+      if (!user) throw new Error('User not found');
 
-    const txId = `dep_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    await tx.transaction.create({
-      data: {
-        id: txId,
-        userId,
-        type: 'deposit',
-        amount: creditAmount,
-        balanceBefore: beforeAmount,
-        balanceAfter: afterAmount,
-        metadata: {
-          macvpayOrderId: payload.id,
-          externalId: payload.external_id,
-          paidAt: payload.paid_at,
-          provider: 'macvpay',
-          source: 'miniapp_manual_reconcile',
-        },
-      },
+      await tx.$executeRaw`
+        INSERT INTO "transactions" (
+          id, user_id, amount, type, description, balance_before, balance_after, created_at, metadata
+        ) VALUES (
+          gen_random_uuid(),
+          ${order.user_id},
+          ${paidAmount},
+          'deposit',
+          'Manual reconciliation for FoluxPay deposit',
+          ${user.balance},
+          ${user.balance + paidAmount},
+          NOW(),
+          ${JSON.stringify({
+            foluxPayOrderId: payload.order_id,
+            manual_reconciliation: true,
+            provider: 'foluxpay',
+          })}::jsonb
+        )
+      `;
+
+      await tx.$executeRaw`
+        UPDATE "users" SET balance = balance + ${paidAmount} WHERE id = ${order.user_id}
+      `;
+
+      await tx.$executeRaw`
+        UPDATE macvpay_orders
+        SET status = 'credited',
+            paid_amount = ${paidAmount},
+            paid_at = NOW(),
+            updated_at = NOW()
+        WHERE id = ${orderId} AND status = 'pending'
+      `;
     });
 
-    await tx.$executeRaw`
-      UPDATE macvpay_orders
-      SET status = 'credited',
-          paid_amount = ${creditAmount}::numeric,
-          paid_at = ${new Date(payload.paid_at)},
-          credit_tx_id = ${txId},
-          updated_at = NOW()
-      WHERE id = ${payload.id}
-    `;
-
-    console.log(`Successfully credited! New balance: ${afterAmount} PLN.`);
-  });
+    console.log(`Successfully credited ${paidAmount} PLN to user ${order.user_id} for order ${orderId}`);
+    return true;
+  } catch (err) {
+    console.error('Failed to credit deposit:', err);
+    return false;
+  }
 }
 
 async function run() {
@@ -99,31 +94,27 @@ async function run() {
     process.exit(1);
   }
 
-  console.log(`Fetching status for order ${orderId} from MacvPay...`);
+  console.log(`Fetching status for order ${orderId} from FoluxPay...`);
   const status = await getOrderStatus(orderId);
   
   if (!status.success) {
-    console.error('Error: Failed to fetch order status from MacvPay.');
+    console.error('Error: Failed to fetch order status from FoluxPay.');
     console.error(status);
     process.exit(1);
   }
 
   if (status.status !== 'paid') {
-    console.log(`Order is not paid on MacvPay. Current status: ${status.status}`);
+    console.log(`Order is not paid on FoluxPay. Current status: ${status.status}`);
     process.exit(0);
   }
 
-  console.log(`Order is paid on MacvPay! Proceeding to credit...`);
+  console.log(`Order is paid on FoluxPay! Proceeding to credit...`);
   
-  const synthetic: MacvPayWebhookPayload = {
-    id: status.id,
-    external_id: status.external_id,
-    client_id: status.client_id,
-    paid: status.paid_amount ?? status.price,
-    price: status.price,
-    currency: status.currency,
+  const synthetic: FoluxPayWebhookPayload = {
+    event: 'payment_completed',
+    order_id: status.order_id,
+    paid_amount: Number(status.paid_amount || status.amount),
     status: 'paid',
-    paid_at: status.paid_at ?? new Date().toISOString(),
   };
 
   try {

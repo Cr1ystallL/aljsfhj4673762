@@ -7,7 +7,7 @@ import { HelpButton } from '@/components/admin/help-button';
 import { cn } from '@/lib/utils';
 
 /**
- * Deposits Console — MacvPay lifecycle.
+ * Deposits Console — FoluxPay lifecycle.
  *
  * Lists every payment order with its current status:
  *   - `pending`   → waiting for the player to wire the unique amount
