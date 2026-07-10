@@ -23,6 +23,8 @@ import {
   type BridgesLevel,
 } from '../games/bridges/bridges-engine.js';
 import { hiloEngine } from '../games/hilo/hilo-engine.js';
+import { casesEngine } from '../games/cases/cases-engine.js';
+import { CASES } from '../games/cases/config.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
@@ -95,6 +97,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     'bridges',
     'blackjack',
     'hilo',
+    'cases',
   ];
 
   app.get('/availability', { preHandler: authenticate }, async (request, reply) => {
@@ -1553,5 +1556,93 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /* -------------------------------------------------------------- cases */
+  
+  app.get('/cases/config', { preHandler: authenticate }, async (request, reply) => {
+    return reply.send({ cases: CASES });
+  });
+
+  app.post<{ Body: { caseId: string; count: number; clientSeed?: string } }>(
+    '/cases/open',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['caseId', 'count'],
+          properties: {
+            caseId: { type: 'string' },
+            count: { type: 'number', minimum: 1, maximum: 3 },
+            clientSeed: { type: 'string' }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { caseId, count, clientSeed } = request.body;
+
+      if (!checkRateLimit(userId, 'cases:open')) {
+        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+      }
+
+      try {
+        const cSeed = clientSeed || `cases_${Date.now()}`;
+        const result = await casesEngine.openCases(userId, caseId, count, cSeed);
+        return reply.send({ success: true, result });
+      } catch (error) {
+        logger.error(error, 'Failed to open cases');
+        return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
+      }
+    }
+  );
+
+  app.get<{ Querystring: { limit?: string } }>(
+    '/cases/history',
+    {
+      preHandler: authenticate,
+      schema: { querystring: { type: 'object', properties: { limit: { type: 'string' } } } }
+    },
+    async (request, reply) => {
+      const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
+      try {
+        const bets = await app.prisma.bet.findMany({
+          where: { gameType: 'cases', payout: { not: null } },
+          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
+          take: limit,
+          select: {
+            id: true, amount: true, payout: true, placedAt: true, resolvedAt: true,
+            metadata: true,
+            user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true } },
+          },
+        });
+        
+        const history = bets.map(b => {
+          const meta = b.metadata as any;
+          const caseData = CASES.find(c => c.id === meta?.caseId);
+          const prizeData = caseData?.prizes.find(p => p.id === meta?.prizeId);
+          
+          return {
+            id: b.id,
+            name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
+            photoUrl: b.user.photoUrl ?? null,
+            betAmount: Number(b.amount),
+            payout: Number(b.payout ?? 0),
+            timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
+            caseId: meta?.caseId,
+            caseName: caseData?.name,
+            prizeColor: prizeData?.color
+          };
+        });
+        return reply.send({ success: true, history });
+      } catch (error) {
+        logger.error(error, 'Failed to fetch cases history');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
 }
+
 

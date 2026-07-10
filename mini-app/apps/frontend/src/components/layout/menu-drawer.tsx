@@ -60,6 +60,7 @@ const inAppGames: Array<{ id: GameKey }> = [
   { id: 'coinflip' },
   { id: 'wheel' },
   { id: 'bridges' },
+  { id: 'cases' },
 ];
 
 const BOT_USERNAME =

@@ -7,6 +7,7 @@ import {
   Footprints,
   Spade,
   Dice5,
+  Box,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
@@ -39,6 +40,7 @@ export type GameKey =
   | 'hilo'
   | 'baccarat'
   | 'keno'
+  | 'cases'
   | 'unknown';
 
 /**
@@ -134,6 +136,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   cards: { label: 'Card Games', Icon: Spade },
   hilo: { label: 'Hi-Lo', Icon: Spade },
   keno: { label: 'Keno', Icon: Dice5 },
+  cases: { label: 'Кейсы', Icon: Box },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 
@@ -156,6 +159,7 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('cards')) return 'cards';
   if (v.startsWith('hilo')) return 'hilo';
   if (v.startsWith('keno')) return 'keno';
+  if (v.startsWith('cases') || v.startsWith('case')) return 'cases';
   return 'unknown';
 }
 
