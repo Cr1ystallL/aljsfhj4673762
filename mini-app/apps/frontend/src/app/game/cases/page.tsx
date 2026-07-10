@@ -48,10 +48,10 @@ export default function CasesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {cases.map((c) => (
             <Link key={c.id} href={`/game/cases/${c.id}`} className="group relative rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center justify-center gap-3 transition-transform hover:scale-105 active:scale-95 overflow-hidden">
-              {/* Fallback image logic. In a real app, each case has its own image. For case_1 we have the generated image */}
+              {/* Fallback image logic. In a real app, each case has its own image. */}
               <div className="w-32 h-32 relative flex-shrink-0">
                 <Image
-                  src={c.id === 'case_1' ? '/images/cases/poor_case.png' : `/images/cases/${c.id}.png`}
+                  src={`/images/cases/${c.id}.png`}
                   alt={c.name}
                   fill
                   className="object-contain drop-shadow-2xl"
