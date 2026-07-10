@@ -1435,7 +1435,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * snappy.
    */
   app.get('/_x/games', { preHandler: adminOnly }, async (_req, reply) => {
-    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack', 'hilo'];
+    const types: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack', 'hilo', 'cases'];
     const configs = await Promise.all(
       types.map(async (t) => ({ gameType: t, config: await gameConfig.get(t) }))
     );

@@ -692,7 +692,7 @@ function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>;
   const casesWeights = (extras.casesWeights as Record<string, number[]>) || {};
   const casesPrices = (extras.casesPrices as number[]) || [10, 50, 100, 500, 1000, 5000, 10000];
   
-  const currentWeights = casesWeights[`case_${activeCase}`] || [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
+  const currentWeights = casesWeights[`case_${activeCase}`] || [35, 12.5, 10, 35, 4, 2, 1, 0.4, 0.1];
   const totalWeight = currentWeights.reduce((a, b) => a + b, 0);
   const currentPrice = casesPrices[activeCase - 1] || 10;
   
@@ -738,14 +738,12 @@ function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>;
 
       <div className="border border-white/10 rounded-xl p-4 bg-white/[0.02]">
         <Field label={`Цена: Кейс ${activeCase}`} help={{ title: `Цена открытия кейса`, body: <p>Базовая цена. Выигрыши (множители) масштабируются от неё автоматически.</p> }}>
-          <div className="w-48 mt-2">
-            <NumberInput
-              value={currentPrice}
-              step={1}
-              min={0}
-              onChange={(v) => setPrice(v)}
-            />
-          </div>
+          <NumberInput
+            value={currentPrice}
+            step={1}
+            min={0}
+            onChange={(v) => setPrice(v)}
+          />
         </Field>
       </div>
       
@@ -753,10 +751,10 @@ function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>;
         {multipliers.map((m, i) => {
           const percent = totalWeight > 0 ? ((currentWeights[i] / totalWeight) * 100).toFixed(4) : '0';
           return (
-            <Field key={i} label={`Множитель ${m}x`} help={{ title: `Шанс: ~${percent}%`, body: <p>Вес для множителя {m}x</p> }}>
+            <Field key={i} label={`Множитель ${m}x`} help={{ title: `Шанс: ~${percent}%`, body: <p>Укажите процент выпадения (вероятность)</p> }}>
                <NumberInput
                   value={currentWeights[i]}
-                  step={100}
+                  step={0.1}
                   min={0}
                   onChange={(v) => setWeight(i, v)}
                 />

@@ -45,7 +45,7 @@ function generateExactPrizes(basePrice: number, weights: number[]): CasePrize[] 
 }
 
 export function getCases(customWeights?: Record<string, number[]>, customPrices?: number[]): CaseTier[] {
-  const defaultWeights = [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
+  const defaultWeights = [35, 12.5, 10, 35, 4, 2, 1, 0.4, 0.1];
   const defaultPrices = [10, 50, 100, 500, 1000, 5000, 10000];
   
   return defaultPrices.map((defaultPrice, idx) => {
