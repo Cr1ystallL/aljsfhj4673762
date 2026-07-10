@@ -136,7 +136,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   cards: { label: 'Card Games', Icon: Spade },
   hilo: { label: 'Hi-Lo', Icon: Spade },
   keno: { label: 'Keno', Icon: Dice5 },
-  cases: { label: 'Кейсы', Icon: Box },
+  cases: { label: 'Case', Icon: Box },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 

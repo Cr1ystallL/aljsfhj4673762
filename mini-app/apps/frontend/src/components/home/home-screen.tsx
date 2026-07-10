@@ -45,14 +45,14 @@ interface InAppGame {
 
 const inAppGames: InAppGame[] = [
   { id: 'crash', name: 'MacvJet', href: '/game/crash', bg: '/MacvJet.png' },
-  { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
+  { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/images/mines.png' },
   { id: 'hilo', name: 'Hi-Lo', href: '/game/hilo', bg: '/hilo.png', wide: true },
-  { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
+  { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/images/plinko.png' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
   { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/bj.png', wide: true },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
-  { id: 'cases', name: 'Кейсы', href: '/game/cases', bg: '/images/cases/case_1.png', wide: true },
+  { id: 'cases', name: 'Case', href: '/game/cases', bg: '/case.png', wide: true },
   { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png', wide: true },
   { id: 'baccarat', name: 'Baccarat', href: '/game/baccarat', bg: '/baccarat.png', wide: true },
 ];
