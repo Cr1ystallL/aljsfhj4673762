@@ -88,55 +88,57 @@ export function GameTopBar({
         </div>
       </div>
 
-      {/* Right cluster: balance → wallet, avatar → profile, rules */}
-      <div className="flex items-center gap-3 shrink-0">
-        {!hideBalance && (
-          <button
-            onClick={() => router.push('/balance')}
-            aria-label="Кошелёк"
-            className="group flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
-          >
-            <Wallet size={14} className="text-white" strokeWidth={2} />
-            <div className="flex items-baseline gap-1">
-              <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight group-hover:text-emerald-50 transition-colors">
-                {balanceAmount.toLocaleString('ru-RU', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span className="font-roobert text-white/40 text-[11px] uppercase font-bold tracking-wider">
-                {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
-              </span>
-            </div>
-          </button>
-        )}
-
-        <button
-          onClick={() => router.push('/profile')}
-          aria-label="Профиль"
-          className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-white/10 bg-white/5 hover:border-white/25 transition-all active:scale-95 flex items-center justify-center shadow-inner"
-        >
-          {user?.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.photoUrl}
-              alt={user.firstName || 'Профиль'}
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-              draggable={false}
-            />
-          ) : (
-            <span className="font-roobert font-bold text-sm text-white/80">
-              {initials}
-            </span>
+      {/* Right cluster: balance + avatar combined, rules */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 pl-3 pr-1 py-1 rounded-full border border-white/10 bg-white/5 shadow-inner">
+          {!hideBalance && (
+            <button
+              onClick={() => router.push('/balance')}
+              aria-label="Кошелёк"
+              className="group flex items-center gap-1.5 hover:opacity-80 transition-all active:scale-95 mr-1"
+            >
+              <Wallet size={14} className="text-white/80" strokeWidth={2} />
+              <div className="flex items-baseline gap-1">
+                <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight">
+                  {balanceAmount.toLocaleString('ru-RU', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+                <span className="font-roobert text-white/40 text-[11px] uppercase font-bold tracking-wider">
+                  {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
+                </span>
+              </div>
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={() => router.push('/profile')}
+            aria-label="Профиль"
+            className="relative w-8 h-8 rounded-full overflow-hidden border border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
+          >
+            {user?.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.photoUrl}
+                alt={user.firstName || 'Профиль'}
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                draggable={false}
+              />
+            ) : (
+              <span className="font-roobert font-bold text-sm text-white/80">
+                {initials}
+              </span>
+            )}
+          </button>
+        </div>
 
         {onHowToPlay && (
           <button
             onClick={onHowToPlay}
             aria-label="Как играть"
-            className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
+            className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 shrink-0"
           >
             <HelpCircle size={16} strokeWidth={2} />
           </button>

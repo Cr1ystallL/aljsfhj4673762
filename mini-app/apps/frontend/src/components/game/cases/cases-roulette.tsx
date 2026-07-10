@@ -75,23 +75,26 @@ export function CasesRoulette({
       
       // Wait for React to render the tracks at offset=0
       setTimeout(() => {
-        if (containerRef.current) void containerRef.current.offsetWidth; // Force reflow
-        
-        const containerWidth = containerRef.current?.offsetWidth || 300;
-        const centerOffset = containerWidth / 2 - ITEM_WIDTH / 2;
-        const randomStop = (Math.random() - 0.5) * (ITEM_WIDTH * 0.8);
-        const targetOffset = -(50 * ITEM_WIDTH) + centerOffset + randomStop;
-        
         const duration = isTurbo ? 3500 : 8000;
         setTransitionDuration(duration);
-        setOffset(targetOffset);
         
-        // Callback when done
-        setTimeout(() => {
-          soundManager.play('game.win');
-          onSpinComplete();
-        }, duration + 200); // 200ms buffer
-      }, 50);
+        requestAnimationFrame(() => {
+          if (containerRef.current) void containerRef.current.offsetWidth; // Force reflow
+          
+          const containerWidth = containerRef.current?.offsetWidth || 300;
+          const centerOffset = containerWidth / 2 - ITEM_WIDTH / 2;
+          const randomStop = (Math.random() - 0.5) * (ITEM_WIDTH * 0.8);
+          const targetOffset = -(50 * ITEM_WIDTH) + centerOffset + randomStop;
+          
+          setOffset(targetOffset);
+          
+          // Callback when done
+          setTimeout(() => {
+            soundManager.play('game.win');
+            onSpinComplete();
+          }, duration + 200); // 200ms buffer
+        });
+      }, 100);
     }
   }, [isSpinning, winningPrizeIds, isTurbo]);
 
