@@ -22,7 +22,7 @@ import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo';
+type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo' | 'cases';
 
 interface GameCfg {
   paused: boolean;
@@ -39,7 +39,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo'];
+const ORDER: GameType[] = ['crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo', 'cases'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);
@@ -586,6 +586,13 @@ function GameCard({
             </div>
           )}
 
+          {gameType === 'cases' && (
+            <CasesConfig
+              extras={form.extras || {}}
+              onChange={(cw) => updateExtra('casesWeights', cw)}
+            />
+          )}
+
           {/* Reason + save */}
           <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
             <label className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
@@ -664,5 +671,65 @@ function NumberInput({
       }}
       className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
     />
+  );
+}
+
+function CasesConfig({ extras, onChange }: { extras: Record<string, unknown>; onChange: (v: any) => void }) {
+  const [activeCase, setActiveCase] = useState(1);
+  const casesWeights = (extras.casesWeights as Record<string, number[]>) || {};
+  
+  const currentWeights = casesWeights[`case_${activeCase}`] || [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
+  const totalWeight = currentWeights.reduce((a, b) => a + b, 0);
+  
+  const multipliers = [0.1, 0.2, 0.5, 1, 2.5, 5, 10, 25, 100];
+  const caseNames = ['Обычный', 'Обычный', 'Необычный', 'Редкий', 'Эпический', 'Легендарный', 'Мифический'];
+
+  const setWeight = (idx: number, w: number) => {
+    const newWeights = [...currentWeights];
+    newWeights[idx] = w;
+    onChange({
+      ...casesWeights,
+      [`case_${activeCase}`]: newWeights,
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+        {caseNames.map((name, i) => {
+          const caseId = i + 1;
+          const isActive = activeCase === caseId;
+          return (
+            <button
+              key={caseId}
+              type="button"
+              onClick={() => setActiveCase(caseId)}
+              className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-pill border font-roobert text-[12px] transition-colors ${
+                isActive ? 'border-amber-400/50 bg-amber-400/15 text-amber-100' : 'border-white/15 bg-white/[0.04] text-frost-white/85'
+              }`}
+            >
+              <img src={`/images/cases/case_${caseId}.png`} alt="" className="w-5 h-5 object-contain drop-shadow-md" />
+              <span>{name} (Кейс {caseId})</span>
+            </button>
+          );
+        })}
+      </div>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {multipliers.map((m, i) => {
+          const percent = totalWeight > 0 ? ((currentWeights[i] / totalWeight) * 100).toFixed(4) : '0';
+          return (
+            <Field key={i} label={`Множитель ${m}x`} help={{ title: `Шанс: ~${percent}%`, body: <p>Вес для множителя {m}x</p> }}>
+               <NumberInput
+                  value={currentWeights[i]}
+                  step={100}
+                  min={0}
+                  onChange={(v) => setWeight(i, v)}
+                />
+            </Field>
+          );
+        })}
+      </div>
+    </div>
   );
 }

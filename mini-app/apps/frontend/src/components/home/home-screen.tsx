@@ -204,7 +204,7 @@ export function HomeScreen() {
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
       // Жестко скрываем эти игры от обычных игроков
-      if ((g.id === 'blackjack' || g.id === 'baccarat' || g.id === 'cases') && !isAdmin) {
+      if ((g.id === 'blackjack' || g.id === 'baccarat') && !isAdmin) {
         return false;
       }
       if (hidden[g.id] && !isAdmin) return false;

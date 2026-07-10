@@ -151,7 +151,9 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     maxBet: 100000,
     houseEdge: 0.04, // baked into the probabilities (96% RTP)
     wagerContribution: 1.0,
-    extras: {},
+    extras: {
+      casesWeights: {}
+    },
   },
   keno: {
     paused: false,

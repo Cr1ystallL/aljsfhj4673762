@@ -24,7 +24,7 @@ import {
 } from '../games/bridges/bridges-engine.js';
 import { hiloEngine } from '../games/hilo/hilo-engine.js';
 import { casesEngine } from '../games/cases/cases-engine.js';
-import { CASES } from '../games/cases/config.js';
+import { CASES, getCases } from '../games/cases/config.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
@@ -1560,7 +1560,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   /* -------------------------------------------------------------- cases */
   
   app.get('/cases/config', { preHandler: authenticate }, async (request, reply) => {
-    return reply.send({ cases: CASES });
+    const cfg = await gameConfig.get('cases');
+    const customWeights = cfg.extras?.casesWeights as Record<string, number[]> | undefined;
+    return reply.send({ cases: getCases(customWeights) });
   });
 
   app.post<{ Body: { caseId: string; count: number; clientSeed?: string } }>(

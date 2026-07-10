@@ -29,14 +29,9 @@ const TIER_NAMES = [
   'Мифический'
 ];
 
-function generateExactPrizes(basePrice: number): CasePrize[] {
+function generateExactPrizes(basePrice: number, weights: number[]): CasePrize[] {
   const multipliers = [0.1, 0.2, 0.5, 1, 2.5, 5, 10, 25, 100];
   const prizes = multipliers.map(m => basePrice * m);
-  const targetEV = basePrice * 0.96;
-  const targetSum = targetEV * 100000;
-  
-  // Fixed weights exactly calculated for 96% EV:
-  const weights = [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
   
   // Colors for prizes (from lowest to highest)
   const prizeColors = ['#b08d57', '#9e9e9e', '#4caf50', '#e0e0e0', '#2196f3', '#9c27b0', '#e91e63', '#ff9800', '#f44336'];
@@ -44,19 +39,26 @@ function generateExactPrizes(basePrice: number): CasePrize[] {
   return prizes.map((p, i) => ({
     id: `${multipliers[i]}x`,
     amount: p,
-    weight: weights[i],
+    weight: weights[i] ?? 0,
     color: prizeColors[i]
   }));
 }
 
-export const CASES: CaseTier[] = TIER_MULTIPLIERS.map((mult, idx) => {
-  const price = 10 * mult;
-  const prizes = generateExactPrizes(price);
-  return {
-    id: `case_${idx + 1}`,
-    name: TIER_NAMES[idx],
-    price,
-    prizes,
-    totalWeight: 100000
-  };
-});
+export function getCases(customWeights?: Record<string, number[]>): CaseTier[] {
+  const defaultWeights = [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
+  return TIER_MULTIPLIERS.map((mult, idx) => {
+    const caseId = `case_${idx + 1}`;
+    const weights = customWeights?.[caseId] || defaultWeights;
+    const price = 10 * mult;
+    const prizes = generateExactPrizes(price, weights);
+    return {
+      id: caseId,
+      name: TIER_NAMES[idx],
+      price,
+      prizes,
+      totalWeight: weights.reduce((a, b) => a + b, 0)
+    };
+  });
+}
+
+export const CASES = getCases();

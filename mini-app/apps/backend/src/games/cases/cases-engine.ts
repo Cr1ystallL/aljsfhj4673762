@@ -3,7 +3,8 @@ import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
-import { CASES, CaseTier, CasePrize } from './config.js';
+import { getCases, CaseTier, CasePrize } from './config.js';
+import { gameConfig } from '../../services/game-config.js';
 import type { Bet } from '../../game-engine/types.js';
 
 export interface OpenCaseResult {
@@ -26,7 +27,10 @@ class CasesEngine {
       throw new Error('Invalid count. Must be between 1 and 3.');
     }
 
-    const caseTier = CASES.find((c) => c.id === caseId);
+    const cfg = await gameConfig.get('cases');
+    const customWeights = cfg.extras?.casesWeights as Record<string, number[]> | undefined;
+    const dynamicCases = getCases(customWeights);
+    const caseTier = dynamicCases.find((c) => c.id === caseId);
     if (!caseTier) {
       throw new Error('Invalid case ID');
     }
