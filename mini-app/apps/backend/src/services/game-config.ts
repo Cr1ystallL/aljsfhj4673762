@@ -25,7 +25,8 @@ export type GameType =
   | 'wheel'
   | 'bridges'
   | 'blackjack'
-  | 'hilo';
+  | 'hilo'
+  | 'cases';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve
@@ -140,6 +141,15 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 50000,
     houseEdge: 0.04,
+    wagerContribution: 1.0,
+    extras: {},
+  },
+  cases: {
+    paused: false,
+    hidden: false,
+    minBet: 1,
+    maxBet: 100000,
+    houseEdge: 0.04, // baked into the probabilities (96% RTP)
     wagerContribution: 1.0,
     extras: {},
   },

@@ -104,7 +104,7 @@ class CasesEngine {
         endedAt: new Date(),
         nonce: count,
         result: {
-          prizes: prizesWon,
+          prizes: prizesWon as any,
           totalPayout,
         },
       },
