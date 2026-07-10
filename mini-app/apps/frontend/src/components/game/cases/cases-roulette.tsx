@@ -51,11 +51,11 @@ export function CasesRoulette({
   // Generate idle tracks
   useEffect(() => {
     if (!isSpinning) {
-      const newTracks = Array.from({ length: count }).map((_, i) => generateSequence(prizes, null, 60, i % 2 !== 0 ? 0 : 50));
+      const newTracks = Array.from({ length: count }).map((_, i) => generateSequence(prizes, null, 80, i % 2 !== 0 ? 10 : 70));
       setTracks(newTracks);
       void controls.set((i) => {
         const isReverse = i % 2 !== 0;
-        return { x: isReverse ? -(50 * ITEM_WIDTH) : 0 };
+        return { x: isReverse ? -(70 * ITEM_WIDTH) : 0 };
       });
     }
   }, [count, prizes, isSpinning, controls]);
@@ -63,13 +63,13 @@ export function CasesRoulette({
   useEffect(() => {
     if (isSpinning && winningPrizeIds.length > 0) {
       // 1. Generate new tracks with winners
-      const newTracks = winningPrizeIds.map((winId, i) => generateSequence(prizes, winId, 60, i % 2 !== 0 ? 0 : 50));
+      const newTracks = winningPrizeIds.map((winId, i) => generateSequence(prizes, winId, 80, i % 2 !== 0 ? 10 : 70));
       setTracks(newTracks);
       
       // 2. Instantly reset position to start
       void controls.set((i) => {
         const isReverse = i % 2 !== 0;
-        return { x: isReverse ? -(50 * ITEM_WIDTH) : 0 };
+        return { x: isReverse ? -(70 * ITEM_WIDTH) : 0 };
       });
       soundManager.play('ui.click');
       
@@ -84,7 +84,7 @@ export function CasesRoulette({
         // Start animation
         void controls.start((i) => {
           const isReverse = i % 2 !== 0;
-          const targetOffset = isReverse ? centerOffset : -(50 * ITEM_WIDTH) + centerOffset;
+          const targetOffset = isReverse ? -(10 * ITEM_WIDTH) + centerOffset : -(70 * ITEM_WIDTH) + centerOffset;
           return {
             x: targetOffset + randomStop,
             transition: { duration, ease: [0.15, 0.85, 0.15, 1] }

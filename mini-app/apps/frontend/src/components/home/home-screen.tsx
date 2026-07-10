@@ -45,9 +45,9 @@ interface InAppGame {
 
 const inAppGames: InAppGame[] = [
   { id: 'crash', name: 'MacvJet', href: '/game/crash', bg: '/MacvJet.png' },
-  { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/images/mines.png' },
+  { id: 'mines', name: 'Mines', href: '/game/mines', bg: '/Mines.png' },
   { id: 'hilo', name: 'Hi-Lo', href: '/game/hilo', bg: '/hilo.png', wide: true },
-  { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/images/plinko.png' },
+  { id: 'plinko', name: 'Plinko', href: '/game/plinko', bg: '/Plinko.png' },
   { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', bg: '/Coinflip.png' },
   { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', bg: '/bj.png', wide: true },
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },

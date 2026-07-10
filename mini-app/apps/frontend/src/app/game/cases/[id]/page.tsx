@@ -63,7 +63,7 @@ export default function CaseOpeningPage() {
   const [winningIds, setWinningIds] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   
-  const { balance, fetchBalance, optimisticUpdate } = useBalance();
+  const { balance, fetchBalance, optimisticUpdate, freezeBalance, unfreezeBalance } = useBalance();
   const activeBalance = balance?.amount ?? 10000;
 
   useEffect(() => {
@@ -102,6 +102,8 @@ export default function CaseOpeningPage() {
       setShowConfetti(false); // reset
       setWinningIds([]); // Reset
       
+      // Freeze global balance updates via websocket so win is deferred visually
+      freezeBalance();
       // Deduct cost immediately so user sees balance drop
       optimisticUpdate(-totalCost);
       
@@ -114,8 +116,9 @@ export default function CaseOpeningPage() {
       
       const json = await res.json();
       if (!res.ok) {
-        // Revert deduction on error
+        // Revert deduction and unfreeze on error
         optimisticUpdate(totalCost);
+        unfreezeBalance();
         reportApiError(res, json, 'Could not open case');
         throw new Error(json?.message || 'Open failed');
       }
@@ -123,9 +126,9 @@ export default function CaseOpeningPage() {
       const prizes = json.result.prizes as CasePrize[];
       setWinningIds(prizes.map(p => p.id));
       
-      // DO NOT fetchBalance here, so the win is deferred until animation finishes
     } catch (err) {
       setIsSpinning(false);
+      unfreezeBalance();
       console.error(err);
     }
   };
@@ -143,7 +146,8 @@ export default function CaseOpeningPage() {
       }
     }
     
-    // Fetch real balance (which includes the win) now that animation is done
+    // Unfreeze balance so websocket push or fetchBalance is applied!
+    unfreezeBalance();
     void fetchBalance();
     
     // Keep prizes visible for 2 seconds before allowing next spin
@@ -242,24 +246,20 @@ export default function CaseOpeningPage() {
           <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">Содержимое кейса</h2>
           
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-            {caseTier.prizes.sort((a, b) => b.amount - a.amount).map(p => (
+            {caseTier.prizes.map((p) => (
               <div 
                 key={p.id}
                 className="rounded-lg border border-white/5 bg-white/[0.03] p-3 flex flex-col items-center justify-center gap-2 relative overflow-hidden"
                 style={{ borderBottom: `2px solid ${p.color}40` }}
               >
-                <div className="w-16 h-16 relative">
-                  <Image
-                    src={`/images/cases/${p.id}.png`}
-                    alt={p.id}
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
+                <div className="w-14 h-14 relative z-10">
+                  <Image src={`/images/cases/${p.id}.png`} alt={p.id} fill className="object-contain drop-shadow-lg" unoptimized />
                 </div>
-                <span className="font-roobert font-bold text-white text-base">
-                  {p.amount.toLocaleString('ru-RU')} zł
-                </span>
+                <div className="font-bold text-sm text-white/90 z-10">{p.id}</div>
+                <div 
+                  className="absolute inset-0 opacity-10 pointer-events-none"
+                  style={{ background: `radial-gradient(circle at center, ${p.color} 0%, transparent 70%)` }}
+                />
               </div>
             ))}
           </div>

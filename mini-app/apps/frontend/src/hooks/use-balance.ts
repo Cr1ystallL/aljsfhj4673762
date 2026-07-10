@@ -74,6 +74,14 @@ export function useBalance() {
     if (!cur) return;
     useBalanceStore.getState().updateBalance(cur.amount + delta);
   }, []);
+  
+  const freezeBalance = useCallback(() => {
+    useBalanceStore.getState().freeze();
+  }, []);
+
+  const unfreezeBalance = useCallback(() => {
+    useBalanceStore.getState().unfreeze();
+  }, []);
 
   return {
     balance,
@@ -81,5 +89,7 @@ export function useBalance() {
     fetchBalance,
     syncBalance,
     optimisticUpdate,
+    freezeBalance,
+    unfreezeBalance,
   };
 }

@@ -39,7 +39,7 @@ function generateExactPrizes(basePrice: number): CasePrize[] {
   const weights = [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
   
   // Colors for prizes (from lowest to highest)
-  const prizeColors = ['#9e9e9e', '#757575', '#4caf50', '#2196f3', '#9c27b0', '#ff9800', '#ff5722', '#e91e63', '#f44336'];
+  const prizeColors = ['#b08d57', '#9e9e9e', '#4caf50', '#e0e0e0', '#2196f3', '#9c27b0', '#e91e63', '#ff9800', '#f44336'];
   
   return prizes.map((p, i) => ({
     id: `${multipliers[i]}x`,
