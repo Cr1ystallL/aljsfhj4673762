@@ -1562,7 +1562,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.get('/cases/config', { preHandler: authenticate }, async (request, reply) => {
     const cfg = await gameConfig.get('cases');
     const customWeights = cfg.extras?.casesWeights as Record<string, number[]> | undefined;
-    return reply.send({ cases: getCases(customWeights) });
+    const customPrices = cfg.extras?.casesPrices as number[] | undefined;
+    return reply.send({ cases: getCases(customWeights, customPrices) });
   });
 
   app.post<{ Body: { caseId: string; count: number; clientSeed?: string } }>(

@@ -29,7 +29,8 @@ class CasesEngine {
 
     const cfg = await gameConfig.get('cases');
     const customWeights = cfg.extras?.casesWeights as Record<string, number[]> | undefined;
-    const dynamicCases = getCases(customWeights);
+    const customPrices = cfg.extras?.casesPrices as number[] | undefined;
+    const dynamicCases = getCases(customWeights, customPrices);
     const caseTier = dynamicCases.find((c) => c.id === caseId);
     if (!caseTier) {
       throw new Error('Invalid case ID');

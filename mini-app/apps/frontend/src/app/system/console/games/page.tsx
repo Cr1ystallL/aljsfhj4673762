@@ -587,10 +587,12 @@ function GameCard({
           )}
 
           {gameType === 'cases' && (
-            <CasesConfig
-              extras={form.extras || {}}
-              onChange={(cw) => updateExtra('casesWeights', cw)}
-            />
+            <div className="pt-2 border-t border-white/5">
+              <CasesConfig
+                extras={form.extras || {}}
+                updateExtra={updateExtra}
+              />
+            </div>
           )}
 
           {/* Reason + save */}
@@ -658,28 +660,41 @@ function NumberInput({
   max?: number;
   onChange: (v: number) => void;
 }) {
+  const [strValue, setStrValue] = useState(value.toString());
+
+  useEffect(() => {
+    if (parseFloat(strValue) !== value && !Number.isNaN(value)) {
+      setStrValue(value.toString());
+    }
+  }, [value]);
+
   return (
     <input
       type="number"
       step={step}
       min={min}
       max={max}
-      value={value}
+      value={strValue}
       onChange={(e) => {
-        const v = parseFloat(e.target.value);
+        const txt = e.target.value;
+        setStrValue(txt);
+        const v = parseFloat(txt);
         if (Number.isFinite(v)) onChange(v);
+        else if (txt === '') onChange(0);
       }}
-      className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
+      className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-1.5 font-roobert text-[13px] tabular-nums text-frost-white focus:outline-none focus:border-white/30 w-full"
     />
   );
 }
 
-function CasesConfig({ extras, onChange }: { extras: Record<string, unknown>; onChange: (v: any) => void }) {
+function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>; updateExtra: (key: string, v: any) => void }) {
   const [activeCase, setActiveCase] = useState(1);
   const casesWeights = (extras.casesWeights as Record<string, number[]>) || {};
+  const casesPrices = (extras.casesPrices as number[]) || [10, 50, 100, 500, 1000, 5000, 10000];
   
   const currentWeights = casesWeights[`case_${activeCase}`] || [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
   const totalWeight = currentWeights.reduce((a, b) => a + b, 0);
+  const currentPrice = casesPrices[activeCase - 1] || 10;
   
   const multipliers = [0.1, 0.2, 0.5, 1, 2.5, 5, 10, 25, 100];
   const caseNames = ['Обычный', 'Обычный', 'Необычный', 'Редкий', 'Эпический', 'Легендарный', 'Мифический'];
@@ -687,14 +702,20 @@ function CasesConfig({ extras, onChange }: { extras: Record<string, unknown>; on
   const setWeight = (idx: number, w: number) => {
     const newWeights = [...currentWeights];
     newWeights[idx] = w;
-    onChange({
+    updateExtra('casesWeights', {
       ...casesWeights,
       [`case_${activeCase}`]: newWeights,
     });
   };
 
+  const setPrice = (p: number) => {
+    const newPrices = [...casesPrices];
+    newPrices[activeCase - 1] = p;
+    updateExtra('casesPrices', newPrices);
+  };
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 mt-2">
       <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
         {caseNames.map((name, i) => {
           const caseId = i + 1;
@@ -713,6 +734,19 @@ function CasesConfig({ extras, onChange }: { extras: Record<string, unknown>; on
             </button>
           );
         })}
+      </div>
+
+      <div className="border border-white/10 rounded-xl p-4 bg-white/[0.02]">
+        <Field label={`Цена: Кейс ${activeCase}`} help={{ title: `Цена открытия кейса`, body: <p>Базовая цена. Выигрыши (множители) масштабируются от неё автоматически.</p> }}>
+          <div className="w-48 mt-2">
+            <NumberInput
+              value={currentPrice}
+              step={1}
+              min={0}
+              onChange={(v) => setPrice(v)}
+            />
+          </div>
+        </Field>
       </div>
       
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

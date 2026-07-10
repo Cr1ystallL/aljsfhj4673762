@@ -44,12 +44,14 @@ function generateExactPrizes(basePrice: number, weights: number[]): CasePrize[] 
   }));
 }
 
-export function getCases(customWeights?: Record<string, number[]>): CaseTier[] {
+export function getCases(customWeights?: Record<string, number[]>, customPrices?: number[]): CaseTier[] {
   const defaultWeights = [35000, 12500, 10000, 35000, 4000, 2000, 1000, 400, 100];
-  return TIER_MULTIPLIERS.map((mult, idx) => {
+  const defaultPrices = [10, 50, 100, 500, 1000, 5000, 10000];
+  
+  return defaultPrices.map((defaultPrice, idx) => {
     const caseId = `case_${idx + 1}`;
     const weights = customWeights?.[caseId] || defaultWeights;
-    const price = 10 * mult;
+    const price = customPrices?.[idx] || defaultPrice;
     const prizes = generateExactPrizes(price, weights);
     return {
       id: caseId,
