@@ -168,12 +168,12 @@ export function MenuDrawer({ isOpen, onClose, onGameSelect, isAuthenticated = tr
   const visibleGames = useMemo(() => {
     if (!availabilityLoaded) return [] as typeof inAppGames;
     const hiddenFallback: Partial<Record<GameKey, boolean>> = isAuthenticated ? {} : { cards: true };
+    const isAdmin = availability?.isAdmin ?? false;
     // Hardcode cases to be hidden from non-admins
     if (!isAdmin) {
       hiddenFallback['cases'] = true;
     }
     const hidden: Partial<Record<GameKey, boolean>> = availability?.hidden ?? {};
-    const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
       if ((hidden[g.id] ?? hiddenFallback[g.id]) && !isAdmin) return false;
       return true;
