@@ -2,30 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { PlinkoIcon } from '@/components/ui/game-icon';
 import { CasesRoulette } from '@/components/game/cases/cases-roulette';
+import { CasesHistory } from '@/components/game/cases/cases-history';
 import { useBalance } from '@/hooks/use-balance';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
 import type { CaseTier, CasePrize } from '../page';
 
-// Simple inline confetti component
 function Confetti({ active }: { active: boolean }) {
-  const [particles, setParticles] = useState<{ id: number; tx: number; ty: number; rot: number; color: string; delay: number }[]>([]);
+  const [particles, setParticles] = useState<{ id: number; x: number; y: number; rot: number; color: string; delay: number }[]>([]);
   
   useEffect(() => {
     if (active) {
       const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'];
       const newParticles = [];
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 40; i++) {
         newParticles.push({
           id: i,
-          tx: (Math.random() - 0.5) * 300,
-          ty: -(Math.random() * 300 + 100),
+          x: (Math.random() - 0.5) * 400,
+          y: -(Math.random() * 400 + 150),
           rot: Math.random() * 360,
           color: colors[Math.floor(Math.random() * colors.length)],
-          delay: Math.random() * 0.2
+          delay: Math.random() * 0.1
         });
       }
       setParticles(newParticles);
@@ -34,27 +36,21 @@ function Confetti({ active }: { active: boolean }) {
     }
   }, [active]);
 
-  if (!active || particles.length === 0) return null;
-
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
-      <div className="absolute bottom-0 left-4">
-        {particles.slice(0, 25).map(p => (
-          <div key={p.id} className="absolute bottom-0 w-3 h-3 rounded-sm opacity-0 animate-confetti" style={{ backgroundColor: p.color, '--tx': `${p.tx}px`, '--ty': `${p.ty}px`, '--rot': `${p.rot}deg`, animationDelay: `${p.delay}s` } as React.CSSProperties} />
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-[100]">
+      <AnimatePresence>
+        {particles.map(p => (
+          <motion.div
+            key={p.id}
+            initial={{ opacity: 1, scale: 0, x: p.id % 2 === 0 ? '-50px' : 'calc(100vw + 50px)', y: '100%' }}
+            animate={{ opacity: 0, scale: 1, x: p.id % 2 === 0 ? p.x : `calc(100vw - 50px + ${p.x}px)`, y: p.y, rotate: p.rot }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5 + Math.random(), ease: "easeOut", delay: p.delay }}
+            className="absolute w-3 h-3 rounded-sm shadow-sm"
+            style={{ backgroundColor: p.color }}
+          />
         ))}
-      </div>
-      <div className="absolute bottom-0 right-4">
-        {particles.slice(25).map(p => (
-          <div key={p.id} className="absolute bottom-0 w-3 h-3 rounded-sm opacity-0 animate-confetti" style={{ backgroundColor: p.color, '--tx': `${p.tx}px`, '--ty': `${p.ty}px`, '--rot': `${p.rot}deg`, animationDelay: `${p.delay}s` } as React.CSSProperties} />
-        ))}
-      </div>
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes confetti {
-          0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
-          100% { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; }
-        }
-        .animate-confetti { animation: confetti 2s ease-out forwards; }
-      `}} />
+      </AnimatePresence>
     </div>
   );
 }
@@ -135,7 +131,7 @@ export default function CaseOpeningPage() {
 
   const handleSpinComplete = () => {
     setIsSpinning(false);
-    void fetchBalance(); // Refresh balance again to be sure
+    void fetchBalance();
     
     if (caseTier && winningIds.length > 0) {
       let totalWon = 0;
@@ -159,9 +155,9 @@ export default function CaseOpeningPage() {
   }
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4 relative">
-        <Confetti active={showConfetti} />
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white relative overflow-hidden">
+      <Confetti active={showConfetti} />
+      <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4 relative z-10">
         <GameTopBar title={caseTier.name} Icon={PlinkoIcon} onBack={() => router.push('/game/cases')} />
 
         {/* Roulette Area */}
@@ -194,13 +190,13 @@ export default function CaseOpeningPage() {
             </div>
             
             {/* Count Selector */}
-            <div className="flex items-center bg-white/[0.04] rounded-lg p-1 border border-white/[0.05]">
+            <div className="flex items-center bg-black/40 rounded-full p-0.5 border border-white/5">
               {[1, 2, 3].map(c => (
                 <button
                   key={c}
                   disabled={isSpinning}
                   onClick={() => setCount(c)}
-                  className={`w-10 h-8 rounded-md font-medium text-sm transition-all duration-200 ${count === c ? 'bg-white/15 text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+                  className={`w-12 h-8 rounded-full font-bold text-sm transition-all duration-200 ${count === c ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'}`}
                 >
                   {c}
                 </button>
@@ -227,17 +223,28 @@ export default function CaseOpeningPage() {
               <div 
                 key={p.id}
                 className="rounded-lg border border-white/5 bg-white/[0.03] p-3 flex flex-col items-center justify-center gap-2 relative overflow-hidden"
+                style={{ borderBottom: `2px solid ${p.color}40` }}
               >
-                <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: p.color }} />
+                <div className="w-16 h-16 relative">
+                  <Image
+                    src={`/images/cases/${p.id}.png`}
+                    alt={p.id}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
                 <span className="font-roobert font-bold text-white text-base">
-                  {p.amount.toLocaleString('ru-RU')}
-                </span>
-                <span className="text-[10px] text-white/40 uppercase">
-                  {(p.weight / 1000).toFixed(1)}% шанс
+                  {p.amount.toLocaleString('ru-RU')} zł
                 </span>
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">Live История</h2>
+          <CasesHistory />
         </div>
 
       </div>

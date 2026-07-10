@@ -48,17 +48,33 @@ export function CasesHistory() {
   }
 
   return (
-    <div className="w-full overflow-hidden flex gap-2 overflow-x-auto pb-4 custom-scrollbar">
+    <div className="w-full overflow-hidden flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
       {history.map((entry) => (
         <div
           key={entry.id}
-          className="flex-shrink-0 flex items-center gap-3 w-48 rounded-lg border border-white/5 p-2 bg-white/[0.03] backdrop-blur-md"
-          style={{ borderLeft: `4px solid ${entry.prizeColor}` }}
+          className="flex-shrink-0 flex flex-col items-center justify-between w-28 min-w-[112px] h-32 rounded-xl border p-2 bg-white/[0.02] backdrop-blur-md relative overflow-hidden"
+          style={{ borderColor: entry.prizeColor }}
         >
-          {/* Case Photo */}
-          <div className="w-10 h-10 relative flex-shrink-0">
+          {/* Top: User info + Payout */}
+          <div className="w-full flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="w-5 h-5 rounded-full overflow-hidden bg-white/10 flex-shrink-0 border border-white/10">
+                {entry.photoUrl ? (
+                  <img src={entry.photoUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[9px] font-bold">?</div>
+                )}
+              </div>
+              <span className="text-[10px] font-medium text-white/80 truncate max-w-[40px]">
+                {entry.name}
+              </span>
+            </div>
+          </div>
+          
+          {/* Middle: Case Photo */}
+          <div className="w-14 h-14 relative my-1">
              <Image
-                src={entry.caseId === 'case_1' ? '/images/cases/poor_case.png' : `/images/cases/${entry.caseId}.png`}
+                src={`/images/cases/${entry.caseId}.png`}
                 alt={entry.caseName}
                 fill
                 className="object-contain"
@@ -66,25 +82,9 @@ export function CasesHistory() {
              />
           </div>
 
-          <div className="flex flex-col flex-1 min-w-0">
-            {/* User details */}
-            <div className="flex items-center gap-1.5 justify-center mb-1">
-              <div className="w-4 h-4 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
-                {entry.photoUrl ? (
-                  <img src={entry.photoUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[8px] font-bold">?</div>
-                )}
-              </div>
-              <span className="text-[11px] font-medium text-white/80 truncate">
-                {entry.name}
-              </span>
-            </div>
-            
-            {/* Won Amount */}
-            <div className="text-center font-roobert font-semibold text-[13px]" style={{ color: entry.prizeColor }}>
-              {entry.payout.toLocaleString('ru-RU')} zł
-            </div>
+          {/* Bottom: Won Amount */}
+          <div className="w-full text-center font-roobert font-bold text-[13px] rounded bg-black/20 py-1" style={{ color: entry.prizeColor, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+            {entry.payout.toLocaleString('ru-RU')} zł
           </div>
         </div>
       ))}
