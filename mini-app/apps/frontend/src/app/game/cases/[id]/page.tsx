@@ -173,7 +173,7 @@ export default function CaseOpeningPage() {
         </div>
         
         {/* Controls */}
-        <div className="w-full rounded-2xl bg-white/[0.03] border border-white/10 p-4 backdrop-blur-xl flex flex-col gap-5 mt-2">
+        <div className="w-full rounded-3xl bg-white/[0.03] border border-white/[0.08] p-5 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] flex flex-col gap-6 mt-2 relative z-20">
           
           <div className="flex items-center justify-between">
             {/* Turbo Toggle */}
@@ -182,21 +182,21 @@ export default function CaseOpeningPage() {
               <button 
                 onClick={() => !isSpinning && setIsTurbo(!isTurbo)}
                 disabled={isSpinning}
-                className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75"
+                className="relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none"
               >
                 <span className={`absolute inset-0 rounded-full transition-colors duration-200 ease-in-out ${isTurbo ? 'bg-white/40' : 'bg-white/10'}`} />
-                <span className={`pointer-events-none absolute left-1 h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out shadow-sm ${isTurbo ? 'translate-x-5' : 'translate-x-0'}`} />
+                <span className={`pointer-events-none absolute left-1 h-5 w-5 transform rounded-full bg-white transition duration-200 ease-in-out shadow-sm ${isTurbo ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
             
             {/* Count Selector */}
-            <div className="flex items-center bg-black/40 rounded-full p-0.5 border border-white/5">
+            <div className="flex items-center gap-1 bg-black/40 rounded-full p-1 border border-white/5 shadow-inner">
               {[1, 2, 3].map(c => (
                 <button
                   key={c}
                   disabled={isSpinning}
                   onClick={() => setCount(c)}
-                  className={`w-12 h-8 rounded-full font-bold text-sm transition-all duration-200 ${count === c ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'}`}
+                  className={`w-12 h-9 flex items-center justify-center shrink-0 rounded-full font-bold text-[15px] transition-all duration-200 ${count === c ? 'bg-white/[0.15] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
                 >
                   {c}
                 </button>
@@ -208,7 +208,7 @@ export default function CaseOpeningPage() {
           <button
             onClick={handleOpen}
             disabled={isSpinning || activeBalance < (caseTier.price * count)}
-            className="w-full py-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[16px] text-white/90 shadow-sm border border-white/10"
+            className="w-full py-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[17px] text-white/95 shadow-sm border border-white/10"
           >
             {isSpinning ? 'Открываем...' : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`}
           </button>

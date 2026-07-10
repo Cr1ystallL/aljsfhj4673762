@@ -48,11 +48,11 @@ export function CasesHistory() {
   }
 
   return (
-    <div className="w-full overflow-hidden flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
+    <div className="w-full overflow-hidden flex gap-3 overflow-x-auto pb-4 scrollbar-hide [&::-webkit-scrollbar]:hidden">
       {history.map((entry) => (
         <div
           key={entry.id}
-          className="flex-shrink-0 flex flex-col items-center justify-between w-28 min-w-[112px] h-32 rounded-xl border p-2 bg-white/[0.02] backdrop-blur-md relative overflow-hidden"
+          className="flex-shrink-0 flex flex-col items-center justify-between w-36 min-w-[144px] h-32 rounded-xl border p-2 bg-white/[0.02] backdrop-blur-md relative overflow-hidden"
           style={{ borderColor: entry.prizeColor }}
         >
           {/* Top: User info + Payout */}
