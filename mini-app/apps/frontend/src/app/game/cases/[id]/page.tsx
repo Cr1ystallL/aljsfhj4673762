@@ -10,6 +10,55 @@ import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
 import type { CaseTier, CasePrize } from '../page';
 
+// Simple inline confetti component
+function Confetti({ active }: { active: boolean }) {
+  const [particles, setParticles] = useState<{ id: number; tx: number; ty: number; rot: number; color: string; delay: number }[]>([]);
+  
+  useEffect(() => {
+    if (active) {
+      const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'];
+      const newParticles = [];
+      for (let i = 0; i < 50; i++) {
+        newParticles.push({
+          id: i,
+          tx: (Math.random() - 0.5) * 300,
+          ty: -(Math.random() * 300 + 100),
+          rot: Math.random() * 360,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          delay: Math.random() * 0.2
+        });
+      }
+      setParticles(newParticles);
+      const timer = setTimeout(() => setParticles([]), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [active]);
+
+  if (!active || particles.length === 0) return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
+      <div className="absolute bottom-0 left-4">
+        {particles.slice(0, 25).map(p => (
+          <div key={p.id} className="absolute bottom-0 w-3 h-3 rounded-sm opacity-0 animate-confetti" style={{ backgroundColor: p.color, '--tx': `${p.tx}px`, '--ty': `${p.ty}px`, '--rot': `${p.rot}deg`, animationDelay: `${p.delay}s` } as React.CSSProperties} />
+        ))}
+      </div>
+      <div className="absolute bottom-0 right-4">
+        {particles.slice(25).map(p => (
+          <div key={p.id} className="absolute bottom-0 w-3 h-3 rounded-sm opacity-0 animate-confetti" style={{ backgroundColor: p.color, '--tx': `${p.tx}px`, '--ty': `${p.ty}px`, '--rot': `${p.rot}deg`, animationDelay: `${p.delay}s` } as React.CSSProperties} />
+        ))}
+      </div>
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes confetti {
+          0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; }
+        }
+        .animate-confetti { animation: confetti 2s ease-out forwards; }
+      `}} />
+    </div>
+  );
+}
+
 export default function CaseOpeningPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
@@ -20,6 +69,7 @@ export default function CaseOpeningPage() {
   
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningIds, setWinningIds] = useState<string[]>([]);
+  const [showConfetti, setShowConfetti] = useState(false);
   
   const { balance, fetchBalance } = useBalance();
   const activeBalance = balance?.amount ?? 10000;
@@ -57,6 +107,7 @@ export default function CaseOpeningPage() {
 
     try {
       setIsSpinning(true);
+      setShowConfetti(false);
       setWinningIds([]); // Reset
       
       const res = await fetch('/api/games/cases/open', {
@@ -75,8 +126,6 @@ export default function CaseOpeningPage() {
       const prizes = json.result.prizes as CasePrize[];
       setWinningIds(prizes.map(p => p.id));
       
-      // Balance is refreshed instantly by the server, but we don't fetch it yet to keep suspense.
-      // Wait actually, we can fetch it now, it's fine.
       void fetchBalance();
     } catch (err) {
       setIsSpinning(false);
@@ -88,7 +137,6 @@ export default function CaseOpeningPage() {
     setIsSpinning(false);
     void fetchBalance(); // Refresh balance again to be sure
     
-    // Calculate total won
     if (caseTier && winningIds.length > 0) {
       let totalWon = 0;
       for (const wId of winningIds) {
@@ -96,13 +144,8 @@ export default function CaseOpeningPage() {
         if (prize) totalWon += prize.amount;
       }
       
-      const totalCost = caseTier.price * count;
-      if (totalWon > totalCost) {
-        toast.success(`Супер! Вы выиграли ${totalWon.toLocaleString('ru-RU')} zł!`);
-      } else if (totalWon > 0) {
-        toast.info(`Выпало ${totalWon.toLocaleString('ru-RU')} zł`);
-      } else {
-         toast.info(`В этот раз без крупного куша...`);
+      if (totalWon > 0) {
+        setShowConfetti(true);
       }
     }
   };
@@ -117,12 +160,14 @@ export default function CaseOpeningPage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
+      <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4 relative">
+        <Confetti active={showConfetti} />
         <GameTopBar title={caseTier.name} Icon={PlinkoIcon} onBack={() => router.push('/game/cases')} />
 
         {/* Roulette Area */}
         <div className="w-full relative mt-4">
           <CasesRoulette 
+            count={count}
             prizes={caseTier.prizes}
             winningPrizeIds={winningIds}
             isSpinning={isSpinning}
@@ -132,29 +177,30 @@ export default function CaseOpeningPage() {
         </div>
         
         {/* Controls */}
-        <div className="w-full rounded-2xl bg-white/[0.03] border border-white/10 p-4 backdrop-blur-xl flex flex-col gap-4 mt-2">
+        <div className="w-full rounded-2xl bg-white/[0.03] border border-white/10 p-4 backdrop-blur-xl flex flex-col gap-5 mt-2">
           
           <div className="flex items-center justify-between">
             {/* Turbo Toggle */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-white/70">Турбо крутка</span>
               <button 
                 onClick={() => !isSpinning && setIsTurbo(!isTurbo)}
                 disabled={isSpinning}
-                className={`w-12 h-6 rounded-full relative transition-colors ${isTurbo ? 'bg-green-500' : 'bg-white/10'}`}
+                className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75"
               >
-                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${isTurbo ? 'translate-x-6' : 'translate-x-0'}`} />
+                <span className={`absolute inset-0 rounded-full transition-colors duration-200 ease-in-out ${isTurbo ? 'bg-white/40' : 'bg-white/10'}`} />
+                <span className={`pointer-events-none absolute left-1 h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out shadow-sm ${isTurbo ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
             
             {/* Count Selector */}
-            <div className="flex items-center gap-2 bg-black/30 rounded-xl p-1">
+            <div className="flex items-center bg-white/[0.04] rounded-lg p-1 border border-white/[0.05]">
               {[1, 2, 3].map(c => (
                 <button
                   key={c}
                   disabled={isSpinning}
                   onClick={() => setCount(c)}
-                  className={`w-10 h-8 rounded-lg font-bold transition-colors ${count === c ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10'}`}
+                  className={`w-10 h-8 rounded-md font-medium text-sm transition-all duration-200 ${count === c ? 'bg-white/15 text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
                 >
                   {c}
                 </button>
@@ -166,7 +212,7 @@ export default function CaseOpeningPage() {
           <button
             onClick={handleOpen}
             disabled={isSpinning || activeBalance < (caseTier.price * count)}
-            className="w-full py-4 rounded-xl bg-gradient-to-b from-[#4CAF50] to-[#2E7D32] hover:opacity-90 disabled:opacity-50 disabled:grayscale transition-all font-bold text-lg text-white shadow-lg relative overflow-hidden"
+            className="w-full py-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[16px] text-white/90 shadow-sm border border-white/10"
           >
             {isSpinning ? 'Открываем...' : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`}
           </button>

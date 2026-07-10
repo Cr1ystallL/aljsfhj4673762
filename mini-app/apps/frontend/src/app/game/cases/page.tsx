@@ -47,7 +47,7 @@ export default function CasesPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {cases.map((c) => (
-            <Link key={c.id} href={`/game/cases/${c.id}`} className="group relative rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center justify-center gap-3 transition-transform hover:scale-105 active:scale-95 overflow-hidden">
+            <Link key={c.id} href={`/game/cases/${c.id}`} className={`group relative rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center justify-center gap-3 transition-transform hover:scale-105 active:scale-95 overflow-hidden ${c.id === 'case_7' ? 'col-span-2 sm:col-span-1' : ''}`}>
               {/* Fallback image logic. In a real app, each case has its own image. */}
               <div className="w-32 h-32 relative flex-shrink-0">
                 <Image
@@ -60,7 +60,6 @@ export default function CasesPage() {
               </div>
               
               <div className="flex flex-col items-center gap-1">
-                <h3 className="font-medium text-lg text-white/90">{c.name}</h3>
                 <div className="font-roobert font-medium text-[15px] bg-white/10 px-3 py-1 rounded-pill">
                   {c.price.toLocaleString('ru-RU')} zł
                 </div>
