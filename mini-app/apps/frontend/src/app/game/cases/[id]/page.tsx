@@ -191,9 +191,14 @@ export default function CaseOpeningPage() {
               <span className="text-sm font-medium text-white/70">Турбо крутка</span>
               <div 
                 onClick={() => !isSpinning && setIsTurbo(!isTurbo)}
-                className={`w-[44px] h-[24px] flex items-center rounded-full p-[2px] cursor-pointer transition-colors shadow-inner border border-white/5 ${isTurbo ? 'bg-emerald-500' : 'bg-white/20'}`}
+                className={`w-[44px] h-[24px] flex items-center rounded-full p-[2px] cursor-pointer shadow-inner border border-white/5 transition-colors duration-500 ease-in-out ${isTurbo ? 'bg-emerald-500/80 border-emerald-500/50' : 'bg-white/10'}`}
+                style={{ justifyContent: isTurbo ? 'flex-end' : 'flex-start' }}
               >
-                <div className={`bg-white w-[20px] h-[20px] rounded-full shadow-sm transform transition-transform ${isTurbo ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+                <motion.div 
+                  layout 
+                  transition={{ type: "spring", stiffness: 700, damping: 30 }}
+                  className="bg-white w-[20px] h-[20px] rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+                />
               </div>
             </div>
             
