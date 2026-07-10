@@ -95,17 +95,17 @@ export function GameTopBar({
             <button
               onClick={() => router.push('/balance')}
               aria-label="Кошелёк"
-              className="group flex items-center gap-1.5 hover:opacity-80 transition-all active:scale-95 mr-1"
+              className="group flex items-center gap-2 hover:opacity-80 transition-all active:scale-95 mr-1"
             >
-              <Wallet size={14} className="text-white/80" strokeWidth={2} />
+              <Wallet size={16} className="text-white/80" strokeWidth={2} />
               <div className="flex items-baseline gap-1">
-                <span className="font-roobert font-bold text-white text-sm tabular-nums tracking-tight">
+                <span className="font-roobert font-bold text-white text-base tabular-nums tracking-tight">
                   {balanceAmount.toLocaleString('ru-RU', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}
                 </span>
-                <span className="font-roobert text-white/40 text-[11px] uppercase font-bold tracking-wider">
+                <span className="font-roobert text-white/40 text-[12px] uppercase font-bold tracking-wider">
                   {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
                 </span>
               </div>
@@ -115,7 +115,7 @@ export function GameTopBar({
           <button
             onClick={() => router.push('/profile')}
             aria-label="Профиль"
-            className="relative w-8 h-8 rounded-full overflow-hidden border border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
+            className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
           >
             {user?.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

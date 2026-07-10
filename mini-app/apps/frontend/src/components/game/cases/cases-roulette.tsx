@@ -47,17 +47,19 @@ export function CasesRoulette({
 }: RouletteProps) {
   const [tracks, setTracks] = useState<CasePrize[][]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  const [offset, setOffset] = useState<number>(0);
-  const [transitionDuration, setTransitionDuration] = useState<number>(0);
+  const tracksRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // When count changes, generate idle tracks if not spinning
   useEffect(() => {
     if (!isSpinning) {
       const newTracks = Array.from({ length: count }).map(() => generateSequence(prizes, null));
       setTracks(newTracks);
-      setOffset(0);
-      setTransitionDuration(0);
+      tracksRefs.current.forEach(ref => {
+        if (ref) {
+          ref.style.transition = 'none';
+          ref.style.transform = `translateX(0px)`;
+        }
+      });
     }
   }, [count, prizes, isSpinning]);
 
@@ -68,15 +70,18 @@ export function CasesRoulette({
       setTracks(newTracks);
       
       // Reset position instantly
-      setTransitionDuration(0);
-      setOffset(0);
+      tracksRefs.current.forEach(ref => {
+        if (ref) {
+          ref.style.transition = 'none';
+          ref.style.transform = `translateX(0px)`;
+        }
+      });
 
       soundManager.play('ui.click');
       
       // Wait for React to render the tracks at offset=0
       setTimeout(() => {
         const duration = isTurbo ? 3500 : 8000;
-        setTransitionDuration(duration);
         
         requestAnimationFrame(() => {
           if (containerRef.current) void containerRef.current.offsetWidth; // Force reflow
@@ -86,7 +91,13 @@ export function CasesRoulette({
           const randomStop = (Math.random() - 0.5) * (ITEM_WIDTH * 0.8);
           const targetOffset = -(50 * ITEM_WIDTH) + centerOffset + randomStop;
           
-          setOffset(targetOffset);
+          // Animate bypassing React state
+          tracksRefs.current.forEach(ref => {
+            if (ref) {
+              ref.style.transition = `transform ${duration}ms cubic-bezier(0.15, 0.85, 0.15, 1)`;
+              ref.style.transform = `translateX(${targetOffset}px)`;
+            }
+          });
           
           // Callback when done
           setTimeout(() => {
@@ -94,7 +105,7 @@ export function CasesRoulette({
             onSpinComplete();
           }, duration + 200); // 200ms buffer
         });
-      }, 100);
+      }, 50);
     }
   }, [isSpinning, winningPrizeIds, isTurbo]);
 
@@ -106,12 +117,11 @@ export function CasesRoulette({
       {tracks.length > 0 && tracks.map((track, trackIdx) => (
         <div key={trackIdx} className="w-full overflow-hidden">
           <div 
-            className="flex"
-            style={{
-              transform: `translateX(${offset}px)`,
-              transition: transitionDuration > 0 ? `transform ${transitionDuration}ms cubic-bezier(0.15, 0.85, 0.15, 1)` : 'none',
-              willChange: 'transform'
+            ref={(el) => {
+              if (el) tracksRefs.current[trackIdx] = el;
             }}
+            className="flex"
+            style={{ willChange: 'transform' }}
           >
             {track.map((p, i) => (
               <div 

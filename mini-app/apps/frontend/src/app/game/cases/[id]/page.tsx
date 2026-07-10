@@ -189,14 +189,12 @@ export default function CaseOpeningPage() {
             {/* Turbo Toggle */}
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-white/70">Турбо крутка</span>
-              <button 
+              <div 
                 onClick={() => !isSpinning && setIsTurbo(!isTurbo)}
-                disabled={isSpinning}
-                className="relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none"
+                className={`w-[44px] h-[24px] flex items-center rounded-full p-[2px] cursor-pointer transition-colors shadow-inner border border-white/5 ${isTurbo ? 'bg-emerald-500' : 'bg-white/20'}`}
               >
-                <span className={`absolute inset-0 rounded-full transition-colors duration-200 ease-in-out ${isTurbo ? 'bg-white/40' : 'bg-white/10'}`} />
-                <span className={`pointer-events-none absolute left-1 h-5 w-5 transform rounded-full bg-white transition duration-200 ease-in-out shadow-sm ${isTurbo ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+                <div className={`bg-white w-[20px] h-[20px] rounded-full shadow-sm transform transition-transform ${isTurbo ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+              </div>
             </div>
             
             {/* Count Selector - Fixed Layout */}
