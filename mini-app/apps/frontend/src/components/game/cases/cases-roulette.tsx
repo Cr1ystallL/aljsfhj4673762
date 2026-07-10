@@ -15,23 +15,35 @@ interface RouletteProps {
   onSpinComplete: () => void;
 }
 
-function generateSequence(allPrizes: CasePrize[], winningId: string | null, length = 60, winIndex = 50) {
-  const sequence: CasePrize[] = [];
+function generateSequence(allPrizes: CasePrize[], winningId: string | null, length = 80, winIndex = 70) {
+  const seq: CasePrize[] = [];
+  const fatCoins = allPrizes.slice(-3); // last 3 are typically 10x, 25x, 100x
+
   for (let i = 0; i < length; i++) {
-    if (i === winIndex && winningId) {
-      const winner = allPrizes.find((p) => p.id === winningId);
-      sequence.push(winner || allPrizes[0]);
+    if (winningId && i === winIndex) {
+      const winner = allPrizes.find(p => p.id === winningId) || allPrizes[0];
+      seq.push(winner);
     } else {
-      const r = Math.random();
-      let picked = allPrizes[0];
-      if (r > 0.6) picked = allPrizes[1];
-      if (r > 0.85) picked = allPrizes[2];
-      if (r > 0.95) picked = allPrizes[3];
-      if (r > 0.99) picked = allPrizes[4];
-      sequence.push(picked);
+      // "Teaser" mechanics: 40% chance to put a fat coin right next to the winner
+      if (winningId && (i === winIndex - 1 || i === winIndex + 1) && Math.random() < 0.4) {
+        seq.push(fatCoins[Math.floor(Math.random() * fatCoins.length)]);
+      } else {
+        // Random item based on actual weight logic for visual filler
+        const totalW = allPrizes.reduce((sum, p) => sum + p.weight, 0);
+        let rnd = Math.random() * totalW;
+        let selected = allPrizes[0];
+        for (const p of allPrizes) {
+          rnd -= p.weight;
+          if (rnd <= 0) {
+            selected = p;
+            break;
+          }
+        }
+        seq.push(selected);
+      }
     }
   }
-  return sequence;
+  return seq;
 }
 
 const ITEM_WIDTH = 120;
