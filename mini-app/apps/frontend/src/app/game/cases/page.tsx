@@ -46,26 +46,43 @@ export default function CasesPage() {
         <GameTopBar title="Кейсы" Icon={PlinkoIcon} />
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {cases.map((c) => (
-            <Link key={c.id} href={`/game/cases/${c.id}`} className={`group relative rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center justify-center gap-3 transition-transform hover:scale-105 active:scale-95 overflow-hidden ${c.id === 'case_7' ? 'col-span-2 sm:col-span-1' : ''}`}>
-              {/* Fallback image logic. In a real app, each case has its own image. */}
-              <div className="w-32 h-32 relative flex-shrink-0">
-                <Image
-                  src={`/images/cases/${c.id}.png`}
-                  alt={c.name}
-                  fill
-                  className="object-contain drop-shadow-2xl"
-                  unoptimized
+          {cases.map((c) => {
+            const caseColors: Record<string, string> = {
+              case_1: '#9e9e9e',
+              case_2: '#4caf50',
+              case_3: '#2196f3',
+              case_4: '#9c27b0',
+              case_5: '#e91e63',
+              case_6: '#ffb300',
+              case_7: '#f44336',
+            };
+            const color = caseColors[c.id] || '#ffffff';
+            
+            return (
+              <Link key={c.id} href={`/game/cases/${c.id}`} className={`group relative rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center justify-center gap-3 transition-transform hover:scale-105 active:scale-95 overflow-hidden ${c.id === 'case_7' ? 'col-span-2 sm:col-span-3 py-8' : ''}`}>
+                <div 
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] opacity-20 pointer-events-none blur-[40px] rounded-full"
+                  style={{ background: `radial-gradient(circle at center, ${color} 0%, transparent 60%)` }}
                 />
-              </div>
-              
-              <div className="flex flex-col items-center gap-1">
-                <div className="font-roobert font-medium text-[15px] bg-white/10 px-3 py-1 rounded-pill">
-                  {c.price.toLocaleString('ru-RU')} zł
+                
+                <div className="w-32 h-32 relative flex-shrink-0 z-10">
+                  <Image
+                    src={`/images/cases/${c.id}.png`}
+                    alt={c.name}
+                    fill
+                    className="object-contain drop-shadow-2xl"
+                    unoptimized
+                  />
                 </div>
-              </div>
-            </Link>
-          ))}
+                
+                <div className="flex flex-col items-center gap-1 z-10">
+                  <div className="font-roobert font-medium text-[15px] bg-white/10 px-3 py-1 rounded-pill shadow-inner">
+                    {c.price.toLocaleString('ru-RU')} zł
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         <div className="mt-6">

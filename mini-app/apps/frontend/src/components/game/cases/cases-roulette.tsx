@@ -99,10 +99,17 @@ export function CasesRoulette({
 
   return (
     <div className="w-full flex flex-col gap-2 relative bg-black/20 rounded-xl py-6 border-y border-white/10 overflow-hidden shadow-inner" ref={containerRef}>
-      <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-white/50 -translate-x-1/2 z-10 shadow-[0_0_10px_rgba(255,255,255,0.5)] pointer-events-none" />
+      {/* Center gradient glow */}
+      <div 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120px] h-[150%] opacity-30 pointer-events-none blur-[40px] z-0"
+        style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, transparent 70%)' }}
+      />
+      
+      {/* Center line with liquid glass effect */}
+      <div className="absolute top-0 bottom-0 left-1/2 w-[6px] bg-white/20 -translate-x-1/2 z-20 shadow-[0_0_15px_rgba(255,255,255,0.8)] backdrop-blur-sm pointer-events-none border-x border-white/30 rounded-full" />
 
       {tracks.length > 0 && tracks.map((track, trackIdx) => (
-        <div key={trackIdx} className="w-full overflow-hidden">
+        <div key={trackIdx} className="w-full overflow-hidden relative z-10">
           <motion.div 
             custom={trackIdx}
             animate={controls}
