@@ -51,20 +51,26 @@ export function CasesRoulette({
   // Generate idle tracks
   useEffect(() => {
     if (!isSpinning) {
-      const newTracks = Array.from({ length: count }).map(() => generateSequence(prizes, null));
+      const newTracks = Array.from({ length: count }).map((_, i) => generateSequence(prizes, null, 60, i % 2 !== 0 ? 0 : 50));
       setTracks(newTracks);
-      void controls.set({ x: 0 }); // Instantly snap to start
+      void controls.set((i) => {
+        const isReverse = i % 2 !== 0;
+        return { x: isReverse ? -(50 * ITEM_WIDTH) : 0 };
+      });
     }
   }, [count, prizes, isSpinning, controls]);
 
   useEffect(() => {
     if (isSpinning && winningPrizeIds.length > 0) {
       // 1. Generate new tracks with winners
-      const newTracks = winningPrizeIds.map(winId => generateSequence(prizes, winId));
+      const newTracks = winningPrizeIds.map((winId, i) => generateSequence(prizes, winId, 60, i % 2 !== 0 ? 0 : 50));
       setTracks(newTracks);
       
       // 2. Instantly reset position to start
-      void controls.set({ x: 0 });
+      void controls.set((i) => {
+        const isReverse = i % 2 !== 0;
+        return { x: isReverse ? -(50 * ITEM_WIDTH) : 0 };
+      });
       soundManager.play('ui.click');
       
       // 3. Wait for DOM to paint new tracks, then animate
@@ -72,14 +78,17 @@ export function CasesRoulette({
         const containerWidth = containerRef.current?.offsetWidth || 300;
         const centerOffset = containerWidth / 2 - ITEM_WIDTH / 2;
         const randomStop = (Math.random() - 0.5) * (ITEM_WIDTH * 0.8);
-        const targetOffset = -(50 * ITEM_WIDTH) + centerOffset + randomStop;
         
         const duration = isTurbo ? 3.5 : 8; // seconds for framer-motion
         
         // Start animation
-        void controls.start({
-          x: targetOffset,
-          transition: { duration, ease: [0.15, 0.85, 0.15, 1] }
+        void controls.start((i) => {
+          const isReverse = i % 2 !== 0;
+          const targetOffset = isReverse ? centerOffset : -(50 * ITEM_WIDTH) + centerOffset;
+          return {
+            x: targetOffset + randomStop,
+            transition: { duration, ease: [0.15, 0.85, 0.15, 1] }
+          };
         }).then(() => {
           soundManager.play('game.win');
           onSpinComplete();
@@ -95,8 +104,8 @@ export function CasesRoulette({
       {tracks.length > 0 && tracks.map((track, trackIdx) => (
         <div key={trackIdx} className="w-full overflow-hidden">
           <motion.div 
+            custom={trackIdx}
             animate={controls}
-            initial={{ x: 0 }}
             className="flex"
             style={{ willChange: 'transform' }}
           >

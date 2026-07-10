@@ -63,7 +63,7 @@ export default function CaseOpeningPage() {
   const [winningIds, setWinningIds] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   
-  const { balance, fetchBalance } = useBalance();
+  const { balance, fetchBalance, optimisticUpdate } = useBalance();
   const activeBalance = balance?.amount ?? 10000;
 
   useEffect(() => {
@@ -102,6 +102,9 @@ export default function CaseOpeningPage() {
       setShowConfetti(false); // reset
       setWinningIds([]); // Reset
       
+      // Deduct cost immediately so user sees balance drop
+      optimisticUpdate(-totalCost);
+      
       const res = await fetch('/api/games/cases/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,6 +114,8 @@ export default function CaseOpeningPage() {
       
       const json = await res.json();
       if (!res.ok) {
+        // Revert deduction on error
+        optimisticUpdate(totalCost);
         reportApiError(res, json, 'Could not open case');
         throw new Error(json?.message || 'Open failed');
       }
@@ -118,7 +123,7 @@ export default function CaseOpeningPage() {
       const prizes = json.result.prizes as CasePrize[];
       setWinningIds(prizes.map(p => p.id));
       
-      void fetchBalance();
+      // DO NOT fetchBalance here, so the win is deferred until animation finishes
     } catch (err) {
       setIsSpinning(false);
       console.error(err);
@@ -126,9 +131,6 @@ export default function CaseOpeningPage() {
   };
 
   const handleSpinComplete = () => {
-    setIsSpinning(false);
-    void fetchBalance();
-    
     if (caseTier && winningIds.length > 0) {
       let totalWon = 0;
       for (const wId of winningIds) {
@@ -140,6 +142,14 @@ export default function CaseOpeningPage() {
         setShowConfetti(true);
       }
     }
+    
+    // Fetch real balance (which includes the win) now that animation is done
+    void fetchBalance();
+    
+    // Keep prizes visible for 2 seconds before allowing next spin
+    setTimeout(() => {
+      setIsSpinning(false);
+    }, 2000);
   };
 
   if (!caseTier) {
