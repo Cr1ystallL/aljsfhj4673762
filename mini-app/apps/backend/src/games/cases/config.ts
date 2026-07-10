@@ -20,7 +20,7 @@ export interface CaseTier {
 
 const TIER_MULTIPLIERS = [1, 5, 10, 50, 100, 500, 1000];
 const TIER_NAMES = [
-  'Нищий',
+  'Обычный',
   'Обычный',
   'Необычный',
   'Редкий',

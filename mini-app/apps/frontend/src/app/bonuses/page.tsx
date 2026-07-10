@@ -618,7 +618,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       forceTick((n) => n + 1);
       setTimeout(() => {
         if (sectorAmount === 10.0) {
-          toast.success('Вы выиграли Бесплатный Кейс!', { title: 'Колесо удачи' });
+          toast.success('Вы выиграли вращение в Обычном кейсе!', { title: 'Колесо удачи' });
         } else {
           toast.success(
             `+${sectorAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
