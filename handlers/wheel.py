@@ -80,11 +80,19 @@ async def cmd_mb_wheel(message: Message):
                 # Отправляем результат с картинкой
                 photo = FSInputFile("/var/www/MACVBET/images/luckywheel.png")
                 
-                text = (
-                    f"🎰 <b>Выпало:</b> {amount} zł\n\n"
-                    f"У вас осталось: {remaining} спинов\n"
-                    f"⏳ Ещё раз прокрутить можно через: 20 минут"
-                )
+                amount_f = float(amount)
+                if amount_f == 10.0:
+                    text = (
+                        f"🎰 <b>Выпало:</b> Бесплатное вращение в Нищем Кейсе (10 zł)!\n\n"
+                        f"У вас осталось: {remaining} спинов\n"
+                        f"⏳ Ещё раз прокрутить можно через: 20 минут"
+                    )
+                else:
+                    text = (
+                        f"🎰 <b>Выпало:</b> {amount} zł\n\n"
+                        f"У вас осталось: {remaining} спинов\n"
+                        f"⏳ Ещё раз прокрутить можно через: 20 минут"
+                    )
                 
                 try:
                     result_msg = await message.answer_photo(

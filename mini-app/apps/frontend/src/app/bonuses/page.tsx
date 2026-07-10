@@ -517,13 +517,13 @@ function Gem() {
 
 const WHEEL_SECTORS_12 = [
   0.05, 0.1, 0.5, 0.05, 0.25, 0.1,
-  1.0, 0.05, 0.5, 0.1, 0.25, 0.05,
+  10.0, 0.05, 0.5, 0.1, 0.25, 0.05,
 ];
 
 /**
  * Sector palette — calmer and more brand-aligned than the previous
  * red-leaning gradient. Lower-tier sectors stay desaturated; the
- * 1.00 zł jackpot pops in warm amber so the eye lands on it first.
+ * 10.0 zł jackpot pops in warm amber so the eye lands on it first.
  */
 const SECTOR_TIER_COLOR: Record<number, string> = {
   0.05: '#1f2933',
@@ -531,7 +531,7 @@ const SECTOR_TIER_COLOR: Record<number, string> = {
   0.25: '#4a6072',
   0.5: '#6a8a7a',
   0.75: '#d49a4a',
-  1.0: '#ffac2e',
+  10.0: '#ffac2e',
 };
 
 /** Text colour per sector — light tiers get white, amber gets ink. */
@@ -541,7 +541,7 @@ const SECTOR_TEXT_COLOR: Record<number, string> = {
   0.25: '#ffffff',
   0.5: '#ffffff',
   0.75: '#0a0a0a',
-  1.0: '#0a0a0a',
+  10.0: '#0a0a0a',
 };
 
 function LuckyWheelHero({ onWin }: { onWin: () => void }) {
@@ -617,10 +617,14 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       };
       forceTick((n) => n + 1);
       setTimeout(() => {
-        toast.success(
-          `+${sectorAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
-          { title: 'Колесо удачи' }
-        );
+        if (sectorAmount === 10.0) {
+          toast.success('Вы выиграли Бесплатный Кейс!', { title: 'Колесо удачи' });
+        } else {
+          toast.success(
+            `+${sectorAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
+            { title: 'Колесо удачи' }
+          );
+        }
         spinRef.current = null;
         forceTick((n) => n + 1);
         // Push immediate balance update from the response so the pill
@@ -718,7 +722,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
       {/* Tier legend */}
       <div className="relative px-5 sm:px-6 pb-1 flex items-center justify-center gap-1.5 flex-wrap">
-        {[0.05, 0.1, 0.25, 0.5, 1.0].map((tier) => (
+        {[0.05, 0.1, 0.25, 0.5, 10.0].map((tier) => (
           <span
             key={tier}
             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill border border-white/10 bg-white/[0.03]"
@@ -728,7 +732,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
               style={{ background: SECTOR_TIER_COLOR[tier] }}
             />
             <span className="font-roobert text-[10px] tabular-nums text-frost-white/85">
-              {tier.toFixed(2)}
+              {tier === 10.0 ? 'КЕЙС' : tier.toFixed(2)}
             </span>
           </span>
         ))}
@@ -799,7 +803,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
                 {t.name}
               </span>
               <span className="font-roobert text-[10px] tabular-nums text-[#ffac2e]">
-                +{t.amount.toFixed(2)}
+                {t.amount === 10.0 ? 'КЕЙС' : `+${t.amount.toFixed(2)}`}
               </span>
             </div>
           ))}
@@ -908,7 +912,7 @@ function FullWheelCanvas({
 
       const cx = w / 2;
       const cy = h / 2;
-      const radius = Math.min(w, h) * 0.46;
+      const radius = Math.min(w, h) * 0.40;
 
       // Drop shadow under the wheel
       ctx.beginPath();
@@ -1006,9 +1010,10 @@ function FullWheelCanvas({
         ctx.fillStyle = isDarkText
           ? 'rgba(255,255,255,0.35)'
           : 'rgba(0,0,0,0.55)';
-        ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 1);
+        const txt = SECTORS[i] === 10.0 ? 'КЕЙС' : `${SECTORS[i].toFixed(2)} zł`;
+        ctx.fillText(txt, 0, 1);
         ctx.fillStyle = textColor;
-        ctx.fillText(`${SECTORS[i].toFixed(2)} zł`, 0, 0);
+        ctx.fillText(txt, 0, 0);
         ctx.restore();
       }
 

@@ -36,7 +36,7 @@ const LUCKY_SECTORS: ReadonlyArray<{ amount: number; weight: number }> = [
   { amount: 0.25, weight: 18 },
   { amount: 0.5, weight: 11 },
   { amount: 0.75, weight: 5 },
-  { amount: 1.0, weight: 2 },
+  { amount: 10.0, weight: 2 },
 ];
 
 const SPIN_DAILY_CAP = 10;
