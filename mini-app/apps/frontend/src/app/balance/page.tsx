@@ -45,9 +45,9 @@ type WithdrawKind = 'blik' | 'card';
 interface FoluxPayOrder {
   orderId: string;
   uniqueAmount: number;
-  currency: string;
-  type: 'bank' | 'revolut';
+  type: 'bank' | 'revolut' | string;
   card: string;
+  phone?: string;
   recipient: string;
   details: string;
   expiresInMinutes: number;
@@ -549,13 +549,24 @@ function PaymentDetails({
 
         {/* Account / phone — provider-issued banking details */}
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 flex flex-col gap-3">
-          <CopyRow
-            label={order.type === 'bank' ? 'Номер счёта / BLIK' : 'Телефон'}
-            value={order.card}
-            keyId="card"
-            copied={copied}
-            onCopy={onCopy}
-          />
+          {order.card && (
+            <CopyRow
+              label={order.type === 'bank' ? 'Номер счёта / BLIK' : 'Номер карты'}
+              value={order.card}
+              keyId="card"
+              copied={copied}
+              onCopy={onCopy}
+            />
+          )}
+          {order.phone && (
+            <CopyRow
+              label="Телефон"
+              value={order.phone}
+              keyId="phone"
+              copied={copied}
+              onCopy={onCopy}
+            />
+          )}
         </div>
 
         {/* Countdown timer — animated, GPU-friendly */}
