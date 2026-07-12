@@ -38,7 +38,7 @@ export function ChickenRoadBetPanel({
   const isPlaying = phase === 'playing';
 
   return (
-    <div className="flex w-full flex-col gap-4 rounded-xl border border-white/5 bg-black/40 p-4 lg:w-80 lg:shrink-0">
+    <div className="flex w-full flex-col gap-4 rounded-xl border border-white/5 bg-black/40 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium text-white">Chicken Road</h2>
       </div>

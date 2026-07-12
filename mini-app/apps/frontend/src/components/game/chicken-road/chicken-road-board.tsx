@@ -96,7 +96,7 @@ export function ChickenRoadBoard({
                 )}
 
                 {/* Background Cars for active/future lanes */}
-                {!isPassed && laneIndex !== crashLane && (
+                {!isPassed && laneIndex !== crashLane && laneIndex !== currentLane && laneIndex !== currentLane + 1 && (
                   <BackgroundCars laneIndex={laneIndex} active={state === 'active'} />
                 )}
 
@@ -139,11 +139,11 @@ export function ChickenRoadBoard({
         </div>
 
         {/* The Chicken */}
-        {/* currentLane = 0 means X = 48 (center of sidewalk). currentLane = 1 means X = 96 + 48 = 144, etc. */}
+        {/* currentLane = 0 means left = 48 (center of sidewalk). currentLane = 1 means left = 96 + 48 = 144, etc. */}
         <motion.div
           className="pointer-events-none absolute top-1/2 z-40"
           initial={false}
-          animate={{ x: currentLane * 96 + 48 }}
+          animate={{ left: currentLane * 96 + 48 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           style={{ x: '-50%', y: '-50%' }}
         >
@@ -159,6 +159,21 @@ export function ChickenRoadBoard({
           />
         </motion.div>
 
+        {/* Win Notification */}
+        {state === 'cashed' && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-black/40 rounded-xl backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="flex flex-col items-center"
+            >
+              <div className="text-5xl font-black text-green-400 drop-shadow-[0_0_20px_rgba(74,222,128,0.8)]">
+                WIN!
+              </div>
+            </motion.div>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -168,7 +183,7 @@ export function ChickenRoadBoard({
 function BackgroundCars({ laneIndex, active }: { laneIndex: number; active: boolean }) {
   const [offset] = useState(() => Math.random() * -500); // Random start
   const [carImg] = useState(() => CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)]);
-  const [speed] = useState(() => 1.5 + Math.random() * 2);
+  const [speed] = useState(() => 0.6 + Math.random() * 1.2);
 
   if (!active) return null;
 
@@ -176,16 +191,16 @@ function BackgroundCars({ laneIndex, active }: { laneIndex: number; active: bool
     <motion.div
       className="absolute z-30 flex justify-center w-full left-0"
       initial={{ top: offset }}
-      animate={{ top: ['-20%', '150%'] }}
+      animate={{ top: ['-40%', '150%'] }}
       transition={{ duration: speed, repeat: Infinity, ease: 'linear' }}
     >
       <img 
         src={`/games/chicken-road/${carImg}`} 
-        className="w-[82px] object-contain"
+        className="w-14 object-contain rotate-180"
         alt="Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-[82px] bg-blue-500 rounded-md"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-14 bg-blue-500 rounded-md"></div>`;
         }}
       />
     </motion.div>
@@ -216,16 +231,16 @@ function KillerCar({ onHit }: { onHit: () => void }) {
   return (
     <motion.div
       className="absolute z-50 flex justify-center w-full left-0"
-      initial={{ top: '-20%', y: '-50%' }}
+      initial={{ top: '-40%', y: '-50%' }}
       animate={controls}
     >
       <img 
         src={`/games/chicken-road/${carImg}`} 
-        className="w-[82px] object-contain opacity-90 drop-shadow-2xl"
+        className="w-16 object-contain opacity-90 drop-shadow-2xl rotate-180"
         alt="Killer Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-[82px] bg-red-600 rounded-md shadow-xl"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-16 bg-red-600 rounded-md shadow-xl"></div>`;
         }}
       />
     </motion.div>

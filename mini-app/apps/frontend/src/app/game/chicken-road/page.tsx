@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { ChickenRoadBetPanel, type ChickenRoadLevel } from '@/components/game/chicken-road/chicken-road-bet-panel';
 import { ChickenRoadBoard } from '@/components/game/chicken-road/chicken-road-board';
+import { MinesHistory, type MinesHistoryEntry } from '@/components/game/mines/mines-history';
+import { MinesRecentBets } from '@/components/game/mines/mines-recent-bets';
 import { useBalance } from '@/hooks/use-balance';
 import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -36,7 +38,23 @@ const FALLBACK_LADDERS: Record<ChickenRoadLevel, number[]> = {
   hard: [1.2, 1.5, 1.87, 2.34, 2.93, 3.66, 4.57, 5.72, 7.15, 8.93, 11.17, 13.96, 17.45, 21.81, 27.27] // 15
 };
 
+const MOCK_HISTORY: MinesHistoryEntry[] = Array.from({ length: 15 }).map((_, i) => {
+  const isWin = Math.random() > 0.5;
+  const mult = isWin ? 1.2 + Math.random() * 3 : 0;
+  const bet = 10 + Math.floor(Math.random() * 100);
+  return {
+    id: `mock-cr-${i}`,
+    name: `User${Math.floor(Math.random() * 9999)}`,
+    photoUrl: null,
+    betAmount: bet,
+    multiplier: mult,
+    payout: isWin ? bet * mult : 0,
+    timestamp: Date.now() - i * 15000,
+  };
+});
+
 export default function ChickenRoadGamePage() {
+  const router = useRouter();
   const { balance, fetchBalance } = useBalance();
   const tBals = useBalanceStore((s) => s.tournamentBalances);
   const tBal = tBals.find((t) => t.gameType === 'chicken-road');
@@ -142,6 +160,13 @@ export default function ChickenRoadGamePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error);
       applyServer(data.result);
+      
+      // After a win, we reset the board visually to sidewalk after 3s
+      if (data.result.state === 'cashed') {
+        setTimeout(() => {
+          setServer(prev => prev && prev.state === 'cashed' ? { ...prev, currentLane: 0, state: 'idle' } : prev);
+        }, 3000);
+      }
     } catch (e: any) {
       reportApiError(e);
       toast.error(e.message);
@@ -162,9 +187,9 @@ export default function ChickenRoadGamePage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
-      <GameTopBar title="Chicken Road" />
+      <div className="mx-auto w-full max-w-[800px] px-4 pt-4 pb-32 flex flex-col gap-5">
+        <GameTopBar title="Chicken Road" />
 
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
         <ChickenRoadBoard
           lanesCount={lanesCount}
           ladder={ladder}
@@ -188,6 +213,9 @@ export default function ChickenRoadGamePage() {
           currentMultiplier={server?.currentMultiplier ?? 0}
           nextMultiplier={server?.nextMultiplier ?? 0}
         />
+
+        <MinesRecentBets bets={MOCK_HISTORY.slice(0, 5)} />
+        <MinesHistory entries={MOCK_HISTORY} />
       </div>
     </main>
   );
