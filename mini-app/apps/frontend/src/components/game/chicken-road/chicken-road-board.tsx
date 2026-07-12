@@ -26,8 +26,9 @@ export function ChickenRoadBoard({
   onStep,
   busy,
 }: ChickenRoadBoardProps) {
-  // Animation state for the chicken
+  // Animation state for the chicken (now clown)
   const [chickenHit, setChickenHit] = useState(false);
+  const [isJumping, setIsJumping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset chicken state when round changes
@@ -36,6 +37,15 @@ export function ChickenRoadBoard({
       setChickenHit(false);
     }
   }, [state, currentLane]);
+
+  // Handle jump animation
+  useEffect(() => {
+    if (currentLane > 0 && state === 'active') {
+      setIsJumping(true);
+      const timer = setTimeout(() => setIsJumping(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [currentLane, state]);
 
   // Auto-pan camera
   useEffect(() => {
@@ -100,18 +110,26 @@ export function ChickenRoadBoard({
                   disabled={!isNext || busy}
                   onClick={() => { if (isNext && !busy) onStep(); }}
                   className={cn(
-                    "relative z-20 flex h-16 w-16 items-center justify-center rounded-full transition-all",
-                    "border-[4px] bg-[#2a2d39]",
+                    "relative z-20 flex h-16 w-16 items-center justify-center rounded-full transition-all overflow-hidden",
+                    "border-[4px] bg-[#1a1c24]",
                     isNext ? "cursor-pointer border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)] hover:scale-105" : "border-white/10",
                     laneIndex < currentLane && "opacity-50",
                     isBusted && laneIndex === crashLane && "border-red-500"
                   )}
                 >
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="20" cy="20" r="18" stroke="#ffffff20" strokeWidth="2" />
-                    <line x1="12" y1="12" x2="28" y2="12" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="10" y1="20" x2="30" y2="20" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="12" y1="28" x2="28" y2="28" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
+                  {/* Underneath Fire Glow */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="absolute h-10 w-10 rounded-full bg-orange-600/70 blur-[5px] animate-pulse" style={{ animationDuration: '1.2s' }} />
+                    <div className="absolute h-6 w-6 rounded-full bg-yellow-400/90 blur-[3px] animate-pulse" style={{ animationDelay: '0.3s', animationDuration: '0.8s' }} />
+                  </div>
+
+                  {/* Grate SVG */}
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-10">
+                    <circle cx="20" cy="20" r="18" stroke="#3f4252" strokeWidth="4" />
+                    <rect x="12" y="6" width="3" height="28" rx="1.5" fill="#3f4252" />
+                    <rect x="18.5" y="4" width="3" height="32" rx="1.5" fill="#3f4252" />
+                    <rect x="25" y="6" width="3" height="28" rx="1.5" fill="#3f4252" />
+                    <rect x="6" y="18.5" width="28" height="3" rx="1.5" fill="#3f4252" />
                   </svg>
                 </button>
 
@@ -147,8 +165,8 @@ export function ChickenRoadBoard({
           style={{ x: '-50%', y: '-50%' }}
         >
           <img 
-            src={`/games/chicken-road/${chickenHit ? 'chicken_hit.png' : 'chicken_idle.png'}`} 
-            alt="Chicken"
+            src={`/games/chicken-road/${chickenHit ? 'hit.png' : isJumping ? 'jump.png' : 'idle.png'}?v=3`} 
+            alt="Clown"
             className="h-24 w-24 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
             onError={(e) => {
               // Placeholder if image is missing
