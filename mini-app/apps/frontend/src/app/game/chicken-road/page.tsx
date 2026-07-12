@@ -203,6 +203,7 @@ export default function ChickenRoadGamePage() {
           state={boardState}
           onStep={handleStep}
           busy={busy}
+          winAmount={server?.betAmount && server?.currentMultiplier ? server.betAmount * server.currentMultiplier : 0}
         />
 
         <ChickenRoadBetPanel

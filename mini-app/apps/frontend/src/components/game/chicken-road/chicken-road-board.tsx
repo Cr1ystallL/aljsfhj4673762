@@ -13,6 +13,7 @@ export interface ChickenRoadBoardProps {
   ladder: number[];
   onStep: () => void;
   busy: boolean;
+  winAmount?: number;
 }
 
 const CAR_IMAGES = ['car_1.png', 'car_2.png', 'car_3.png'];
@@ -25,6 +26,7 @@ export function ChickenRoadBoard({
   ladder,
   onStep,
   busy,
+  winAmount,
 }: ChickenRoadBoardProps) {
   // Animation state for the chicken (now clown)
   const [chickenHit, setChickenHit] = useState(false);
@@ -42,18 +44,26 @@ export function ChickenRoadBoard({
   useEffect(() => {
     if (currentLane > 0 && state === 'active') {
       setIsJumping(true);
-      const timer = setTimeout(() => setIsJumping(false), 300);
+      const timer = setTimeout(() => setIsJumping(false), 600);
       return () => clearTimeout(timer);
     }
   }, [currentLane, state]);
 
-  // Auto-pan camera
+  // Auto-pan camera (Pagination style)
   useEffect(() => {
     if (containerRef.current) {
-      // Calculate target scroll to center the chicken (chicken is at currentLane * 96 + 48)
       const containerWidth = containerRef.current.clientWidth;
-      const targetLeft = Math.max(0, currentLane * 96 + 48 - containerWidth / 2);
-      containerRef.current.scrollTo({ left: targetLeft, behavior: 'smooth' });
+      const scrollLeft = containerRef.current.scrollLeft;
+      const chickenPos = currentLane * 96 + 48;
+
+      if (currentLane === 0) {
+        containerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+      } else if (chickenPos > scrollLeft + containerWidth - 48) {
+        // Puts the current manhole near the far left
+        containerRef.current.scrollTo({ left: currentLane * 96 - 24, behavior: 'smooth' });
+      } else if (chickenPos < scrollLeft + 48) {
+        containerRef.current.scrollTo({ left: Math.max(0, currentLane * 96 - 24), behavior: 'smooth' });
+      }
     }
   }, [currentLane]);
 
@@ -119,17 +129,16 @@ export function ChickenRoadBoard({
                 >
                   {/* Underneath Fire Glow */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="absolute h-10 w-10 rounded-full bg-orange-600/70 blur-[5px] animate-pulse" style={{ animationDuration: '1.2s' }} />
-                    <div className="absolute h-6 w-6 rounded-full bg-yellow-400/90 blur-[3px] animate-pulse" style={{ animationDelay: '0.3s', animationDuration: '0.8s' }} />
+                    <div className="absolute h-10 w-10 rounded-full bg-orange-600/50 blur-[6px] animate-pulse" style={{ animationDuration: '1.5s' }} />
+                    <div className="absolute h-6 w-6 rounded-full bg-yellow-400/70 blur-[4px] animate-pulse" style={{ animationDelay: '0.4s', animationDuration: '1.0s' }} />
                   </div>
 
-                  {/* Grate SVG */}
+                  {/* Old Manhole SVG but transparent back to show fire */}
                   <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-10">
-                    <circle cx="20" cy="20" r="18" stroke="#3f4252" strokeWidth="4" />
-                    <rect x="12" y="6" width="3" height="28" rx="1.5" fill="#3f4252" />
-                    <rect x="18.5" y="4" width="3" height="32" rx="1.5" fill="#3f4252" />
-                    <rect x="25" y="6" width="3" height="28" rx="1.5" fill="#3f4252" />
-                    <rect x="6" y="18.5" width="28" height="3" rx="1.5" fill="#3f4252" />
+                    <circle cx="20" cy="20" r="18" stroke="#ffffff20" strokeWidth="2" fill="transparent" />
+                    <line x1="12" y1="12" x2="28" y2="12" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="10" y1="20" x2="30" y2="20" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="12" y1="28" x2="28" y2="28" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                 </button>
 
@@ -158,10 +167,10 @@ export function ChickenRoadBoard({
         {/* The Chicken */}
         {/* currentLane = 0 means left = 48 (center of sidewalk). currentLane = 1 means left = 96 + 48 = 144, etc. */}
         <motion.div
-          className="pointer-events-none absolute top-[45%] z-40"
+          className="pointer-events-none absolute top-[35%] z-40"
           initial={false}
           animate={{ left: currentLane * 96 + 48 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          transition={{ type: 'spring', stiffness: 120, damping: 20 }}
           style={{ x: '-50%', y: '-50%' }}
         >
           <img 
@@ -187,7 +196,7 @@ export function ChickenRoadBoard({
             className="flex flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-green-500/20 to-green-600/10 border border-green-500/30 p-8 shadow-[0_0_50px_rgba(34,197,94,0.3)] backdrop-blur-md"
           >
             <div className="text-4xl font-black text-green-400 drop-shadow-[0_2px_10px_rgba(34,197,94,0.8)] mb-2">WIN</div>
-            <div className="text-xl font-bold text-white">Вы успешно забрали ставку!</div>
+            {winAmount && <div className="text-2xl font-bold text-white">{winAmount.toFixed(2)} zł</div>}
           </motion.div>
         </div>
       )}
