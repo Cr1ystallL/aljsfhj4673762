@@ -103,6 +103,7 @@ model Balance {
   userId          String   @unique @map("user_id")
   amount          Decimal  @default(0) @db.Decimal(20, 2)
   currency        String   @default("PLN")
+  freeCases       Int      @default(0) @map("free_cases")
   demoMode        Boolean  @default(false) @map("demo_mode")
   wagerTarget     Decimal  @default(0) @map("wager_target") @db.Decimal(20, 2)
   wagerProgress   Decimal  @default(0) @map("wager_progress") @db.Decimal(20, 2)
