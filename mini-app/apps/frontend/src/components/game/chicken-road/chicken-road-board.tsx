@@ -182,8 +182,9 @@ export function ChickenRoadBoard({
           />
         </motion.div>
       </div>
+    </div>
 
-      {/* Win Notification */}
+    {/* Win Notification */}
       {state === 'cashed' && (
         <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-black/40 backdrop-blur-sm">
           <motion.div
