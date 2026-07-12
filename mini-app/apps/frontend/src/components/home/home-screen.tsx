@@ -53,8 +53,8 @@ const inAppGames: InAppGame[] = [
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
   { id: 'cases', name: 'Case', href: '/game/cases', bg: '/case.png', wide: true },
-  { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png' },
-  { id: 'chicken-road', name: 'MacvRoad', href: '/game/chicken-road', bg: '/MacvRoad.png' },
+  { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png?v=2' },
+  { id: 'chicken-road', name: 'MacvRoad', href: '/game/chicken-road', bg: '/MacvRoad.png?v=2' },
 ];
 
 const BOT_USERNAME =
