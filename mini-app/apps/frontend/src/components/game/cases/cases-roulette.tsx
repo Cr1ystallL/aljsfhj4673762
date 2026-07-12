@@ -121,6 +121,10 @@ export function CasesRoulette({
       
       {/* Center line with liquid glass effect */}
       <div className="absolute top-0 bottom-0 left-1/2 w-[6px] bg-white/20 -translate-x-1/2 z-20 shadow-[0_0_15px_rgba(255,255,255,0.8)] backdrop-blur-sm pointer-events-none border-x border-white/30 rounded-full" />
+      
+      {/* Edge vignettes for smooth fade */}
+      <div className="absolute top-0 bottom-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-[#111111]/90 to-transparent z-30 pointer-events-none" />
+      <div className="absolute top-0 bottom-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-[#111111]/90 to-transparent z-30 pointer-events-none" />
 
       {tracks.length > 0 && tracks.map((track, trackIdx) => (
         <div key={trackIdx} className="w-full overflow-hidden relative z-10">
@@ -132,7 +136,7 @@ export function CasesRoulette({
             {...(trackIdx === 0 ? {
               onUpdate: (latest) => {
                 if (!isSpinning) return;
-                const currentPassed = Math.floor(Math.abs(latest.x as number) / ITEM_WIDTH);
+                const currentPassed = Math.floor(Math.abs(parseFloat(String(latest.x))) / ITEM_WIDTH);
                 if (currentPassed > lastPassedRef.current) {
                   soundManager.play('cases.tick');
                   lastPassedRef.current = currentPassed;

@@ -1611,7 +1611,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
       try {
         const bets = await app.prisma.bet.findMany({
-          where: { gameType: 'cases', payout: { not: null } },
+          where: { 
+            gameType: 'cases', 
+            payout: { not: null },
+            resolvedAt: { lte: new Date(Date.now() - 6000) }
+          },
           orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
           take: limit,
           select: {

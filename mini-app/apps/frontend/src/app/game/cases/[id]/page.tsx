@@ -224,6 +224,34 @@ export default function CaseOpeningPage() {
       `}} />
       <Confetti active={showConfetti} />
       
+      {/* Mute Button Top Right */}
+      <button 
+        onClick={toggleMute}
+        className="absolute top-4 right-4 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-black/20 border border-white/10 text-white/70 hover:text-white hover:bg-black/40 transition-all backdrop-blur-md"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+           <motion.path 
+              initial={false}
+              animate={{ pathLength: isMuted ? 0 : 1, opacity: isMuted ? 0 : 1 }}
+              transition={{ duration: 0.3 }}
+              d="M15.54 8.46a5 5 0 0 1 0 7.07"
+           />
+           <motion.path 
+              initial={false}
+              animate={{ pathLength: isMuted ? 0 : 1, opacity: isMuted ? 0 : 1 }}
+              transition={{ duration: 0.3 }}
+              d="M19.07 4.93a10 10 0 0 1 0 14.14"
+           />
+           <motion.line 
+              initial={false}
+              animate={{ pathLength: isMuted ? 1 : 0, opacity: isMuted ? 1 : 0 }}
+              transition={{ duration: 0.3 }}
+              x1="22" y1="2" x2="2" y2="22" 
+           />
+        </svg>
+      </button>
+
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4 relative z-10">
         <GameTopBar title={caseTier.name} Icon={PlinkoIcon} onBack={() => router.push('/game/cases')} />
 
@@ -258,30 +286,6 @@ export default function CaseOpeningPage() {
                 />
               </div>
             </div>
-            
-            {/* Mute Toggle */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-white/70">Звук</span>
-              <div 
-                onClick={toggleMute}
-                className={`w-[44px] h-[24px] flex items-center rounded-full p-[2px] cursor-pointer shadow-inner border border-white/5 transition-colors duration-500 ease-in-out ${!isMuted ? 'bg-sky-500/80 border-sky-500/50' : 'bg-white/10'}`}
-                style={{ justifyContent: !isMuted ? 'flex-end' : 'flex-start' }}
-              >
-                <motion.div 
-                  layout 
-                  transition={{ type: "spring", stiffness: 700, damping: 30 }}
-                  className="bg-white w-[20px] h-[20px] rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] flex items-center justify-center"
-                >
-                  {isMuted ? (
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                  ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                  )}
-                </motion.div>
-              </div>
-            </div>
-            
-            {/* Count Selector - Fixed Layout */}
             <div className="flex items-center gap-1 bg-black/40 rounded-full p-1 border border-white/5 shadow-inner shrink-0">
               {[1, 2, 3].map(c => (
                 <button
