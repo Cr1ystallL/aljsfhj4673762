@@ -45,6 +45,7 @@ export class BalanceService {
       const result = {
         amount: Number(balance.amount),
         currency: balance.currency,
+        freeCases: balance.freeCases,
         wagerTarget: Number(balance.wagerTarget),
         wagerProgress: Number(balance.wagerProgress),
         autoRtpTarget: Number(balance.autoRtpTarget),

@@ -11,6 +11,7 @@ import { CasesHistory } from '@/components/game/cases/cases-history';
 import { useBalance } from '@/hooks/use-balance';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
+import { soundManager } from '@/lib/sound/sound-manager';
 import type { CaseTier, CasePrize } from '../page';
 
 function Confetti({ active }: { active: boolean }) {
@@ -65,6 +66,19 @@ export default function CaseOpeningPage() {
   
   const { balance, fetchBalance, optimisticUpdate, freezeBalance, unfreezeBalance } = useBalance();
   const activeBalance = balance?.amount ?? 10000;
+  const freeCases = (balance as any)?.freeCases ?? 0;
+  
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    setIsMuted(soundManager.isMuted());
+    soundManager.register('cases.tick', { src: '/audio/tick.mp3', category: 'sfx' });
+  }, []);
+
+  const toggleMute = () => {
+    const newMuted = soundManager.toggleMute();
+    setIsMuted(newMuted);
+  };
 
   useEffect(() => {
     void fetchBalance();
@@ -118,7 +132,9 @@ export default function CaseOpeningPage() {
     if (!caseTier) return;
     if (isSpinning) return;
     
-    const totalCost = caseTier.price * count;
+    const isFreeSpin = id === 'case_1' && freeCases >= count;
+    const totalCost = isFreeSpin ? 0 : caseTier.price * count;
+    
     if (activeBalance < totalCost) {
       toast.warn(`Недостаточно средств. Нужно ${totalCost.toLocaleString('ru-RU')} zł`);
       return;
@@ -243,6 +259,28 @@ export default function CaseOpeningPage() {
               </div>
             </div>
             
+            {/* Mute Toggle */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-white/70">Звук</span>
+              <div 
+                onClick={toggleMute}
+                className={`w-[44px] h-[24px] flex items-center rounded-full p-[2px] cursor-pointer shadow-inner border border-white/5 transition-colors duration-500 ease-in-out ${!isMuted ? 'bg-sky-500/80 border-sky-500/50' : 'bg-white/10'}`}
+                style={{ justifyContent: !isMuted ? 'flex-end' : 'flex-start' }}
+              >
+                <motion.div 
+                  layout 
+                  transition={{ type: "spring", stiffness: 700, damping: 30 }}
+                  className="bg-white w-[20px] h-[20px] rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] flex items-center justify-center"
+                >
+                  {isMuted ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  ) : (
+                    <div className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                  )}
+                </motion.div>
+              </div>
+            </div>
+            
             {/* Count Selector - Fixed Layout */}
             <div className="flex items-center gap-1 bg-black/40 rounded-full p-1 border border-white/5 shadow-inner shrink-0">
               {[1, 2, 3].map(c => (
@@ -261,10 +299,15 @@ export default function CaseOpeningPage() {
           {/* Main Action Button */}
           <button
             onClick={handleOpen}
-            disabled={isSpinning || activeBalance < (caseTier.price * count)}
+            disabled={isSpinning || activeBalance < ((id === 'case_1' && freeCases >= count) ? 0 : caseTier.price * count)}
             className="w-full py-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[17px] text-white/95 shadow-sm border border-white/10"
           >
-            {isSpinning ? 'Открываем...' : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`}
+            {isSpinning 
+              ? 'Открываем...' 
+              : (id === 'case_1' && freeCases >= count)
+                ? `Бесплатно (${count} шт.)`
+                : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`
+            }
           </button>
         </div>
 

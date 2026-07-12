@@ -437,20 +437,40 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         >`SELECT amount::text, version FROM balances
             WHERE user_id = ${userId} LIMIT 1 FOR UPDATE`;
         const before = Number(balRows[0]?.amount ?? 0);
-        const after = +(before + amount).toFixed(2);
-        await tx.$executeRaw`
-          UPDATE balances SET amount = ${after}::numeric,
-                              version = version + 1,
-                              last_synced_at = NOW(),
-                              updated_at = NOW()
-            WHERE user_id = ${userId}`;
-        await tx.$executeRaw`
-          INSERT INTO transactions (id, user_id, type, amount, balance_before,
-                                     balance_after, game_type, metadata, created_at)
-          VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
-                  ${before}::numeric, ${after}::numeric, NULL,
-                  ${JSON.stringify({ kind: 'lucky_wheel', sector: index })}::jsonb,
-                  NOW())`;
+        let after = before;
+        
+        if (amount === 10.0) {
+          // Grant a free case instead of balance
+          await tx.$executeRaw`
+            UPDATE balances SET free_cases = free_cases + 1,
+                                version = version + 1,
+                                last_synced_at = NOW(),
+                                updated_at = NOW()
+              WHERE user_id = ${userId}`;
+          await tx.$executeRaw`
+            INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                       balance_after, game_type, metadata, created_at)
+            VALUES (${randomUUID()}, ${userId}, 'bonus', 0,
+                    ${before}::numeric, ${before}::numeric, NULL,
+                    ${JSON.stringify({ kind: 'lucky_wheel', sector: index, free_case: true })}::jsonb,
+                    NOW())`;
+        } else {
+          after = +(before + amount).toFixed(2);
+          await tx.$executeRaw`
+            UPDATE balances SET amount = ${after}::numeric,
+                                version = version + 1,
+                                last_synced_at = NOW(),
+                                updated_at = NOW()
+              WHERE user_id = ${userId}`;
+          await tx.$executeRaw`
+            INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                       balance_after, game_type, metadata, created_at)
+            VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
+                    ${before}::numeric, ${after}::numeric, NULL,
+                    ${JSON.stringify({ kind: 'lucky_wheel', sector: index })}::jsonb,
+                    NOW())`;
+        }
+
         await tx.$executeRaw`
           INSERT INTO bonus_wheel_spins (id, user_id, amount, created_at)
           VALUES (${randomUUID()}, ${userId}, ${amount}::numeric, NOW())`;

@@ -173,7 +173,7 @@ export class BettingPipeline {
       if (cfg.paused) {
         throw new Error('Игра временно приостановлена администратором');
       }
-      if (amount < cfg.minBet) {
+      if (amount < cfg.minBet && !bet.metadata?.freeCase) {
         throw new Error(`Минимальная ставка ${cfg.minBet}`);
       }
       if (amount > cfg.maxBet) {

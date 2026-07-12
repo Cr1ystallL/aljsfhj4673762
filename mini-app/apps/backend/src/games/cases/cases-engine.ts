@@ -36,7 +36,17 @@ class CasesEngine {
       throw new Error('Invalid case ID');
     }
 
-    const totalCost = caseTier.price * count;
+    let isFree = false;
+    if (caseId === 'case_1') {
+       // Attempt to consume free cases
+       const updated = await prisma.$executeRaw`UPDATE balances SET free_cases = free_cases - ${count} WHERE user_id = ${userId} AND free_cases >= ${count}`;
+       if (updated > 0) {
+         isFree = true;
+       }
+    }
+
+    const betAmount = isFree ? 0 : caseTier.price;
+    const totalCost = betAmount * count;
 
     // Use provably fair seeds
     const serverSeed = provablyFair.generateServerSeed();
@@ -54,7 +64,7 @@ class CasesEngine {
         clientSeed,
         nonce: 0,
         startedAt: new Date(),
-        metadata: { caseId, count, price: caseTier.price },
+        metadata: { caseId, count, price: caseTier.price, isFree },
       },
     });
 
@@ -79,10 +89,10 @@ class CasesEngine {
         userId,
         gameId: roundId,
         roundId,
-        amount: caseTier.price,
+        amount: betAmount,
         state: 'pending',
         placedAt: Date.now(),
-        metadata: { gameType: 'cases', caseId, prizeId: prize.id, nonce },
+        metadata: { gameType: 'cases', caseId, prizeId: prize.id, nonce, freeCase: isFree },
       };
 
       const isTournament = await bettingPipeline.processBet(bet, false);

@@ -59,6 +59,7 @@ export function CasesRoulette({
   const [tracks, setTracks] = useState<CasePrize[][]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
+  const lastPassedRef = useRef<number>(0);
 
   // Generate idle tracks
   useEffect(() => {
@@ -83,6 +84,7 @@ export function CasesRoulette({
         const isReverse = i % 2 !== 0;
         return { x: isReverse ? -(70 * ITEM_WIDTH) : 0 };
       });
+      lastPassedRef.current = 0;
       soundManager.play('ui.click');
       
       // 3. Wait for DOM to paint new tracks, then animate
@@ -127,6 +129,16 @@ export function CasesRoulette({
             animate={controls}
             className="flex"
             style={{ willChange: 'transform' }}
+            {...(trackIdx === 0 ? {
+              onUpdate: (latest) => {
+                if (!isSpinning) return;
+                const currentPassed = Math.floor(Math.abs(latest.x as number) / ITEM_WIDTH);
+                if (currentPassed > lastPassedRef.current) {
+                  soundManager.play('cases.tick');
+                  lastPassedRef.current = currentPassed;
+                }
+              }
+            } : {})}
           >
             {track.map((p, i) => (
               <div 

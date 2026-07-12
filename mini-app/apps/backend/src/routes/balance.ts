@@ -44,6 +44,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
         balance: {
           amount: balance.amount,
           currency: balance.currency,
+          freeCases: (balance as any).freeCases ?? 0,
           demoMode: false,
           wagerTarget: balance.wagerTarget,
           wagerProgress: balance.wagerProgress,
@@ -76,6 +77,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
         balance: {
           amount: balance.amount,
           currency: balance.currency,
+          freeCases: (balance as any).freeCases ?? 0,
           demoMode: false,
           wagerTarget: balance.wagerTarget,
           wagerProgress: balance.wagerProgress,
