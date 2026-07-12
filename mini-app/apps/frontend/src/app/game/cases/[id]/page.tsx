@@ -76,6 +76,7 @@ export default function CaseOpeningPage() {
   };
 
   useEffect(() => {
+    soundManager.initialize();
     setIsMuted(soundManager.isMuted());
     soundManager.register('cases.tick', { src: '/audio/tick.mp3', category: 'sfx' });
   }, []);
@@ -124,13 +125,14 @@ export default function CaseOpeningPage() {
       default: baseChance = 1.0;
     }
     
-    // Ensure we don't go below 0
     return Math.max(0.01, baseChance).toFixed(2) + '%';
   }
 
   const handleOpen = async () => {
     if (!caseTier) return;
     if (isSpinning) return;
+    
+    soundManager.initialize();
     
     const isFreeSpin = id === 'case_1' && freeCases >= count;
     const totalCost = isFreeSpin ? 0 : caseTier.price * count;
@@ -142,12 +144,10 @@ export default function CaseOpeningPage() {
 
     try {
       setIsSpinning(true);
-      setShowConfetti(false); // reset
-      setWinningIds([]); // Reset
+      setShowConfetti(false);
+      setWinningIds([]); 
       
-      // Freeze global balance updates via websocket so win is deferred visually
       freezeBalance();
-      // Deduct cost immediately so user sees balance drop
       optimisticUpdate(-totalCost);
       
       const res = await fetch('/api/games/cases/open', {
@@ -159,7 +159,6 @@ export default function CaseOpeningPage() {
       
       const json = await res.json();
       if (!res.ok) {
-        // Revert deduction and unfreeze on error
         optimisticUpdate(totalCost);
         unfreezeBalance();
         reportApiError(res, json, 'Could not open case');
@@ -189,11 +188,9 @@ export default function CaseOpeningPage() {
       }
     }
     
-    // Unfreeze balance so websocket push or fetchBalance is applied!
     unfreezeBalance();
     void fetchBalance();
     
-    // Keep prizes visible for 2 seconds before allowing next spin
     setTimeout(() => {
       setIsSpinning(false);
     }, 2000);
@@ -226,11 +223,17 @@ export default function CaseOpeningPage() {
             transition={{ duration: 0.3 }}
             d="M19.07 4.93a10 10 0 0 1 0 14.14"
          />
-         <motion.line 
+         <motion.path 
             initial={false}
             animate={{ pathLength: isMuted ? 1 : 0, opacity: isMuted ? 1 : 0 }}
             transition={{ duration: 0.3 }}
-            x1="22" y1="2" x2="2" y2="22" 
+            d="M21 9l-6 6"
+         />
+         <motion.path 
+            initial={false}
+            animate={{ pathLength: isMuted ? 1 : 0, opacity: isMuted ? 1 : 0 }}
+            transition={{ duration: 0.3 }}
+            d="M15 9l6 6"
          />
       </svg>
     </button>
