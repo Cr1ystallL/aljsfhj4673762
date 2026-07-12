@@ -121,21 +121,22 @@ export function ChickenRoadBoard({
                   onClick={() => { if (isNext && !busy) onStep(); }}
                   className={cn(
                     "relative z-20 flex h-16 w-16 items-center justify-center rounded-full transition-all overflow-hidden",
-                    "border-[4px] bg-[#1a1c24]",
+                    "border-[4px] bg-[#2a2d39]",
                     isNext ? "cursor-pointer border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)] hover:scale-105" : "border-white/10",
                     laneIndex < currentLane && "opacity-50",
                     isBusted && laneIndex === crashLane && "border-red-500"
                   )}
                 >
-                  {/* Underneath Fire Glow */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="absolute h-10 w-10 rounded-full bg-orange-600/50 blur-[6px] animate-pulse" style={{ animationDuration: '1.5s' }} />
-                    <div className="absolute h-6 w-6 rounded-full bg-yellow-400/70 blur-[4px] animate-pulse" style={{ animationDelay: '0.4s', animationDuration: '1.0s' }} />
-                  </div>
+                  {/* Occasional Underneath Fire */}
+                  {Math.random() > 0.5 && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-pulse" style={{ animationDuration: `${2 + Math.random() * 2}s` }}>
+                      <div className="absolute h-8 w-8 rounded-full bg-orange-600/40 blur-[4px]" />
+                    </div>
+                  )}
 
-                  {/* Old Manhole SVG but transparent back to show fire */}
                   <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-10">
                     <circle cx="20" cy="20" r="18" stroke="#ffffff20" strokeWidth="2" fill="transparent" />
+                    {/* "Slits" / original cross lines */}
                     <line x1="12" y1="12" x2="28" y2="12" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
                     <line x1="10" y1="20" x2="30" y2="20" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
                     <line x1="12" y1="28" x2="28" y2="28" stroke="#ffffff20" strokeWidth="2" strokeLinecap="round" />
@@ -164,10 +165,10 @@ export function ChickenRoadBoard({
           </div>
         </div>
 
-        {/* The Chicken */}
+        {/* The Clown */}
         {/* currentLane = 0 means left = 48 (center of sidewalk). currentLane = 1 means left = 96 + 48 = 144, etc. */}
         <motion.div
-          className="pointer-events-none absolute top-[35%] z-40"
+          className="pointer-events-none absolute top-[43%] z-40"
           initial={false}
           animate={{ left: currentLane * 96 + 48 }}
           transition={{ type: 'spring', stiffness: 120, damping: 20 }}
@@ -176,15 +177,22 @@ export function ChickenRoadBoard({
           <img 
             src={`/games/chicken-road/${chickenHit ? 'hit.png' : isJumping ? 'jump.png' : 'idle.png'}?v=3`} 
             alt="Clown"
-            className="h-24 w-24 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+            className="h-32 w-32 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
             onError={(e) => {
               // Placeholder if image is missing
               e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-24 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
+              e.currentTarget.parentElement!.innerHTML = `<div class="h-32 w-32 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
             }}
           />
         </motion.div>
       </div>
+    </div>
+
+    {/* Preload Clown images so jump animation triggers instantly */}
+    <div className="hidden">
+      <img src="/games/chicken-road/idle.png?v=3" alt="preload" />
+      <img src="/games/chicken-road/jump.png?v=3" alt="preload" />
+      <img src="/games/chicken-road/hit.png?v=3" alt="preload" />
     </div>
 
     {/* Win Notification */}
