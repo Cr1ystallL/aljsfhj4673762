@@ -22,6 +22,11 @@ import {
   BRIDGES_LEVELS,
   type BridgesLevel,
 } from '../games/bridges/bridges-engine.js';
+import {
+  chickenRoadEngine,
+  CHICKEN_ROAD_LEVELS,
+  type ChickenRoadLevel,
+} from '../games/chicken-road/chicken-road-engine.js';
 import { hiloEngine } from '../games/hilo/hilo-engine.js';
 import { casesEngine } from '../games/cases/cases-engine.js';
 import { CASES, getCases } from '../games/cases/config.js';
@@ -1649,6 +1654,81 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /* -------------------------------------------------------------- chicken-road */
+
+  app.get('/chicken-road/state', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    const state = chickenRoadEngine.getActiveGame(userId);
+    return reply.send({ ok: true, state });
+  });
+
+  app.post<{ Body: { amount: number; level: ChickenRoadLevel } }>(
+    '/chicken-road/bet',
+    {
+      preHandler: authenticate,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['amount', 'level'],
+          properties: {
+            amount: { type: 'number', minimum: 1 },
+            level: { type: 'string', enum: CHICKEN_ROAD_LEVELS as unknown as string[] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { amount, level } = request.body;
+
+      if (!(await ensureVisible('chicken-road', request as AuthenticatedRequest, reply))) return;
+
+      if (!checkRateLimit(userId, 'chicken-road:bet')) {
+        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+      }
+
+      try {
+        const result = await chickenRoadEngine.placeBet(userId, amount, level);
+        return reply.send({ success: true, result });
+      } catch (error) {
+        logger.error(error, 'Failed to place chicken-road bet');
+        return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
+      }
+    }
+  );
+
+  app.post('/chicken-road/step', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+
+    if (!checkRateLimit(userId, 'chicken-road:step')) {
+      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+    }
+
+    try {
+      const result = await chickenRoadEngine.step(userId);
+      return reply.send({ success: true, result });
+    } catch (error) {
+      logger.error(error, 'Failed to make chicken-road step');
+      return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
+    }
+  });
+
+  app.post('/chicken-road/cashout', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+
+    if (!checkRateLimit(userId, 'chicken-road:cashout')) {
+      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+    }
+
+    try {
+      const result = await chickenRoadEngine.cashout(userId);
+      return reply.send({ success: true, result });
+    } catch (error) {
+      logger.error(error, 'Failed to cashout chicken-road');
+      return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
+    }
+  });
 
 }
 
