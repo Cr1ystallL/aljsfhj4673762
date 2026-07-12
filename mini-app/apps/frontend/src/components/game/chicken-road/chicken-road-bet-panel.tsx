@@ -75,7 +75,7 @@ export function ChickenRoadBetPanel({
           </span>
         </div>
         <div className="flex items-center gap-2 rounded-md border border-white/10 bg-black px-3 py-2">
-          <span className="text-zinc-500">$</span>
+          <span className="text-zinc-500">zł</span>
           <input
             type="number"
             min={1}

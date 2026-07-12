@@ -38,26 +38,27 @@ const FALLBACK_LADDERS: Record<ChickenRoadLevel, number[]> = {
   hard: [1.2, 1.5, 1.87, 2.34, 2.93, 3.66, 4.57, 5.72, 7.15, 8.93, 11.17, 13.96, 17.45, 21.81, 27.27] // 15
 };
 
-const MOCK_HISTORY: MinesHistoryEntry[] = Array.from({ length: 15 }).map((_, i) => {
-  const isWin = Math.random() > 0.5;
-  const mult = isWin ? 1.2 + Math.random() * 3 : 0;
-  const bet = 10 + Math.floor(Math.random() * 100);
-  return {
-    id: `mock-cr-${i}`,
-    name: `User${Math.floor(Math.random() * 9999)}`,
-    photoUrl: null,
-    betAmount: bet,
-    multiplier: mult,
-    payout: isWin ? bet * mult : 0,
-    timestamp: Date.now() - i * 15000,
-  };
-});
-
 export default function ChickenRoadGamePage() {
   const { balance, fetchBalance } = useBalance();
   const tBals = useBalanceStore((s) => s.tournamentBalances);
   const tBal = tBals.find((t) => t.gameType === 'chicken-road');
   const activeBalance = tBal ? tBal.balance : balance?.amount ?? 0;
+
+  const [history, setHistory] = useState<MinesHistoryEntry[]>([]);
+  const [recentBets, setRecentBets] = useState<MinesHistoryEntry[]>([]);
+
+  const fetchHistory = async () => {
+    try {
+      const [resAll, resMe] = await Promise.all([
+        fetch('/api/games/chicken-road/history?limit=15', { credentials: 'include' }).then((r) => r.json()),
+        fetch('/api/games/chicken-road/my-history?limit=5', { credentials: 'include' }).then((r) => r.json()),
+      ]);
+      if (resAll.success) setHistory(resAll.history);
+      if (resMe.success) setRecentBets(resMe.history);
+    } catch (error) {
+      console.error('Failed to fetch chicken-road history', error);
+    }
+  };
 
   const [server, setServer] = useState<ServerState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,13 +73,13 @@ export default function ChickenRoadGamePage() {
 
   // Resume active round
   useEffect(() => {
-    let mounted = true;
+    void fetchBalance();
+    fetchHistory();
     async function init() {
       try {
         const res = await fetch('/api/games/chicken-road/state', { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
-        if (!mounted) return;
         if (data.state && data.state.state === 'active') {
           applyServer(data.state);
         }
@@ -87,7 +88,6 @@ export default function ChickenRoadGamePage() {
       }
     }
     init();
-    return () => { mounted = false; };
   }, []);
 
   const applyServer = (st: ServerState) => {
@@ -160,6 +160,11 @@ export default function ChickenRoadGamePage() {
       if (!res.ok) throw new Error(data.message || data.error);
       applyServer(data.result);
       
+      // Update history if we busted or cashed
+      if (data.result.state === 'cashed' || data.result.state === 'busted') {
+        fetchHistory();
+      }
+      
       // After a win, we reset the board visually to sidewalk after 3s
       if (data.result.state === 'cashed') {
         setTimeout(() => {
@@ -213,8 +218,8 @@ export default function ChickenRoadGamePage() {
           nextMultiplier={server?.nextMultiplier ?? 0}
         />
 
-        <MinesRecentBets bets={MOCK_HISTORY.slice(0, 5)} />
-        <MinesHistory entries={MOCK_HISTORY} />
+        <MinesRecentBets bets={recentBets} />
+        <MinesHistory entries={history} />
       </div>
     </main>
   );

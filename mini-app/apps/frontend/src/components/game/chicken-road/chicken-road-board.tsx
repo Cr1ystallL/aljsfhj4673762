@@ -46,7 +46,7 @@ export function ChickenRoadBoard({
 
   return (
     <div 
-      className="relative flex h-[400px] w-full overflow-x-auto rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
+      className="relative flex h-[400px] w-full overflow-x-auto overflow-y-hidden rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
       ref={containerRef}
     >
       <div className="relative flex min-w-max h-full">
@@ -96,7 +96,7 @@ export function ChickenRoadBoard({
                 )}
 
                 {/* Background Cars for active/future lanes */}
-                {!isPassed && laneIndex !== crashLane && laneIndex !== currentLane && laneIndex !== currentLane + 1 && (
+                {!isPassed && laneIndex !== crashLane && (
                   <BackgroundCars laneIndex={laneIndex} active={state === 'active'} />
                 )}
 
@@ -150,11 +150,11 @@ export function ChickenRoadBoard({
           <img 
             src={`/games/chicken-road/${chickenHit ? 'chicken_hit.png' : 'chicken_idle.png'}`} 
             alt="Chicken"
-            className="h-16 w-16 object-contain"
+            className="h-24 w-24 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
             onError={(e) => {
               // Placeholder if image is missing
               e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement!.innerHTML = `<div class="h-16 w-16 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
+              e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-24 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
             }}
           />
         </motion.div>
@@ -181,26 +181,38 @@ export function ChickenRoadBoard({
 
 // Background car animation for safe/future lanes
 function BackgroundCars({ laneIndex, active }: { laneIndex: number; active: boolean }) {
-  const [offset] = useState(() => Math.random() * -500); // Random start
-  const [carImg] = useState(() => CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)]);
-  const [speed] = useState(() => 0.6 + Math.random() * 1.2);
+  const [carState, setCarState] = useState({
+    id: 1,
+    img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
+    speed: 0.6 + Math.random() * 1.2,
+    delay: Math.random() * 2 // Initial delay to stagger them initially
+  });
 
   if (!active) return null;
 
   return (
     <motion.div
+      key={carState.id}
       className="absolute z-30 flex justify-center w-full left-0"
-      initial={{ top: offset }}
-      animate={{ top: ['-40%', '150%'] }}
-      transition={{ duration: speed, repeat: Infinity, ease: 'linear' }}
+      initial={{ top: '-40%' }}
+      animate={{ top: '150%' }}
+      transition={{ duration: carState.speed, delay: carState.id === 1 ? carState.delay : 0, ease: 'linear' }}
+      onAnimationComplete={() => {
+        setCarState(prev => ({
+          id: prev.id + 1,
+          img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
+          speed: 0.6 + Math.random() * 1.2,
+          delay: 0,
+        }));
+      }}
     >
       <img 
-        src={`/games/chicken-road/${carImg}`} 
-        className="w-14 object-contain rotate-180"
+        src={`/games/chicken-road/${carState.img}`} 
+        className="h-20 w-12 object-contain rotate-180 drop-shadow-lg"
         alt="Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-14 bg-blue-500 rounded-md"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-20 w-12 bg-blue-500 rounded-md"></div>`;
         }}
       />
     </motion.div>
