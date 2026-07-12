@@ -35,7 +35,10 @@ export function useBalance() {
         wagerProgress: response.balance.wagerProgress,
         lastSyncedAt: new Date(),
       }, response.tournamentBalances || []);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message === 'No access token provided' || error?.status === 401) {
+        return; // Suppress expected error during initial load before auth token is set
+      }
       console.error('Failed to fetch balance:', error);
     } finally {
       store.setLoading(false);
