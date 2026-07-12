@@ -46,10 +46,14 @@ export function ChickenRoadBoard({
 
   return (
     <div 
-      className="relative flex h-[400px] w-full overflow-x-auto overflow-y-hidden rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
+      className="relative flex h-[400px] w-full overflow-hidden rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
       ref={containerRef}
     >
-      <div className="relative flex min-w-max h-full">
+      <motion.div 
+        className="relative flex min-w-max h-full"
+        animate={{ x: Math.min(0, -currentLane * 96 + 96) }}
+        transition={{ type: 'spring', damping: 20, stiffness: 150 }}
+      >
         {/* Sidewalk */}
         <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
           {/* Bus Stop Sign instead of Traffic Light */}
@@ -97,7 +101,7 @@ export function ChickenRoadBoard({
 
                 {/* Background Cars for active/future lanes */}
                 {!isPassed && laneIndex !== crashLane && (
-                  <BackgroundCars laneIndex={laneIndex} active={state === 'active'} />
+                  <BackgroundCars laneIndex={laneIndex} active={true} canSpawn={state !== 'active' || laneIndex !== currentLane + 1} />
                 )}
 
                 {/* Killer car if this is the crash lane */}
@@ -141,7 +145,7 @@ export function ChickenRoadBoard({
         {/* The Chicken */}
         {/* currentLane = 0 means left = 48 (center of sidewalk). currentLane = 1 means left = 96 + 48 = 144, etc. */}
         <motion.div
-          className="pointer-events-none absolute top-1/2 z-40"
+          className="pointer-events-none absolute top-[40%] z-40"
           initial={false}
           animate={{ left: currentLane * 96 + 48 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
@@ -180,15 +184,28 @@ export function ChickenRoadBoard({
 }
 
 // Background car animation for safe/future lanes
-function BackgroundCars({ laneIndex, active }: { laneIndex: number; active: boolean }) {
+function BackgroundCars({ laneIndex, active, canSpawn }: { laneIndex: number; active: boolean; canSpawn: boolean }) {
   const [carState, setCarState] = useState({
     id: 1,
+    animating: canSpawn,
     img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
-    speed: 0.6 + Math.random() * 1.2,
+    speed: 0.8 + Math.random() * 1.5,
     delay: Math.random() * 2 // Initial delay to stagger them initially
   });
 
-  if (!active) return null;
+  useEffect(() => {
+    if (canSpawn && !carState.animating) {
+      setCarState(prev => ({
+        id: prev.id + 1,
+        animating: true,
+        img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
+        speed: 0.8 + Math.random() * 1.5,
+        delay: Math.random() * 3 + 1, // 1 to 4s gap
+      }));
+    }
+  }, [canSpawn, carState.animating]);
+
+  if (!active || !carState.animating) return null;
 
   return (
     <motion.div
@@ -198,21 +215,26 @@ function BackgroundCars({ laneIndex, active }: { laneIndex: number; active: bool
       animate={{ top: '150%' }}
       transition={{ duration: carState.speed, delay: carState.id === 1 ? carState.delay : 0, ease: 'linear' }}
       onAnimationComplete={() => {
-        setCarState(prev => ({
-          id: prev.id + 1,
-          img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
-          speed: 0.6 + Math.random() * 1.2,
-          delay: 0,
-        }));
+        if (canSpawn) {
+          setCarState(prev => ({
+            id: prev.id + 1,
+            animating: true,
+            img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
+            speed: 0.8 + Math.random() * 1.5,
+            delay: Math.random() * 3 + 1,
+          }));
+        } else {
+          setCarState(prev => ({ ...prev, animating: false }));
+        }
       }}
     >
       <img 
         src={`/games/chicken-road/${carState.img}`} 
-        className="h-20 w-12 object-contain rotate-180 drop-shadow-lg"
+        className="h-[120px] w-[65px] object-contain rotate-180 drop-shadow-lg"
         alt="Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-20 w-12 bg-blue-500 rounded-md"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-[120px] w-[65px] bg-blue-500 rounded-md"></div>`;
         }}
       />
     </motion.div>
@@ -248,11 +270,11 @@ function KillerCar({ onHit }: { onHit: () => void }) {
     >
       <img 
         src={`/games/chicken-road/${carImg}`} 
-        className="w-16 object-contain opacity-90 drop-shadow-2xl rotate-180"
+        className="h-[120px] w-[65px] object-contain opacity-90 drop-shadow-2xl rotate-180"
         alt="Killer Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-16 bg-red-600 rounded-md shadow-xl"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-[120px] w-[65px] bg-red-600 rounded-md shadow-xl"></div>`;
         }}
       />
     </motion.div>
