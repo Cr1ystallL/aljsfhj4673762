@@ -162,7 +162,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
     const payload = request.body;
     logger.info({ payload }, 'Received FoluxPay webhook');
 
-    if (payload.event !== 'payment_completed' && payload.status !== 'paid') {
+    if (payload.status !== 'paid') {
       logger.info({ payload }, 'Ignored FoluxPay webhook (not paid)');
       return reply.send({ ok: true });
     }

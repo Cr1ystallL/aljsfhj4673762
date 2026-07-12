@@ -164,9 +164,10 @@ export default function UserDetailPage() {
   const [wagerHistory, setWagerHistory] = useState<any[]>([]);
 
   // Action modal state — single modal driven by `action`.
-  type Action = null | 'balance' | 'block' | 'lock';
+  type Action = null | 'balance' | 'block' | 'lock' | 'whitelist';
   const [action, setAction] = useState<Action>(null);
   const [delta, setDelta] = useState<string>('');
+  const [txType, setTxType] = useState<string>('admin_adjustment');
   const [reason, setReason] = useState<string>('');
   const [busy, setBusy] = useState(false);
 
@@ -269,7 +270,7 @@ export default function UserDetailPage() {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delta: num, reason: reason.trim() }),
+            body: JSON.stringify({ delta: num, reason: reason.trim(), txType }),
           }
         );
         if (!res.ok) {
@@ -983,10 +984,6 @@ export default function UserDetailPage() {
                   <label className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
                     Изменение (положительное = кредит, отрицательное = дебет)
                   </label>
-                  {/* type=text + inputMode=text — иначе на iOS-клаве */}
-                  {/* появляется numeric pad без знака минус, и оператор */}
-                  {/* физически не может ввести «-50». Валидируем ввод */}
-                  {/* паттерном: цифры, точка/запятая, опциональный знак. */}
                   <input
                     value={delta}
                     onChange={(e) => setDelta(e.target.value)}
@@ -999,6 +996,18 @@ export default function UserDetailPage() {
                     placeholder="+100 или -50"
                     className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[14px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
                   />
+                  <label className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray mt-2">
+                    Тип транзакции (как отобразится в истории)
+                  </label>
+                  <select
+                    value={txType}
+                    onChange={(e) => setTxType(e.target.value)}
+                    className="bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[14px] text-frost-white focus:outline-none focus:border-white/30 appearance-none"
+                  >
+                    <option value="admin_adjustment">Админ. начисление / списание</option>
+                    <option value="deposit">Депозит</option>
+                    <option value="withdrawal">Вывод</option>
+                  </select>
                   <div className="font-roobert text-[11px] text-whisper-gray">
                     Текущий баланс:{' '}
                     {u.balance.toLocaleString('ru-RU', {

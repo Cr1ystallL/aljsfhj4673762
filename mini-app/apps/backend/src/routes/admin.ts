@@ -929,7 +929,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{
     Params: { id: string };
-    Body: { delta: number; reason: string };
+    Body: { delta: number; reason: string; txType?: string };
   }>(
     '/_x/users/:id/balance',
     { preHandler: adminOnly },
@@ -937,6 +937,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const delta = Number(request.body?.delta);
       const reason = (request.body?.reason ?? '').trim();
+      const txType = request.body?.txType;
       if (!Number.isFinite(delta) || delta === 0) {
         return reply.code(400).send({ error: 'Bad amount' });
       }
@@ -986,13 +987,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           });
           const afterAmount = Number(updated.amount);
 
-          await tx.transaction.create({
-            data: {
-              userId: id,
-              type: delta >= 0 ? 'admin_credit' : 'admin_debit',
-              amount: delta,
-              balanceBefore: beforeAmount,
-              balanceAfter: afterAmount,
+            let actualTxType = delta >= 0 ? 'admin_credit' : 'admin_debit';
+            if (txType === 'deposit') actualTxType = 'deposit';
+            if (txType === 'withdrawal') actualTxType = 'withdrawal';
+
+            await tx.transaction.create({
+              data: {
+                userId: id,
+                type: actualTxType,
+                amount: delta,
+                balanceBefore: beforeAmount,
+                balanceAfter: afterAmount,
               metadata: {
                 reason,
                 adminTelegramId: (request as AuthenticatedRequest).user.telegramId,
