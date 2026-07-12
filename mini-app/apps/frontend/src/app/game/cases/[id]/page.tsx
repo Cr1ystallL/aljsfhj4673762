@@ -68,7 +68,15 @@ export default function CaseOpeningPage() {
   const activeBalance = balance?.amount ?? 10000;
   const freeCases = (balance as any)?.freeCases ?? 0;
 
+  const [isMuted, setIsMuted] = useState(false);
+  const toggleMute = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    soundManager.setMuted(newMuted);
+  };
+
   useEffect(() => {
+    setIsMuted(soundManager.isMuted());
     soundManager.register('cases.tick', { src: '/audio/tick.mp3', category: 'sfx' });
   }, []);
 
@@ -199,6 +207,35 @@ export default function CaseOpeningPage() {
     );
   }
 
+  const muteButton = (
+    <button
+      onClick={toggleMute}
+      className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 shrink-0"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+         <motion.path 
+            initial={false}
+            animate={{ pathLength: isMuted ? 0 : 1, opacity: isMuted ? 0 : 1 }}
+            transition={{ duration: 0.3 }}
+            d="M15.54 8.46a5 5 0 0 1 0 7.07"
+         />
+         <motion.path 
+            initial={false}
+            animate={{ pathLength: isMuted ? 0 : 1, opacity: isMuted ? 0 : 1 }}
+            transition={{ duration: 0.3 }}
+            d="M19.07 4.93a10 10 0 0 1 0 14.14"
+         />
+         <motion.line 
+            initial={false}
+            animate={{ pathLength: isMuted ? 1 : 0, opacity: isMuted ? 1 : 0 }}
+            transition={{ duration: 0.3 }}
+            x1="22" y1="2" x2="2" y2="22" 
+         />
+      </svg>
+    </button>
+  );
+
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white relative overflow-hidden">
       {liquidGlassSvg}
@@ -217,7 +254,12 @@ export default function CaseOpeningPage() {
       <Confetti active={showConfetti} />
       
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4 relative z-10">
-        <GameTopBar title={caseTier.name} Icon={PlinkoIcon} onBack={() => router.push('/game/cases')} />
+        <GameTopBar 
+           title={caseTier.name} 
+           Icon={PlinkoIcon} 
+           onBack={() => router.push('/game/cases')} 
+           extraAction={muteButton}
+        />
 
         {/* Roulette Area */}
         <div className="w-full relative mt-4">

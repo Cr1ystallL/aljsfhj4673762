@@ -2,12 +2,11 @@
 
 import { Trophy, HelpCircle, Wallet, type LucideIcon } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
-import { soundManager } from '@/lib/sound/sound-manager';
 
 /**
  * Game Top Bar — Monopo Saigon Style
@@ -34,6 +33,7 @@ interface GameTopBarProps {
   balance?: number;
   currency?: string;
   serverSeedHash?: string;
+  extraAction?: React.ReactNode;
 }
 
 export function GameTopBar({
@@ -42,6 +42,7 @@ export function GameTopBar({
   iconRotate = 0,
   onHowToPlay,
   hideBalance = false,
+  extraAction,
 }: GameTopBarProps) {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -50,15 +51,6 @@ export function GameTopBar({
   const { fetchBalance } = useBalance();
   const pathname = usePathname();
   
-  const [isMuted, setIsMuted] = useState(false);
-  useEffect(() => {
-    const handleMuteChange = () => setIsMuted(soundManager.isMuted());
-    handleMuteChange();
-    document.addEventListener('sound-mute-changed', handleMuteChange);
-    return () => document.removeEventListener('sound-mute-changed', handleMuteChange);
-  }, []);
-
-  const initials = user?.firstName?.[0] || user?.username?.[0] || '?';
   const gameType = pathname?.split('/').pop() || '';
   const activeTournamentBalance = tournamentBalances.find(t => t.gameType === gameType);
 
@@ -153,34 +145,8 @@ export function GameTopBar({
             <HelpCircle size={16} strokeWidth={2} />
           </button>
         )}
-
-        <button
-          onClick={() => {
-             const newMuted = !soundManager.isMuted();
-             soundManager.setMuted(newMuted);
-             document.dispatchEvent(new Event('sound-mute-changed'));
-          }}
-          className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 shrink-0"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-             <path 
-                className="transition-all duration-300"
-                style={{ strokeDasharray: 20, strokeDashoffset: isMuted ? 20 : 0, opacity: isMuted ? 0 : 1 }}
-                d="M15.54 8.46a5 5 0 0 1 0 7.07"
-             />
-             <path 
-                className="transition-all duration-300"
-                style={{ strokeDasharray: 45, strokeDashoffset: isMuted ? 45 : 0, opacity: isMuted ? 0 : 1 }}
-                d="M19.07 4.93a10 10 0 0 1 0 14.14"
-             />
-             <line 
-                className="transition-all duration-300"
-                style={{ strokeDasharray: 32, strokeDashoffset: isMuted ? 0 : 32, opacity: isMuted ? 1 : 0 }}
-                x1="22" y1="2" x2="2" y2="22" 
-             />
-          </svg>
-        </button>
+        
+        {extraAction}
       </div>
     </div>
   );
