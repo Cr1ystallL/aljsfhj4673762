@@ -53,9 +53,8 @@ const inAppGames: InAppGame[] = [
   { id: 'wheel', name: 'Wheel', href: '/game/wheel', bg: '/Wheel.png' },
   { id: 'bridges', name: 'Bridges', href: '/game/bridges', bg: '/Bridges.png' },
   { id: 'cases', name: 'Case', href: '/game/cases', bg: '/case.png', wide: true },
-  { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png', wide: true },
-  { id: 'baccarat', name: 'Baccarat', href: '/game/baccarat', bg: '/baccarat.png', wide: true },
-  { id: 'chicken-road', name: 'Chicken Road', href: '/game/chicken-road', bg: '/games/chicken-road/chicken_idle.png' },
+  { id: 'keno', name: 'Keno', href: '/game/keno', bg: '/keno.png' },
+  { id: 'chicken-road', name: 'MacvRoad', href: '/game/chicken-road', bg: '/MacvRoad.png' },
 ];
 
 const BOT_USERNAME =
@@ -205,7 +204,7 @@ export function HomeScreen() {
     const isAdmin = availability?.isAdmin ?? false;
     return inAppGames.filter((g) => {
       // Жестко скрываем эти игры от обычных игроков
-      if ((g.id === 'blackjack' || g.id === 'baccarat' || g.id === 'chicken-road') && !isAdmin) {
+      if ((g.id === 'blackjack' || g.id === 'chicken-road') && !isAdmin) {
         return false;
       }
       if (hidden[g.id] && !isAdmin) return false;

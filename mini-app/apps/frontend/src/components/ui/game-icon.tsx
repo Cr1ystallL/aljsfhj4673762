@@ -125,6 +125,36 @@ const CoinflipIcon: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
 CoinflipIcon.displayName = 'CoinflipIcon';
 export { CoinflipIcon };
 
+const ClownIcon = forwardRef<SVGSVGElement, Omit<React.SVGProps<SVGSVGElement>, 'width' | 'height'>>(
+  ({ size = 24, color = 'currentColor', className, strokeWidth = 1.5, ...rest }, ref) => (
+    <svg
+      ref={ref}
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...rest}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 9.5h.01" />
+      <path d="M16 9.5h.01" />
+      <path d="M12 13.5v.01" strokeWidth="3" />
+      <path d="M8 16a4 4 0 0 0 8 0" />
+      <path d="M2 12a2 2 0 0 1 2 0" />
+      <path d="M20 12a2 2 0 0 1 2 0" />
+      <path d="M9 4l3-3 3 3" />
+    </svg>
+  )
+);
+ClownIcon.displayName = 'ClownIcon';
+export { ClownIcon };
+
 const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   crash: { label: 'MacvJet', Icon: Rocket },
   mines: { label: 'Mines', Icon: Bomb },
@@ -138,7 +168,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   hilo: { label: 'Hi-Lo', Icon: Spade },
   keno: { label: 'Keno', Icon: Dice5 },
   cases: { label: 'Case', Icon: Box },
-  'chicken-road': { label: 'Chicken Road', Icon: Footprints },
+  'chicken-road': { label: 'MacvRoad', Icon: ClownIcon },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 

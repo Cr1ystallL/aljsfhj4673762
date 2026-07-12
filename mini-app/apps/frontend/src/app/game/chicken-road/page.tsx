@@ -193,7 +193,7 @@ export default function ChickenRoadGamePage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
       <div className="mx-auto w-full max-w-[800px] px-4 pt-4 pb-32 flex flex-col gap-5">
-        <GameTopBar title="Chicken Road" />
+        <GameTopBar title="MacvRoad" />
 
         <ChickenRoadBoard
           lanesCount={lanesCount}
