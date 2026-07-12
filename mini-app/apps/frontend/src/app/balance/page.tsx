@@ -549,7 +549,7 @@ function PaymentDetails({
         {/* Account / phone — provider-issued banking details */}
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 flex flex-col gap-3">
           <CopyRow
-            label="Номер карты"
+            label={/^[0-9\s-]+$/.test(order.card) ? 'Номер карты' : 'Перевод Revtag'}
             value={order.card}
             keyId="card"
             copied={copied}
