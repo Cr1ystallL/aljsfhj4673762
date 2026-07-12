@@ -192,8 +192,8 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ ok: true });
       }
 
-      if (order.status !== 'pending') {
-        logger.warn({ orderId, status: order.status }, 'FoluxPay webhook for non-pending order');
+      if (order.status !== 'pending' && order.status !== 'expired') {
+        logger.warn({ orderId, status: order.status }, 'FoluxPay webhook for non-pending/expired order');
         return reply.send({ ok: true });
       }
 
@@ -248,7 +248,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
               paid_at = NOW(),
               credit_tx_id = ${txId},
               updated_at = NOW()
-          WHERE id = ${orderId} AND status = 'pending'
+          WHERE id = ${orderId} AND status IN ('pending', 'expired')
         `;
 
         if (updateCount === 0) {
