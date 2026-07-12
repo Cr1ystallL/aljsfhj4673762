@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, Check, X, AlertTriangle } from 'lucide-react';
+import { Clock, Check, X, AlertTriangle, Play, ToggleLeft, ToggleRight } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 import { cn } from '@/lib/utils';
 
@@ -48,19 +48,75 @@ export default function DepositsPage() {
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [now, setNow] = useState(() => Date.now());
 
+  const [depositsEnabled, setDepositsEnabled] = useState(true);
+  const [updatingConfig, setUpdatingConfig] = useState(false);
+  const [foluxTestResult, setFoluxTestResult] = useState<any>(null);
+  const [testingFolux, setTestingFolux] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/_x/deposits?limit=200', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!res.ok) return setData([]);
-      const j = await res.json();
-      setData(j.deposits ?? []);
+      const [depRes, cfgRes] = await Promise.all([
+        fetch('/api/_x/deposits?limit=200', {
+          credentials: 'include',
+          cache: 'no-store',
+        }),
+        fetch('/api/_x/wallet-config', {
+          credentials: 'include',
+          cache: 'no-store',
+        })
+      ]);
+
+      if (depRes.ok) {
+        const j = await depRes.json();
+        setData(j.deposits ?? []);
+      } else {
+        setData([]);
+      }
+
+      if (cfgRes.ok) {
+        const c = await cfgRes.json();
+        if (c.config && typeof c.config.depositsEnabled === 'boolean') {
+          setDepositsEnabled(c.config.depositsEnabled);
+        }
+      }
     } catch {
       setData([]);
     }
   }, []);
+
+  const toggleDeposits = async () => {
+    setUpdatingConfig(true);
+    try {
+      const res = await fetch('/api/_x/wallet-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: 'deposits kill-switch toggle',
+          depositsEnabled: !depositsEnabled
+        })
+      });
+      if (res.ok) {
+        const c = await res.json();
+        setDepositsEnabled(c.config.depositsEnabled);
+      }
+    } finally {
+      setUpdatingConfig(false);
+    }
+  };
+
+  const testFoluxPay = async () => {
+    setTestingFolux(true);
+    setFoluxTestResult(null);
+    try {
+      const res = await fetch('/api/_x/foluxpay/test');
+      const j = await res.json();
+      setFoluxTestResult(j);
+    } catch (e: any) {
+      setFoluxTestResult({ error: e?.message || 'Error fetching' });
+    } finally {
+      setTestingFolux(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +183,58 @@ export default function DepositsPage() {
               игрока.
             </p>
           </HelpButton>
+        </div>
+
+        {/* Global Deposit Controls */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-card border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
+            <h3 className="font-roobert text-[14px] text-frost-white">Статус пополнений</h3>
+            <p className="text-[12px] text-whisper-gray leading-relaxed">
+              Отключите этот тумблер, чтобы временно запретить всем игрокам создавать новые заявки на депозит.
+            </p>
+            <div className="mt-auto pt-2">
+              <button
+                onClick={toggleDeposits}
+                disabled={updatingConfig}
+                className={cn(
+                  'flex items-center gap-2 font-roobert text-[13px] transition-colors',
+                  depositsEnabled ? 'text-emerald-400' : 'text-red-400',
+                  updatingConfig && 'opacity-50'
+                )}
+              >
+                {depositsEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                {depositsEnabled ? 'Пополнения ВКЛЮЧЕНЫ' : 'Пополнения ОТКЛЮЧЕНЫ'}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-card border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
+            <h3 className="font-roobert text-[14px] text-frost-white">Тест FoluxPay API</h3>
+            <p className="text-[12px] text-whisper-gray leading-relaxed">
+              Создать тестовую заявку (10 PLN), чтобы проверить, что именно сейчас выдаёт API FoluxPay (карту или Revtag).
+            </p>
+            
+            <button
+              onClick={testFoluxPay}
+              disabled={testingFolux}
+              className="mt-2 shrink-0 bg-white/10 hover:bg-white/15 active:bg-white/20 text-frost-white font-roobert text-[13px] px-3 py-1.5 rounded-pill transition-colors flex items-center justify-center gap-2 w-fit"
+            >
+              {testingFolux ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Play size={14} />
+              )}
+              Проверить FoluxPay
+            </button>
+            
+            {foluxTestResult && (
+              <div className="mt-2 p-3 rounded-lg bg-black/40 border border-white/5 overflow-x-auto">
+                <pre className="text-[10px] text-emerald-300 font-mono">
+                  {JSON.stringify(foluxTestResult.result || foluxTestResult, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Status pills */}

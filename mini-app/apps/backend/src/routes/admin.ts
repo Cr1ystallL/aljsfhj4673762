@@ -13,6 +13,7 @@ import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { walletConfig } from '../services/wallet-config.js';
+import { createOrder } from '../services/foluxpay.js';
 import { systemMonitor } from '../services/system-monitor.js';
 import { restartCrashEngine } from '../game-engine/crash-room-singleton.js';
 import { redisClient } from '../lib/redis.js';
@@ -2304,6 +2305,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       minWithdrawal?: number;
       maxWithdrawal?: number;
       wagerMultiplier?: number;
+      depositsEnabled?: boolean;
     };
   }>(
     '/_x/wallet-config',
@@ -2322,6 +2324,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         'minWithdrawal',
         'maxWithdrawal',
         'wagerMultiplier',
+        'depositsEnabled',
       ];
       for (const f of fields) {
         const v = (request.body as Record<string, unknown>)[f as string];
@@ -2349,6 +2352,32 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
+
+  /* -------------------------------------------------------- FoluxPay Testing */
+
+  /**
+   * GET /api/_x/foluxpay/test
+   * Create a dummy order for 10 PLN to see what payment details FoluxPay is issuing.
+   */
+  app.get('/_x/foluxpay/test', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const externalId = `test_${userId}_${Date.now()}`;
+      
+      const result = await createOrder(
+        10, 
+        userId, 
+        externalId, 
+        'http://localhost/webhook', 
+        'bank'
+      );
+      
+      return reply.send({ ok: true, result });
+    } catch (error) {
+      logger.error(error, 'FoluxPay test failed');
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
 
   /* -------------------------------------------------------- RTP engine */
 

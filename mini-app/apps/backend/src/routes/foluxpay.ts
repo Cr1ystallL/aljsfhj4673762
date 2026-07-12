@@ -42,6 +42,10 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const cfg = await walletConfig.getMasked();
+      if (!cfg.depositsEnabled) {
+        return reply.code(403).send({ error: 'Пополнения временно недоступны. Технические работы.' });
+      }
+
       const minDeposit = Number(cfg.minDeposit ?? 10) || 10;
       if (amount < minDeposit) {
         return reply

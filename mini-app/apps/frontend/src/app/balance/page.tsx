@@ -65,6 +65,7 @@ export default function BalancePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [depositDisabledModal, setDepositDisabledModal] = useState(false);
 
   // -------- Withdraw state --------------------------------------------------
   const [wKind, setWKind] = useState<WithdrawKind>('blik');
@@ -95,6 +96,11 @@ export default function BalancePage() {
         body: JSON.stringify({ amount: num, type: 'bank' }),
       });
       const j = await res.json();
+      if (res.status === 403) {
+        setDepositDisabledModal(true);
+        setLoading(false);
+        return;
+      }
       if (!res.ok || !j.ok) {
         const msg = reportApiError(res, j, 'Не удалось создать заявку');
         setError(msg);
@@ -305,6 +311,41 @@ export default function BalancePage() {
           <BrandLockup size={56} />
         </div>
       </div>
+
+      {/* Deposit Disabled Modal */}
+      <AnimatePresence>
+        {depositDisabledModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-[320px] rounded-[24px] border border-white/10 bg-midnight-canvas p-6 flex flex-col items-center text-center shadow-2xl"
+            >
+              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+                <AlertTriangle className="text-red-400" size={32} />
+              </div>
+              <h3 className="font-roobert text-[18px] text-frost-white mb-2">
+                Пополнения недоступны
+              </h3>
+              <p className="font-roobert text-[13px] text-whisper-gray leading-relaxed mb-6">
+                В данный момент пополнения временно отключены по техническим причинам. Пожалуйста, попробуйте позже.
+              </p>
+              <button
+                onClick={() => setDepositDisabledModal(false)}
+                className="w-full bg-white/10 hover:bg-white/15 active:bg-white/20 text-frost-white font-roobert text-[14px] px-6 py-3 rounded-pill transition-colors"
+              >
+                Понятно
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

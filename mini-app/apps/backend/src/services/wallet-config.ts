@@ -19,6 +19,8 @@ import { logger } from '../utils/logger.js';
  * file (or an HSM) — not the live config.
  */
 export interface WalletConfig {
+  /** If false, deposits are globally disabled */
+  depositsEnabled: boolean;
   /** Minimum deposit per request. */
   minDeposit: number;
   /** Maximum deposit per request. */
@@ -32,6 +34,7 @@ export interface WalletConfig {
 }
 
 const DEFAULTS: WalletConfig = {
+  depositsEnabled: true,
   minDeposit: 10,
   maxDeposit: 100000,
   minWithdrawal: 50,
