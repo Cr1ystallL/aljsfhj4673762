@@ -16,7 +16,8 @@ export interface FoluxPayOrderResponse {
   id: string;
   price: number;
   minutes: number;
-  card: string;
+  card?: string;
+  phone?: string;
   details: string;
   type: string;
 }
