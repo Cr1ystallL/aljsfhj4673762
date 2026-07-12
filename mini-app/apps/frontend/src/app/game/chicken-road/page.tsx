@@ -139,11 +139,18 @@ export default function ChickenRoadGamePage() {
       if (!res.ok) throw new Error(data.message || data.error);
       soundManager.play('click');
       applyServer(data.result);
+
+      if (data.result.state === 'cashed' || data.result.state === 'busted') {
+        fetchHistory();
+        setTimeout(() => {
+          setServer(prev => prev && (prev.state === 'cashed' || prev.state === 'busted') ? { ...prev, currentLane: 0, state: 'idle' } : prev);
+        }, 3000);
+      }
     } catch (e: any) {
       reportApiError(e);
       toast.error(e.message);
     } finally {
-      setBusy(false);
+      setTimeout(() => setBusy(false), 1500);
     }
   };
 
@@ -159,15 +166,10 @@ export default function ChickenRoadGamePage() {
       if (!res.ok) throw new Error(data.message || data.error);
       applyServer(data.result);
       
-      // Update history if we busted or cashed
       if (data.result.state === 'cashed' || data.result.state === 'busted') {
         fetchHistory();
-      }
-      
-      // After a win, we reset the board visually to sidewalk after 3s
-      if (data.result.state === 'cashed') {
         setTimeout(() => {
-          setServer(prev => prev && prev.state === 'cashed' ? { ...prev, currentLane: 0, state: 'idle' } : prev);
+          setServer(prev => prev && (prev.state === 'cashed' || prev.state === 'busted') ? { ...prev, currentLane: 0, state: 'idle' } : prev);
         }, 3000);
       }
     } catch (e: any) {

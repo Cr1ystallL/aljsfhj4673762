@@ -45,7 +45,7 @@ export function ChickenRoadBetPanel({
 
       {/* Difficulty Level */}
       <div className="space-y-2">
-        <label className="text-sm text-zinc-400">Difficulty</label>
+        <label className="text-sm text-zinc-400">Сложность</label>
         <div className="flex gap-2">
           {(['easy', 'medium', 'hard'] as const).map((lvl) => (
             <button
@@ -60,7 +60,7 @@ export function ChickenRoadBetPanel({
                 (!isIdle || busy) && 'opacity-50 cursor-not-allowed'
               )}
             >
-              {lvl}
+              {lvl === 'easy' ? 'Легко' : lvl === 'medium' ? 'Средне' : 'Сложно'}
             </button>
           ))}
         </div>
@@ -69,7 +69,7 @@ export function ChickenRoadBetPanel({
       {/* Bet Amount */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm text-zinc-400">Bet Amount</label>
+          <label className="text-sm text-zinc-400">Сумма ставки</label>
           <span className="text-sm font-medium text-white">
             {balance.toFixed(2)}
           </span>
@@ -111,7 +111,7 @@ export function ChickenRoadBetPanel({
           disabled={busy || amount < 1 || amount > balance}
           className="mt-auto w-full bg-white/10 hover:bg-white/20 border border-white/20 py-6 text-lg font-bold text-white transition-all backdrop-blur-xl"
         >
-          {busy ? <Loader2 className="animate-spin" /> : 'Play'}
+          {busy ? <Loader2 className="animate-spin" /> : 'Играть'}
         </Button>
       ) : (
         <Button
@@ -119,7 +119,7 @@ export function ChickenRoadBetPanel({
           disabled={busy || currentMultiplier === 0}
           className="mt-auto flex w-full flex-col bg-amber-500 py-8 text-white hover:bg-amber-600"
         >
-          <span className="text-sm font-medium opacity-90">Cashout</span>
+          <span className="text-sm font-medium opacity-90">Забрать</span>
           <span className="text-xl font-bold">
             {currentMultiplier > 0
               ? `$${(amount * currentMultiplier).toFixed(2)}`

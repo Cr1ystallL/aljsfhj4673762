@@ -37,23 +37,24 @@ export function ChickenRoadBoard({
     }
   }, [state, currentLane]);
 
-  // We only allow cars on lanes > currentLane. 
-  // We will handle car spawning inside a useEffect loop or CSS.
-  // For simplicity and performance, let's use CSS animations for background cars, 
-  // and a specific controlled Framer Motion animation for the killer car.
+  // Auto-pan camera
+  useEffect(() => {
+    if (containerRef.current) {
+      // Calculate target scroll to center the chicken (chicken is at currentLane * 96 + 48)
+      const containerWidth = containerRef.current.clientWidth;
+      const targetLeft = Math.max(0, currentLane * 96 + 48 - containerWidth / 2);
+      containerRef.current.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    }
+  }, [currentLane]);
 
   const isBusted = state === 'busted';
 
   return (
     <div 
-      className="relative flex h-[400px] w-full overflow-hidden rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
+      className="relative flex h-[400px] w-full overflow-x-auto overflow-y-hidden hide-scrollbar rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
       ref={containerRef}
     >
-      <motion.div 
-        className="relative flex min-w-max h-full"
-        animate={{ x: currentLane > 1 ? -(currentLane - 1) * 96 : 0 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-      >
+      <div className="relative flex min-w-max h-full">
         {/* Sidewalk */}
         <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
           {/* Bus Stop Sign instead of Traffic Light */}
@@ -142,6 +143,15 @@ export function ChickenRoadBoard({
           })}
         </div>
 
+        {/* Finish Sidewalk */}
+        <div className="relative flex w-[600px] flex-col items-center justify-center border-l-4 border-white/10 bg-[#252833]">
+          <div className="absolute top-10 flex flex-col items-center gap-4 opacity-10">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-16 w-4 bg-white rounded-full"></div>
+            ))}
+          </div>
+        </div>
+
         {/* The Chicken */}
         {/* currentLane = 0 means left = 48 (center of sidewalk). currentLane = 1 means left = 96 + 48 = 144, etc. */}
         <motion.div
@@ -178,7 +188,7 @@ export function ChickenRoadBoard({
           </div>
         )}
 
-      </motion.div>
+      </div>
     </div>
   );
 }
