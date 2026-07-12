@@ -51,7 +51,7 @@ export function ChickenRoadBoard({
 
   return (
     <div 
-      className="relative flex h-[400px] w-full overflow-x-auto overflow-y-hidden hide-scrollbar rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
+      className="relative flex h-[400px] w-full overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
       ref={containerRef}
     >
       <div className="relative flex min-w-max h-full">
@@ -173,22 +173,21 @@ export function ChickenRoadBoard({
           />
         </motion.div>
 
-        {/* Win Notification */}
-        {state === 'cashed' && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-black/40 rounded-xl backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="flex flex-col items-center"
-            >
-              <div className="text-5xl font-black text-green-400 drop-shadow-[0_0_20px_rgba(74,222,128,0.8)]">
-                WIN!
-              </div>
-            </motion.div>
-          </div>
-        )}
-
       </div>
+
+      {/* Win Notification */}
+      {state === 'cashed' && (
+        <div className="absolute left-0 top-0 z-50 flex h-full w-full items-center justify-center pointer-events-none bg-black/40 rounded-xl backdrop-blur-sm">
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-green-500/20 to-green-600/10 border border-green-500/30 p-8 shadow-[0_0_50px_rgba(34,197,94,0.3)] backdrop-blur-md"
+          >
+            <div className="text-4xl font-black text-green-400 drop-shadow-[0_2px_10px_rgba(34,197,94,0.8)] mb-2">WIN</div>
+            <div className="text-xl font-bold text-white">Вы успешно забрали ставку!</div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

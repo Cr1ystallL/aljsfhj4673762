@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { ChickenRoadBetPanel, type ChickenRoadLevel } from '@/components/game/chicken-road/chicken-road-bet-panel';
 import { ChickenRoadBoard } from '@/components/game/chicken-road/chicken-road-board';
+import { ChickenRoadRecentBets, type ChickenRoadRecentBet } from '@/components/game/chicken-road/chicken-road-recent-bets';
 import { MinesHistory, type MinesHistoryEntry } from '@/components/game/mines/mines-history';
-import { MinesRecentBets } from '@/components/game/mines/mines-recent-bets';
 import { useBalance } from '@/hooks/use-balance';
 import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -45,7 +45,7 @@ export default function ChickenRoadGamePage() {
   const activeBalance = tBal ? tBal.balance : balance?.amount ?? 0;
 
   const [history, setHistory] = useState<MinesHistoryEntry[]>([]);
-  const [recentBets, setRecentBets] = useState<MinesHistoryEntry[]>([]);
+  const [recentBets, setRecentBets] = useState<ChickenRoadRecentBet[]>([]);
 
   const fetchHistory = async () => {
     try {
@@ -150,7 +150,7 @@ export default function ChickenRoadGamePage() {
       reportApiError(e);
       toast.error(e.message);
     } finally {
-      setTimeout(() => setBusy(false), 1500);
+      setTimeout(() => setBusy(false), 500);
     }
   };
 
@@ -176,7 +176,7 @@ export default function ChickenRoadGamePage() {
       reportApiError(e);
       toast.error(e.message);
     } finally {
-      setTimeout(() => setBusy(false), 1500);
+      setTimeout(() => setBusy(false), 500);
     }
   };
 
@@ -219,7 +219,7 @@ export default function ChickenRoadGamePage() {
           nextMultiplier={server?.nextMultiplier ?? 0}
         />
 
-        <MinesRecentBets bets={recentBets} />
+        <ChickenRoadRecentBets bets={recentBets} />
         <MinesHistory entries={history} />
       </div>
     </main>
