@@ -56,6 +56,7 @@ class WalletConfigService {
           minWithdrawal: numOr(parsed.minWithdrawal, DEFAULTS.minWithdrawal),
           maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
           wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
+          depositsEnabled: parsed.depositsEnabled ?? DEFAULTS.depositsEnabled,
         };
       }
     } catch (err) {
@@ -72,6 +73,7 @@ class WalletConfigService {
           minWithdrawal: numOr(parsed.minWithdrawal, DEFAULTS.minWithdrawal),
           maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
           wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
+          depositsEnabled: parsed.depositsEnabled ?? DEFAULTS.depositsEnabled,
         };
         await redisClient.getClient().set(KEY, JSON.stringify(config)).catch(() => {});
         return config;

@@ -248,6 +248,30 @@ export default function SystemPage() {
     }
   };
 
+  const restartPm2 = async () => {
+    const reason = prompt(
+      'ВНИМАНИЕ! Полная перезагрузка всех компонентов системы (backend, frontend, bot). Сайт будет недоступен пару секунд. Причина:'
+    );
+    if (!reason || reason.trim().length < 3) return;
+    setActing('pm2');
+    try {
+      const res = await fetch('/api/_x/system/pm2-restart', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (res.ok) {
+        alert('Запущена команда pm2 restart all. Сайт сейчас перезагрузится.');
+        // Don't await reloadStatus because the server is probably dead right now
+      } else {
+        alert('Не удалось запустить перезагрузку');
+      }
+    } finally {
+      setActing(null);
+    }
+  };
+
   const clearCache = async () => {
     const reason = prompt('Очистить кэш конфигов игр. Причина (минимум 3):');
     if (!reason || reason.trim().length < 3) return;
@@ -511,7 +535,7 @@ export default function SystemPage() {
               </p>
             </HelpButton>
           </div>
-          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             <button
               onClick={restartCrash}
               disabled={acting === 'crash'}
@@ -524,9 +548,34 @@ export default function SystemPage() {
                 </span>
               </div>
               <div className="font-roobert text-[11px] text-whisper-gray mt-0.5">
-                Спин-даун + спин-ап одной комнаты «crash_main»
+                Сбросить стейт (если завис)
               </div>
             </button>
+
+            <button
+              onClick={restartPm2}
+              disabled={acting !== null}
+              className={`rounded-card border px-4 py-3 text-left transition-colors ${
+                acting === 'pm2'
+                  ? 'border-red-500/50 bg-red-500/10'
+                  : 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-red-200">
+                {acting === 'pm2' ? (
+                  <div className="w-3.5 h-3.5 rounded-full border border-red-200/20 border-t-red-200 animate-spin" />
+                ) : (
+                  <RefreshCw size={14} strokeWidth={1.7} />
+                )}
+                <span className="font-roobert text-[14px]">
+                  Перезапустить всё
+                </span>
+              </div>
+              <div className="font-roobert text-[11px] text-red-200/70 mt-0.5">
+                pm2 restart all (полный рестарт)
+              </div>
+            </button>
+
             <button
               onClick={clearCache}
               disabled={acting === 'cache'}

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
+import { exec } from 'child_process';
 import { Prisma } from '@prisma/client';
 import {
   adminOnly,
@@ -3180,6 +3181,40 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         reason,
       });
       return reply.send({ ok: true, removedKeys: removed });
+    }
+  );
+
+  /**
+   * POST /api/_x/system/pm2-restart
+   * Triggers a global pm2 restart of all processes after sending the response.
+   */
+  app.post<{ Body: { reason: string } }>(
+    '/_x/system/pm2-restart',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required' });
+      }
+      
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'system.pm2_restart',
+        targetType: 'system',
+        targetId: 'pm2',
+        payloadAfter: { command: 'pm2 restart all' },
+        reason,
+      });
+
+      // Fire and forget after a short delay so the HTTP response completes
+      setTimeout(() => {
+        exec('pm2 restart all', (err, stdout, stderr) => {
+          if (err) logger.error(err, 'pm2 restart failed');
+          else logger.info({ stdout, stderr }, 'pm2 restarted successfully');
+        });
+      }, 1000);
+
+      return reply.send({ ok: true, message: 'PM2 is restarting...' });
     }
   );
 
