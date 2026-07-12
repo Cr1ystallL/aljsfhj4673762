@@ -141,28 +141,37 @@ class ChickenRoadEngine {
       throw new Error(`Bet must be between ${config.minBet} and ${config.maxBet}.`);
     }
 
-    const { serverSeed, serverSeedHash, clientSeed, nonce } = await provablyFair.rotate(userId, 'chicken-road');
+    const serverSeed = provablyFair.generateServerSeed();
+    const clientSeed = provablyFair.generateClientSeed();
+    const nonce = 0;
+    const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
     const lanesCount = LEVEL_LANES[level];
     const survivalChance = LEVEL_SURVIVAL_CHANCE[level];
 
     // Determine crash lane using RNG
     let crashLane: number | null = null;
-    let combinedSeed = `${serverSeed}:${clientSeed}:${nonce}`;
-    // We sample a float [0, 1) for each step
     for (let i = 1; i <= lanesCount; i++) {
-      const float = provablyFair.generateFloat(combinedSeed + `:${i}`);
-      if (float > survivalChance) { // Example: if chance is 0.9, then any float > 0.9 means death
+      const stepHash = provablyFair.generateResult(serverSeed, clientSeed, nonce + i);
+      const float = provablyFair.hashToFloat(stepHash);
+      if (float > survivalChance) {
         crashLane = i;
         break;
       }
     }
 
-    const bet = await bettingPipeline.deductBet({
+    const roundId = randomUUID();
+    const bet: Bet = {
+      id: `bet_${Date.now()}_${randomUUID()}`,
       userId,
+      gameId: roundId,
+      roundId,
       amount,
-      gameType: 'chicken-road',
-      wagerMultiplier: config.wagerContribution,
-    });
+      state: 'pending',
+      placedAt: Date.now(),
+      metadata: { level, gameType: 'chicken-road' }
+    };
+    await bettingPipeline.processBet(bet, demoMode);
+    bet.state = 'active';
 
     const game: ChickenRoadGame = {
       userId,
@@ -177,12 +186,11 @@ class ChickenRoadEngine {
       nonce,
       state: 'active',
       startedAt: Date.now(),
+      demoMode,
     };
 
     this.activeGames.set(userId, game);
 
-    // The user requested: "курица сразу делает автоматом ход с тратуара на 1 люк"
-    // So we automatically apply the first step.
     return this.step(userId);
   }
 
@@ -200,14 +208,31 @@ class ChickenRoadEngine {
       game.finalMultiplier = 0;
       game.finalPayout = 0;
       
+      try {
+        await bettingPipeline.processLoss(game.bet);
+        await prisma.gameRound.update({
+          where: { id: game.bet.roundId },
+          data: {
+            state: 'completed',
+            serverSeed: game.serverSeed,
+            endedAt: new Date(),
+            result: {
+              outcome: 'busted',
+              currentLane: game.currentLane,
+              crashLane: game.crashLane
+            }
+          }
+        });
+      } catch (err) {
+        logger.error(err, 'Failed to finalise chicken-road bust');
+      }
+
       this.activeGames.delete(userId);
-      await this.saveHistory(game);
       return this.toPublicState(game);
     }
 
     // Survived
     if (game.currentLane === game.lanesCount) {
-      // Reached the end, auto-cashout
       return this.cashout(userId);
     }
 
@@ -229,16 +254,28 @@ class ChickenRoadEngine {
     game.finalMultiplier = multiplier;
     game.finalPayout = payout;
 
-    await bettingPipeline.creditWin({
-      userId,
-      roundId: game.bet.roundId,
-      amount: payout,
-      gameType: 'chicken-road',
-      multiplier,
-    });
+    try {
+      await bettingPipeline.processCashout(game.bet, payout, multiplier, !!game.demoMode);
+      await prisma.gameRound.update({
+        where: { id: game.bet.roundId },
+        data: {
+          state: 'completed',
+          serverSeed: game.serverSeed,
+          endedAt: new Date(),
+          result: {
+            outcome: 'cashed',
+            multiplier: multiplier,
+            payout,
+            currentLane: game.currentLane,
+            crashLane: game.crashLane
+          }
+        }
+      });
+    } catch (err) {
+      logger.error(err, 'Failed to finalise chicken-road cashout');
+    }
 
     this.activeGames.delete(userId);
-    await this.saveHistory(game);
     return this.toPublicState(game);
   }
 
