@@ -1689,7 +1689,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const result = await chickenRoadEngine.placeBet(userId, amount, level);
+        const result = await chickenRoadEngine.placeBet(userId, amount, level, false);
         return reply.send({ success: true, result });
       } catch (error) {
         logger.error(error, 'Failed to place chicken-road bet');

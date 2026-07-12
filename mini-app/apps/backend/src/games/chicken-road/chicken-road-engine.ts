@@ -50,6 +50,7 @@ export const CHICKEN_ROAD_MULTIPLIERS: Record<ChickenRoadLevel, number[]> = {
 interface ChickenRoadGame {
   userId: string;
   bet: Bet;
+  demoMode: boolean;
   level: ChickenRoadLevel;
   lanesCount: number;
   /**
@@ -129,7 +130,8 @@ class ChickenRoadEngine {
   public async placeBet(
     userId: string,
     amount: number,
-    level: ChickenRoadLevel
+    level: ChickenRoadLevel,
+    demoMode: boolean
   ): Promise<ChickenRoadPublicState> {
     if (this.activeGames.has(userId)) {
       throw new Error('You already have an active Chicken Road game.');
@@ -279,33 +281,6 @@ class ChickenRoadEngine {
     return this.toPublicState(game);
   }
 
-  private async saveHistory(game: ChickenRoadGame) {
-    try {
-      await prisma.gameHistory.create({
-        data: {
-          id: game.bet.roundId,
-          userId: game.userId,
-          gameType: 'chicken-road',
-          betAmount: game.bet.amount,
-          multiplier: game.finalMultiplier ?? 0,
-          payout: game.finalPayout ?? 0,
-          status: game.state === 'cashed' ? 'WON' : 'LOST',
-          serverSeed: game.serverSeed,
-          clientSeed: game.clientSeed,
-          nonce: game.nonce,
-          details: {
-            level: game.level,
-            lanesCount: game.lanesCount,
-            crashLane: game.crashLane,
-            currentLane: game.currentLane,
-            ladder: CHICKEN_ROAD_MULTIPLIERS[game.level],
-          },
-        },
-      });
-    } catch (error) {
-      logger.error({ error, roundId: game.bet.roundId }, 'Failed to save Chicken Road history');
-    }
-  }
 }
 
 export const chickenRoadEngine = new ChickenRoadEngine();
