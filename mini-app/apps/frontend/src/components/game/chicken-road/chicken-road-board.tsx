@@ -50,32 +50,41 @@ export function ChickenRoadBoard({
   const isBusted = state === 'busted';
 
   return (
-    <div 
-      className="relative flex h-[400px] w-full overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] rounded-xl border border-white/5 bg-[#1a1c24] p-4 lg:h-[500px]"
-      ref={containerRef}
-    >
-      <div className="relative flex min-w-max h-full">
-        {/* Sidewalk */}
-        <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
-          {/* Bus Stop Sign instead of Traffic Light */}
-          <div className="absolute left-2 top-4">
-            <svg width="40" height="60" viewBox="0 0 40 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="18" y="20" width="4" height="40" fill="#71717a" />
-              <rect x="5" y="0" width="30" height="20" rx="2" fill="#2563eb" />
-              <text x="20" y="14" fill="white" fontSize="10" fontWeight="bold" textAnchor="middle">BUS</text>
-            </svg>
-          </div>
-          
-          {/* Bush */}
-          <div className="absolute bottom-4 left-4">
-            <svg width="50" height="40" viewBox="0 0 50 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M25 5C15 5 10 15 5 20C0 25 5 35 15 35H35C45 35 50 25 45 20C40 15 35 5 25 5Z" fill="#166534" />
-              <path d="M20 15C15 15 12 20 10 25C8 30 12 35 18 35H30C36 35 40 30 38 25C36 20 30 15 20 15Z" fill="#15803d" />
-            </svg>
-          </div>
+    <div className="relative h-[400px] w-full overflow-hidden rounded-xl border border-white/5 bg-[#1a1c24] lg:h-[500px]">
+      <div 
+        className="flex h-full w-full overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        ref={containerRef}
+      >
+        <div className="relative flex min-w-max h-full">
+          {/* Sidewalk */}
+          <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
+            {/* Pedestrian Crossing Sign */}
+            <div className="absolute left-2 top-4">
+              <svg width="40" height="70" viewBox="0 0 40 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="18" y="25" width="4" height="45" fill="#52525b" />
+                <g transform="translate(20, 20) rotate(45)">
+                  <rect x="-15" y="-15" width="30" height="30" fill="#facc15" stroke="#000" strokeWidth="2" rx="2" />
+                  <path d="M-4 -4 L-1 4 L1 4 L4 -4 M0 4 L-3 10 M0 4 L3 10" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="0" cy="-7" r="2.5" fill="#000" />
+                </g>
+              </svg>
+            </div>
+            
+            {/* Fluffy Tree */}
+            <div className="absolute bottom-4 left-0">
+              <svg width="60" height="70" viewBox="0 0 60 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="26" y="40" width="8" height="30" fill="#78350f" rx="2" />
+                <path d="M26 60 L20 70 L40 70 L34 60 Z" fill="#451a03" />
+                <circle cx="30" cy="25" r="20" fill="#15803d" />
+                <circle cx="15" cy="35" r="15" fill="#166534" />
+                <circle cx="45" cy="35" r="15" fill="#166534" />
+                <circle cx="20" cy="15" r="12" fill="#22c55e" />
+                <circle cx="40" cy="15" r="12" fill="#22c55e" />
+              </svg>
+            </div>
 
-          <div className="h-full w-full opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 20px, #000 20px, #000 40px)', width: '20px', position: 'absolute', right: '0' }} />
-        </div>
+            <div className="h-full w-full opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 20px, #000 20px, #000 40px)', width: '20px', position: 'absolute', right: '0' }} />
+          </div>
 
         {/* Lanes */}
         <div className="flex h-full">
@@ -171,13 +180,12 @@ export function ChickenRoadBoard({
               e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-24 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
             }}
           />
-        </motion.div>
-
+        </div>
       </div>
 
       {/* Win Notification */}
       {state === 'cashed' && (
-        <div className="absolute left-0 top-0 z-50 flex h-full w-full items-center justify-center pointer-events-none bg-black/40 rounded-xl backdrop-blur-sm">
+        <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-black/40 backdrop-blur-sm">
           <motion.div
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
