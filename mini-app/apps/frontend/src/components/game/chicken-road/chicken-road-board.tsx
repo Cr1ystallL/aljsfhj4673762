@@ -31,6 +31,7 @@ export function ChickenRoadBoard({
   // Animation state for the chicken (now clown)
   const [chickenHit, setChickenHit] = useState(false);
   const [isJumping, setIsJumping] = useState(false);
+  const [jumpCount, setJumpCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset chicken state when round changes
@@ -44,7 +45,9 @@ export function ChickenRoadBoard({
   useEffect(() => {
     if (currentLane > 0 && state === 'active') {
       setIsJumping(true);
-      const timer = setTimeout(() => setIsJumping(false), 600);
+      setJumpCount(c => c + 1);
+      // Change photo back to idle slightly before the jump finishes (400ms instead of 500ms)
+      const timer = setTimeout(() => setIsJumping(false), 400);
       return () => clearTimeout(timer);
     }
   }, [currentLane, state]);
@@ -170,20 +173,28 @@ export function ChickenRoadBoard({
         <motion.div
           className="pointer-events-none absolute top-[43%] z-40"
           initial={false}
-          animate={{ left: currentLane * 96 + 48 }}
-          transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-          style={{ x: '-50%', y: '-50%' }}
+          animate={{ left: currentLane * 96 + 46 }} // Shifted 2px left
+          transition={{ left: { type: 'spring', stiffness: 120, damping: 20 } }} // Horizontal movement is still spring
+          style={{ x: '-50%', y: 'calc(-50% - 2px)' }} // Shifted 2px up
         >
-          <img 
-            src={`/games/chicken-road/${chickenHit ? 'hit.png' : isJumping ? 'jump.png' : 'idle.png'}?v=3`} 
-            alt="Clown"
-            className="h-32 w-32 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
-            onError={(e) => {
-              // Placeholder if image is missing
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement!.innerHTML = `<div class="h-32 w-32 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
-            }}
-          />
+          {/* Vertical arc animation (Rainbow shape) */}
+          <motion.div
+            key={jumpCount}
+            initial={{ y: 0 }}
+            animate={{ y: jumpCount > 0 ? [0, -70, 0] : 0 }}
+            transition={{ duration: 0.5, ease: ["easeOut", "easeIn"], times: [0, 0.5, 1] }}
+          >
+            <img 
+              src={`/games/chicken-road/${chickenHit ? 'hit.png' : isJumping ? 'jump.png' : 'idle.png'}?v=3`} 
+              alt="Clown"
+              className="h-32 w-32 object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+              onError={(e) => {
+                // Placeholder if image is missing
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement!.innerHTML = `<div class="h-32 w-32 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
+              }}
+            />
+          </motion.div>
         </motion.div>
       </div>
     </div>
