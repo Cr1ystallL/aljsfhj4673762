@@ -51,8 +51,8 @@ export function ChickenRoadBoard({
     >
       <motion.div 
         className="relative flex min-w-max h-full"
-        animate={{ x: Math.min(0, -currentLane * 96 + 96) }}
-        transition={{ type: 'spring', damping: 20, stiffness: 150 }}
+        animate={{ x: currentLane > 1 ? -(currentLane - 1) * 96 : 0 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
       >
         {/* Sidewalk */}
         <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
@@ -99,9 +99,9 @@ export function ChickenRoadBoard({
                   </div>
                 )}
 
-                {/* Background Cars for active/future lanes */}
+                {/* Background Cars for safe/future lanes */}
                 {!isPassed && laneIndex !== crashLane && (
-                  <BackgroundCars laneIndex={laneIndex} active={true} canSpawn={state !== 'active' || laneIndex !== currentLane + 1} />
+                  <BackgroundCars laneIndex={laneIndex} currentLane={currentLane} />
                 )}
 
                 {/* Killer car if this is the crash lane */}
@@ -145,7 +145,7 @@ export function ChickenRoadBoard({
         {/* The Chicken */}
         {/* currentLane = 0 means left = 48 (center of sidewalk). currentLane = 1 means left = 96 + 48 = 144, etc. */}
         <motion.div
-          className="pointer-events-none absolute top-[40%] z-40"
+          className="pointer-events-none absolute top-[45%] z-40"
           initial={false}
           animate={{ left: currentLane * 96 + 48 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
@@ -179,33 +179,27 @@ export function ChickenRoadBoard({
         )}
 
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 // Background car animation for safe/future lanes
-function BackgroundCars({ laneIndex, active, canSpawn }: { laneIndex: number; active: boolean; canSpawn: boolean }) {
+function BackgroundCars({ laneIndex, currentLane }: { laneIndex: number; currentLane: number }) {
+  const canSpawn = laneIndex > currentLane + 1 || (currentLane === 0 && laneIndex > 0);
+  const [driving, setDriving] = useState(canSpawn);
+
   const [carState, setCarState] = useState({
     id: 1,
-    animating: canSpawn,
     img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
-    speed: 0.8 + Math.random() * 1.5,
-    delay: Math.random() * 2 // Initial delay to stagger them initially
+    speed: 0.6 + Math.random() * 1.2,
+    delay: Math.random() * 3 // random initial and between-car gaps
   });
 
   useEffect(() => {
-    if (canSpawn && !carState.animating) {
-      setCarState(prev => ({
-        id: prev.id + 1,
-        animating: true,
-        img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
-        speed: 0.8 + Math.random() * 1.5,
-        delay: Math.random() * 3 + 1, // 1 to 4s gap
-      }));
-    }
-  }, [canSpawn, carState.animating]);
+    if (canSpawn && !driving) setDriving(true);
+  }, [canSpawn, driving]);
 
-  if (!active || !carState.animating) return null;
+  if (!driving) return null;
 
   return (
     <motion.div
@@ -213,28 +207,27 @@ function BackgroundCars({ laneIndex, active, canSpawn }: { laneIndex: number; ac
       className="absolute z-30 flex justify-center w-full left-0"
       initial={{ top: '-40%' }}
       animate={{ top: '150%' }}
-      transition={{ duration: carState.speed, delay: carState.id === 1 ? carState.delay : 0, ease: 'linear' }}
+      transition={{ duration: carState.speed, delay: carState.id === 1 ? carState.delay : Math.random() * 2, ease: 'linear' }}
       onAnimationComplete={() => {
-        if (canSpawn) {
-          setCarState(prev => ({
-            id: prev.id + 1,
-            animating: true,
-            img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
-            speed: 0.8 + Math.random() * 1.5,
-            delay: Math.random() * 3 + 1,
-          }));
-        } else {
-          setCarState(prev => ({ ...prev, animating: false }));
+        if (!canSpawn) {
+          setDriving(false);
+          return;
         }
+        setCarState(prev => ({
+          id: prev.id + 1,
+          img: CAR_IMAGES[Math.floor(Math.random() * CAR_IMAGES.length)],
+          speed: 0.6 + Math.random() * 1.2,
+          delay: 0,
+        }));
       }}
     >
       <img 
         src={`/games/chicken-road/${carState.img}`} 
-        className="h-[120px] w-[65px] object-contain rotate-180 drop-shadow-lg"
+        className="h-32 w-20 object-contain rotate-180 drop-shadow-lg"
         alt="Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-[120px] w-[65px] bg-blue-500 rounded-md"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-32 w-20 bg-blue-500 rounded-md"></div>`;
         }}
       />
     </motion.div>
@@ -270,11 +263,11 @@ function KillerCar({ onHit }: { onHit: () => void }) {
     >
       <img 
         src={`/games/chicken-road/${carImg}`} 
-        className="h-[120px] w-[65px] object-contain opacity-90 drop-shadow-2xl rotate-180"
+        className="h-32 w-20 object-contain opacity-90 drop-shadow-2xl rotate-180"
         alt="Killer Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-[120px] w-[65px] bg-red-600 rounded-md shadow-xl"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-32 w-20 bg-red-600 rounded-md shadow-xl"></div>`;
         }}
       />
     </motion.div>

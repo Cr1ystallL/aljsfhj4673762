@@ -161,7 +161,7 @@ class ChickenRoadEngine {
       }
     }
 
-    const roundId = randomUUID();
+    const roundId = `chicken-road_${Date.now()}_${randomUUID()}`;
     const bet: Bet = {
       id: `bet_${Date.now()}_${randomUUID()}`,
       userId,

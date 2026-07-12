@@ -109,7 +109,7 @@ export function ChickenRoadBetPanel({
         <Button
           onClick={onBet}
           disabled={busy || amount < 1 || amount > balance}
-          className="mt-auto w-full bg-green-500/10 border border-green-500/30 text-green-400 py-6 text-lg font-medium hover:bg-green-500/20 hover:text-green-300 transition-colors"
+          className="mt-auto w-full bg-white/10 hover:bg-white/20 border border-white/20 py-6 text-lg font-bold text-white transition-all backdrop-blur-xl"
         >
           {busy ? <Loader2 className="animate-spin" /> : 'Play'}
         </Button>

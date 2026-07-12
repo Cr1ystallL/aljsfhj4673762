@@ -170,13 +170,11 @@ export default function ChickenRoadGamePage() {
           setServer(prev => prev && prev.state === 'cashed' ? { ...prev, currentLane: 0, state: 'idle' } : prev);
         }, 3000);
       }
-
-      // Add 1.5s delay before allowing next action
-      setTimeout(() => setBusy(false), 1500);
     } catch (e: any) {
       reportApiError(e);
       toast.error(e.message);
-      setBusy(false);
+    } finally {
+      setTimeout(() => setBusy(false), 1500);
     }
   };
 
