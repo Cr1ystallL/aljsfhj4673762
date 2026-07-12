@@ -161,10 +161,20 @@ export default function ChickenRoadGamePage() {
   const boardState = server ? server.state : 'idle';
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-4rem)] flex-col bg-[#0f1115]">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
       <GameTopBar title="Chicken Road" />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 lg:flex-row lg:items-start lg:p-6">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
+        <ChickenRoadBoard
+          lanesCount={lanesCount}
+          ladder={ladder}
+          currentLane={currentLane}
+          crashLane={crashLane}
+          state={boardState}
+          onStep={handleStep}
+          busy={busy}
+        />
+
         <ChickenRoadBetPanel
           phase={phase}
           amount={amount}
@@ -178,19 +188,7 @@ export default function ChickenRoadGamePage() {
           currentMultiplier={server?.currentMultiplier ?? 0}
           nextMultiplier={server?.nextMultiplier ?? 0}
         />
-
-        <div className="flex w-full flex-col gap-4">
-          <ChickenRoadBoard
-            lanesCount={lanesCount}
-            ladder={ladder}
-            currentLane={currentLane}
-            crashLane={crashLane}
-            state={boardState}
-            onStep={handleStep}
-            busy={busy}
-          />
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

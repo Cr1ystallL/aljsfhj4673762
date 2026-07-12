@@ -52,13 +52,12 @@ export function ChickenRoadBoard({
       <div className="relative flex min-w-max h-full">
         {/* Sidewalk */}
         <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
-          {/* Traffic Light */}
+          {/* Bus Stop Sign instead of Traffic Light */}
           <div className="absolute left-2 top-4">
-            <svg width="40" height="90" viewBox="0 0 40 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="5" y="0" width="30" height="70" rx="10" fill="#111" />
-              <rect x="15" y="70" width="10" height="20" fill="#333" />
-              <circle cx="20" cy="20" r="10" fill={state === 'busted' ? '#333' : '#ef4444'} />
-              <circle cx="20" cy="50" r="10" fill={state === 'active' ? '#22c55e' : '#333'} />
+            <svg width="40" height="60" viewBox="0 0 40 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="18" y="20" width="4" height="40" fill="#71717a" />
+              <rect x="5" y="0" width="30" height="20" rx="2" fill="#2563eb" />
+              <text x="20" y="14" fill="white" fontSize="10" fontWeight="bold" textAnchor="middle">BUS</text>
             </svg>
           </div>
           
@@ -142,20 +141,20 @@ export function ChickenRoadBoard({
         {/* The Chicken */}
         {/* currentLane = 0 means X = 48 (center of sidewalk). currentLane = 1 means X = 96 + 48 = 144, etc. */}
         <motion.div
-          className="pointer-events-none absolute z-30"
+          className="pointer-events-none absolute top-1/2 z-40"
           initial={false}
-          animate={{ x: currentLane * 96 + 48, y: '50%' }}
+          animate={{ x: currentLane * 96 + 48 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           style={{ x: '-50%', y: '-50%' }}
         >
           <img 
             src={`/games/chicken-road/${chickenHit ? 'chicken_hit.png' : 'chicken_idle.png'}`} 
             alt="Chicken"
-            className="h-14 w-14 object-contain"
+            className="h-16 w-16 object-contain"
             onError={(e) => {
               // Placeholder if image is missing
               e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement!.innerHTML = `<div class="h-10 w-10 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
+              e.currentTarget.parentElement!.innerHTML = `<div class="h-16 w-16 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
             }}
           />
         </motion.div>
@@ -175,18 +174,18 @@ function BackgroundCars({ laneIndex, active }: { laneIndex: number; active: bool
 
   return (
     <motion.div
-      className="absolute z-10"
+      className="absolute z-30 flex justify-center w-full left-0"
       initial={{ top: offset }}
-      animate={{ top: ['0%', '150%'] }}
+      animate={{ top: ['-20%', '150%'] }}
       transition={{ duration: speed, repeat: Infinity, ease: 'linear' }}
     >
       <img 
         src={`/games/chicken-road/${carImg}`} 
-        className="h-20 w-12 object-contain"
+        className="w-[82px] object-contain"
         alt="Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-16 w-8 bg-blue-500 rounded-md"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-[82px] bg-blue-500 rounded-md"></div>`;
         }}
       />
     </motion.div>
@@ -216,17 +215,17 @@ function KillerCar({ onHit }: { onHit: () => void }) {
 
   return (
     <motion.div
-      className="absolute z-40"
-      initial={{ top: '-20%', left: '50%', x: '-50%', y: '-50%' }}
+      className="absolute z-50 flex justify-center w-full left-0"
+      initial={{ top: '-20%', y: '-50%' }}
       animate={controls}
     >
       <img 
         src={`/games/chicken-road/${carImg}`} 
-        className="h-24 w-14 object-contain opacity-90 drop-shadow-2xl"
+        className="w-[82px] object-contain opacity-90 drop-shadow-2xl"
         alt="Killer Car"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `<div class="h-20 w-10 bg-red-600 rounded-md shadow-xl"></div>`;
+          e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-[82px] bg-red-600 rounded-md shadow-xl"></div>`;
         }}
       />
     </motion.div>
