@@ -59,7 +59,7 @@ export function CasesRoulette({
   const [tracks, setTracks] = useState<CasePrize[][]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
-  const lastPassedRef = useRef<number>(0);
+  const lastPassedRef = useRef<number[]>([]);
 
   // Generate idle tracks
   useEffect(() => {
@@ -84,7 +84,7 @@ export function CasesRoulette({
         const isReverse = i % 2 !== 0;
         return { x: isReverse ? -(70 * ITEM_WIDTH) : 0 };
       });
-      lastPassedRef.current = 0;
+      lastPassedRef.current = [];
       soundManager.play('ui.click');
       
       // 3. Wait for DOM to paint new tracks, then animate
@@ -133,16 +133,18 @@ export function CasesRoulette({
             animate={controls}
             className="flex"
             style={{ willChange: 'transform' }}
-            {...(trackIdx === 0 ? {
-              onUpdate: (latest) => {
-                if (!isSpinning) return;
-                const currentPassed = Math.floor(Math.abs(parseFloat(String(latest.x))) / ITEM_WIDTH);
-                if (currentPassed > lastPassedRef.current) {
-                  soundManager.play('cases.tick');
-                  lastPassedRef.current = currentPassed;
-                }
+            onUpdate={(latest) => {
+              if (!isSpinning) return;
+              const containerWidth = containerRef.current?.offsetWidth || 300;
+              const currentItemIndex = Math.floor((containerWidth / 2 - parseFloat(String(latest.x))) / ITEM_WIDTH);
+              
+              if (lastPassedRef.current[trackIdx] === undefined) {
+                lastPassedRef.current[trackIdx] = currentItemIndex;
+              } else if (currentItemIndex !== lastPassedRef.current[trackIdx]) {
+                soundManager.play('cases.tick');
+                lastPassedRef.current[trackIdx] = currentItemIndex;
               }
-            } : {})}
+            }}
           >
             {track.map((p, i) => (
               <div 
