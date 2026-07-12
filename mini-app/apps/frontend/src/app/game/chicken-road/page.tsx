@@ -54,7 +54,6 @@ const MOCK_HISTORY: MinesHistoryEntry[] = Array.from({ length: 15 }).map((_, i) 
 });
 
 export default function ChickenRoadGamePage() {
-  const router = useRouter();
   const { balance, fetchBalance } = useBalance();
   const tBals = useBalanceStore((s) => s.tournamentBalances);
   const tBal = tBals.find((t) => t.gameType === 'chicken-road');
