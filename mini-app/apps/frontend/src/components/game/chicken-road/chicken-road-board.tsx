@@ -58,30 +58,6 @@ export function ChickenRoadBoard({
         <div className="relative flex min-w-max h-full">
           {/* Sidewalk */}
           <div className="relative flex w-24 flex-col items-center justify-center border-r-4 border-white/10 bg-[#252833]">
-            {/* Pedestrian Crossing Sign */}
-            <div className="absolute left-2 top-4">
-              <svg width="40" height="70" viewBox="0 0 40 70" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="18" y="25" width="4" height="45" fill="#52525b" />
-                <g transform="translate(20, 20) rotate(45)">
-                  <rect x="-15" y="-15" width="30" height="30" fill="#facc15" stroke="#000" strokeWidth="2" rx="2" />
-                  <path d="M-4 -4 L-1 4 L1 4 L4 -4 M0 4 L-3 10 M0 4 L3 10" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="0" cy="-7" r="2.5" fill="#000" />
-                </g>
-              </svg>
-            </div>
-            
-            {/* Fluffy Tree */}
-            <div className="absolute bottom-4 left-0">
-              <svg width="60" height="70" viewBox="0 0 60 70" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="26" y="40" width="8" height="30" fill="#78350f" rx="2" />
-                <path d="M26 60 L20 70 L40 70 L34 60 Z" fill="#451a03" />
-                <circle cx="30" cy="25" r="20" fill="#15803d" />
-                <circle cx="15" cy="35" r="15" fill="#166534" />
-                <circle cx="45" cy="35" r="15" fill="#166534" />
-                <circle cx="20" cy="15" r="12" fill="#22c55e" />
-                <circle cx="40" cy="15" r="12" fill="#22c55e" />
-              </svg>
-            </div>
 
             <div className="h-full w-full opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 20px, #000 20px, #000 40px)', width: '20px', position: 'absolute', right: '0' }} />
           </div>
