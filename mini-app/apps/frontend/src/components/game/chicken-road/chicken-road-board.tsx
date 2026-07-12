@@ -180,7 +180,7 @@ export function ChickenRoadBoard({
               e.currentTarget.parentElement!.innerHTML = `<div class="h-24 w-24 rounded-full ${chickenHit ? 'bg-red-500' : 'bg-yellow-400'} flex items-center justify-center font-bold text-black">${chickenHit ? 'X' : 'C'}</div>`;
             }}
           />
-        </div>
+        </motion.div>
       </div>
 
       {/* Win Notification */}
