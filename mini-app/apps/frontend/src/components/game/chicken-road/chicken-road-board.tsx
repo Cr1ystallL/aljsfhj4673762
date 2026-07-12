@@ -178,8 +178,8 @@ export function ChickenRoadBoard({
           </div>
         )}
 
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
 
