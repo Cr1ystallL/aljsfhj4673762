@@ -211,7 +211,7 @@ export default function DepositsPage() {
           <div className="rounded-card border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
             <h3 className="font-roobert text-[14px] text-frost-white">Тест FoluxPay API</h3>
             <p className="text-[12px] text-whisper-gray leading-relaxed">
-              Создать тестовую заявку (10 PLN), чтобы проверить, что именно сейчас выдаёт API FoluxPay (карту или Revtag).
+              Создать тестовую заявку (20 PLN), чтобы проверить, что именно сейчас выдаёт API FoluxPay (карту или Revtag).
             </p>
             
             <button

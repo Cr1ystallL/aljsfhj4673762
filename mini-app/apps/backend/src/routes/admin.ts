@@ -2358,7 +2358,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * GET /api/_x/foluxpay/test
-   * Create a dummy order for 10 PLN to see what payment details FoluxPay is issuing.
+   * Create a dummy order for 20 PLN to see what payment details FoluxPay is issuing.
    */
   app.get('/_x/foluxpay/test', { preHandler: adminOnly }, async (request, reply) => {
     try {
@@ -2366,7 +2366,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const externalId = `test_${userId}_${Date.now()}`;
       
       const result = await createOrder(
-        10, 
+        20, 
         userId, 
         externalId, 
         'http://localhost/webhook', 

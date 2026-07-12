@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, Eraser, RotateCcw, Download, Upload } from 'lucide-react';
+import { Activity, Eraser, RotateCcw, Download, Upload, RefreshCw } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 
 /**
