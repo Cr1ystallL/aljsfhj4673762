@@ -527,11 +527,11 @@ function PaymentDetails({
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="font-roobert text-[32px] font-light tabular-nums text-frost-white leading-none">
-              {order.uniqueAmount.toFixed(2)}{' '}
+              {Number(order.uniqueAmount).toFixed(2)}{' '}
               <span className="text-[20px] text-whisper-gray">{order.currency}</span>
             </span>
             <button
-              onClick={() => onCopy(order.uniqueAmount.toFixed(2), 'amount')}
+              onClick={() => onCopy(Number(order.uniqueAmount).toFixed(2), 'amount')}
               aria-label="Скопировать сумму"
               className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform"
             >
