@@ -41,6 +41,7 @@ export type GameKey =
   | 'baccarat'
   | 'keno'
   | 'cases'
+  | 'chicken-road'
   | 'unknown';
 
 /**
@@ -137,6 +138,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   hilo: { label: 'Hi-Lo', Icon: Spade },
   keno: { label: 'Keno', Icon: Dice5 },
   cases: { label: 'Case', Icon: Box },
+  'chicken-road': { label: 'Chicken Road', Icon: Footprints },
   unknown: { label: 'Game', Icon: PlinkoIcon },
 };
 
@@ -160,6 +162,7 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('hilo')) return 'hilo';
   if (v.startsWith('keno')) return 'keno';
   if (v.startsWith('cases') || v.startsWith('case')) return 'cases';
+  if (v.startsWith('chicken-road') || v.startsWith('chicken')) return 'chicken-road';
   return 'unknown';
 }
 
