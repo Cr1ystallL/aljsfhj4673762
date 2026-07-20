@@ -61,7 +61,7 @@ async function runFoluxpayCron() {
             }
 
             const beforeAmount = afterAmount - paidAmount;
-            const txId = \`dep_\${Date.now()}_\${Math.random().toString(36).slice(2)}\`;
+            const txId = `dep_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
             await tx.transaction.create({
               data: {
@@ -79,15 +79,15 @@ async function runFoluxpayCron() {
               },
             });
 
-            const updateCount = await tx.$executeRaw\`
+            const updateCount = await tx.$executeRaw`
               UPDATE macvpay_orders
               SET status = 'credited',
-                  paid_amount = \${paidAmount},
+                  paid_amount = ${paidAmount},
                   paid_at = NOW(),
-                  credit_tx_id = \${txId},
+                  credit_tx_id = ${txId},
                   updated_at = NOW()
-              WHERE id = \${order.id} AND status IN ('pending', 'expired')
-            \`;
+              WHERE id = ${order.id} AND status IN ('pending', 'expired')
+            `;
             
             if (updateCount === 0) {
               throw new Error('Concurrent modification detected');
