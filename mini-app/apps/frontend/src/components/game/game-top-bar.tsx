@@ -117,7 +117,7 @@ export function GameTopBar({
           <button
             onClick={() => router.push('/profile')}
             aria-label="Профиль"
-            className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
+            className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
           >
             {user?.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

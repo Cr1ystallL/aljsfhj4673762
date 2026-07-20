@@ -909,18 +909,58 @@ export class BettingPipeline {
           
           const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');
+          const { redis } = await import('../lib/redis.js');
           
           const adminIds = await getAllAdminTelegramIds();
-          for (const adminId of adminIds) {
-            await telegramApi.sendMessage(
-              adminId,
-              `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ</b> 🚨\n\n` +
-              `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
-              `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
-              `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
-              `Игра: ${gameType}\n\n` +
-              `<i>Жесткий Авто-РТП включен.</i>`
-            );
+          const alertKey = `sec:alert:${user.id}:${session.id}`;
+          const currentCount = await redis.incr(alertKey);
+          
+          if (currentCount === 1) {
+            // First time they doubled
+            await redis.expire(alertKey, 24 * 60 * 60); // 24 hours expire
+            for (const adminId of adminIds) {
+              const msgId = await telegramApi.sendMessageAndGetId(
+                adminId,
+                `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ</b> 🚨\n\n` +
+                `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
+                `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
+                `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+                `Игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
+              );
+              if (msgId) {
+                await redis.set(`${alertKey}:${adminId}:msgId`, msgId.toString(), 'EX', 24 * 60 * 60);
+              }
+            }
+          } else {
+            // Doubled again!
+            for (const adminId of adminIds) {
+              const msgIdStr = await redis.get(`${alertKey}:${adminId}:msgId`);
+              if (msgIdStr) {
+                const msgId = parseInt(msgIdStr, 10);
+                await telegramApi.editMessageText(
+                  adminId,
+                  msgId,
+                  `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ (x${currentCount})</b> 🚨\n\n` +
+                  `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
+                  `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
+                  `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+                  `Последняя игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
+                );
+              } else {
+                // Fallback if msgId expired or failed to save
+                const msgId = await telegramApi.sendMessageAndGetId(
+                  adminId,
+                  `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ (x${currentCount})</b> 🚨\n\n` +
+                  `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
+                  `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
+                  `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+                  `Игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
+                );
+                if (msgId) {
+                  await redis.set(`${alertKey}:${adminId}:msgId`, msgId.toString(), 'EX', 24 * 60 * 60);
+                }
+              }
+            }
           }
 
           // Trigger strict RTP by setting the autoRtpTarget on the balance.

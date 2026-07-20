@@ -451,6 +451,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             username: u.username,
             firstName: u.first_name,
             lastName: u.last_name,
+            photoUrl: u.photo_url,
             isPremium: u.is_premium,
             isBlocked: u.is_blocked,
             ignoreIpCollision: u.ignore_ip_collision,

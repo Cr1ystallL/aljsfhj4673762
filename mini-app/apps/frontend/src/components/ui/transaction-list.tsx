@@ -67,7 +67,11 @@ export function TransactionList({ transactions, isLoading }: TransactionListProp
                 </div>
                 <div>
                   <Body className="font-medium">
-                    {tx.gameType ? tx.gameType : tx.type}
+                    {tx.gameType 
+                      ? (tx.gameType === '🎲' || tx.gameType === '🎰' || tx.gameType === '🎯' || tx.gameType === '🎳' || tx.gameType === '🏀' || tx.gameType === '⚽' 
+                        ? tx.gameType 
+                        : (tx.gameType.toLowerCase() === 'game' ? 'Прочее' : tx.gameType.charAt(0).toUpperCase() + tx.gameType.slice(1)))
+                      : (tx.type === 'bet' ? 'Ставка' : tx.type === 'win' ? 'Выигрыш' : tx.type === 'deposit' ? 'Депозит' : tx.type === 'withdrawal' ? 'Вывод' : tx.type)}
                   </Body>
                   <Caption className="text-white/40">
                     {new Date(tx.createdAt).toLocaleDateString('ru-RU', {

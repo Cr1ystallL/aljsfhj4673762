@@ -25,6 +25,7 @@ export interface FoluxPayOrderResponse {
 export interface FoluxPayErrorResponse {
   success: false;
   error: string;
+  retry_after?: number;
 }
 
 export type FoluxPayCreateResult = FoluxPayOrderResponse | FoluxPayErrorResponse;
@@ -107,7 +108,7 @@ export async function getOrderStatus(
     );
     const json = (await res.json()) as any;
     if (!json.success) {
-      return { success: false, error: json.error || 'Not found' };
+      return { success: false, error: json.error || 'Not found', retry_after: json.retry_after };
     }
     return json as FoluxPayOrderStatus;
   } catch (err) {

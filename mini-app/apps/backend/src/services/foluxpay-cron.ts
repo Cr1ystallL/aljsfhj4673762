@@ -30,6 +30,12 @@ async function runFoluxpayCron() {
       try {
         const remoteStatus = await getOrderStatus(order.id);
         
+        if (!remoteStatus.success && remoteStatus.retry_after) {
+          logger.warn({ orderId: order.id, retryAfter: remoteStatus.retry_after }, 'FoluxPay rate limit hit in cron');
+          await new Promise(resolve => setTimeout(resolve, remoteStatus.retry_after! * 1000));
+          continue; // skip to next after waiting
+        }
+        
         if (remoteStatus.success && remoteStatus.status === 'paid') {
           const paidAmount = Number(remoteStatus.paid_amount) || Number(order.unique_amount);
 
@@ -96,6 +102,9 @@ async function runFoluxpayCron() {
           
           logger.info({ orderId: order.id, userId: order.user_id, amount: paidAmount }, 'Cron reconciled and credited FoluxPay order');
         }
+        
+        // Wait 2 seconds between requests to avoid hitting strict rate limits
+        await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (err) {
         logger.error({ err, orderId: order.id }, 'Error during FoluxPay cron reconciliation for order');
       }
