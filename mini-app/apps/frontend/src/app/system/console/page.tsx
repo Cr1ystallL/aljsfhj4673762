@@ -942,10 +942,10 @@ function LivePresence() {
                         alt={u.name}
                         referrerPolicy="no-referrer"
                         draggable={false}
-                        className="w-8 h-8 rounded-pill border border-white/10 object-cover"
+                        className="w-12 h-12 rounded-pill border border-white/10 object-cover"
                       />
                     ) : (
-                      <span className="w-8 h-8 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[12px]">
+                      <span className="w-12 h-12 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[18px]">
                         {u.name.charAt(0).toUpperCase()}
                       </span>
                     )}

@@ -117,7 +117,7 @@ export function GameTopBar({
           <button
             onClick={() => router.push('/profile')}
             aria-label="Профиль"
-            className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
+            className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
           >
             {user?.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -129,7 +129,7 @@ export function GameTopBar({
                 draggable={false}
               />
             ) : (
-              <span className="font-roobert font-bold text-sm text-white/80">
+              <span className="font-roobert font-bold text-xl text-white/80">
                 {initials}
               </span>
             )}
@@ -140,7 +140,7 @@ export function GameTopBar({
           <button
             onClick={onHowToPlay}
             aria-label="Как играть"
-            className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 shrink-0"
+            className="flex items-center justify-center w-10 h-10 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 shrink-0"
           >
             <HelpCircle size={16} strokeWidth={2} />
           </button>
