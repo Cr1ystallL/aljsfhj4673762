@@ -1,820 +1,3293 @@
 <!DOCTYPE html>
-<html lang="en" class="dark scroll-smooth">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NEXUS SYNAPSE — Autonomous AI Orchestration & Next-Gen Digital Experiences</title>
-  <meta name="description" content="NEXUS SYNAPSE is an elite studio engineering autonomous AI orchestration, neural experience engines, and hyper-threaded digital architectures." />
+  <title>NEXUS SYNAPSE — Autonomous AI Orchestration & Cybernetic Systems</title>
+  <meta name="description" content="NEXUS SYNAPSE is an autonomous AI orchestration studio forging next-gen digital experiences, neural interfaces, and cybernetic product systems." />
   <meta name="theme-color" content="#050507" />
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            void: '#050507',
-            obsidian: '#0d0e12',
-            cyan: {
-              glow: '#00f2ff',
-              dim: '#00a6b0'
-            },
-            purple: {
-              glow: '#7000ff',
-              dim: '#4b00ab'
-            },
-            silver: '#f5f5f7',
-            slate: '#86868b'
-          },
-          fontFamily: {
-            display: ['Orbitron', 'sans-serif'],
-            sans: ['Space Grotesk', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace']
-          }
-        }
-      }
-    }
-  </script>
-
-  <!-- GSAP & Lenis CDNs -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="https://unpkg.com/lenis@1.1.9/dist/lenis.min.js"></script>
-
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Custom Scrollbar & Selection */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #050507; }
-    ::-webkit-scrollbar-thumb { background: #1a1c23; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #00f2ff; }
-    ::selection { background: #00f2ff; color: #050507; }
-
-    /* Custom Cursor Styles */
+    /* Global Reset & Base */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     body {
-      cursor: none;
-      background-color: #050507;
+      background: #050507;
       color: #f5f5f7;
+      font-family: 'Onest', sans-serif;
       overflow-x: hidden;
+      cursor: default;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+    ul { list-style: none; }
+    img { display: block; max-width: 100%; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    :focus-visible { outline: 2px solid #00f2ff; outline-offset: 2px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
 
-    #cursor-dot {
+    /* Adaptive Grid Media Queries */
+    @media (max-width: 1920px) { html { font-size: 0.833333vw; } }
+    @media (max-width: 1440px) { html { font-size: 1.111111vw; } }
+    @media (max-width: 1024px) { html { font-size: 1.5625vw; } }
+    @media (max-width: 640px)  { html { font-size: 4.444444vw; } }
+
+    /* CSS Custom Properties / Cyberpunk Tokens */
+    :root {
+      --background: #050507;        /* Deep Void Black */
+      --foreground: #f5f5f7;        /* Crisp Silver-White */
+      --ink: #0d0e12;               /* Dark Obsidian Carbon */
+      --card-bg: rgba(13, 14, 18, 0.75); /* Glass Carbon */
+      --muted: #86868b;             /* Muted Slate */
+      --subtle: #424245;
+      --line: rgba(255, 255, 255, 0.08);
+      --line-bright: rgba(0, 242, 255, 0.3);
+      --surface: #12131a;
+      --surface-2: #1a1b24;
+      --accent: #00f2ff;            /* Neon Electric Cyan */
+      --accent-from: #00f2ff;
+      --accent-to: #7000ff;         /* Deep Royal Purple */
+      --accent-purple: #7000ff;
+      --hero-from: #050507;
+      --hero-to: #0d0e12;
+
+      --radius-pill: 9999px;
+      --radius-card: 2rem;
+      --radius-card-sm: 1.25rem;
+      --radius-control: 0.875rem;
+
+      --text-watermark: 13rem;
+      --container-shell: 88rem;
+    }
+
+    /* Shell Layout */
+    .shell {
+      max-width: var(--container-shell);
+      margin-inline: auto;
+      padding-inline: 1.25rem;
+    }
+    @media (min-width: 640px) {
+      .shell { padding-inline: 2rem; }
+    }
+
+    /* SVG Utilities */
+    .icon-svg {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      vertical-align: middle;
+    }
+
+    /* Skip Link */
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 1rem;
+      z-index: 60;
+      border-radius: var(--radius-control);
+      background: var(--ink);
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      color: #ffffff;
+      border: 1px solid var(--accent);
+    }
+    .skip-link:focus {
       position: fixed;
-      top: 0; left: 0;
-      width: 8px; height: 8px;
-      background: #00f2ff;
-      border-radius: 50%;
+      left: 1rem;
+    }
+
+    /* Liquid Fluid Custom Cursor */
+    #custom-cursor {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
       pointer-events: none;
       z-index: 9999;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 10px #00f2ff, 0 0 20px #00f2ff;
-      transition: width 0.3s, height 0.3s, background-color 0.3s;
+      will-change: transform;
     }
-
-    #cursor-ring {
-      position: fixed;
-      top: 0; left: 0;
-      width: 40px; height: 40px;
-      border: 1px solid rgba(0, 242, 255, 0.5);
+    .cursor-ring {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 36px;
+      height: 36px;
+      margin-top: -18px;
+      margin-left: -18px;
+      border: 1.5px solid var(--accent);
       border-radius: 50%;
-      pointer-events: none;
-      z-index: 9998;
-      transform: translate(-50%, -50%);
-      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s, height 0.3s, border-color 0.3s, background-color 0.3s;
+      box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+      transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+                  height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+                  margin 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+                  background 0.3s ease,
+                  border-color 0.3s ease,
+                  box-shadow 0.3s ease;
       display: flex;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(1px);
     }
-
-    #cursor-ring.active {
-      width: 85px; height: 85px;
-      background-color: rgba(255, 255, 255, 0.95);
-      border-color: transparent;
-      mix-blend-mode: difference;
+    .cursor-dot {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 6px;
+      margin-top: -3px;
+      margin-left: -3px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+      transition: opacity 0.2s ease;
     }
-
-    #cursor-text {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 9px;
+    .cursor-text {
+      font-size: 0.65rem;
       font-weight: 700;
-      letter-spacing: 1.5px;
-      color: #000;
-      opacity: 0;
-      transform: scale(0.5);
-      transition: opacity 0.2s, transform 0.2s;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
+      color: var(--accent);
+      text-shadow: 0 0 8px var(--accent);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      white-space: nowrap;
+      pointer-events: none;
     }
-
-    #cursor-ring.active #cursor-text {
+    /* Cursor Active Hover State */
+    #custom-cursor.hovering .cursor-ring {
+      width: 84px;
+      height: 84px;
+      margin-top: -42px;
+      margin-left: -42px;
+      background: rgba(0, 242, 255, 0.12);
+      border-color: #00f2ff;
+      mix-blend-mode: difference;
+      box-shadow: 0 0 25px rgba(0, 242, 255, 0.6), inset 0 0 15px rgba(112, 0, 255, 0.4);
+    }
+    #custom-cursor.hovering .cursor-dot {
+      opacity: 0;
+    }
+    #custom-cursor.hovering .cursor-text {
       opacity: 1;
-      transform: scale(1);
+    }
+    @media (pointer: coarse) {
+      #custom-cursor { display: none !important; }
     }
 
-    /* Glassmorphism & Cyber Lines */
-    .glass-card {
-      background: rgba(13, 14, 18, 0.65);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    /* Shared Components & Styles */
+    /* Eyebrow */
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .eyebrow-dot {
+      width: 0.375rem;
+      height: 0.375rem;
+      border-radius: var(--radius-pill);
+      box-shadow: 0 0 6px var(--accent);
+    }
+    .eyebrow--dark {
+      color: rgba(245, 245, 247, 0.8);
+    }
+    .eyebrow--dark .eyebrow-dot {
+      background: var(--accent);
+    }
+    .eyebrow--light {
+      color: var(--accent);
+    }
+    .eyebrow--light .eyebrow-dot {
+      background: var(--accent-purple);
+      box-shadow: 0 0 6px var(--accent-purple);
+    }
+    .eyebrow--bordered {
+      border: 1px solid var(--line-bright);
+      border-radius: var(--radius-pill);
+      padding: 0.375rem 1rem;
+      background: rgba(0, 242, 255, 0.05);
+      backdrop-filter: blur(8px);
     }
 
-    .glass-card:hover {
-      border-color: rgba(0, 242, 255, 0.3);
-      box-shadow: 0 8px 32px 0 rgba(0, 242, 255, 0.15), inset 0 0 15px rgba(0, 242, 255, 0.05);
+    /* Pill Button */
+    .pill-btn {
+      display: inline-block;
+      text-decoration: none;
+    }
+    .pill-btn-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .pill-btn:hover .pill-btn-inner {
+        transform: scale(1.04);
+        box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+      }
+    }
+    .pill-btn--dark .pill-btn-inner {
+      background: linear-gradient(135deg, var(--ink), #151620);
+      color: #ffffff;
+      border: 1px solid var(--line-bright);
+    }
+    .pill-btn--light .pill-btn-inner {
+      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+      color: #050507;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .pill-btn--outline .pill-btn-inner {
+      border: 1px solid var(--line-bright);
+      background: rgba(13, 14, 18, 0.6);
+      backdrop-filter: blur(10px);
+      color: var(--foreground);
     }
 
-    .neon-text-glow {
-      text-shadow: 0 0 20px rgba(0, 242, 255, 0.6), 0 0 40px rgba(112, 0, 255, 0.4);
+    .pill-btn--arrow {
+      padding: 0.375rem 0.375rem 0.375rem 1.5rem;
+    }
+    .pill-btn--no-arrow {
+      padding: 0.875rem 1.75rem;
     }
 
-    .neon-border-glow {
-      box-shadow: 0 0 15px rgba(0, 242, 255, 0.4), inset 0 0 15px rgba(112, 0, 255, 0.2);
+    .pill-badge {
+      width: 2.25rem;
+      height: 2.25rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      font-size: 1rem;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+    }
+    .pill-btn--dark .pill-badge {
+      background: var(--accent);
+      color: #050507;
+    }
+    .pill-btn--light .pill-badge {
+      background: #050507;
+      color: var(--accent);
+    }
+    .pill-btn--outline .pill-badge {
+      background: var(--accent);
+      color: #050507;
     }
 
-    /* Gradient Animation */
-    .animated-gradient-text {
-      background: linear-gradient(135deg, #ffffff 0%, #00f2ff 50%, #7000ff 100%);
-      background-size: 200% 200%;
+    @media (hover: hover) and (pointer: fine) {
+      .pill-btn:hover .pill-badge-icon--right {
+        transform: translate(3px, 0);
+      }
+      .pill-btn:hover .pill-badge-icon--up-right {
+        transform: translate(2px, -2px);
+      }
+    }
+
+    /* Tag Chip */
+    .tag-chip {
+      display: inline-flex;
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      color: var(--accent);
+      background: rgba(0, 242, 255, 0.04);
+      border-radius: var(--radius-pill);
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      backdrop-filter: blur(4px);
+    }
+
+    /* Animated Link */
+    .animated-link {
+      display: inline-flex;
+    }
+    .animated-link span {
+      display: inline-block;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), color 0.35s ease, opacity 0.35s ease;
+      opacity: 0.65;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .animated-link:hover span {
+        transform: translateX(4px);
+        opacity: 1;
+        color: var(--accent);
+      }
+    }
+    .animated-link--legal span {
+      opacity: 0.7;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .animated-link--legal:hover span {
+        transform: translateX(3px);
+        opacity: 1;
+        color: var(--accent);
+      }
+    }
+
+    /* Reveal Line & Word Animation Base */
+    .reveal-line-wrap {
+      overflow: hidden;
+      display: block;
+    }
+    .reveal-line-inner {
+      display: block;
+      transform: translateY(100%);
+      opacity: 0;
+      transition: transform 0.9s cubic-bezier(0.215, 0.61, 0.355, 1), opacity 0.9s cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+    .reveal-line-inner.revealed {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .reveal-word {
+      display: inline-block;
+      transform: translateY(24px);
+      opacity: 0;
+      transition: transform 0.7s cubic-bezier(0.165, 0.84, 0.44, 1), opacity 0.7s cubic-bezier(0.165, 0.84, 0.44, 1);
+    }
+    .reveal-word.revealed {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Page Loader */
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      background: var(--background);
+      color: #ffffff;
+      border-radius: 0 0 var(--radius-card) var(--radius-card);
+      transition: transform 0.7s cubic-bezier(.22, 1, .36, 1);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      border-bottom: 1px solid var(--line-bright);
+    }
+    .loader-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      text-align: center;
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .loader-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 1.5rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #ffffff, var(--accent));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      animation: gradientShift 6s ease infinite;
+    }
+    @media (min-width: 640px) {
+      .loader-brand { font-size: 1.875rem; }
+    }
+    .loader-tagline {
+      max-width: 28ch;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .loader-progress-block {
+      width: min(22rem, 72vw);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .loader-track {
+      height: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      width: 100%;
+      overflow: hidden;
+      border-radius: 2px;
+    }
+    .loader-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+      width: 0%;
+      box-shadow: 0 0 10px var(--accent);
+      transition: width 0.1s ease-out;
+    }
+    .loader-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .loader-counter {
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-weight: 600;
     }
 
-    @keyframes gradientShift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+    /* Header */
+    #header {
+      position: absolute;
+      inset-inline: 0;
+      top: 0;
+      z-index: 50;
+      opacity: 0;
+      transform: translateY(-14px);
+      transition: opacity 0.7s cubic-bezier(.22, 1, .36, 1), transform 0.7s cubic-bezier(.22, 1, .36, 1);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      padding-block: 1.25rem;
+    }
+    @media (min-width: 640px) {
+      .header-inner { padding-block: 1.5rem; }
+    }
+    .header-logo-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+    }
+    .header-logo-btn .brand-title {
+      background: linear-gradient(135deg, #ffffff, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .header-logo-btn:hover { transform: scale(1.04); }
     }
 
-    /* Cyber Grid Overlay */
-    .cyber-grid {
-      background-size: 40px 40px;
-      background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    .header-nav {
+      display: none;
     }
-
-    /* Magnetic Button Wrapper */
-    .magnetic-btn {
+    @media (min-width: 1024px) {
+      .header-nav { display: block; }
+    }
+    .header-nav-list {
+      display: flex;
+      gap: 2rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .header-nav-link span {
       display: inline-block;
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), color 0.35s ease, opacity 0.35s ease;
+      opacity: 0.8;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .header-nav-link:hover span {
+        transform: translateY(-2px);
+        opacity: 1;
+        color: var(--accent);
+      }
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .clock-chip {
+      display: none;
+      border: 1px solid var(--line-bright);
+      background: rgba(13, 14, 18, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: var(--radius-control);
+      padding: 0.5rem 0.75rem;
+      gap: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--foreground);
+    }
+    @media (min-width: 768px) {
+      .clock-chip { display: flex; align-items: center; }
+    }
+    .clock-label { color: var(--muted); }
+    .clock-time { min-width: 3.5rem; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); }
+    .clock-sep { color: var(--subtle); }
+    .clock-date { font-weight: 500; }
+
+    .menu-btn {
+      border: 1px solid var(--line-bright);
+      background: rgba(13, 14, 18, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: var(--radius-control);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .menu-btn:hover { background: rgba(0, 242, 255, 0.1); border-color: var(--accent); }
+    }
+    .menu-btn-inner {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .menu-btn:hover .menu-btn-inner { transform: scale(1.05); }
+    }
+    .menu-btn-text { display: none; }
+    @media (min-width: 640px) {
+      .menu-btn-text { display: inline; }
+    }
+
+    /* Hero Section */
+    #home {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      border-radius: 0 0 var(--radius-card) var(--radius-card);
+      background: var(--background);
+      border-bottom: 1px solid var(--line);
+    }
+    .hero-bg-container {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+    .hero-bg-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.85;
+      filter: brightness(0.6) contrast(1.2);
+    }
+    .hero-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .hero-vignette {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 30%, rgba(5, 5, 7, 0.85) 90%),
+                  linear-gradient(to bottom, rgba(5, 5, 7, 0.6), transparent 50%, rgba(5, 5, 7, 0.95));
+    }
+    .hero-watermark {
+      pointer-events: none;
+      position: absolute;
+      inset-inline: 0;
+      bottom: 7rem;
+      z-index: 1;
+      text-align: center;
+      user-select: none;
+      font-weight: 800;
+      line-height: 1;
+      font-size: var(--text-watermark);
+      color: rgba(255, 255, 255, 0.03);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
+      letter-spacing: -0.04em;
+    }
+
+    .hero-grid {
+      position: relative;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      padding-top: 7rem;
+      padding-bottom: 5rem;
+    }
+    @media (min-width: 1024px) {
+      .hero-grid {
+        display: grid;
+        min-height: 100vh;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 2.5rem;
+        padding-top: 9rem;
+        padding-bottom: 7rem;
+        align-items: center;
+      }
+    }
+    .hero-left {
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+    @media (min-width: 1024px) {
+      .hero-left { grid-column: span 7; }
+    }
+
+    .hero-eyebrow {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .hero-h1 {
+      max-width: 18ch;
+      font-size: 2.25rem;
+      font-weight: 600;
+      line-height: 0.98;
+      letter-spacing: -0.02em;
+    }
+    @media (min-width: 640px) { .hero-h1 { font-size: 3rem; } }
+    @media (min-width: 768px) { .hero-h1 { font-size: 3.75rem; } }
+
+    .hero-rating {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .hero-stars {
+      color: var(--accent);
+      display: flex;
+      gap: 0.125rem;
+      filter: drop-shadow(0 0 6px var(--accent));
+    }
+    .hero-rating-text {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .hero-ctas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .hero-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2rem;
+    }
+    @media (min-width: 1024px) {
+      .hero-right {
+        grid-column: span 5;
+        align-items: flex-end;
+      }
+    }
+
+    /* Hero Carousel Card */
+    .hero-card {
+      width: 100%;
+      max-width: 24rem;
+      border-radius: var(--radius-card-sm);
+      background: var(--card-bg);
+      padding: 0.5rem;
+      border: 1px solid var(--line-bright);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 242, 255, 0.05);
+      opacity: 0;
+      transform: translateY(16px) scale(0.96);
+      transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
+    }
+    @media (min-width: 1024px) {
+      .hero-card { max-width: 19rem; }
+    }
+    .hero-card-clickable {
+      display: flex;
+      gap: 0.5rem;
+      cursor: pointer;
+      border-radius: var(--radius-control);
+    }
+    .hero-card-tile {
+      aspect-ratio: 1;
+      width: 6rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-control);
+      background: linear-gradient(135deg, #050507, #151622);
+      border: 1px solid var(--line-bright);
+      font-size: 1.875rem;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+    .hero-card-tile .icon-mark {
+      color: var(--accent);
+      filter: drop-shadow(0 0 8px var(--accent));
+    }
+    .hero-card-panel {
+      flex: 1;
+      border-radius: var(--radius-control);
+      background: rgba(18, 19, 26, 0.8);
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .hero-card-slot {
+      position: relative;
+      min-height: 3.25rem;
+    }
+    .hero-card-item {
+      transition: transform 0.4s cubic-bezier(.22, 1, .36, 1), opacity 0.4s cubic-bezier(.22, 1, .36, 1);
+    }
+    .hero-card-caption {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    .hero-card-title {
+      max-width: 8rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.35;
+      margin-top: 0.125rem;
+      color: var(--foreground);
+    }
+    .hero-card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.5rem;
+    }
+    .hero-card-dots {
+      display: flex;
+      gap: 0.25rem;
+      align-items: center;
+    }
+    .hero-card-dash {
+      height: 0.25rem;
+      border-radius: var(--radius-pill);
+      transition: width 0.3s ease, background 0.3s ease;
+    }
+    .hero-card-dash.active {
+      width: 1rem;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+    }
+    .hero-card-dash.inactive {
+      width: 0.375rem;
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .hero-card-arrows {
+      display: flex;
+      gap: 0.25rem;
+    }
+    .hero-card-arrow-btn {
+      width: 1.75rem;
+      height: 1.75rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--foreground);
+      border: 1px solid var(--line);
+      transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .hero-card-arrow-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(0, 242, 255, 0.1); }
+    }
+    .hero-card-arrow-btn--prev {
+      transform: rotate(180deg);
+    }
+
+    /* Partners Block */
+    .hero-partners {
+      width: 100%;
+      max-width: 24rem;
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
+    }
+    @media (min-width: 1024px) {
+      .hero-partners { max-width: 19rem; }
+    }
+    .hero-partners-label {
+      margin-bottom: 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-align: left;
+    }
+    @media (min-width: 1024px) {
+      .hero-partners-label { text-align: right; }
+    }
+    .hero-partners-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      column-gap: 1rem;
+      row-gap: 0.75rem;
+    }
+    .partner-item {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      opacity: 0.75;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), opacity 0.35s cubic-bezier(.2, .8, .2, 1), color 0.35s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .partner-item:hover {
+        transform: translateY(-2px);
+        opacity: 1;
+        color: var(--accent);
+      }
+    }
+    .partner-icon {
+      color: var(--accent);
+      font-size: 0.875rem;
+    }
+
+    /* Status Bar */
+    .hero-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      border-top: 1px solid var(--line);
+      padding-block: 1.25rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+    .status-center { display: none; }
+    @media (min-width: 640px) {
+      .status-center { display: block; }
+    }
+    .status-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--accent);
+    }
+
+    /* About Section */
+    #about {
+      background: var(--background);
+      border-bottom: 1px solid var(--line);
+    }
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: center;
+      gap: 3rem;
+      padding-block: 5rem;
+    }
+    @media (min-width: 1024px) {
+      .about-grid {
+        grid-template-columns: 1fr 1fr;
+        padding-block: 7rem;
+      }
+    }
+    .about-globe-block {
+      position: relative;
+      min-height: 14rem;
+    }
+    @media (min-width: 1024px) {
+      .about-globe-block { min-height: 20rem; }
+    }
+    .bg-globe-icon {
+      position: absolute;
+      left: -1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12rem;
+      color: rgba(0, 242, 255, 0.04);
+      pointer-events: none;
+    }
+    @media (min-width: 640px) { .bg-globe-icon { font-size: 16rem; } }
+    @media (min-width: 1024px) { .bg-globe-icon { left: -1.5rem; font-size: 20rem; } }
+
+    .about-globe-note {
+      position: relative;
+      margin-top: 4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .about-globe-note.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .about-globe-note-icon {
+      font-size: 1.5rem;
+      color: var(--accent);
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 8px var(--accent));
+    }
+    .about-globe-note-text {
+      max-width: 16rem;
+    }
+
+    .about-right {
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+    .about-statement {
+      font-size: 1.5rem;
+      font-weight: 500;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+    }
+    @media (min-width: 640px) {
+      .about-statement { font-size: 1.875rem; }
+    }
+    .about-statement .muted-text {
+      color: var(--muted);
+    }
+
+    .about-footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1.5rem;
+      border-top: 1px solid var(--line);
+      padding-top: 1.5rem;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .about-footer-row.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .social-label {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .social-chips {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .social-chip {
+      width: 2.25rem;
+      height: 2.25rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      font-size: 0.875rem;
+      border: 1px solid var(--line);
+    }
+    .social-chip--x {
+      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+      color: #050507;
+      border-color: transparent;
+    }
+    .social-chip--other {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--foreground);
+    }
+    .social-chip .icon-svg {
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .social-chip:hover .icon-svg {
+        transform: scale(1.18);
+      }
+    }
+
+    /* Create Band Section */
+    .create-band-section {
+      background: var(--background);
+      border-bottom: 1px solid var(--line);
+    }
+    .create-band-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-block: 2.5rem;
+    }
+    @media (min-width: 640px) {
+      .create-band-list {
+        flex-direction: row;
+        gap: 1rem;
+      }
+    }
+    .create-band-item {
+      flex: 1;
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
+    }
+    .create-band-item.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .create-band-tile {
+      display: grid;
+      place-items: center;
+      height: 6rem;
+      border-radius: var(--radius-pill);
+      font-size: 1.875rem;
+      font-weight: 600;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), box-shadow 0.35s ease;
+    }
+    @media (min-width: 640px) {
+      .create-band-tile {
+        height: 10rem;
+        font-size: 2.25rem;
+      }
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .create-band-tile:hover {
+        transform: scale(1.03);
+      }
+    }
+    .create-band-tile--light {
+      background: rgba(13, 14, 18, 0.75);
+      border: 1px solid var(--line-bright);
+      color: #ffffff;
+      backdrop-filter: blur(12px);
+    }
+    .create-band-tile--accent {
+      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+      color: #050507;
+      box-shadow: 0 0 25px rgba(0, 242, 255, 0.3);
+    }
+    .create-band-tile--dark {
+      background: var(--ink);
+      border: 1px solid var(--line);
+      color: #ffffff;
+    }
+    .create-band-tile--ghost {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed var(--line-bright);
+      color: var(--muted);
+    }
+
+    /* Portfolio Section */
+    #works {
+      background: var(--background);
+      border-bottom: 1px solid var(--line);
+    }
+    .portfolio-shell {
+      padding-block: 2.5rem 5rem;
+    }
+    @media (min-width: 1024px) {
+      .portfolio-shell { padding-bottom: 7rem; }
+    }
+    .portfolio-header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+    }
+    .portfolio-h2 {
+      font-size: 2.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-top: 1rem;
+      width: fit-content;
+      margin-inline: auto;
+    }
+    @media (min-width: 640px) { .portfolio-h2 { font-size: 3rem; } }
+
+    .portfolio-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    @media (min-width: 768px) {
+      .portfolio-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .portfolio-item-wrap {
+      opacity: 0;
+      transform: translateY(48px);
+      transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
+    }
+    .portfolio-item-wrap.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .portfolio-card {
+      position: relative;
+      min-height: 22rem;
+      overflow: hidden;
+      border-radius: var(--radius-card);
+      background: var(--card-bg);
+      border: 1px solid var(--line-bright);
+      padding: 1.5rem;
+      color: #ffffff;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), border-color 0.35s ease, box-shadow 0.35s ease;
+      display: block;
+    }
+    @media (min-width: 640px) {
+      .portfolio-card {
+        min-height: 26rem;
+        padding: 2rem;
+      }
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .portfolio-card:hover {
+        transform: translateY(-8px) scale(1.012);
+        border-color: var(--accent);
+        box-shadow: 0 15px 40px rgba(0, 242, 255, 0.2);
+      }
+    }
+    .portfolio-top-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      color: var(--muted);
+      align-items: center;
+    }
+    .portfolio-badge {
+      width: 2.75rem;
+      height: 2.75rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      background: rgba(0, 242, 255, 0.1);
+      color: var(--accent);
+      border: 1px solid var(--line-bright);
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), background 0.35s ease, color 0.35s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .portfolio-card:hover .portfolio-badge {
+        transform: rotate(45deg) scale(1.08);
+        background: var(--accent);
+        color: #050507;
+      }
+    }
+    .portfolio-watermark {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      font-size: 4.5rem;
+      color: rgba(255, 255, 255, 0.04);
+    }
+    .portfolio-watermark-reg {
+      font-size: 0.75rem;
+      color: var(--accent);
+      vertical-align: super;
+      margin-left: 0.125rem;
+      opacity: 0.6;
+    }
+    .portfolio-bottom-block {
+      position: absolute;
+      inset-inline: 1.5rem;
+      bottom: 1.5rem;
+    }
+    @media (min-width: 640px) {
+      .portfolio-bottom-block {
+        inset-inline: 2rem;
+        bottom: 2rem;
+      }
+    }
+    .portfolio-card-title {
+      font-size: 1.5rem;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--foreground);
+    }
+    @media (min-width: 640px) {
+      .portfolio-card-title { font-size: 1.875rem; }
+    }
+    .portfolio-card-desc {
+      margin-top: 0.5rem;
+      max-width: 28rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .portfolio-tags {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    /* Services Section */
+    #services {
+      background: var(--background);
+      border-bottom: 1px solid var(--line);
+    }
+    .services-shell {
+      padding-block: 5rem;
+    }
+    @media (min-width: 1024px) {
+      .services-shell { padding-block: 7rem; }
+    }
+    .services-h2 {
+      margin-top: 1.25rem;
+      margin-bottom: 3rem;
+      max-width: 16ch;
+      font-size: 2.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    @media (min-width: 640px) {
+      .services-h2 {
+        margin-bottom: 3.5rem;
+        font-size: 3rem;
+      }
+    }
+    .services-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .services-item-wrap {
+      border-top: 1px solid var(--line);
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .services-item-wrap.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .services-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-radius: var(--radius-card-sm);
+      padding-block: 1.5rem;
+      padding-inline: 1.5rem;
+      background: rgba(13, 14, 18, 0);
+      border: 1px solid transparent;
+      transition: background 0.35s cubic-bezier(.22, 1, .36, 1), padding-left 0.35s cubic-bezier(.22, 1, .36, 1), padding-right 0.35s cubic-bezier(.22, 1, .36, 1), border-color 0.35s ease;
+    }
+    @media (min-width: 640px) {
+      .services-row {
+        gap: 1.5rem;
+        padding-block: 2rem;
+      }
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .services-row:hover {
+        background: rgba(13, 14, 18, 0.85);
+        border-color: var(--line-bright);
+        padding-left: 2rem;
+        padding-right: 1.25rem;
+      }
+    }
+    .services-idx {
+      width: 1.75rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    @media (min-width: 640px) {
+      .services-idx { width: 2.5rem; }
+    }
+    .services-title {
+      flex: 1;
+      font-size: 1.5rem;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    @media (min-width: 640px) { .services-title { font-size: 1.875rem; } }
+    @media (min-width: 768px) { .services-title { font-size: 2.25rem; } }
+
+    .services-desc {
+      display: none;
+      max-width: 20rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    @media (min-width: 1024px) {
+      .services-desc { display: block; }
+    }
+
+    .services-badge {
+      width: 2.5rem;
+      height: 2.5rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      background: var(--ink);
+      border: 1px solid var(--line-bright);
+      color: var(--accent);
+      flex-shrink: 0;
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), background 0.35s ease, color 0.35s ease;
+    }
+    @media (min-width: 640px) {
+      .services-badge { width: 3rem; height: 3rem; }
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .services-row:hover .services-badge {
+        transform: translateX(5px);
+        background: var(--accent);
+        color: #050507;
+      }
+    }
+
+    /* Stats Section */
+    .stats-section {
+      background: var(--background);
+      border-bottom: 1px solid var(--line);
+    }
+    .stats-shell {
+      padding-bottom: 5rem;
+    }
+    @media (min-width: 1024px) {
+      .stats-shell { padding-bottom: 7rem; }
+    }
+    .stats-panel {
+      border-radius: var(--radius-card);
+      background: var(--card-bg);
+      border: 1px solid var(--line-bright);
+      padding: 3rem 1.5rem;
+      color: #ffffff;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      transform: translateY(40px) scale(0.99);
+      transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
+    }
+    .stats-panel.revealed {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    @media (min-width: 640px) {
+      .stats-panel { padding: 4rem 2rem; }
+    }
+    @media (min-width: 768px) {
+      .stats-panel { padding-inline: 4rem; }
+    }
+    .stats-h2 {
+      margin-top: 1rem;
+      max-width: 20ch;
+      font-size: 1.875rem;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    @media (min-width: 768px) {
+      .stats-h2 { font-size: 2.25rem; }
+    }
+    .stats-grid {
+      margin-top: 3.5rem;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      column-gap: 2rem;
+      row-gap: 3rem;
+    }
+    @media (min-width: 1024px) {
+      .stats-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    .stat-item {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .stat-item.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .stat-number {
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+      background: linear-gradient(135deg, #ffffff, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    @media (min-width: 640px) { .stat-number { font-size: 3.75rem; } }
+    @media (min-width: 768px) { .stat-number { font-size: 4.5rem; } }
+
+    .stat-label {
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    /* Footer */
+    #footer {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
+      background: #030305;
+      border-top: 1px solid var(--line-bright);
+      color: #ffffff;
+    }
+    .footer-shell {
+      position: relative;
+      z-index: 10;
+      padding-top: 5rem;
+      padding-bottom: 2.5rem;
+    }
+    @media (min-width: 1024px) {
+      .footer-shell { padding-top: 6rem; }
+    }
+    .footer-cta-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 4rem;
+    }
+    @media (min-width: 1024px) {
+      .footer-cta-row {
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: space-between;
+      }
+    }
+    .footer-cta-h2 {
+      max-width: 16ch;
+      font-size: 2.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    @media (min-width: 640px) { .footer-cta-h2 { font-size: 3rem; } }
+    @media (min-width: 768px) { .footer-cta-h2 { font-size: 3.75rem; } }
+
+    .footer-columns {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3rem;
+      padding-block: 4rem;
+    }
+    @media (min-width: 768px) {
+      .footer-columns { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 1024px) {
+      .footer-columns { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .footer-col-brand-name {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: 0.04em;
+    }
+    .footer-col-brand-name span {
+      background: linear-gradient(135deg, #ffffff, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .footer-col-tagline {
+      max-width: 20rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .footer-col-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+      font-weight: 600;
+    }
+    .footer-col-links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .footer-legal-bar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      border-top: 1px solid var(--line);
+      padding-top: 2rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    @media (min-width: 640px) {
+      .footer-legal-bar { flex-direction: row; }
+    }
+    .footer-legal-links {
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .footer-watermark {
+      position: absolute;
+      inset-inline: 0;
+      bottom: -1.5rem;
+      z-index: 0;
+      text-align: center;
+      pointer-events: none;
+      user-select: none;
+      font-weight: 800;
+      line-height: 1;
+      font-size: var(--text-watermark);
+      color: rgba(255, 255, 255, 0.02);
+      letter-spacing: -0.04em;
+    }
+
+    /* NavMenu Overlay */
+    #nav-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 115;
+      display: none;
+      flex-direction: column;
+      background: rgba(5, 5, 7, 0.95);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      color: #ffffff;
+      opacity: 0;
+      transition: opacity 0.4s cubic-bezier(.22, 1, .36, 1);
+    }
+    #nav-menu.active {
+      display: flex;
+    }
+    #nav-menu.visible {
+      opacity: 1;
+    }
+    .nav-menu-top {
+      padding-block: 1.25rem;
+    }
+    @media (min-width: 640px) {
+      .nav-menu-top { padding-block: 1.5rem; }
+    }
+    .nav-menu-top-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-menu-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.125rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .nav-menu-logo .icon-mark {
+      color: var(--accent);
+    }
+    .nav-menu-close-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid var(--line-bright);
+      border-radius: var(--radius-control);
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--foreground);
+      background: rgba(13, 14, 18, 0.6);
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .nav-menu-close-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: rgba(0, 242, 255, 0.1);
+      }
+    }
+
+    .nav-menu-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .nav-menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .nav-menu-item-btn {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      padding-block: 0.5rem;
+      text-align: left;
+      font-size: 2.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      width: 100%;
+      transform: translateY(1rem);
+      opacity: 0;
+      transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+    }
+    #nav-menu.visible .nav-menu-item-btn {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    @media (min-width: 640px) {
+      .nav-menu-item-btn { font-size: 3.75rem; }
+    }
+    .nav-menu-idx {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--muted);
+      transition: color 0.3s ease;
+    }
+    .nav-menu-label {
+      color: var(--foreground);
+      transition: color 0.3s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .nav-menu-item-btn:hover .nav-menu-idx { color: var(--accent); }
+      .nav-menu-item-btn:hover .nav-menu-label { color: var(--accent); }
+    }
+
+    .nav-menu-bottom {
+      border-top: 1px solid var(--line);
+      padding-block: 1.5rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      color: var(--muted);
+    }
+    .nav-menu-bottom-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    @media (min-width: 640px) {
+      .nav-menu-bottom-inner {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+    }
+    .nav-menu-start-btn {
+      color: var(--accent);
+      transition: color 0.2s ease;
+      font-weight: 600;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .nav-menu-start-btn:hover {
+        color: #ffffff;
+        text-decoration: underline;
+      }
+    }
+
+    /* RequestModal Overlay */
+    #request-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 1rem;
+      background: rgba(5, 5, 7, 0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      opacity: 0;
+      transition: opacity 0.35s cubic-bezier(.22, 1, .36, 1);
+    }
+    #request-modal.active {
+      display: flex;
+    }
+    #request-modal.visible {
+      opacity: 1;
+    }
+    @media (min-width: 640px) {
+      #request-modal { align-items: center; }
+    }
+
+    .modal-panel {
+      position: relative;
+      width: 100%;
+      max-width: 32rem;
+      overflow: hidden;
+      border-radius: var(--radius-card);
+      background: var(--card-bg);
+      border: 1px solid var(--line-bright);
+      padding: 1.5rem;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.8), 0 0 30px rgba(0, 242, 255, 0.1);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      transform: translateY(28px);
+      transition: transform 0.4s cubic-bezier(.2, .8, .2, 1);
+    }
+    #request-modal.visible .modal-panel {
+      transform: translateY(0);
+    }
+    @media (min-width: 640px) {
+      .modal-panel { padding: 2rem; }
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      right: 1rem;
+      top: 1rem;
+      width: 2.25rem;
+      height: 2.25rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .modal-close-btn:hover {
+        background: rgba(0, 242, 255, 0.1);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+    }
+
+    .modal-header {
+      margin-bottom: 1.5rem;
+    }
+    .modal-h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-top: 0.375rem;
+      color: var(--foreground);
+    }
+    @media (min-width: 640px) {
+      .modal-h2 { font-size: 1.875rem; }
+    }
+
+    .modal-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+    .modal-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      color: var(--accent);
+    }
+    .modal-input, .modal-textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(5, 5, 7, 0.6);
+      border-radius: var(--radius-control);
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      outline: none;
+      color: var(--foreground);
+      font-family: inherit;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+    .modal-input:focus, .modal-textarea:focus {
+      border-color: var(--accent);
+      background: rgba(5, 5, 7, 0.9);
+      box-shadow: 0 0 12px rgba(0, 242, 255, 0.3);
+    }
+    .modal-textarea {
+      resize: none;
+    }
+
+    .modal-bottom-row {
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .modal-note {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .modal-success-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding-block: 2rem;
+      gap: 1rem;
+    }
+    .modal-success-badge {
+      width: 3.5rem;
+      height: 3.5rem;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+      color: #050507;
+      font-size: 1.5rem;
+      box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+    }
+    .modal-success-h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--foreground);
+    }
+    .modal-success-desc {
+      max-width: 32ch;
+      font-size: 0.875rem;
+      color: var(--muted);
     }
   </style>
 </head>
-<body class="relative bg-void text-silver font-sans antialiased selection:bg-cyan-glow selection:text-void">
+<body>
 
-  <!-- Canvas Background for Reactive Neural Mesh -->
-  <canvas id="bg-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full"></canvas>
-
-  <!-- Cyber Grid Background Overlay -->
-  <div class="fixed inset-0 z-0 pointer-events-none cyber-grid opacity-50"></div>
-
-  <!-- Custom Liquid Cursor -->
-  <div id="cursor-dot"></div>
-  <div id="cursor-ring">
-    <span id="cursor-text">VIEW</span>
+  <!-- Liquid Fluid Custom Cursor -->
+  <div id="custom-cursor">
+    <div class="cursor-ring">
+      <span class="cursor-text" id="cursor-text">EXPLORE</span>
+    </div>
+    <div class="cursor-dot"></div>
   </div>
 
-  <!-- Fixed Glassmorphism Header -->
-  <header class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-md bg-void/75 border-b border-white/10">
-    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-      
-      <!-- Brand Logo -->
-      <a href="#hero" class="flex items-center gap-3 group" data-cursor="hover" data-cursor-text="HOME">
-        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-glow to-purple-glow p-[1px] flex items-center justify-center shadow-lg shadow-cyan-glow/20 group-hover:shadow-cyan-glow/50 transition-all duration-300">
-          <div class="w-full h-full bg-void rounded-[7px] flex items-center justify-center">
-            <svg class="w-5 h-5 text-cyan-glow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
-          </div>
-        </div>
-        <div>
-          <span class="font-display font-black text-lg tracking-wider text-white group-hover:text-cyan-glow transition-colors">NEXUS<span class="text-cyan-glow">.</span>SYNAPSE</span>
-          <span class="block font-mono text-[9px] text-slate tracking-widest uppercase">AI Orchestration</span>
-        </div>
-      </a>
+  <!-- Skip Link -->
+  <a href="#main" class="skip-link" data-cursor="SKIP">Skip to content</a>
 
-      <!-- Center Status Badge -->
-      <div class="hidden md:flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-obsidian border border-white/10 font-mono text-xs text-slate">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-glow opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-glow"></span>
-        </span>
-        <span class="text-silver tracking-wider">SYSTEM: <span class="text-cyan-glow font-bold">ONLINE</span></span>
+  <!-- Page Loader -->
+  <div id="loader" role="dialog" aria-modal="true" aria-label="Initializing Nexus Synapse Matrix">
+    <div class="loader-content" id="loader-content">
+      <div class="loader-brand">
+        <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.875rem; color: #00f2ff;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+        <span>NEXUS SYNAPSE</span>
       </div>
+      <p class="loader-tagline">Autonomous AI Orchestration, shipped with quantum precision.</p>
+    </div>
+    <div class="loader-progress-block">
+      <div class="loader-track">
+        <div class="loader-fill" id="loader-bar"></div>
+      </div>
+      <div class="loader-info">
+        <span>Synthesizing</span>
+        <span class="loader-counter" id="loader-counter">000</span>
+      </div>
+    </div>
+  </div>
 
-      <!-- Nav Links -->
-      <nav class="hidden lg:flex items-center gap-8 font-mono text-xs uppercase tracking-widest text-slate">
-        <a href="#cases" class="hover:text-cyan-glow transition-colors" data-cursor="hover" data-cursor-text="CASES">01. Cases</a>
-        <a href="#architecture" class="hover:text-cyan-glow transition-colors" data-cursor="hover" data-cursor-text="MATRIX">02. Matrix</a>
-        <a href="#telemetry" class="hover:text-cyan-glow transition-colors" data-cursor="hover" data-cursor-text="STATS">03. Telemetry</a>
+  <!-- Header -->
+  <header id="header">
+    <div class="shell header-inner">
+      <button class="header-logo-btn" id="header-logo-btn" aria-label="NEXUS SYNAPSE Home" data-cursor="HOME">
+        <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.25rem; color: #00f2ff;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+        <span class="brand-title">NEXUS SYNAPSE</span>
+      </button>
+
+      <nav class="header-nav" aria-label="Primary Navigation">
+        <ul class="header-nav-list">
+          <li>
+            <a href="#home" class="header-nav-link" aria-current="page" data-scroll="#home" data-cursor="NAV"><span>Home</span></a>
+          </li>
+          <li>
+            <a href="#works" class="header-nav-link" data-scroll="#works" data-cursor="NAV"><span>Systems</span></a>
+          </li>
+          <li>
+            <a href="#services" class="header-nav-link" data-scroll="#services" data-cursor="NAV">
+              <span>Capabilities <span style="font-size: 0.75rem; color: var(--accent);">▾</span></span>
+            </a>
+          </li>
+          <li>
+            <a href="#about" class="header-nav-link" data-scroll="#about" data-cursor="NAV"><span>Neural Mesh</span></a>
+          </li>
+          <li>
+            <a href="#careers" class="header-nav-link" data-scroll="#careers" data-cursor="NAV"><span>Careers</span></a>
+          </li>
+          <li>
+            <button class="header-nav-link open-contact-btn" data-cursor="INITIATE"><span>Contact</span></button>
+          </li>
+        </ul>
       </nav>
 
-      <!-- Header CTA -->
-      <div class="magnetic-btn">
-        <a href="#contact" class="relative group overflow-hidden px-5 py-2.5 rounded-lg bg-cyan-glow text-void font-display font-bold text-xs uppercase tracking-wider transition-all duration-300 hover:bg-white hover:shadow-[0_0_25px_rgba(0,242,255,0.8)] flex items-center gap-2" data-cursor="hover" data-cursor-text="INITIATE">
-          <span>INITIATE</span>
-          <svg class="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </a>
+      <div class="header-right">
+        <div class="clock-chip" aria-label="Studio time node">
+          <span class="clock-label">Local Node</span>
+          <span class="clock-time live-time">9:41am</span>
+          <span class="clock-sep">•</span>
+          <span class="clock-date live-date">12 March, 2025</span>
+        </div>
+        <button class="menu-btn" id="menu-toggle-btn" aria-label="Open menu" data-cursor="MENU">
+          <span class="menu-btn-inner">
+            <svg viewBox="0 0 24 24" class="icon-svg" style="font-size: 0.875rem; color: var(--accent);" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span class="menu-btn-text">Menu</span>
+          </span>
+        </button>
       </div>
-
     </div>
   </header>
 
-  <main class="relative z-10">
+  <!-- Main Content -->
+  <main id="main">
 
-    <!-- HERO SECTION -->
-    <section id="hero" class="min-h-screen pt-32 pb-20 flex flex-col justify-center relative px-6 max-w-7xl mx-auto">
-      
-      <!-- Top Cyber Tag -->
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-obsidian/80 border border-cyan-glow/30 text-cyan-glow font-mono text-xs tracking-widest uppercase mb-8 w-fit shadow-[0_0_15px_rgba(0,242,255,0.15)]">
-        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <span>AUTONOMOUS ORCHESTRATION ENGINE v4.2</span>
+    <!-- 2) Hero Section -->
+    <section id="home">
+      <!-- Background Liquid Reveal -->
+      <div class="hero-bg-container" id="hero-bg-container">
+        <img class="hero-bg-img" src="https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/after.jpg" alt="Nexus Synapse Neural Visual" />
+        <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
       </div>
+      <div class="hero-vignette"></div>
+      <div class="hero-watermark" id="hero-watermark">NEXUS</div>
 
-      <!-- Main Headline -->
-      <h1 class="font-display font-black text-4xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight uppercase mb-8">
-        ENGINEERING THE <br />
-        <span class="animated-gradient-text neon-text-glow">FUTURE OF AI AGENTS</span>
-      </h1>
-
-      <!-- Subtitle & Paragraph -->
-      <p class="max-w-2xl font-sans text-lg md:text-xl text-slate leading-relaxed mb-12">
-        NEXUS SYNAPSE builds hyper-threaded autonomous agent architectures, ultra-responsive neural experience systems, and real-time temporal engines for visionary enterprises.
-      </p>
-
-      <!-- CTA Row -->
-      <div class="flex flex-wrap items-center gap-6 mb-16">
-        <div class="magnetic-btn">
-          <a href="#contact" class="px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-glow to-purple-glow text-void font-display font-bold text-sm tracking-wider uppercase shadow-[0_0_30px_rgba(0,242,255,0.4)] hover:shadow-[0_0_50px_rgba(112,0,255,0.7)] hover:scale-105 transition-all duration-300 flex items-center gap-3" data-cursor="hover" data-cursor-text="DEPLOY">
-            <span>INITIATE COLLABORATION</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </a>
-        </div>
-
-        <a href="#cases" class="px-8 py-4 rounded-xl glass-card font-mono text-xs uppercase tracking-widest text-silver hover:text-cyan-glow border border-white/10 hover:border-cyan-glow/50 transition-all duration-300 flex items-center gap-3" data-cursor="hover" data-cursor-text="EXPLORE">
-          <span>EXPLORE CORE CASES</span>
-          <svg class="w-4 h-4 text-cyan-glow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M19 9l-7 7-7-7"/>
-          </svg>
-        </a>
-      </div>
-
-      <!-- Telemetry Quick Stats Grid -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8 border-t border-white/10">
-        <div class="p-4 rounded-xl glass-card">
-          <div class="font-display font-bold text-2xl md:text-3xl text-cyan-glow">99.99%</div>
-          <div class="font-mono text-xs text-slate uppercase tracking-wider mt-1">Autonomous Precision</div>
-        </div>
-        <div class="p-4 rounded-xl glass-card">
-          <div class="font-display font-bold text-2xl md:text-3xl text-purple-glow">4.2M+</div>
-          <div class="font-mono text-xs text-slate uppercase tracking-wider mt-1">Synapse Computes/Sec</div>
-        </div>
-        <div class="p-4 rounded-xl glass-card">
-          <div class="font-display font-bold text-2xl md:text-3xl text-silver">&lt;12ms</div>
-          <div class="font-mono text-xs text-slate uppercase tracking-wider mt-1">Latency Pipeline</div>
-        </div>
-        <div class="p-4 rounded-xl glass-card">
-          <div class="font-display font-bold text-2xl md:text-3xl text-cyan-glow">10k+</div>
-          <div class="font-mono text-xs text-slate uppercase tracking-wider mt-1">Concurrent Swarms</div>
-        </div>
-      </div>
-
-    </section>
-
-    <!-- CORE CASES SHOWCASE SECTION -->
-    <section id="cases" class="py-28 px-6 max-w-7xl mx-auto">
-      
-      <!-- Section Header -->
-      <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
-        <div>
-          <div class="font-mono text-xs text-cyan-glow tracking-widest uppercase mb-3">// FLAGSHIP DEPLOYMENTS</div>
-          <h2 class="font-display font-black text-3xl sm:text-5xl uppercase tracking-tight">CORE CASES SHOWCASE</h2>
-        </div>
-        <p class="max-w-md font-sans text-slate text-sm">
-          Next-generation digital engines engineered for maximum impact, speed, and cognitive precision.
-        </p>
-      </div>
-
-      <!-- Cases Grid (3 Major Projects) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-        <!-- Case 1: AURA (Project Lumora Transformed) -->
-        <article class="glass-card rounded-2xl p-8 relative overflow-hidden group flex flex-col justify-between border border-white/10 hover:border-cyan-glow/40 transition-all duration-500" data-cursor="hover" data-cursor-text="AURA">
-          <div class="absolute -top-24 -right-24 w-48 h-48 bg-cyan-glow/10 rounded-full blur-3xl group-hover:bg-cyan-glow/30 transition-all duration-500"></div>
-          
-          <div>
-            <div class="flex items-center justify-between mb-6">
-              <span class="font-mono text-xs text-cyan-glow bg-cyan-glow/10 border border-cyan-glow/20 px-3 py-1 rounded-full uppercase tracking-wider">PROJECT 01</span>
-              <span class="font-mono text-xs text-slate">2026 // v3.4</span>
-            </div>
-
-            <h3 class="font-display font-bold text-2xl text-white mb-2 group-hover:text-cyan-glow transition-colors">PROJECT AURA</h3>
-            <p class="font-mono text-xs text-slate mb-4">[Formerly Project Lumora]</p>
-            <p class="font-sans text-slate text-sm leading-relaxed mb-6">
-              A generative visual aesthetic system powered by real-time neural style blending and liquid dynamic canvas engines.
-            </p>
+      <div class="shell hero-grid">
+        <!-- Left Column -->
+        <div class="hero-left">
+          <div class="hero-eyebrow" id="hero-eyebrow">
+            <span class="eyebrow eyebrow--dark">
+              <span class="eyebrow-dot"></span>
+              <span>Autonomous Neural Studio</span>
+            </span>
           </div>
 
-          <!-- Interactive Micro Console for AURA -->
-          <div class="mt-6 pt-6 border-t border-white/10">
-            <div class="bg-obsidian/90 rounded-xl p-4 border border-white/5 font-mono text-xs space-y-2">
-              <div class="flex justify-between text-slate">
-                <span>Rendering Engine</span>
-                <span class="text-cyan-glow">WebGL 2.0 / WGSL</span>
-              </div>
-              <div class="flex justify-between text-slate">
-                <span>Target Framerate</span>
-                <span class="text-white font-bold">120 FPS Stable</span>
-              </div>
-              <div class="w-full bg-void rounded-full h-1.5 mt-2 overflow-hidden">
-                <div class="bg-gradient-to-r from-cyan-glow to-purple-glow h-full w-[94%] animate-pulse"></div>
-              </div>
-            </div>
-            
-            <a href="#contact" class="mt-6 inline-flex items-center gap-2 font-mono text-xs text-cyan-glow group-hover:translate-x-2 transition-transform uppercase tracking-wider">
-              <span>View System Specs</span>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
+          <h1 class="hero-h1">
+            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">Autonomous AI,</span></span>
+            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">orchestrated with</span></span>
+            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">quantum precision</span></span>
+          </h1>
+
+          <div class="hero-rating" id="hero-rating">
+            <span class="hero-stars" aria-label="5 out of 5 stars">
+              <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
+              <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
+              <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
+              <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
+              <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
+            </span>
+            <span class="hero-rating-text">500+ neural models deployed</span>
+          </div>
+
+          <div class="hero-ctas" id="hero-ctas">
+            <button class="pill-btn pill-btn--light pill-btn--arrow open-contact-btn" data-cursor="INITIATE">
+              <span class="pill-btn-inner">
+                <span>Initiate Sequence</span>
+                <span class="pill-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </span>
+              </span>
+            </button>
+            <a href="#works" class="pill-btn pill-btn--outline pill-btn--no-arrow" data-scroll="#works" data-cursor="EXPLORE">
+              <span class="pill-btn-inner">
+                <span>Explore Systems</span>
+              </span>
             </a>
           </div>
-        </article>
+        </div>
 
-        <!-- Case 2: KRONOS (Project Laocoön Transformed) -->
-        <article class="glass-card rounded-2xl p-8 relative overflow-hidden group flex flex-col justify-between border border-white/10 hover:border-purple-glow/40 transition-all duration-500" data-cursor="hover" data-cursor-text="KRONOS">
-          <div class="absolute -top-24 -right-24 w-48 h-48 bg-purple-glow/10 rounded-full blur-3xl group-hover:bg-purple-glow/30 transition-all duration-500"></div>
-          
-          <div>
-            <div class="flex items-center justify-between mb-6">
-              <span class="font-mono text-xs text-purple-glow bg-purple-glow/10 border border-purple-glow/20 px-3 py-1 rounded-full uppercase tracking-wider">PROJECT 02</span>
-              <span class="font-mono text-xs text-slate">2026 // v5.1</span>
+        <!-- Right Column -->
+        <div class="hero-right">
+          <!-- Hero Carousel Card -->
+          <div class="hero-card" id="hero-card" data-cursor="NEXT">
+            <div class="hero-card-clickable" id="hero-card-click">
+              <div class="hero-card-tile">
+                <svg viewBox="0 0 48 48" class="icon-svg icon-mark" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+              </div>
+              <div class="hero-card-panel">
+                <div class="hero-card-slot" id="hero-card-slot">
+                  <div class="hero-card-item">
+                    <div class="hero-card-caption" id="carousel-caption">Neural Orchestration</div>
+                    <div class="hero-card-title" id="carousel-title">Engineered to synthesize.</div>
+                  </div>
+                </div>
+                <div class="hero-card-bottom">
+                  <div class="hero-card-dots">
+                    <span class="hero-card-dash active" id="dot-0"></span>
+                    <span class="hero-card-dash inactive" id="dot-1"></span>
+                    <span class="hero-card-dash inactive" id="dot-2"></span>
+                  </div>
+                  <div class="hero-card-arrows">
+                    <button class="hero-card-arrow-btn hero-card-arrow-btn--prev" id="carousel-prev-btn" aria-label="Previous item" data-cursor="PREV">
+                      <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </button>
+                    <button class="hero-card-arrow-btn" id="carousel-next-btn" aria-label="Next item" data-cursor="NEXT">
+                      <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <h3 class="font-display font-bold text-2xl text-white mb-2 group-hover:text-purple-glow transition-colors">PROJECT KRONOS</h3>
-            <p class="font-mono text-xs text-slate mb-4">[Formerly Project Laocoön]</p>
-            <p class="font-sans text-slate text-sm leading-relaxed mb-6">
-              A 3D temporal computing engine executing real-time spatial physics, 4D vector projections, and predictive simulations.
-            </p>
           </div>
 
-          <!-- Interactive Micro Console for KRONOS -->
-          <div class="mt-6 pt-6 border-t border-white/10">
-            <div class="bg-obsidian/90 rounded-xl p-4 border border-white/5 font-mono text-xs space-y-2">
-              <div class="flex justify-between text-slate">
-                <span>Spatial Vector Mapping</span>
-                <span class="text-purple-glow">4D Quaternion</span>
-              </div>
-              <div class="flex justify-between text-slate">
-                <span>Simulation Latency</span>
-                <span class="text-white font-bold">&lt;1.8ms</span>
-              </div>
-              <div class="w-full bg-void rounded-full h-1.5 mt-2 overflow-hidden">
-                <div class="bg-gradient-to-r from-purple-glow to-cyan-glow h-full w-[98%] animate-pulse"></div>
+          <!-- Partners Block -->
+          <div class="hero-partners" id="hero-partners">
+            <div class="hero-partners-label">Neural Alliances</div>
+            <div class="hero-partners-grid">
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Hyperion</span>
+              </span>
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Aetheris</span>
+              </span>
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Cyberdyne</span>
+              </span>
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Vellum AI</span>
+              </span>
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Orbit</span>
+              </span>
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Quantum</span>
+              </span>
+              <span class="partner-item" data-cursor="NODE">
+                <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                <span>Synapse</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Status Bar -->
+      <div class="shell hero-status-bar" id="hero-status">
+        <div>Operational since 2024</div>
+        <div class="status-center">Distributed Neural Mesh</div>
+        <div class="status-right">
+          <span>Scroll to initialize</span>
+          <span>↓</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3) About Section -->
+    <section id="about">
+      <div class="shell about-grid">
+        <!-- Left Globe Block -->
+        <div class="about-globe-block">
+          <svg viewBox="0 0 24 24" class="icon-svg bg-globe-icon" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9.25"/><path d="M12 2.75c2.6 2.3 4 5.8 4 9.25s-1.4 6.95-4 9.25c-2.6-2.3-4-5.8-4-9.25s1.4-6.95 4-9.25zM2.75 12h18.5"/></svg>
+
+          <span class="eyebrow eyebrow--dark" style="position: relative;">
+            <span class="eyebrow-dot"></span>
+            <span>The Neural Mesh</span>
+          </span>
+
+          <div class="about-globe-note reveal-on-scroll">
+            <svg viewBox="0 0 24 24" class="icon-svg about-globe-note-icon" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9.25"/><path d="M12 2.75c2.6 2.3 4 5.8 4 9.25s-1.4 6.95-4 9.25c-2.6-2.3-4-5.8-4-9.25s1.4-6.95 4-9.25zM2.75 12h18.5"/></svg>
+            <span class="about-globe-note-text">A distributed cybernetic network synthesizing across lightspeed nodes.</span>
+          </div>
+        </div>
+
+        <!-- Right Statement -->
+        <div class="about-right">
+          <h2 class="about-statement word-reveal" id="about-statement">
+            We partner with visionary enterprises to forge autonomous AI engines, cybernetic interfaces, and the neural architectures that power next-gen digital experiences.
+          </h2>
+
+          <div class="about-footer-row reveal-on-scroll">
+            <div>
+              <div class="social-label">Connect Node</div>
+              <div class="social-chips">
+                <a href="#twitter" class="social-chip social-chip--x" aria-label="X / Twitter" data-cursor="LINK">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
+                </a>
+                <a href="#behance" class="social-chip social-chip--other" aria-label="Behance" data-cursor="LINK">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                </a>
+                <a href="#dribbble" class="social-chip social-chip--other" aria-label="Dribbble" data-cursor="LINK">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                </a>
               </div>
             </div>
 
-            <a href="#contact" class="mt-6 inline-flex items-center gap-2 font-mono text-xs text-purple-glow group-hover:translate-x-2 transition-transform uppercase tracking-wider">
-              <span>View System Specs</span>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
+            <a href="#about" class="pill-btn pill-btn--outline pill-btn--arrow" data-scroll="#about" data-cursor="ABOUT">
+              <span class="pill-btn-inner">
+                <span>About Synapse</span>
+                <span class="pill-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--up-right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
+              </span>
             </a>
           </div>
-        </article>
+        </div>
+      </div>
+    </section>
 
-        <!-- Case 3: VORTEX (Project Loopstack Transformed) -->
-        <article class="glass-card rounded-2xl p-8 relative overflow-hidden group flex flex-col justify-between border border-white/10 hover:border-cyan-glow/40 transition-all duration-500" data-cursor="hover" data-cursor-text="VORTEX">
-          <div class="absolute -top-24 -right-24 w-48 h-48 bg-cyan-glow/10 rounded-full blur-3xl group-hover:bg-cyan-glow/30 transition-all duration-500"></div>
-          
-          <div>
-            <div class="flex items-center justify-between mb-6">
-              <span class="font-mono text-xs text-cyan-glow bg-cyan-glow/10 border border-cyan-glow/20 px-3 py-1 rounded-full uppercase tracking-wider">PROJECT 03</span>
-              <span class="font-mono text-xs text-slate">2026 // v2.9</span>
+    <!-- 4) Create Band -->
+    <section class="create-band-section">
+      <div class="shell">
+        <ul class="create-band-list">
+          <li class="create-band-item reveal-on-scroll" style="transition-delay: 0ms;" data-cursor="FUTURE">
+            <div class="create-band-tile create-band-tile--light">We</div>
+          </li>
+          <li class="create-band-item reveal-on-scroll" style="transition-delay: 120ms;" data-cursor="SYNTHESIZE">
+            <div class="create-band-tile create-band-tile--accent">Synthesize</div>
+          </li>
+          <li class="create-band-item reveal-on-scroll" style="transition-delay: 240ms;" data-cursor="NEXUS">
+            <div class="create-band-tile create-band-tile--dark">
+              <svg viewBox="0 0 24 24" class="icon-svg" style="font-size: 2.25rem; color: var(--accent);" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </div>
+          </li>
+          <li class="create-band-item reveal-on-scroll" style="transition-delay: 360ms;" data-cursor="FUTURE">
+            <div class="create-band-tile create-band-tile--ghost">Future</div>
+          </li>
+        </ul>
+      </div>
+    </section>
 
-            <h3 class="font-display font-bold text-2xl text-white mb-2 group-hover:text-cyan-glow transition-colors">PROJECT VORTEX</h3>
-            <p class="font-mono text-xs text-slate mb-4">[Formerly Project Loopstack]</p>
-            <p class="font-sans text-slate text-sm leading-relaxed mb-6">
-              A hyper-threaded autonomous workflow core facilitating zero-trust multi-agent negotiation, task decomposition, and self-healing pipelines.
-            </p>
-          </div>
+    <!-- 5) Portfolio Section -->
+    <section id="works">
+      <div class="shell portfolio-shell">
+        <div class="portfolio-header">
+          <span class="eyebrow eyebrow--dark eyebrow--bordered reveal-on-scroll">
+            <span class="eyebrow-dot"></span>
+            <span>Neural Deployments</span>
+          </span>
+          <h2 class="portfolio-h2 line-reveal">Selected Architectures</h2>
+        </div>
 
-          <!-- Interactive Micro Console for VORTEX -->
-          <div class="mt-6 pt-6 border-t border-white/10">
-            <div class="bg-obsidian/90 rounded-xl p-4 border border-white/5 font-mono text-xs space-y-2">
-              <div class="flex justify-between text-slate">
-                <span>Active Swarm Threads</span>
-                <span class="text-cyan-glow">10,240 Nodes</span>
+        <ul class="portfolio-grid">
+          <!-- Item 1 -->
+          <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 0ms;">
+            <a href="#aetheris-core" class="portfolio-card" data-cursor="SYSTEM">
+              <div class="portfolio-top-meta">
+                <span>Autonomous AI — 2026</span>
+                <span class="portfolio-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
               </div>
-              <div class="flex justify-between text-slate">
-                <span>Self-Healing Protocol</span>
-                <span class="text-white font-bold">AUTOMATED</span>
+              <div class="portfolio-watermark">
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <span class="portfolio-watermark-reg">®</span>
               </div>
-              <div class="w-full bg-void rounded-full h-1.5 mt-2 overflow-hidden">
-                <div class="bg-gradient-to-r from-cyan-glow to-purple-glow h-full w-[100%] animate-pulse"></div>
+              <div class="portfolio-bottom-block">
+                <h3 class="portfolio-card-title">Aetheris Core</h3>
+                <p class="portfolio-card-desc">A complete neural orchestration matrix and self-evolving agent network.</p>
+                <div class="portfolio-tags">
+                  <span class="tag-chip">AI Agents</span>
+                  <span class="tag-chip">Neural Mesh</span>
+                  <span class="tag-chip">Quantum</span>
+                </div>
               </div>
-            </div>
-
-            <a href="#contact" class="mt-6 inline-flex items-center gap-2 font-mono text-xs text-cyan-glow group-hover:translate-x-2 transition-transform uppercase tracking-wider">
-              <span>View System Specs</span>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
             </a>
-          </div>
-        </article>
+          </li>
 
+          <!-- Item 2 -->
+          <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 90ms;">
+            <a href="#vellum-matrix" class="portfolio-card" data-cursor="SYSTEM">
+              <div class="portfolio-top-meta">
+                <span>Cyber Infrastructure — 2025</span>
+                <span class="portfolio-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
+              </div>
+              <div class="portfolio-watermark">
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <span class="portfolio-watermark-reg">®</span>
+              </div>
+              <div class="portfolio-bottom-block">
+                <h3 class="portfolio-card-title">Vellum Matrix</h3>
+                <p class="portfolio-card-desc">Distributed synthetic intelligence protocol re-imagined for zero-latency execution.</p>
+                <div class="portfolio-tags">
+                  <span class="tag-chip">Synthetic AI</span>
+                  <span class="tag-chip">Web3</span>
+                  <span class="tag-chip">Realtime</span>
+                </div>
+              </div>
+            </a>
+          </li>
+
+          <!-- Item 3 -->
+          <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 180ms;">
+            <a href="#helio-synapse" class="portfolio-card" data-cursor="SYSTEM">
+              <div class="portfolio-top-meta">
+                <span>Neural UI — 2025</span>
+                <span class="portfolio-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
+              </div>
+              <div class="portfolio-watermark">
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <span class="portfolio-watermark-reg">®</span>
+              </div>
+              <div class="portfolio-bottom-block">
+                <h3 class="portfolio-card-title">Helio Synapse</h3>
+                <p class="portfolio-card-desc">A holographic visual interface system built to scale across multi-dimensional surfaces.</p>
+                <div class="portfolio-tags">
+                  <span class="tag-chip">Cybernetic UI</span>
+                  <span class="tag-chip">Spatial Computing</span>
+                </div>
+              </div>
+            </a>
+          </li>
+
+          <!-- Item 4 -->
+          <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 270ms;">
+            <a href="#pulse-biomimetic" class="portfolio-card" data-cursor="SYSTEM">
+              <div class="portfolio-top-meta">
+                <span>Health Matrix — 2024</span>
+                <span class="portfolio-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
+              </div>
+              <div class="portfolio-watermark">
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <span class="portfolio-watermark-reg">®</span>
+              </div>
+              <div class="portfolio-bottom-block">
+                <h3 class="portfolio-card-title">Pulse Biomimetic</h3>
+                <p class="portfolio-card-desc">A neural health synthesis framework shipped end to end from deep learning to live deployment.</p>
+                <div class="portfolio-tags">
+                  <span class="tag-chip">Deep Learning</span>
+                  <span class="tag-chip">Bio-Tech</span>
+                  <span class="tag-chip">Edge AI</span>
+                </div>
+              </div>
+            </a>
+          </li>
+        </ul>
       </div>
-
     </section>
 
-    <!-- ARCHITECTURE MATRIX SECTION -->
-    <section id="architecture" class="py-28 px-6 max-w-7xl mx-auto">
-      
-      <div class="glass-card rounded-3xl p-8 sm:p-12 relative overflow-hidden border border-white/10">
-        
-        <div class="max-w-3xl mb-16">
-          <div class="font-mono text-xs text-purple-glow tracking-widest uppercase mb-3">// TECHNICAL STACK</div>
-          <h2 class="font-display font-black text-3xl sm:text-5xl uppercase tracking-tight mb-6">CAPABILITIES MATRIX</h2>
-          <p class="font-sans text-slate text-base leading-relaxed">
-            Our multi-layered stack seamlessly connects deep neural inference with high-frequency graphics execution and distributed agent consensus.
-          </p>
-        </div>
+    <!-- 6) Services Section -->
+    <section id="services">
+      <div class="shell services-shell">
+        <span class="eyebrow eyebrow--dark reveal-on-scroll">
+          <span class="eyebrow-dot"></span>
+          <span>Cyber Capabilities</span>
+        </span>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          <div class="p-6 rounded-2xl bg-obsidian/80 border border-white/5 hover:border-cyan-glow/40 transition-colors">
-            <div class="w-10 h-10 rounded-lg bg-cyan-glow/10 text-cyan-glow flex items-center justify-center font-mono font-bold mb-4">01</div>
-            <h4 class="font-display font-bold text-lg text-white mb-2">Autonomous Agent Swarms</h4>
-            <p class="font-sans text-xs text-slate leading-relaxed">
-              Self-organizing LLM and SLM agent hierarchies designed for autonomous problem resolution.
-            </p>
-          </div>
+        <h2 class="services-h2 line-reveal">What we engineer</h2>
 
-          <div class="p-6 rounded-2xl bg-obsidian/80 border border-white/5 hover:border-purple-glow/40 transition-colors">
-            <div class="w-10 h-10 rounded-lg bg-purple-glow/10 text-purple-glow flex items-center justify-center font-mono font-bold mb-4">02</div>
-            <h4 class="font-display font-bold text-lg text-white mb-2">Neural Shader Pipelines</h4>
-            <p class="font-sans text-xs text-slate leading-relaxed">
-              Custom WGSL & WebGL shaders computing generative visual buffers in real time at 120+ FPS.
-            </p>
-          </div>
+        <ul class="services-list">
+          <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 0ms; border-top: none;">
+            <a href="#ai-systems" class="services-row" data-cursor="CAPABILITY">
+              <span class="services-idx">01</span>
+              <h3 class="services-title">Autonomous AI Systems</h3>
+              <p class="services-desc">Scalable neural models & agentic orchestration built for absolute resilience.</p>
+              <span class="services-badge">
+                <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+              </span>
+            </a>
+          </li>
 
-          <div class="p-6 rounded-2xl bg-obsidian/80 border border-white/5 hover:border-cyan-glow/40 transition-colors">
-            <div class="w-10 h-10 rounded-lg bg-cyan-glow/10 text-cyan-glow flex items-center justify-center font-mono font-bold mb-4">03</div>
-            <h4 class="font-display font-bold text-lg text-white mb-2">Temporal Telemetry</h4>
-            <p class="font-sans text-xs text-slate leading-relaxed">
-              Sub-millisecond latency telemetry tracking agent decision paths and cognitive memory graphs.
-            </p>
-          </div>
+          <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 80ms;">
+            <a href="#cyber-ui" class="services-row" data-cursor="CAPABILITY">
+              <span class="services-idx">02</span>
+              <h3 class="services-title">Cybernetic UI / UX</h3>
+              <p class="services-desc">Spatial interfaces that feel telepathic and execute with zero latency.</p>
+              <span class="services-badge">
+                <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+              </span>
+            </a>
+          </li>
 
-          <div class="p-6 rounded-2xl bg-obsidian/80 border border-white/5 hover:border-purple-glow/40 transition-colors">
-            <div class="w-10 h-10 rounded-lg bg-purple-glow/10 text-purple-glow flex items-center justify-center font-mono font-bold mb-4">04</div>
-            <h4 class="font-display font-bold text-lg text-white mb-2">Zero-Trust Enclaves</h4>
-            <p class="font-sans text-xs text-slate leading-relaxed">
-              Cryptographically verified execution channels guaranteeing enterprise privacy and data control.
-            </p>
-          </div>
+          <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 160ms;">
+            <a href="#quantum-arch" class="services-row" data-cursor="CAPABILITY">
+              <span class="services-idx">03</span>
+              <h3 class="services-title">Quantum Architecture</h3>
+              <p class="services-desc">High-throughput cloud matrix and neural security protocols.</p>
+              <span class="services-badge">
+                <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+              </span>
+            </a>
+          </li>
 
-        </div>
-
+          <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 240ms;">
+            <a href="#ai-strategy" class="services-row" data-cursor="CAPABILITY">
+              <span class="services-idx">04</span>
+              <h3 class="services-title">AI Strategy & Synthesis</h3>
+              <p class="services-desc">Roadmaps for autonomous digital transformation.</p>
+              <span class="services-badge">
+                <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+              </span>
+            </a>
+          </li>
+        </ul>
       </div>
-
     </section>
 
-    <!-- LIVE TELEMETRY SIMULATION SECTION -->
-    <section id="telemetry" class="py-20 px-6 max-w-7xl mx-auto">
-      
-      <div class="glass-card rounded-2xl p-6 sm:p-8 border border-white/10">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
-          <div class="flex items-center gap-3">
-            <div class="w-3 h-3 rounded-full bg-cyan-glow animate-ping"></div>
-            <span class="font-mono text-xs uppercase tracking-widest text-silver">LIVE ORCHESTRATION CONSOLE</span>
-          </div>
-          <div class="font-mono text-xs text-slate">
-            LATENCY: <span id="live-ping" class="text-cyan-glow font-bold">8.4 ms</span> | NODES: <span class="text-purple-glow font-bold">1,024 ACTIVE</span>
-          </div>
-        </div>
+    <!-- 7) Stats Section -->
+    <section class="stats-section">
+      <div class="shell stats-shell">
+        <div class="stats-panel reveal-on-scroll" id="stats-panel">
+          <span class="eyebrow eyebrow--light">
+            <span class="eyebrow-dot"></span>
+            <span>System Metrics</span>
+          </span>
 
-        <div class="mt-6 bg-obsidian/90 rounded-xl p-4 font-mono text-xs text-slate leading-relaxed h-48 overflow-y-auto" id="console-output">
-          <p class="text-cyan-glow">[SYSTEM INFO] Initializing NEXUS SYNAPSE Agent Swarm v4.2...</p>
-          <p class="text-slate">[00:00:01] Quantum memory telemetry linked across 1024 nodes.</p>
-          <p class="text-slate">[00:00:02] Project AURA: Shader buffer compiled successfully at 120 FPS.</p>
-          <p class="text-slate">[00:00:03] Project KRONOS: Spatial temporal matrix synchronized.</p>
-          <p class="text-purple-glow">[00:00:04] Project VORTEX: Multi-agent consensus achieved. Self-healing active.</p>
+          <h2 class="stats-h2 line-reveal">Empirical performance in high-throughput benchmarks.</h2>
+
+          <ul class="stats-grid">
+            <li class="stat-item reveal-on-scroll" style="transition-delay: 0ms;">
+              <div class="stat-number" data-target="99.9" data-suffix="%">0%</div>
+              <div class="stat-label">Uptime reliability</div>
+            </li>
+            <li class="stat-item reveal-on-scroll" style="transition-delay: 90ms;">
+              <div class="stat-number" data-target="450" data-suffix="M+">0M+</div>
+              <div class="stat-label">Tokens synthesized</div>
+            </li>
+            <li class="stat-item reveal-on-scroll" style="transition-delay: 180ms;">
+              <div class="stat-number" data-target="15" data-suffix="ms">0ms</div>
+              <div class="stat-label">Average latency</div>
+            </li>
+            <li class="stat-item reveal-on-scroll" style="transition-delay: 270ms;">
+              <div class="stat-number" data-target="50" data-suffix="+">0+</div>
+              <div class="stat-label">Enterprise clusters</div>
+            </li>
+          </ul>
         </div>
       </div>
-
-    </section>
-
-    <!-- CTA & INITIATE CONTACT SECTION -->
-    <section id="contact" class="py-32 px-6 max-w-7xl mx-auto text-center relative">
-      
-      <div class="glass-card rounded-3xl p-12 sm:p-20 border border-white/10 relative overflow-hidden neon-border-glow">
-        
-        <div class="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-cyan-glow/20 rounded-full blur-[100px] pointer-events-none"></div>
-
-        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-obsidian border border-purple-glow/40 text-purple-glow font-mono text-xs tracking-widest uppercase mb-8">
-          <span>READY FOR DEPLOYMENT</span>
-        </div>
-
-        <h2 class="font-display font-black text-4xl sm:text-6xl lg:text-7xl uppercase tracking-tight mb-8 max-w-4xl mx-auto">
-          INITIATE YOUR NEXT-GEN <br />
-          <span class="animated-gradient-text">AI EXPERIENCE</span>
-        </h2>
-
-        <p class="max-w-2xl mx-auto font-sans text-slate text-base sm:text-lg mb-12">
-          Partner with NEXUS SYNAPSE to architect autonomous agent swarms, bespoke neural platforms, and vanguard digital experiences.
-        </p>
-
-        <!-- Magnetic Massive CTA Button -->
-        <div class="magnetic-btn inline-block">
-          <button id="open-contact-modal" class="px-10 py-5 rounded-2xl bg-gradient-to-r from-cyan-glow via-white to-purple-glow text-void font-display font-black text-base sm:text-lg tracking-widest uppercase shadow-[0_0_50px_rgba(0,242,255,0.6)] hover:shadow-[0_0_80px_rgba(112,0,255,0.9)] hover:scale-105 transition-all duration-300 flex items-center gap-4" data-cursor="hover" data-cursor-text="START">
-            <span>INITIATE COLLABORATION</span>
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </button>
-        </div>
-
-      </div>
-
     </section>
 
   </main>
 
-  <!-- FOOTER -->
-  <footer class="border-t border-white/10 bg-obsidian/50 py-12 px-6 relative z-10">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 font-mono text-xs text-slate">
-      <div class="flex items-center gap-3">
-        <span class="font-display font-bold text-white tracking-wider">NEXUS.SYNAPSE</span>
-        <span>© 2026. ALL RIGHTS RESERVED.</span>
+  <!-- 8) Footer -->
+  <footer id="footer">
+    <div class="shell footer-shell">
+      <div class="footer-cta-row">
+        <h2 class="footer-cta-h2 line-reveal">Ready to synthesize your vision? Initiate sequence.</h2>
+        <div>
+          <button class="pill-btn pill-btn--light pill-btn--arrow open-contact-btn" data-cursor="INITIATE">
+            <span class="pill-btn-inner">
+              <span>Start a Project</span>
+              <span class="pill-badge">
+                <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--up-right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div class="flex items-center gap-6">
-        <a href="#hero" class="hover:text-cyan-glow transition-colors">TOP</a>
-        <a href="#cases" class="hover:text-cyan-glow transition-colors">CASES</a>
-        <a href="#architecture" class="hover:text-cyan-glow transition-colors">MATRIX</a>
-        <a href="#contact" class="hover:text-cyan-glow transition-colors">INITIATE</a>
+      <div class="footer-columns">
+        <!-- Brand Col -->
+        <div>
+          <div class="footer-col-brand-name">
+            <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.25rem; color: var(--accent);" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+            <span>NEXUS SYNAPSE</span>
+          </div>
+          <p class="footer-col-tagline">An autonomous AI studio forging neural products, cybernetic systems, and next-gen digital experiences.</p>
+        </div>
+
+        <!-- Company -->
+        <div>
+          <div class="footer-col-title">Company</div>
+          <ul class="footer-col-links">
+            <li><a href="#about" class="animated-link" data-scroll="#about" data-cursor="LINK"><span>About</span></a></li>
+            <li><a href="#careers" class="animated-link" data-scroll="#careers" data-cursor="LINK"><span>Careers</span></a></li>
+            <li><a href="#partners" class="animated-link" data-scroll="#partners" data-cursor="LINK"><span>Alliances</span></a></li>
+            <li><button class="animated-link open-contact-btn" data-cursor="LINK"><span>Contact</span></button></li>
+          </ul>
+        </div>
+
+        <!-- Services -->
+        <div>
+          <div class="footer-col-title">Capabilities</div>
+          <ul class="footer-col-links">
+            <li><a href="#ai-systems" class="animated-link" data-scroll="#services" data-cursor="LINK"><span>Autonomous AI</span></a></li>
+            <li><a href="#cyber-ui" class="animated-link" data-scroll="#services" data-cursor="LINK"><span>Cybernetic UI</span></a></li>
+            <li><a href="#quantum-arch" class="animated-link" data-scroll="#services" data-cursor="LINK"><span>Quantum Arch</span></a></li>
+            <li><a href="#ai-strategy" class="animated-link" data-scroll="#services" data-cursor="LINK"><span>AI Strategy</span></a></li>
+          </ul>
+        </div>
+
+        <!-- Social -->
+        <div>
+          <div class="footer-col-title">Social Grid</div>
+          <ul class="footer-col-links">
+            <li><a href="#twitter" class="animated-link" data-cursor="LINK"><span>X / Twitter</span></a></li>
+            <li><a href="#behance" class="animated-link" data-cursor="LINK"><span>Behance</span></a></li>
+            <li><a href="#dribbble" class="animated-link" data-cursor="LINK"><span>Dribbble</span></a></li>
+            <li><a href="#linkedin" class="animated-link" data-cursor="LINK"><span>LinkedIn</span></a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-legal-bar">
+        <div>© 2026 NEXUS SYNAPSE. All rights reserved.</div>
+        <div class="footer-legal-links">
+          <a href="#privacy" class="animated-link animated-link--legal" data-cursor="LINK"><span>Privacy</span></a>
+          <a href="#terms" class="animated-link animated-link--legal" data-cursor="LINK"><span>Terms</span></a>
+        </div>
       </div>
     </div>
+    <div class="footer-watermark">NEXUS</div>
   </footer>
 
-  <!-- CONTACT MODAL -->
-  <div id="contact-modal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-void/80 backdrop-blur-xl opacity-0 pointer-events-none transition-opacity duration-300">
-    <div class="glass-card w-full max-w-xl rounded-3xl p-8 sm:p-10 border border-white/10 relative transform scale-95 transition-transform duration-300" id="modal-content">
-      
-      <button id="close-modal" class="absolute top-6 right-6 text-slate hover:text-white font-mono text-xl" data-cursor="hover" data-cursor-text="CLOSE">✕</button>
-
-      <div class="font-mono text-xs text-cyan-glow tracking-widest uppercase mb-2">// DIRECT CHANNEL</div>
-      <h3 class="font-display font-bold text-2xl text-white mb-6">INITIATE DISPATCH</h3>
-
-      <form id="contact-form" class="space-y-4 font-mono text-xs">
-        <div>
-          <label class="block text-slate mb-1">IDENTIFIER / NAME</label>
-          <input type="text" required placeholder="e.g. Commander Shepard" class="w-full bg-obsidian border border-white/10 rounded-xl px-4 py-3 text-silver focus:outline-none focus:border-cyan-glow transition-colors" />
+  <!-- 9) NavMenu Overlay -->
+  <div id="nav-menu" role="dialog" aria-modal="true" aria-label="Navigation Menu">
+    <div class="nav-menu-top">
+      <div class="shell nav-menu-top-inner">
+        <div class="nav-menu-logo">
+          <svg viewBox="0 0 48 48" class="icon-svg icon-mark" style="font-size: 1.25rem;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+          <span style="color: #ffffff;">NEXUS SYNAPSE</span>
         </div>
-        <div>
-          <label class="block text-slate mb-1">COMMUNICATION NODE / EMAIL</label>
-          <input type="email" required placeholder="name@enterprise.ai" class="w-full bg-obsidian border border-white/10 rounded-xl px-4 py-3 text-silver focus:outline-none focus:border-cyan-glow transition-colors" />
-        </div>
-        <div>
-          <label class="block text-slate mb-1">ORCHESTRATION SCOPE</label>
-          <textarea rows="3" required placeholder="Describe your AI agent or experience requirements..." class="w-full bg-obsidian border border-white/10 rounded-xl px-4 py-3 text-silver focus:outline-none focus:border-cyan-glow transition-colors resize-none"></textarea>
-        </div>
-
-        <button type="submit" id="submit-btn" class="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-glow to-purple-glow text-void font-display font-bold text-sm tracking-wider uppercase hover:opacity-90 transition-opacity" data-cursor="hover" data-cursor-text="SEND">
-          TRANSMIT DISPATCH
+        <button class="nav-menu-close-btn" id="nav-menu-close-btn" aria-label="Close menu" data-cursor="CLOSE">
+          <svg viewBox="0 0 24 24" class="icon-svg" style="font-size: 0.875rem;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
+          <span>Close</span>
         </button>
-      </form>
+      </div>
+    </div>
+
+    <div class="nav-menu-center">
+      <div class="shell">
+        <ul class="nav-menu-list">
+          <li>
+            <button class="nav-menu-item-btn" data-target="#home" style="transition-delay: 80ms;" data-cursor="NAV">
+              <span class="nav-menu-idx">01</span>
+              <span class="nav-menu-label">Home</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-menu-item-btn" data-target="#works" style="transition-delay: 125ms;" data-cursor="NAV">
+              <span class="nav-menu-idx">02</span>
+              <span class="nav-menu-label">Systems</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-menu-item-btn" data-target="#services" style="transition-delay: 170ms;" data-cursor="NAV">
+              <span class="nav-menu-idx">03</span>
+              <span class="nav-menu-label">Capabilities</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-menu-item-btn" data-target="#about" style="transition-delay: 215ms;" data-cursor="NAV">
+              <span class="nav-menu-idx">04</span>
+              <span class="nav-menu-label">Neural Mesh</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-menu-item-btn" data-target="#careers" style="transition-delay: 260ms;" data-cursor="NAV">
+              <span class="nav-menu-idx">05</span>
+              <span class="nav-menu-label">Careers</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-menu-item-btn nav-menu-contact-btn" style="transition-delay: 305ms;" data-cursor="INITIATE">
+              <span class="nav-menu-idx">06</span>
+              <span class="nav-menu-label">Contact</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="nav-menu-bottom">
+      <div class="shell nav-menu-bottom-inner">
+        <div>Local Node — <span class="live-time">9:41am</span></div>
+        <button class="nav-menu-start-btn nav-menu-contact-btn" data-cursor="INITIATE">Initiate Sequence →</button>
+      </div>
     </div>
   </div>
 
-  <!-- JAVASCRIPT LOGIC -->
-  <script>
-    // 1. Initialize Lenis Smooth Scrolling
+  <!-- 10) RequestModal Overlay -->
+  <div id="request-modal" role="dialog" aria-modal="true" aria-label="Initiate sequence request form">
+    <div class="modal-panel" id="modal-panel">
+      <button class="modal-close-btn" id="modal-close-btn" aria-label="Close request modal" data-cursor="CLOSE">
+        <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
+      </button>
+
+      <!-- Form View -->
+      <div id="modal-form-view">
+        <div class="modal-header">
+          <span class="eyebrow eyebrow--dark">
+            <span class="eyebrow-dot" style="background: var(--accent);"></span>
+            <span>Initiate Sequence</span>
+          </span>
+          <h2 class="modal-h2">Tell us what you're building.</h2>
+        </div>
+
+        <form class="modal-form" id="project-request-form">
+          <div class="modal-field">
+            <label class="modal-label" for="req-name">Name</label>
+            <input type="text" id="req-name" class="modal-input" required placeholder="Your name" />
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label" for="req-email">Email</label>
+            <input type="email" id="req-email" class="modal-input" required placeholder="you@company.com" />
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label" for="req-project">Project Scope</label>
+            <textarea id="req-project" class="modal-textarea" rows="4" required placeholder="A few words about your project vision, timeline, and tech stack."></textarea>
+          </div>
+
+          <div class="modal-bottom-row">
+            <div class="modal-note">We reply within one business day.</div>
+            <button type="submit" class="pill-btn pill-btn--light pill-btn--arrow" id="submit-btn" data-cursor="SEND">
+              <span class="pill-btn-inner">
+                <span id="submit-btn-text">Initiate Request</span>
+                <span class="pill-badge">
+                  <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--up-right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </span>
+              </span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Success View -->
+      <div class="modal-success-state" id="modal-success-view">
+        <div class="modal-success-badge">
+          <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+        </div>
+        <h2 class="modal-success-h2">Signal Received</h2>
+        <p class="modal-success-desc">Thanks for reaching out — our neural team will get back to you within one business day.</p>
+        <button class="pill-btn pill-btn--light pill-btn--no-arrow" id="modal-success-close-btn" style="margin-top: 0.5rem;" data-cursor="CLOSE">
+          <span class="pill-btn-inner">
+            <span>Acknowledge</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CDN Import Map & Modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "lenis": "https://unpkg.com/lenis@1.3.23/dist/lenis.mjs"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import Lenis from 'lenis';
+
+    // 1. Adaptive Grid (Scale UP > 1920px)
+    function applyAdaptiveGrid() {
+      const FONT_BASE = 16, baseWidth = 1920, coef = 0.6666;
+      const w = window.innerWidth;
+      const widthReduction = ((baseWidth - w) / baseWidth) * 100;
+      const size = FONT_BASE - (FONT_BASE * (widthReduction * coef)) / 100;
+      if (size > FONT_BASE) {
+        document.documentElement.style.fontSize = size + 'px';
+      } else {
+        document.documentElement.style.removeProperty('font-size');
+      }
+    }
+    applyAdaptiveGrid();
+    window.addEventListener('resize', applyAdaptiveGrid);
+
+    // 2. Lenis Smooth Scroll Setup with Inertial Smooth Physics
+    window.scrollTo(0, 0);
     const lenis = new Lenis({
+      smoothWheel: true,
       duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
     });
 
-    function raf(time) {
-      lenis.raf(time);
+    function raf(t) {
+      lenis.raf(t);
       requestAnimationFrame(raf);
     }
     requestAnimationFrame(raf);
 
-    // 2. Custom Liquid Cursor Tracking & Magnetics
-    const cursorDot = document.getElementById('cursor-dot');
-    const cursorRing = document.getElementById('cursor-ring');
-    const cursorText = document.getElementById('cursor-text');
-
-    let mouseX = window.innerWidth / 2;
-    let mouseY = window.innerHeight / 2;
-    let ringX = mouseX;
-    let ringY = mouseY;
-
-    window.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      cursorDot.style.left = `${mouseX}px`;
-      cursorDot.style.top = `${mouseY}px`;
-    });
-
-    function animateCursor() {
-      ringX += (mouseX - ringX) * 0.15;
-      ringY += (mouseY - ringY) * 0.15;
-      cursorRing.style.left = `${ringX}px`;
-      cursorRing.style.top = `${ringY}px`;
-      requestAnimationFrame(animateCursor);
+    let scrollEnabled = true;
+    function stopScroll() {
+      scrollEnabled = false;
+      lenis.stop();
+      document.documentElement.style.cssText = "position:relative; overflow:hidden; height:100%";
     }
-    animateCursor();
+    function startScroll() {
+      scrollEnabled = true;
+      lenis.start();
+      document.documentElement.style.cssText = "";
+    }
 
-    // Hover elements interaction for Cursor
-    document.querySelectorAll('[data-cursor="hover"]').forEach(el => {
-      el.addEventListener('mouseenter', () => {
-        cursorRing.classList.add('active');
-        const text = el.getAttribute('data-cursor-text') || 'VIEW';
-        cursorText.textContent = text;
-      });
-      el.addEventListener('mouseleave', () => {
-        cursorRing.classList.remove('active');
-      });
-    });
+    function scrollToId(id) {
+      const targetId = id.replace('#', '');
+      const el = document.getElementById(targetId);
+      if (!el) return;
+      lenis.stop();
+      setTimeout(() => {
+        const top = el.getBoundingClientRect().top + window.pageYOffset;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }, 50);
+      setTimeout(() => {
+        lenis.start();
+      }, 100);
+    }
 
-    // Magnetic buttons
-    document.querySelectorAll('.magnetic-btn').forEach(btn => {
-      btn.addEventListener('mousemove', (e) => {
-        const rect = btn.getBoundingClientRect();
-        const x = e.clientX - rect.left - rect.width / 2;
-        const y = e.clientY - rect.top - rect.height / 2;
-        btn.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px)`;
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.transform = `translate(0px, 0px)`;
-      });
-    });
-
-    // 3. Generative Reactive Neural Mesh Canvas
-    const canvas = document.getElementById('bg-canvas');
-    const ctx = canvas.getContext('2d');
-
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    window.addEventListener('resize', () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    });
-
-    class Particle {
-      constructor() {
-        this.reset();
-      }
-      reset() {
-        this.x = Math.random() * width;
-        this.y = Math.random() * height;
-        this.vx = (Math.random() - 0.5) * 0.8;
-        this.vy = (Math.random() - 0.5) * 0.8;
-        this.radius = Math.random() * 1.5 + 0.5;
-        this.color = Math.random() > 0.5 ? '#00f2ff' : '#7000ff';
-      }
-      update() {
-        this.x += this.vx;
-        this.y += this.vy;
-
-        if (this.x < 0 || this.x > width) this.vx *= -1;
-        if (this.y < 0 || this.y > height) this.vy *= -1;
-
-        // Reactive mouse displacement
-        const dx = mouseX - this.x;
-        const dy = mouseY - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 120) {
-          const angle = Math.atan2(dy, dx);
-          this.x -= Math.cos(angle) * 1.5;
-          this.y -= Math.sin(angle) * 1.5;
+    // Bind scroll targets
+    document.querySelectorAll('[data-scroll]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const href = link.getAttribute('data-scroll');
+        if (href && href.startsWith('#')) {
+          e.preventDefault();
+          scrollToId(href);
         }
+      });
+    });
+
+    document.getElementById('header-logo-btn').addEventListener('click', () => {
+      scrollToId('home');
+    });
+
+    // 3. Liquid Fluid Custom Cursor with LERP Physics
+    (function initLiquidCursor() {
+      const cursor = document.getElementById('custom-cursor');
+      const cursorText = document.getElementById('cursor-text');
+      if (!cursor) return;
+
+      let mouseX = window.innerWidth / 2;
+      let mouseY = window.innerHeight / 2;
+      let cursorX = mouseX;
+      let cursorY = mouseY;
+
+      window.addEventListener('pointermove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+
+      function renderCursor() {
+        // LERP interpolation physics (0.12 factor gives fluid lag)
+        cursorX += (mouseX - cursorX) * 0.12;
+        cursorY += (mouseY - cursorY) * 0.12;
+        cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`;
+        requestAnimationFrame(renderCursor);
       }
-      draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = this.color;
-        ctx.fill();
-      }
+      requestAnimationFrame(renderCursor);
+
+      // Track hover targets
+      const hoverSelector = 'a, button, [data-cursor], .hero-card, .portfolio-card, .services-row, .create-band-tile, .social-chip';
+
+      document.addEventListener('mouseover', (e) => {
+        const target = e.target.closest(hoverSelector);
+        if (target) {
+          cursor.classList.add('hovering');
+          const customText = target.getAttribute('data-cursor') || 'VIEW';
+          cursorText.textContent = customText;
+        }
+      });
+
+      document.addEventListener('mouseout', (e) => {
+        const target = e.target.closest(hoverSelector);
+        if (target) {
+          cursor.classList.remove('hovering');
+        }
+      });
+    })();
+
+    // 4. Live Clock Update
+    function updateClock() {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = now.getMinutes();
+      const ampm = hours >= 12 ? 'pm' : 'am';
+      hours = hours % 12 || 12;
+      const timeStr = `${hours}:${String(minutes).padStart(2, '0')}${ampm}`;
+
+      const realMonthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const dateStr = `${now.getDate()} ${realMonthNames[now.getMonth()]}, ${now.getFullYear()}`;
+
+      document.querySelectorAll('.live-time').forEach(el => el.textContent = timeStr);
+      document.querySelectorAll('.live-date').forEach(el => el.textContent = dateStr);
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // 5. Page Loader Animation
+    let ready = false;
+    stopScroll();
+
+    const loader = document.getElementById('loader');
+    const loaderBar = document.getElementById('loader-bar');
+    const loaderCounter = document.getElementById('loader-counter');
+    const loaderContent = document.getElementById('loader-content');
+
+    let fillStartTime = null;
+    const FILL_MS = 1300;
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
-    const particles = Array.from({ length: 65 }, () => new Particle());
+    function animateLoader(timestamp) {
+      if (!fillStartTime) fillStartTime = timestamp;
+      const elapsed = timestamp - fillStartTime;
+      const progress = Math.min(elapsed / FILL_MS, 1);
+      const eased = easeInOutCubic(progress);
+      const count = Math.round(eased * 100);
 
-    function renderCanvas() {
-      ctx.clearRect(0, 0, width, height);
+      if (loaderBar) loaderBar.style.width = `${count}%`;
+      if (loaderCounter) loaderCounter.textContent = String(count).padStart(3, '0');
 
-      for (let i = 0; i < particles.length; i++) {
-        particles[i].update();
-        particles[i].draw();
+      if (progress < 1) {
+        requestAnimationFrame(animateLoader);
+      } else {
+        // Exit loader animation
+        loaderContent.style.opacity = '0';
+        loaderContent.style.transform = 'translateY(-12px)';
+        loader.style.transform = 'translateY(-100%)';
 
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+        setTimeout(() => {
+          ready = true;
+          startScroll();
+          loader.style.display = 'none';
+          triggerHeroReveals();
+        }, 700);
+      }
+    }
+    requestAnimationFrame(animateLoader);
 
-          if (dist < 130) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(0, 242, 255, ${0.15 * (1 - dist / 130)})`;
-            ctx.lineWidth = 0.6;
-            ctx.stroke();
+    // 6. Hero Reveals (Gated on `ready`)
+    function triggerHeroReveals() {
+      // Header: 150ms
+      setTimeout(() => {
+        const header = document.getElementById('header');
+        if (header) {
+          header.style.opacity = '1';
+          header.style.transform = 'translateY(0)';
+        }
+      }, 150);
+
+      // Hero Eyebrow: 200ms
+      setTimeout(() => {
+        const eyebrow = document.getElementById('hero-eyebrow');
+        if (eyebrow) {
+          eyebrow.style.opacity = '1';
+          eyebrow.style.transform = 'translateY(0)';
+        }
+      }, 200);
+
+      // Hero H1 Line Reveal: 250ms with 120ms stagger
+      setTimeout(() => {
+        const lines = document.querySelectorAll('.hero-h1-line');
+        lines.forEach((line, i) => {
+          setTimeout(() => {
+            line.classList.add('revealed');
+          }, i * 120);
+        });
+      }, 250);
+
+      // Watermark: 300ms
+      setTimeout(() => {
+        const wm = document.getElementById('hero-watermark');
+        if (wm) {
+          wm.style.opacity = '0.4';
+          wm.style.transform = 'translateY(0)';
+        }
+      }, 300);
+
+      // Hero Card: 400ms
+      setTimeout(() => {
+        const card = document.getElementById('hero-card');
+        if (card) {
+          card.style.opacity = '1';
+          card.style.transform = 'translateY(0) scale(1)';
+        }
+      }, 400);
+
+      // Partners: 550ms
+      setTimeout(() => {
+        const partners = document.getElementById('hero-partners');
+        if (partners) {
+          partners.style.opacity = '1';
+          partners.style.transform = 'translateY(0)';
+        }
+      }, 550);
+
+      // Rating: 650ms
+      setTimeout(() => {
+        const rating = document.getElementById('hero-rating');
+        if (rating) {
+          rating.style.opacity = '1';
+          rating.style.transform = 'translateY(0)';
+        }
+      }, 650);
+
+      // CTAs: 750ms
+      setTimeout(() => {
+        const ctas = document.getElementById('hero-ctas');
+        if (ctas) {
+          ctas.style.opacity = '1';
+          ctas.style.transform = 'translateY(0)';
+        }
+      }, 750);
+
+      // Status bar: 900ms
+      setTimeout(() => {
+        const status = document.getElementById('hero-status');
+        if (status) {
+          status.style.opacity = '1';
+        }
+      }, 900);
+    }
+
+    // 7. Liquid Reveal Canvas Effect with Neon Electric Trail
+    (function initLiquidReveal() {
+      const container = document.getElementById('hero-bg-container');
+      const canvas = document.getElementById('hero-canvas');
+      if (!container || !canvas) return;
+
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReducedMotion) return;
+
+      const ctx = canvas.getContext('2d');
+      const afterSrc = 'https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/before.jpg';
+
+      const afterImg = new Image();
+      afterImg.crossOrigin = 'anonymous';
+      afterImg.src = afterSrc;
+
+      let coverCanvas = document.createElement('canvas');
+      let coverCtx = coverCanvas.getContext('2d');
+
+      let brushCanvas = document.createElement('canvas');
+      let brushCtx = brushCanvas.getContext('2d');
+
+      let width = 0, height = 0;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const brushRadius = 143;
+      const decay = 0.016;
+
+      let points = [];
+      let lastPoint = null;
+      let idleFrames = 0;
+      let imageLoaded = false;
+
+      afterImg.onload = () => {
+        imageLoaded = true;
+        resize();
+      };
+
+      function resize() {
+        const rect = container.getBoundingClientRect();
+        width = Math.ceil(rect.width * dpr);
+        height = Math.ceil(rect.height * dpr);
+
+        if (width <= 0 || height <= 0) return;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        if (imageLoaded) {
+          coverCanvas.width = width;
+          coverCanvas.height = height;
+
+          const imgRatio = afterImg.naturalWidth / afterImg.naturalHeight;
+          const canvasRatio = width / height;
+          let dw, dh, dx, dy;
+
+          if (canvasRatio > imgRatio) {
+            dw = width;
+            dh = width / imgRatio;
+            dx = 0;
+            dy = (height - dh) / 2;
+          } else {
+            dh = height;
+            dw = height * imgRatio;
+            dx = (width - dw) / 2;
+            dy = 0;
+          }
+          coverCtx.clearRect(0, 0, width, height);
+          coverCtx.drawImage(afterImg, dx, dy, dw, dh);
+        }
+
+        const radius = brushRadius * dpr;
+        const diam = Math.ceil(radius * 2);
+        brushCanvas.width = diam;
+        brushCanvas.height = diam;
+      }
+
+      window.addEventListener('resize', resize);
+      const ro = new ResizeObserver(resize);
+      ro.observe(container);
+
+      function addPoint(x, y) {
+        const radius = brushRadius * dpr;
+        const pt = { x, y };
+
+        if (!lastPoint) {
+          points.push(pt);
+        } else {
+          const dx = x - lastPoint.x;
+          const dy = y - lastPoint.y;
+          const dist = Math.hypot(dx, dy);
+          const step = Math.max(radius * 0.3, 1);
+          const count = Math.min(Math.ceil(dist / step), 60);
+
+          for (let i = 1; i <= count; i++) {
+            points.push({
+              x: lastPoint.x + (dx * i) / count,
+              y: lastPoint.y + (dy * i) / count
+            });
+          }
+        }
+        lastPoint = pt;
+      }
+
+      window.addEventListener('pointermove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * dpr;
+        const y = (e.clientY - rect.top) * dpr;
+        const radius = brushRadius * dpr;
+
+        if (x < -radius || x > width + radius || y < -radius || y > height + radius) {
+          lastPoint = null;
+          return;
+        }
+        addPoint(x, y);
+      });
+
+      function stampPoint(pt) {
+        if (!imageLoaded) return;
+        const radius = brushRadius * dpr;
+        const diam = Math.ceil(radius * 2);
+
+        brushCtx.clearRect(0, 0, diam, diam);
+        brushCtx.globalCompositeOperation = 'source-over';
+
+        const grad = brushCtx.createRadialGradient(radius, radius, 0, radius, radius, radius);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.55, 'rgba(255, 255, 255, 0.85)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+        brushCtx.fillStyle = grad;
+        brushCtx.beginPath();
+        brushCtx.arc(radius, radius, radius, 0, Math.PI * 2);
+        brushCtx.fill();
+
+        brushCtx.globalCompositeOperation = 'source-in';
+        brushCtx.drawImage(
+          coverCanvas,
+          pt.x - radius, pt.y - radius, diam, diam,
+          0, 0, diam, diam
+        );
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(brushCanvas, pt.x - radius, pt.y - radius);
+      }
+
+      function tick() {
+        if (points.length > 0) {
+          idleFrames = 0;
+        } else {
+          idleFrames++;
+        }
+
+        if (idleFrames < 120 || points.length > 0) {
+          const fade = points.length > 0 ? decay : Math.min(decay + idleFrames * 0.004, 0.5);
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.fillStyle = `rgba(0, 0, 0, ${fade})`;
+          ctx.fillRect(0, 0, width, height);
+
+          if (points.length > 0) {
+            points.forEach(stampPoint);
+            points = [];
+          }
+        } else if (idleFrames === 120) {
+          ctx.clearRect(0, 0, width, height);
+        }
+
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })();
+
+    // 8. Hero Carousel Logic
+    (function initCarousel() {
+      const items = [
+        { caption: "Neural Orchestration", title: "Engineered to synthesize." },
+        { caption: "Cyber Systems", title: "Built to scale autonomously." },
+        { caption: "Quantum Interfaces", title: "Designed for hyper-speed." }
+      ];
+      let currentIdx = 0;
+
+      const slot = document.getElementById('hero-card-slot');
+      const captionEl = document.getElementById('carousel-caption');
+      const titleEl = document.getElementById('carousel-title');
+      const dots = [document.getElementById('dot-0'), document.getElementById('dot-1'), document.getElementById('dot-2')];
+      const prevBtn = document.getElementById('carousel-prev-btn');
+      const nextBtn = document.getElementById('carousel-next-btn');
+      const cardClick = document.getElementById('hero-card-click');
+
+      function updateCarousel(nextIdx, direction) {
+        if (nextIdx === currentIdx) return;
+        const outgoingY = direction > 0 ? -14 : 14;
+        const incomingY = direction > 0 ? 14 : -14;
+
+        slot.firstElementChild.style.transform = `translateY(${outgoingY}px)`;
+        slot.firstElementChild.style.opacity = '0';
+
+        setTimeout(() => {
+          currentIdx = nextIdx;
+          captionEl.textContent = items[currentIdx].caption;
+          titleEl.textContent = items[currentIdx].title;
+
+          dots.forEach((dot, i) => {
+            if (i === currentIdx) {
+              dot.className = 'hero-card-dash active';
+            } else {
+              dot.className = 'hero-card-dash inactive';
+            }
+          });
+
+          slot.firstElementChild.style.transform = `translateY(${incomingY}px)`;
+          slot.firstElementChild.style.opacity = '0';
+
+          requestAnimationFrame(() => {
+            slot.firstElementChild.style.transform = 'translateY(0)';
+            slot.firstElementChild.style.opacity = '1';
+          });
+        }, 200);
+      }
+
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateCarousel((currentIdx + 1) % items.length, 1);
+      });
+
+      prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateCarousel((currentIdx - 1 + items.length) % items.length, -1);
+      });
+
+      cardClick.addEventListener('click', () => {
+        updateCarousel((currentIdx + 1) % items.length, 1);
+      });
+    })();
+
+    // 9. IntersectionObserver Scroll Reveals & Count-Up
+    (function initScrollReveals() {
+      // Split text into line reveal spans
+      document.querySelectorAll('.line-reveal').forEach(el => {
+        const text = el.textContent.trim();
+        el.innerHTML = `<span class="reveal-line-wrap"><span class="reveal-line-inner">${text}</span></span>`;
+      });
+
+      // Split word reveal in About
+      const aboutStmt = document.getElementById('about-statement');
+      if (aboutStmt) {
+        const words = [
+          { text: "We", Muted: false },
+          { text: "partner", Muted: false },
+          { text: "with", Muted: false },
+          { text: "visionary", Muted: false },
+          { text: "enterprises", Muted: false },
+          { text: "to", Muted: false },
+          { text: "forge", Muted: false },
+          { text: "autonomous", Muted: true },
+          { text: "AI", Muted: true },
+          { text: "engines,", Muted: true },
+          { text: "cybernetic", Muted: true },
+          { text: "interfaces,", Muted: true },
+          { text: "and", Muted: true },
+          { text: "the", Muted: true },
+          { text: "neural", Muted: true },
+          { text: "architectures", Muted: true },
+          { text: "that", Muted: true },
+          { text: "power", Muted: true },
+          { text: "next-gen", Muted: true },
+          { text: "digital", Muted: true },
+          { text: "experiences.", Muted: true }
+        ];
+        aboutStmt.innerHTML = words.map((w, i) =>
+          `<span class="reveal-word ${w.Muted ? 'muted-text' : ''}" style="transition-delay: ${i * 35}ms">${w.text}</span>`
+        ).join(' ');
+      }
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const target = entry.target;
+
+            // Line reveals
+            const lineInner = target.querySelector('.reveal-line-inner');
+            if (lineInner) lineInner.classList.add('revealed');
+
+            // Word reveals
+            const wordSpans = target.querySelectorAll('.reveal-word');
+            wordSpans.forEach(span => span.classList.add('revealed'));
+
+            // General reveals
+            if (target.classList.contains('reveal-on-scroll')) {
+              target.classList.add('revealed');
+            }
+
+            observer.unobserve(target);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      document.querySelectorAll('.line-reveal, .word-reveal, .reveal-on-scroll').forEach(el => observer.observe(el));
+
+      // Stats Count-Up Handler on Scroll
+      const statsPanel = document.getElementById('stats-panel');
+      const statNumbers = document.querySelectorAll('.stat-number');
+      let statsCounted = false;
+
+      function checkStatsScroll() {
+        if (statsCounted || !statsPanel) return;
+        const rect = statsPanel.getBoundingClientRect();
+        const vh = window.innerHeight;
+
+        const start = vh;
+        const end = vh / 2;
+        const current = rect.top;
+
+        if (current <= start) {
+          const progress = Math.min(Math.max((start - current) / (start - end), 0), 1);
+          statNumbers.forEach(el => {
+            const targetVal = parseFloat(el.getAttribute('data-target'));
+            const suffix = el.getAttribute('data-suffix') || '';
+
+            let currentVal;
+            if (targetVal % 1 !== 0) {
+              currentVal = (progress * targetVal).toFixed(1);
+            } else {
+              currentVal = Math.round(progress * targetVal);
+            }
+            el.textContent = `${currentVal}${suffix}`;
+          });
+
+          if (progress >= 1) {
+            statsCounted = true;
           }
         }
       }
-      requestAnimationFrame(renderCanvas);
-    }
-    renderCanvas();
+      window.addEventListener('scroll', checkStatsScroll, { passive: true });
+      checkStatsScroll();
+    })();
 
-    // 4. Live Telemetry Console Logging Simulation
-    const consoleOutput = document.getElementById('console-output');
-    const livePing = document.getElementById('live-ping');
-    const logs = [
-      'Task swarm #4928 successfully negotiated zero-trust payload.',
-      'Project AURA: Shader buffer refreshed at 120 FPS.',
-      'Project KRONOS: Temporal vector projected at 4.2 GHz.',
-      'Project VORTEX: Autonomous self-healing thread re-routed in 1.2ms.',
-      'Latency benchmark optimal across 1024 active nodes.'
-    ];
+    // 10. NavMenu Overlay Controls
+    (function initNavMenu() {
+      const navMenu = document.getElementById('nav-menu');
+      const toggleBtn = document.getElementById('menu-toggle-btn');
+      const closeBtn = document.getElementById('nav-menu-close-btn');
+      const navItems = document.querySelectorAll('.nav-menu-item-btn, .nav-menu-contact-btn');
 
-    setInterval(() => {
-      const time = new Date().toISOString().substring(11, 19);
-      const randomLog = logs[Math.floor(Math.random() * logs.length)];
-      const p = document.createElement('p');
-      p.className = 'text-slate';
-      p.textContent = `[${time}] ${randomLog}`;
-      consoleOutput.appendChild(p);
-      consoleOutput.scrollTop = consoleOutput.scrollHeight;
-
-      if (consoleOutput.children.length > 20) {
-        consoleOutput.removeChild(consoleOutput.children[0]);
+      function openMenu() {
+        navMenu.classList.add('active');
+        requestAnimationFrame(() => navMenu.classList.add('visible'));
+        stopScroll();
+        window.addEventListener('keydown', handleEsc);
       }
 
-      const ping = (Math.random() * 4 + 6).toFixed(1);
-      livePing.textContent = `${ping} ms`;
-    }, 3500);
+      function closeMenu(cb) {
+        navMenu.classList.remove('visible');
+        setTimeout(() => {
+          navMenu.classList.remove('active');
+          startScroll();
+          window.removeEventListener('keydown', handleEsc);
+          if (cb) cb();
+        }, 400);
+      }
 
-    // 5. Contact Modal Toggle
-    const modal = document.getElementById('contact-modal');
-    const openModalBtn = document.getElementById('open-contact-modal');
-    const closeModalBtn = document.getElementById('close-modal');
+      function handleEsc(e) {
+        if (e.key === 'Escape') closeMenu();
+      }
+
+      toggleBtn.addEventListener('click', openMenu);
+      closeBtn.addEventListener('click', () => closeMenu());
+
+      navItems.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.getAttribute('data-target');
+          if (btn.classList.contains('nav-menu-contact-btn')) {
+            closeMenu(() => openModal());
+          } else if (target) {
+            closeMenu(() => scrollToId(target));
+          }
+        });
+      });
+    })();
+
+    // 11. RequestModal Controls & Form Submit
+    const modal = document.getElementById('request-modal');
+    const modalPanel = document.getElementById('modal-panel');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const formView = document.getElementById('modal-form-view');
+    const successView = document.getElementById('modal-success-view');
+    const form = document.getElementById('project-request-form');
+    const submitBtnText = document.getElementById('submit-btn-text');
+    const successCloseBtn = document.getElementById('modal-success-close-btn');
 
     function openModal() {
-      modal.classList.remove('opacity-0', 'pointer-events-none');
-      modal.classList.add('opacity-100', 'pointer-events-auto');
-      document.getElementById('modal-content').classList.remove('scale-95');
-      document.getElementById('modal-content').classList.add('scale-100');
+      modal.classList.add('active');
+      requestAnimationFrame(() => modal.classList.add('visible'));
+      stopScroll();
+      window.addEventListener('keydown', handleModalEsc);
     }
 
     function closeModal() {
-      modal.classList.add('opacity-0', 'pointer-events-none');
-      modal.classList.remove('opacity-100', 'pointer-events-auto');
-      document.getElementById('modal-content').classList.add('scale-95');
-      document.getElementById('modal-content').classList.remove('scale-100');
+      modal.classList.remove('visible');
+      setTimeout(() => {
+        modal.classList.remove('active');
+        startScroll();
+        window.removeEventListener('keydown', handleModalEsc);
+        // Reset form after close transition
+        setTimeout(() => {
+          form.reset();
+          formView.style.display = 'block';
+          successView.style.display = 'none';
+          if (submitBtnText) submitBtnText.textContent = 'Initiate Request';
+        }, 300);
+      }, 350);
     }
 
-    openModalBtn.addEventListener('click', openModal);
-    closeModalBtn.addEventListener('click', closeModal);
+    function handleModalEsc(e) {
+      if (e.key === 'Escape') closeModal();
+    }
 
-    document.getElementById('contact-form').addEventListener('submit', (e) => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    modalPanel.addEventListener('click', (e) => e.stopPropagation());
+    modalCloseBtn.addEventListener('click', closeModal);
+
+    document.querySelectorAll('.open-contact-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openModal();
+      });
+    });
+
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const submitBtn = document.getElementById('submit-btn');
-      submitBtn.textContent = 'DISPATCH TRANSMITTED ✓';
-      submitBtn.classList.remove('from-cyan-glow', 'to-purple-glow');
-      submitBtn.classList.add('bg-cyan-glow', 'text-void');
+      if (submitBtnText) submitBtnText.textContent = 'Transmitting…';
 
       setTimeout(() => {
-        closeModal();
-        submitBtn.textContent = 'TRANSMIT DISPATCH';
-        submitBtn.classList.add('from-cyan-glow', 'to-purple-glow');
-      }, 1500);
+        formView.style.display = 'none';
+        successView.style.display = 'flex';
+      }, 500);
     });
+
+    successCloseBtn.addEventListener('click', closeModal);
   </script>
 </body>
 </html>
