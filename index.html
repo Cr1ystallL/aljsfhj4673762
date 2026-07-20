@@ -3,23 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lumora — Independent Design & Engineering Studio</title>
-  <meta name="description" content="Lumora is an independent studio crafting brands, products, and the systems that connect them — bold ideas, shipped with quiet precision." />
-  <meta name="theme-color" content="#0a0a0a" />
+  <title>Vortex — Next-Gen Design & Engineering Lab</title>
+  <meta name="description" content="Vortex is an independent studio crafting digital products, brand identities, and spatial web experiences — bold ideas, built with quiet precision." />
+  <meta name="theme-color" content="#090a0f" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Lenis UMD Library for fallback -->
+  <script src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script>
+
   <style>
     /* Global Reset & Base */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-    body { background: #ffffff; color: #111111; font-family: 'Onest', sans-serif; overflow-x: hidden; }
+    body { background: #ffffff; color: #0f172a; font-family: 'Onest', sans-serif; overflow-x: hidden; cursor: default; }
     a { color: inherit; text-decoration: none; }
     button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
     ul { list-style: none; }
     img { display: block; max-width: 100%; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-    :focus-visible { outline: 2px solid #b15f2c; outline-offset: 2px; }
+    :focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -31,21 +35,25 @@
     @media (max-width: 1024px) { html { font-size: 1.5625vw; } }
     @media (max-width: 640px)  { html { font-size: 4.444444vw; } }
 
-    /* CSS Custom Properties / Tokens */
+    /* CSS Custom Properties / Color Palette Tokens */
     :root {
       --background: #ffffff;
-      --foreground: #111111;
-      --ink: #0a0a0a;
-      --muted: #8d8d8d;
-      --subtle: #b6b6b6;
-      --line: #e6e5e2;
-      --surface: #f1f0ee;
-      --surface-2: #e3e2df;
-      --accent: #b15f2c;
-      --accent-from: #cf8047;
-      --accent-to: #97501f;
-      --hero-from: #ecebe9;
-      --hero-to: #c9c9c9;
+      --foreground: #0f172a;
+      --ink: #090a0f;
+      --muted: #64748b;
+      --subtle: #94a3b8;
+      --line: #e2e8f0;
+      --surface: #f8fafc;
+      --surface-2: #f1f5f9;
+      
+      /* Vibrant Electric Gradient Accents */
+      --accent: #6366f1;
+      --accent-from: #818cf8;
+      --accent-to: #4f46e5;
+      --accent-glow: #a855f7;
+
+      --hero-from: #1e1b4b;
+      --hero-to: #0f172a;
 
       --radius-pill: 9999px;
       --radius-card: 2rem;
@@ -74,6 +82,50 @@
       vertical-align: middle;
     }
 
+    /* Custom Trailing Spring Cursor */
+    .custom-cursor-dot {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 8px;
+      height: 8px;
+      background: var(--accent-from);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px var(--accent-from);
+      transition: width 0.2s, height 0.2s, background 0.2s;
+    }
+    .custom-cursor-ring {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 36px;
+      height: 36px;
+      border: 1.5px solid rgba(99, 102, 241, 0.4);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9998;
+      transform: translate(-50%, -50%);
+      transition: width 0.3s cubic-bezier(.2, .8, .2, 1), height 0.3s cubic-bezier(.2, .8, .2, 1), border-color 0.3s, background 0.3s;
+    }
+    body.cursor-hover .custom-cursor-ring {
+      width: 54px;
+      height: 54px;
+      border-color: rgba(168, 85, 247, 0.7);
+      background: rgba(99, 102, 241, 0.08);
+    }
+    body.cursor-hover .custom-cursor-dot {
+      width: 12px;
+      height: 12px;
+      background: var(--accent-glow);
+    }
+
+    @media (pointer: coarse) {
+      .custom-cursor-dot, .custom-cursor-ring { display: none !important; }
+    }
+
     /* Skip Link */
     .skip-link {
       position: absolute;
@@ -91,7 +143,6 @@
       left: 1rem;
     }
 
-    /* Shared Components & Styles */
     /* Eyebrow */
     .eyebrow {
       display: inline-flex;
@@ -106,16 +157,16 @@
       border-radius: var(--radius-pill);
     }
     .eyebrow--dark {
-      color: rgba(17, 17, 17, 0.7);
+      color: rgba(15, 23, 42, 0.7);
     }
     .eyebrow--dark .eyebrow-dot {
-      background: rgba(17, 17, 17, 0.5);
+      background: rgba(99, 102, 241, 0.8);
     }
     .eyebrow--light {
-      color: rgba(255, 255, 255, 0.7);
+      color: rgba(255, 255, 255, 0.75);
     }
     .eyebrow--light .eyebrow-dot {
-      background: rgba(255, 255, 255, 0.6);
+      background: #818cf8;
     }
     .eyebrow--bordered {
       border: 1px solid var(--line);
@@ -135,7 +186,7 @@
       border-radius: var(--radius-pill);
       font-size: 0.875rem;
       font-weight: 500;
-      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), box-shadow 0.35s ease;
     }
     @media (hover: hover) and (pointer: fine) {
       .pill-btn:hover .pill-btn-inner {
@@ -145,6 +196,7 @@
     .pill-btn--dark .pill-btn-inner {
       background: var(--ink);
       color: #ffffff;
+      box-shadow: 0 4px 14px rgba(9, 10, 15, 0.15);
     }
     .pill-btn--light .pill-btn-inner {
       background: var(--surface);
@@ -173,8 +225,8 @@
       transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
     }
     .pill-btn--dark .pill-badge {
-      background: #ffffff;
-      color: var(--ink);
+      background: linear-gradient(135deg, var(--accent-from), var(--accent-to));
+      color: #ffffff;
     }
     .pill-btn--light .pill-badge,
     .pill-btn--outline .pill-badge {
@@ -194,11 +246,12 @@
     /* Tag Chip */
     .tag-chip {
       display: inline-flex;
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       color: #ffffff;
       border-radius: var(--radius-pill);
       padding: 0.5rem 1rem;
       font-size: 0.875rem;
+      background: rgba(255, 255, 255, 0.03);
     }
 
     /* Animated Link */
@@ -279,15 +332,16 @@
     .loader-brand {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-weight: 600;
-      font-size: 1.5rem;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 1.75rem;
+      letter-spacing: -0.02em;
     }
     @media (min-width: 640px) {
-      .loader-brand { font-size: 1.875rem; }
+      .loader-brand { font-size: 2rem; }
     }
     .loader-tagline {
-      max-width: 24ch;
+      max-width: 26ch;
       font-size: 0.875rem;
       color: rgba(255, 255, 255, 0.55);
     }
@@ -298,14 +352,15 @@
       gap: 0.75rem;
     }
     .loader-track {
-      height: 1px;
-      background: rgba(255, 255, 255, 0.15);
+      height: 2px;
+      background: rgba(255, 255, 255, 0.1);
       width: 100%;
       overflow: hidden;
+      border-radius: var(--radius-pill);
     }
     .loader-fill {
       height: 100%;
-      background: var(--accent-from);
+      background: linear-gradient(90deg, #818cf8, #a855f7);
       width: 0%;
       transition: width 0.1s ease-out;
     }
@@ -320,7 +375,7 @@
     }
     .loader-counter {
       font-variant-numeric: tabular-nums;
-      color: rgba(255, 255, 255, 0.8);
+      color: rgba(255, 255, 255, 0.9);
     }
 
     /* Header */
@@ -346,10 +401,10 @@
     .header-logo-btn {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-      letter-spacing: -0.01em;
+      gap: 0.625rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
       transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
     }
     @media (hover: hover) and (pointer: fine) {
@@ -388,34 +443,34 @@
 
     .clock-chip {
       display: none;
-      border: 1px solid rgba(230, 229, 226, 0.8);
-      background: rgba(255, 255, 255, 0.4);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border-radius: var(--radius-control);
       padding: 0.5rem 0.75rem;
       gap: 0.75rem;
       font-size: 0.75rem;
-      color: rgba(17, 17, 17, 0.7);
+      color: rgba(15, 23, 42, 0.75);
     }
     @media (min-width: 768px) {
       .clock-chip { display: flex; align-items: center; }
     }
-    .clock-label { color: rgba(17, 17, 17, 0.45); }
-    .clock-time { min-width: 3.5rem; font-variant-numeric: tabular-nums; font-weight: 500; color: #111111; }
-    .clock-sep { color: rgba(17, 17, 17, 0.3); }
+    .clock-label { color: rgba(15, 23, 42, 0.45); }
+    .clock-time { min-width: 3.5rem; font-variant-numeric: tabular-nums; font-weight: 600; color: #0f172a; }
+    .clock-sep { color: rgba(15, 23, 42, 0.3); }
     .clock-date { font-weight: 500; }
 
     .menu-btn {
-      border: 1px solid rgba(230, 229, 226, 0.8);
-      background: rgba(255, 255, 255, 0.4);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border-radius: var(--radius-control);
       transition: background 0.2s ease;
     }
     @media (hover: hover) and (pointer: fine) {
-      .menu-btn:hover { background: rgba(255, 255, 255, 0.7); }
+      .menu-btn:hover { background: rgba(255, 255, 255, 0.9); }
     }
     .menu-btn-inner {
       display: flex;
@@ -423,7 +478,7 @@
       gap: 0.375rem;
       padding: 0.5rem 1rem;
       font-size: 0.75rem;
-      font-weight: 500;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
@@ -442,33 +497,28 @@
       isolation: isolate;
       overflow: hidden;
       border-radius: 0 0 var(--radius-card) var(--radius-card);
-      background: var(--hero-to);
+      background: var(--ink);
+      color: #ffffff;
     }
     .hero-bg-container {
       position: absolute;
       inset: 0;
       z-index: 0;
     }
-    .hero-bg-img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
     .hero-canvas {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none;
+      pointer-events: auto;
     }
     .hero-vignette {
       position: absolute;
       inset: 0;
       z-index: 1;
       pointer-events: none;
-      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.35), transparent, rgba(255, 255, 255, 0.35));
+      background: radial-gradient(circle at center, transparent 30%, rgba(9, 10, 15, 0.7) 100%),
+                  linear-gradient(to bottom, rgba(9, 10, 15, 0.4), transparent 50%, rgba(9, 10, 15, 0.8));
     }
     .hero-watermark {
       pointer-events: none;
@@ -481,7 +531,7 @@
       font-weight: 700;
       line-height: 1;
       font-size: var(--text-watermark);
-      color: rgba(255, 255, 255, 0.4);
+      color: rgba(255, 255, 255, 0.04);
       opacity: 0;
       transform: translateY(20px);
       transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
@@ -525,12 +575,12 @@
     .hero-h1 {
       max-width: 18ch;
       font-size: 2.25rem;
-      font-weight: 600;
+      font-weight: 700;
       line-height: 0.98;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
     }
-    @media (min-width: 640px) { .hero-h1 { font-size: 3rem; } }
-    @media (min-width: 768px) { .hero-h1 { font-size: 3.75rem; } }
+    @media (min-width: 640px) { .hero-h1 { font-size: 3.25rem; } }
+    @media (min-width: 768px) { .hero-h1 { font-size: 4rem; } }
 
     .hero-rating {
       display: flex;
@@ -541,14 +591,14 @@
       transition: opacity 0.6s ease, transform 0.6s ease;
     }
     .hero-stars {
-      color: var(--accent);
+      color: #f59e0b;
       display: flex;
       gap: 0.125rem;
     }
     .hero-rating-text {
       font-size: 0.875rem;
       font-weight: 500;
-      color: rgba(17, 17, 17, 0.7);
+      color: rgba(255, 255, 255, 0.75);
     }
 
     .hero-ctas {
@@ -578,12 +628,12 @@
       width: 100%;
       max-width: 24rem;
       border-radius: var(--radius-card-sm);
-      background: rgba(255, 255, 255, 0.7);
+      background: rgba(15, 23, 42, 0.75);
       padding: 0.5rem;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      box-shadow: inset 0 0 0 1px rgba(230, 229, 226, 0.7);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       opacity: 0;
       transform: translateY(16px) scale(0.96);
       transition: opacity 0.8s cubic-bezier(.16, 1, .3, 1), transform 0.8s cubic-bezier(.16, 1, .3, 1);
@@ -603,18 +653,15 @@
       display: grid;
       place-items: center;
       border-radius: var(--radius-control);
-      background: var(--ink);
+      background: linear-gradient(135deg, #4f46e5, #9333ea);
       font-size: 1.875rem;
       color: #ffffff;
       flex-shrink: 0;
     }
-    .hero-card-tile .icon-mark {
-      color: var(--accent-from);
-    }
     .hero-card-panel {
       flex: 1;
       border-radius: var(--radius-control);
-      background: rgba(241, 240, 238, 0.7);
+      background: rgba(255, 255, 255, 0.05);
       padding: 0.75rem;
       display: flex;
       flex-direction: column;
@@ -630,10 +677,10 @@
     }
     .hero-card-caption {
       font-size: 0.65rem;
-      font-weight: 500;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgba(17, 17, 17, 0.45);
+      color: #818cf8;
     }
     .hero-card-title {
       max-width: 8rem;
@@ -641,6 +688,7 @@
       font-weight: 500;
       line-height: 1.35;
       margin-top: 0.125rem;
+      color: #ffffff;
     }
     .hero-card-bottom {
       display: flex;
@@ -660,11 +708,11 @@
     }
     .hero-card-dash.active {
       width: 1rem;
-      background: rgba(17, 17, 17, 0.7);
+      background: #818cf8;
     }
     .hero-card-dash.inactive {
       width: 0.375rem;
-      background: rgba(17, 17, 17, 0.2);
+      background: rgba(255, 255, 255, 0.2);
     }
     .hero-card-arrows {
       display: flex;
@@ -676,13 +724,13 @@
       display: grid;
       place-items: center;
       border-radius: var(--radius-pill);
-      background: #ffffff;
-      color: rgba(17, 17, 17, 0.7);
-      box-shadow: inset 0 0 0 1px #e6e5e2;
-      transition: color 0.2s ease;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+      transition: color 0.2s ease, background 0.2s ease;
     }
     @media (hover: hover) and (pointer: fine) {
-      .hero-card-arrow-btn:hover { color: #111111; }
+      .hero-card-arrow-btn:hover { color: #ffffff; background: rgba(255, 255, 255, 0.2); }
     }
     .hero-card-arrow-btn--prev {
       transform: rotate(180deg);
@@ -703,7 +751,7 @@
       margin-bottom: 0.75rem;
       font-size: 0.75rem;
       font-weight: 500;
-      color: rgba(17, 17, 17, 0.45);
+      color: rgba(255, 255, 255, 0.45);
       text-align: left;
     }
     @media (min-width: 1024px) {
@@ -720,7 +768,7 @@
       align-items: center;
       gap: 0.375rem;
       font-size: 0.75rem;
-      color: rgba(17, 17, 17, 0.7);
+      color: rgba(255, 255, 255, 0.75);
       opacity: 0.7;
       transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), opacity 0.35s cubic-bezier(.2, .8, .2, 1);
     }
@@ -731,7 +779,7 @@
       }
     }
     .partner-icon {
-      color: rgba(17, 17, 17, 0.4);
+      color: #818cf8;
       font-size: 0.875rem;
     }
 
@@ -741,13 +789,13 @@
       align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
-      border-top: 1px solid rgba(17, 17, 17, 0.1);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
       padding-block: 1.25rem;
       font-size: 0.75rem;
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      color: rgba(17, 17, 17, 0.6);
+      color: rgba(255, 255, 255, 0.6);
       opacity: 0;
       transition: opacity 0.6s ease;
     }
@@ -791,7 +839,7 @@
       top: 50%;
       transform: translateY(-50%);
       font-size: 12rem;
-      color: rgba(17, 17, 17, 0.1);
+      color: rgba(99, 102, 241, 0.08);
       pointer-events: none;
     }
     @media (min-width: 640px) { .bg-globe-icon { font-size: 16rem; } }
@@ -804,7 +852,7 @@
       align-items: center;
       gap: 0.75rem;
       font-size: 0.875rem;
-      color: rgba(17, 17, 17, 0.7);
+      color: rgba(15, 23, 42, 0.75);
       opacity: 0;
       transform: translateY(12px);
       transition: opacity 0.7s ease, transform 0.7s ease;
@@ -815,7 +863,7 @@
     }
     .about-globe-note-icon {
       font-size: 1.5rem;
-      color: #111111;
+      color: var(--accent);
       flex-shrink: 0;
     }
     .about-globe-note-text {
@@ -858,7 +906,7 @@
     }
     .social-label {
       font-size: 0.875rem;
-      color: rgba(17, 17, 17, 0.45);
+      color: rgba(15, 23, 42, 0.45);
       margin-bottom: 0.5rem;
     }
     .social-chips {
@@ -874,12 +922,12 @@
       font-size: 0.875rem;
     }
     .social-chip--x {
-      background: var(--accent);
+      background: linear-gradient(135deg, var(--accent-from), var(--accent-to));
       color: #ffffff;
     }
     .social-chip--other {
       background: var(--surface);
-      color: rgba(17, 17, 17, 0.7);
+      color: rgba(15, 23, 42, 0.75);
     }
     .social-chip .icon-svg {
       transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
@@ -922,7 +970,7 @@
       height: 6rem;
       border-radius: var(--radius-pill);
       font-size: 1.875rem;
-      font-weight: 500;
+      font-weight: 600;
       transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
     }
     @media (min-width: 640px) {
@@ -938,10 +986,10 @@
     }
     .create-band-tile--light {
       background: var(--surface);
-      color: #111111;
+      color: #0f172a;
     }
     .create-band-tile--accent {
-      background: linear-gradient(to bottom right, var(--accent-from), var(--accent-to));
+      background: linear-gradient(135deg, #4f46e5, #9333ea);
       color: #ffffff;
     }
     .create-band-tile--dark {
@@ -949,8 +997,8 @@
       color: #ffffff;
     }
     .create-band-tile--ghost {
-      background: rgba(241, 240, 238, 0.6);
-      color: rgba(17, 17, 17, 0.35);
+      background: rgba(241, 245, 249, 0.8);
+      color: rgba(15, 23, 42, 0.35);
     }
 
     /* Portfolio Section */
@@ -969,7 +1017,7 @@
     }
     .portfolio-h2 {
       font-size: 2.25rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.02em;
       margin-top: 1rem;
       width: fit-content;
@@ -1002,8 +1050,8 @@
       background: var(--ink);
       padding: 1.5rem;
       color: #ffffff;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), box-shadow 0.35s ease;
       display: block;
     }
     @media (min-width: 640px) {
@@ -1015,6 +1063,7 @@
     @media (hover: hover) and (pointer: fine) {
       .portfolio-card:hover {
         transform: translateY(-8px) scale(1.012);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(129, 140, 248, 0.4);
       }
     }
     .portfolio-top-meta {
@@ -1040,6 +1089,7 @@
     @media (hover: hover) and (pointer: fine) {
       .portfolio-card:hover .portfolio-badge {
         transform: rotate(45deg) scale(1.08);
+        background: var(--accent);
       }
     }
     .portfolio-watermark {
@@ -1049,11 +1099,11 @@
       place-items: center;
       pointer-events: none;
       font-size: 4.5rem;
-      color: rgba(255, 255, 255, 0.9);
+      color: rgba(255, 255, 255, 0.05);
     }
     .portfolio-watermark-reg {
       font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 0.4);
       vertical-align: super;
       margin-left: 0.125rem;
     }
@@ -1070,7 +1120,7 @@
     }
     .portfolio-card-title {
       font-size: 1.5rem;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: -0.01em;
     }
     @media (min-width: 640px) {
@@ -1080,7 +1130,7 @@
       margin-top: 0.5rem;
       max-width: 28rem;
       font-size: 0.875rem;
-      color: rgba(255, 255, 255, 0.55);
+      color: rgba(255, 255, 255, 0.6);
     }
     .portfolio-tags {
       margin-top: 1.25rem;
@@ -1104,7 +1154,7 @@
       margin-bottom: 3rem;
       max-width: 16ch;
       font-size: 2.25rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.02em;
     }
     @media (min-width: 640px) {
@@ -1134,7 +1184,7 @@
       border-radius: var(--radius-card-sm);
       padding-block: 1.5rem;
       padding-inline: 1.5rem;
-      background: rgba(241, 240, 238, 0);
+      background: rgba(241, 245, 249, 0);
       transition: background 0.35s cubic-bezier(.22, 1, .36, 1), padding-left 0.35s cubic-bezier(.22, 1, .36, 1), padding-right 0.35s cubic-bezier(.22, 1, .36, 1);
     }
     @media (min-width: 640px) {
@@ -1145,7 +1195,7 @@
     }
     @media (hover: hover) and (pointer: fine) {
       .services-row:hover {
-        background: rgba(241, 240, 238, 1);
+        background: rgba(241, 245, 249, 1);
         padding-left: 2rem;
         padding-right: 1.25rem;
       }
@@ -1154,7 +1204,7 @@
       width: 1.75rem;
       font-size: 0.875rem;
       font-weight: 500;
-      color: rgba(17, 17, 17, 0.4);
+      color: rgba(15, 23, 42, 0.4);
       flex-shrink: 0;
     }
     @media (min-width: 640px) {
@@ -1163,7 +1213,7 @@
     .services-title {
       flex: 1;
       font-size: 1.5rem;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: -0.01em;
     }
     @media (min-width: 640px) { .services-title { font-size: 1.875rem; } }
@@ -1173,7 +1223,7 @@
       display: none;
       max-width: 20rem;
       font-size: 0.875rem;
-      color: rgba(17, 17, 17, 0.55);
+      color: rgba(15, 23, 42, 0.55);
     }
     @media (min-width: 1024px) {
       .services-desc { display: block; }
@@ -1188,7 +1238,7 @@
       background: var(--ink);
       color: #ffffff;
       flex-shrink: 0;
-      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1);
+      transition: transform 0.35s cubic-bezier(.2, .8, .2, 1), background 0.35s ease;
     }
     @media (min-width: 640px) {
       .services-badge { width: 3rem; height: 3rem; }
@@ -1196,6 +1246,7 @@
     @media (hover: hover) and (pointer: fine) {
       .services-row:hover .services-badge {
         transform: translateX(5px);
+        background: var(--accent);
       }
     }
 
@@ -1232,7 +1283,7 @@
       margin-top: 1rem;
       max-width: 20ch;
       font-size: 1.875rem;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: -0.01em;
     }
     @media (min-width: 768px) {
@@ -1259,9 +1310,12 @@
     }
     .stat-number {
       font-size: 3rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;
+      background: linear-gradient(135deg, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
     @media (min-width: 640px) { .stat-number { font-size: 3.75rem; } }
     @media (min-width: 768px) { .stat-number { font-size: 4.5rem; } }
@@ -1306,7 +1360,7 @@
     .footer-cta-h2 {
       max-width: 16ch;
       font-size: 2.25rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.02em;
     }
     @media (min-width: 640px) { .footer-cta-h2 { font-size: 3rem; } }
@@ -1328,9 +1382,9 @@
     .footer-col-brand-name {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 1.125rem;
-      font-weight: 600;
+      gap: 0.625rem;
+      font-size: 1.25rem;
+      font-weight: 700;
       margin-bottom: 1rem;
     }
     .footer-col-tagline {
@@ -1381,7 +1435,7 @@
       font-weight: 700;
       line-height: 1;
       font-size: var(--text-watermark);
-      color: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.03);
     }
 
     /* NavMenu Overlay */
@@ -1416,12 +1470,9 @@
     .nav-menu-logo {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .nav-menu-logo .icon-mark {
-      color: var(--accent-from);
+      gap: 0.625rem;
+      font-size: 1.25rem;
+      font-weight: 700;
     }
     .nav-menu-close-btn {
       display: inline-flex;
@@ -1462,7 +1513,7 @@
       padding-block: 0.5rem;
       text-align: left;
       font-size: 2.25rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.02em;
       width: 100%;
       transform: translateY(1rem);
@@ -1487,7 +1538,7 @@
       transition: color 0.3s ease;
     }
     @media (hover: hover) and (pointer: fine) {
-      .nav-menu-item-btn:hover .nav-menu-idx { color: var(--accent-from); }
+      .nav-menu-item-btn:hover .nav-menu-idx { color: #818cf8; }
       .nav-menu-item-btn:hover .nav-menu-label { color: #ffffff; }
     }
 
@@ -1512,7 +1563,7 @@
       }
     }
     .nav-menu-start-btn {
-      color: rgba(255, 255, 255, 0.7);
+      color: rgba(255, 255, 255, 0.75);
       transition: color 0.2s ease;
     }
     @media (hover: hover) and (pointer: fine) {
@@ -1531,7 +1582,7 @@
       align-items: flex-end;
       justify-content: center;
       padding: 1rem;
-      background: rgba(17, 17, 17, 0.3);
+      background: rgba(9, 10, 15, 0.5);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       opacity: 0;
@@ -1555,8 +1606,8 @@
       border-radius: var(--radius-card);
       background: #ffffff;
       padding: 1.5rem;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-      box-shadow: inset 0 0 0 1px var(--line), 0 25px 50px -12px rgba(0,0,0,0.25);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
+      box-shadow: inset 0 0 0 1px var(--line), 0 25px 50px -12px rgba(0,0,0,0.3);
       transform: translateY(28px);
       transition: transform 0.4s cubic-bezier(.2, .8, .2, 1);
     }
@@ -1577,13 +1628,13 @@
       place-items: center;
       border-radius: var(--radius-pill);
       background: var(--surface);
-      color: rgba(17, 17, 17, 0.6);
+      color: rgba(15, 23, 42, 0.6);
       transition: background 0.2s, color 0.2s;
     }
     @media (hover: hover) and (pointer: fine) {
       .modal-close-btn:hover {
         background: var(--surface-2);
-        color: #111111;
+        color: #0f172a;
       }
     }
 
@@ -1592,7 +1643,7 @@
     }
     .modal-h2 {
       font-size: 1.5rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.01em;
       margin-top: 0.375rem;
     }
@@ -1612,15 +1663,15 @@
     }
     .modal-label {
       font-size: 0.75rem;
-      font-weight: 500;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      color: rgba(17, 17, 17, 0.5);
+      color: rgba(15, 23, 42, 0.5);
     }
     .modal-input, .modal-textarea {
       width: 100%;
       border: 1px solid var(--line);
-      background: rgba(241, 240, 238, 0.5);
+      background: rgba(241, 245, 249, 0.6);
       border-radius: var(--radius-control);
       padding: 0.75rem 1rem;
       font-size: 0.875rem;
@@ -1630,7 +1681,7 @@
       transition: border-color 0.2s, background 0.2s;
     }
     .modal-input:focus, .modal-textarea:focus {
-      border-color: rgba(17, 17, 17, 0.3);
+      border-color: var(--accent);
       background: #ffffff;
     }
     .modal-textarea {
@@ -1646,7 +1697,7 @@
     }
     .modal-note {
       font-size: 0.75rem;
-      color: rgba(17, 17, 17, 0.45);
+      color: rgba(15, 23, 42, 0.45);
     }
 
     .modal-success-state {
@@ -1664,21 +1715,25 @@
       place-items: center;
       border-radius: var(--radius-pill);
       background: var(--ink);
-      color: var(--accent-from);
+      color: #818cf8;
       font-size: 1.5rem;
     }
     .modal-success-h2 {
       font-size: 1.5rem;
-      font-weight: 600;
+      font-weight: 700;
     }
     .modal-success-desc {
       max-width: 32ch;
       font-size: 0.875rem;
-      color: rgba(17, 17, 17, 0.6);
+      color: rgba(15, 23, 42, 0.65);
     }
   </style>
 </head>
 <body>
+
+  <!-- Custom Spring Trailing Cursor Elements -->
+  <div class="custom-cursor-dot" id="cursor-dot"></div>
+  <div class="custom-cursor-ring" id="cursor-ring"></div>
 
   <!-- Skip Link -->
   <a href="#main" class="skip-link">Skip to content</a>
@@ -1687,17 +1742,22 @@
   <div id="loader" role="dialog" aria-modal="true" aria-label="Loading page">
     <div class="loader-content" id="loader-content">
       <div class="loader-brand">
-        <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.875rem; color: #cf8047;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-        <span>Lumora</span>
+        <!-- Vortex Helix Logo SVG -->
+        <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 2.25rem; color: #818cf8;" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20S35.05 4 24 4z" stroke-opacity="0.2"/>
+          <path d="M24 10a14 14 0 1 0 14 14A14 14 0 0 0 24 10z"/>
+          <circle cx="24" cy="24" r="5" fill="currentColor"/>
+        </svg>
+        <span>VORTEX</span>
       </div>
-      <p class="loader-tagline">Bold ideas, shipped with quiet precision.</p>
+      <p class="loader-tagline">Bold digital experiences, engineered with quiet precision.</p>
     </div>
     <div class="loader-progress-block">
       <div class="loader-track">
         <div class="loader-fill" id="loader-bar"></div>
       </div>
       <div class="loader-info">
-        <span>Loading</span>
+        <span>Initializing</span>
         <span class="loader-counter" id="loader-counter">000</span>
       </div>
     </div>
@@ -1706,9 +1766,12 @@
   <!-- Header -->
   <header id="header">
     <div class="shell header-inner">
-      <button class="header-logo-btn" id="header-logo-btn" aria-label="Lumora Home">
-        <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.25rem; color: #b15f2c;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-        <span>Lumora</span>
+      <button class="header-logo-btn" id="header-logo-btn" aria-label="Vortex Home">
+        <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.5rem; color: #6366f1;" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round">
+          <circle cx="24" cy="24" r="18" stroke-opacity="0.3"/>
+          <path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/>
+        </svg>
+        <span>VORTEX</span>
       </button>
 
       <nav class="header-nav" aria-label="Primary Navigation">
@@ -1721,11 +1784,11 @@
           </li>
           <li>
             <a href="#services" class="header-nav-link" data-scroll="#services">
-              <span>Services <span style="font-size: 0.75rem; opacity: 0.6;">▾</span></span>
+              <span>Capabilities <span style="font-size: 0.75rem; opacity: 0.6;">▾</span></span>
             </a>
           </li>
           <li>
-            <a href="#about" class="header-nav-link" data-scroll="#about"><span>Studio</span></a>
+            <a href="#about" class="header-nav-link" data-scroll="#about"><span>Lab</span></a>
           </li>
           <li>
             <a href="#careers" class="header-nav-link" data-scroll="#careers"><span>Careers</span></a>
@@ -1737,7 +1800,7 @@
       </nav>
 
       <div class="header-right">
-        <div class="clock-chip" aria-label="Local studio time">
+        <div class="clock-chip" aria-label="Local lab time">
           <span class="clock-label">Local time</span>
           <span class="clock-time live-time">9:41am</span>
           <span class="clock-sep">•</span>
@@ -1758,28 +1821,27 @@
 
     <!-- 2) Hero Section -->
     <section id="home">
-      <!-- Background Liquid Reveal -->
+      <!-- Background Liquid Reveal Canvas -->
       <div class="hero-bg-container" id="hero-bg-container">
-        <img class="hero-bg-img" src="https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/after.jpg" alt="Lumora Studio Hero Visual" />
-        <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
+        <canvas class="hero-canvas" id="hero-canvas" aria-label="Interactive brush canvas"></canvas>
       </div>
       <div class="hero-vignette"></div>
-      <div class="hero-watermark" id="hero-watermark">LUMORA</div>
+      <div class="hero-watermark" id="hero-watermark">VORTEX</div>
 
       <div class="shell hero-grid">
         <!-- Left Column -->
         <div class="hero-left">
           <div class="hero-eyebrow" id="hero-eyebrow">
-            <span class="eyebrow eyebrow--dark">
+            <span class="eyebrow eyebrow--light">
               <span class="eyebrow-dot"></span>
-              <span>Independent Studio</span>
+              <span>Autonomous Design Lab</span>
             </span>
           </div>
 
           <h1 class="hero-h1">
-            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">Bold ideas,</span></span>
-            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">shipped with</span></span>
-            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">quiet precision</span></span>
+            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">Future products,</span></span>
+            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">forged with</span></span>
+            <span class="reveal-line-wrap"><span class="reveal-line-inner hero-h1-line">radical precision</span></span>
           </h1>
 
           <div class="hero-rating" id="hero-rating">
@@ -1790,21 +1852,21 @@
               <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
               <svg viewBox="0 0 24 24" class="icon-svg" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
             </span>
-            <span class="hero-rating-text">200+ brands shipped</span>
+            <span class="hero-rating-text">350+ global launches</span>
           </div>
 
           <div class="hero-ctas" id="hero-ctas">
             <button class="pill-btn pill-btn--dark pill-btn--arrow open-contact-btn">
               <span class="pill-btn-inner">
-                <span>Let's Talk</span>
+                <span>Start a Project</span>
                 <span class="pill-badge">
                   <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                 </span>
               </span>
             </button>
-            <a href="#works" class="pill-btn pill-btn--outline pill-btn--no-arrow" data-scroll="#works">
+            <a href="#works" class="pill-btn pill-btn--outline pill-btn--no-arrow" data-scroll="#works" style="border-color: rgba(255,255,255,0.25); color: #fff;">
               <span class="pill-btn-inner">
-                <span>View Work</span>
+                <span>Explore Work</span>
               </span>
             </a>
           </div>
@@ -1816,13 +1878,16 @@
           <div class="hero-card" id="hero-card">
             <div class="hero-card-clickable" id="hero-card-click">
               <div class="hero-card-tile">
-                <svg viewBox="0 0 48 48" class="icon-svg icon-mark" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round">
+                  <path d="M24 10a14 14 0 1 0 14 14A14 14 0 0 0 24 10z"/>
+                  <circle cx="24" cy="24" r="5" fill="currentColor"/>
+                </svg>
               </div>
               <div class="hero-card-panel">
                 <div class="hero-card-slot" id="hero-card-slot">
                   <div class="hero-card-item">
-                    <div class="hero-card-caption" id="carousel-caption">Conversion design</div>
-                    <div class="hero-card-title" id="carousel-title">Crafted to convert.</div>
+                    <div class="hero-card-caption" id="carousel-caption">Spatial Interfaces</div>
+                    <div class="hero-card-title" id="carousel-title">Designed for immersion.</div>
                   </div>
                 </div>
                 <div class="hero-card-bottom">
@@ -1846,35 +1911,35 @@
 
           <!-- Partners Block -->
           <div class="hero-partners" id="hero-partners">
-            <div class="hero-partners-label">Trusted by</div>
+            <div class="hero-partners-label">Partners in craft</div>
             <div class="hero-partners-grid">
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Kaido</span>
+                <span>Aether</span>
               </span>
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Northpeak</span>
+                <span>Quantum</span>
               </span>
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Vellum</span>
+                <span>Obsidian</span>
               </span>
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Orbit</span>
+                <span>Synchron</span>
               </span>
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Brightline</span>
+                <span>Hyperion</span>
               </span>
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Cobalt</span>
+                <span>Pulsar</span>
               </span>
               <span class="partner-item">
                 <svg viewBox="0 0 24 24" class="icon-svg partner-icon" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Mesa</span>
+                <span>Apex</span>
               </span>
             </div>
           </div>
@@ -1883,10 +1948,10 @@
 
       <!-- Bottom Status Bar -->
       <div class="shell hero-status-bar" id="hero-status">
-        <div>Working since 2014</div>
-        <div class="status-center">Remote-first, worldwide</div>
+        <div>Operating since 2016</div>
+        <div class="status-center">Distributed Engineering • San Francisco / Tokyo / Berlin</div>
         <div class="status-right">
-          <span>Scroll to explore</span>
+          <span>Scroll to uncover</span>
           <span>↓</span>
         </div>
       </div>
@@ -1901,29 +1966,29 @@
 
           <span class="eyebrow eyebrow--dark" style="position: relative;">
             <span class="eyebrow-dot"></span>
-            <span>The Studio</span>
+            <span>The Lab Manifest</span>
           </span>
 
           <div class="about-globe-note reveal-on-scroll">
             <svg viewBox="0 0 24 24" class="icon-svg about-globe-note-icon" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9.25"/><path d="M12 2.75c2.6 2.3 4 5.8 4 9.25s-1.4 6.95-4 9.25c-2.6-2.3-4-5.8-4-9.25s1.4-6.95 4-9.25zM2.75 12h18.5"/></svg>
-            <span class="about-globe-note-text">A distributed team building across every time zone.</span>
+            <span class="about-globe-note-text">Engineering next-generation software across global timezones.</span>
           </div>
         </div>
 
         <!-- Right Statement -->
         <div class="about-right">
           <h2 class="about-statement word-reveal" id="about-statement">
-            We partner with ambitious teams to ship digital products, brand systems, and the strategy that holds them together.
+            We architect bold digital systems to accelerate visionary brands, generative tools, and digital platforms.
           </h2>
 
           <div class="about-footer-row reveal-on-scroll">
             <div>
-              <div class="social-label">Find us online</div>
+              <div class="social-label">Lab Network</div>
               <div class="social-chips">
                 <a href="#twitter" class="social-chip social-chip--x" aria-label="X / Twitter">
                   <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
                 </a>
-                <a href="#behance" class="social-chip social-chip--other" aria-label="Behance">
+                <a href="#github" class="social-chip social-chip--other" aria-label="GitHub">
                   <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
                 </a>
                 <a href="#dribbble" class="social-chip social-chip--other" aria-label="Dribbble">
@@ -1934,7 +1999,7 @@
 
             <a href="#about" class="pill-btn pill-btn--outline pill-btn--arrow" data-scroll="#about">
               <span class="pill-btn-inner">
-                <span>About Us</span>
+                <span>Our Philosophy</span>
                 <span class="pill-badge">
                   <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--up-right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
                 </span>
@@ -1953,7 +2018,7 @@
             <div class="create-band-tile create-band-tile--light">We</div>
           </li>
           <li class="create-band-item reveal-on-scroll" style="transition-delay: 120ms;">
-            <div class="create-band-tile create-band-tile--accent">Build</div>
+            <div class="create-band-tile create-band-tile--accent">Forge</div>
           </li>
           <li class="create-band-item reveal-on-scroll" style="transition-delay: 240ms;">
             <div class="create-band-tile create-band-tile--dark">
@@ -1961,7 +2026,7 @@
             </div>
           </li>
           <li class="create-band-item reveal-on-scroll" style="transition-delay: 360ms;">
-            <div class="create-band-tile create-band-tile--ghost">Better</div>
+            <div class="create-band-tile create-band-tile--ghost">Future</div>
           </li>
         </ul>
       </div>
@@ -1973,7 +2038,7 @@
         <div class="portfolio-header">
           <span class="eyebrow eyebrow--dark eyebrow--bordered reveal-on-scroll">
             <span class="eyebrow-dot"></span>
-            <span>Portfolio</span>
+            <span>Case Studies</span>
           </span>
           <h2 class="portfolio-h2 line-reveal">Selected Work</h2>
         </div>
@@ -1981,24 +2046,24 @@
         <ul class="portfolio-grid">
           <!-- Item 1 -->
           <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 0ms;">
-            <a href="#aster-labs" class="portfolio-card">
+            <a href="#aether-core" class="portfolio-card">
               <div class="portfolio-top-meta">
-                <span>Branding — 2025</span>
+                <span>AI Operating System — 2026</span>
                 <span class="portfolio-badge">
                   <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
                 </span>
               </div>
               <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2"><circle cx="24" cy="24" r="18"/><path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/></svg>
                 <span class="portfolio-watermark-reg">®</span>
               </div>
               <div class="portfolio-bottom-block">
-                <h3 class="portfolio-card-title">Aster Labs</h3>
-                <p class="portfolio-card-desc">A complete identity and go-to-market system for a fast-moving research startup.</p>
+                <h3 class="portfolio-card-title">Aether Core</h3>
+                <p class="portfolio-card-desc">Generative AI workbench designed for seamless developer orchestration.</p>
                 <div class="portfolio-tags">
-                  <span class="tag-chip">Branding</span>
-                  <span class="tag-chip">Strategy</span>
-                  <span class="tag-chip">Design</span>
+                  <span class="tag-chip">System Design</span>
+                  <span class="tag-chip">AI Engine</span>
+                  <span class="tag-chip">UX</span>
                 </div>
               </div>
             </a>
@@ -2006,24 +2071,24 @@
 
           <!-- Item 2 -->
           <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 90ms;">
-            <a href="#nova-finance" class="portfolio-card">
+            <a href="#hyperion-web3" class="portfolio-card">
               <div class="portfolio-top-meta">
-                <span>Product — 2024</span>
+                <span>Fintech Core — 2025</span>
                 <span class="portfolio-badge">
                   <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
                 </span>
               </div>
               <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2"><circle cx="24" cy="24" r="18"/><path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/></svg>
                 <span class="portfolio-watermark-reg">®</span>
               </div>
               <div class="portfolio-bottom-block">
-                <h3 class="portfolio-card-title">Nova Finance</h3>
-                <p class="portfolio-card-desc">A finance platform reimagined — clear data, calm interfaces, and effortless flows.</p>
+                <h3 class="portfolio-card-title">Hyperion Pay</h3>
+                <p class="portfolio-card-desc">Next-generation global settlement network built for micro-transactions.</p>
                 <div class="portfolio-tags">
-                  <span class="tag-chip">Product Design</span>
-                  <span class="tag-chip">Web App</span>
-                  <span class="tag-chip">QA</span>
+                  <span class="tag-chip">Fintech</span>
+                  <span class="tag-chip">Real-time Analytics</span>
+                  <span class="tag-chip">Security</span>
                 </div>
               </div>
             </a>
@@ -2031,23 +2096,23 @@
 
           <!-- Item 3 -->
           <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 180ms;">
-            <a href="#helio-studio" class="portfolio-card">
+            <a href="#quantum-spatial" class="portfolio-card">
               <div class="portfolio-top-meta">
-                <span>Identity — 2023</span>
+                <span>Spatial Computing — 2025</span>
                 <span class="portfolio-badge">
                   <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
                 </span>
               </div>
               <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2"><circle cx="24" cy="24" r="18"/><path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/></svg>
                 <span class="portfolio-watermark-reg">®</span>
               </div>
               <div class="portfolio-bottom-block">
-                <h3 class="portfolio-card-title">Helio Studio</h3>
-                <p class="portfolio-card-desc">A bold visual identity and art direction system built to scale across every surface.</p>
+                <h3 class="portfolio-card-title">Quantum Vision</h3>
+                <p class="portfolio-card-desc">3D spatial design engine mapping high-density CAD models into browser viewports.</p>
                 <div class="portfolio-tags">
-                  <span class="tag-chip">Brand Identity</span>
-                  <span class="tag-chip">Art Direction</span>
+                  <span class="tag-chip">WebGL</span>
+                  <span class="tag-chip">Spatial UI</span>
                 </div>
               </div>
             </a>
@@ -2055,24 +2120,23 @@
 
           <!-- Item 4 -->
           <li class="portfolio-item-wrap reveal-on-scroll" style="transition-delay: 270ms;">
-            <a href="#pulse-health" class="portfolio-card">
+            <a href="#pulsar-health" class="portfolio-card">
               <div class="portfolio-top-meta">
-                <span>Mobile — 2023</span>
+                <span>Biotech — 2024</span>
                 <span class="portfolio-badge">
                   <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
                 </span>
               </div>
               <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+                <svg viewBox="0 0 48 48" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2"><circle cx="24" cy="24" r="18"/><path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/></svg>
                 <span class="portfolio-watermark-reg">®</span>
               </div>
               <div class="portfolio-bottom-block">
-                <h3 class="portfolio-card-title">Pulse Health</h3>
-                <p class="portfolio-card-desc">A wellness app grounded in research, shipped end to end from concept to release.</p>
+                <h3 class="portfolio-card-title">Pulsar Diagnostics</h3>
+                <p class="portfolio-card-desc">AI-assisted diagnostic platform processing genomic sequences in real time.</p>
                 <div class="portfolio-tags">
-                  <span class="tag-chip">Mobile App</span>
-                  <span class="tag-chip">UX Research</span>
-                  <span class="tag-chip">Development</span>
+                  <span class="tag-chip">Biotech UI</span>
+                  <span class="tag-chip">Data Visualization</span>
                 </div>
               </div>
             </a>
@@ -2086,17 +2150,17 @@
       <div class="shell services-shell">
         <span class="eyebrow eyebrow--dark reveal-on-scroll">
           <span class="eyebrow-dot"></span>
-          <span>Services</span>
+          <span>Core Capabilities</span>
         </span>
 
-        <h2 class="services-h2 line-reveal">What we do best</h2>
+        <h2 class="services-h2 line-reveal">What we build best</h2>
 
         <ul class="services-list">
           <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 0ms; border-top: none;">
             <a href="#development" class="services-row">
               <span class="services-idx">01</span>
-              <h3 class="services-title">Software Development</h3>
-              <p class="services-desc">Scalable web & mobile products built to last.</p>
+              <h3 class="services-title">Autonomous Engineering</h3>
+              <p class="services-desc">Ultra-fast web apps, microservices & scalable backends.</p>
               <span class="services-badge">
                 <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
               </span>
@@ -2106,8 +2170,8 @@
           <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 80ms;">
             <a href="#design" class="services-row">
               <span class="services-idx">02</span>
-              <h3 class="services-title">Product Design</h3>
-              <p class="services-desc">Interfaces that feel effortless and look sharp.</p>
+              <h3 class="services-title">Brand Systems & Motion</h3>
+              <p class="services-desc">Cohesive identities, generative visuals & kinetic typography.</p>
               <span class="services-badge">
                 <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
               </span>
@@ -2115,10 +2179,10 @@
           </li>
 
           <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 160ms;">
-            <a href="#qa" class="services-row">
+            <a href="#spatial" class="services-row">
               <span class="services-idx">03</span>
-              <h3 class="services-title">Quality Assurance</h3>
-              <p class="services-desc">Rigorous testing for flawless, confident releases.</p>
+              <h3 class="services-title">Spatial & WebGL Interfaces</h3>
+              <p class="services-desc">Immersive 3D environments engineered for modern browsers.</p>
               <span class="services-badge">
                 <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
               </span>
@@ -2128,8 +2192,8 @@
           <li class="services-item-wrap reveal-on-scroll" style="transition-delay: 240ms;">
             <a href="#consulting" class="services-row">
               <span class="services-idx">04</span>
-              <h3 class="services-title">Consulting</h3>
-              <p class="services-desc">Strategy and direction for ambitious teams.</p>
+              <h3 class="services-title">Product Strategy</h3>
+              <p class="services-desc">Architecture roadmaps for venture-backed technical teams.</p>
               <span class="services-badge">
                 <svg viewBox="0 0 24 24" class="icon-svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
               </span>
@@ -2145,27 +2209,27 @@
         <div class="stats-panel reveal-on-scroll" id="stats-panel">
           <span class="eyebrow eyebrow--light">
             <span class="eyebrow-dot"></span>
-            <span>By the numbers</span>
+            <span>Impact Metrics</span>
           </span>
 
-          <h2 class="stats-h2 line-reveal">Proof in the work, not the words.</h2>
+          <h2 class="stats-h2 line-reveal">Validation in code, not promises.</h2>
 
           <ul class="stats-grid">
             <li class="stat-item reveal-on-scroll" style="transition-delay: 0ms;">
-              <div class="stat-number" data-target="150" data-suffix="+">0+</div>
-              <div class="stat-label">Projects delivered</div>
+              <div class="stat-number" data-target="350" data-suffix="+">0+</div>
+              <div class="stat-label">Products deployed</div>
             </li>
             <li class="stat-item reveal-on-scroll" style="transition-delay: 90ms;">
-              <div class="stat-number" data-target="98" data-suffix="%">0%</div>
-              <div class="stat-label">Client retention</div>
+              <div class="stat-number" data-target="99" data-suffix="%">0%</div>
+              <div class="stat-label">Client satisfaction</div>
             </li>
             <li class="stat-item reveal-on-scroll" style="transition-delay: 180ms;">
-              <div class="stat-number" data-target="12" data-suffix="">0</div>
-              <div class="stat-label">Years of craft</div>
+              <div class="stat-number" data-target="10" data-suffix="Y">0</div>
+              <div class="stat-label">Years of innovation</div>
             </li>
             <li class="stat-item reveal-on-scroll" style="transition-delay: 270ms;">
-              <div class="stat-number" data-target="40" data-suffix="+">0+</div>
-              <div class="stat-label">Team members</div>
+              <div class="stat-number" data-target="50" data-suffix="+">0+</div>
+              <div class="stat-label">Senior engineers</div>
             </li>
           </ul>
         </div>
@@ -2178,11 +2242,11 @@
   <footer id="footer">
     <div class="shell footer-shell">
       <div class="footer-cta-row">
-        <h2 class="footer-cta-h2 line-reveal">Have a project in mind? Let's get to work.</h2>
+        <h2 class="footer-cta-h2 line-reveal">Building the next wave? Let's talk.</h2>
         <div>
           <button class="pill-btn pill-btn--light pill-btn--arrow open-contact-btn">
             <span class="pill-btn-inner">
-              <span>Start a project</span>
+              <span>Start a Project</span>
               <span class="pill-badge">
                 <svg viewBox="0 0 24 24" class="icon-svg pill-badge-icon--up-right" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
               </span>
@@ -2195,40 +2259,43 @@
         <!-- Brand Col -->
         <div>
           <div class="footer-col-brand-name">
-            <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.25rem;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-            <span>Lumora</span>
+            <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.5rem; color: #818cf8;" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round">
+              <circle cx="24" cy="24" r="18" stroke-opacity="0.3"/>
+              <path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/>
+            </svg>
+            <span>VORTEX</span>
           </div>
-          <p class="footer-col-tagline">An independent studio crafting brands, products, and the systems that connect them.</p>
+          <p class="footer-col-tagline">An autonomous design and engineering lab shaping spatial web products and digital identities.</p>
         </div>
 
         <!-- Company -->
         <div>
-          <div class="footer-col-title">Company</div>
+          <div class="footer-col-title">Navigation</div>
           <ul class="footer-col-links">
-            <li><a href="#about" class="animated-link" data-scroll="#about"><span>About</span></a></li>
+            <li><a href="#about" class="animated-link" data-scroll="#about"><span>Lab</span></a></li>
             <li><a href="#careers" class="animated-link" data-scroll="#careers"><span>Careers</span></a></li>
             <li><a href="#partners" class="animated-link" data-scroll="#partners"><span>Partners</span></a></li>
             <li><button class="animated-link open-contact-btn"><span>Contact</span></button></li>
           </ul>
         </div>
 
-        <!-- Services -->
+        <!-- Capabilities -->
         <div>
-          <div class="footer-col-title">Services</div>
+          <div class="footer-col-title">Capabilities</div>
           <ul class="footer-col-links">
-            <li><a href="#development" class="animated-link" data-scroll="#services"><span>Development</span></a></li>
-            <li><a href="#design" class="animated-link" data-scroll="#services"><span>Design</span></a></li>
-            <li><a href="#qa" class="animated-link" data-scroll="#services"><span>Quality Assurance</span></a></li>
-            <li><a href="#consulting" class="animated-link" data-scroll="#services"><span>Consulting</span></a></li>
+            <li><a href="#development" class="animated-link" data-scroll="#services"><span>Engineering</span></a></li>
+            <li><a href="#design" class="animated-link" data-scroll="#services"><span>Brand Systems</span></a></li>
+            <li><a href="#spatial" class="animated-link" data-scroll="#services"><span>Spatial / 3D</span></a></li>
+            <li><a href="#consulting" class="animated-link" data-scroll="#services"><span>Strategy</span></a></li>
           </ul>
         </div>
 
         <!-- Social -->
         <div>
-          <div class="footer-col-title">Social</div>
+          <div class="footer-col-title">Network</div>
           <ul class="footer-col-links">
             <li><a href="#twitter" class="animated-link"><span>X / Twitter</span></a></li>
-            <li><a href="#behance" class="animated-link"><span>Behance</span></a></li>
+            <li><a href="#github" class="animated-link"><span>GitHub</span></a></li>
             <li><a href="#dribbble" class="animated-link"><span>Dribbble</span></a></li>
             <li><a href="#linkedin" class="animated-link"><span>LinkedIn</span></a></li>
           </ul>
@@ -2236,14 +2303,14 @@
       </div>
 
       <div class="footer-legal-bar">
-        <div>© 2025 Lumora Studio. All rights reserved.</div>
+        <div>© 2026 Vortex Lab Inc. All rights reserved.</div>
         <div class="footer-legal-links">
-          <a href="#privacy" class="animated-link animated-link--legal"><span>Privacy</span></a>
-          <a href="#terms" class="animated-link animated-link--legal"><span>Terms</span></a>
+          <a href="#privacy" class="animated-link animated-link--legal"><span>Privacy Policy</span></a>
+          <a href="#terms" class="animated-link animated-link--legal"><span>Terms of Service</span></a>
         </div>
       </div>
     </div>
-    <div class="footer-watermark">LUMORA</div>
+    <div class="footer-watermark">VORTEX</div>
   </footer>
 
   <!-- 9) NavMenu Overlay -->
@@ -2251,8 +2318,11 @@
     <div class="nav-menu-top">
       <div class="shell nav-menu-top-inner">
         <div class="nav-menu-logo">
-          <svg viewBox="0 0 48 48" class="icon-svg icon-mark" style="font-size: 1.25rem;" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-          <span>Lumora</span>
+          <svg viewBox="0 0 48 48" class="icon-svg" style="font-size: 1.5rem; color: #818cf8;" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round">
+            <circle cx="24" cy="24" r="18" stroke-opacity="0.3"/>
+            <path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/>
+          </svg>
+          <span>VORTEX</span>
         </div>
         <button class="nav-menu-close-btn" id="nav-menu-close-btn" aria-label="Close menu">
           <svg viewBox="0 0 24 24" class="icon-svg" style="font-size: 0.875rem;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M20 4 4 20"/></svg>
@@ -2279,13 +2349,13 @@
           <li>
             <button class="nav-menu-item-btn" data-target="#services" style="transition-delay: 170ms;">
               <span class="nav-menu-idx">03</span>
-              <span class="nav-menu-label">Services</span>
+              <span class="nav-menu-label">Capabilities</span>
             </button>
           </li>
           <li>
             <button class="nav-menu-item-btn" data-target="#about" style="transition-delay: 215ms;">
               <span class="nav-menu-idx">04</span>
-              <span class="nav-menu-label">Studio</span>
+              <span class="nav-menu-label">Lab</span>
             </button>
           </li>
           <li>
@@ -2323,8 +2393,8 @@
       <div id="modal-form-view">
         <div class="modal-header">
           <span class="eyebrow eyebrow--dark">
-            <span class="eyebrow-dot" style="background: #b15f2c;"></span>
-            <span>Start a project</span>
+            <span class="eyebrow-dot"></span>
+            <span>Initiate Project</span>
           </span>
           <h2 class="modal-h2">Tell us what you're building.</h2>
         </div>
@@ -2332,7 +2402,7 @@
         <form class="modal-form" id="project-request-form">
           <div class="modal-field">
             <label class="modal-label" for="req-name">Name</label>
-            <input type="text" id="req-name" class="modal-input" required placeholder="Your name" />
+            <input type="text" id="req-name" class="modal-input" required placeholder="Your full name" />
           </div>
 
           <div class="modal-field">
@@ -2341,12 +2411,12 @@
           </div>
 
           <div class="modal-field">
-            <label class="modal-label" for="req-project">Project</label>
-            <textarea id="req-project" class="modal-textarea" rows="4" required placeholder="A few words about your project, timeline, and budget."></textarea>
+            <label class="modal-label" for="req-project">Project Scope</label>
+            <textarea id="req-project" class="modal-textarea" rows="4" required placeholder="Outline your goals, tech stack, timeline, and budget."></textarea>
           </div>
 
           <div class="modal-bottom-row">
-            <div class="modal-note">We reply within one business day.</div>
+            <div class="modal-note">We respond within 24 hours.</div>
             <button type="submit" class="pill-btn pill-btn--dark pill-btn--arrow" id="submit-btn">
               <span class="pill-btn-inner">
                 <span id="submit-btn-text">Send request</span>
@@ -2362,20 +2432,20 @@
       <!-- Success View -->
       <div class="modal-success-state" id="modal-success-view">
         <div class="modal-success-badge">
-          <svg viewBox="0 0 48 48" class="icon-svg" fill="currentColor"><path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
+          <svg viewBox="0 0 48 48" class="icon-svg" fill="none" stroke="currentColor" stroke-width="3.5"><circle cx="24" cy="24" r="18"/><path d="M14 24c5-8 15-8 20 0-5 8-15 8-20 0z" fill="currentColor"/></svg>
         </div>
-        <h2 class="modal-success-h2">Request received</h2>
-        <p class="modal-success-desc">Thanks for reaching out — we'll get back to you within one business day.</p>
+        <h2 class="modal-success-h2">Request Received</h2>
+        <p class="modal-success-desc">Thank you for reaching out. A partner from Vortex Lab will be in touch within 24 hours.</p>
         <button class="pill-btn pill-btn--dark pill-btn--no-arrow" id="modal-success-close-btn" style="margin-top: 0.5rem;">
           <span class="pill-btn-inner">
-            <span>Close</span>
+            <span>Done</span>
           </span>
         </button>
       </div>
     </div>
   </div>
 
-  <!-- CDN Import Map & Modules -->
+  <!-- Import Map & Scripts -->
   <script type="importmap">
   {
     "imports": {
@@ -2402,25 +2472,33 @@
     applyAdaptiveGrid();
     window.addEventListener('resize', applyAdaptiveGrid);
 
-    // 2. Lenis Smooth Scroll Setup
+    // 2. Lenis Smooth Scroll Setup (with robust UMD fallback)
     window.scrollTo(0, 0);
-    const lenis = new Lenis({ smoothWheel: true });
+    const LenisClass = window.Lenis || Lenis;
+    let lenis = null;
+    if (LenisClass) {
+      lenis = new LenisClass({
+        smoothWheel: true,
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+      });
 
-    function raf(t) {
-      lenis.raf(t);
+      function raf(t) {
+        lenis.raf(t);
+        requestAnimationFrame(raf);
+      }
       requestAnimationFrame(raf);
     }
-    requestAnimationFrame(raf);
 
     let scrollEnabled = true;
     function stopScroll() {
       scrollEnabled = false;
-      lenis.stop();
+      if (lenis) lenis.stop();
       document.documentElement.style.cssText = "position:relative; overflow:hidden; height:100%";
     }
     function startScroll() {
       scrollEnabled = true;
-      lenis.start();
+      if (lenis) lenis.start();
       document.documentElement.style.cssText = "";
     }
 
@@ -2428,13 +2506,13 @@
       const targetId = id.replace('#', '');
       const el = document.getElementById(targetId);
       if (!el) return;
-      lenis.stop();
+      if (lenis) lenis.stop();
       setTimeout(() => {
         const top = el.getBoundingClientRect().top + window.pageYOffset;
         window.scrollTo({ top, behavior: 'smooth' });
       }, 50);
       setTimeout(() => {
-        lenis.start();
+        if (lenis) lenis.start();
       }, 100);
     }
 
@@ -2453,7 +2531,40 @@
       scrollToId('home');
     });
 
-    // 3. Live Clock Update
+    // 3. Custom Trailing Spring Pointer/Cursor Logic
+    (function initCustomCursor() {
+      const dot = document.getElementById('cursor-dot');
+      const ring = document.getElementById('cursor-ring');
+      if (!dot || !ring) return;
+
+      let mouseX = window.innerWidth / 2;
+      let mouseY = window.innerHeight / 2;
+      let ringX = mouseX;
+      let ringY = mouseY;
+
+      window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        dot.style.transform = `translate(${mouseX}px, ${mouseY}px) translate(-50%, -50%)`;
+      });
+
+      function renderCursor() {
+        ringX += (mouseX - ringX) * 0.15;
+        ringY += (mouseY - ringY) * 0.15;
+        ring.style.transform = `translate(${ringX}px, ${ringY}px) translate(-50%, -50%)`;
+        requestAnimationFrame(renderCursor);
+      }
+      requestAnimationFrame(renderCursor);
+
+      // Hover triggers for interactive elements
+      const interactiveEls = document.querySelectorAll('button, a, .hero-card-clickable, .services-row, input, textarea');
+      interactiveEls.forEach(el => {
+        el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hover'));
+        el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hover'));
+      });
+    })();
+
+    // 4. Live Clock Update
     function updateClock() {
       const now = new Date();
       let hours = now.getHours();
@@ -2462,9 +2573,8 @@
       hours = hours % 12 || 12;
       const timeStr = `${hours}:${String(minutes).padStart(2, '0')}${ampm}`;
 
-      const months = ['March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February'];
-      const realMonthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const dateStr = `${now.getDate()} ${realMonthNames[now.getMonth()]}, ${now.getFullYear()}`;
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const dateStr = `${now.getDate()} ${months[now.getMonth()]}, ${now.getFullYear()}`;
 
       document.querySelectorAll('.live-time').forEach(el => el.textContent = timeStr);
       document.querySelectorAll('.live-date').forEach(el => el.textContent = dateStr);
@@ -2472,7 +2582,7 @@
     updateClock();
     setInterval(updateClock, 1000);
 
-    // 4. Page Loader Animation
+    // 5. Page Loader Animation
     let ready = false;
     stopScroll();
 
@@ -2516,9 +2626,8 @@
     }
     requestAnimationFrame(animateLoader);
 
-    // 5. Hero Reveals (Gated on `ready`)
+    // 6. Hero Entrance Reveals
     function triggerHeroReveals() {
-      // Header: 150ms
       setTimeout(() => {
         const header = document.getElementById('header');
         if (header) {
@@ -2527,7 +2636,6 @@
         }
       }, 150);
 
-      // Hero Eyebrow: 200ms
       setTimeout(() => {
         const eyebrow = document.getElementById('hero-eyebrow');
         if (eyebrow) {
@@ -2536,7 +2644,6 @@
         }
       }, 200);
 
-      // Hero H1 Line Reveal: 250ms with 120ms stagger
       setTimeout(() => {
         const lines = document.querySelectorAll('.hero-h1-line');
         lines.forEach((line, i) => {
@@ -2546,16 +2653,14 @@
         });
       }, 250);
 
-      // Watermark: 300ms
       setTimeout(() => {
         const wm = document.getElementById('hero-watermark');
         if (wm) {
-          wm.style.opacity = '0.4';
+          wm.style.opacity = '0.04';
           wm.style.transform = 'translateY(0)';
         }
       }, 300);
 
-      // Hero Card: 400ms
       setTimeout(() => {
         const card = document.getElementById('hero-card');
         if (card) {
@@ -2564,7 +2669,6 @@
         }
       }, 400);
 
-      // Partners: 550ms
       setTimeout(() => {
         const partners = document.getElementById('hero-partners');
         if (partners) {
@@ -2573,7 +2677,6 @@
         }
       }, 550);
 
-      // Rating: 650ms
       setTimeout(() => {
         const rating = document.getElementById('hero-rating');
         if (rating) {
@@ -2582,7 +2685,6 @@
         }
       }, 650);
 
-      // CTAs: 750ms
       setTimeout(() => {
         const ctas = document.getElementById('hero-ctas');
         if (ctas) {
@@ -2591,7 +2693,6 @@
         }
       }, 750);
 
-      // Status bar: 900ms
       setTimeout(() => {
         const status = document.getElementById('hero-status');
         if (status) {
@@ -2600,8 +2701,8 @@
       }, 900);
     }
 
-    // 6. Liquid Reveal Canvas Effect
-    (function initLiquidReveal() {
+    // 7. Interactive Procedural Liquid Reveal Canvas Effect
+    (function initLiquidRevealCanvas() {
       const container = document.getElementById('hero-bg-container');
       const canvas = document.getElementById('hero-canvas');
       if (!container || !canvas) return;
@@ -2610,33 +2711,73 @@
       if (prefersReducedMotion) return;
 
       const ctx = canvas.getContext('2d');
-      const beforeSrc = 'https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/after.jpg';
-      const afterSrc = 'https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/before.jpg';
-
-      const afterImg = new Image();
-      afterImg.crossOrigin = 'anonymous';
-      afterImg.src = afterSrc;
-
-      let coverCanvas = document.createElement('canvas');
-      let coverCtx = coverCanvas.getContext('2d');
-
-      let brushCanvas = document.createElement('canvas');
-      let brushCtx = brushCanvas.getContext('2d');
-
       let width = 0, height = 0;
       let dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const brushRadius = 143;
-      const decay = 0.016;
 
+      // Procedural Underneath Artwork Canvas (Revealed by brush)
+      const secretCanvas = document.createElement('canvas');
+      const secretCtx = secretCanvas.getContext('2d');
+
+      // Base Canvas (Always shown initial layer)
+      const baseCanvas = document.createElement('canvas');
+      const baseCtx = baseCanvas.getContext('2d');
+
+      const brushRadius = 130;
       let points = [];
       let lastPoint = null;
       let idleFrames = 0;
-      let imageLoaded = false;
 
-      afterImg.onload = () => {
-        imageLoaded = true;
-        resize();
-      };
+      function generateArtwork() {
+        const w = width, h = height;
+        secretCanvas.width = w;
+        secretCanvas.height = h;
+        baseCanvas.width = w;
+        baseCanvas.height = h;
+
+        // 1. Draw Underneath Secret Artwork (Vibrant Futuristic Neon Gradients + Nodes)
+        const secretGrad = secretCtx.createLinearGradient(0, 0, w, h);
+        secretGrad.addColorStop(0, '#4f46e5');
+        secretGrad.addColorStop(0.5, '#9333ea');
+        secretGrad.addColorStop(1, '#ec4899');
+        secretCtx.fillStyle = secretGrad;
+        secretCtx.fillRect(0, 0, w, h);
+
+        // Draw glowing grid lines on secret canvas
+        secretCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        secretCtx.lineWidth = 1.5 * dpr;
+        const step = 60 * dpr;
+        for (let x = 0; x < w; x += step) {
+          secretCtx.beginPath(); secretCtx.moveTo(x, 0); secretCtx.lineTo(x, h); secretCtx.stroke();
+        }
+        for (let y = 0; y < h; y += step) {
+          secretCtx.beginPath(); secretCtx.moveTo(0, y); secretCtx.lineTo(w, y); secretCtx.stroke();
+        }
+
+        // Draw geometric glowing circles
+        secretCtx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        for (let i = 0; i < 15; i++) {
+          const cx = Math.random() * w;
+          const cy = Math.random() * h;
+          const cr = (20 + Math.random() * 80) * dpr;
+          secretCtx.beginPath();
+          secretCtx.arc(cx, cy, cr, 0, Math.PI * 2);
+          secretCtx.fill();
+        }
+
+        // 2. Draw Dark Obsidian Base Cover Layer
+        const baseGrad = baseCtx.createLinearGradient(0, 0, w, h);
+        baseGrad.addColorStop(0, '#090a0f');
+        baseGrad.addColorStop(1, '#171923');
+        baseCtx.fillStyle = baseGrad;
+        baseCtx.fillRect(0, 0, w, h);
+
+        // Subtly render dark geometric mesh lines
+        baseCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        baseCtx.lineWidth = 1 * dpr;
+        for (let x = 0; x < w; x += step * 1.5) {
+          baseCtx.beginPath(); baseCtx.moveTo(x, 0); baseCtx.lineTo(x, h); baseCtx.stroke();
+        }
+      }
 
       function resize() {
         const rect = container.getBoundingClientRect();
@@ -2644,42 +2785,14 @@
         height = Math.ceil(rect.height * dpr);
 
         if (width <= 0 || height <= 0) return;
-
         canvas.width = width;
         canvas.height = height;
 
-        if (imageLoaded) {
-          coverCanvas.width = width;
-          coverCanvas.height = height;
-
-          const imgRatio = afterImg.naturalWidth / afterImg.naturalHeight;
-          const canvasRatio = width / height;
-          let dw, dh, dx, dy;
-
-          if (canvasRatio > imgRatio) {
-            dw = width;
-            dh = width / imgRatio;
-            dx = 0;
-            dy = (height - dh) / 2;
-          } else {
-            dh = height;
-            dw = height * imgRatio;
-            dx = (width - dw) / 2;
-            dy = 0;
-          }
-          coverCtx.clearRect(0, 0, width, height);
-          coverCtx.drawImage(afterImg, dx, dy, dw, dh);
-        }
-
-        const radius = brushRadius * dpr;
-        const diam = Math.ceil(radius * 2);
-        brushCanvas.width = diam;
-        brushCanvas.height = diam;
+        generateArtwork();
       }
 
       window.addEventListener('resize', resize);
-      const ro = new ResizeObserver(resize);
-      ro.observe(container);
+      resize();
 
       function addPoint(x, y) {
         const radius = brushRadius * dpr;
@@ -2691,8 +2804,8 @@
           const dx = x - lastPoint.x;
           const dy = y - lastPoint.y;
           const dist = Math.hypot(dx, dy);
-          const step = Math.max(radius * 0.3, 1);
-          const count = Math.min(Math.ceil(dist / step), 60);
+          const stepVal = Math.max(radius * 0.25, 1);
+          const count = Math.min(Math.ceil(dist / stepVal), 60);
 
           for (let i = 1; i <= count; i++) {
             points.push({
@@ -2717,67 +2830,54 @@
         addPoint(x, y);
       });
 
-      function stampPoint(pt) {
-        if (!imageLoaded) return;
-        const radius = brushRadius * dpr;
-        const diam = Math.ceil(radius * 2);
+      function renderFrame() {
+        ctx.clearRect(0, 0, width, height);
+        // Draw base dark image
+        ctx.drawImage(baseCanvas, 0, 0);
 
-        brushCtx.clearRect(0, 0, diam, diam);
-        brushCtx.globalCompositeOperation = 'source-over';
-
-        const grad = brushCtx.createRadialGradient(radius, radius, 0, radius, radius, radius);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        grad.addColorStop(0.55, 'rgba(255, 255, 255, 0.82)');
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-
-        brushCtx.fillStyle = grad;
-        brushCtx.beginPath();
-        brushCtx.arc(radius, radius, radius, 0, Math.PI * 2);
-        brushCtx.fill();
-
-        brushCtx.globalCompositeOperation = 'source-in';
-        brushCtx.drawImage(
-          coverCanvas,
-          pt.x - radius, pt.y - radius, diam, diam,
-          0, 0, diam, diam
-        );
-
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(brushCanvas, pt.x - radius, pt.y - radius);
-      }
-
-      function tick() {
         if (points.length > 0) {
           idleFrames = 0;
         } else {
           idleFrames++;
         }
 
-        if (idleFrames < 120 || points.length > 0) {
-          const fade = points.length > 0 ? decay : Math.min(decay + idleFrames * 0.004, 0.5);
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.fillStyle = `rgba(0, 0, 0, ${fade})`;
-          ctx.fillRect(0, 0, width, height);
+        // Draw painted mask trail of secret artwork
+        if (points.length > 0 || idleFrames < 180) {
+          const maskCanvas = document.createElement('canvas');
+          maskCanvas.width = width;
+          maskCanvas.height = height;
+          const maskCtx = maskCanvas.getContext('2d');
 
-          if (points.length > 0) {
-            points.forEach(stampPoint);
-            points = [];
-          }
-        } else if (idleFrames === 120) {
-          ctx.clearRect(0, 0, width, height);
+          // Draw secret artwork
+          maskCtx.drawImage(secretCanvas, 0, 0);
+          maskCtx.globalCompositeOperation = 'destination-in';
+
+          const radius = brushRadius * dpr;
+          points.forEach(pt => {
+            const grad = maskCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
+            grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+            grad.addColorStop(0.6, 'rgba(0, 0, 0, 0.8)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            maskCtx.fillStyle = grad;
+            maskCtx.beginPath();
+            maskCtx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
+            maskCtx.fill();
+          });
+
+          ctx.drawImage(maskCanvas, 0, 0);
         }
 
-        requestAnimationFrame(tick);
+        requestAnimationFrame(renderFrame);
       }
-      requestAnimationFrame(tick);
+      requestAnimationFrame(renderFrame);
     })();
 
-    // 7. Hero Carousel Logic
+    // 8. Hero Carousel Logic
     (function initCarousel() {
       const items = [
-        { caption: "Conversion design", title: "Crafted to convert." },
-        { caption: "Engineering", title: "Built to scale." },
-        { caption: "Brand systems", title: "Designed to last." }
+        { caption: "Spatial Interfaces", title: "Designed for immersion." },
+        { caption: "Autonomous Systems", title: "Engineered to scale." },
+        { caption: "Generative Systems", title: "Built to inspire." }
       ];
       let currentIdx = 0;
 
@@ -2835,36 +2935,30 @@
       });
     })();
 
-    // 8. IntersectionObserver Scroll Reveals & Count-Up
+    // 9. IntersectionObserver Scroll Reveals & Count-Up
     (function initScrollReveals() {
-      // Split text into line reveal spans
       document.querySelectorAll('.line-reveal').forEach(el => {
         const text = el.textContent.trim();
         el.innerHTML = `<span class="reveal-line-wrap"><span class="reveal-line-inner">${text}</span></span>`;
       });
 
-      // Split word reveal in About
       const aboutStmt = document.getElementById('about-statement');
       if (aboutStmt) {
         const words = [
           { text: "We", Muted: false },
-          { text: "partner", Muted: false },
-          { text: "with", Muted: false },
-          { text: "ambitious", Muted: false },
-          { text: "teams", Muted: false },
+          { text: "architect", Muted: false },
+          { text: "bold", Muted: false },
+          { text: "digital", Muted: false },
+          { text: "systems", Muted: false },
           { text: "to", Muted: false },
-          { text: "ship", Muted: false },
-          { text: "digital", Muted: true },
-          { text: "products,", Muted: true },
-          { text: "brand", Muted: true },
-          { text: "systems,", Muted: true },
+          { text: "accelerate", Muted: false },
+          { text: "visionary", Muted: true },
+          { text: "brands,", Muted: true },
+          { text: "generative", Muted: true },
+          { text: "tools,", Muted: true },
           { text: "and", Muted: true },
-          { text: "the", Muted: true },
-          { text: "strategy", Muted: true },
-          { text: "that", Muted: true },
-          { text: "holds", Muted: true },
-          { text: "them", Muted: true },
-          { text: "together.", Muted: true }
+          { text: "digital", Muted: true },
+          { text: "platforms.", Muted: true }
         ];
         aboutStmt.innerHTML = words.map((w, i) =>
           `<span class="reveal-word ${w.Muted ? 'muted-text' : ''}" style="transition-delay: ${i * 35}ms">${w.text}</span>`
@@ -2876,15 +2970,12 @@
           if (entry.isIntersecting) {
             const target = entry.target;
 
-            // Line reveals
             const lineInner = target.querySelector('.reveal-line-inner');
             if (lineInner) lineInner.classList.add('revealed');
 
-            // Word reveals
             const wordSpans = target.querySelectorAll('.reveal-word');
             wordSpans.forEach(span => span.classList.add('revealed'));
 
-            // General reveals
             if (target.classList.contains('reveal-on-scroll')) {
               target.classList.add('revealed');
             }
@@ -2896,7 +2987,7 @@
 
       document.querySelectorAll('.line-reveal, .word-reveal, .reveal-on-scroll').forEach(el => observer.observe(el));
 
-      // Stats Count-Up Handler on Scroll
+      // Stats Count-Up Handler
       const statsPanel = document.getElementById('stats-panel');
       const statNumbers = document.querySelectorAll('.stat-number');
       let statsCounted = false;
@@ -2906,7 +2997,6 @@
         const rect = statsPanel.getBoundingClientRect();
         const vh = window.innerHeight;
 
-        // start: top hits bottom of viewport, end: center hits center
         const start = vh;
         const end = vh / 2;
         const current = rect.top;
@@ -2929,7 +3019,7 @@
       checkStatsScroll();
     })();
 
-    // 9. NavMenu Overlay Controls
+    // 10. NavMenu Overlay Controls
     (function initNavMenu() {
       const navMenu = document.getElementById('nav-menu');
       const toggleBtn = document.getElementById('menu-toggle-btn');
@@ -2972,7 +3062,7 @@
       });
     })();
 
-    // 10. RequestModal Controls & Stubbed Form Submit
+    // 11. RequestModal Controls
     const modal = document.getElementById('request-modal');
     const modalPanel = document.getElementById('modal-panel');
     const modalCloseBtn = document.getElementById('modal-close-btn');
@@ -2995,7 +3085,6 @@
         modal.classList.remove('active');
         startScroll();
         window.removeEventListener('keydown', handleModalEsc);
-        // Reset form after close transition
         setTimeout(() => {
           form.reset();
           formView.style.display = 'block';
