@@ -910,14 +910,15 @@ export class BettingPipeline {
           const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');
           const { redisClient } = await import('../lib/redis.js');
+          const redis = redisClient.getClient();
           
           const adminIds = await getAllAdminTelegramIds();
           const alertKey = `sec:alert:${user.id}:${session.id}`;
-          const currentCount = await redisClient.incr(alertKey);
+          const currentCount = await redis.incr(alertKey);
           
           if (currentCount === 1) {
             // First time they doubled
-            await redisClient.expire(alertKey, 24 * 60 * 60); // 24 hours expire
+            await redis.expire(alertKey, 24 * 60 * 60); // 24 hours expire
             for (const adminId of adminIds) {
               const msgId = await telegramApi.sendMessageAndGetId(
                 adminId,
@@ -928,13 +929,13 @@ export class BettingPipeline {
                 `Игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
               );
               if (msgId) {
-                await redisClient.set(`${alertKey}:${adminId}:msgId`, msgId.toString(), 'EX', 24 * 60 * 60);
+                await redis.set(`${alertKey}:${adminId}:msgId`, msgId.toString(), 'EX', 24 * 60 * 60);
               }
             }
           } else {
             // Doubled again!
             for (const adminId of adminIds) {
-              const msgIdStr = await redisClient.get(`${alertKey}:${adminId}:msgId`);
+              const msgIdStr = await redis.get(`${alertKey}:${adminId}:msgId`);
               if (msgIdStr) {
                 const msgId = parseInt(msgIdStr, 10);
                 await telegramApi.editMessageText(
@@ -957,7 +958,7 @@ export class BettingPipeline {
                   `Игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
                 );
                 if (msgId) {
-                  await redisClient.set(`${alertKey}:${adminId}:msgId`, msgId.toString(), 'EX', 24 * 60 * 60);
+                  await redis.set(`${alertKey}:${adminId}:msgId`, msgId.toString(), 'EX', 24 * 60 * 60);
                 }
               }
             }
