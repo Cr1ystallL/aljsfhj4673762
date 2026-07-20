@@ -49,6 +49,9 @@ async function start() {
     // Start automated background jobs
     const { startTournamentCron } = await import('./services/tournament-cron.js');
     startTournamentCron();
+    
+    const { startFoluxpayCron } = await import('./services/foluxpay-cron.js');
+    startFoluxpayCron();
 
     // Start server
     await app.listen({
@@ -71,6 +74,8 @@ async function shutdown() {
   try {
     const { stopTournamentCron } = await import('./services/tournament-cron.js');
     stopTournamentCron();
+    const { stopFoluxpayCron } = await import('./services/foluxpay-cron.js');
+    stopFoluxpayCron();
     await redisClient.disconnect();
     await disconnectPrisma();
   } catch (error) {

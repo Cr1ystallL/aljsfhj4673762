@@ -169,7 +169,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   keno: { label: 'Keno', Icon: Dice5 },
   cases: { label: 'Case', Icon: Box },
   'chicken-road': { label: 'MacvRoad', Icon: ClownIcon },
-  unknown: { label: 'Game', Icon: PlinkoIcon },
+  unknown: { label: 'Прочее', Icon: Box },
 };
 
 /**

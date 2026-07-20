@@ -900,7 +900,13 @@ export class BettingPipeline {
 
         // Check if balance exceeded 2x
         if (balanceAfter > Number(session.startBalance) * 2 && Number(session.startBalance) > 0) {
-          // They doubled their money!
+          // They doubled their money! Update startBalance to prevent spam
+          const oldStartBalance = Number(session.startBalance);
+          session = await prisma.gameSession.update({
+            where: { id: session.id },
+            data: { startBalance: balanceAfter }
+          });
+          
           const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');
           
@@ -910,7 +916,7 @@ export class BettingPipeline {
               adminId,
               `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ</b> 🚨\n\n` +
               `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
-              `Старт сессии: <b>${Number(session.startBalance)} PLN</b>\n` +
+              `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
               `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
               `Игра: ${gameType}\n\n` +
               `<i>Жесткий Авто-РТП включен.</i>`
@@ -959,7 +965,7 @@ export class BettingPipeline {
           streakActive = true;
         }
 
-        if (nextStreak >= 4) {
+        if (nextStreak >= 5 && nextStreak % 5 === 0) {
           // Send Telegram notification to admins
           const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');

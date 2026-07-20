@@ -152,7 +152,8 @@ export class BalanceService {
         wagerTarget: Number(updatedBalance.wagerTarget),
         wagerProgress: Number(updatedBalance.wagerProgress),
         autoRtpTarget: Number(updatedBalance.autoRtpTarget),
-        autoRtpProgress: Number(updatedBalance.autoRtpProgress)
+        autoRtpProgress: Number(updatedBalance.autoRtpProgress),
+        freeCases: Number(updatedBalance.freeCases)
       });
 
       logger.info(
@@ -172,6 +173,7 @@ export class BalanceService {
       amount: number; currency: string;
       wagerTarget?: number; wagerProgress?: number;
       autoRtpTarget?: number; autoRtpProgress?: number;
+      freeCases?: number;
     }
   ) {
     try {
@@ -195,6 +197,7 @@ export class BalanceService {
           amount: number; currency: string;
           wagerTarget: number; wagerProgress: number;
           autoRtpTarget: number; autoRtpProgress: number;
+          freeCases: number;
         };
       }
     } catch (error) {
@@ -209,6 +212,7 @@ export class BalanceService {
       amount: number; currency: string;
       wagerTarget?: number; wagerProgress?: number;
       autoRtpTarget?: number; autoRtpProgress?: number;
+      freeCases?: number;
     }
   ) {
     await wsManager.publishBroadcast({
