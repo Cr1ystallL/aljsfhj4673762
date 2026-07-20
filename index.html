@@ -1,2030 +1,793 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lumora — Independent Design & Engineering Studio</title>
-  <meta name="description" content="Lumora is an independent studio crafting brands, products, and the systems that connect them — bold ideas, shipped with quiet precision." />
-  <meta name="theme-color" content="#0a0a0a" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    /* CSS Reset & Base */
-    *{ box-sizing:border-box; margin:0; padding:0 }
-    html{ font-size:16px; -webkit-font-smoothing:antialiased }
-    body{ background:#ffffff; color:#111111; font-family:'Onest',sans-serif; overflow-x:hidden }
-    a{ color:inherit; text-decoration:none }
-    button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer }
-    ul{ list-style:none }
-    img{ display:block }
-    .sr-only{ position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0 }
-    :focus-visible{ outline:2px solid #b15f2c; outline-offset:2px }
-    @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important } }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Statue of Laocoön</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Italiana&family=Outfit:wght@300;400;600&family=Playfair+Display:ital,wght@1,500&display=swap');
 
-    /* The rem-based adaptive grid */
-    @media (max-width:1920px){ html{ font-size:0.833333vw } }
-    @media (max-width:1440px){ html{ font-size:1.111111vw } }
-    @media (max-width:1024px){ html{ font-size:1.5625vw } }
-    @media (max-width:640px){  html{ font-size:4.444444vw } }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        html, body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #000000;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        body {
+            min-height: 900vh;
+            font-family: 'Outfit', sans-serif;
+            color: #ffffff;
+            overflow-x: hidden;
+            cursor: none;
+        }
+        * { cursor: none !important; }
+        ::-webkit-scrollbar { display: none; width: 0; }
+        #webgl {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            outline: none;
+        }
 
-    /* Tokens & Variables */
-    :root {
-      --background: #ffffff;
-      --foreground: #111111;
-      --ink: #0a0a0a;
-      --muted: #8d8d8d;
-      --subtle: #b6b6b6;
-      --line: #e6e5e2;
-      --surface: #f1f0ee;
-      --surface-2: #e3e2df;
-      --accent: #b15f2c;
-      --accent-from: #cf8047;
-      --accent-to: #97501f;
-      --hero-from: #ecebe9;
-      --hero-to: #c9c9c9;
-      --radius-pill: 9999px;
-      --radius-card: 2rem;
-      --radius-card-sm: 1.25rem;
-      --radius-control: 0.875rem;
-      --text-watermark: 13rem;
-      --container-shell: 88rem;
-    }
+        .cursor-inner {
+            position: fixed; top: 0; left: 0;
+            width: 6px; height: 6px;
+            border: 2px solid rgba(255, 255, 255, 1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 9999;
+        }
+        .cursor-outer {
+            position: fixed; top: 0; left: 0;
+            width: 40px; height: 40px;
+            border: 1.5px solid rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 9998;
+            transition: width 0.3s, height 0.3s, background 0.3s;
+        }
 
-    .shell {
-      max-width: 88rem;
-      margin-inline: auto;
-      padding-inline: 1.25rem;
-    }
-    @media (min-width: 640px) {
-      .shell { padding-inline: 2rem; }
-    }
+        .cinematic-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none;          /* clicks pass through to canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 0 60px 40px 60px;
+            box-sizing: border-box;
+        }
 
-    /* Skip link */
-    .skip-link {
-      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
-    }
-    .skip-link:focus {
-      position: fixed; left: 1rem; top: 1rem; z-index: 60;
-      width: auto; height: auto; clip: auto; white-space: normal;
-      border-radius: 0.875rem; background: #0a0a0a; padding: 0.5rem 1rem;
-      font-size: 0.875rem; color: #fff;
-    }
+        .main-header {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; z-index: 20;
+            pointer-events: auto;
+            padding: 20px 0;
+        }
+        .brand { font-size: 14px; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; }
+        .header-nav { display: flex; align-items: center; gap: 24px; }
+        .nav-link {
+            color: #ffffff; text-decoration: none;
+            font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+            font-weight: 500; transition: color 0.3s;
+        }
+        .nav-link:hover { color: #ffffff; }
+        .nav-dot { width: 3px; height: 3px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; }
+        .contact-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 24px;
+            background: #ffffff; color: #000000;
+            text-decoration: none;
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
+            border-radius: 20px;
+            transition: transform 0.3s, background 0.3s;
+        }
+        .btn-circle {
+            display: inline-block; width: 6px; height: 6px;
+            border: 1px solid #000000; border-radius: 50%; background: transparent;
+        }
+        .contact-btn:hover { transform: scale(1.05); background: #f0f0f0; }
 
-    /* Page Loader */
-    .loader-overlay {
-      position: fixed; inset: 0; z-index: 120;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 2rem; background: #0a0a0a; color: #fff;
-      border-radius: 0 0 2rem 2rem;
-      transition: transform 0.7s cubic-bezier(.22,1,.36,1);
-      will-change: transform;
-    }
-    .loader-overlay.exit {
-      transform: translateY(-100%);
-    }
-    .loader-center {
-      display: flex; flex-direction: column; align-items: center; gap: 1.25rem; text-align: center;
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-    .loader-overlay.exit .loader-center {
-      opacity: 0; transform: translateY(-12px);
-    }
-    .loader-brand {
-      font-weight: 600; font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem;
-    }
-    @media (min-width: 640px) { .loader-brand { font-size: 1.875rem; } }
-    .loader-tagline {
-      max-width: 24ch; font-size: 0.875rem; color: rgba(255,255,255,.55);
-    }
-    .loader-progress-block {
-      width: min(22rem, 72vw); display: flex; flex-direction: column; gap: 0.75rem;
-    }
-    .loader-track {
-      height: 1px; background: rgba(255,255,255,.15); width: 100%; overflow: hidden;
-    }
-    .loader-fill {
-      height: 100%; background: #cf8047; width: 0%; transition: width 0.1s ease-out;
-    }
-    .loader-meta {
-      display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 500;
-      text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,.45);
-    }
-    .loader-count {
-      font-variant-numeric: tabular-nums; color: rgba(255,255,255,.8);
-    }
+        .slide { position: absolute; bottom: 12%; pointer-events: none; }
+        #slide-1 { left: 0; width: 100%; }
+        #slide-1 .slide-title { margin-left: 60px; }
+        #slide-1 .desc-row { position: relative; display: flex; width: 100%; }
+        #slide-1 .col-1 {
+            margin-left: 60px;
+            width: calc(25vw - 60px);
+            max-width: calc(25vw - 60px);
+        }
+        #slide-1 .col-2 {
+            position: absolute;
+            left: calc(25vw + 40px);
+            width: calc(25vw - 60px);
+            max-width: calc(25vw - 60px);
+        }
+        #slide-2 { left: 0; width: 100%; }
+        #slide-2-img {
+            position: fixed;
+            top: 90px;
+            left: 60px;
+            width: calc(25vw - 60px);
+            aspect-ratio: 1 / 1;
+            overflow: hidden;
+            z-index: 2;
+            pointer-events: none;
+            clip-path: inset(0 0 100% 0);
+            transition: clip-path 1.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
+            opacity: 0;
+        }
+        #slide-2-img img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scale(1.15);
+            transition: transform 1.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #slide-2-img.active { clip-path: inset(0 0 0 0); opacity: 1; }
+        #slide-2-img.active img { transform: scale(1); }
+        #slide-2 .slide-title { margin-left: calc(25vw + 40px); }
+        #slide-2 .slide-desc {
+            margin-left: calc(50vw + 20px);
+            width: calc(25vw - 60px);
+            max-width: calc(25vw - 60px);
+        }
+        #slide-3 {
+            left: calc(50vw + 20px);
+            width: calc(25vw - 60px);
+            max-width: calc(25vw - 60px);
+        }
+        #slide-3 .slide-title { white-space: nowrap; }
+        #slide-4 { left: calc(25% + 40px); max-width: 600px; }
+        .slide-title {
+            font-family: 'Italiana', serif;
+            font-size: 116px;
+            line-height: 1.0;
+            font-weight: 400;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            color: #fff6ed;
+        }
+        .slide-desc {
+            font-size: 16px; line-height: 1.7; font-weight: 300;
+            color: #d1d5db; letter-spacing: 0.5px;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1),
+                        transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+            transition-delay: 0.4s;
+        }
+        .slide.active .slide-desc { opacity: 1; transform: translateY(0); }
+        .slide-title .char {
+            display: inline-block;
+            opacity: 0;
+            transform: translateY(50px);
+            filter: blur(12px);
+            transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1),
+                        transform 0.8s cubic-bezier(0.25, 1, 0.5, 1),
+                        filter 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .slide.active .slide-title .char { opacity: 1; transform: translateY(0); filter: blur(0); }
+        .slide.active { pointer-events: auto; }
 
-    /* Header */
-    .site-header {
-      position: absolute; inset-inline: 0; top: 0; z-index: 50;
-      opacity: 0; transform: translateY(-14px);
-      transition: opacity 0.7s cubic-bezier(.22,1,.36,1), transform 0.7s cubic-bezier(.22,1,.36,1);
-    }
-    .site-header.visible {
-      opacity: 1; transform: translateY(0);
-    }
-    .header-inner {
-      display: flex; align-items: center; justify-content: space-between; gap: 1.5rem;
-      padding-block: 1.25rem;
-    }
-    @media (min-width: 640px) {
-      .header-inner { padding-block: 1.5rem; }
-    }
-    .brand-btn {
-      display: flex; align-items: center; gap: 0.5rem; font-size: 1.125rem; font-weight: 600;
-      letter-spacing: -0.01em; transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    .brand-btn:hover { transform: scale(1.04); }
-    .brand-icon { font-size: 1.25rem; color: #b15f2c; }
-
-    .primary-nav { display: none; }
-    @media (min-width: 1024px) {
-      .primary-nav { display: flex; }
-    }
-    .primary-nav ul { display: flex; gap: 2rem; font-size: 0.875rem; font-weight: 500; }
-    .nav-link {
-      display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;
-      transition: transform 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.35s ease;
-      opacity: 0.8;
-    }
-    .nav-link:hover { transform: translateY(-2px); opacity: 1; }
-    .caret { font-size: 0.75rem; opacity: 0.6; }
-
-    .header-right { display: flex; align-items: center; gap: 0.75rem; }
-    .clock-chip {
-      display: none; border: 1px solid rgba(230,229,226,.8); background: rgba(255,255,255,.4);
-      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border-radius: 0.875rem;
-      padding: 0.5rem 0.75rem; gap: 0.75rem; font-size: 0.75rem; color: rgba(17,17,17,.7);
-      align-items: center;
-    }
-    @media (min-width: 768px) {
-      .clock-chip { display: flex; }
-    }
-    .clock-chip .label { color: rgba(17,17,17,.45); }
-    .clock-chip .time { min-width: 3.5rem; font-weight: 500; color: #111; font-variant-numeric: tabular-nums; }
-    .clock-chip .dot { color: rgba(17,17,17,.3); }
-
-    .menu-btn {
-      border: 1px solid rgba(230,229,226,.8); background: rgba(255,255,255,.4);
-      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border-radius: 0.875rem;
-      padding: 0.5rem 1rem; transition: background 0.3s ease;
-    }
-    .menu-btn:hover { background: rgba(255,255,255,.7); }
-    .menu-btn-inner {
-      display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 500;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    .menu-btn:hover .menu-btn-inner { transform: scale(1.05); }
-    .menu-label { display: none; }
-    @media (min-width: 640px) {
-      .menu-label { display: inline; }
-    }
-
-    /* Hero Section */
-    .hero-section {
-      position: relative; isolation: isolate; overflow: hidden;
-      border-radius: 0 0 2rem 2rem; background: #c9c9c9;
-    }
-    .liquid-bg { position: absolute; inset: 0; z-index: 0; }
-    .liquid-bg img {
-      object-fit: cover; position: absolute; inset: 0; width: 100%; height: 100%;
-    }
-    .liquid-bg canvas {
-      position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
-    }
-    .hero-vignette {
-      position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background: linear-gradient(to bottom, rgba(255,255,255,.35), transparent, rgba(255,255,255,.35));
-    }
-    .hero-watermark {
-      pointer-events: none; position: absolute; inset-inline: 0; bottom: 7rem; z-index: 1;
-      text-align: center; user-select: none; font-weight: 700; line-height: 1;
-      font-size: 13rem; color: rgba(255,255,255,.4);
-      opacity: 0; transform: translateY(20px);
-      transition: opacity 0.8s cubic-bezier(.16,1,.3,1), transform 0.8s cubic-bezier(.16,1,.3,1);
-    }
-    .hero-watermark.visible { opacity: 0.4; transform: translateY(0); }
-
-    .hero-grid {
-      position: relative; z-index: 20; display: flex; flex-direction: column; gap: 2rem;
-      padding: 7rem 1.25rem 5rem;
-    }
-    @media (min-width: 640px) {
-      .hero-grid { padding-inline: 2rem; }
-    }
-    @media (min-width: 1024px) {
-      .hero-grid {
-        display: grid; min-height: 100lvh; grid-template-columns: repeat(12, 1fr);
-        gap: 2.5rem; padding: 9rem 2rem 7rem; align-content: center;
+        .story-dashes {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .story-dash { width: 2px; height: 40px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
+        .story-dash-fill { width: 100%; height: 0%; background: #ffffff; border-radius: 2px; }
+        .grid-horizontal-line {
+            position: fixed; top: 70px; left: 0; right: 0;
+            width: 100%; height: 1px;
+            background: rgba(255, 255, 255, 0.12);
+            z-index: 5; pointer-events: none;
+        }
+        .grid-lines {
+            position: fixed; top: 0; left: 40px; right: 40px;
+            width: calc(100% - 80px); height: 100vh;
+            display: flex; justify-content: space-between;
+            z-index: 5; pointer-events: none;
+        }
+        .grid-line {
+            position: relative; width: 1px; height: 100%;
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .grid-line:nth-child(3) { margin-top: 70px; height: calc(100vh - 70px); }
+        .grid-dot {
+            position: absolute; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px; height: 6px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.35);
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.15);
+        }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/examples/jsm/loaders/GLTFLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js"
       }
     }
-
-    .hero-left {
-      display: flex; flex-direction: column; gap: 1.75rem;
-    }
-    @media (min-width: 1024px) {
-      .hero-left { grid-column: span 7; }
-    }
-
-    /* Eyebrows */
-    .eyebrow {
-      display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 500;
-    }
-    .eyebrow-dot {
-      width: 0.375rem; height: 0.375rem; border-radius: 9999px; display: inline-block;
-    }
-    .eyebrow.tone-dark { color: rgba(17,17,17,.7); }
-    .eyebrow.tone-dark .eyebrow-dot { background: rgba(17,17,17,.5); }
-    .eyebrow.tone-light { color: rgba(255,255,255,.7); }
-    .eyebrow.tone-light .eyebrow-dot { background: rgba(255,255,255,.6); }
-
-    .hero-eyebrow {
-      opacity: 0; transform: translateY(10px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .hero-eyebrow.visible { opacity: 1; transform: translateY(0); }
-
-    .hero-h1 {
-      max-width: 18ch; font-size: 2.25rem; font-weight: 600; line-height: 0.98; letter-spacing: -0.02em;
-    }
-    @media (min-width: 640px) { .hero-h1 { font-size: 3rem; } }
-    @media (min-width: 768px) { .hero-h1 { font-size: 3.75rem; } }
-
-    .line-clip { overflow: hidden; display: block; }
-    .line-inner {
-      display: block; opacity: 0; transform: translateY(100%);
-      transition: opacity 0.9s cubic-bezier(0.215, 0.61, 0.355, 1), transform 0.9s cubic-bezier(0.215, 0.61, 0.355, 1);
-    }
-    .line-inner.visible { opacity: 1; transform: translateY(0%); }
-
-    .hero-rating {
-      display: flex; align-items: center; gap: 0.75rem;
-      opacity: 0; transform: translateY(10px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .hero-rating.visible { opacity: 1; transform: translateY(0); }
-    .stars { color: #b15f2c; display: flex; gap: 0.125rem; font-size: 1rem; }
-
-    .hero-ctas {
-      display: flex; flex-wrap: wrap; gap: 0.75rem;
-      opacity: 0; transform: translateY(10px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .hero-ctas.visible { opacity: 1; transform: translateY(0); }
-
-    .hero-right {
-      display: flex; flex-direction: column; align-items: flex-start; gap: 2rem;
-    }
-    @media (min-width: 1024px) {
-      .hero-right { grid-column: span 5; align-items: flex-end; }
-    }
-
-    .hero-card {
-      width: 100%; max-width: 24rem; border-radius: 1.25rem; background: rgba(255,255,255,.7);
-      padding: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); ring: 1px rgba(230,229,226,.7);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      opacity: 0; transform: translateY(16px) scale(0.96);
-      transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1);
-    }
-    @media (min-width: 1024px) {
-      .hero-card { width: 19rem; }
-    }
-    .hero-card.visible { opacity: 1; transform: translateY(0) scale(1); }
-
-    .hero-card-inner {
-      display: flex; gap: 0.5rem; cursor: pointer; border-radius: 0.875rem;
-    }
-    .hero-card-left {
-      aspect-ratio: 1; width: 6rem; display: grid; place-items: center; border-radius: 0.875rem;
-      background: #0a0a0a; font-size: 1.875rem; color: #fff; flex-shrink: 0;
-    }
-    .hero-card-right {
-      flex: 1; border-radius: 0.875rem; background: rgba(241,240,238,.7); padding: 0.75rem;
-      display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
-    }
-    .carousel-content-slot {
-      position: relative; min-height: 3.25rem;
-    }
-    .carousel-item {
-      transition: opacity 0.35s ease, transform 0.35s ease;
-    }
-    .carousel-caption {
-      font-size: 0.65rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;
-      color: rgba(17,17,17,.45);
-    }
-    .carousel-title {
-      max-width: 8rem; font-size: 0.875rem; font-weight: 500; line-height: 1.35; margin-top: 0.125rem;
-    }
-    .carousel-bottom {
-      display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem;
-    }
-    .carousel-dots { display: flex; gap: 0.25rem; align-items: center; }
-    .carousel-dash {
-      height: 0.25rem; border-radius: 9999px; transition: all 0.3s ease;
-    }
-    .carousel-dash.active { width: 1rem; background: rgba(17,17,17,.7); }
-    .carousel-dash.inactive { width: 0.375rem; background: rgba(17,17,17,.2); }
-
-    .carousel-nav-btns { display: flex; gap: 0.375rem; }
-    .carousel-btn {
-      width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: 9999px;
-      background: #fff; color: rgba(17,17,17,.7); box-shadow: 0 0 0 1px #e6e5e2;
-      transition: color 0.2s ease, transform 0.2s ease;
-    }
-    .carousel-btn:hover { color: #111; transform: scale(1.05); }
-
-    .partners-block {
-      width: 100%; max-width: 24rem;
-      opacity: 0; transform: translateY(14px);
-      transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1);
-    }
-    @media (min-width: 1024px) {
-      .partners-block { width: 19rem; }
-    }
-    .partners-block.visible { opacity: 1; transform: translateY(0); }
-
-    .partners-label {
-      margin-bottom: 0.75rem; font-size: 0.75rem; font-weight: 500; color: rgba(17,17,17,.45);
-      text-align: left;
-    }
-    @media (min-width: 1024px) {
-      .partners-label { text-align: right; }
-    }
-    .partners-grid {
-      display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 1rem; row-gap: 0.75rem;
-    }
-    .partner-item {
-      display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: rgba(17,17,17,.7);
-      transition: transform 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.35s ease;
-      opacity: 0.7;
-    }
-    .partner-item:hover { transform: translateY(-2px); opacity: 1; }
-
-    .status-bar {
-      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-      border-top: 1px solid rgba(17,17,17,.1); padding-block: 1.25rem;
-      font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em;
-      color: rgba(17,17,17,.6); opacity: 0; transition: opacity 0.8s ease;
-    }
-    .status-bar.visible { opacity: 1; }
-    .status-center { display: none; }
-    @media (min-width: 640px) { .status-center { display: block; } }
-
-    /* PillButton */
-    .pill-btn {
-      display: inline-flex; align-items: center; border-radius: 9999px; font-size: 0.875rem;
-      font-weight: 500; transition: transform 0.35s cubic-bezier(.2,.8,.2,1); cursor: pointer;
-    }
-    .pill-btn:hover { transform: scale(1.04); }
-    .pill-btn.no-arrow { padding: 0.875rem 1.75rem; }
-    .pill-btn.with-arrow { padding: 0.375rem 0.375rem 0.375rem 1.5rem; }
-
-    .pill-btn.dark { background: #0a0a0a; color: #ffffff; }
-    .pill-btn.light { background: #f1f0ee; color: #111111; }
-    .pill-btn.outline { border: 1px solid #e6e5e2; background: transparent; color: #111111; }
-
-    .pill-btn-badge {
-      width: 2.25rem; height: 2.25rem; display: grid; place-items: center; border-radius: 9999px;
-      font-size: 1rem; margin-left: 0.75rem; flex-shrink: 0;
-    }
-    .pill-btn.dark .pill-btn-badge { background: #ffffff; color: #0a0a0a; }
-    .pill-btn.light .pill-btn-badge,
-    .pill-btn.outline .pill-btn-badge { background: #0a0a0a; color: #ffffff; }
-
-    .pill-btn-icon {
-      display: inline-block; transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    .pill-btn:hover .pill-btn-icon.arrow-right { transform: translate(3px, 0); }
-    .pill-btn:hover .pill-btn-icon.arrow-up-right { transform: translate(2px, -2px); }
-
-    /* TagChip */
-    .tag-chip {
-      display: inline-flex; border: 1px solid rgba(255,255,255,.25); color: #fff;
-      border-radius: 9999px; padding: 0.5rem 1rem; font-size: 0.875rem;
-    }
-
-    /* About Section */
-    .about-section { background: #fff; }
-    .about-grid {
-      display: grid; grid-template-columns: 1fr; align-items: center; gap: 3rem;
-      padding-block: 5rem;
-    }
-    @media (min-width: 1024px) {
-      .about-grid { grid-template-columns: 1fr 1fr; padding-block: 7rem; }
-    }
-    .globe-block {
-      position: relative; min-height: 14rem;
-    }
-    @media (min-width: 1024px) { .globe-block { min-height: 20rem; } }
-    .bg-globe-icon {
-      position: absolute; left: -1rem; top: 50%; transform: translateY(-50%);
-      font-size: 12rem; color: rgba(17,17,17,.1); pointer-events: none;
-    }
-    @media (min-width: 640px) { .bg-globe-icon { font-size: 16rem; } }
-    @media (min-width: 1024px) { .bg-globe-icon { left: -1.5rem; font-size: 20rem; } }
-
-    .globe-subtext {
-      position: absolute; bottom: 0; left: 0; display: flex; align-items: center; gap: 0.75rem;
-      font-size: 0.875rem; color: rgba(17,17,17,.7); opacity: 0; transform: translateY(12px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .globe-subtext.visible { opacity: 1; transform: translateY(0); }
-
-    .about-statement {
-      display: flex; flex-direction: column; gap: 2.5rem;
-    }
-    .word-h2 {
-      font-size: 1.5rem; font-weight: 500; line-height: 1.35; letter-spacing: -0.01em;
-    }
-    @media (min-width: 640px) { .word-h2 { font-size: 1.875rem; } }
-
-    .word-wrap { display: inline-block; overflow: hidden; vertical-align: top; }
-    .word-inner {
-      display: inline-block; opacity: 0; transform: translateY(24px);
-      transition: opacity 0.7s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.7s cubic-bezier(0.165, 0.84, 0.44, 1);
-    }
-    .word-inner.visible { opacity: 1; transform: translateY(0); }
-
-    .about-footer-row {
-      display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
-      gap: 1.5rem; border-top: 1px solid #e6e5e2; padding-top: 1.5rem;
-      opacity: 0; transform: translateY(12px); transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .about-footer-row.visible { opacity: 1; transform: translateY(0); }
-
-    .social-chips { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-    .social-chip {
-      width: 2.25rem; height: 2.25rem; display: grid; place-items: center; border-radius: 9999px;
-      font-size: 0.875rem; transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    .social-chip:hover { transform: scale(1.18); }
-    .social-chip.x-btn { background: #b15f2c; color: #fff; }
-    .social-chip.other-btn { background: #f1f0ee; color: rgba(17,17,17,.7); }
-
-    /* CreateBand Section */
-    .create-band { background: #fff; }
-    .create-band-list {
-      display: flex; flex-direction: column; gap: 0.75rem; padding-block: 2.5rem;
-    }
-    @media (min-width: 640px) {
-      .create-band-list { flex-direction: row; gap: 1rem; }
-    }
-    .create-item {
-      flex: 1; opacity: 0; transform: translateY(28px);
-      transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1);
-    }
-    .create-item.visible { opacity: 1; transform: translateY(0); }
-
-    .create-tile {
-      display: grid; place-items: center; height: 6rem; border-radius: 9999px;
-      font-size: 1.875rem; font-weight: 500; transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    @media (min-width: 640px) {
-      .create-tile { height: 10rem; font-size: 2.25rem; }
-    }
-    .create-tile:hover { transform: scale(1.03); }
-    .create-tile.variant-light { background: #f1f0ee; color: #111; }
-    .create-tile.variant-accent { background: linear-gradient(to bottom right,#cf8047,#97501f); color: #fff; }
-    .create-tile.variant-dark { background: #0a0a0a; color: #fff; }
-    .create-tile.variant-ghost { background: rgba(241,240,238,.6); color: rgba(17,17,17,.35); }
-
-    /* Portfolio Section */
-    .portfolio-section { background: #fff; }
-    .portfolio-inner { padding-block: 2.5rem 5rem; }
-    @media (min-width: 1024px) { .portfolio-inner { padding-bottom: 7rem; } }
-
-    .portfolio-eyebrow-wrap { display: flex; justify-content: center; }
-    .portfolio-eyebrow {
-      border: 1px solid #e6e5e2; border-radius: 9999px; padding: 0.375rem 1rem;
-    }
-    .portfolio-h2-wrap { display: flex; justify-content: center; margin-top: 1rem; margin-bottom: 3rem; }
-    .portfolio-h2 {
-      font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em; text-align: center;
-    }
-    @media (min-width: 640px) { .portfolio-h2 { font-size: 3rem; } }
-
-    .portfolio-grid {
-      display: grid; grid-template-columns: 1fr; gap: 1.5rem;
-    }
-    @media (min-width: 768px) {
-      .portfolio-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    .portfolio-item {
-      opacity: 0; transform: translateY(48px);
-      transition: opacity 0.8s cubic-bezier(.16,1,.3,1), transform 0.8s cubic-bezier(.16,1,.3,1);
-    }
-    .portfolio-item.visible { opacity: 1; transform: translateY(0); }
-
-    .portfolio-card {
-      position: relative; min-height: 22rem; overflow: hidden; border-radius: 2rem;
-      background: #0a0a0a; padding: 1.5rem; color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.05);
-      display: block; transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    @media (min-width: 640px) {
-      .portfolio-card { min-height: 26rem; padding: 2rem; }
-    }
-    .portfolio-card:hover { transform: translateY(-8px) scale(1.012); }
-
-    .portfolio-top-meta {
-      display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;
-      text-transform: uppercase; letter-spacing: 0.025em; color: rgba(255,255,255,.45);
-    }
-    .portfolio-badge {
-      width: 2.75rem; height: 2.75rem; display: grid; place-items: center; border-radius: 9999px;
-      background: rgba(255,255,255,.1); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.15);
-      transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    .portfolio-card:hover .portfolio-badge { transform: rotate(45deg) scale(1.08); }
-
-    .portfolio-watermark {
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
-      font-size: 4.5rem; color: rgba(255,255,255,.9); gap: 0.1rem;
-    }
-    .portfolio-watermark-reg { font-size: 0.75rem; color: rgba(255,255,255,.6); margin-top: -2rem; }
-
-    .portfolio-bottom {
-      position: absolute; inset-inline: 1.5rem; bottom: 1.5rem;
-    }
-    @media (min-width: 640px) {
-      .portfolio-bottom { inset-inline: 2rem; bottom: 2rem; }
-    }
-    .portfolio-title {
-      font-size: 1.5rem; font-weight: 500; letter-spacing: -0.01em;
-    }
-    @media (min-width: 640px) { .portfolio-title { font-size: 1.875rem; } }
-    .portfolio-desc {
-      margin-top: 0.5rem; max-width: 28rem; font-size: 0.875rem; color: rgba(255,255,255,.55);
-    }
-    .portfolio-tags {
-      margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem;
-    }
-
-    /* Services Section */
-    .services-section { background: #fff; }
-    .services-inner { padding-block: 5rem; }
-    @media (min-width: 1024px) { .services-inner { padding-block: 7rem; } }
-    .services-h2 {
-      margin: 1.25rem 0 3rem; max-width: 16ch; font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em;
-    }
-    @media (min-width: 640px) { .services-h2 { margin-bottom: 3.5rem; font-size: 3rem; } }
-
-    .service-item {
-      border-top: 1px solid #e6e5e2; opacity: 0; transform: translateY(24px);
-      transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1);
-    }
-    .service-item:first-child { border-top: none; }
-    .service-item.visible { opacity: 1; transform: translateY(0); }
-
-    .service-row {
-      display: flex; align-items: center; gap: 1rem; border-radius: 1.25rem; padding-block: 1.5rem;
-      padding-inline: 1.5rem; background: rgba(241,240,238,0);
-      transition: background 0.35s cubic-bezier(.2,.8,.2,1), padding 0.35s cubic-bezier(.2,.8,.2,1);
-    }
-    @media (min-width: 640px) {
-      .service-row { gap: 1.5rem; padding-block: 2rem; }
-    }
-    .service-row:hover {
-      background: rgba(241,240,238,1); padding-left: 2rem; padding-right: 1.25rem;
-    }
-
-    .service-idx {
-      width: 1.75rem; font-size: 0.875rem; font-weight: 500; color: rgba(17,17,17,.4);
-    }
-    @media (min-width: 640px) { .service-idx { width: 2.5rem; } }
-
-    .service-title {
-      flex: 1; font-size: 1.5rem; font-weight: 500; letter-spacing: -0.01em;
-    }
-    @media (min-width: 640px) { .service-title { font-size: 1.875rem; } }
-    @media (min-width: 768px) { .service-title { font-size: 2.25rem; } }
-
-    .service-desc {
-      max-width: 20rem; font-size: 0.875rem; color: rgba(17,17,17,.55); display: none;
-    }
-    @media (min-width: 1024px) { .service-desc { display: block; } }
-
-    .service-badge {
-      width: 2.5rem; height: 2.5rem; display: grid; place-items: center; border-radius: 9999px;
-      background: #0a0a0a; color: #fff; transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
-      flex-shrink: 0;
-    }
-    @media (min-width: 640px) { .service-badge { width: 3rem; height: 3rem; } }
-    .service-row:hover .service-badge { transform: translateX(5px); }
-
-    /* Stats Section */
-    .stats-section { background: #fff; }
-    .stats-inner { padding-bottom: 5rem; }
-    @media (min-width: 1024px) { .stats-inner { padding-bottom: 7rem; } }
-
-    .stats-panel {
-      border-radius: 2rem; background: #0a0a0a; padding: 3rem 1.5rem; color: #fff;
-      opacity: 0; transform: translateY(40px) scale(0.99);
-      transition: opacity 0.8s cubic-bezier(.16,1,.3,1), transform 0.8s cubic-bezier(.16,1,.3,1);
-    }
-    @media (min-width: 640px) { .stats-panel { padding: 4rem 2rem; } }
-    @media (min-width: 768px) { .stats-panel { padding-inline: 4rem; } }
-    .stats-panel.visible { opacity: 1; transform: translateY(0) scale(1); }
-
-    .stats-h2 {
-      margin-top: 1rem; max-width: 20ch; font-size: 1.875rem; font-weight: 500; letter-spacing: -0.01em;
-    }
-    @media (min-width: 768px) { .stats-h2 { font-size: 2.25rem; } }
-
-    .stats-grid {
-      margin-top: 3.5rem; display: grid; grid-template-columns: repeat(2, 1fr);
-      column-gap: 2rem; row-gap: 3rem;
-    }
-    @media (min-width: 1024px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
-
-    .stat-item {
-      opacity: 0; transform: translateY(20px);
-      transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1);
-    }
-    .stat-item.visible { opacity: 1; transform: translateY(0); }
-
-    .stat-num {
-      font-size: 3rem; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
-    }
-    @media (min-width: 640px) { .stat-num { font-size: 3.75rem; } }
-    @media (min-width: 768px) { .stat-num { font-size: 4.5rem; } }
-
-    .stat-label {
-      margin-top: 0.75rem; font-size: 0.875rem; color: rgba(255,255,255,.55);
-    }
-
-    /* Footer */
-    .site-footer {
-      position: relative; overflow: hidden; border-radius: 2rem 2rem 0 0;
-      background: #0a0a0a; color: #fff;
-    }
-    .footer-inner {
-      position: relative; z-index: 10; padding: 5rem 1.25rem 2.5rem;
-    }
-    @media (min-width: 640px) { .footer-inner { padding-inline: 2rem; } }
-    @media (min-width: 1024px) { .footer-inner { padding-top: 6rem; } }
-
-    .footer-cta-row {
-      display: flex; flex-direction: column; gap: 2rem; border-bottom: 1px solid rgba(255,255,255,.1);
-      padding-bottom: 4rem;
-    }
-    @media (min-width: 1024px) {
-      .footer-cta-row { flex-direction: row; align-items: flex-end; justify-content: space-between; }
-    }
-    .footer-cta-h2 {
-      max-width: 16ch; font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em;
-    }
-    @media (min-width: 640px) { .footer-cta-h2 { font-size: 3rem; } }
-    @media (min-width: 768px) { .footer-cta-h2 { font-size: 3.75rem; } }
-
-    .footer-cols {
-      display: grid; grid-template-columns: 1fr; gap: 3rem; padding-block: 4rem;
-    }
-    @media (min-width: 768px) { .footer-cols { grid-template-columns: repeat(2, 1fr); } }
-    @media (min-width: 1024px) { .footer-cols { grid-template-columns: repeat(4, 1fr); } }
-
-    .footer-col-title {
-      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.025em;
-      color: rgba(255,255,255,.4); margin-bottom: 1rem;
-    }
-    .animated-link {
-      display: inline-flex; cursor: pointer; text-decoration: none; margin-bottom: 0.75rem;
-    }
-    .animated-link span {
-      display: inline-block; opacity: 0.65;
-      transition: transform 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.35s ease;
-    }
-    .animated-link:hover span { transform: translateX(4px); opacity: 1; }
-
-    .footer-legal-bar {
-      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-      gap: 1rem; border-top: 1px solid rgba(255,255,255,.1); padding-top: 2rem;
-      font-size: 0.75rem; color: rgba(255,255,255,.45);
-    }
-    @media (min-width: 640px) { .footer-legal-bar { flex-direction: row; } }
-
-    .legal-link span { opacity: 0.7; }
-    .legal-link:hover span { transform: translateX(3px); opacity: 1; }
-
-    .footer-watermark {
-      position: absolute; inset-inline: 0; bottom: -1.5rem; z-index: 0; text-align: center;
-      pointer-events: none; user-select: none; font-weight: 700; line-height: 1;
-      font-size: 13rem; color: rgba(255,255,255,.05);
-    }
-
-    /* Nav Menu Overlay */
-    .nav-menu-overlay {
-      position: fixed; inset: 0; z-index: 115; display: flex; flex-direction: column;
-      background: #0a0a0a; color: #fff; opacity: 0; visibility: hidden;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    .nav-menu-overlay.open { opacity: 1; visibility: visible; }
-
-    .nav-menu-top {
-      display: flex; align-items: center; justify-content: space-between; padding: 1.25rem;
-    }
-    @media (min-width: 640px) { .nav-menu-top { padding: 1.5rem 2rem; } }
-
-    .close-btn {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      border: 1px solid rgba(255,255,255,.15); border-radius: 0.875rem; padding: 0.5rem 1rem;
-      font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;
-      color: rgba(255,255,255,.7); transition: border-color 0.2s, color 0.2s;
-    }
-    .close-btn:hover { border-color: rgba(255,255,255,.4); color: #fff; }
-
-    .nav-menu-nav {
-      flex: 1; display: flex; flex-direction: column; justify-content: center;
-    }
-    .menu-item-btn {
-      display: flex; gap: 1rem; padding-block: 0.5rem; text-align: left;
-      font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em; width: 100%;
-      transform: translateY(1rem); opacity: 0;
-      transition: transform 0.5s ease-out, opacity 0.5s ease-out;
-    }
-    @media (min-width: 640px) { .menu-item-btn { font-size: 3.75rem; } }
-    .nav-menu-overlay.open .menu-item-btn {
-      transform: translateY(0); opacity: 1;
-    }
-
-    .menu-idx {
-      font-size: 1rem; font-weight: 400; color: rgba(255,255,255,.3); transition: color 0.3s;
-    }
-    .menu-item-btn:hover .menu-idx { color: #cf8047; }
-    .menu-item-btn .label {
-      color: rgba(255,255,255,.7); transition: color 0.3s;
-    }
-    .menu-item-btn:hover .label { color: #fff; }
-
-    .nav-menu-bottom {
-      display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid rgba(255,255,255,.1);
-      padding: 1.5rem 1.25rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.025em;
-      color: rgba(255,255,255,.45);
-    }
-    @media (min-width: 640px) {
-      .nav-menu-bottom { flex-direction: row; justify-content: space-between; padding-inline: 2rem; }
-    }
-
-    /* Request Modal Overlay */
-    .request-modal-overlay {
-      position: fixed; inset: 0; z-index: 110; display: flex; align-items: flex-end; justify-content: center;
-      padding: 1rem; background: rgba(17,17,17,.3); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    @media (min-width: 640px) { .request-modal-overlay { align-items: center; } }
-    .request-modal-overlay.open { opacity: 1; visibility: visible; }
-
-    .request-modal-panel {
-      position: relative; width: 100%; max-width: 32rem; overflow: hidden; border-radius: 2rem;
-      background: #fff; padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); box-shadow: ring 1px #e6e5e2;
-      transform: translateY(28px); opacity: 0;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-    }
-    @media (min-width: 640px) { .request-modal-panel { padding: 2rem; } }
-    .request-modal-overlay.open .request-modal-panel {
-      transform: translateY(0); opacity: 1;
-    }
-
-    .modal-close-icon {
-      position: absolute; right: 1rem; top: 1rem; width: 2.25rem; height: 2.25rem;
-      display: grid; place-items: center; border-radius: 9999px; background: #f1f0ee;
-      color: rgba(17,17,17,.6); transition: background 0.2s, color 0.2s;
-    }
-    .modal-close-icon:hover { background: #e3e2df; color: #111; }
-
-    .modal-field {
-      display: flex; flex-direction: column; gap: 0.375rem; width: 100%;
-    }
-    .modal-label {
-      font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em;
-      color: rgba(17,17,17,.5);
-    }
-    .modal-input, .modal-textarea {
-      width: 100%; border: 1px solid #e6e5e2; background: rgba(241,240,238,.5);
-      border-radius: 0.875rem; padding: 0.75rem 1rem; font-size: 0.875rem; font-family: inherit;
-      outline: none; transition: border-color 0.2s, background 0.2s;
-    }
-    .modal-input:focus, .modal-textarea:focus {
-      border-color: rgba(17,17,17,.3); background: #fff;
-    }
-    .modal-textarea { resize: none; }
-  </style>
+    </script>
 </head>
 <body>
+    <div class="cursor-inner"></div>
+    <div class="cursor-outer"></div>
 
-  <!-- Skip link -->
-  <a href="#main" class="skip-link">Skip to content</a>
-
-  <!-- Page Loader Overlay -->
-  <div class="loader-overlay" role="dialog" aria-label="Loading">
-    <div class="loader-center">
-      <div class="loader-brand">
-        <svg class="brand-icon" style="font-size:1.875rem; color:#cf8047;" viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-        <span>Lumora</span>
-      </div>
-      <p class="loader-tagline">Bold ideas, shipped with quiet precision.</p>
-    </div>
-    <div class="loader-progress-block">
-      <div class="loader-track">
-        <div class="loader-fill"></div>
-      </div>
-      <div class="loader-meta">
-        <span>Loading</span>
-        <span class="loader-count">000</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Header -->
-  <header class="site-header">
-    <div class="shell header-inner">
-      <!-- Left: Logo -->
-      <button class="brand-btn" data-scroll-to="home">
-        <svg class="brand-icon" viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-        <span>Lumora</span>
-      </button>
-
-      <!-- Center: Nav -->
-      <nav class="primary-nav" aria-label="Main Navigation">
-        <ul>
-          <li><button class="nav-link" data-scroll-to="home" aria-current="page">Home</button></li>
-          <li><button class="nav-link" data-scroll-to="works">Work</button></li>
-          <li><button class="nav-link" data-scroll-to="services">Services <span class="caret">▾</span></button></li>
-          <li><button class="nav-link" data-scroll-to="about">Studio</button></li>
-          <li><button class="nav-link" data-scroll-to="careers">Careers</button></li>
-          <li><button class="nav-link" data-open-modal>Contact</button></li>
-        </ul>
-      </nav>
-
-      <!-- Right: Clock & Menu -->
-      <div class="header-right">
-        <div class="clock-chip">
-          <span class="label">Local time</span>
-          <span class="time live-time">9:41am</span>
-          <span class="dot">•</span>
-          <span class="date live-date">12 March, 2025</span>
-        </div>
-        <button class="menu-btn" aria-label="Open Menu">
-          <span class="menu-btn-inner">
-            <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-            <span class="menu-label">Menu</span>
-          </span>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Content -->
-  <main id="main">
-
-    <!-- Hero Section -->
-    <section id="home" class="hero-section">
-      <!-- Background Liquid Reveal Canvas -->
-      <div class="liquid-bg">
-        <img src="https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/after.jpg" alt="Lumora Studio Hero Background" />
-        <canvas aria-hidden="true"></canvas>
-      </div>
-      
-      <!-- Vignette -->
-      <div class="hero-vignette"></div>
-
-      <!-- Watermark -->
-      <div class="hero-watermark">LUMORA</div>
-
-      <!-- Hero Grid Content -->
-      <div class="shell hero-grid">
-        <!-- Left Column -->
-        <div class="hero-left">
-          <div class="hero-eyebrow">
-            <span class="eyebrow tone-dark">
-              <span class="eyebrow-dot"></span>
-              <span>Independent Studio</span>
-            </span>
-          </div>
-
-          <h1 class="hero-h1">
-            <span class="line-clip"><span class="line-inner">Bold ideas,</span></span>
-            <span class="line-clip"><span class="line-inner">shipped with</span></span>
-            <span class="line-clip"><span class="line-inner">quiet precision</span></span>
-          </h1>
-
-          <div class="hero-rating">
-            <div class="stars">
-              <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
-              <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
-              <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
-              <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
-              <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94L12 2.5z"/></svg>
+    <div class="cinematic-container">
+        <div class="main-header">
+            <div class="brand">Laocoön</div>
+            <nav class="header-nav">
+                <a href="#slide-1" class="nav-link">Bronze</a>
+                <span class="nav-dot"></span>
+                <a href="#slide-2" class="nav-link">Marble</a>
+                <span class="nav-dot"></span>
+                <a href="#slide-3" class="nav-link">Fluid</a>
+                <span class="nav-dot"></span>
+                <a href="#slide-4" class="nav-link">Digital</a>
+            </nav>
+            <div class="header-actions">
+                <a href="#" class="contact-btn">Contact <span class="btn-circle"></span></a>
             </div>
-            <span style="font-size:0.875rem; font-weight:500; color:rgba(17,17,17,.7);">200+ brands shipped</span>
-          </div>
-
-          <div class="hero-ctas">
-            <button class="pill-btn dark with-arrow" data-open-modal>
-              <span>Let's Talk</span>
-              <span class="pill-btn-badge">
-                <svg class="pill-btn-icon arrow-right" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-              </span>
-            </button>
-            <button class="pill-btn outline no-arrow" data-scroll-to="works">
-              <span>View Work</span>
-            </button>
-          </div>
         </div>
 
-        <!-- Right Column -->
-        <div class="hero-right">
-          <!-- Carousel Card -->
-          <div class="hero-card">
-            <div class="hero-card-inner">
-              <div class="hero-card-left">
-                <svg viewBox="0 0 48 48" width="1em" height="1em" style="color:#cf8047;"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-              </div>
-              <div class="hero-card-right">
-                <div class="carousel-content-slot">
-                  <div class="carousel-item">
-                    <div class="carousel-caption">Conversion design</div>
-                    <div class="carousel-title">Crafted to convert.</div>
-                  </div>
-                </div>
-                <div class="carousel-bottom">
-                  <div class="carousel-dots">
-                    <div class="carousel-dash active"></div>
-                    <div class="carousel-dash inactive"></div>
-                    <div class="carousel-dash inactive"></div>
-                  </div>
-                  <div class="carousel-nav-btns">
-                    <button class="carousel-btn carousel-prev" aria-label="Previous">
-                      <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(180deg);"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                    </button>
-                    <button class="carousel-btn carousel-next" aria-label="Next">
-                      <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
+        <div class="slide" id="slide-1">
+            <h2 class="slide-title">Bronze <br>and Time</h2>
+            <div class="desc-row">
+                <p class="slide-desc col-1">A timeless material holding centuries of human history. Fluid in hot flames, eternal in its form. Each curve captures a tense, dramatic moment.</p>
+                <p class="slide-desc col-2">Born of molten fire and creative will, it stands to bridge our ancient memory and modern vision. A fluid energy frozen in still, heavy bronze.</p>
             </div>
-          </div>
+        </div>
 
-          <!-- Partners -->
-          <div class="partners-block">
-            <div class="partners-label">Trusted by</div>
-            <div class="partners-grid">
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Kaido</span>
-              </div>
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Northpeak</span>
-              </div>
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Vellum</span>
-              </div>
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Orbit</span>
-              </div>
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Brightline</span>
-              </div>
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Cobalt</span>
-              </div>
-              <div class="partner-item">
-                <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(17,17,17,.4);"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                <span>Mesa</span>
-              </div>
+        <div class="slide" id="slide-2">
+            <h2 class="slide-title">Marble <br>Emotion</h2>
+            <p class="slide-desc">A sculpture frozen at the peak of human suffering and heroic struggle. Laocoön and his sons, bound by ruthless fate.</p>
+        </div>
+
+        <div class="slide" id="slide-3">
+            <h2 class="slide-title">Liquid Metal</h2>
+            <p class="slide-desc">Art that breathes. Mesmerizing waves of liquid bronze flow through space, reflecting every contour and tensed muscle of the ancient masterpiece.</p>
+        </div>
+
+        <div class="slide" id="slide-4">
+            <h2 class="slide-title">Eternal <br>Moment</h2>
+            <p class="slide-desc">Contemplating antique form through the lens of new dimensions. A classic masterpiece reborn in the currents of radiant digital matter.</p>
+        </div>
+    </div>
+
+    <div class="slide-image-mask" id="slide-2-img">
+        <img src="https://api.getlayers.ai/storage/v1/object/public/public/assets/laocoon-59f84455c6/1.png" alt="Editorial Concept">
+    </div>
+
+    <div class="grid-horizontal-line"></div>
+    <div class="grid-lines">
+        <div class="grid-line"><div class="grid-dot top"></div><div class="grid-dot bottom"></div></div>
+        <div class="grid-line"><div class="grid-dot top"></div><div class="grid-dot bottom"></div></div>
+        <div class="grid-line"><div class="grid-dot top"></div><div class="grid-dot bottom"></div></div>
+        <div class="grid-line"><div class="grid-dot top"></div><div class="grid-dot bottom"></div></div>
+        <div class="grid-line story-progress-container">
+            <div class="grid-dot top"></div>
+            <div class="grid-dot bottom"></div>
+            <div class="story-dashes">
+                <div class="story-dash"><div class="story-dash-fill" id="dash-fill-1"></div></div>
+                <div class="story-dash"><div class="story-dash-fill" id="dash-fill-2"></div></div>
+                <div class="story-dash"><div class="story-dash-fill" id="dash-fill-3"></div></div>
+                <div class="story-dash"><div class="story-dash-fill" id="dash-fill-4"></div></div>
             </div>
-          </div>
         </div>
-      </div>
-
-      <!-- Bottom Status Bar -->
-      <div class="shell status-bar">
-        <div>Working since 2014</div>
-        <div class="status-center">Remote-first, worldwide</div>
-        <div style="display:inline-flex; gap:0.5rem; align-items:center;">
-          <span>Scroll to explore</span>
-          <span>↓</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- About Section -->
-    <section id="about" class="about-section">
-      <div class="shell about-grid">
-        <!-- Left Globe Block -->
-        <div class="globe-block">
-          <svg class="bg-globe-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.25"/><path d="M12 2.75c2.6 2.3 4 5.8 4 9.25s-1.4 6.95-4 9.25c-2.6-2.3-4-5.8-4-9.25s1.4-6.95 4-9.25zM2.75 12h18.5"/></svg>
-          
-          <div class="eyebrow tone-dark" style="position:relative;">
-            <span class="eyebrow-dot"></span>
-            <span>The Studio</span>
-          </div>
-
-          <div class="globe-subtext reveal-on-scroll">
-            <svg viewBox="0 0 24 24" width="1.5rem" height="1.5rem" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="color:#111; flex-shrink:0;"><circle cx="12" cy="12" r="9.25"/><path d="M12 2.75c2.6 2.3 4 5.8 4 9.25s-1.4 6.95-4 9.25c-2.6-2.3-4-5.8-4-9.25s1.4-6.95 4-9.25zM2.75 12h18.5"/></svg>
-            <span style="max-width:14rem;">A distributed team building across every time zone.</span>
-          </div>
-        </div>
-
-        <!-- Right Statement -->
-        <div class="about-statement">
-          <h2 class="word-h2" data-word-reveal>
-            <!-- Word split dynamically via JS -->
-            We partner with ambitious teams to ship digital products, brand systems, and the strategy that holds them together.
-          </h2>
-
-          <div class="about-footer-row reveal-on-scroll">
-            <div>
-              <div style="font-size:0.875rem; color:rgba(17,17,17,.45);">Find us online</div>
-              <div class="social-chips">
-                <a href="https://x.com" target="_blank" rel="noopener" class="social-chip x-btn" aria-label="X / Twitter">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4L4 20"/></svg>
-                </a>
-                <a href="https://behance.net" target="_blank" rel="noopener" class="social-chip other-btn" aria-label="Behance">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                </a>
-                <a href="https://dribbble.com" target="_blank" rel="noopener" class="social-chip other-btn" aria-label="Dribbble">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                </a>
-              </div>
-            </div>
-
-            <button class="pill-btn outline with-arrow" data-scroll-to="about">
-              <span>About Us</span>
-              <span class="pill-btn-badge">
-                <svg class="pill-btn-icon arrow-right" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CreateBand Section -->
-    <section class="create-band">
-      <ul class="shell create-band-list reveal-on-scroll" data-stagger="true" data-stagger-delay="120">
-        <li class="create-item stagger-item">
-          <div class="create-tile variant-light">We</div>
-        </li>
-        <li class="create-item stagger-item">
-          <div class="create-tile variant-accent">Build</div>
-        </li>
-        <li class="create-item stagger-item">
-          <div class="create-tile variant-dark">
-            <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </div>
-        </li>
-        <li class="create-item stagger-item">
-          <div class="create-tile variant-ghost">Better</div>
-        </li>
-      </ul>
-    </section>
-
-    <!-- Portfolio Section -->
-    <section id="works" class="portfolio-section">
-      <div class="shell portfolio-inner">
-        <div class="portfolio-eyebrow-wrap reveal-on-scroll">
-          <span class="eyebrow tone-dark portfolio-eyebrow">
-            <span class="eyebrow-dot"></span>
-            <span>Portfolio</span>
-          </span>
-        </div>
-
-        <div class="portfolio-h2-wrap reveal-on-scroll">
-          <h2 class="portfolio-h2">Selected Work</h2>
-        </div>
-
-        <ul class="portfolio-grid reveal-on-scroll" data-stagger="true" data-stagger-delay="90">
-          <!-- Card 1 -->
-          <li class="portfolio-item stagger-item">
-            <a href="#works" class="portfolio-card">
-              <div class="portfolio-top-meta">
-                <span>Branding — 2025</span>
-                <span class="portfolio-badge">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-                </span>
-              </div>
-              <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-                <span class="portfolio-watermark-reg">®</span>
-              </div>
-              <div class="portfolio-bottom">
-                <h3 class="portfolio-title">Aster Labs</h3>
-                <p class="portfolio-desc">A complete identity and go-to-market system for a fast-moving research startup.</p>
-                <div class="portfolio-tags">
-                  <span class="tag-chip">Branding</span>
-                  <span class="tag-chip">Strategy</span>
-                  <span class="tag-chip">Design</span>
-                </div>
-              </div>
-            </a>
-          </li>
-
-          <!-- Card 2 -->
-          <li class="portfolio-item stagger-item">
-            <a href="#works" class="portfolio-card">
-              <div class="portfolio-top-meta">
-                <span>Product — 2024</span>
-                <span class="portfolio-badge">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-                </span>
-              </div>
-              <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-                <span class="portfolio-watermark-reg">®</span>
-              </div>
-              <div class="portfolio-bottom">
-                <h3 class="portfolio-title">Nova Finance</h3>
-                <p class="portfolio-desc">A finance platform reimagined — clear data, calm interfaces, and effortless flows.</p>
-                <div class="portfolio-tags">
-                  <span class="tag-chip">Product Design</span>
-                  <span class="tag-chip">Web App</span>
-                  <span class="tag-chip">QA</span>
-                </div>
-              </div>
-            </a>
-          </li>
-
-          <!-- Card 3 -->
-          <li class="portfolio-item stagger-item">
-            <a href="#works" class="portfolio-card">
-              <div class="portfolio-top-meta">
-                <span>Identity — 2023</span>
-                <span class="portfolio-badge">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-                </span>
-              </div>
-              <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-                <span class="portfolio-watermark-reg">®</span>
-              </div>
-              <div class="portfolio-bottom">
-                <h3 class="portfolio-title">Helio Studio</h3>
-                <p class="portfolio-desc">A bold visual identity and art direction system built to scale across every surface.</p>
-                <div class="portfolio-tags">
-                  <span class="tag-chip">Brand Identity</span>
-                  <span class="tag-chip">Art Direction</span>
-                </div>
-              </div>
-            </a>
-          </li>
-
-          <!-- Card 4 -->
-          <li class="portfolio-item stagger-item">
-            <a href="#works" class="portfolio-card">
-              <div class="portfolio-top-meta">
-                <span>Mobile — 2023</span>
-                <span class="portfolio-badge">
-                  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-                </span>
-              </div>
-              <div class="portfolio-watermark">
-                <svg viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-                <span class="portfolio-watermark-reg">®</span>
-              </div>
-              <div class="portfolio-bottom">
-                <h3 class="portfolio-title">Pulse Health</h3>
-                <p class="portfolio-desc">A wellness app grounded in research, shipped end to end from concept to release.</p>
-                <div class="portfolio-tags">
-                  <span class="tag-chip">Mobile App</span>
-                  <span class="tag-chip">UX Research</span>
-                  <span class="tag-chip">Development</span>
-                </div>
-              </div>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Services Section -->
-    <section id="services" class="services-section">
-      <div class="shell services-inner">
-        <div class="reveal-on-scroll">
-          <span class="eyebrow tone-dark">
-            <span class="eyebrow-dot"></span>
-            <span>Services</span>
-          </span>
-        </div>
-
-        <h2 class="services-h2 reveal-on-scroll">What we do best</h2>
-
-        <ul class="reveal-on-scroll" data-stagger="true" data-stagger-delay="80">
-          <li class="service-item stagger-item">
-            <a href="#services" class="service-row">
-              <span class="service-idx">01</span>
-              <h3 class="service-title">Software Development</h3>
-              <p class="service-desc">Scalable web & mobile products built to last.</p>
-              <div class="service-badge">
-                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-              </div>
-            </a>
-          </li>
-
-          <li class="service-item stagger-item">
-            <a href="#services" class="service-row">
-              <span class="service-idx">02</span>
-              <h3 class="service-title">Product Design</h3>
-              <p class="service-desc">Interfaces that feel effortless and look sharp.</p>
-              <div class="service-badge">
-                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-              </div>
-            </a>
-          </li>
-
-          <li class="service-item stagger-item">
-            <a href="#services" class="service-row">
-              <span class="service-idx">03</span>
-              <h3 class="service-title">Quality Assurance</h3>
-              <p class="service-desc">Rigorous testing for flawless, confident releases.</p>
-              <div class="service-badge">
-                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-              </div>
-            </a>
-          </li>
-
-          <li class="service-item stagger-item">
-            <a href="#services" class="service-row">
-              <span class="service-idx">04</span>
-              <h3 class="service-title">Consulting</h3>
-              <p class="service-desc">Strategy and direction for ambitious teams.</p>
-              <div class="service-badge">
-                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-              </div>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Stats Section -->
-    <section class="stats-section">
-      <div class="shell stats-inner">
-        <div class="stats-panel reveal-on-scroll">
-          <div class="eyebrow tone-light">
-            <span class="eyebrow-dot"></span>
-            <span>By the numbers</span>
-          </div>
-
-          <h2 class="stats-h2">Proof in the work, not the words.</h2>
-
-          <ul class="stats-grid" data-stagger="true" data-stagger-delay="90">
-            <li class="stat-item stagger-item">
-              <div class="stat-num"><span class="stat-num-value" data-target="150">0</span>+</div>
-              <div class="stat-label">Projects delivered</div>
-            </li>
-            <li class="stat-item stagger-item">
-              <div class="stat-num"><span class="stat-num-value" data-target="98">0</span>%</div>
-              <div class="stat-label">Client retention</div>
-            </li>
-            <li class="stat-item stagger-item">
-              <div class="stat-num"><span class="stat-num-value" data-target="12">0</span></div>
-              <div class="stat-label">Years of craft</div>
-            </li>
-            <li class="stat-item stagger-item">
-              <div class="stat-num"><span class="stat-num-value" data-target="40">0</span>+</div>
-              <div class="stat-label">Team members</div>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- Footer -->
-  <footer class="site-footer">
-    <div class="shell footer-inner">
-      <!-- CTA Row -->
-      <div class="footer-cta-row">
-        <h2 class="footer-cta-h2">Have a project in mind? Let's get to work.</h2>
-        <button class="pill-btn light with-arrow" data-open-modal>
-          <span>Start a project</span>
-          <span class="pill-btn-badge">
-            <svg class="pill-btn-icon arrow-up-right" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-          </span>
-        </button>
-      </div>
-
-      <!-- Columns -->
-      <div class="footer-cols">
-        <!-- Brand Col -->
-        <div>
-          <div style="font-size:1.125rem; font-weight:600; display:flex; align-items:center; gap:0.5rem;">
-            <svg viewBox="0 0 48 48" width="1.25rem" height="1.25rem" style="color:#cf8047;"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-            <span>Lumora</span>
-          </div>
-          <p style="max-width:20rem; font-size:0.875rem; color:rgba(255,255,255,.55); margin-top:0.75rem; line-height:1.4;">
-            An independent studio crafting brands, products, and the systems that connect them.
-          </p>
-        </div>
-
-        <!-- Company Col -->
-        <div>
-          <div class="footer-col-title">Company</div>
-          <a href="#about" class="animated-link" data-scroll-to="about"><span>About</span></a><br>
-          <a href="#careers" class="animated-link" data-scroll-to="careers"><span>Careers</span></a><br>
-          <a href="#home" class="animated-link" data-scroll-to="home"><span>Partners</span></a><br>
-          <a href="#contact" class="animated-link" data-open-modal><span>Contact</span></a>
-        </div>
-
-        <!-- Services Col -->
-        <div>
-          <div class="footer-col-title">Services</div>
-          <a href="#services" class="animated-link" data-scroll-to="services"><span>Development</span></a><br>
-          <a href="#services" class="animated-link" data-scroll-to="services"><span>Design</span></a><br>
-          <a href="#services" class="animated-link" data-scroll-to="services"><span>Quality Assurance</span></a><br>
-          <a href="#services" class="animated-link" data-scroll-to="services"><span>Consulting</span></a>
-        </div>
-
-        <!-- Social Col -->
-        <div>
-          <div class="footer-col-title">Social</div>
-          <a href="https://x.com" target="_blank" rel="noopener" class="animated-link"><span>X / Twitter</span></a><br>
-          <a href="https://behance.net" target="_blank" rel="noopener" class="animated-link"><span>Behance</span></a><br>
-          <a href="https://dribbble.com" target="_blank" rel="noopener" class="animated-link"><span>Dribbble</span></a><br>
-          <a href="https://linkedin.com" target="_blank" rel="noopener" class="animated-link"><span>LinkedIn</span></a>
-        </div>
-      </div>
-
-      <!-- Legal Bar -->
-      <div class="footer-legal-bar">
-        <div>© 2025 Lumora Studio. All rights reserved.</div>
-        <div style="display:flex; gap:1.5rem;">
-          <a href="#privacy" class="animated-link legal-link"><span>Privacy</span></a>
-          <a href="#terms" class="animated-link legal-link"><span>Terms</span></a>
-        </div>
-      </div>
     </div>
 
-    <!-- Watermark -->
-    <div class="footer-watermark">LUMORA</div>
-  </footer>
+    <canvas id="webgl"></canvas>
 
-  <!-- Nav Menu Overlay -->
-  <div class="nav-menu-overlay" role="dialog" aria-label="Navigation Menu">
-    <div class="shell nav-menu-top">
-      <div style="font-size:1.125rem; font-weight:600; display:flex; align-items:center; gap:0.5rem;">
-        <svg viewBox="0 0 48 48" width="1.25rem" height="1.25rem" style="color:#cf8047;"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-        <span>Lumora</span>
-      </div>
-      <button class="close-btn close-nav-menu" aria-label="Close Menu">
-        <svg viewBox="0 0 24 24" width="0.875rem" height="0.875rem" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4L4 20"/></svg>
-        <span>Close</span>
-      </button>
-    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-    <div class="shell nav-menu-nav">
-      <ul>
-        <li>
-          <button class="menu-item-btn" data-scroll-to="home" style="transition-delay: 80ms;">
-            <span class="menu-idx">01</span>
-            <span class="label">Home</span>
-          </button>
-        </li>
-        <li>
-          <button class="menu-item-btn" data-scroll-to="works" style="transition-delay: 125ms;">
-            <span class="menu-idx">02</span>
-            <span class="label">Work</span>
-          </button>
-        </li>
-        <li>
-          <button class="menu-item-btn" data-scroll-to="services" style="transition-delay: 170ms;">
-            <span class="menu-idx">03</span>
-            <span class="label">Services</span>
-          </button>
-        </li>
-        <li>
-          <button class="menu-item-btn" data-scroll-to="about" style="transition-delay: 215ms;">
-            <span class="menu-idx">04</span>
-            <span class="label">Studio</span>
-          </button>
-        </li>
-        <li>
-          <button class="menu-item-btn" data-scroll-to="careers" style="transition-delay: 260ms;">
-            <span class="menu-idx">05</span>
-            <span class="label">Careers</span>
-          </button>
-        </li>
-        <li>
-          <button class="menu-item-btn" data-open-modal style="transition-delay: 305ms;">
-            <span class="menu-idx">06</span>
-            <span class="label">Contact</span>
-          </button>
-        </li>
-      </ul>
-    </div>
+        const ASSET_BASE_URL = "https://api.getlayers.ai/storage/v1/object/public/public/assets/laocoon-59f84455c6";
+        const canvas = document.querySelector('#webgl');
+        let scene, camera, renderer;
+        let gltfModel;     // the statue
+        let modelPivot;    // pivot group for perfect center-rotation
+        let mixer;
+        const clock = new THREE.Clock();
+        let currentScroll = 0;   // smoothed accumulated scroll for lerping
+        let mouseX = 0, mouseY = 0, targetMouseX = 0, targetMouseY = 0;
+        let cursorX = window.innerWidth / 2, cursorY = window.innerHeight / 2;
+        let outerCursorX = window.innerWidth / 2, outerCursorY = window.innerHeight / 2;
+        let bgMaterial;
+        const shaderUniforms = {
+            uTime: { value: 0 },
+            uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            uMouse: { value: new THREE.Vector2(0, 0) },
+            uScroll: { value: 0 }
+        };
+        let sparkParticles;
+        const sparkCount = 450;
+        const sparkData = [];
+        const sizes = { width: window.innerWidth, height: window.innerHeight };
 
-    <div class="shell nav-menu-bottom">
-      <div>Local time — <span class="live-time">9:41am</span></div>
-      <button style="color:rgba(255,255,255,.7);" data-open-modal>Start a project →</button>
-    </div>
-  </div>
-
-  <!-- Request Modal Overlay -->
-  <div class="request-modal-overlay" role="dialog" aria-modal="true" aria-label="Start a project">
-    <div class="request-modal-panel">
-      <button class="modal-close-icon close-modal-btn" aria-label="Close modal">
-        <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4L4 20"/></svg>
-      </button>
-
-      <!-- Form View -->
-      <div class="modal-form-state">
-        <div style="margin-bottom:1.5rem;">
-          <div class="eyebrow tone-dark" style="margin-bottom:0.375rem;">
-            <span class="eyebrow-dot" style="background:#b15f2c;"></span>
-            <span>Start a project</span>
-          </div>
-          <h2 style="font-size:1.5rem; font-weight:600; letter-spacing:-0.01em;">Tell us what you're building.</h2>
-        </div>
-
-        <form class="request-form" style="display:flex; flex-direction:column; gap:1rem;">
-          <div class="modal-field">
-            <label class="modal-label" for="req-name">Name</label>
-            <input class="modal-input" id="req-name" type="text" placeholder="Your name" required />
-          </div>
-
-          <div class="modal-field">
-            <label class="modal-label" for="req-email">Email</label>
-            <input class="modal-input" id="req-email" type="email" placeholder="you@company.com" required />
-          </div>
-
-          <div class="modal-field">
-            <label class="modal-label" for="req-project">Project</label>
-            <textarea class="modal-textarea" id="req-project" rows="4" placeholder="A few words about your project, timeline, and budget." required></textarea>
-          </div>
-
-          <div style="margin-top:0.5rem; display:flex; align-items:center; justify-content:space-between; gap:1rem;">
-            <span style="font-size:0.75rem; color:rgba(17,17,17,.45);">We reply within one business day.</span>
-            <button type="submit" class="pill-btn dark with-arrow">
-              <span class="btn-label">Send request</span>
-              <span class="pill-btn-badge">
-                <svg class="pill-btn-icon arrow-up-right" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Success View -->
-      <div class="modal-success-state" style="display:none; flex-direction:column; align-items:center; text-align:center; padding-block:2rem; gap:1rem;">
-        <div style="width:3.5rem; height:3.5rem; display:grid; place-items:center; border-radius:9999px; background:#0a0a0a; color:#cf8047; font-size:1.5rem;">
-          <svg viewBox="0 0 48 48" width="1em" height="1em"><path fill="currentColor" d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/></svg>
-        </div>
-        <h2 style="font-size:1.5rem; font-weight:600;">Request received</h2>
-        <p style="max-width:32ch; font-size:0.875rem; color:rgba(17,17,17,.6);">Thanks for reaching out — we'll get back to you within one business day.</p>
-        <button class="pill-btn dark no-arrow close-success-btn">
-          <span>Close</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Scripts -->
-  <script type="importmap">
-  { "imports": { "lenis": "https://unpkg.com/lenis@1.3.23/dist/lenis.mjs" } }
-  </script>
-
-  <script type="module">
-    import Lenis from 'lenis';
-
-    window.scrollTo(0, 0);
-    const lenis = new Lenis({ smoothWheel: true });
-    function raf(t) { lenis.raf(t); requestAnimationFrame(raf); }
-    requestAnimationFrame(raf);
-
-    // Adaptive Grid
-    function applyAdaptiveGrid() {
-      const FONT_BASE = 16, baseWidth = 1920, coef = 0.6666;
-      const w = window.innerWidth;
-      const widthReduction = ((baseWidth - w) / baseWidth) * 100;
-      const size = FONT_BASE - (FONT_BASE * (widthReduction * coef)) / 100;
-      if (size > FONT_BASE) document.documentElement.style.fontSize = size + 'px';
-      else document.documentElement.style.removeProperty('font-size');
-    }
-    applyAdaptiveGrid();
-    window.addEventListener('resize', applyAdaptiveGrid);
-
-    // Scroll Control
-    let scrollEnabled = true;
-    function stopScroll() {
-      scrollEnabled = false;
-      lenis.stop();
-      document.documentElement.style.position = 'relative';
-      document.documentElement.style.overflow = 'hidden';
-      document.documentElement.style.height = '100%';
-    }
-    function startScroll() {
-      scrollEnabled = true;
-      lenis.start();
-      document.documentElement.style.removeProperty('position');
-      document.documentElement.style.removeProperty('overflow');
-      document.documentElement.style.removeProperty('height');
-    }
-
-    function scrollToId(id) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      lenis.stop();
-      setTimeout(() => {
-        const targetTop = el.getBoundingClientRect().top + window.pageYOffset;
-        window.scrollTo({ top: targetTop, behavior: 'smooth' });
-      }, 50);
-      setTimeout(() => {
-        lenis.start();
-      }, 150);
-    }
-
-    // Live Clock
-    function updateClock() {
-      const now = new Date();
-      let hours = now.getHours();
-      const minutes = now.getMinutes();
-      const ampm = hours >= 12 ? 'pm' : 'am';
-      hours = hours % 12 || 12;
-      const timeStr = `${hours}:${minutes.toString().padStart(2, '0')}${ampm}`;
-      
-      const monthNames = ['March', 'March', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const dateStr = `${now.getDate()} ${monthNames[now.getMonth()] || 'March'}, ${now.getFullYear()}`;
-
-      document.querySelectorAll('.live-time').forEach(el => el.textContent = timeStr);
-      document.querySelectorAll('.live-date').forEach(el => el.textContent = dateStr);
-    }
-    updateClock();
-    setInterval(updateClock, 1000);
-
-    // Liquid Reveal Canvas Effect
-    function initLiquidReveal() {
-      const container = document.querySelector('.liquid-bg');
-      if (!container) return;
-      const canvas = container.querySelector('canvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      
-      const afterSrc = 'https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/before.jpg';
-      
-      const afterImg = new Image();
-      afterImg.crossOrigin = 'anonymous';
-      afterImg.src = afterSrc;
-      
-      let rect = container.getBoundingClientRect();
-      let dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const brushRadius = 143;
-      const decay = 0.016;
-      
-      let coverCanvas = document.createElement('canvas');
-      let coverCtx = coverCanvas.getContext('2d');
-      let brushCanvas = document.createElement('canvas');
-      let brushCtx = brushCanvas.getContext('2d');
-      
-      let points = [];
-      let lastPoint = null;
-      let idle = 0;
-      let isDrawing = false;
-      
-      function resize() {
-        rect = container.getBoundingClientRect();
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        
-        coverCanvas.width = canvas.width;
-        coverCanvas.height = canvas.height;
-        
-        if (afterImg.complete && afterImg.naturalWidth > 0) {
-          drawCover();
+        function createSparkTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16; canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.25, 'rgba(255, 255, 255, 0.85)');
+            gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.3)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 16, 16);
+            return new THREE.CanvasTexture(canvas);
         }
-      }
-      
-      function drawCover() {
-        const cw = coverCanvas.width;
-        const ch = coverCanvas.height;
-        const iw = afterImg.naturalWidth;
-        const ih = afterImg.naturalHeight;
-        const scale = Math.max(cw / iw, ch / ih);
-        const sw = iw * scale;
-        const sh = ih * scale;
-        const sx = (cw - sw) / 2;
-        const sy = (ch - sh) / 2;
-        coverCtx.clearRect(0, 0, cw, ch);
-        coverCtx.drawImage(afterImg, sx, sy, sw, sh);
-      }
-      
-      afterImg.onload = () => {
-        drawCover();
-      };
-      
-      window.addEventListener('resize', resize);
-      resize();
-      
-      const radius = brushRadius * dpr;
-      const diam = Math.ceil(radius * 2);
-      brushCanvas.width = diam;
-      brushCanvas.height = diam;
-      
-      window.addEventListener('pointermove', (e) => {
-        const cx = (e.clientX - rect.left) * dpr;
-        const cy = (e.clientY - rect.top) * dpr;
-        
-        if (cx < -radius || cx > canvas.width + radius || cy < -radius || cy > canvas.height + radius) {
-          lastPoint = null;
-          isDrawing = false;
-          return;
-        }
-        
-        isDrawing = true;
-        if (lastPoint) {
-          const dx = cx - lastPoint.x;
-          const dy = cy - lastPoint.y;
-          const dist = Math.hypot(dx, dy);
-          const step = Math.max(radius * 0.3, 1);
-          const n = Math.min(Math.ceil(dist / step), 60);
-          for (let i = 1; i <= n; i++) {
-            points.push({
-              x: lastPoint.x + (dx * i) / n,
-              y: lastPoint.y + (dy * i) / n
+
+        function createSparks() {
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(sparkCount * 3);
+            const colors = new Float32Array(sparkCount * 3);
+            for (let i = 0; i < sparkCount; i++) {
+                const x = (Math.random() - 0.5) * 6.5;
+                const y = (Math.random() - 0.5) * 5.0 - 0.5;
+                const z = (Math.random() - 0.5) * 6.5;
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+                if (Math.random() < 0.6) {
+                    // saturated fiery orange
+                    colors[i * 3] = 1.0;
+                    colors[i * 3 + 1] = 0.4 + Math.random() * 0.15;
+                    colors[i * 3 + 2] = 0.05 + Math.random() * 0.1;
+                } else {
+                    // cosmic icy light-blue (matches rim light)
+                    colors[i * 3] = 0.55 + Math.random() * 0.15;
+                    colors[i * 3 + 1] = 0.82 + Math.random() * 0.12;
+                    colors[i * 3 + 2] = 1.0;
+                }
+                sparkData.push({
+                    speedX: (Math.random() - 0.5) * 0.4,
+                    speedY: 0.15 + Math.random() * 0.3,
+                    speedZ: (Math.random() - 0.5) * 0.4,
+                    swaySpeed: 0.5 + Math.random() * 1.5,
+                    swayRadius: 0.05 + Math.random() * 0.15,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({
+                size: 0.025,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                map: createSparkTexture()
             });
-          }
-        } else {
-          points.push({ x: cx, y: cy });
+            sparkParticles = new THREE.Points(geometry, material);
+            scene.add(sparkParticles);
         }
-        lastPoint = { x: cx, y: cy };
-      });
 
-      window.addEventListener('pointerleave', () => {
-        lastPoint = null;
-        isDrawing = false;
-      });
-      
-      function stamp(x, y) {
-        const c = radius;
-        brushCtx.clearRect(0, 0, diam, diam);
-        brushCtx.globalCompositeOperation = 'source-over';
-        
-        const grad = brushCtx.createRadialGradient(c, c, 0, c, c, c);
-        grad.addColorStop(0, 'rgba(255,255,255,1)');
-        grad.addColorStop(0.55, 'rgba(255,255,255,0.82)');
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        
-        brushCtx.fillStyle = grad;
-        brushCtx.fillRect(0, 0, diam, diam);
-        
-        brushCtx.globalCompositeOperation = 'source-in';
-        brushCtx.drawImage(coverCanvas, x - c, y - c, diam, diam, 0, 0, diam, diam);
-        
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(brushCanvas, x - c, y - c);
-      }
-      
-      function tick() {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        
-        if (points.length > 0) {
-          idle = 0;
-        } else {
-          idle++;
+        function loadModel() {
+            const loader = new GLTFLoader();
+            loader.load(
+                ASSET_BASE_URL + '/bronze_horse.glb',
+                (gltf) => {
+                    gltfModel = gltf.scene;
+                    modelPivot = new THREE.Group();
+                    scene.add(modelPivot);
+                    modelPivot.add(gltfModel);
+                    gltfModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            if (child.material) {
+                                child.material.roughness = 0.42;   // semi-matte, noble highlights
+                                child.material.metalness = 0.92;   // high satin-bronze metallic sheen
+                                child.material.flatShading = false;
+                                if (child.material.map) {
+                                    child.material.map.anisotropy = 16;
+                                }
+                            }
+                        }
+                    });
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        mixer = new THREE.AnimationMixer(gltfModel);
+                        gltf.animations.forEach((clip) => { mixer.clipAction(clip).play(); });
+                    }
+                    // 1. scale so max dimension = 3.5
+                    const boxInitial = new THREE.Box3().setFromObject(gltfModel);
+                    const sizeInitial = boxInitial.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(sizeInitial.x, sizeInitial.y, sizeInitial.z);
+                    const targetScale = 3.5 / (maxDim > 0.0001 ? maxDim : 1);
+                    gltfModel.scale.setScalar(targetScale);
+                    // 2. update world matrix so the box accounts for scale
+                    gltfModel.updateMatrixWorld(true);
+                    // 3. exact geometric center of the scaled model
+                    const boxScaled = new THREE.Box3().setFromObject(gltfModel);
+                    const centerScaled = boxScaled.getCenter(new THREE.Vector3());
+                    // 4. recenter model so its center sits at the pivot origin
+                    gltfModel.position.sub(centerScaled);
+                    // 5. lower the pivot for a grounded stance
+                    modelPivot.position.y = -0.4;
+                },
+                undefined,
+                (error) => { console.error('Error loading bronze horse model:', error); }
+            );
         }
-        
-        if (idle <= 120) {
-          const fade = isDrawing ? decay : Math.min(decay + idle * 0.004, 0.5);
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.fillStyle = `rgba(0,0,0,${fade})`;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          if (points.length > 0) {
-            for (let i = 0; i < points.length; i++) {
-              stamp(points[i].x, points[i].y);
-            }
-            points = [];
-          }
-        } else if (idle === 121) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-        
-        requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-    }
 
-    // Loader Sequence
-    let isReady = false;
-    stopScroll();
-
-    function runLoader() {
-      const fillEl = document.querySelector('.loader-fill');
-      const countEl = document.querySelector('.loader-count');
-      const loaderEl = document.querySelector('.loader-overlay');
-      
-      const FILL_MS = 1300;
-      const startTime = performance.now();
-      
-      function easeInOutCubic(t) {
-        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      }
-      
-      function update(now) {
-        const elapsed = now - startTime;
-        const progress = Math.min(elapsed / FILL_MS, 1);
-        const eased = easeInOutCubic(progress);
-        const count = Math.round(eased * 100);
-        
-        if (fillEl) fillEl.style.width = count + '%';
-        if (countEl) countEl.textContent = count.toString().padStart(3, '0');
-        
-        if (progress < 1) {
-          requestAnimationFrame(update);
-        } else {
-          setTimeout(() => {
-            if (loaderEl) loaderEl.classList.add('exit');
-            setTimeout(() => {
-              isReady = true;
-              startScroll();
-              if (loaderEl) loaderEl.remove();
-              triggerHeroReveals();
-            }, 700);
-          }, 100);
-        }
-      }
-      requestAnimationFrame(update);
-    }
-
-    // Hero Reveals & Scroll Observer
-    function triggerHeroReveals() {
-      if (!isReady) return;
-      setTimeout(() => document.querySelector('.site-header')?.classList.add('visible'), 150);
-      setTimeout(() => document.querySelector('.hero-eyebrow')?.classList.add('visible'), 200);
-      setTimeout(() => {
-        document.querySelectorAll('.hero-h1 .line-inner').forEach((el, i) => {
-          setTimeout(() => el.classList.add('visible'), i * 120);
-        });
-      }, 250);
-      setTimeout(() => document.querySelector('.hero-watermark')?.classList.add('visible'), 300);
-      setTimeout(() => document.querySelector('.hero-card')?.classList.add('visible'), 400);
-      setTimeout(() => document.querySelector('.partners-block')?.classList.add('visible'), 550);
-      setTimeout(() => document.querySelector('.hero-rating')?.classList.add('visible'), 650);
-      setTimeout(() => document.querySelector('.hero-ctas')?.classList.add('visible'), 750);
-      setTimeout(() => document.querySelector('.status-bar')?.classList.add('visible'), 900);
-    }
-
-    function prepareWordReveals() {
-      const wordEls = document.querySelectorAll('[data-word-reveal]');
-      wordEls.forEach(el => {
-        const text = el.textContent.trim();
-        const words = text.split(/\s+/);
-        el.innerHTML = words.map((w, idx) => {
-          const isMuted = idx >= 7; // "We partner with ambitious teams to ship" (first 7 words)
-          const styleAttr = isMuted ? 'style="color:#8d8d8d;"' : '';
-          return `<span class="word-wrap"><span class="word-inner" ${styleAttr}>${w}&nbsp;</span></span>`;
-        }).join('');
-      });
-    }
-
-    function initScrollReveals() {
-      prepareWordReveals();
-
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            if (entry.target.dataset.stagger) {
-              const items = entry.target.querySelectorAll('.stagger-item');
-              const delayUnit = parseInt(entry.target.dataset.staggerDelay || '80', 10);
-              items.forEach((item, idx) => {
-                setTimeout(() => item.classList.add('visible'), idx * delayUnit);
-              });
-            }
-            if (entry.target.dataset.wordReveal) {
-              const words = entry.target.querySelectorAll('.word-inner');
-              words.forEach((w, idx) => {
-                setTimeout(() => w.classList.add('visible'), idx * 35);
-              });
-            }
-            observer.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.15 });
-
-      document.querySelectorAll('.reveal-on-scroll, [data-word-reveal]').forEach(el => observer.observe(el));
-    }
-
-    // Hero Carousel
-    function initHeroCarousel() {
-      const items = [
-        { caption: "Conversion design", title: "Crafted to convert." },
-        { caption: "Engineering", title: "Built to scale." },
-        { caption: "Brand systems", title: "Designed to last." }
-      ];
-      let currentIndex = 0;
-      
-      const cardInner = document.querySelector('.hero-card-inner');
-      const captionEl = document.querySelector('.carousel-caption');
-      const titleEl = document.querySelector('.carousel-title');
-      const dashes = document.querySelectorAll('.carousel-dash');
-      
-      function updateCard(newIdx, dir = 1) {
-        currentIndex = (newIdx + items.length) % items.length;
-        
-        if (captionEl && titleEl) {
-          captionEl.style.opacity = '0';
-          titleEl.style.opacity = '0';
-          captionEl.style.transform = `translateY(${dir * -14}px)`;
-          titleEl.style.transform = `translateY(${dir * -14}px)`;
-          
-          setTimeout(() => {
-            captionEl.textContent = items[currentIndex].caption;
-            titleEl.textContent = items[currentIndex].title;
-            
-            captionEl.style.transform = `translateY(${dir * 14}px)`;
-            titleEl.style.transform = `translateY(${dir * 14}px)`;
-            
-            requestAnimationFrame(() => {
-              captionEl.style.opacity = '1';
-              titleEl.style.opacity = '1';
-              captionEl.style.transform = 'translateY(0)';
-              titleEl.style.transform = 'translateY(0)';
+        function createBackgroundShader() {
+            const vertexShader = `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+            const fragmentShader = `
+                varying vec2 vUv;
+                uniform float uTime;
+                uniform vec2 uResolution;
+                uniform vec2 uMouse;
+                uniform float uScroll;
+                // 3D Noise function for organic warping (high performance hash-based noise)
+                float hash(float n) { return fract(sin(n) * 43758.5453123); }
+                float noise(in vec3 x) {
+                    vec3 p = floor(x);
+                    vec3 f = fract(x);
+                    f = f*f*(3.0-2.0*f);
+                    float n = p.x + p.y*57.0 + 113.0*p.z;
+                    return mix(mix(mix(hash(n+  0.0), hash(n+  1.0), f.x),
+                                   mix(hash(n+ 57.0), hash(n+ 58.0), f.x), f.y),
+                               mix(mix(hash(n+113.0), hash(n+114.0), f.x),
+                                   mix(hash(n+170.0), hash(n+171.0), f.x), f.y), f.z);
+                }
+                void main() {
+                    // Normalize UV coordinates
+                    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution.xy) / uResolution.y;
+                    float aspect = uResolution.x / uResolution.y;
+                    
+                    float time = uTime * 0.08; // Extremely slow, calm breathing speed
+                    float scroll = uScroll;
+                    
+                    // --- 1. Constant Wave Parameters (Perfect Scroll Stability) ---
+                    // Keep frequencies and angles constant to prevent compressing/speeding waves on scroll
+                    float angle1 = 0.6;
+                    float angle2 = -0.7;
+                    float angle3 = 1.2;
+                    
+                    float freq1 = 2.4;  // Higher frequency = significantly more lines on screen
+                    float freq2 = 3.2;
+                    float freq3 = 4.0;
+                    
+                    // --- 2. Coordinates Distortion (Smooth Rounded Arcs & Scroll Deformation) ---
+                    vec2 warpedUv = uv;
+                    
+                    // Scroll directly drives the deformation of the wave shapes!
+                    // As you scroll, the phase of the distortion shifts, smoothly bending the rounded lines.
+                    float scrollDeform = scroll * 5.0; // 5 radians of smooth sweeping deformation
+                    
+                    // Large scale, perfectly smooth sine-wave distortions for clean, even, rounded arcs
+                    warpedUv.x += sin(uv.y * 2.5 + time * 0.2 + scrollDeform) * 0.35;
+                    warpedUv.y += cos(uv.x * 2.5 - time * 0.15 - scrollDeform * 0.8) * 0.35;
+                    
+                    // Secondary clean curve to create elegant, topographical intersections
+                    warpedUv.x += sin(uv.y * 1.2 - time * 0.1 - scrollDeform * 1.5) * 0.25;
+                    warpedUv.y += cos(uv.x * 1.2 + time * 0.18 + scrollDeform * 1.2) * 0.25;
+                    
+                    // Soft global sliding shift based on scroll parallax and mouse movement
+                    // Keep drift multipliers tiny so scroll motion remains extremely gentle
+                    vec2 scrollDrift = vec2(scroll * 0.04, -scroll * 0.02);
+                    vec2 mouseShift = vec2(uMouse.x * aspect * 0.05, uMouse.y * 0.05);
+                    warpedUv += scrollDrift + mouseShift;
+                    
+                    // --- 3. Layered Wave Computations ---
+                    // Wave directions
+                    vec2 dir1 = vec2(cos(angle1), sin(angle1));
+                    vec2 dir2 = vec2(cos(angle2), sin(angle2));
+                    vec2 dir3 = vec2(cos(angle3), sin(angle3));
+                    
+                    // Layered sine wave calculations with self-warping
+                    float w1 = sin(dot(warpedUv, dir1) * freq1 + time * 1.0);
+                    float w2 = cos(dot(warpedUv, dir2) * freq2 - time * 1.4 + w1 * 0.4);
+                    float w3 = sin(dot(warpedUv, dir3) * freq3 + time * 1.8 + w2 * 0.5);
+                    
+                    // Combine layers into a seamless wave scalar field in [-1.0, 1.0]
+                    float waveField = w1 * 0.50 + w2 * 0.35 + w3 * 0.15;
+                    
+                    // --- 4. Crisp Metallic Lustre ---
+                    // Wide satin sheen (gives defined body to the folds without haze)
+                    float wideSheen = pow(max(0.0, 1.0 - abs(waveField - 0.1)), 2.5);
+                    
+                    // Crisp, thicker specular reflection (defined metallic shine, ensuring thickness with more lines)
+                    float crispSpecular = pow(max(0.0, 1.0 - abs(waveField - 0.15)), 8.0);
+                    
+                    // Highlight blend: crisp, defined glowing folds
+                    float crest = wideSheen * 0.5 + crispSpecular * 0.9;
+                    
+                    // --- 5. Scroll-Driven Color Palettes: Pure Bronze to Pure Blue ---
+                    // Top Palette (Scroll = 0.0): Rich Molten Bronze
+                    vec3 c0_shadow = vec3(0.0010, 0.0006, 0.0004); // Deepest bronze shadow
+                    vec3 c0_wave1  = vec3(0.085, 0.040, 0.015);    // Rich copper-bronze
+                    vec3 c0_wave2  = vec3(0.050, 0.022, 0.008);    // Deep bronze body
+                    vec3 c0_crest  = vec3(0.45, 0.30, 0.18);       // Polished bronze/gold sheen
+                    
+                    // Bottom Palette (Scroll = 1.0): Deep Sapphire Blue
+                    vec3 c1_shadow = vec3(0.0004, 0.0006, 0.0012); // Deepest sapphire shadow
+                    vec3 c1_wave1  = vec3(0.015, 0.035, 0.065);    // Rich cobalt/teal blue
+                    vec3 c1_wave2  = vec3(0.008, 0.020, 0.045);    // Deep sapphire body
+                    vec3 c1_crest  = vec3(0.18, 0.35, 0.55);       // Polished blue-steel sheen
+                    
+                    // Interpolate colors smoothly based on scroll progress
+                    float t = smoothstep(0.0, 1.0, scroll);
+                    vec3 colShadow = mix(c0_shadow, c1_shadow, t);
+                    vec3 colWave1  = mix(c0_wave1, c1_wave1, t);
+                    vec3 colWave2  = mix(c0_wave2, c1_wave2, t);
+                    vec3 colCrest  = mix(c0_crest, c1_crest, t);
+                    
+                    // --- 6. Final Composition ---
+                    // Blend wave details and wave bodies with deep shadow background
+                    vec3 color = colShadow;
+                    color = mix(color, colWave2, smoothstep(-0.6, 0.2, waveField));
+                    color = mix(color, colWave1, smoothstep(0.0, 0.8, waveField));
+                    
+                    // Add the soft satinated crest highlights with rich metallic multiplier
+                    color += colCrest * crest * 1.4;
+                    
+                    // Apply a gentle vignette to match cinematic design
+                    float vignette = 1.0 - dot(uv, uv) * 0.12;
+                    color *= vignette;
+                    
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `;
+            bgMaterial = new THREE.ShaderMaterial({
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                uniforms: shaderUniforms,
+                depthWrite: false,
+                depthTest: false
             });
-          }, 150);
+            const bgGeometry = new THREE.PlaneGeometry(30, 30);
+            const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+            bgMesh.position.set(0.0, 0.0, -8.0);   // local camera space, far behind
+            bgMesh.renderOrder = -10;
+            camera.add(bgMesh);                    // attach to camera so it always fills view
         }
-        
-        dashes.forEach((d, idx) => {
-          if (idx === currentIndex) {
-            d.classList.add('active');
-            d.classList.remove('inactive');
-          } else {
-            d.classList.remove('active');
-            d.classList.add('inactive');
-          }
-        });
-      }
 
-      if (cardInner) {
-        cardInner.addEventListener('click', (e) => {
-          if (e.target.closest('.carousel-prev')) {
-            e.stopPropagation();
-            updateCard(currentIndex - 1, -1);
-          } else if (e.target.closest('.carousel-next')) {
-            e.stopPropagation();
-            updateCard(currentIndex + 1, 1);
-          } else {
-            updateCard(currentIndex + 1, 1);
-          }
-        });
-      }
-    }
-
-    // Stats Counter
-    function initStatsCounter() {
-      const statsPanel = document.querySelector('.stats-panel');
-      if (!statsPanel) return;
-      
-      let animated = false;
-      function checkStatsScroll() {
-        if (animated) return;
-        const rect = statsPanel.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
-        
-        const totalDist = windowHeight / 2 + rect.height / 2;
-        const currentDist = windowHeight - rect.top;
-        let progress = currentDist / totalDist;
-        progress = Math.min(Math.max(progress, 0), 1);
-        
-        document.querySelectorAll('.stat-num-value').forEach(el => {
-          const target = parseInt(el.dataset.target, 10);
-          el.textContent = Math.round(progress * target);
-        });
-        
-        if (progress >= 1) {
-          animated = true;
+        function onWindowResize() {
+            sizes.width = window.innerWidth;
+            sizes.height = window.innerHeight;
+            camera.aspect = sizes.width / sizes.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(sizes.width, sizes.height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            if (shaderUniforms) shaderUniforms.uResolution.value.set(sizes.width, sizes.height);
         }
-      }
-      
-      window.addEventListener('scroll', checkStatsScroll);
-      checkStatsScroll();
-    }
 
-    // Navigation Menu & Request Modal
-    function initModalsAndNav() {
-      const menuOverlay = document.querySelector('.nav-menu-overlay');
-      const menuBtn = document.querySelector('.menu-btn');
-      const closeMenuBtn = document.querySelector('.close-nav-menu');
-      const modalOverlay = document.querySelector('.request-modal-overlay');
-      const modalPanel = document.querySelector('.request-modal-panel');
-      const closeModalBtn = document.querySelector('.close-modal-btn');
-      const modalForm = document.querySelector('.request-form');
-      const formState = document.querySelector('.modal-form-state');
-      const successState = document.querySelector('.modal-success-state');
-      const closeSuccessBtn = document.querySelector('.close-success-btn');
+        window.addEventListener('mousemove', (event) => {
+            cursorX = event.clientX;
+            cursorY = event.clientY;
+            const cursorInner = document.querySelector('.cursor-inner');
+            if (cursorInner) { cursorInner.style.left = `${cursorX}px`; cursorInner.style.top = `${cursorY}px`; }
+            targetMouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            targetMouseY = (event.clientY / window.innerHeight) * 2 - 1;
+        });
+        window.addEventListener('resize', onWindowResize);
 
-      function openNavMenu() {
-        stopScroll();
-        menuOverlay.classList.add('open');
-      }
-
-      function closeNavMenu() {
-        menuOverlay.classList.remove('open');
-        startScroll();
-      }
-
-      function openModal() {
-        if (menuOverlay.classList.contains('open')) {
-          closeNavMenu();
+        function splitTitlesIntoChars() {
+            const titles = document.querySelectorAll('.slide-title');
+            titles.forEach(title => {
+                const text = title.innerHTML;
+                let newHTML = '';
+                let delayCounter = 0;
+                const parts = text.split(/(<br\s*\/?>)/i);
+                parts.forEach(part => {
+                    if (part.toLowerCase().startsWith('<br')) {
+                        newHTML += part;
+                    } else {
+                        for (let i = 0; i < part.length; i++) {
+                            if (part[i] === ' ') {
+                                newHTML += ' ';
+                            } else {
+                                newHTML += `<span class="char" style="transition-delay: ${delayCounter * 0.035}s">${part[i]}</span>`;
+                                delayCounter++;
+                            }
+                        }
+                    }
+                });
+                title.innerHTML = newHTML;
+            });
         }
-        stopScroll();
-        modalOverlay.classList.add('open');
-      }
 
-      function closeModal() {
-        modalOverlay.classList.remove('open');
-        startScroll();
-        setTimeout(() => {
-          if (modalForm) modalForm.reset();
-          if (formState && successState) {
-            formState.style.display = 'block';
-            successState.style.display = 'none';
-            const submitBtn = modalForm.querySelector('button[type="submit"]');
-            if (submitBtn) {
-              const labelSpan = submitBtn.querySelector('.btn-label');
-              if (labelSpan) labelSpan.textContent = 'Send request';
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+            if (mixer) mixer.update(deltaTime);
+            // 1. target scroll [0..1], cross-browser
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            const scrollTop = window.scrollY !== undefined ? window.scrollY
+                : (window.pageYOffset !== undefined ? window.pageYOffset : document.documentElement.scrollTop);
+            const targetScroll = maxScroll > 0 ? scrollTop / maxScroll : 0;
+            // smooth physical lerp (inertia)
+            currentScroll += (targetScroll - currentScroll) * 0.025;
+            // smooth model rotation lerp
+            mouseX += (targetMouseX - mouseX) * 0.05;
+            mouseY += (targetMouseY - mouseY) * 0.05;
+            // outer cursor ring lerps toward inner
+            outerCursorX += (cursorX - outerCursorX) * 0.2;
+            outerCursorY += (cursorY - outerCursorY) * 0.2;
+            const cursorOuter = document.querySelector('.cursor-outer');
+            if (cursorOuter) { cursorOuter.style.left = `${outerCursorX}px`; cursorOuter.style.top = `${outerCursorY}px`; }
+            // gentle interactive model tilt from mouse
+            if (modelPivot) {
+                modelPivot.rotation.y = mouseX * 0.25;
+                modelPivot.rotation.x = mouseY * 0.15;
             }
-          }
-        }, 300);
-      }
-
-      if (menuBtn) menuBtn.addEventListener('click', openNavMenu);
-      if (closeMenuBtn) closeMenuBtn.addEventListener('click', closeNavMenu);
-
-      document.querySelectorAll('[data-open-modal]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          openModal();
-        });
-      });
-
-      if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-      if (closeSuccessBtn) closeSuccessBtn.addEventListener('click', closeModal);
-
-      if (modalOverlay) {
-        modalOverlay.addEventListener('click', (e) => {
-          if (modalPanel && !modalPanel.contains(e.target)) {
-            closeModal();
-          }
-        });
-      }
-
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          if (menuOverlay && menuOverlay.classList.contains('open')) closeNavMenu();
-          if (modalOverlay && modalOverlay.classList.contains('open')) closeModal();
-        }
-      });
-
-      if (modalForm) {
-        modalForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const submitBtn = modalForm.querySelector('button[type="submit"]');
-          if (submitBtn) {
-            const labelSpan = submitBtn.querySelector('.btn-label');
-            if (labelSpan) labelSpan.textContent = 'Sending…';
-          }
-          setTimeout(() => {
-            if (formState && successState) {
-              formState.style.display = 'none';
-              successState.style.display = 'flex';
+            // 2. sparks physics, accelerated/turbulent on fast scroll
+            if (sparkParticles) {
+                const positions = sparkParticles.geometry.attributes.position.array;
+                const time = clock.getElapsedTime();
+                const scrollVelocity = Math.abs(targetScroll - currentScroll);
+                const speedMultiplier = 1.0 + scrollVelocity * 9.0;
+                const turbulence = scrollVelocity * 0.8;
+                for (let i = 0; i < sparkCount; i++) {
+                    const idx = i * 3;
+                    const data = sparkData[i];
+                    positions[idx]     += data.speedX * deltaTime * speedMultiplier;
+                    positions[idx + 1] += data.speedY * deltaTime * speedMultiplier;
+                    positions[idx + 2] += data.speedZ * deltaTime * speedMultiplier;
+                    const currentSway = data.swayRadius * (1.0 + turbulence * 4.0);
+                    positions[idx]     += Math.sin(time * data.swaySpeed + data.phase) * currentSway * deltaTime;
+                    positions[idx + 2] += Math.cos(time * data.swaySpeed + data.phase) * currentSway * deltaTime;
+                    // recycle when out of bounds
+                    if (positions[idx + 1] > 3.0 || Math.abs(positions[idx]) > 3.5 || Math.abs(positions[idx + 2]) > 3.5) {
+                        positions[idx + 1] = -2.5;
+                        positions[idx]     = (Math.random() - 0.5) * 3.0;
+                        positions[idx + 2] = (Math.random() - 0.5) * 3.0;
+                    }
+                }
+                sparkParticles.geometry.attributes.position.needsUpdate = true;
             }
-          }, 600);
-        });
-      }
+            // 3. camera orbits the model 360° driven by scroll
+            const phi = currentScroll * Math.PI * 2.0;
+            const y = 0.35 + Math.sin(currentScroll * Math.PI) * 0.8;
+            const radius = 4.2 - Math.sin(currentScroll * Math.PI) * 0.6;
+            const x = radius * Math.sin(phi);
+            const z = radius * Math.cos(phi);
+            // shift the framing left on the first screen to clear room for the text columns
+            let transitionProgress = Math.min(1.0, currentScroll / 0.28);
+            let easeFactor = (Math.cos(transitionProgress * Math.PI) + 1.0) * 0.5; // 1.0 → 0.0
+            const lookAtXOffset = -0.9 * easeFactor;
+            const targetLookAt = new THREE.Vector3(lookAtXOffset, -0.15, 0);
+            const targetPos = new THREE.Vector3(x, y, z);
+            camera.position.lerp(targetPos, 0.025);
+            camera.lookAt(targetLookAt);
+            // background shader uniforms
+            if (shaderUniforms) {
+                shaderUniforms.uTime.value = clock.getElapsedTime();
+                shaderUniforms.uMouse.value.set(mouseX, -mouseY);
+                shaderUniforms.uScroll.value = currentScroll;
+            }
+            updateSlides(currentScroll);
+            updateGridDots(currentScroll);
+            renderer.render(scene, camera);
+        }
 
-      // Smooth scroll triggers
-      document.querySelectorAll('[data-scroll-to]').forEach(link => {
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-          const targetId = link.getAttribute('data-scroll-to');
-          if (menuOverlay && menuOverlay.classList.contains('open')) {
-            closeNavMenu();
-          }
-          scrollToId(targetId);
-        });
-      });
-    }
+        function updateGridDots(scroll) {
+            const dots = document.querySelectorAll('.grid-dot');
+            dots.forEach((dot, i) => {
+                const startY = (i * 17) % 80 + 10;
+                let speed = 90 + (i * 55) % 180;
+                if (i % 2 === 0) speed = -speed;
+                let y = startY + scroll * speed;
+                y = ((y % 100) + 100) % 100;
+                dot.style.top = `${y}%`;
+            });
+        }
 
-    // Init All
-    document.addEventListener('DOMContentLoaded', () => {
-      runLoader();
-      initLiquidReveal();
-      initScrollReveals();
-      initHeroCarousel();
-      initStatsCounter();
-      initModalsAndNav();
-    });
-  </script>
+        function updateSlides(scroll) {
+            const slide1 = document.getElementById('slide-1');
+            const slide2 = document.getElementById('slide-2');
+            const slide3 = document.getElementById('slide-3');
+            const slide4 = document.getElementById('slide-4');
+            for (let i = 1; i <= 4; i++) {
+                const fill = document.getElementById(`dash-fill-${i}`);
+                if (fill) {
+                    const start = (i - 1) * 0.25;
+                    const end = i * 0.25;
+                    let progress = (scroll - start) / (end - start);
+                    progress = Math.max(0, Math.min(1, progress));
+                    fill.style.height = `${progress * 100}%`;
+                }
+            }
+            function isActive(val, start, end) { return val >= start && val <= end; }
+            if (slide1) slide1.classList.toggle('active', isActive(scroll, -0.10, 0.12));
+            if (slide2) {
+                const active2 = isActive(scroll, 0.28, 0.40);
+                slide2.classList.toggle('active', active2);
+                const slide2Img = document.getElementById('slide-2-img');
+                if (slide2Img) slide2Img.classList.toggle('active', active2);
+            }
+            if (slide3) slide3.classList.toggle('active', isActive(scroll, 0.56, 0.68));
+            if (slide4) slide4.classList.toggle('active', isActive(scroll, 0.84, 1.05));
+        }
+
+        function setupNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const targetScrolls = [0.0, 0.34, 0.62, 0.94];
+            navLinks.forEach((link, index) => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+                    const targetY = maxScroll * targetScrolls[index];
+                    window.scrollTo({ top: targetY, behavior: 'smooth' });
+                });
+            });
+        }
+
+        function init() {
+            splitTitlesIntoChars();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#000000');
+            scene.fog = new THREE.FogExp2('#000000', 0.01);
+
+            camera = new THREE.PerspectiveCamera(50, sizes.width / sizes.height, 0.1, 100);
+            camera.position.set(0, 0.2, 3.0);
+            scene.add(camera);
+
+            createBackgroundShader();
+
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                antialias: true,
+                alpha: false,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(sizes.width, sizes.height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 2.2;
+
+            const ambientLight = new THREE.AmbientLight('#ffffff', 0.1);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.SpotLight('#ffffff', 18.0);
+            keyLight.position.set(4, 6, 3);
+            keyLight.angle = Math.PI / 4;
+            keyLight.penumbra = 0.9;
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.camera.near = 1.0;
+            keyLight.shadow.camera.far = 15;
+            keyLight.shadow.bias = -0.001;
+            scene.add(keyLight);
+
+            const rimLight = new THREE.DirectionalLight('#e3f2ff', 10.0);
+            rimLight.position.set(-5, 3, -4);
+            scene.add(rimLight);
+
+            const fillLight = new THREE.DirectionalLight('#fff3e6', 0.8);
+            fillLight.position.set(-2, -4, 2);
+            scene.add(fillLight);
+
+            createSparks();
+            loadModel();
+            onWindowResize();
+            animate();
+            setupNavigation();
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
 </body>
 </html>
