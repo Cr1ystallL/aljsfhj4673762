@@ -745,13 +745,13 @@ function PromoRow({
           {p.code}
         </div>
         <div className="font-roobert text-[11px] text-whisper-gray">
-          {p.amount.toFixed(2)} {p.currency} · {p.redemptions} активаций
+          {p.currency === 'FREE_CASES' ? `${p.amount} вращений` : `${p.amount.toFixed(2)} ${p.currency}`} · {p.redemptions} активаций
           {p.maxRedemptions !== null && ` / ${p.maxRedemptions}`} ·{' '}
           {p.active ? 'активен' : 'выключен'}
         </div>
       </div>
       <span className="font-roobert text-[12px] text-frost-white/85 tabular-nums">
-        {p.paidOut.toFixed(0)} {p.currency}
+        {p.currency === 'FREE_CASES' ? `${p.paidOut} сп` : `${p.paidOut.toFixed(0)} ${p.currency}`}
       </span>
     </button>
   );
@@ -811,19 +811,28 @@ function PromoCreateModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const [rewardType, setRewardType] = useState<'money' | 'free_cases'>('money');
+  const [caseId, setCaseId] = useState('case_1');
   const [code, setCode] = useState('');
   const [amount, setAmount] = useState(10);
   const [maxRedemptions, setMaxRedemptions] = useState<number>(-1);
   const [expiresAt, setExpiresAt] = useState<string>('');
-  // Вейджер — множитель отыгрыша бонуса. 0 — без отыгрыша.
-  // Сохраняется в rules как {type:'wager', multiplier:N}, бэк-валидатор
-  // правил активации этот type безопасно игнорирует (видим в UI).
   const [wagerMultiplier, setWagerMultiplier] = useState(0);
   const [withRules, setWithRules] = useState(false);
   const [rules, setRules] = useState<RuleDraft[]>([]);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const CASE_OPTIONS = [
+    { id: 'case_1', name: 'Обычный', color: '#9e9e9e' },
+    { id: 'case_2', name: 'Необычный', color: '#4caf50' },
+    { id: 'case_3', name: 'Редкий', color: '#2196f3' },
+    { id: 'case_4', name: 'Эпический', color: '#9c27b0' },
+    { id: 'case_5', name: 'Мифический', color: '#e91e63' },
+    { id: 'case_6', name: 'Легендарный', color: '#ffb300' },
+    { id: 'case_7', name: 'Macvbet', color: '#f44336' },
+  ];
 
   const submit = async () => {
     if (reason.trim().length < 3) {
@@ -840,13 +849,14 @@ function PromoCreateModal({
       const baseRules = withRules
         ? rules.map(serializeRule).filter((r): r is object => !!r)
         : [];
-      // Добавляем wager как специальный пункт rules. Это отдельно
-      // от условий активации: вейджер — требование после активации, а не
-      // фильтр допуска.
-      const finalRules =
-        wagerMultiplier > 0
-          ? [...baseRules, { type: 'wager', multiplier: wagerMultiplier }]
-          : baseRules;
+      
+      let finalRules = baseRules;
+      if (rewardType === 'money' && wagerMultiplier > 0) {
+          finalRules = [...baseRules, { type: 'wager', multiplier: wagerMultiplier }];
+      } else if (rewardType === 'free_cases') {
+          finalRules = [...baseRules, { type: 'free_cases_reward', caseId, wager: wagerMultiplier }];
+      }
+      
       const res = await fetch('/api/_x/bonuses/promos', {
         method: 'POST',
         credentials: 'include',
@@ -854,11 +864,8 @@ function PromoCreateModal({
         body: JSON.stringify({
           code: code.trim().toUpperCase(),
           amount: Number(amount),
-          // Отрицательное значение = безлимитное число активаций (на стороне
-          // бэка пишется NULL).
+          currency: rewardType === 'free_cases' ? 'FREE_CASES' : 'PLN',
           maxRedemptions: maxRedemptions < 0 ? null : Number(maxRedemptions),
-          // По умолчанию каждый пользователь может активировать промо один раз.
-          // Если админу нужны множественные активации, увеличит через PATCH.
           perUserLimit: 1,
           expiresAt: expiresAt ? new Date(expiresAt).getTime() : null,
           rules: finalRules,
@@ -878,6 +885,37 @@ function PromoCreateModal({
 
   return (
     <Modal onClose={onClose} title="Новый промокод">
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <Field label="Тип награды" colSpan={2}>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setRewardType('money')}
+              className={cn(
+                'px-3 py-2 flex-1 rounded-pill border text-[12px] font-roobert transition-colors',
+                rewardType === 'money'
+                  ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                  : 'bg-white/[0.04] border-white/15 text-frost-white/80'
+              )}
+            >
+              Деньги (PLN)
+            </button>
+            <button
+              type="button"
+              onClick={() => setRewardType('free_cases')}
+              className={cn(
+                'px-3 py-2 flex-1 rounded-pill border text-[12px] font-roobert transition-colors',
+                rewardType === 'free_cases'
+                  ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                  : 'bg-white/[0.04] border-white/15 text-frost-white/80'
+              )}
+            >
+              Бесплатные кейсы
+            </button>
+          </div>
+        </Field>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <Field label="Код" colSpan={2}>
           <input
@@ -887,7 +925,36 @@ function PromoCreateModal({
             className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white tracking-[0.18em] focus:outline-none focus:border-white/30"
           />
         </Field>
-        <Field label="Сумма (zł)">
+        
+        {rewardType === 'free_cases' && (
+          <Field label="Выберите кейс" colSpan={2}>
+             <select
+                value={caseId}
+                onChange={(e) => setCaseId(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+             >
+                {CASE_OPTIONS.map((c) => (
+                   <option key={c.id} value={c.id} className="bg-midnight-canvas text-frost-white">
+                      {c.name}
+                   </option>
+                ))}
+             </select>
+             <div className="mt-2 flex items-center gap-3 px-2">
+                {CASE_OPTIONS.map(c => c.id === caseId && (
+                   <div key={c.id} className="flex items-center gap-3 bg-white/[0.02] border border-white/5 rounded-card p-2 w-full">
+                       <div className="relative w-12 h-12 flex-shrink-0">
+                           <div className="absolute inset-0 opacity-20 blur-md rounded-full" style={{ background: c.color }} />
+                           {/* eslint-disable-next-line @next/next/no-img-element */}
+                           <img src={`/images/cases/${c.id}.png`} alt={c.name} className="absolute inset-0 w-full h-full object-contain" />
+                       </div>
+                       <span className="font-roobert text-[13px] text-frost-white">Кейс: {c.name}</span>
+                   </div>
+                ))}
+             </div>
+          </Field>
+        )}
+
+        <Field label={rewardType === 'money' ? 'Сумма (zł)' : 'Количество вращений'}>
           <NumInput value={amount} step={1} onChange={setAmount} />
         </Field>
         <Field label="Кол-во активаций (отриц = ∞)">
@@ -1002,7 +1069,7 @@ function PromoDetailModal({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <Stat label="Сумма" value={`${data.promo.amount.toFixed(2)} ${data.promo.currency}`} />
+            <Stat label="Сумма" value={data.promo.currency === 'FREE_CASES' ? `${data.promo.amount} вращений` : `${data.promo.amount.toFixed(2)} ${data.promo.currency}`} />
             <Stat
               label="Активаций"
               value={`${data.redemptions.length}${
@@ -1062,7 +1129,7 @@ function PromoDetailModal({
                     {r.name}
                   </div>
                   <div className="font-roobert text-[11px] tabular-nums text-frost-white/85">
-                    +{r.amount.toFixed(2)}
+                    +{data.promo.currency === 'FREE_CASES' ? r.amount : r.amount.toFixed(2)} {data.promo.currency === 'FREE_CASES' ? 'сп.' : ''}
                   </div>
                   <div className="font-roobert text-[10px] tabular-nums text-whisper-gray">
                     {new Date(r.createdAt).toLocaleString('ru-RU')}

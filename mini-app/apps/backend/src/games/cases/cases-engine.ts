@@ -37,11 +37,37 @@ class CasesEngine {
     }
 
     let isFree = false;
+    let wagerMultiplier = 0;
+
     if (caseId === 'case_1') {
-       // Attempt to consume free cases
+       // Attempt to consume old free cases
        const updated = await prisma.$executeRaw`UPDATE balances SET free_cases = free_cases - ${count} WHERE user_id = ${userId} AND free_cases >= ${count}`;
        if (updated > 0) {
          isFree = true;
+       }
+    }
+
+    if (!isFree) {
+       // Check the JSON field for other cases
+       const balRows = await prisma.$queryRaw<Array<{ free_cases_json: any, version: number }>>`
+           SELECT free_cases_json, version FROM balances WHERE user_id = ${userId} FOR UPDATE`;
+       const bal = balRows[0];
+       if (bal) {
+           const json = (bal.free_cases_json as Record<string, { count: number, wager: number }>) || {};
+           if (json[caseId] && json[caseId].count >= count) {
+               json[caseId].count -= count;
+               wagerMultiplier = json[caseId].wager || 0;
+               if (json[caseId].count <= 0) {
+                   delete json[caseId];
+               }
+               const updated = await prisma.$executeRaw`
+                   UPDATE balances 
+                   SET free_cases_json = ${JSON.stringify(json)}::jsonb, version = version + 1 
+                   WHERE user_id = ${userId} AND version = ${bal.version}`;
+               if (updated > 0) {
+                   isFree = true;
+               }
+           }
        }
     }
 
@@ -105,6 +131,15 @@ class CasesEngine {
         // Not wager qualifying on case openings? Usually all casino bets are wager qualifying.
         // We'll pass true for wagerQualifying.
         await bettingPipeline.processPayout(bet, prize.amount, false, true);
+
+        // Apply extra wager to winnings if this was a free case with a wager multiplier
+        if (isFree && wagerMultiplier > 0) {
+            const addedWager = prize.amount * wagerMultiplier;
+            await prisma.$executeRaw`
+                UPDATE balances 
+                SET wager_target = wager_target + ${addedWager}::numeric 
+                WHERE user_id = ${userId}`;
+        }
       } else {
         await bettingPipeline.processLoss(bet, false, true);
       }

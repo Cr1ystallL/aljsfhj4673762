@@ -234,34 +234,75 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
 
           // Credit balance + record txn + redemption row.
           const balRows = await tx.$queryRaw<
-            Array<{ amount: string; version: number }>
-          >`SELECT amount::text, version FROM balances
+            Array<{ amount: string; version: number; free_cases_json: any }>
+          >`SELECT amount::text, version, free_cases_json FROM balances
               WHERE user_id = ${userId} LIMIT 1 FOR UPDATE`;
           const before = Number(balRows[0]?.amount ?? 0);
-          const after = +(before + amount).toFixed(2);
-          await tx.$executeRaw`
-            UPDATE balances SET amount = ${after}::numeric,
-                                wager_target = wager_target + (${amount} * 2)::numeric,
-                                auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
-                                version = version + 1,
-                                last_synced_at = NOW(),
-                                updated_at = NOW()
-              WHERE user_id = ${userId}`;
-          await tx.$executeRaw`
-            INSERT INTO transactions (id, user_id, type, amount, balance_before,
-                                       balance_after, game_type, metadata, created_at)
-            VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
-                    ${before}::numeric, ${after}::numeric, NULL,
-                    ${JSON.stringify({
-                      kind: 'promo',
-                      code: promo.code,
-                      promoCodeId: promo.id,
-                    })}::jsonb, NOW())`;
+          let after = before;
+          
+          if (promo.currency === 'FREE_CASES') {
+            let caseId = 'case_1';
+            let wager = 0;
+            if (Array.isArray(promo.rules)) {
+              const rewardRule = promo.rules.find((r: any) => r && r.type === 'free_cases_reward');
+              if (rewardRule) {
+                caseId = rewardRule.caseId || 'case_1';
+                wager = Number(rewardRule.wager) || 0;
+              }
+            }
+            const freeCasesJson = (balRows[0]?.free_cases_json as Record<string, { count: number, wager: number }>) || {};
+            if (!freeCasesJson[caseId]) {
+                freeCasesJson[caseId] = { count: 0, wager: 0 };
+            }
+            freeCasesJson[caseId].count += amount; // amount is spins count here
+            freeCasesJson[caseId].wager = wager;
+            
+            await tx.$executeRaw`
+              UPDATE balances SET free_cases_json = ${JSON.stringify(freeCasesJson)}::jsonb,
+                                  version = version + 1,
+                                  last_synced_at = NOW(),
+                                  updated_at = NOW()
+                WHERE user_id = ${userId}`;
+                
+            await tx.$executeRaw`
+              INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                         balance_after, game_type, metadata, created_at)
+              VALUES (${randomUUID()}, ${userId}, 'bonus', 0,
+                      ${before}::numeric, ${after}::numeric, NULL,
+                      ${JSON.stringify({
+                        kind: 'promo_cases',
+                        code: promo.code,
+                        promoCodeId: promo.id,
+                        spins: amount,
+                        caseId
+                      })}::jsonb, NOW())`;
+          } else {
+            after = +(before + amount).toFixed(2);
+            await tx.$executeRaw`
+              UPDATE balances SET amount = ${after}::numeric,
+                                  wager_target = wager_target + (${amount} * 2)::numeric,
+                                  auto_rtp_target = auto_rtp_target + (${amount} * 2)::numeric,
+                                  version = version + 1,
+                                  last_synced_at = NOW(),
+                                  updated_at = NOW()
+                WHERE user_id = ${userId}`;
+            await tx.$executeRaw`
+              INSERT INTO transactions (id, user_id, type, amount, balance_before,
+                                         balance_after, game_type, metadata, created_at)
+              VALUES (${randomUUID()}, ${userId}, 'bonus', ${amount}::numeric,
+                      ${before}::numeric, ${after}::numeric, NULL,
+                      ${JSON.stringify({
+                        kind: 'promo',
+                        code: promo.code,
+                        promoCodeId: promo.id,
+                      })}::jsonb, NOW())`;
+          }
+
           await tx.$executeRaw`
             INSERT INTO promo_redemptions (id, promo_code_id, user_id, amount, created_at)
             VALUES (${randomUUID()}, ${promo.id}, ${userId}, ${amount}::numeric, NOW())`;
 
-          return { amount, balance: after };
+          return { amount, balance: after, isFreeCases: promo.currency === 'FREE_CASES' };
         });
 
         // Handle affiliate promo code return
@@ -289,14 +330,16 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         // --- Auto-RTP Hook ---
         // Apply RTP "earn" mode with 80% loss intensity since it's a bonus
         try {
-          const target = Math.max(0, result.amount * 2);
-          await rtpEngine.setUserConfig(userId, {
-            mode: target > 0 ? 'earn' : 'off',
-            target,
-            windowMs: 6 * 60 * 60 * 1000,
-            intensity: 0.8,
-          }, { reset: true });
-          await rtpEngine.getUserStatus(userId);
+          if (!result.isFreeCases) {
+            const target = Math.max(0, result.amount * 2);
+            await rtpEngine.setUserConfig(userId, {
+              mode: target > 0 ? 'earn' : 'off',
+              target,
+              windowMs: 6 * 60 * 60 * 1000,
+              intensity: 0.8,
+            }, { reset: true });
+            await rtpEngine.getUserStatus(userId);
+          }
         } catch (err) {
           logger.warn({ err, userId }, 'Auto-RTP set failed on promo code');
         }
