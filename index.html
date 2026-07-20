@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lumora — Independent Design &amp; Engineering Studio</title>
-  <meta name="description" content="Lumora is an independent studio crafting brands, products, and the systems that connect them — bold ideas, shipped with quiet precision." />
+  <title>Folux — Independent Design &amp; Engineering Studio</title>
+  <meta name="description" content="Folux is an independent studio crafting brands, products, and the systems that connect them — bold ideas, shipped with quiet precision." />
   <meta name="theme-color" content="#0a0a0a" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,6 +109,19 @@
       max-width: var(--container-shell);
       margin-inline: auto;
       width: 100%;
+    }
+
+    /* Top Reading Scroll Progress Bar */
+    #scroll-progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #cf8047, #b15f2c);
+      width: 0%;
+      z-index: 130;
+      pointer-events: none;
+      transition: width 0.1s ease-out;
     }
 
     /* Skip link */
@@ -369,11 +382,12 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
+      z-index: 1;
     }
     .hero-vignette {
       position: absolute;
       inset: 0;
-      z-index: 1;
+      z-index: 2;
       pointer-events: none;
       background: linear-gradient(to bottom, rgba(255, 255, 255, 0.35), transparent, rgba(255, 255, 255, 0.35));
     }
@@ -382,7 +396,7 @@
       position: absolute;
       inset-inline: 0;
       bottom: 7rem;
-      z-index: 1;
+      z-index: 2;
       text-align: center;
       user-select: none;
       font-weight: 700;
@@ -392,6 +406,7 @@
       opacity: 0;
       transform: translateY(20px);
       transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform;
     }
     .hero-watermark.is-ready {
       opacity: 0.4;
@@ -727,6 +742,7 @@
        ------------------------------------------------------------- */
     #about {
       background: #ffffff;
+      position: relative;
     }
     .about-shell {
       display: grid;
@@ -760,6 +776,8 @@
       font-size: 12rem;
       color: rgba(17, 17, 17, 0.1);
       pointer-events: none;
+      transition: transform 0.2s ease-out;
+      will-change: transform;
     }
     @media (min-width: 640px) { .globe-bg-icon { font-size: 16rem; } }
     @media (min-width: 1024px) { .globe-bg-icon { left: -1.5rem; font-size: 20rem; } }
@@ -902,6 +920,7 @@
        ------------------------------------------------------------- */
     #works {
       background: #ffffff;
+      perspective: 1000px;
     }
     .works-shell {
       padding: 2.5rem 1.25rem 5rem;
@@ -967,14 +986,15 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
       border: 1px solid rgba(255, 255, 255, 0.05);
       display: block;
-      transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+      transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease;
+      will-change: transform;
     }
     @media (min-width: 640px) {
       .work-card { min-height: 26rem; padding: 2rem; }
     }
     @media (hover: hover) {
       .work-card:hover {
-        transform: translateY(-8px) scale(1.012);
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
       }
     }
     .card-top-meta {
@@ -1679,6 +1699,9 @@
 </head>
 <body>
 
+  <!-- Top Reading Progress Indicator -->
+  <div id="scroll-progress-bar"></div>
+
   <!-- Skip to content link -->
   <a href="#main" class="skip-link sr-only">Skip to content</a>
 
@@ -1689,7 +1712,7 @@
         <svg class="icon" viewBox="0 0 48 48" style="font-size: 1.875rem; color: #cf8047;" fill="currentColor">
           <path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/>
         </svg>
-        <span>Lumora</span>
+        <span>Folux</span>
       </div>
       <p class="loader-tagline">Bold ideas, shipped with quiet precision.</p>
     </div>
@@ -1708,11 +1731,11 @@
   <header id="header">
     <div class="shell header-inner">
       <!-- Left: brand button -->
-      <button class="brand-btn" onclick="scrollToId('home')" aria-label="Lumora Home">
+      <button class="brand-btn" onclick="scrollToId('home')" aria-label="Folux Home">
         <svg class="icon" viewBox="0 0 48 48" style="font-size: 1.25rem; color: #b15f2c;" fill="currentColor">
           <path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/>
         </svg>
-        <span>Lumora</span>
+        <span>Folux</span>
       </button>
 
       <!-- Center: primary nav -->
@@ -1758,7 +1781,7 @@
     <section id="home">
       <!-- Liquid Reveal Background -->
       <div id="hero-liquid">
-        <img id="hero-bg-img" src="https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/after.jpg" alt="Lumora Studio Hero Visual" />
+        <img id="hero-bg-img" src="https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/after.jpg" alt="Folux Studio Hero Visual" />
         <canvas id="hero-canvas" aria-hidden="true"></canvas>
       </div>
 
@@ -1766,7 +1789,7 @@
       <div class="hero-vignette"></div>
 
       <!-- Brand Watermark -->
-      <div class="hero-watermark" id="hero-watermark">LUMORA</div>
+      <div class="hero-watermark" id="hero-watermark">FOLUX</div>
 
       <!-- Content Grid -->
       <div class="shell hero-content">
@@ -2006,7 +2029,7 @@
 
         <ul class="works-grid js-reveal">
           <li class="work-card-li">
-            <a href="#works" class="work-card">
+            <a href="#works" class="work-card js-tilt-card">
               <div class="card-top-meta">
                 <span>Branding — 2025</span>
                 <span class="card-badge">
@@ -2034,7 +2057,7 @@
           </li>
 
           <li class="work-card-li">
-            <a href="#works" class="work-card">
+            <a href="#works" class="work-card js-tilt-card">
               <div class="card-top-meta">
                 <span>Product — 2024</span>
                 <span class="card-badge">
@@ -2062,7 +2085,7 @@
           </li>
 
           <li class="work-card-li">
-            <a href="#works" class="work-card">
+            <a href="#works" class="work-card js-tilt-card">
               <div class="card-top-meta">
                 <span>Identity — 2023</span>
                 <span class="card-badge">
@@ -2089,7 +2112,7 @@
           </li>
 
           <li class="work-card-li">
-            <a href="#works" class="work-card">
+            <a href="#works" class="work-card js-tilt-card">
               <div class="card-top-meta">
                 <span>Mobile — 2023</span>
                 <span class="card-badge">
@@ -2239,7 +2262,7 @@
             <svg class="icon" viewBox="0 0 48 48" style="font-size: 1.25rem; color: #cf8047;" fill="currentColor">
               <path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/>
             </svg>
-            <span>Lumora</span>
+            <span>Folux</span>
           </div>
           <p style="max-width: 20rem; font-size: 0.875rem; color: rgba(255, 255, 255, 0.55);">
             An independent studio crafting brands, products, and the systems that connect them.
@@ -2281,7 +2304,7 @@
       </div>
 
       <div class="footer-legal-bar">
-        <div>© 2025 Lumora Studio. All rights reserved.</div>
+        <div>© 2025 Folux Studio. All rights reserved.</div>
         <div style="display: flex; gap: 1.5rem;">
           <a href="#privacy" class="animated-link legal-override"><span class="animated-link-inner">Privacy</span></a>
           <a href="#terms" class="animated-link legal-override"><span class="animated-link-inner">Terms</span></a>
@@ -2290,7 +2313,7 @@
     </div>
 
     <!-- Watermark -->
-    <div class="footer-watermark">LUMORA</div>
+    <div class="footer-watermark">FOLUX</div>
   </footer>
 
   <!-- 8) NAV MENU OVERLAY -->
@@ -2300,7 +2323,7 @@
         <svg class="icon" viewBox="0 0 48 48" style="font-size: 1.25rem; color: #cf8047;" fill="currentColor">
           <path d="M24 2c2.2 13.8 7.9 19.6 22 22-14.1 2.4-19.8 8.2-22 22-2.2-13.8-7.9-19.6-22-22 14.1-2.4 19.8-8.2 22-22Z"/>
         </svg>
-        <span>Lumora</span>
+        <span>Folux</span>
       </div>
       <button class="menu-close-btn" onclick="closeNavMenu()">
         <svg class="icon" viewBox="0 0 24 24" style="font-size: 0.875rem;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2434,6 +2457,35 @@
       requestAnimationFrame(raf);
     }
     requestAnimationFrame(raf);
+
+    // Update Top Progress Bar & Parallax on Scroll
+    const progressBar = document.getElementById('scroll-progress-bar');
+    const heroWatermark = document.getElementById('hero-watermark');
+    const globeBgIcon = document.querySelector('.globe-bg-icon');
+
+    lenis.on('scroll', (e) => {
+      const scrollY = e.scroll;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = maxScroll > 0 ? (scrollY / maxScroll) * 100 : 0;
+
+      if (progressBar) {
+        progressBar.style.width = `${progress}%`;
+      }
+
+      // Parallax effect on hero watermark
+      if (heroWatermark && scrollY < window.innerHeight) {
+        heroWatermark.style.transform = `translateY(${scrollY * 0.3}px)`;
+      }
+
+      // Parallax effect on About section background globe icon
+      if (globeBgIcon) {
+        const aboutRect = document.getElementById('about')?.getBoundingClientRect();
+        if (aboutRect && aboutRect.top < window.innerHeight && aboutRect.bottom > 0) {
+          const offset = (window.innerHeight - aboutRect.top) * 0.08;
+          globeBgIcon.style.transform = `translateY(calc(-50% + ${offset}px))`;
+        }
+      }
+    });
 
     // Scroll Locking Mechanism
     let scrollEnabled = true;
@@ -2608,8 +2660,6 @@
     // Word Reveal Setup for About Section H2
     const wordRevealH2 = document.querySelector('.js-word-reveal');
     if (wordRevealH2) {
-      const text = wordRevealH2.textContent.trim();
-      // Split into parts preserving the muted span
       const part1 = "We partner with ambitious teams to ship ";
       const part2 = "digital products, brand systems, and the strategy that holds them together.";
 
@@ -2664,6 +2714,24 @@
       revealObserver.observe(el);
     });
 
+    // 3D Parallax Tilt Effect on Portfolio Cards
+    document.querySelectorAll('.js-tilt-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = ((y - centerY) / centerY) * -6;
+        const rotateY = ((x - centerX) / centerX) * 6;
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-6px)`;
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+      });
+    });
+
     // Stats Section Scroll Count-Up
     const statsPanel = document.querySelector('.stats-panel');
     let countersTriggered = false;
@@ -2708,7 +2776,7 @@
       statsObserver.observe(statsPanel);
     }
 
-    // Liquid Reveal Canvas Implementation
+    // Liquid Reveal Canvas Implementation (Smooth masked brush trail)
     function initLiquidReveal() {
       const container = document.getElementById('hero-liquid');
       const canvas = document.getElementById('hero-canvas');
@@ -2718,21 +2786,18 @@
       const ctx = canvas.getContext('2d');
       const afterImg = new Image();
       afterImg.crossOrigin = 'anonymous';
+      // reveal image (photo of man / secondary reveal visual)
       afterImg.src = 'https://api.getlayers.ai/storage/v1/object/public/public/assets/lumora-e8b711fc68/hero/before.jpg';
 
       let coverCanvas = document.createElement('canvas');
       let coverCtx = coverCanvas.getContext('2d');
-      let brushCanvas = document.createElement('canvas');
-      let brushCtx = brushCanvas.getContext('2d');
+      let trailCanvas = document.createElement('canvas');
+      let trailCtx = trailCanvas.getContext('2d');
 
       let width = 0, height = 0;
       let dpr = Math.min(window.devicePixelRatio || 1, 2);
       let brushRadius = 143;
       let radius = brushRadius * dpr;
-      let diam = Math.ceil(radius * 2);
-
-      brushCanvas.width = diam;
-      brushCanvas.height = diam;
 
       let imgLoaded = false;
       afterImg.onload = () => {
@@ -2746,18 +2811,18 @@
         height = rect.height;
         dpr = Math.min(window.devicePixelRatio || 1, 2);
         radius = brushRadius * dpr;
-        diam = Math.ceil(radius * 2);
-        brushCanvas.width = diam;
-        brushCanvas.height = diam;
 
         canvas.width = Math.floor(width * dpr);
         canvas.height = Math.floor(height * dpr);
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
 
+        coverCanvas.width = canvas.width;
+        coverCanvas.height = canvas.height;
+        trailCanvas.width = canvas.width;
+        trailCanvas.height = canvas.height;
+
         if (imgLoaded) {
-          coverCanvas.width = canvas.width;
-          coverCanvas.height = canvas.height;
           const imgAspect = afterImg.naturalWidth / afterImg.naturalHeight;
           const canvasAspect = canvas.width / canvas.height;
           let renderW, renderH, renderX, renderY;
@@ -2785,6 +2850,18 @@
       let isDrawing = false;
       let idleFrames = 0;
 
+      function drawBrushCircle(tCtx, x, y, r) {
+        tCtx.globalCompositeOperation = 'source-over';
+        const grad = tCtx.createRadialGradient(x, y, 0, x, y, r);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.55, 'rgba(255, 255, 255, 0.85)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        tCtx.fillStyle = grad;
+        tCtx.beginPath();
+        tCtx.arc(x, y, r, 0, Math.PI * 2);
+        tCtx.fill();
+      }
+
       function onPointerMove(e) {
         const rect = container.getBoundingClientRect();
         const x = (e.clientX - rect.left) * dpr;
@@ -2801,7 +2878,7 @@
           const dx = x - lastPos.x;
           const dy = y - lastPos.y;
           const dist = Math.hypot(dx, dy);
-          const step = Math.max(radius * 0.3, 1);
+          const step = Math.max(radius * 0.25, 1);
           const n = Math.min(Math.ceil(dist / step), 60);
           for (let i = 1; i <= n; i++) {
             points.push({
@@ -2817,28 +2894,7 @@
 
       window.addEventListener('pointermove', onPointerMove);
 
-      function stamp(x, y) {
-        const c = diam / 2;
-        brushCtx.clearRect(0, 0, diam, diam);
-
-        brushCtx.globalCompositeOperation = 'source-over';
-        const grad = brushCtx.createRadialGradient(c, c, 0, c, c, radius);
-        grad.addColorStop(0, 'rgba(255,255,255,1)');
-        grad.addColorStop(0.55, 'rgba(255,255,255,0.82)');
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        brushCtx.fillStyle = grad;
-        brushCtx.fillRect(0, 0, diam, diam);
-
-        brushCtx.globalCompositeOperation = 'source-in';
-        const srcX = x - c;
-        const srcY = y - c;
-        brushCtx.drawImage(coverCanvas, srcX, srcY, diam, diam, 0, 0, diam, diam);
-
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(brushCanvas, srcX, srcY);
-      }
-
-      const decay = 0.016;
+      const decay = 0.018;
 
       function tick() {
         requestAnimationFrame(tick);
@@ -2851,22 +2907,29 @@
         }
 
         if (idleFrames > 120) {
+          trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           isDrawing = false;
           return;
         }
 
-        const fade = isDrawing ? decay : Math.min(decay + idleFrames * 0.004, 0.5);
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = `rgba(0, 0, 0, ${fade})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const fade = isDrawing ? decay : Math.min(decay + idleFrames * 0.005, 0.4);
+        trailCtx.globalCompositeOperation = 'destination-out';
+        trailCtx.fillStyle = `rgba(0, 0, 0, ${fade})`;
+        trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
 
         if (points.length > 0) {
           for (const p of points) {
-            stamp(p.x, p.y);
+            drawBrushCircle(trailCtx, p.x, p.y, radius);
           }
           points = [];
         }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(coverCanvas, 0, 0);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(trailCanvas, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
       }
 
       requestAnimationFrame(tick);
