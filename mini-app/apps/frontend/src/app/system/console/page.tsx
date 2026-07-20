@@ -243,8 +243,8 @@ export default function AdminDashboardPage() {
           {/* New beautiful online analytics section */}
           <OnlineAnalyticsSection graph={data.activityGraph} newUsersGraph={data.newUsersGraph} />
           {/* Timeline */}
-          <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden shadow-sm">
-            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <section className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
                 GGR · 14 дней
               </span>
@@ -273,7 +273,7 @@ export default function AdminDashboardPage() {
 
           {/* Biggest win */}
           {data.biggestWin && (
-            <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm">
+            <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
               <div
                 aria-hidden
                 className="absolute inset-0 opacity-50"
@@ -484,12 +484,12 @@ function Kpi({
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-3.5 flex flex-col gap-1.5 shadow-sm"
+      className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl p-5 flex flex-col gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
     >
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-frost-white/65">
           {icon}
-          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+          <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
             {label}
           </span>
         </span>
@@ -782,13 +782,13 @@ function OnlineAnalyticsSection({ graph, newUsersGraph }: { graph: AdminStats['a
           help={{ title: 'Новые игроки', body: <p>Общее число регистраций за выбранный период.</p> }}
         />
       </div>
-      <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+      <div className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
             Динамика уникальных игроков
           </span>
         </div>
-        <div className="px-4 py-4">
+        <div className="px-5 py-4">
           <ActivityChart points={filteredGraph} />
         </div>
       </div>
@@ -857,10 +857,10 @@ function LivePresence() {
   );
 
   return (
-    <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden shadow-sm">
+    <section className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full px-4 py-3 flex items-center justify-between gap-3 active:scale-[0.98] transition-transform"
+        className="w-full px-5 py-4 flex items-center justify-between gap-3 active:scale-[0.98] transition-transform"
         aria-expanded={open}
       >
         <div className="flex items-center gap-3 min-w-0">

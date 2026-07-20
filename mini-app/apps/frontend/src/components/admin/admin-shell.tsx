@@ -189,7 +189,14 @@ export function AdminShell({ children }: AdminShellProps) {
   }
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-row">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-row relative">
+      {/* Ambient background meshes for Apple Glassmorphism vibrancy */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-[#a0e0ab] opacity-[0.06] blur-[120px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#ffac2e] opacity-[0.05] blur-[140px]" />
+        <div className="absolute bottom-[-20%] left-[20%] w-[70vw] h-[70vw] rounded-full bg-[#ff8a76] opacity-[0.04] blur-[160px]" />
+      </div>
+
       {/* Sidebar Navigation */}
       <aside className="w-[60px] md:w-64 shrink-0 border-r border-white/10 flex flex-col h-screen sticky top-0 bg-black/40 backdrop-blur-xl z-40 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
         <header className="h-16 flex items-center justify-center md:justify-start md:px-4 border-b border-white/5 shrink-0">
@@ -244,7 +251,7 @@ export function AdminShell({ children }: AdminShellProps) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative z-10">
         {/* Sticky translucent header so content scrolls underneath */}
         <header className="sticky top-0 z-30 h-16 flex items-center px-4 md:px-8 border-b border-white/10 bg-midnight-canvas/70 backdrop-blur-2xl shrink-0 shadow-sm">
           <div className="inline-flex items-center gap-2 min-w-0">
