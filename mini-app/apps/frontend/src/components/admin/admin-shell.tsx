@@ -191,7 +191,7 @@ export function AdminShell({ children }: AdminShellProps) {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-row">
       {/* Sidebar Navigation */}
-      <aside className="w-[60px] md:w-64 shrink-0 border-r border-white/10 flex flex-col h-screen sticky top-0 bg-midnight-canvas z-20">
+      <aside className="w-[60px] md:w-64 shrink-0 border-r border-white/10 flex flex-col h-screen sticky top-0 bg-black/40 backdrop-blur-xl z-40 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
         <header className="h-16 flex items-center justify-center md:justify-start md:px-4 border-b border-white/5 shrink-0">
           <button
             onClick={() => router.push('/profile')}
@@ -202,7 +202,7 @@ export function AdminShell({ children }: AdminShellProps) {
           </button>
         </header>
 
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-4 px-2 flex flex-col gap-1.5">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-4 px-2 flex flex-col gap-1.5 relative">
           {links.map((l) => {
             const active =
               pathname === l.href || pathname.startsWith(l.href + '/');
@@ -214,15 +214,27 @@ export function AdminShell({ children }: AdminShellProps) {
                 prefetch
                 draggable={false}
                 className={cn(
-                  'flex items-center justify-center md:justify-start md:gap-3 p-2 md:px-3 md:py-2.5 rounded-lg border transition-colors',
+                  'relative flex items-center justify-center md:justify-start md:gap-3 p-2 md:px-3 md:py-2.5 rounded-xl transition-colors z-10 active:scale-[0.97]',
                   active
-                    ? 'border-white/30 bg-white/[0.06] text-frost-white'
-                    : 'border-transparent text-frost-white/65 hover:text-frost-white hover:bg-white/[0.03]'
+                    ? 'text-frost-white font-medium'
+                    : 'text-frost-white/65 hover:text-frost-white hover:bg-white/[0.03]'
                 )}
                 title={l.label}
               >
-                <l.Icon size={20} strokeWidth={1.7} className="shrink-0" />
-                <span className="font-roobert text-[13px] hidden md:block truncate">
+                {active && (
+                  <motion.div
+                    layoutId="admin-active-tab"
+                    className="absolute inset-0 bg-white/[0.08] rounded-xl border border-white/10 shadow-sm"
+                    initial={false}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 30,
+                    }}
+                  />
+                )}
+                <l.Icon size={20} strokeWidth={1.8} className="shrink-0 relative z-10" />
+                <span className="font-roobert text-[13px] hidden md:block truncate relative z-10">
                   {l.label}
                 </span>
               </Link>
@@ -233,7 +245,8 @@ export function AdminShell({ children }: AdminShellProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 flex items-center px-4 md:px-8 border-b border-white/5 shrink-0">
+        {/* Sticky translucent header so content scrolls underneath */}
+        <header className="sticky top-0 z-30 h-16 flex items-center px-4 md:px-8 border-b border-white/10 bg-midnight-canvas/70 backdrop-blur-2xl shrink-0 shadow-sm">
           <div className="inline-flex items-center gap-2 min-w-0">
             <Shield size={16} strokeWidth={1.7} />
             <span className="font-roobert text-[15px] uppercase tracking-[0.2em] text-whisper-gray truncate">
@@ -242,12 +255,12 @@ export function AdminShell({ children }: AdminShellProps) {
           </div>
         </header>
 
-        <div className="flex-1 p-4 md:p-8 pb-32 overflow-x-auto">
+        <div className="flex-1 p-4 md:p-8 pb-32 overflow-x-auto relative">
           <motion.div
             key={pathname}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18 }}
+            initial={{ opacity: 0, y: 8, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
           >
             {children}
           </motion.div>

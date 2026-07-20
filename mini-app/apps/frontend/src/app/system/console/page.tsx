@@ -243,9 +243,9 @@ export default function AdminDashboardPage() {
           {/* New beautiful online analytics section */}
           <OnlineAnalyticsSection graph={data.activityGraph} newUsersGraph={data.newUsersGraph} />
           {/* Timeline */}
-          <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+          <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden shadow-sm">
             <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-              <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
                 GGR · 14 дней
               </span>
               <div className="inline-flex items-center gap-2">
@@ -273,7 +273,7 @@ export default function AdminDashboardPage() {
 
           {/* Biggest win */}
           {data.biggestWin && (
-            <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
+            <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm">
               <div
                 aria-hidden
                 className="absolute inset-0 opacity-50"
@@ -287,10 +287,10 @@ export default function AdminDashboardPage() {
                   <Sparkles size={16} strokeWidth={1.6} />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+                  <div className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
                     Крупнейший выигрыш
                   </div>
-                  <div className="font-roobert text-[20px] font-light text-frost-white tabular-nums">
+                  <div className="font-roobert text-[20px] font-light text-frost-white tabular-nums tracking-[-0.02em]">
                     {formatPln(data.biggestWin.payout)} zł
                     <span className="ml-2 text-whisper-gray text-[14px]">
                       x{data.biggestWin.multiplier.toFixed(2)}
@@ -484,7 +484,7 @@ function Kpi({
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3.5 flex flex-col gap-1.5"
+      className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-3.5 flex flex-col gap-1.5 shadow-sm"
     >
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-frost-white/65">
@@ -500,7 +500,7 @@ function Kpi({
         )}
       </div>
       <div
-        className={`font-roobert text-[22px] font-light leading-none tabular-nums ${
+        className={`font-roobert text-[22px] font-light leading-none tabular-nums tracking-[-0.02em] ${
           accent === 'warn'
             ? 'text-[#ff8a76]'
             : accent === 'good'
@@ -857,10 +857,10 @@ function LivePresence() {
   );
 
   return (
-    <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+    <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full px-4 py-3 flex items-center justify-between gap-3 active:bg-white/[0.04] transition-colors"
+        className="w-full px-4 py-3 flex items-center justify-between gap-3 active:scale-[0.98] transition-transform"
         aria-expanded={open}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -873,10 +873,10 @@ function LivePresence() {
             />
           </span>
           <div className="min-w-0">
-            <div className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+            <div className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
               Сейчас в мини-аппе
             </div>
-            <div className="mt-0.5 font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums">
+            <div className="mt-0.5 font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums tracking-[-0.02em]">
               {data ? data.count : '—'}
               {data && (
                 <span className="ml-1.5 text-whisper-gray text-[11px] tabular-nums">
@@ -921,7 +921,7 @@ function LivePresence() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
             className="overflow-hidden"
           >
             {sorted.length === 0 ? (
