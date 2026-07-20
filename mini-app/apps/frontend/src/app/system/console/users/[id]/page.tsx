@@ -443,7 +443,7 @@ export default function UserDetailPage() {
     <>
       <div className="flex flex-col gap-5">
         {/* Identity card */}
-        <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
+        <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm">
           <div
             aria-hidden
             className="absolute inset-0 opacity-50"
@@ -536,9 +536,9 @@ export default function UserDetailPage() {
 
 
         {/* Wager Controls */}
-        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+        <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-            <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+            <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
               Управление Вейджером
             </span>
           </div>
@@ -594,10 +594,10 @@ export default function UserDetailPage() {
         </section>
 
         {/* Activity & sessions */}
-        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+        <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <div className="flex flex-col gap-1">
-              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
                 Активность
               </span>
               <span className="font-roobert text-[12px] text-frost-white">
@@ -663,9 +663,9 @@ export default function UserDetailPage() {
         </section>
 
         {/* Actions */}
-        <section className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
+        <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-            <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
+            <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
               Действия
             </span>
             <HelpButton title="Действия с игроком" size={12}>
@@ -955,7 +955,8 @@ export default function UserDetailPage() {
               initial={{ opacity: 0, y: 18, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.98 }}
-              className="relative w-full max-w-[420px] rounded-card border border-white/10 p-5 backdrop-blur-2xl"
+              transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+              className="relative w-full max-w-[420px] rounded-card border border-white/10 p-5 backdrop-blur-2xl shadow-2xl"
               style={{ background: 'rgba(10, 10, 10, 0.96)' }}
             >
               <div className="flex items-start justify-between mb-3">
@@ -1055,12 +1056,12 @@ function Stat({
   warn?: boolean;
 }) {
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.03] px-3 py-2.5">
-      <div className="font-roobert text-[9px] uppercase tracking-[0.22em] text-whisper-gray">
+    <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm px-3 py-2.5">
+      <div className="font-roobert text-[9.5px] uppercase tracking-[0.05em] text-whisper-gray">
         {label}
       </div>
       <div
-        className={`mt-0.5 font-roobert text-[16px] tabular-nums ${
+        className={`mt-0.5 font-roobert text-[16px] tabular-nums tracking-[-0.02em] ${
           warn ? 'text-[#ff8a76]' : 'text-frost-white'
         }`}
       >
@@ -1084,7 +1085,7 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
-      className="text-left px-4 py-3 hover:bg-white/[0.04] transition-colors w-full"
+      className="text-left px-4 py-3 hover:bg-white/[0.04] active:scale-[0.98] transition-all w-full"
     >
       <div
         className={`font-roobert text-[14px] ${
