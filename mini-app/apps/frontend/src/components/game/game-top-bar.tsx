@@ -1,6 +1,6 @@
 'use client';
 
-import { Trophy, HelpCircle, Wallet, type LucideIcon } from 'lucide-react';
+import { Trophy, HelpCircle, Wallet, type LucideIcon, ChevronLeft } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { BrandLockup } from '@/components/ui/brand-mark';
@@ -9,27 +9,20 @@ import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 
 /**
- * Game Top Bar — Monopo Saigon Style
+ * Game Top Bar — Apple Design & Taste-Skill Premium Header
  *
- * Shared header used across every game screen. Composition:
- *
- *   - Left:   BrandLockup → tap returns to the home screen.
- *             Game title + glyph next to it.
- *   - Right:  Balance pill → tap opens the wallet.
- *             Avatar pill   → tap opens the profile.
- *             "How to play" → opens the rules modal.
- *
- * The brand lockup, balance pill and avatar make the games feel like
- * part of one app rather than a series of standalone screens — every
- * game inherits the home identity strip for free.
+ * Shared header across all mini-app pages. Applied Design Skills:
+ *   - apple-design: Tactile active scales (active:scale-[0.96]), backdrop-blur-2xl glassmorphism, rounded-full pills.
+ *   - taste-skill: Deep ocean atmospheric dark hues, metallic currency typography, subtle ambient glows.
+ *   - ui-ux-pro-max: Clear visual hierarchy, accessible touch targets, online status avatar ring.
  */
+
 interface GameTopBarProps {
   title: string;
   Icon?: LucideIcon;
   iconRotate?: number;
   onHowToPlay?: () => void;
   hideBalance?: boolean;
-  // Fallbacks for games still passing these
   balance?: number;
   currency?: string;
   serverSeedHash?: string;
@@ -50,104 +43,130 @@ export function GameTopBar({
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
   const { fetchBalance } = useBalance();
   const pathname = usePathname();
-  
-  const gameType = pathname?.split('/').pop() || '';
-  const activeTournamentBalance = tournamentBalances.find(t => t.gameType === gameType);
 
-  // Pull a fresh balance whenever the bar mounts so the pill is never
-  // stale even if a previous WS push was missed.
+  const isHome = pathname === '/';
+  const gameType = pathname?.split('/').pop() || '';
+  const activeTournamentBalance = tournamentBalances.find(
+    (t) => t.gameType === gameType
+  );
+
   useEffect(() => {
     void fetchBalance();
   }, [fetchBalance]);
 
-  const balanceAmount = activeTournamentBalance ? activeTournamentBalance.balance : (balanceStore?.amount ?? 0);
+  const balanceAmount = activeTournamentBalance
+    ? activeTournamentBalance.balance
+    : balanceStore?.amount ?? 0;
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 backdrop-blur-xl shadow-lg relative z-40">
-      {/* Left cluster: brand → home, title, glyph */}
-      <div className="flex items-center gap-4 min-w-0">
-        <button
-          type="button"
-          onClick={() => router.push('/')}
-          aria-label="Главная"
-          className="p-1 rounded-xl transition-all hover:scale-105 hover:bg-white/5 active:scale-95"
-        >
-          <BrandLockup size={40} />
-        </button>
-        <div className="flex items-center gap-2.5 min-w-0 pl-2 border-l border-white/10">
-          {Icon && (
-            <Icon
-              size={18}
-              className="text-white/60 shrink-0"
-              strokeWidth={2}
-              style={iconRotate ? { transform: `rotate(${iconRotate}deg)` } : undefined}
-            />
-          )}
-          <span className="font-roobert text-white text-lg font-semibold tracking-wide truncate">
-            {title}
-          </span>
-        </div>
-      </div>
-
-      {/* Right cluster: balance + avatar combined, rules */}
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="flex items-center gap-2 pl-3 pr-1 py-1 rounded-full border border-white/10 bg-white/5 shadow-inner">
-          {!hideBalance && (
+    <header className="sticky top-0 z-50 w-full bg-midnight-canvas/80 backdrop-blur-2xl border-b border-white/10 shadow-2xl transition-all">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3.5 py-2.5 flex items-center justify-between gap-2">
+        {/* Left Cluster: Brand / Back button & Page Title */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          {!isHome ? (
             <button
-              onClick={() => router.push('/balance')}
-              aria-label="Кошелёк"
-              className="group flex items-center gap-2 hover:opacity-80 transition-all active:scale-95 mr-1"
+              type="button"
+              onClick={() => router.push('/')}
+              aria-label="Назад в меню"
+              className="p-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white hover:bg-white/[0.08] active:scale-[0.95] transition-all flex items-center justify-center shrink-0"
             >
-              <Wallet size={16} className="text-white/80" strokeWidth={2} />
-              <div className="flex items-baseline gap-1">
-                <span className="font-roobert font-bold text-white text-base tabular-nums tracking-tight">
-                  {balanceAmount.toLocaleString('ru-RU', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span className="font-roobert text-white/40 text-[12px] uppercase font-bold tracking-wider">
-                  {activeTournamentBalance ? <Trophy size={11} strokeWidth={2.5} /> : 'zł'}
-                </span>
-              </div>
+              <ChevronLeft size={20} strokeWidth={2.2} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              aria-label="Главная"
+              className="p-1 rounded-xl transition-all hover:scale-105 hover:bg-white/5 active:scale-95 shrink-0"
+            >
+              <BrandLockup size={38} />
             </button>
           )}
 
-          <button
-            onClick={() => router.push('/profile')}
-            aria-label="Профиль"
-            className="relative w-[50px] h-[50px] rounded-full overflow-hidden border-2 border-white/10 hover:border-white/30 transition-all active:scale-95 flex items-center justify-center shrink-0"
-          >
-            {user?.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.photoUrl}
-                alt={user.firstName || 'Профиль'}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-                draggable={false}
+          <div className="flex items-center gap-2 min-w-0 pl-1">
+            {Icon && (
+              <Icon
+                size={17}
+                className="text-amber-400 shrink-0"
+                strokeWidth={2}
+                style={iconRotate ? { transform: `rotate(${iconRotate}deg)` } : undefined}
               />
-            ) : (
-              <span className="font-roobert font-bold text-lg text-white/80">
-                {initials}
-              </span>
             )}
-          </button>
+            <span className="font-roobert text-frost-white text-[16px] sm:text-[17px] font-semibold tracking-wide truncate">
+              {title}
+            </span>
+          </div>
         </div>
 
-        {onHowToPlay && (
-          <button
-            onClick={onHowToPlay}
-            aria-label="Как играть"
-            className="flex items-center justify-center w-10 h-10 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 shrink-0"
-          >
-            <HelpCircle size={16} strokeWidth={2} />
-          </button>
-        )}
-        
-        {extraAction}
+        {/* Right Cluster: Combined Balance Pill & Avatar */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-white/15 bg-gradient-to-r from-white/[0.06] via-white/[0.04] to-white/[0.06] shadow-inner backdrop-blur-md">
+            {!hideBalance && (
+              <button
+                onClick={() => router.push('/balance')}
+                aria-label="Кошелёк"
+                className="group flex items-center gap-2 hover:opacity-90 transition-all active:scale-[0.96] mr-0.5"
+              >
+                <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                  <Wallet size={13} strokeWidth={2.2} />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="font-roobert font-bold text-frost-white text-[14px] sm:text-[15px] tabular-nums tracking-tight">
+                    {balanceAmount.toLocaleString('ru-RU', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="font-roobert text-amber-300 text-[11px] font-bold tracking-wider uppercase">
+                    {activeTournamentBalance ? (
+                      <Trophy size={11} strokeWidth={2.5} />
+                    ) : (
+                      'zł'
+                    )}
+                  </span>
+                </div>
+              </button>
+            )}
+
+            {/* Profile Avatar with Online Status indicator */}
+            <button
+              onClick={() => router.push('/profile')}
+              aria-label="Профиль"
+              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
+            >
+              {user?.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.photoUrl}
+                  alt={user.firstName || 'Профиль'}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  draggable={false}
+                />
+              ) : (
+                <span className="font-roobert font-bold text-[13px] text-frost-white">
+                  {initials}
+                </span>
+              )}
+              {/* Online status indicator dot */}
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-midnight-canvas shadow-sm" />
+            </button>
+          </div>
+
+          {onHowToPlay && (
+            <button
+              onClick={onHowToPlay}
+              aria-label="Как играть"
+              className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white hover:bg-white/[0.08] hover:border-white/20 transition-all active:scale-[0.95] shrink-0"
+            >
+              <HelpCircle size={16} strokeWidth={2} />
+            </button>
+          )}
+
+          {extraAction}
+        </div>
       </div>
-    </div>
+    </header>
   );
 }

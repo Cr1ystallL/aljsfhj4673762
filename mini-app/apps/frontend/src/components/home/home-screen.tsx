@@ -4,261 +4,154 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  Bot,
+  Crown,
   Flame,
   Gamepad2,
-  Search,
+  Gem,
+  Gift,
+  Layers,
   Sparkles,
   TrendingUp,
   Trophy,
   Wallet,
   X,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
-import {
-  BasketballIcon,
-  BowlingIcon,
-  DartsIcon,
-  DiceCubeIcon,
-  FootballIcon,
-  RpsIcon,
-  SpiderIcon,
-} from '@/components/ui/bot-game-icons';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 
 /**
- * Home Screen — Apple & Taste-Skill Premium Casino Menu
+ * Home Screen — Apple & Taste-Skill Premium Casino Menu (V2)
  *
- * Landings screen composition:
- *   1. Top Bar — Brand wordmark, balance & profile avatar.
- *   2. Live Social Proof Strip — Online players & recent total payouts.
- *   3. Featured Contest / MacvJet Hero plate.
- *   4. Category Filters & Search Bar.
- *   5. Unified Games Grid (In-App & Telegram Bot games with badges & glassmorphism).
- *   6. Quick Actions — Balance & Bonuses.
- *   7. Brand Footer.
+ * Design Improvements:
+ *   - Search SVG fix: Crisp custom SVG matching user spec.
+ *   - Badge icons: Clean SVG icons instead of raw emojis (Flame, Zap, Crown, Gem, Gift, Sparkles).
+ *   - Grid filtering: In-App games only (Bot games removed from main grid).
+ *   - Keno badge: Added LOTTO tag with Gem icon.
+ *   - Admin Hide/Show logic: Strict compliance with availability.hidden & isAdmin.
+ *   - Live Stats: Dynamic online formula & Payouts * 2.
  */
 
-type CategoryKey = 'all' | 'inapp' | 'bot' | 'popular';
+type CategoryKey = 'all' | 'popular' | 'fast' | 'table';
 
-interface GameItem {
-  id: string;
-  name: string;
-  type: 'inapp' | 'bot';
-  href?: string;
-  command?: string;
-  bg?: string;
-  wide?: boolean;
-  badge?: { label: string; color: 'gold' | 'red' | 'green' | 'cyan' };
-  isPopular?: boolean;
-  gameKey?: GameKey;
-  Icon?: React.ComponentType<{ size?: number; className?: string }>;
+interface GameBadge {
+  label: string;
+  color: 'gold' | 'red' | 'green' | 'cyan' | 'purple';
+  Icon: LucideIcon;
 }
 
-const IN_APP_GAMES: GameItem[] = [
+interface InAppGame {
+  id: GameKey;
+  name: string;
+  href: string;
+  bg?: string;
+  wide?: boolean;
+  badge?: GameBadge;
+  isPopular?: boolean;
+  category?: 'fast' | 'table' | 'instant';
+}
+
+const IN_APP_GAMES: InAppGame[] = [
   {
     id: 'crash',
-    gameKey: 'crash',
     name: 'MacvJet',
-    type: 'inapp',
     href: '/game/crash',
     bg: '/MacvJet.png',
-    badge: { label: '🔥 TOP', color: 'red' },
+    badge: { label: 'TOP', color: 'red', Icon: Flame },
     isPopular: true,
+    category: 'fast',
   },
   {
     id: 'mines',
-    gameKey: 'mines',
     name: 'Mines',
-    type: 'inapp',
     href: '/game/mines',
     bg: '/Mines.png',
-    badge: { label: '⭐ HOT', color: 'gold' },
+    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
     isPopular: true,
+    category: 'instant',
   },
   {
     id: 'hilo',
-    gameKey: 'hilo',
     name: 'Hi-Lo',
-    type: 'inapp',
     href: '/game/hilo',
     bg: '/hilo.png',
     wide: true,
-    badge: { label: '⚡ FAST', color: 'cyan' },
+    badge: { label: 'FAST', color: 'cyan', Icon: Zap },
+    category: 'fast',
   },
   {
     id: 'plinko',
-    gameKey: 'plinko',
     name: 'Plinko',
-    type: 'inapp',
     href: '/game/plinko',
     bg: '/Plinko.png',
-    badge: { label: '🔥 TOP', color: 'red' },
+    badge: { label: 'TOP', color: 'red', Icon: Flame },
     isPopular: true,
+    category: 'instant',
   },
   {
     id: 'coinflip',
-    gameKey: 'coinflip',
     name: 'Coinflip',
-    type: 'inapp',
     href: '/game/coinflip',
     bg: '/Coinflip.png',
-    badge: { label: '💎 50/50', color: 'cyan' },
+    badge: { label: '50/50', color: 'cyan', Icon: Gem },
+    category: 'fast',
   },
   {
     id: 'blackjack',
-    gameKey: 'blackjack',
     name: 'Blackjack',
-    type: 'inapp',
     href: '/game/blackjack',
     bg: '/bj.png',
     wide: true,
-    badge: { label: '👑 PRO', color: 'gold' },
+    badge: { label: 'PRO', color: 'gold', Icon: Crown },
+    category: 'table',
   },
   {
     id: 'wheel',
-    gameKey: 'wheel',
     name: 'Wheel',
-    type: 'inapp',
     href: '/game/wheel',
     bg: '/Wheel.png',
-    badge: { label: '⚡ x50', color: 'gold' },
+    badge: { label: 'x50', color: 'gold', Icon: Zap },
     isPopular: true,
+    category: 'fast',
   },
   {
     id: 'bridges',
-    gameKey: 'bridges',
     name: 'Bridges',
-    type: 'inapp',
     href: '/game/bridges',
     bg: '/Bridges.png',
+    category: 'instant',
   },
   {
     id: 'cases',
-    gameKey: 'cases',
     name: 'Case',
-    type: 'inapp',
     href: '/game/cases',
     bg: '/case.png',
     wide: true,
-    badge: { label: '🎁 BONUS', color: 'green' },
+    badge: { label: 'BONUS', color: 'green', Icon: Gift },
+    category: 'instant',
   },
   {
     id: 'keno',
-    gameKey: 'keno',
     name: 'Keno',
-    type: 'inapp',
     href: '/game/keno',
     bg: '/keno.png?v=2',
+    badge: { label: 'LOTTO', color: 'purple', Icon: Layers },
+    category: 'table',
   },
   {
     id: 'chicken-road',
-    gameKey: 'chicken-road',
     name: 'MacvRoad',
-    type: 'inapp',
     href: '/game/chicken-road',
     bg: '/MacvRoad.png?v=2',
-    badge: { label: '🆕 NEW', color: 'green' },
+    badge: { label: 'NEW', color: 'green', Icon: Sparkles },
+    category: 'fast',
   },
 ];
-
-const BOT_USERNAME =
-  process.env.NEXT_PUBLIC_BOT_USERNAME?.replace(/^@/, '') || 'macvbet_bot';
-
-const BOT_GAMES: GameItem[] = [
-  {
-    id: 'bot_cube',
-    name: 'Кубики',
-    type: 'bot',
-    command: 'cube',
-    Icon: DiceCubeIcon,
-    bg: '/%D0%9A%D1%83%D0%B1%D0%B8%D0%BA%D0%B8.png',
-    badge: { label: '🎲 BOT', color: 'cyan' },
-  },
-  {
-    id: 'bot_bowl',
-    name: 'Боулинг',
-    type: 'bot',
-    command: 'bowl',
-    Icon: BowlingIcon,
-    bg: '/%D0%91%D0%BE%D1%83%D0%BB%D0%B8%D0%BD%D0%B3.png',
-    badge: { label: '🎲 BOT', color: 'cyan' },
-  },
-  {
-    id: 'bot_darts',
-    name: 'Дартс',
-    type: 'bot',
-    command: 'darts',
-    Icon: DartsIcon,
-    bg: '/%D0%94%D0%B0%D1%80%D1%82%D1%81.png',
-    badge: { label: '🎲 BOT', color: 'cyan' },
-  },
-  {
-    id: 'bot_basket',
-    name: 'Баскетбол',
-    type: 'bot',
-    command: 'basket',
-    Icon: BasketballIcon,
-    bg: '/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB.png',
-    badge: { label: '🎲 BOT', color: 'cyan' },
-  },
-  {
-    id: 'bot_foot',
-    name: 'Футбол',
-    type: 'bot',
-    command: 'foot',
-    Icon: FootballIcon,
-    bg: '/%D0%A4%D1%83%D1%82%D0%B1%D0%BE%D0%BB.png',
-    badge: { label: '🎲 BOT', color: 'cyan' },
-  },
-  {
-    id: 'bot_knb',
-    name: 'КНБ',
-    type: 'bot',
-    command: 'knb',
-    Icon: RpsIcon,
-    bg: '/%D0%9A%D0%9D%D0%91.png',
-    badge: { label: '🎲 BOT', color: 'cyan' },
-  },
-  {
-    id: 'bot_spider',
-    name: 'Паучок',
-    type: 'bot',
-    command: 'spider',
-    Icon: SpiderIcon,
-    bg: '/spider_bot.jpg',
-    badge: { label: '🔥 BOT TOP', color: 'red' },
-    isPopular: true,
-  },
-];
-
-function openTelegram(url: string) {
-  if (typeof window === 'undefined') return;
-  const tg = (
-    window as unknown as {
-      Telegram?: {
-        WebApp?: {
-          openTelegramLink?: (u: string) => void;
-          openLink?: (u: string) => void;
-        };
-      };
-    }
-  ).Telegram?.WebApp;
-  if (tg?.openTelegramLink) {
-    tg.openTelegramLink(url);
-    return;
-  }
-  if (tg?.openLink) {
-    tg.openLink(url);
-    return;
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
 
 interface HeroContest {
   id: string;
@@ -282,12 +175,40 @@ export function HomeScreen() {
     hidden: Record<string, boolean>;
   } | null>(null);
   const [contests, setContests] = useState<HeroContest[] | null>(null);
+  const [stats, setStats] = useState<{ online: number; payouts24h: number }>({
+    online: 24,
+    payouts24h: 184240,
+  });
 
   useEffect(() => {
     if (!isAuthenticated) return;
     void fetchBalance();
   }, [fetchBalance, isAuthenticated]);
 
+  // Fetch online & payouts stats from /api/stats
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/stats', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.success) {
+          setStats({
+            online: data.online ?? 24,
+            payouts24h: data.payouts24h ?? 184240,
+          });
+        }
+      } catch {
+        // ignore fallback
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fetch game availability (Admin hidden settings)
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
@@ -352,37 +273,34 @@ export function HomeScreen() {
     return eligible[Math.floor(Math.random() * eligible.length)] ?? null;
   }, [contests]);
 
-  const filteredGames = useMemo(() => {
+  // Helper checking if game is visible to current user
+  const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
+    if ((gameId === 'blackjack' || gameId === 'chicken-road') && !isAdmin) {
+      return false;
+    }
+    if (hidden[gameId] && !isAdmin) return false;
+    return true;
+  };
 
-    // Filter in-app games
-    const validInApp = IN_APP_GAMES.filter((g) => {
-      if ((g.id === 'blackjack' || g.id === 'chicken-road') && !isAdmin) {
-        return false;
-      }
-      if (hidden[g.id] && !isAdmin) return false;
-      return true;
-    });
+  const filteredGames = useMemo(() => {
+    let list = IN_APP_GAMES.filter((g) => isGameVisible(g.id));
 
-    let all = [...validInApp, ...BOT_GAMES];
-
-    // Filter by category
-    if (activeCategory === 'inapp') {
-      all = all.filter((g) => g.type === 'inapp');
-    } else if (activeCategory === 'bot') {
-      all = all.filter((g) => g.type === 'bot');
-    } else if (activeCategory === 'popular') {
-      all = all.filter((g) => g.isPopular);
+    if (activeCategory === 'popular') {
+      list = list.filter((g) => g.isPopular);
+    } else if (activeCategory === 'fast') {
+      list = list.filter((g) => g.category === 'fast');
+    } else if (activeCategory === 'table') {
+      list = list.filter((g) => g.category === 'table' || g.category === 'instant');
     }
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      all = all.filter((g) => g.name.toLowerCase().includes(q));
+      list = list.filter((g) => g.name.toLowerCase().includes(q));
     }
 
-    return all;
+    return list;
   }, [availability, activeCategory, searchQuery]);
 
   return (
@@ -391,17 +309,21 @@ export function HomeScreen() {
 
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-3 pb-32 flex flex-col gap-5">
         {/* Live Casino Social Proof Ticker */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md px-3.5 py-2.5 flex items-center justify-between gap-2 text-[11px] font-roobert text-whisper-gray">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
             </span>
-            <span className="text-frost-white font-medium">1,420 онлайн</span>
+            <span className="text-frost-white font-medium tracking-tight">
+              {stats.online} онлайн
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 text-amber-400 font-medium">
-            <TrendingUp size={13} strokeWidth={2} />
-            <span>Выплаты 24ч: 184.2K zł</span>
+          <div className="flex items-center gap-1.5 text-amber-300 font-semibold tracking-tight">
+            <TrendingUp size={14} strokeWidth={2.2} className="text-amber-400" />
+            <span>
+              Выплаты 24ч: {stats.payouts24h.toLocaleString('ru-RU')} zł
+            </span>
           </div>
         </div>
 
@@ -412,28 +334,41 @@ export function HomeScreen() {
             onClick={() => router.push('/bonuses#contests')}
           />
         ) : (
-          <MacvJetHero onClick={() => router.push('/game/crash')} />
+          isGameVisible('crash') && (
+            <MacvJetHero onClick={() => router.push('/game/crash')} />
+          )
         )}
 
         {/* Search & Category Filter Section */}
         <div className="flex flex-col gap-3">
-          {/* Search bar */}
+          {/* Search bar with explicit user-requested SVG */}
           <div className="relative w-full">
-            <Search
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-whisper-gray/70"
-            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-whisper-gray/70 pointer-events-none"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Поиск по играм..."
-              className="w-full h-10 pl-9 pr-9 rounded-xl border border-white/10 bg-white/[0.04] text-[13px] font-roobert text-frost-white placeholder:text-whisper-gray/60 focus:outline-none focus:border-white/25 focus:bg-white/[0.07] transition-all backdrop-blur-md"
+              className="w-full h-11 pl-10 pr-9 rounded-2xl border border-white/10 bg-white/[0.04] text-[13px] font-roobert text-frost-white placeholder:text-whisper-gray/60 focus:outline-none focus:border-white/25 focus:bg-white/[0.07] transition-all backdrop-blur-xl shadow-inner"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-white/10 text-whisper-gray"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 text-whisper-gray transition-colors"
               >
                 <X size={14} />
               </button>
@@ -441,30 +376,30 @@ export function HomeScreen() {
           </div>
 
           {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
             <CategoryTab
               active={activeCategory === 'all'}
               onClick={() => setActiveCategory('all')}
-              icon={<Gamepad2 size={13} />}
+              icon={<Gamepad2 size={14} />}
               label="Все"
             />
             <CategoryTab
               active={activeCategory === 'popular'}
               onClick={() => setActiveCategory('popular')}
-              icon={<Flame size={13} className="text-amber-400" />}
+              icon={<Flame size={14} className="text-amber-400" />}
               label="TOP Игры"
             />
             <CategoryTab
-              active={activeCategory === 'inapp'}
-              onClick={() => setActiveCategory('inapp')}
-              icon={<Zap size={13} className="text-cyan-400" />}
-              label="In-App"
+              active={activeCategory === 'fast'}
+              onClick={() => setActiveCategory('fast')}
+              icon={<Zap size={14} className="text-cyan-400" />}
+              label="Быстрые"
             />
             <CategoryTab
-              active={activeCategory === 'bot'}
-              onClick={() => setActiveCategory('bot')}
-              icon={<Bot size={13} className="text-purple-400" />}
-              label="В боте"
+              active={activeCategory === 'table'}
+              onClick={() => setActiveCategory('table')}
+              icon={<Layers size={14} className="text-purple-400" />}
+              label="Аркадные"
             />
           </div>
         </div>
@@ -474,20 +409,20 @@ export function HomeScreen() {
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
             {activeCategory === 'all'
               ? 'Все доступные игры'
-              : activeCategory === 'inapp'
-              ? 'Игры в интерфейсе'
-              : activeCategory === 'bot'
-              ? 'Игры в диалоге бота'
-              : 'Популярные игры'}
+              : activeCategory === 'popular'
+              ? 'Популярные игры'
+              : activeCategory === 'fast'
+              ? 'Быстрые раунды'
+              : 'Аркады и слоты'}
           </span>
           <span className="font-roobert text-[11px] text-whisper-gray">
             {filteredGames.length} {getGamesWord(filteredGames.length)}
           </span>
         </div>
 
-        {/* Unified Games Grid */}
+        {/* In-App Games Grid Only */}
         {filteredGames.length === 0 ? (
-          <div className="py-12 text-center rounded-card border border-white/5 bg-white/[0.02]">
+          <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
             <p className="font-roobert text-[14px] text-whisper-gray">
               Игры не найдены
             </p>
@@ -543,21 +478,15 @@ function GameTile({
   index,
   router,
 }: {
-  game: GameItem;
+  game: InAppGame;
   index: number;
   router: ReturnType<typeof useRouter>;
 }) {
-  const handleClick = () => {
-    if (game.type === 'inapp' && game.href) {
-      router.push(game.href);
-    } else if (game.type === 'bot' && game.command) {
-      openTelegram(`https://t.me/${BOT_USERNAME}?start=${game.command}`);
-    }
-  };
+  const BadgeIcon = game.badge?.Icon;
 
   return (
     <button
-      onClick={handleClick}
+      onClick={() => router.push(game.href)}
       className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas ${
         game.wide ? 'col-span-2 aspect-[16/9]' : 'aspect-[5/6]'
       } text-left active:scale-[0.97] hover:border-white/25 transition-all duration-200 shadow-lg`}
@@ -586,7 +515,7 @@ function GameTile({
         }}
       />
 
-      {/* Subtle atmospheric glow */}
+      {/* Atmospheric glow */}
       <div
         aria-hidden
         className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity mix-blend-screen"
@@ -603,50 +532,43 @@ function GameTile({
         <div className="flex items-start justify-between gap-2">
           {/* Game icon */}
           <span className="w-10 h-10 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
-            {game.type === 'inapp' && game.gameKey ? (
-              <GameIcon game={game.gameKey} size={20} strokeWidth={1.5} />
-            ) : game.Icon ? (
-              <game.Icon size={20} className="stroke-[1.5]" />
-            ) : (
-              <Gamepad2 size={20} strokeWidth={1.5} />
-            )}
+            <GameIcon game={game.id} size={20} strokeWidth={1.5} />
           </span>
 
-          {/* Badge */}
+          {/* SVG-only Badge (No emojis) */}
           {game.badge && (
             <span
-              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm ${
+              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm flex items-center gap-1 ${
                 game.badge.color === 'red'
                   ? 'border-red-500/30 bg-red-500/20 text-red-300'
                   : game.badge.color === 'gold'
                   ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
                   : game.badge.color === 'cyan'
                   ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-300'
+                  : game.badge.color === 'purple'
+                  ? 'border-purple-500/30 bg-purple-500/20 text-purple-300'
                   : 'border-emerald-500/30 bg-emerald-500/20 text-emerald-300'
               }`}
             >
-              {game.badge.label}
+              {BadgeIcon && <BadgeIcon size={10} className="shrink-0 stroke-[2]" />}
+              <span>{game.badge.label}</span>
             </span>
           )}
         </div>
 
-        {/* Game Title & Subtitle */}
+        {/* Title */}
         <div>
           <div className="font-roobert text-[19px] sm:text-[20px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
             {game.name}
           </div>
           <div className="mt-0.5 font-roobert text-[10px] text-whisper-gray/90 tracking-wide uppercase">
-            {game.type === 'inapp' ? 'Mini App Game' : 'Telegram Game'}
+            Mini App Game
           </div>
         </div>
       </div>
     </button>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Category Tab Button                                                         */
-/* -------------------------------------------------------------------------- */
 
 function CategoryTab({
   active,
@@ -662,7 +584,7 @@ function CategoryTab({
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-xl text-[12px] font-roobert flex items-center gap-1.5 shrink-0 transition-all active:scale-[0.96] ${
+      className={`px-3.5 py-1.5 rounded-xl text-[12px] font-roobert flex items-center gap-1.5 shrink-0 transition-all active:scale-[0.96] ${
         active
           ? 'bg-white text-black font-semibold shadow-md'
           : 'bg-white/[0.04] text-whisper-gray hover:bg-white/[0.08] hover:text-frost-white border border-white/10'
@@ -704,10 +626,6 @@ function QuickAction({
     </button>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Hero Cards                                                                 */
-/* -------------------------------------------------------------------------- */
 
 function ContestHero({
   contest,
