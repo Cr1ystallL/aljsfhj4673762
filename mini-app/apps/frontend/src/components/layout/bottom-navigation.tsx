@@ -18,12 +18,10 @@ interface BottomNavigationProps {
 }
 
 /**
- * Bottom Navigation — Apple Design Ultra-Fast Spring (V8)
+ * Bottom Navigation — Neutral Liquid Glass & Snappy Spring Physics (V10)
  *
- * Directives applied:
- *   1. Center Button: Zero background fill (bg-transparent), pure circle border (border border-white/35 rounded-full).
- *   2. Scope: Collapses ONLY on /game/ routes. Bonuses and Partner ALWAYS show the bar.
- *   3. Ultra-Fast Spring Animation: Applied Apple kill latency principle (stiffness: 550, damping: 32, mass: 0.4) for instant snappy transitions.
+ * Updates:
+ *   - Center Logo Button: Slightly enlarged (w-[60px] h-[60px]), pure neutral liquid glass (bg-white/[0.08], backdrop-blur-2xl, border-white/20, top specular shine), with no color tints.
  */
 
 const fastSpringTransition = {
@@ -114,22 +112,32 @@ export const BottomNavigation = memo(function BottomNavigation({
               icon={<Sparkles size={19} className="stroke-[2]" />}
             />
 
-            {/* Center Primary Action — Transparent Pure Circle Border Button */}
+            {/* Center Primary Action — Enlarged Neutral Liquid Glass Button */}
             <button
               onClick={onPlayClick}
               aria-label="Главная"
-              className="relative -top-3 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-150 z-10 shrink-0"
+              className="relative -top-3.5 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-150 z-10 shrink-0"
             >
-              {/* Pure Transparent Circle Border (No Background Fill) */}
+              {/* Pure Neutral Liquid Glass Container (No Color Tint) */}
               <div
                 className={cn(
-                  'relative w-14 h-14 rounded-full border border-white/35 bg-transparent backdrop-blur-md flex items-center justify-center transition-all duration-150 shadow-sm',
-                  isHomeActive && 'border-amber-400 border-2'
+                  'relative w-[60px] h-[60px] sm:w-[64px] sm:h-[64px] rounded-full border border-white/25 bg-white/[0.08] backdrop-blur-2xl flex items-center justify-center overflow-hidden transition-all duration-150 shadow-lg',
+                  isHomeActive && 'border-white/50 bg-white/[0.15] ring-1 ring-white/30'
                 )}
               >
-                {/* Brand Logo inside outline circle */}
-                <div className="relative z-10 scale-105">
-                  <BrandMark size={30} />
+                {/* Top Specular Reflection Line */}
+                <div
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background:
+                      'radial-gradient(100% 100% at 50% 0%, rgba(255, 255, 255, 0.45) 0%, transparent 60%)',
+                  }}
+                />
+
+                {/* Brand Logo inside liquid glass */}
+                <div className="relative z-10 scale-110">
+                  <BrandMark size={32} />
                 </div>
               </div>
               <span className="mt-0.5 font-roobert text-[10px] font-bold text-frost-white tracking-tight opacity-90">

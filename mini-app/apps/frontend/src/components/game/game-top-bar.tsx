@@ -9,11 +9,10 @@ import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 
 /**
- * Game Top Bar — Apple Design & Taste-Skill Premium Header (V9)
+ * Game Top Bar — Apple Design & Taste-Skill Premium Header (V10)
  *
- * Directives applied:
- *   - Profile route check: Avatar button is hidden when user is on the /profile page.
- *   - Green dot status: Online dot removed from avatar button.
+ * Updates:
+ *   - Clean layout fix: Outer border pill is hidden when on /profile page with hidden balance, avoiding empty border markup.
  */
 
 interface GameTopBarProps {
@@ -59,6 +58,8 @@ export function GameTopBar({
     : balanceStore?.amount ?? 0;
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
+  const showPillWrapper = !hideBalance || !isProfilePage;
+
   return (
     <header className="sticky top-0 z-50 w-full bg-midnight-canvas/80 backdrop-blur-2xl border-b border-white/10 shadow-2xl transition-all">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3.5 py-2.5 flex items-center justify-between gap-2">
@@ -101,58 +102,60 @@ export function GameTopBar({
 
         {/* Right Cluster: Combined Balance Pill & Avatar */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-white/15 bg-gradient-to-r from-white/[0.06] via-white/[0.04] to-white/[0.06] shadow-inner backdrop-blur-md">
-            {!hideBalance && (
-              <button
-                onClick={() => router.push('/balance')}
-                aria-label="Кошелёк"
-                className="group flex items-center gap-2 hover:opacity-90 transition-all active:scale-[0.96] mr-0.5"
-              >
-                <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
-                  <Wallet size={13} strokeWidth={2.2} />
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-roobert font-bold text-frost-white text-[14px] sm:text-[15px] tabular-nums tracking-tight">
-                    {balanceAmount.toLocaleString('ru-RU', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                  <span className="font-roobert text-amber-300 text-[11px] font-bold tracking-wider uppercase">
-                    {activeTournamentBalance ? (
-                      <Trophy size={11} strokeWidth={2.5} />
-                    ) : (
-                      'zł'
-                    )}
-                  </span>
-                </div>
-              </button>
-            )}
+          {showPillWrapper && (
+            <div className="flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-white/15 bg-gradient-to-r from-white/[0.06] via-white/[0.04] to-white/[0.06] shadow-inner backdrop-blur-md">
+              {!hideBalance && (
+                <button
+                  onClick={() => router.push('/balance')}
+                  aria-label="Кошелёк"
+                  className="group flex items-center gap-2 hover:opacity-90 transition-all active:scale-[0.96] mr-0.5"
+                >
+                  <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                    <Wallet size={13} strokeWidth={2.2} />
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-roobert font-bold text-frost-white text-[14px] sm:text-[15px] tabular-nums tracking-tight">
+                      {balanceAmount.toLocaleString('ru-RU', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                    <span className="font-roobert text-amber-300 text-[11px] font-bold tracking-wider uppercase">
+                      {activeTournamentBalance ? (
+                        <Trophy size={11} strokeWidth={2.5} />
+                      ) : (
+                        'zł'
+                      )}
+                    </span>
+                  </div>
+                </button>
+              )}
 
-            {/* Profile Avatar Button (Hidden on /profile page, green dot removed) */}
-            {!isProfilePage && (
-              <button
-                onClick={() => router.push('/profile')}
-                aria-label="Профиль"
-                className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
-              >
-                {user?.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.photoUrl}
-                    alt={user.firstName || 'Профиль'}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                    draggable={false}
-                  />
-                ) : (
-                  <span className="font-roobert font-bold text-[13px] text-frost-white">
-                    {initials}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
+              {/* Profile Avatar Button (Hidden on /profile page) */}
+              {!isProfilePage && (
+                <button
+                  onClick={() => router.push('/profile')}
+                  aria-label="Профиль"
+                  className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
+                >
+                  {user?.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.photoUrl}
+                      alt={user.firstName || 'Профиль'}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      draggable={false}
+                    />
+                  ) : (
+                    <span className="font-roobert font-bold text-[13px] text-frost-white">
+                      {initials}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
 
           {onHowToPlay && (
             <button
