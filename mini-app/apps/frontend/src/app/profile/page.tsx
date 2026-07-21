@@ -8,12 +8,15 @@ import {
   Coins,
   Dice5,
   Trophy,
-  Sparkles,
   ChevronRight,
   Wallet,
   HelpCircle,
   X,
   Shield,
+  Clock,
+  CheckCircle2,
+  ArrowUpRight,
+  Sparkles,
 } from 'lucide-react';
 import { PageTransition } from '@/components/ui/page-transition';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -25,11 +28,11 @@ import { useRouter } from 'next/navigation';
 import { useIsAdmin } from '@/lib/admin-probe';
 
 /**
- * Profile Page — Monopo Saigon Original Midnight Aesthetic
+ * Profile Page — Stealth Luxury & Apple Design System
  *
- * Dark midnight canvas, frosted-glass cards (rounded-card, 1px white/10 borders, no harsh shadows),
- * pill controls (rounded-pill), Roobert typography. Deep ocean gradient appears only as an atmospheric
- * backdrop on the avatar plate. Pure midnight color scheme with zero bright saturated colors.
+ * Designed according to Apple Fluid Motion & UI/UX Pro Max guidelines.
+ * Dark midnight canvas (#08090c), deep frosted-glass cards (backdrop-blur-2xl),
+ * tactile spring micro-interactions, sleek silver-white typography, and zero screaming colors.
  */
 
 export default function ProfilePage() {
@@ -41,7 +44,6 @@ export default function ProfilePage() {
   const [isWagerModalOpen, setIsWagerModalOpen] = useState(false);
   const isAdmin = useIsAdmin();
 
-  // Pull a fresh balance on mount and again whenever navigating back
   useEffect(() => {
     void fetchBalance();
     void fetchTransactions(20);
@@ -54,158 +56,170 @@ export default function ProfilePage() {
     try {
       await navigator.clipboard.writeText(String(user.telegramId));
       setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      setTimeout(() => setCopied(false), 1800);
     } catch {
-      // ignore — clipboard may be blocked in embedded webview
+      // ignore
     }
   };
 
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
   const balanceAmount = balance?.amount ?? 0;
 
+  const wagerProgressPercent = useMemo(() => {
+    if (!balance?.wagerTarget || balance.wagerTarget <= 0) return 0;
+    return Math.min(100, Math.max(0, ((balance.wagerProgress ?? 0) / balance.wagerTarget) * 100));
+  }, [balance]);
+
   return (
     <PageTransition>
-      <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden pb-32">
-        <GameTopBar title="Профиль" hideBalance={true} />
-        <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-4">
+      <main className="relative min-h-screen w-full bg-[#08090c] text-frost-white overflow-x-hidden pb-36 font-roobert">
+        {/* Subtle Atmospheric Backdrop (Stealth Ambient) */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden z-0 opacity-40">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full bg-white/[0.03] blur-[100px]" />
+          <div className="absolute top-[40%] -right-24 w-[300px] h-[300px] rounded-full bg-white/[0.02] blur-[120px]" />
+        </div>
 
-          {/* Identity card */}
+        {/* Sticky Header */}
+        <GameTopBar title="Профиль" hideBalance={true} />
+
+        <div className="relative z-10 mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3.5 pt-4 flex flex-col gap-4">
+
+          {/* Hero Identity Card (Stealth Glassmorphism) */}
           <motion.section
-            initial={{ opacity: 0, y: 14 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]"
+            transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
+            className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.07] via-white/[0.03] to-white/[0.01] backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
           >
-            {/* Blurred avatar backdrop */}
+            {/* Ambient Blurred User Backdrop */}
             {user?.photoUrl ? (
               <>
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0"
+                  className="pointer-events-none absolute inset-0 opacity-35"
                   style={{
                     backgroundImage: `url(${user.photoUrl})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    filter: 'blur(36px) saturate(1.25)',
-                    transform: 'scale(1.25)',
-                    opacity: 0.65,
+                    filter: 'blur(40px) saturate(0.9)',
+                    transform: 'scale(1.3)',
                   }}
                 />
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0"
-                  style={{
-                    background:
-                      'linear-gradient(180deg, rgba(10,10,12,0.20) 0%, rgba(10,10,12,0.55) 60%, rgba(10,10,12,0.85) 100%)',
-                  }}
+                  className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-[#08090c]/80 to-[#08090c]"
                 />
               </>
             ) : (
-              <>
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-40"
-                  style={{
-                    background:
-                      'radial-gradient(120% 100% at 50% 0%, rgba(160, 224, 171, 0.18) 0%, rgba(255, 172, 46, 0.10) 45%, transparent 80%)',
-                  }}
-                />
-                <div
-                  className="mobile-no-blur pointer-events-none absolute -bottom-12 -right-10 w-56 h-56 rounded-full"
-                  style={{
-                    background:
-                      'radial-gradient(circle, rgba(165, 45, 37, 0.22) 0%, transparent 70%)',
-                    filter: 'blur(48px)',
-                  }}
-                />
-              </>
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.08)_0%,transparent_70%)]"
+              />
             )}
 
-            <div className="relative px-5 pt-7 pb-5 flex flex-col items-center text-center">
-              {/* Avatar */}
-              <div className="relative">
-                {!user?.photoUrl && (
-                  <div
-                    className="mobile-no-blur absolute -inset-3 rounded-full opacity-50 blur-2xl"
-                    style={{
-                      background:
-                        'radial-gradient(circle, rgba(160, 224, 171, 0.35) 0%, transparent 70%)',
-                    }}
-                  />
-                )}
-                {user?.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.photoUrl}
-                    alt={user.firstName || 'User'}
-                    className="relative w-20 h-20 rounded-pill object-cover border border-white/20"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="relative w-20 h-20 rounded-pill border border-white/20 bg-white/[0.06] flex items-center justify-center">
-                    <span className="font-roobert text-[28px] font-light text-frost-white">
-                      {initials}
-                    </span>
-                  </div>
-                )}
-              </div>
+            <div className="relative px-5 pt-8 pb-6 flex flex-col items-center text-center">
 
-              {/* Name */}
-              <h2 className="mt-4 font-roobert text-[22px] font-normal text-frost-white leading-tight">
+              {/* Avatar with Apple Glass Frame */}
+              <motion.div 
+                whileHover={{ scale: 1.03 }}
+                transition={{ type: 'spring', bounce: 0.3 }}
+                className="relative group cursor-pointer"
+              >
+                <div className="relative p-1 rounded-full border border-white/20 bg-white/[0.06] shadow-2xl backdrop-blur-md">
+                  {user?.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.photoUrl}
+                      alt={user.firstName || 'User'}
+                      className="relative w-20 h-20 rounded-full object-cover border border-white/10"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="relative w-20 h-20 rounded-full border border-white/10 bg-white/[0.05] flex items-center justify-center">
+                      <span className="font-roobert text-3xl font-light text-frost-white tracking-wider">
+                        {initials}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Verification Badge */}
+                  <div className="absolute bottom-0 right-0 p-1 bg-[#08090c] rounded-full shadow-lg border border-white/15">
+                    <CheckCircle2 size={12} className="text-frost-white" strokeWidth={2.5} />
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* User Full Name */}
+              <h2 className="mt-4 font-roobert text-[24px] font-semibold bg-gradient-to-r from-white via-white/95 to-white/80 bg-clip-text text-transparent tracking-tight leading-snug">
                 {user?.firstName || 'Игрок'}
                 {user?.lastName ? ` ${user.lastName}` : ''}
               </h2>
 
-              {/* Telegram id with copy */}
+              {/* Telegram ID with Interactive Copy Pill */}
               {user?.telegramId !== undefined && (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
                   onClick={handleCopyId}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors"
+                  className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/25 transition-all shadow-sm"
                 >
-                  <span className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+                  <span className="font-roobert text-[12px] font-medium text-whisper-gray tabular-nums">
                     #{user.telegramId}
                   </span>
-                  {copied ? (
-                    <Check size={11} className="text-frost-white" strokeWidth={2} />
-                  ) : (
-                    <Copy size={11} className="text-whisper-gray" strokeWidth={1.8} />
-                  )}
-                </button>
+                  <AnimatePresence mode="wait">
+                    {copied ? (
+                      <motion.div
+                        key="check"
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.5, opacity: 0 }}
+                        className="flex items-center gap-1 text-frost-white"
+                      >
+                        <Check size={12} strokeWidth={2.5} />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-whisper-gray">Скопировано</span>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="copy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        <Copy size={12} className="text-whisper-gray/70" strokeWidth={1.8} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
               )}
 
-              {/* Balance pill button */}
-              <button
+              {/* Balance Card Button (Stealth Wallet Pill) */}
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => router.push('/balance')}
                 aria-label="Открыть кошелёк"
-                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md hover:bg-white/[0.07] hover:border-white/25 active:scale-95 transition-all"
+                className="mt-4 group relative inline-flex items-center gap-2.5 px-4.5 py-2.5 rounded-2xl border border-white/15 bg-white/[0.05] backdrop-blur-xl hover:bg-white/[0.09] hover:border-white/25 shadow-lg transition-all"
               >
-                <Wallet
-                  size={13}
-                  className="text-frost-white/70"
-                  strokeWidth={1.8}
-                />
-                <span className="font-roobert text-frost-white text-[14px] tabular-nums">
-                  {balanceAmount.toLocaleString('ru-RU', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span className="text-whisper-gray text-[11px] font-roobert">
-                  zł
-                </span>
-                <ChevronRight
-                  size={12}
-                  className="text-frost-white/50 -mr-0.5"
-                  strokeWidth={1.8}
-                />
-              </button>
+                <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-frost-white group-hover:scale-105 transition-transform">
+                  <Wallet size={15} strokeWidth={2} />
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-roobert text-[17px] font-bold text-frost-white tabular-nums tracking-tight">
+                    {balanceAmount.toLocaleString('ru-RU', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="text-whisper-gray text-[12px] font-medium uppercase tracking-wider">
+                    zł
+                  </span>
+                </div>
+                <div className="ml-1 pl-2 border-l border-white/10 text-whisper-gray/60 group-hover:text-frost-white transition-colors">
+                  <ChevronRight size={14} strokeWidth={2} />
+                </div>
+              </motion.button>
 
-              {/* Active Wager Progress */}
+              {/* Active Wager Progress Bar */}
               {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
-                <div className="w-full mt-6 px-2 flex flex-col gap-2">
+                <div className="w-full mt-6 pt-5 border-t border-white/10 flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-roobert text-[12px] text-whisper-gray">Отыгрыш бонуса</span>
+                      <span className="font-roobert text-[12px] font-medium text-whisper-gray">Отыгрыш бонуса</span>
                       <button 
                         onClick={() => setIsWagerModalOpen(true)}
                         className="text-whisper-gray/70 hover:text-frost-white transition-colors p-0.5"
@@ -214,27 +228,33 @@ export default function ProfilePage() {
                         <HelpCircle size={14} strokeWidth={2} />
                       </button>
                     </div>
-                    <span className="font-roobert text-[12px] text-frost-white tabular-nums">
-                      {balance.wagerProgress.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} zł
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-roobert text-[12px] font-semibold text-frost-white tabular-nums">
+                        {balance.wagerProgress.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} zł
+                      </span>
+                      <span className="text-[10px] font-semibold text-whisper-gray px-1.5 py-0.5 rounded-md bg-white/10 border border-white/15 tabular-nums">
+                        {wagerProgressPercent.toFixed(0)}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden p-0.5 border border-white/5">
                     <motion.div
-                      className="h-full bg-frost-white"
+                      className="h-full bg-frost-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.4)]"
                       initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, (balance.wagerProgress / balance.wagerTarget) * 100)}%` }}
-                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                      animate={{ width: `${wagerProgressPercent}%` }}
+                      transition={{ type: 'spring', duration: 0.8, bounce: 0.1 }}
                     />
                   </div>
                 </div>
               ) : null}
+
             </div>
           </motion.section>
 
-          {/* Stats */}
-          <section className="grid grid-cols-2 gap-2">
+          {/* Key Gaming Stats (2x2 Grid Redesign) */}
+          <section className="grid grid-cols-2 gap-2.5">
             <StatTile
-              icon={<Dice5 size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              icon={<Dice5 size={16} className="text-frost-white/80" strokeWidth={1.8} />}
               label="Всего ставок"
               value={stats.totalBets.toLocaleString('ru-RU')}
               suffix={`(${stats.totalWagered.toLocaleString('ru-RU', {
@@ -243,7 +263,7 @@ export default function ProfilePage() {
               })} zł)`}
             />
             <StatTile
-              icon={<Coins size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              icon={<Coins size={16} className="text-frost-white/80" strokeWidth={1.8} />}
               label="Сумма выигрышей"
               value={`${stats.totalWon.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
@@ -251,7 +271,7 @@ export default function ProfilePage() {
               })} zł`}
             />
             <StatTile
-              icon={<Trophy size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              icon={<Trophy size={16} className="text-frost-white/80" strokeWidth={1.8} />}
               label="Макс выигрыш"
               value={`${stats.maxWin.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
@@ -259,7 +279,7 @@ export default function ProfilePage() {
               })} zł`}
             />
             <StatTile
-              icon={<Sparkles size={13} className="text-frost-white/60" strokeWidth={1.8} />}
+              icon={<Sparkles size={16} className="text-frost-white/80" strokeWidth={1.8} />}
               label="Макс коэфф."
               value={
                 stats.maxMultiplier > 0
@@ -269,26 +289,30 @@ export default function ProfilePage() {
             />
           </section>
 
-          {/* Recent bets */}
-          <section>
-            <div className="flex items-center justify-between px-1 mb-2">
-              <span className="font-roobert text-frost-white text-[14px]">
-                Последние ставки
-              </span>
-              <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+          {/* Recent Bets Section */}
+          <section className="mt-1">
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <Clock size={15} className="text-whisper-gray" strokeWidth={1.8} />
+                <span className="font-roobert font-medium text-frost-white text-[15px]">
+                  Последние ставки
+                </span>
+              </div>
+              <span className="font-roobert text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tracking-wider">
                 {Math.min(transactions.length, 7)} из {transactions.length}
               </span>
             </div>
 
             {txLoading ? (
-              <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl py-12 flex items-center justify-center">
-                <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] backdrop-blur-xl py-14 flex flex-col items-center justify-center gap-3">
+                <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-frost-white animate-spin" />
+                <span className="text-[12px] text-whisper-gray">Загрузка истории...</span>
               </div>
             ) : stats.bets.length === 0 ? (
               <EmptyBets onPlay={() => router.push('/game/crash')} />
             ) : (
-              <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
-                <div className="divide-y divide-white/5">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden shadow-xl">
+                <div className="divide-y divide-white/[0.05]">
                   {stats.bets.slice(0, 7).map((row, idx) => (
                     <BetRow key={row.id} row={row} index={idx} />
                   ))}
@@ -297,18 +321,22 @@ export default function ProfilePage() {
             )}
           </section>
 
-          {/* Admin entry — rendered only after probe returns 200 */}
+          {/* Admin Console Entry (Only for probe-verified Admins) */}
           {isAdmin && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => router.push('/system/console')}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 transition-colors mt-2"
+              className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-2xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/25 shadow-lg transition-all mt-2"
             >
-              <Shield size={14} strokeWidth={1.7} />
-              <span className="font-roobert text-[12px] uppercase tracking-[0.22em] text-frost-white">
-                Админ
+              <Shield size={16} className="text-frost-white/80" strokeWidth={1.8} />
+              <span className="font-roobert text-[12px] font-medium uppercase tracking-[0.2em] text-frost-white">
+                Панель администратора
               </span>
-            </button>
+              <ArrowUpRight size={14} className="text-whisper-gray" strokeWidth={1.8} />
+            </motion.button>
           )}
+
         </div>
       </main>
 
@@ -321,41 +349,46 @@ export default function ProfilePage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsWagerModalOpen(false)}
-              className="absolute inset-0 bg-midnight-canvas/80 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-[340px] rounded-[16px] border border-white/10 bg-[#161a20] p-5 shadow-2xl"
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+              className="relative w-full max-w-[350px] rounded-[24px] border border-white/15 bg-[#12141a] p-6 shadow-2xl overflow-hidden"
             >
               <button
                 onClick={() => setIsWagerModalOpen(false)}
-                className="absolute right-4 top-4 p-1 text-whisper-gray/70 hover:text-frost-white transition-colors"
+                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/5 border border-white/10 text-whisper-gray hover:text-frost-white hover:bg-white/10 transition-colors"
+                aria-label="Закрыть"
               >
-                <X size={18} strokeWidth={2} />
+                <X size={16} strokeWidth={2} />
               </button>
               
-              <div className="mb-4 flex items-center gap-2 text-frost-white">
-                <HelpCircle size={20} className="text-white/80" strokeWidth={1.8} />
-                <h3 className="font-roobert text-[16px] font-medium">Как работает отыгрыш?</h3>
+              <div className="mb-4 flex items-center gap-2.5 text-frost-white">
+                <div className="p-2 rounded-xl bg-white/10 border border-white/15 text-frost-white">
+                  <HelpCircle size={18} strokeWidth={2} />
+                </div>
+                <h3 className="font-roobert text-[16.5px] font-medium">Как работает отыгрыш?</h3>
               </div>
               
               <div className="space-y-3 font-roobert text-[13px] text-whisper-gray/90 leading-relaxed">
-                <p>
-                  <strong className="text-frost-white">Отыгрыш (вейджер)</strong> — это сумма ставок, которую необходимо сделать в играх, чтобы разблокировать бонусные средства для вывода.
+                <p className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+                  <strong className="text-frost-white font-medium">Отыгрыш (вейджер)</strong> — это сумма ставок, которую необходимо сделать в играх, чтобы перевести бонусные средства в реальный баланс.
                 </p>
-                <p>
-                  <strong>Пример:</strong> Если вы получили бонус 100 zł с вейджером x5, вам нужно сделать ставок на общую сумму 500 zł (100 × 5).
-                </p>
-                <p>
-                  В счет отыгрыша идут как выигрышные, так и проигрышные ставки. Как только шкала прогресса заполнится до 100%, ваши средства станут доступны для снятия.
+                <div className="p-3 rounded-xl border border-white/10 bg-white/[0.04] text-whisper-gray text-[12.5px]">
+                  <strong className="text-frost-white block mb-0.5">Пример:</strong>
+                  Бонус 100 zł с вейджером x5 требует суммарных ставок на 500 zł (100 × 5).
+                </div>
+                <p className="text-[12px] text-whisper-gray/80">
+                  Учитываются любые ставки. По достижении 100% средства мгновенно доступны к выводу.
                 </p>
               </div>
               
               <button
                 onClick={() => setIsWagerModalOpen(false)}
-                className="mt-6 w-full rounded-pill bg-white/10 hover:bg-white/15 py-2.5 font-roobert text-[13px] text-frost-white transition-colors"
+                className="mt-5 w-full rounded-2xl bg-white/15 hover:bg-white/20 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-frost-white transition-all border border-white/15"
               >
                 Понятно
               </button>
@@ -376,7 +409,7 @@ interface BetRowData {
   date: Date;
   stake: number;
   payout: number;
-  net: number; // signed: positive = won, negative = lost
+  net: number;
   multiplier: number | null;
   outcome: 'won' | 'lost' | 'pending';
 }
@@ -476,22 +509,28 @@ function StatTile({
   suffix?: string;
 }) {
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-3 py-2.5">
-      <div className="flex items-center gap-1.5">
-        {icon}
-        <span className="text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
+    <motion.div 
+      whileHover={{ y: -2 }}
+      transition={{ type: 'spring', bounce: 0.2 }}
+      className="rounded-[22px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] backdrop-blur-xl p-3.5 shadow-lg flex flex-col justify-between"
+    >
+      <div className="flex items-center gap-2">
+        <div className="p-1.5 rounded-xl border border-white/10 bg-white/[0.05] flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+        <span className="text-[10px] uppercase font-semibold tracking-[0.18em] text-whisper-gray truncate font-roobert">
           {label}
         </span>
       </div>
-      <div className="mt-1 font-roobert text-[18px] font-light text-frost-white tabular-nums">
+      <div className="mt-2.5 font-roobert text-[18.5px] font-medium text-frost-white tabular-nums tracking-tight leading-none">
         {value}
         {suffix && (
-          <span className="ml-1.5 font-roobert text-[12px] text-whisper-gray tabular-nums">
+          <span className="block mt-1 font-roobert text-[11px] font-normal text-whisper-gray/70 tabular-nums">
             {suffix}
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -515,28 +554,30 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04 }}
-      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3"
+      transition={{ type: 'spring', duration: 0.4, delay: index * 0.04 }}
+      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 hover:bg-white/[0.02] transition-colors"
     >
       <GameIconTile game={row.game} size="sm" />
 
       <div className="min-w-0">
-        <div className="font-roobert text-[14px] text-frost-white truncate">
+        <div className="font-roobert font-medium text-[14px] text-frost-white truncate">
           {row.gameLabel}
         </div>
-        <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+        <div className="font-roobert text-[11.5px] text-whisper-gray/70 tabular-nums">
           {dateLabel} · ставка{' '}
-          {row.stake.toLocaleString('ru-RU', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 2,
-          })}{' '}
-          zł
+          <span className="text-frost-white/90">
+            {row.stake.toLocaleString('ru-RU', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 2,
+            })}{' '}
+            zł
+          </span>
         </div>
       </div>
 
       <div className="text-right">
         <div
-          className={`font-roobert text-[14px] tabular-nums ${
+          className={`font-roobert font-medium text-[14px] tabular-nums ${
             row.outcome === 'won'
               ? 'text-frost-white'
               : row.outcome === 'lost'
@@ -547,7 +588,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
           {netLabel}
         </div>
         {row.multiplier !== null && row.outcome === 'won' && (
-          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+          <div className="mt-0.5 font-roobert text-[10px] font-medium text-whisper-gray tabular-nums">
             x{row.multiplier.toFixed(2)}
           </div>
         )}
@@ -558,23 +599,29 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
 
 function EmptyBets({ onPlay }: { onPlay: () => void }) {
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl py-10 px-6 flex flex-col items-center text-center">
-      <div className="w-12 h-12 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center mb-3">
-        <Dice5 size={20} className="text-frost-white/70" strokeWidth={1.6} />
-      </div>
-      <p className="font-roobert text-frost-white text-[15px]">
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-xl py-12 px-6 flex flex-col items-center text-center shadow-lg">
+      <motion.div 
+        animate={{ y: [0, -3, 0] }}
+        transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+        className="w-14 h-14 rounded-2xl border border-white/15 bg-white/[0.04] flex items-center justify-center mb-3 shadow-inner"
+      >
+        <Dice5 size={22} className="text-frost-white/70" strokeWidth={1.8} />
+      </motion.div>
+      <p className="font-roobert font-medium text-frost-white text-[15.5px]">
         Ставки появятся здесь
       </p>
-      <p className="mt-1 font-roobert text-[12px] text-whisper-gray max-w-[280px]">
-        Самое время сыграть. Принцип честный, RTP от 97% и выше.
+      <p className="mt-1 font-roobert text-[12px] text-whisper-gray max-w-[280px] leading-relaxed">
+        Самое время сыграть. Честный RTP от 97% и моментальные выплаты.
       </p>
-      <button
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.97 }}
         onClick={onPlay}
-        className="mt-5 inline-flex items-center gap-1.5 px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
+        className="mt-5 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-frost-white text-[#08090c] font-roobert font-semibold text-[12px] uppercase tracking-[0.18em] shadow-lg hover:bg-frost-white/90 transition-all"
       >
         Играть
-        <ChevronRight size={14} strokeWidth={2} />
-      </button>
+        <ChevronRight size={14} strokeWidth={2.5} />
+      </motion.button>
     </div>
   );
 }
