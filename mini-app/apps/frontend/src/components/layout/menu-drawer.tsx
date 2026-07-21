@@ -147,14 +147,6 @@ export function MenuDrawer({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            drag="x"
-            dragConstraints={{ left: -300, right: 0 }}
-            dragElastic={0.1}
-            onDragEnd={(_, info) => {
-              if (info.offset.x < -80 || info.velocity.x < -300) {
-                onClose();
-              }
-            }}
             className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas/95 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
           >
             {/* Top Header */}
@@ -264,8 +256,8 @@ export function MenuDrawer({
                         {/* Card Content */}
                         <div className="relative h-full w-full p-3 flex flex-col justify-between z-10">
                           <div className="flex items-start justify-between gap-1">
-                            <span className="w-8 h-8 rounded-lg border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shrink-0">
-                              <GameIcon game={g.id} size={16} />
+                            <span className="w-10 h-10 rounded-xl border border-white/20 bg-black/50 backdrop-blur-md flex items-center justify-center text-frost-white shrink-0 shadow-lg">
+                              <GameIcon game={g.id} size={22} strokeWidth={2} />
                             </span>
 
                             {g.badge && (
