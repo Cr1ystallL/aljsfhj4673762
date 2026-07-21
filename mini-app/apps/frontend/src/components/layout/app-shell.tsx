@@ -6,23 +6,19 @@ import { BottomNavigation } from './bottom-navigation';
 import { MenuDrawer } from './menu-drawer';
 import { useNavStore } from '@/store/nav-store';
 import { useAuthStore } from '@/store/auth-store';
+import { ChevronRight } from 'lucide-react';
 
 /**
- * App shell with persistent navigation.
+ * App shell with persistent navigation & edge-swipe drawer trigger.
  *
- * Wraps every page with the bottom nav and the games drawer. On
- * game / balance routes the nav becomes hideable so the page can claim
- * the full viewport; the home and profile screens always show it.
- *
- * Edge-swipe gesture: a horizontal drag that starts within the leftmost
- * 24px of the viewport and travels at least 60px to the right opens
- * the side drawer. The bottom navigation is force-hidden while the
- * drawer is open so the two surfaces don't overlap visually.
+ * Edge-swipe gesture: a horizontal drag starting within the leftmost 48px
+ * opens the side drawer. Includes a tactile pull tab on the left screen edge
+ * for mobile phones.
  */
 const HIDEABLE_PREFIXES = ['/game/', '/balance', '/bonuses', '/partner'];
 
-const EDGE_SWIPE_ZONE_PX = 24;
-const EDGE_SWIPE_THRESHOLD_PX = 60;
+const EDGE_SWIPE_ZONE_PX = 48;
+const EDGE_SWIPE_THRESHOLD_PX = 50;
 const EDGE_SWIPE_MAX_VERTICAL_PX = 60;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -62,7 +58,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const dx = t.clientX - start.x;
     const dy = Math.abs(t.clientY - start.y);
     if (dy > EDGE_SWIPE_MAX_VERTICAL_PX) {
-      // Looks like a vertical scroll, abandon.
       start.active = false;
       return;
     }
@@ -105,6 +100,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/* Side Pull Tab for Mobile Phones (Left edge gesture handle) */}
+      {!isMenuOpen && !isConsole && (
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          aria-label="Открыть боковое меню"
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-3.5 h-16 rounded-r-xl border border-l-0 border-white/20 bg-midnight-canvas/80 backdrop-blur-md flex items-center justify-center text-whisper-gray/80 hover:text-frost-white active:scale-[0.95] transition-all shadow-lg"
+        >
+          <ChevronRight size={12} strokeWidth={2.5} />
+        </button>
+      )}
+
       {children}
 
       <BottomNavigation

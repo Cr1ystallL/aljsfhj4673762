@@ -26,15 +26,12 @@ import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 
 /**
- * Home Screen — Apple & Taste-Skill Premium Casino Menu (V2)
+ * Home Screen — Apple & Taste-Skill Premium Casino Menu (V3)
  *
- * Design Improvements:
- *   - Search SVG fix: Crisp custom SVG matching user spec.
- *   - Badge icons: Clean SVG icons instead of raw emojis (Flame, Zap, Crown, Gem, Gift, Sparkles).
- *   - Grid filtering: In-App games only (Bot games removed from main grid).
- *   - Keno badge: Added LOTTO tag with Gem icon.
- *   - Admin Hide/Show logic: Strict compliance with availability.hidden & isAdmin.
- *   - Live Stats: Dynamic online formula & Payouts * 2.
+ * Improvements in V3:
+ *   - Search SVG: High-contrast stroke with amber accent (text-amber-400 stroke-[2.2]).
+ *   - Live Dynamic Online: Fluctuates online count live every 3.5s with online multiplier rules.
+ *   - Realistic Payouts: Realistic confirmed payouts base (~2,840 zł).
  */
 
 type CategoryKey = 'all' | 'popular' | 'fast' | 'table';
@@ -153,6 +150,13 @@ const IN_APP_GAMES: InAppGame[] = [
   },
 ];
 
+function calculateDisplayOnline(actual: number): number {
+  if (actual >= 1 && actual <= 5) return actual * 3;
+  if (actual >= 6 && actual <= 10) return actual * 2;
+  if (actual >= 11 && actual <= 30) return actual * 2;
+  return actual;
+}
+
 interface HeroContest {
   id: string;
   title: string;
@@ -175,17 +179,17 @@ export function HomeScreen() {
     hidden: Record<string, boolean>;
   } | null>(null);
   const [contests, setContests] = useState<HeroContest[] | null>(null);
-  const [stats, setStats] = useState<{ online: number; payouts24h: number }>({
-    online: 24,
-    payouts24h: 184240,
-  });
+
+  // Dynamic live online state
+  const [rawOnline, setRawOnline] = useState<number>(6);
+  const [payouts24h, setPayouts24h] = useState<number>(2840);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     void fetchBalance();
   }, [fetchBalance, isAuthenticated]);
 
-  // Fetch online & payouts stats from /api/stats
+  // Initial stats fetch
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -194,13 +198,11 @@ export function HomeScreen() {
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data.success) {
-          setStats({
-            online: data.online ?? 24,
-            payouts24h: data.payouts24h ?? 184240,
-          });
+          setRawOnline(data.rawOnline ?? 6);
+          setPayouts24h(data.payouts24h ?? 2840);
         }
       } catch {
-        // ignore fallback
+        // fallback
       }
     })();
     return () => {
@@ -208,7 +210,23 @@ export function HomeScreen() {
     };
   }, []);
 
-  // Fetch game availability (Admin hidden settings)
+  // Fluctuate raw online live every 3.5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRawOnline((prev) => {
+        const delta = Math.floor(Math.random() * 3) - 1; // -1, 0, +1
+        const next = prev + delta;
+        return Math.max(3, Math.min(next, 18));
+      });
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
+
+  const displayOnline = useMemo(() => {
+    return calculateDisplayOnline(rawOnline);
+  }, [rawOnline]);
+
+  // Fetch availability
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
@@ -273,7 +291,6 @@ export function HomeScreen() {
     return eligible[Math.floor(Math.random() * eligible.length)] ?? null;
   }, [contests]);
 
-  // Helper checking if game is visible to current user
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
@@ -315,14 +332,14 @@ export function HomeScreen() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
             </span>
-            <span className="text-frost-white font-medium tracking-tight">
-              {stats.online} онлайн
+            <span className="text-frost-white font-medium tracking-tight transition-all duration-300">
+              {displayOnline} онлайн
             </span>
           </div>
           <div className="flex items-center gap-1.5 text-amber-300 font-semibold tracking-tight">
             <TrendingUp size={14} strokeWidth={2.2} className="text-amber-400" />
             <span>
-              Выплаты 24ч: {stats.payouts24h.toLocaleString('ru-RU')} zł
+              Выплаты 24ч: {payouts24h.toLocaleString('ru-RU')} zł
             </span>
           </div>
         </div>
@@ -341,19 +358,19 @@ export function HomeScreen() {
 
         {/* Search & Category Filter Section */}
         <div className="flex flex-col gap-3">
-          {/* Search bar with explicit user-requested SVG */}
+          {/* Search bar with HIGH-CONTRAST amber SVG icon */}
           <div className="relative w-full">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-whisper-gray/70 pointer-events-none"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none drop-shadow-sm"
             >
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
@@ -363,7 +380,7 @@ export function HomeScreen() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Поиск по играм..."
-              className="w-full h-11 pl-10 pr-9 rounded-2xl border border-white/10 bg-white/[0.04] text-[13px] font-roobert text-frost-white placeholder:text-whisper-gray/60 focus:outline-none focus:border-white/25 focus:bg-white/[0.07] transition-all backdrop-blur-xl shadow-inner"
+              className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/15 bg-black/40 text-[13px] font-roobert text-frost-white placeholder:text-whisper-gray/70 focus:outline-none focus:border-amber-400/50 focus:bg-black/60 transition-all backdrop-blur-xl shadow-inner"
             />
             {searchQuery && (
               <button
@@ -469,10 +486,6 @@ export function HomeScreen() {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Game Tile Component                                                         */
-/* -------------------------------------------------------------------------- */
-
 function GameTile({
   game,
   index,
@@ -491,7 +504,6 @@ function GameTile({
         game.wide ? 'col-span-2 aspect-[16/9]' : 'aspect-[5/6]'
       } text-left active:scale-[0.97] hover:border-white/25 transition-all duration-200 shadow-lg`}
     >
-      {/* Background artwork */}
       {game.bg && (
         <div
           aria-hidden
@@ -505,7 +517,6 @@ function GameTile({
         />
       )}
 
-      {/* Gradient vignette */}
       <div
         aria-hidden
         className="absolute inset-0"
@@ -515,7 +526,6 @@ function GameTile({
         }}
       />
 
-      {/* Atmospheric glow */}
       <div
         aria-hidden
         className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity mix-blend-screen"
@@ -527,15 +537,12 @@ function GameTile({
         }}
       />
 
-      {/* Tile Content */}
       <div className="relative h-full w-full p-4 flex flex-col justify-between z-10">
         <div className="flex items-start justify-between gap-2">
-          {/* Game icon */}
           <span className="w-10 h-10 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
             <GameIcon game={game.id} size={20} strokeWidth={1.5} />
           </span>
 
-          {/* SVG-only Badge (No emojis) */}
           {game.badge && (
             <span
               className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm flex items-center gap-1 ${
@@ -556,7 +563,6 @@ function GameTile({
           )}
         </div>
 
-        {/* Title */}
         <div>
           <div className="font-roobert text-[19px] sm:text-[20px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
             {game.name}

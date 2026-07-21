@@ -11,7 +11,7 @@ import { NextResponse } from 'next/server';
  *       11..30 players -> online * 2
  *       31+ players    -> online as is
  *   - Confirmed 24h Payouts:
- *       Real confirmed withdrawals * 2
+ *       Real confirmed withdrawals * 2 (Realistic base: ~1,420 zł * 2 = 2,840 zł)
  */
 
 function getDisplayOnline(actual: number): number {
@@ -23,15 +23,13 @@ function getDisplayOnline(actual: number): number {
 
 export async function GET() {
   try {
-    // Simulated/actual active sessions count
-    // Base online count varies organically depending on time
+    // Simulated/actual active sessions count base
     const baseHour = new Date().getHours();
-    const organicBase = 8 + (baseHour % 12);
+    const organicBase = 4 + (baseHour % 5); // 4..8 real online range
     const displayOnline = getDisplayOnline(organicBase);
 
-    // 24h Confirmed Payouts calculation (Base confirmed withdrawals * 2)
-    // If backend returns real payouts, we multiply confirmed amount by 2
-    const baseConfirmedPayouts = 92120; // confirmed payouts base
+    // Realistic payouts: 1,420 zł confirmed withdrawals * 2 = 2,840 zł
+    const baseConfirmedPayouts = 1420;
     const displayPayouts = baseConfirmedPayouts * 2;
 
     return NextResponse.json({
@@ -43,7 +41,7 @@ export async function GET() {
     });
   } catch (err) {
     return NextResponse.json(
-      { success: false, online: 24, payouts24h: 184240, currency: 'zł' },
+      { success: false, online: 12, payouts24h: 2840, currency: 'zł' },
       { status: 500 }
     );
   }
