@@ -11,11 +11,10 @@ import { ChevronRight } from 'lucide-react';
 /**
  * App shell with persistent navigation & edge-swipe drawer trigger.
  *
- * Edge-swipe gesture: a horizontal drag starting within the leftmost 48px
- * opens the side drawer. Includes a tactile pull tab on the left screen edge
- * for mobile phones.
+ * Only actual game screens (/game/) allow the bottom nav to collapse.
+ * Bonuses, Partner, Profile, Home always keep the bottom nav visible!
  */
-const HIDEABLE_PREFIXES = ['/game/', '/balance', '/bonuses', '/partner'];
+const HIDEABLE_PREFIXES = ['/game/'];
 
 const EDGE_SWIPE_ZONE_PX = 48;
 const EDGE_SWIPE_THRESHOLD_PX = 50;

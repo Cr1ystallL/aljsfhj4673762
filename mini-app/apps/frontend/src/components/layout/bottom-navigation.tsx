@@ -18,18 +18,19 @@ interface BottomNavigationProps {
 }
 
 /**
- * Bottom Navigation — Smooth Apple Spring Animations (V7)
+ * Bottom Navigation — Apple Design Ultra-Fast Spring (V8)
  *
- * Updates:
- *   - Center Logo Button: Pure borderless glass (removed all stroke borders/rings).
- *   - AnimatePresence: Ultra-smooth spring physics (stiffness: 280, damping: 24) for collapsing and expanding.
+ * Directives applied:
+ *   1. Center Button: Zero background fill (bg-transparent), pure circle border (border border-white/35 rounded-full).
+ *   2. Scope: Collapses ONLY on /game/ routes. Bonuses and Partner ALWAYS show the bar.
+ *   3. Ultra-Fast Spring Animation: Applied Apple kill latency principle (stiffness: 550, damping: 32, mass: 0.4) for instant snappy transitions.
  */
 
-const springTransition = {
+const fastSpringTransition = {
   type: 'spring',
-  stiffness: 280,
-  damping: 24,
-  mass: 0.8,
+  stiffness: 550,
+  damping: 32,
+  mass: 0.4,
 };
 
 export const BottomNavigation = memo(function BottomNavigation({
@@ -54,19 +55,19 @@ export const BottomNavigation = memo(function BottomNavigation({
     <div className="fixed bottom-2.5 inset-x-0 z-40 pointer-events-none flex flex-col items-center justify-end px-3">
       <AnimatePresence mode="wait">
         {hideable && collapsed ? (
-          /* Smooth Pull Handle on game pages */
+          /* Fast Pull Handle on /game/ routes */
           <motion.div
             key="pull-handle"
-            initial={{ y: 40, opacity: 0 }}
+            initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 40, opacity: 0 }}
-            transition={springTransition}
+            exit={{ y: 30, opacity: 0 }}
+            transition={fastSpringTransition}
             className="pointer-events-auto"
           >
             <button
               onClick={() => setCollapsed(false)}
               aria-label="Вытянуть панель навигации"
-              className="group px-4 py-2 rounded-full border border-white/15 bg-midnight-canvas/90 backdrop-blur-2xl shadow-[0_8px_25px_rgba(0,0,0,0.7)] flex items-center gap-2 text-frost-white active:scale-95 transition-all"
+              className="group px-4 py-2 rounded-full border border-white/20 bg-midnight-canvas/90 backdrop-blur-2xl shadow-[0_8px_25px_rgba(0,0,0,0.7)] flex items-center gap-2 text-frost-white active:scale-95 transition-all"
             >
               <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
                 <ChevronUp size={14} strokeWidth={2.5} />
@@ -77,16 +78,16 @@ export const BottomNavigation = memo(function BottomNavigation({
             </button>
           </motion.div>
         ) : (
-          /* Smooth Bottom Dock Navigation */
+          /* Fast Bottom Dock Navigation */
           <motion.nav
             key="bottom-dock"
-            initial={{ y: 60, opacity: 0 }}
+            initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 60, opacity: 0 }}
-            transition={springTransition}
+            exit={{ y: 50, opacity: 0 }}
+            transition={fastSpringTransition}
             className="pointer-events-auto w-full max-w-[460px] sm:max-w-[500px] rounded-full border border-white/15 bg-midnight-canvas/90 backdrop-blur-2xl px-4 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.7)] flex items-center justify-between gap-1 relative"
           >
-            {/* Collapse button on hideable pages */}
+            {/* Collapse button on /game/ pages */}
             {hideable && (
               <button
                 onClick={() => setCollapsed(true)}
@@ -113,30 +114,20 @@ export const BottomNavigation = memo(function BottomNavigation({
               icon={<Sparkles size={19} className="stroke-[2]" />}
             />
 
-            {/* Center Primary Action — Borderless Clear Glass Logo Button */}
+            {/* Center Primary Action — Transparent Pure Circle Border Button */}
             <button
               onClick={onPlayClick}
               aria-label="Главная"
-              className="relative -top-3 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-200 z-10 shrink-0"
+              className="relative -top-3 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-150 z-10 shrink-0"
             >
-              {/* Pure Borderless Transparent Glass Container */}
+              {/* Pure Transparent Circle Border (No Background Fill) */}
               <div
                 className={cn(
-                  'relative w-14 h-14 rounded-full bg-white/[0.09] backdrop-blur-2xl flex items-center justify-center overflow-hidden transition-all duration-200 shadow-md',
-                  isHomeActive && 'bg-white/[0.16]'
+                  'relative w-14 h-14 rounded-full border border-white/35 bg-transparent backdrop-blur-md flex items-center justify-center transition-all duration-150 shadow-sm',
+                  isHomeActive && 'border-amber-400 border-2'
                 )}
               >
-                {/* Top Specular Reflection Shine */}
-                <div
-                  aria-hidden
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background:
-                      'radial-gradient(100% 100% at 50% 0%, rgba(255, 255, 255, 0.45) 0%, transparent 60%)',
-                  }}
-                />
-
-                {/* Brand Logo inside borderless glass */}
+                {/* Brand Logo inside outline circle */}
                 <div className="relative z-10 scale-105">
                   <BrandMark size={30} />
                 </div>
@@ -182,11 +173,11 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className="relative flex-1 py-0.5 flex flex-col items-center justify-center gap-0.5 rounded-full transition-all active:scale-[0.92] duration-200"
+      className="relative flex-1 py-0.5 flex flex-col items-center justify-center gap-0.5 rounded-full transition-all active:scale-[0.92] duration-150"
     >
       <div
         className={cn(
-          'flex items-center justify-center transition-colors duration-200',
+          'flex items-center justify-center transition-colors duration-150',
           active ? 'text-amber-400' : 'text-whisper-gray/70 hover:text-frost-white/90'
         )}
       >
