@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   ArrowUpRight,
   Sparkles,
-  ShieldCheck,
 } from 'lucide-react';
 import { PageTransition } from '@/components/ui/page-transition';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -119,15 +118,7 @@ export default function ProfilePage() {
               />
             )}
 
-            <div className="relative px-5 pt-7 pb-6 flex flex-col items-center text-center">
-
-              {/* Status Badge */}
-              <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-md">
-                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-whisper-gray">
-                  Игрок MACVBET
-                </span>
-              </div>
+            <div className="relative px-5 pt-8 pb-6 flex flex-col items-center text-center">
 
               {/* Avatar Frame with Obsidian Dual-Ring */}
               <motion.div 
@@ -151,11 +142,6 @@ export default function ProfilePage() {
                       </span>
                     </div>
                   )}
-
-                  {/* Verification Checkmark Badge */}
-                  <div className="absolute bottom-0 right-0 p-1 bg-black rounded-full shadow-lg border border-white/20">
-                    <ShieldCheck size={13} className="text-frost-white" strokeWidth={2.2} />
-                  </div>
                 </div>
               </motion.div>
 
@@ -225,8 +211,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray group-hover:text-white group-hover:bg-white/10 transition-all">
-                  <ChevronRight size={16} strokeWidth={2} />
+                <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray group-hover:text-white group-hover:bg-white/10 transition-all">
+                  <ChevronRight size={22} strokeWidth={2.2} />
                 </div>
               </motion.div>
 
