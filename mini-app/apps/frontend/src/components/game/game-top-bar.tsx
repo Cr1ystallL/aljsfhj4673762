@@ -9,12 +9,11 @@ import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 
 /**
- * Game Top Bar — Apple Design & Taste-Skill Premium Header
+ * Game Top Bar — Apple Design & Taste-Skill Premium Header (V9)
  *
- * Shared header across all mini-app pages. Applied Design Skills:
- *   - apple-design: Tactile active scales (active:scale-[0.96]), backdrop-blur-2xl glassmorphism, rounded-full pills.
- *   - taste-skill: Deep ocean atmospheric dark hues, metallic currency typography, subtle ambient glows.
- *   - ui-ux-pro-max: Clear visual hierarchy, accessible touch targets, online status avatar ring.
+ * Directives applied:
+ *   - Profile route check: Avatar button is hidden when user is on the /profile page.
+ *   - Green dot status: Online dot removed from avatar button.
  */
 
 interface GameTopBarProps {
@@ -45,6 +44,7 @@ export function GameTopBar({
   const pathname = usePathname();
 
   const isHome = pathname === '/';
+  const isProfilePage = pathname?.startsWith('/profile') ?? false;
   const gameType = pathname?.split('/').pop() || '';
   const activeTournamentBalance = tournamentBalances.find(
     (t) => t.gameType === gameType
@@ -129,29 +129,29 @@ export function GameTopBar({
               </button>
             )}
 
-            {/* Profile Avatar with Online Status indicator */}
-            <button
-              onClick={() => router.push('/profile')}
-              aria-label="Профиль"
-              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
-            >
-              {user?.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.photoUrl}
-                  alt={user.firstName || 'Профиль'}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                  draggable={false}
-                />
-              ) : (
-                <span className="font-roobert font-bold text-[13px] text-frost-white">
-                  {initials}
-                </span>
-              )}
-              {/* Online status indicator dot */}
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-midnight-canvas shadow-sm" />
-            </button>
+            {/* Profile Avatar Button (Hidden on /profile page, green dot removed) */}
+            {!isProfilePage && (
+              <button
+                onClick={() => router.push('/profile')}
+                aria-label="Профиль"
+                className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
+              >
+                {user?.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.photoUrl}
+                    alt={user.firstName || 'Профиль'}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    draggable={false}
+                  />
+                ) : (
+                  <span className="font-roobert font-bold text-[13px] text-frost-white">
+                    {initials}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           {onHowToPlay && (
