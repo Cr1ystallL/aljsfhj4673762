@@ -4,9 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
+  BookOpen,
   ChevronRight,
+  Crown,
   Flame,
   Gamepad2,
+  Gem,
+  Gift,
   Headphones,
   Layers,
   Sparkles,
@@ -14,6 +18,7 @@ import {
   Wallet,
   X,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { GameIcon, type GameKey } from '@/components/ui/game-icon';
@@ -28,29 +33,25 @@ interface MenuDrawerProps {
   isAuthenticated?: boolean;
 }
 
-/**
- * Menu Drawer — Apple Design & Taste-Skill Sidebar
- *
- * Slide-over drawer with gesture dismissal support.
- * Structure:
- *   - User Quick Profile Pill (Avatar, Username, Balance).
- *   - Games List Grid with badges.
- *   - Quick Navigation Links.
- *   - Footer Brand Lockup & Support link.
- */
+interface InAppGame {
+  id: GameKey;
+  name: string;
+  bg: string;
+  badge?: { label: string; color: string; Icon: LucideIcon };
+}
 
-const IN_APP_GAMES: Array<{ id: GameKey; name: string; badge?: string }> = [
-  { id: 'crash', name: 'MacvJet', badge: 'TOP' },
-  { id: 'mines', name: 'Mines', badge: 'HOT' },
-  { id: 'hilo', name: 'Hi-Lo' },
-  { id: 'plinko', name: 'Plinko', badge: 'TOP' },
-  { id: 'coinflip', name: 'Coinflip' },
-  { id: 'blackjack', name: 'Blackjack', badge: 'PRO' },
-  { id: 'wheel', name: 'Wheel' },
-  { id: 'bridges', name: 'Bridges' },
-  { id: 'cases', name: 'Case', badge: 'BONUS' },
-  { id: 'keno', name: 'Keno', badge: 'LOTTO' },
-  { id: 'chicken-road', name: 'MacvRoad', badge: 'NEW' },
+const ALL_IN_APP_GAMES: InAppGame[] = [
+  { id: 'crash', name: 'MacvJet', bg: '/MacvJet.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
+  { id: 'mines', name: 'Mines', bg: '/Mines.png', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
+  { id: 'hilo', name: 'Hi-Lo', bg: '/hilo.png', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
+  { id: 'plinko', name: 'Plinko', bg: '/Plinko.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
+  { id: 'coinflip', name: 'Coinflip', bg: '/Coinflip.png', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
+  { id: 'blackjack', name: 'Blackjack', bg: '/bj.png', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
+  { id: 'wheel', name: 'Wheel', bg: '/Wheel.png', badge: { label: 'x50', color: 'gold', Icon: Zap } },
+  { id: 'bridges', name: 'Bridges', bg: '/Bridges.png' },
+  { id: 'cases', name: 'Case', bg: '/case.png', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
+  { id: 'keno', name: 'Keno', bg: '/keno.png?v=2', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
+  { id: 'chicken-road', name: 'MacvRoad', bg: '/MacvRoad.png?v=2', badge: { label: 'NEW', color: 'green', Icon: Sparkles } },
 ];
 
 export function MenuDrawer({
@@ -63,7 +64,54 @@ export function MenuDrawer({
   const { user } = useAuthStore();
   const balanceStore = useBalanceStore((s) => s.balance);
 
-  // Close on Escape
+  const [availability, setAvailability] = useState<{
+    isAdmin: boolean;
+    hidden: Record<string, boolean>;
+  } | null>(null);
+
+  // Fetch Admin hidden games availability
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/games/availability', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        const hidden: Record<string, boolean> = {};
+        if (Array.isArray(json.games)) {
+          for (const g of json.games) {
+            if (g?.gameType) hidden[g.gameType] = !!g.hidden;
+          }
+        }
+        setAvailability({ isAdmin: !!json.isAdmin, hidden });
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // Filter out hidden games for non-admin users
+  const visibleGames = useMemo(() => {
+    const hidden = availability?.hidden ?? {};
+    const isAdmin = availability?.isAdmin ?? false;
+    return ALL_IN_APP_GAMES.filter((g) => {
+      if ((g.id === 'blackjack' || g.id === 'chicken-road') && !isAdmin) {
+        return false;
+      }
+      if (hidden[g.id] && !isAdmin) return false;
+      return true;
+    });
+  }, [availability]);
+
+  // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -90,7 +138,7 @@ export function MenuDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
           />
 
           {/* Drawer panel */}
@@ -107,10 +155,10 @@ export function MenuDrawer({
                 onClose();
               }
             }}
-            className="relative z-10 w-[85%] max-w-[340px] h-full bg-midnight-canvas/95 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
+            className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas/95 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
           >
             {/* Top Header */}
-            <div className="p-5 border-b border-white/10 flex flex-col gap-4">
+            <div className="p-4 border-b border-white/10 flex flex-col gap-3.5">
               <div className="flex items-center justify-between">
                 <BrandWordmark size={32} />
                 <button
@@ -123,9 +171,9 @@ export function MenuDrawer({
               </div>
 
               {/* User Quick Profile Card */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 flex items-center justify-between gap-3">
+              <div className="rounded-2xl border border-white/15 bg-gradient-to-r from-white/[0.05] via-white/[0.03] to-white/[0.05] p-3 flex items-center justify-between gap-3 shadow-inner">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-10 h-10 rounded-full border border-white/20 bg-white/10 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full border border-amber-400/40 bg-amber-400/10 flex items-center justify-center shrink-0">
                     {user?.photoUrl ? (
                       <img
                         src={user.photoUrl}
@@ -142,7 +190,7 @@ export function MenuDrawer({
                     <div className="font-roobert font-medium text-[14px] text-frost-white truncate">
                       {user?.firstName || 'Игрок'}
                     </div>
-                    <div className="font-roobert text-[11px] text-amber-300 font-semibold">
+                    <div className="font-roobert text-[11px] text-amber-300 font-bold tracking-tight">
                       {(balanceStore?.amount ?? 0).toLocaleString('ru-RU')} zł
                     </div>
                   </div>
@@ -152,83 +200,138 @@ export function MenuDrawer({
                     onClose();
                     router.push('/profile');
                   }}
-                  className="p-1.5 rounded-xl border border-white/10 bg-white/[0.05] text-whisper-gray hover:text-frost-white shrink-0"
+                  className="p-1.5 rounded-xl border border-white/10 bg-white/[0.06] text-whisper-gray hover:text-frost-white shrink-0 active:scale-95 transition-transform"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
             </div>
 
-            {/* Navigation Content */}
-            <div className="p-5 flex flex-col gap-6 flex-1">
-              {/* Games grid */}
+            {/* Main Content Area */}
+            <div className="p-4 flex flex-col gap-6 flex-1">
+              {/* Games Grid following 2 - 1 - 2 - 1 pattern with photo backgrounds */}
               <div className="flex flex-col gap-2.5">
-                <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                  Игры Mini App
+                <div className="flex items-baseline justify-between">
+                  <span className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
+                    Игры Mini App
+                  </span>
+                  <span className="font-roobert text-[10px] text-whisper-gray">
+                    {visibleGames.length}
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {IN_APP_GAMES.map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => {
-                        onClose();
-                        router.push(`/game/${g.id}`);
-                      }}
-                      className="p-2.5 rounded-xl border border-white/10 bg-white/[0.03] hover:border-white/20 active:scale-[0.96] transition-all flex items-center gap-2 text-left"
-                    >
-                      <span className="w-7 h-7 rounded-lg border border-white/10 bg-black/40 flex items-center justify-center text-frost-white shrink-0">
-                        <GameIcon game={g.id} size={15} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-roobert text-[12px] font-medium text-frost-white truncate">
-                          {g.name}
-                        </div>
-                        {g.badge && (
-                          <div className="text-[8px] font-bold text-amber-400 uppercase tracking-wider">
-                            {g.badge}
-                          </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {visibleGames.map((g, index) => {
+                    // Grid Pattern: index % 3 === 2 is wide (1 wide rectangle), otherwise small (2 small rectangles)
+                    const isWide = index % 3 === 2;
+                    const BadgeIcon = g.badge?.Icon;
+
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => {
+                          onClose();
+                          router.push(`/game/${g.id}`);
+                        }}
+                        className={`group relative overflow-hidden rounded-xl border border-white/10 bg-midnight-canvas text-left active:scale-[0.96] hover:border-white/25 transition-all duration-200 shadow-md ${
+                          isWide ? 'col-span-2 aspect-[16/9]' : 'col-span-1 aspect-[5/6]'
+                        }`}
+                      >
+                        {/* Background photo artwork from main menu */}
+                        {g.bg && (
+                          <div
+                            aria-hidden
+                            className="absolute inset-0 opacity-60 group-hover:opacity-80 transition-opacity duration-300"
+                            style={{
+                              backgroundImage: `url(${g.bg})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundRepeat: 'no-repeat',
+                            }}
+                          />
                         )}
-                      </div>
-                    </button>
-                  ))}
+
+                        {/* Vignette */}
+                        <div
+                          aria-hidden
+                          className="absolute inset-0"
+                          style={{
+                            background:
+                              'linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0.90) 100%)',
+                          }}
+                        />
+
+                        {/* Card Content */}
+                        <div className="relative h-full w-full p-3 flex flex-col justify-between z-10">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="w-8 h-8 rounded-lg border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shrink-0">
+                              <GameIcon game={g.id} size={16} />
+                            </span>
+
+                            {g.badge && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[8px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border border-white/20 bg-black/50 text-amber-300 flex items-center gap-1">
+                                {BadgeIcon && <BadgeIcon size={9} className="shrink-0" />}
+                                <span>{g.badge.label}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="font-roobert text-[15px] font-semibold text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
+                              {g.name}
+                            </div>
+                            <div className="text-[9px] font-roobert text-whisper-gray uppercase tracking-wider">
+                              Играть
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Menu Links */}
-              <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+              {/* Completely Redesigned "Разделы" (Sections) Section */}
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
                 <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                  Разделы
+                  Разделы приложения
                 </div>
-                <DrawerLink
-                  icon={<Wallet size={16} />}
-                  label="Управление балансом"
-                  onClick={() => {
-                    onClose();
-                    router.push('/balance');
-                  }}
-                />
-                <DrawerLink
-                  icon={<Sparkles size={16} className="text-amber-400" />}
-                  label="Бонусы и конкурсы"
-                  onClick={() => {
-                    onClose();
-                    router.push('/bonuses');
-                  }}
-                />
-                <DrawerLink
-                  icon={<Headphones size={16} className="text-cyan-400" />}
-                  label="Служба поддержки"
-                  onClick={() => {
-                    onClose();
-                    window.open('https://t.me/MacvBetSupport', '_blank');
-                  }}
-                />
+
+                <div className="flex flex-col gap-2">
+                  <SectionCard
+                    icon={<Wallet size={18} className="text-emerald-400" />}
+                    title="Кошелёк и баланс"
+                    description="Пополнение и вывод средств"
+                    onClick={() => {
+                      onClose();
+                      router.push('/balance');
+                    }}
+                  />
+                  <SectionCard
+                    icon={<Sparkles size={18} className="text-amber-400" />}
+                    title="Бонусы и турниры"
+                    description="Промокоды, конкурсы, колесо"
+                    onClick={() => {
+                      onClose();
+                      router.push('/bonuses');
+                    }}
+                  />
+                  <SectionCard
+                    icon={<Headphones size={18} className="text-cyan-400" />}
+                    title="Служба поддержки"
+                    description="Помощь 24/7 в Telegram"
+                    onClick={() => {
+                      onClose();
+                      window.open('https://t.me/MacvBetSupport', '_blank');
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="p-5 border-t border-white/10 flex flex-col items-center gap-3 bg-black/20">
-              <BrandLockup size={48} />
+            {/* Drawer Footer */}
+            <div className="p-4 border-t border-white/10 flex flex-col items-center gap-2 bg-black/30">
+              <BrandLockup size={44} />
               <div className="font-roobert text-[10px] text-whisper-gray/60">
                 MACVBET © 2026. All rights reserved.
               </div>
@@ -240,25 +343,36 @@ export function MenuDrawer({
   );
 }
 
-function DrawerLink({
+function SectionCard({
   icon,
-  label,
+  title,
+  description,
   onClick,
 }: {
   icon: React.ReactNode;
-  label: string;
+  title: string;
+  description: string;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className="p-3 rounded-xl border border-white/10 bg-white/[0.03] hover:border-white/20 active:scale-[0.97] transition-all flex items-center justify-between text-frost-white font-roobert text-[13px]"
+      className="p-3 rounded-2xl border border-white/10 bg-white/[0.03] hover:border-white/20 active:scale-[0.97] transition-all flex items-center justify-between gap-3 text-left group"
     >
-      <div className="flex items-center gap-2.5">
-        {icon}
-        <span>{label}</span>
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="w-9 h-9 rounded-xl border border-white/15 bg-white/[0.05] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <div className="font-roobert text-[13px] font-semibold text-frost-white group-hover:text-amber-200 transition-colors">
+            {title}
+          </div>
+          <div className="font-roobert text-[10px] text-whisper-gray truncate">
+            {description}
+          </div>
+        </div>
       </div>
-      <ArrowRight size={14} className="text-whisper-gray" />
+      <ChevronRight size={16} className="text-whisper-gray shrink-0 group-hover:text-frost-white transition-colors" />
     </button>
   );
 }
