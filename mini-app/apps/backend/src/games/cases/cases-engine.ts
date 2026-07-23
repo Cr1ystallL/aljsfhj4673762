@@ -39,36 +39,48 @@ class CasesEngine {
     let isFree = false;
     let wagerMultiplier = 0;
 
-    if (caseId === 'case_1') {
-       // Attempt to consume old free cases
-       const updated = await prisma.$executeRaw`UPDATE balances SET free_cases = free_cases - ${count} WHERE user_id = ${userId} AND free_cases >= ${count}`;
-       if (updated > 0) {
-         isFree = true;
-       }
-    }
+    const balRows = await prisma.$queryRaw<Array<{ free_cases: number, free_cases_json: any, version: number }>>`
+        SELECT free_cases, free_cases_json, version FROM balances WHERE user_id = ${userId} FOR UPDATE`;
+    const bal = balRows[0];
 
-    if (!isFree) {
-       // Check the JSON field for other cases
-       const balRows = await prisma.$queryRaw<Array<{ free_cases_json: any, version: number }>>`
-           SELECT free_cases_json, version FROM balances WHERE user_id = ${userId} FOR UPDATE`;
-       const bal = balRows[0];
-       if (bal) {
-           const json = (bal.free_cases_json as Record<string, { count: number, wager: number }>) || {};
-           if (json[caseId] && json[caseId].count >= count) {
-               json[caseId].count -= count;
-               wagerMultiplier = json[caseId].wager || 0;
-               if (json[caseId].count <= 0) {
-                   delete json[caseId];
-               }
-               const updated = await prisma.$executeRaw`
-                   UPDATE balances 
-                   SET free_cases_json = ${JSON.stringify(json)}::jsonb, version = version + 1 
-                   WHERE user_id = ${userId} AND version = ${bal.version}`;
-               if (updated > 0) {
-                   isFree = true;
-               }
-           }
-       }
+    if (bal) {
+      const json = (bal.free_cases_json as Record<string, { count: number, wager: number }>) || {};
+      
+      if (caseId === 'case_1') {
+        const availableInJson = json['case_1']?.count || 0;
+        const totalAvailable = Math.max(bal.free_cases || 0, availableInJson);
+        if (totalAvailable >= count) {
+          isFree = true;
+          wagerMultiplier = json['case_1']?.wager || 0;
+          if (json['case_1']) {
+            json['case_1'].count = Math.max(0, json['case_1'].count - count);
+            if (json['case_1'].count === 0) {
+              delete json['case_1'];
+            }
+          }
+          const newFreeCasesCol = Math.max(0, (bal.free_cases || 0) - count);
+          await prisma.$executeRaw`
+            UPDATE balances 
+            SET free_cases = ${newFreeCasesCol},
+                free_cases_json = ${JSON.stringify(json)}::jsonb, 
+                version = version + 1 
+            WHERE user_id = ${userId} AND version = ${bal.version}`;
+        }
+      } else {
+        if (json[caseId] && json[caseId].count >= count) {
+          isFree = true;
+          wagerMultiplier = json[caseId].wager || 0;
+          json[caseId].count -= count;
+          if (json[caseId].count <= 0) {
+            delete json[caseId];
+          }
+          await prisma.$executeRaw`
+            UPDATE balances 
+            SET free_cases_json = ${JSON.stringify(json)}::jsonb, 
+                version = version + 1 
+            WHERE user_id = ${userId} AND version = ${bal.version}`;
+        }
+      }
     }
 
     const betAmount = isFree ? 0 : caseTier.price;

@@ -67,6 +67,10 @@ export default function CaseOpeningPage() {
   const { balance, fetchBalance, optimisticUpdate, freezeBalance, unfreezeBalance } = useBalance();
   const activeBalance = balance?.amount ?? 10000;
   const freeCases = (balance as any)?.freeCases ?? 0;
+  const freeCasesJson = (balance as any)?.freeCasesJson as Record<string, { count: number }> | undefined;
+  const freeCountForThisCase = id === 'case_1'
+    ? Math.max(freeCases, freeCasesJson?.case_1?.count ?? 0)
+    : (freeCasesJson?.[id]?.count ?? 0);
 
   const [isMuted, setIsMuted] = useState(false);
   const toggleMute = () => {
@@ -134,7 +138,7 @@ export default function CaseOpeningPage() {
     
     soundManager.initialize();
     
-    const isFreeSpin = id === 'case_1' && freeCases >= count;
+    const isFreeSpin = freeCountForThisCase >= count;
     const totalCost = isFreeSpin ? 0 : caseTier.price * count;
     
     if (activeBalance < totalCost) {
@@ -312,12 +316,12 @@ export default function CaseOpeningPage() {
           {/* Main Action Button */}
           <button
             onClick={handleOpen}
-            disabled={isSpinning || activeBalance < ((id === 'case_1' && freeCases >= count) ? 0 : caseTier.price * count)}
+            disabled={isSpinning || (freeCountForThisCase < count && activeBalance < caseTier.price * count)}
             className="w-full py-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[17px] text-white/95 shadow-sm border border-white/10"
           >
             {isSpinning 
               ? 'Открываем...' 
-              : (id === 'case_1' && freeCases >= count)
+              : (freeCountForThisCase >= count)
                 ? `Бесплатно (${count} шт.)`
                 : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`
             }

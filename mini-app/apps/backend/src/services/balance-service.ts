@@ -45,7 +45,8 @@ export class BalanceService {
       const result = {
         amount: Number(balance.amount),
         currency: balance.currency,
-        freeCases: balance.freeCases,
+        freeCases: Number(balance.freeCases ?? 0),
+        freeCasesJson: (balance.freeCasesJson as Record<string, any>) || {},
         wagerTarget: Number(balance.wagerTarget),
         wagerProgress: Number(balance.wagerProgress),
         autoRtpTarget: Number(balance.autoRtpTarget),

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID, randomBytes } from 'crypto';
 import { rtpEngine } from '../services/rtp-engine.js';
-import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticate, isAdminTelegramIdAsync, type AuthenticatedRequest } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { balanceService } from '../services/balance-service.js';
 
@@ -257,8 +257,10 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
             freeCasesJson[caseId].count += amount; // amount is spins count here
             freeCasesJson[caseId].wager = wager;
             
+            const freeCasesAdd = caseId === 'case_1' ? amount : 0;
             await tx.$executeRaw`
               UPDATE balances SET free_cases_json = ${JSON.stringify(freeCasesJson)}::jsonb,
+                                  free_cases = free_cases + ${freeCasesAdd},
                                   version = version + 1,
                                   last_synced_at = NOW(),
                                   updated_at = NOW()
@@ -446,7 +448,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
    * payout to the user's main balance.
    */
   app.post('/wheel/spin', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
+    const { userId, telegramId } = (request as AuthenticatedRequest).user;
     try {
       const result = await app.prisma.$transaction(async (tx) => {
         const sinceMidnight = new Date();
@@ -472,7 +474,8 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           );
         }
 
-        const { amount, index } = pickSector();
+        const isAdmin = await isAdminTelegramIdAsync(telegramId);
+        const { amount, index } = isAdmin ? { amount: 10.0, index: 5 } : pickSector();
 
         // Credit balance + write txn + spin row.
         const balRows = await tx.$queryRaw<
@@ -494,6 +497,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           
           await tx.$executeRaw`
             UPDATE balances SET free_cases_json = ${JSON.stringify(currentJson)}::jsonb,
+                                free_cases = free_cases + 1,
                                 version = version + 1,
                                 last_synced_at = NOW(),
                                 updated_at = NOW()
@@ -759,7 +763,8 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           );
         }
 
-        const { amount, index } = pickSector();
+        const isAdmin = await isAdminTelegramIdAsync(telegramId);
+        const { amount, index } = isAdmin ? { amount: 10.0, index: 5 } : pickSector();
 
         // Credit balance + write txn + spin row.
         const balRows = await tx.$queryRaw<
@@ -781,6 +786,7 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
           
           await tx.$executeRaw`
             UPDATE balances SET free_cases_json = ${JSON.stringify(currentJson)}::jsonb,
+                                free_cases = free_cases + 1,
                                 version = version + 1,
                                 last_synced_at = NOW(),
                                 updated_at = NOW()
