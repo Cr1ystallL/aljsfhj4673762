@@ -111,6 +111,17 @@ export default function BonusesPage() {
 /* Promo Code Hero                                                            */
 /* -------------------------------------------------------------------------- */
 
+function formatCooldownMs(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  if (totalSec <= 0) return '0 с';
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m > 0) {
+    return s > 0 ? `${m} м ${s} с` : `${m} м`;
+  }
+  return `${s} с`;
+}
+
 function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -199,24 +210,22 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
         <Gem />
       </div>
 
-      <div className="relative px-6 pb-6 pt-2 flex items-center gap-2.5">
-        <div className="relative flex-1 min-w-0">
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="ВВЕДИТЕ КОД"
-            maxLength={32}
-            className="w-full h-12 px-4 rounded-2xl border border-white/15 bg-black/50 backdrop-blur-md font-roobert text-[14px] font-semibold tracking-[0.18em] text-frost-white placeholder:text-white/35 focus:outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/40 transition-all"
-          />
-        </div>
+      <div className="relative px-5 sm:px-6 pb-6 pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="ВВЕДИТЕ КОД"
+          maxLength={32}
+          className="w-full min-h-[52px] h-[52px] px-5 rounded-2xl border border-white/20 bg-black/60 backdrop-blur-md font-roobert text-[15px] font-bold tracking-[0.18em] text-frost-white placeholder:text-white/35 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 transition-all shrink-0"
+        />
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
           onClick={submit}
           disabled={busy}
           className={cn(
-            'h-12 px-6 rounded-2xl font-roobert font-bold text-[13px] uppercase tracking-[0.15em] text-midnight-canvas transition-all inline-flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20',
+            'min-h-[52px] h-[52px] px-7 rounded-2xl font-roobert font-bold text-[14px] uppercase tracking-[0.15em] text-midnight-canvas transition-all inline-flex items-center justify-center gap-2 shrink-0 shadow-lg shadow-amber-500/20',
             busy && 'opacity-60 cursor-not-allowed'
           )}
           style={{
@@ -225,7 +234,7 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
           }}
         >
           Применить
-          <ArrowRight size={14} strokeWidth={2.4} />
+          <ArrowRight size={16} strokeWidth={2.4} />
         </motion.button>
       </div>
     </motion.section>
@@ -434,7 +443,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
   };
 
   const buttonLabel = onCooldown
-    ? `Ждите ${Math.ceil(cooldownLeftMs / 1000)} с`
+    ? `Ждите ${formatCooldownMs(cooldownLeftMs)}`
     : noSpins
       ? 'Возвращайтесь завтра'
       : busy || spinRef.current
@@ -552,7 +561,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           </span>
           {onCooldown && (
             <span className="text-amber-400 font-medium">
-              пауза {Math.ceil(cooldownLeftMs / 1000)} с
+              пауза {formatCooldownMs(cooldownLeftMs)}
             </span>
           )}
         </div>
