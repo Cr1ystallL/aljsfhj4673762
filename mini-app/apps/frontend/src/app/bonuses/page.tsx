@@ -10,8 +10,9 @@ import {
   Users,
   ArrowRight,
   ChevronRight,
+  Gift,
+  Zap,
 } from 'lucide-react';
-import { BrandLockup } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
@@ -21,22 +22,14 @@ import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 
 /**
- * Bonuses Page — Monopo Saigon Style, redesigned.
+ * Bonuses Page — Premium Redesign.
  *
- * Layout (mobile-first):
- *   1. Top strip with brand + balance pill.
- *   2. Promo code hero — gem icon, gradient backdrop, single input,
- *      pill CTA. Mirrors the reference shot but in our brand palette.
- *   3. Lucky Wheel hero card — half-circle wheel (12 sectors) anchored
- *      at the bottom of the card, pointer is a glowing pill. The wheel
- *      sits inside the card so the surface reads as a single self-
- *      contained surface, not a separate widget. 10 spins/day, 20 min
- *      cooldown, 0.05..1.00 zł payouts. Idle drift while no spin runs.
- *   4. Recent winners ticker.
- *   5. Contests rail.
- *
- * Brand palette — Midnight Canvas, Frost White, Whisper Gray, Deep
- * Ocean gradient (green→amber→red). No external blues.
+ * Features:
+ *   1. Top Navigation Bar (GameTopBar with Sparkles icon).
+ *   2. Promo Code Hero — Glassmorphic card, floating animated gem, upper-case input & gradient CTA.
+ *   3. Lucky Wheel Hero — Canvas wheel, status tags, smooth spinning, live winners ticker.
+ *   4. Active Tournaments — Hidden completely if count is 0.
+ *   5. Active Contests — Hidden completely if count is 0.
  */
 
 interface WheelStateResponse {
@@ -69,193 +62,7 @@ interface TournamentRow {
   entryFee: number;
   startsAt: number;
   endsAt: number;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Tournaments                                                                */
-/* -------------------------------------------------------------------------- */
-
-function TournamentsList() {
-  const [list, setList] = useState<TournamentRow[] | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tournaments', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      const json = await res.json();
-      setList(json.tournaments as TournamentRow[]);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const join = async (id: string) => {
-    setBusyId(id);
-    try {
-      const res = await fetch(`/api/tournaments/${id}/join`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        reportApiError(res, json, 'Не удалось зарегистрироваться');
-        return;
-      }
-      toast.success('Вы зарегистрированы в турнире');
-      void load();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  return (
-    <section className="flex flex-col gap-3" id="tournaments">
-      <div className="flex items-baseline justify-between px-1">
-        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">Турниры</span>
-        <span className="font-roobert text-[11px] text-whisper-gray">{list?.length ?? 0}</span>
-      </div>
-
-      {list === null ? (
-        <div className="rounded-card border border-white/10 bg-white/[0.03] py-10 flex items-center justify-center">
-          <div className="w-5 h-5 rounded-full border border-white/20 border-t-frost-white animate-spin" />
-        </div>
-      ) : list.length === 0 ? (
-        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-          Сейчас турниров нет. Загляните позже.
-        </div>
-      ) : (
-        list.map((t) => (
-          <TournamentCard key={t.id} tournament={t} onJoin={() => join(t.id)} busy={busyId === t.id} />
-        ))
-      )}
-    </section>
-  );
-}
-
-function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
-  const router = useRouter();
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const int = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(int);
-  }, []);
-
-  const isBeforeStart = now < tournament.startsAt;
-  const isEnded = now > tournament.endsAt;
-  const targetTime = isBeforeStart ? tournament.startsAt : tournament.endsAt;
-  const remainingMs = Math.max(0, targetTime - now);
-  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
-
-  // Convert ibb.co page URLs to direct URLs (approximate)
-  let bannerUrl = tournament.bannerUrl;
-  if (bannerUrl && bannerUrl.startsWith('https://ibb.co/')) {
-    const id = bannerUrl.split('https://ibb.co/')[1]?.split('/')[0];
-    if (id) {
-      // Direct link from ibb.co usually looks like i.ibb.co/xxx/image.png
-      // We can't know the exact file name or extension. We will just leave it and warn the admin, 
-      // but let's try to handle known direct links just in case.
-    }
-  }
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      onClick={() => router.push(`/tournaments/${tournament.id}`)}
-      className="relative overflow-hidden rounded-card border border-white/10 cursor-pointer"
-    >
-      {tournament.bannerUrl ? (
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-45"
-          style={{
-            backgroundImage: `url(${tournament.bannerUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-      ) : null}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.85) 100%)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-50 mix-blend-screen pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(110% 90% at 100% 100%, rgba(255, 172, 46, 0.20) 0%, rgba(160, 224, 171, 0.10) 50%, transparent 80%)',
-        }}
-      />
-      <div className="relative px-5 py-4 flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
-          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-            Турнир · {tournament.gameType ? tournament.gameType.charAt(0).toUpperCase() + tournament.gameType.slice(1) : ''}
-          </span>
-        </div>
-
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] leading-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
-              {tournament.title}
-            </div>
-            {tournament.description && (
-              <div className="mt-1 font-roobert text-[12px] text-whisper-gray line-clamp-2">
-                {tournament.description}
-              </div>
-            )}
-          </div>
-          <div className="text-right shrink-0">
-            <div className="font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
-              {tournament.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
-              <span className="text-[12px] text-whisper-gray">zł</span>
-            </div>
-            <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums">
-              {tournament.winnersCount} победителей
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 text-[11px] text-whisper-gray tabular-nums">
-          <span>Стартовый баланс {tournament.startBalance.toFixed(0)} TM</span>
-          <span>Взнос {tournament.entryFee.toFixed(0)} zł</span>
-          <span>{isEnded ? 'Завершен' : isBeforeStart ? `До начала ${remaining}` : `До конца ${remaining}`}</span>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <div className="font-roobert text-[11px] text-whisper-gray">Игра: {tournament.gameType}</div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (tournament.joined || isBeforeStart) {
-                router.push(`/tournaments/${tournament.id}`);
-              } else {
-                onJoin();
-              }
-            }}
-            disabled={busy && !tournament.joined}
-            className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
-          >
-            {tournament.joined || isBeforeStart ? 'К турниру' : 'Участвовать'}
-            <ArrowRight size={11} strokeWidth={1.8} />
-          </button>
-        </div>
-      </div>
-    </motion.section>
-  );
+  joined?: boolean;
 }
 
 interface ContestRow {
@@ -276,23 +83,24 @@ interface ContestRow {
 }
 
 export default function BonusesPage() {
-  const router = useRouter();
   const { user } = useAuthStore();
-  const balance = useBalanceStore((s) => s.balance);
   const { fetchBalance } = useBalance();
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
+    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col selection:bg-amber-500/30">
       <GameTopBar title="Бонусы" Icon={Sparkles} />
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-
-
+      
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
+        {/* Promo Code Hero */}
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 
+        {/* Lucky Wheel Hero */}
         <LuckyWheelHero onWin={() => void fetchBalance()} />
 
+        {/* Tournaments List (Only rendered if active tournaments > 0) */}
         <TournamentsList />
 
+        {/* Contests List (Only rendered if active contests > 0) */}
         <ContestsList currentUserId={user?.id ?? null} />
       </div>
     </main>
@@ -300,7 +108,7 @@ export default function BonusesPage() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Promo code hero                                                            */
+/* Promo Code Hero                                                            */
 /* -------------------------------------------------------------------------- */
 
 function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
@@ -340,7 +148,6 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
         { title: 'Промокод применён' }
       );
       setCode('');
-      // Update store immediately + double-check via fetch.
       const balance = useBalanceStore.getState().balance;
       if (balance) useBalanceStore.getState().updateBalance(Number(json.balance ?? balance.amount));
       onRedeemed();
@@ -352,68 +159,76 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
   };
 
   return (
-    <section className="relative overflow-hidden rounded-card border border-white/10">
-      {/* Atmospheric backdrop — Deep Ocean tint, brighter on the right */}
+    <motion.section 
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] backdrop-blur-xl shadow-2xl"
+    >
+      {/* Background ambient radial lighting */}
       <div
         aria-hidden
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'linear-gradient(135deg, rgba(160, 224, 171, 0.10) 0%, rgba(255, 172, 46, 0.18) 55%, rgba(165, 45, 37, 0.22) 100%), #0a0a0a',
+            'radial-gradient(80% 60% at 90% 10%, rgba(255, 172, 46, 0.18) 0%, rgba(160, 224, 171, 0.08) 50%, transparent 100%)',
         }}
       />
       <div
         aria-hidden
-        className="absolute -top-12 -left-10 w-44 h-44 rounded-full pointer-events-none"
+        className="absolute -top-16 -left-16 w-48 h-48 rounded-full pointer-events-none blur-[50px]"
         style={{
-          background:
-            'radial-gradient(circle, rgba(255, 220, 150, 0.30) 0%, transparent 70%)',
-          filter: 'blur(40px)',
+          background: 'radial-gradient(circle, rgba(255, 200, 100, 0.25) 0%, transparent 70%)',
         }}
       />
 
-      <div className="relative grid grid-cols-[1fr_auto] gap-3 px-5 py-5 sm:px-6 sm:py-6 items-center">
-        <div className="flex flex-col gap-1">
-          <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-            <Ticket size={11} strokeWidth={1.7} />
-            Промокод
-          </span>
-          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
+      <div className="relative grid grid-cols-[1fr_auto] gap-3 px-6 pt-6 pb-4 items-center">
+        <div className="flex flex-col gap-1.5">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 w-fit">
+            <Ticket size={12} className="text-amber-400" strokeWidth={2} />
+            <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-amber-300 font-semibold">
+              Промокод
+            </span>
+          </div>
+          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-medium leading-tight">
             Активируйте код,
             <br />
-            получите бонус
+            <span className="text-amber-300">получите бонус</span>
           </h2>
         </div>
         <Gem />
       </div>
 
-      <div className="relative px-5 pb-5 sm:px-6 sm:pb-6 flex items-center gap-2">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          placeholder="ВВЕДИТЕ КОД"
-          maxLength={32}
-          className="flex-1 min-w-0 h-11 px-4 rounded-pill border border-white/20 bg-black/40 backdrop-blur-md font-roobert text-[14px] tracking-[0.2em] text-frost-white placeholder:text-whisper-gray focus:outline-none focus:border-white/40"
-        />
-        <button
+      <div className="relative px-6 pb-6 pt-2 flex items-center gap-2.5">
+        <div className="relative flex-1 min-w-0">
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            placeholder="ВВЕДИТЕ КОД"
+            maxLength={32}
+            className="w-full h-12 px-4 rounded-2xl border border-white/15 bg-black/50 backdrop-blur-md font-roobert text-[14px] font-semibold tracking-[0.18em] text-frost-white placeholder:text-white/35 focus:outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/40 transition-all"
+          />
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
           onClick={submit}
           disabled={busy}
           className={cn(
-            'h-11 px-5 rounded-pill font-roobert font-semibold text-[12px] uppercase tracking-[0.18em] text-midnight-canvas transition-all active:scale-[0.97] inline-flex items-center gap-1.5',
+            'h-12 px-6 rounded-2xl font-roobert font-bold text-[13px] uppercase tracking-[0.15em] text-midnight-canvas transition-all inline-flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20',
             busy && 'opacity-60 cursor-not-allowed'
           )}
           style={{
             background:
-              'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 100%)',
-            boxShadow: '0 4px 14px rgba(255, 172, 46, 0.30)',
+              'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
           }}
         >
           Применить
-          <ArrowRight size={12} strokeWidth={2} />
-        </button>
+          <ArrowRight size={14} strokeWidth={2.4} />
+        </motion.button>
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -426,7 +241,6 @@ function Gem() {
       transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
     >
       <defs>
-        {/* Modern, vibrant gradients matching the promo banner */}
         <linearGradient id="facetCrownCenter" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#ffffff" />
           <stop offset="100%" stopColor="#fff1d6" />
@@ -460,7 +274,6 @@ function Gem() {
         </radialGradient>
       </defs>
 
-      {/* Main Facets */}
       <polygon points="10,28 32,28 40,72" fill="url(#facetPavLeft)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" strokeLinejoin="round" />
       <polygon points="32,28 48,28 40,72" fill="url(#facetPavCenter)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" strokeLinejoin="round" />
       <polygon points="48,28 70,28 40,72" fill="url(#facetPavRight)" stroke="rgba(0,0,0,0.15)" strokeWidth="0.5" strokeLinejoin="round" />
@@ -469,11 +282,9 @@ function Gem() {
       <polygon points="70,28 48,28 56,14" fill="url(#facetCrownRight)" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" strokeLinejoin="round" />
       <polygon points="24,14 56,14 48,28 32,28" fill="url(#facetCrownCenter)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" strokeLinejoin="round" />
 
-      {/* Girdle Line */}
       <line x1="10" y1="28" x2="70" y2="28" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
       <line x1="24" y1="14" x2="56" y2="14" stroke="rgba(255,255,255,0.8)" strokeWidth="1.2" />
 
-      {/* Surface Glint */}
       <motion.polygon
         points="26,15 40,15 36,26 26,26"
         fill="rgba(255,255,255,0.6)"
@@ -482,13 +293,12 @@ function Gem() {
         transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Sparkles */}
       <motion.circle
         cx="26"
         cy="18"
         r="3"
         fill="url(#diaSparkle)"
-        animate={{ opacity: [0, 1, 0], scale: [0.5, 1.4, 0.5], rotate: [0, 90, 0] }}
+        animate={{ opacity: [0, 1, 0], scale: [0.5, 1.4, 0.5] }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.circle
@@ -499,20 +309,12 @@ function Gem() {
         animate={{ opacity: [0, 1, 0], scale: [0.4, 1.2, 0.4] }}
         transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
       />
-      <motion.circle
-        cx="40"
-        cy="56"
-        r="1.5"
-        fill="url(#diaSparkle)"
-        animate={{ opacity: [0, 0.8, 0], scale: [0.3, 1, 0.3] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
-      />
     </motion.svg>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Lucky Wheel hero — half-circle, 12 sectors, brand palette                  */
+/* Lucky Wheel Hero                                                           */
 /* -------------------------------------------------------------------------- */
 
 const WHEEL_SECTORS_12 = [
@@ -520,11 +322,6 @@ const WHEEL_SECTORS_12 = [
   10.0, 0.05, 0.5, 0.1, 0.25, 0.05,
 ];
 
-/**
- * Sector palette — calmer and more brand-aligned than the previous
- * red-leaning gradient. Lower-tier sectors stay desaturated; the
- * 10.0 zł jackpot pops in warm amber so the eye lands on it first.
- */
 const SECTOR_TIER_COLOR: Record<number, string> = {
   0.05: '#1f2933',
   0.1: '#2c3a47',
@@ -534,7 +331,6 @@ const SECTOR_TIER_COLOR: Record<number, string> = {
   10.0: '#ffac2e',
 };
 
-/** Text colour per sector — light tiers get white, amber gets ink. */
 const SECTOR_TEXT_COLOR: Record<number, string> = {
   0.05: '#ffffff',
   0.1: '#ffffff',
@@ -599,8 +395,6 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         reportApiError(res, json, 'Could not spin');
         return;
       }
-      // Convert backend sector index (0..5 over the 6-tier list) to a
-      // half-wheel landing slot — pick the sector whose payout matches.
       const sectorAmount = Number(json.amount);
       const candidates = WHEEL_SECTORS_12
         .map((amt, i) => ({ amt, i }))
@@ -627,8 +421,6 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         }
         spinRef.current = null;
         forceTick((n) => n + 1);
-        // Push immediate balance update from the response so the pill
-        // refreshes instantly without waiting for /api/balance roundtrip.
         const cur = useBalanceStore.getState().balance;
         if (cur) useBalanceStore.getState().updateBalance(Number(json.balance ?? cur.amount));
         onWin();
@@ -650,67 +442,57 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         : 'Крутить';
 
   return (
-    <section className="relative overflow-hidden rounded-card border border-white/10">
-      {/* Deep, calm backdrop — flat charcoal with a single soft amber halo
-          behind the wheel hub. No conic sun-rays, no red wash. */}
+    <motion.section 
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.1 }}
+      className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0e1017] to-[#07080b] shadow-2xl"
+    >
+      {/* Accent Hairline */}
       <div
         aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(180deg, #0e0f13 0%, #0a0b0e 60%, #07080a 100%)',
-        }}
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent"
       />
       <div
         aria-hidden
-        className="absolute inset-0 opacity-70 pointer-events-none mobile-no-blur"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(60% 55% at 50% 55%, rgba(255, 172, 46, 0.12) 0%, transparent 70%)',
-        }}
-      />
-      {/* Hairline top accent — quiet brand cue without extra surface area */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 top-0 h-px"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent 0%, rgba(255, 172, 46, 0.45) 50%, transparent 100%)',
+            'radial-gradient(60% 50% at 50% 50%, rgba(255, 172, 46, 0.12) 0%, transparent 80%)',
         }}
       />
 
-      {/* Header row — title on the left, jackpot tag on the right */}
-      <div className="relative flex items-start justify-between gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+      {/* Header */}
+      <div className="relative flex items-start justify-between gap-3 px-6 pt-6">
         <div className="flex flex-col gap-1 min-w-0">
-          <span className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-            <Sparkles size={11} strokeWidth={1.7} className="text-[#ffac2e]" />
-            Колесо удачи
-          </span>
-          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight">
-            Бесплатное вращение
+          <div className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.25em] text-whisper-gray">
+            <Sparkles size={12} className="text-amber-400" />
+            <span>Колесо удачи</span>
+          </div>
+          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-medium leading-tight">
+            Бесплатный спин
           </h2>
         </div>
+
         <div className="shrink-0 flex flex-col items-end gap-1">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-[rgba(255,172,46,0.35)] bg-[rgba(255,172,46,0.10)]">
-            <Trophy size={11} strokeWidth={1.8} className="text-[#ffac2e]" />
-            <span className="font-roobert text-[11px] tabular-nums text-frost-white">
-              до 1.00 zł
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10">
+            <Trophy size={11} className="text-amber-400" />
+            <span className="font-roobert text-[11px] font-semibold text-frost-white">
+              КЕЙС / 1.00 zł
             </span>
           </span>
-          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+          <span className="font-roobert text-[10px] uppercase tracking-[0.18em] text-whisper-gray">
             10 вращений/день
           </span>
         </div>
       </div>
 
-      {/* Wheel canvas */}
-      <div className="relative px-3 pb-1 pt-6">
-        {/* Glow / Aura effect behind the wheel */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[280px] rounded-full bg-[rgba(255,172,46,0.15)] blur-[40px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full bg-[rgba(160,224,171,0.1)] blur-[30px] pointer-events-none" />
+      {/* Wheel Canvas */}
+      <div className="relative px-4 pt-6 pb-2">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full bg-amber-500/15 blur-[45px] pointer-events-none" />
         
         <div
-          className="relative w-full max-w-[340px] mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02] duration-500"
+          className="relative w-full max-w-[320px] mx-auto transition-transform hover:scale-[1.01] duration-500"
           style={{ aspectRatio: '1 / 1' }}
         >
           <FullWheelCanvas
@@ -720,96 +502,98 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         </div>
       </div>
 
-      {/* Tier legend */}
-      <div className="relative px-5 sm:px-6 pb-1 flex items-center justify-center gap-1.5 flex-wrap">
+      {/* Tier Legend */}
+      <div className="relative px-6 pb-2 flex items-center justify-center gap-2 flex-wrap">
         {[0.05, 0.1, 0.25, 0.5, 10.0].map((tier) => (
           <span
             key={tier}
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill border border-white/10 bg-white/[0.03]"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-md"
           >
             <span
               className="w-2 h-2 rounded-full"
               style={{ background: SECTOR_TIER_COLOR[tier] }}
             />
-            <span className="font-roobert text-[10px] tabular-nums text-frost-white/85">
-              {tier === 10.0 ? 'КЕЙС' : tier.toFixed(2)}
+            <span className="font-roobert text-[10px] font-semibold text-frost-white/90">
+              {tier === 10.0 ? 'КЕЙС' : `${tier.toFixed(2)} zł`}
             </span>
           </span>
         ))}
       </div>
 
-      {/* Spin CTA + counters */}
-      <div className="relative px-5 sm:px-6 pt-3 pb-5 flex flex-col gap-3">
-        <button
+      {/* Spin CTA */}
+      <div className="relative px-6 pt-3 pb-6 flex flex-col gap-3">
+        <motion.button
+          whileHover={canSpin ? { scale: 1.01 } : undefined}
+          whileTap={canSpin ? { scale: 0.98 } : undefined}
           onClick={spin}
           disabled={!canSpin}
           className={cn(
-            'w-full h-14 px-6 rounded-pill font-roobert font-semibold text-[15px] uppercase tracking-[0.18em] inline-flex items-center justify-center gap-2 transition-all active:scale-[0.98]',
+            'w-full h-14 px-6 rounded-2xl font-roobert font-bold text-[15px] uppercase tracking-[0.18em] inline-flex items-center justify-center gap-2 transition-all shadow-xl',
             canSpin
-              ? 'text-midnight-canvas'
-              : 'bg-white/[0.06] text-frost-white/55 border border-white/15 cursor-not-allowed'
+              ? 'text-midnight-canvas shadow-amber-500/25'
+              : 'bg-white/[0.05] text-white/40 border border-white/10 cursor-not-allowed'
           )}
           style={
             canSpin
               ? {
                   background:
                     'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
-                  boxShadow:
-                    '0 8px 24px rgba(255, 172, 46, 0.32), inset 0 1px 0 rgba(255,255,255,0.55)',
                 }
               : undefined
           }
         >
           {buttonLabel}
-          {canSpin && <ChevronRight size={16} strokeWidth={2.4} />}
-        </button>
+          {canSpin && <ChevronRight size={18} strokeWidth={2.5} />}
+        </motion.button>
 
-        <div className="flex items-center justify-between font-roobert text-[11px] text-whisper-gray tabular-nums">
+        <div className="flex items-center justify-between font-roobert text-[11px] text-whisper-gray">
           <span>
-            {state ? `${state.remaining} / ${state.dailyCap} вращений осталось` : '—'}
+            {state ? `${state.remaining} / ${state.dailyCap} осталось на сегодня` : '—'}
           </span>
           {onCooldown && (
-            <span className="text-[#ffac2e]">
-              ожидание {Math.ceil(cooldownLeftMs / 1000)} с
+            <span className="text-amber-400 font-medium">
+              пауза {Math.ceil(cooldownLeftMs / 1000)} с
             </span>
           )}
         </div>
       </div>
 
+      {/* Winners Ticker */}
       {state && state.ticker.length > 0 && (
-        <div className="relative border-t border-white/10 px-3 py-2 overflow-x-auto scrollbar-hide flex items-center gap-2">
-          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.24em] text-whisper-gray pl-2 pr-1">
-            Недавно
+        <div className="relative border-t border-white/10 px-4 py-2.5 bg-black/40 overflow-x-auto scrollbar-hide flex items-center gap-2.5">
+          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.22em] text-amber-400/80 font-bold pl-2 pr-1 flex items-center gap-1">
+            <Zap size={10} />
+            Победители
           </span>
           {state.ticker.slice(0, 12).map((t, i) => (
             <div
               key={i}
-              className="shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-pill border border-white/10 bg-white/[0.04]"
+              className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-md"
             >
               {t.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={t.photoUrl}
                   alt=""
-                  className="w-5 h-5 rounded-pill object-cover"
+                  className="w-4 h-4 rounded-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <span className="w-5 h-5 rounded-pill bg-white/10 flex items-center justify-center font-roobert text-[9px] text-frost-white/85">
+                <span className="w-4 h-4 rounded-full bg-white/15 flex items-center justify-center font-roobert text-[8px] text-frost-white/90 font-bold">
                   {t.name.charAt(0).toUpperCase()}
                 </span>
               )}
-              <span className="font-roobert text-[10px] text-frost-white/85 truncate max-w-[64px]">
+              <span className="font-roobert text-[10px] text-frost-white/90 font-medium truncate max-w-[70px]">
                 {t.name}
               </span>
-              <span className="font-roobert text-[10px] tabular-nums text-[#ffac2e]">
-                {t.amount === 10.0 ? 'КЕЙС' : `+${t.amount.toFixed(2)}`}
+              <span className="font-roobert text-[10px] font-bold text-amber-400">
+                {t.amount === 10.0 ? 'КЕЙС' : `+${t.amount.toFixed(2)} zł`}
               </span>
             </div>
           ))}
         </div>
       )}
-    </section>
+    </motion.section>
   );
 }
 
@@ -861,14 +645,6 @@ function FullWheelCanvas({
 
     const SECTORS = WHEEL_SECTORS_12;
     const N = SECTORS.length;
-    /**
-     * Full-circle wheel — 12 sectors of 30° each. Sector 0 is centred
-     * straight up under the pointer when rotation = 0; subsequent
-     * sectors fan clockwise. Computing landing rotation:
-     *   sector i centre canvas-angle (no rotation) = -PI/2 + i * arc
-     *   we want it under the pointer at angle -PI/2, so rotation =
-     *   -i * arc (modulo 2PI).
-     */
     const ARC = (2 * Math.PI) / N;
 
     let lastFrame = performance.now();
@@ -888,20 +664,15 @@ function FullWheelCanvas({
       if (spinRef.current) {
         const lock = spinRef.current;
         const t = Math.min(1, (Date.now() - lock.startedAt) / lock.durationMs);
-        // Land the chosen sector under the top pointer:
         const targetAngle = -lock.targetIndex * ARC;
-        // Six full revolutions before settling — feels rich at 6s.
         const totalRotation =
           6 * 2 * Math.PI + targetAngle - lock.initialRotation;
-        // Three-phase ease: linear cruise → cubic brake → micro-settle.
         let progressed: number;
         if (t < 0.65) progressed = (t / 0.65) * 0.72;
         else if (t < 0.93) {
           const tt = (t - 0.65) / 0.28;
           progressed = 0.72 + (1 - 0.72) * (1 - Math.pow(1 - tt, 3));
         } else {
-          // Tiny elastic settle (no overshoot beyond 1 — the lock
-          // already bakes the desired final angle exactly).
           progressed = 1;
         }
         rotation = lock.initialRotation + totalRotation * progressed;
@@ -914,7 +685,6 @@ function FullWheelCanvas({
       const cy = h / 2;
       const radius = Math.min(w, h) * 0.40;
 
-      // Drop shadow under the wheel
       ctx.beginPath();
       ctx.ellipse(cx, cy + radius * 0.95, radius * 0.85, radius * 0.12, 0, 0, Math.PI * 2);
       const shadow = ctx.createRadialGradient(
@@ -926,7 +696,6 @@ function FullWheelCanvas({
       ctx.fillStyle = shadow;
       ctx.fill();
 
-      // Outer atmospheric glow ring
       const glow = ctx.createRadialGradient(cx, cy, radius * 0.95, cx, cy, radius * 1.18);
       glow.addColorStop(0, 'rgba(255, 200, 110, 0)');
       glow.addColorStop(0.5, 'rgba(255, 172, 46, 0.18)');
@@ -936,7 +705,6 @@ function FullWheelCanvas({
       ctx.arc(cx, cy, radius * 1.2, 0, Math.PI * 2);
       ctx.fill();
 
-      // Decorative outer rim — two concentric strokes
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 1.05, 0, Math.PI * 2);
       ctx.lineWidth = 5;
@@ -950,20 +718,13 @@ function FullWheelCanvas({
 
       ctx.save();
       ctx.translate(cx, cy);
-      // Pointer is at -PI/2 (top). Sector 0 centred at -PI/2 means we
-      // need to rotate the sector strip by `rotation - PI/2 - ARC/2`
-      // so that drawing sector i in [-ARC/2 + i*ARC, ARC/2 + i*ARC]
-      // works out. Simpler: orient the canvas so 0° = pointer, sector
-      // 0 spans [-ARC/2, ARC/2].
       ctx.rotate(rotation - Math.PI / 2);
 
-      // Sector bodies + highlight + dividers + labels.
       for (let i = 0; i < N; i++) {
         const a0 = -ARC / 2 + i * ARC;
         const a1 = ARC / 2 + i * ARC;
         const tier = SECTOR_TIER_COLOR[SECTORS[i]] ?? '#a0e0ab';
 
-        // Wedge body — rich radial gradient: dark hub side, bright rim.
         const inner = radius * 0.28;
         const outer = radius * 0.97;
         const grad = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
@@ -978,8 +739,6 @@ function FullWheelCanvas({
         ctx.closePath();
         ctx.fill();
 
-        // Wedge inner glossy highlight on the upper half — gives the
-        // tile a slightly waxy/casino-disc look.
         const gloss = ctx.createLinearGradient(0, -outer, 0, 0);
         gloss.addColorStop(0, 'rgba(255,255,255,0.40)');
         gloss.addColorStop(0.5, 'rgba(255,255,255,0.10)');
@@ -993,8 +752,6 @@ function FullWheelCanvas({
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
 
-        // Label — large, white, centred on the wedge midline. Slight
-        // drop shadow keeps it readable on lighter sectors.
         const aMid = (a0 + a1) / 2;
         const lr = (inner + outer) * 0.58;
         const lx = Math.cos(aMid) * lr;
@@ -1017,7 +774,6 @@ function FullWheelCanvas({
         ctx.restore();
       }
 
-      // Sector dividers — drawn over the bodies for crisp edges.
       for (let i = 0; i < N; i++) {
         const a = -ARC / 2 + i * ARC;
         ctx.beginPath();
@@ -1028,7 +784,6 @@ function FullWheelCanvas({
         ctx.stroke();
       }
 
-      // Centre hub — brass-like radial dot
       ctx.beginPath();
       ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
       const hubGrad = ctx.createRadialGradient(
@@ -1043,7 +798,6 @@ function FullWheelCanvas({
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.stroke();
-      // Inner dark ring
       ctx.beginPath();
       ctx.arc(0, 0, radius * 0.16, 0, Math.PI * 2);
       ctx.fillStyle = '#0a0a0a';
@@ -1054,8 +808,6 @@ function FullWheelCanvas({
 
       ctx.restore();
 
-      // Static stud ring on the bezel — single soft tone, no pulsing.
-      // Modern wheels read better with a quiet bezel than a flashing one.
       for (let i = 0; i < 36; i++) {
         const a = (i / 36) * Math.PI * 2 - Math.PI / 2;
         const sx = cx + Math.cos(a) * radius * 1.085;
@@ -1066,12 +818,10 @@ function FullWheelCanvas({
         ctx.fill();
       }
 
-      // Top pointer — clean amber teardrop with a hairline outline.
       const ptCx = cx;
       const ptCy = cy - radius * 1.04;
       ctx.save();
       ctx.translate(ptCx, ptCy);
-      // Soft halo behind the pointer
       const halo = ctx.createRadialGradient(0, 4, 0, 0, 4, 22);
       halo.addColorStop(0, 'rgba(255, 172, 46, 0.55)');
       halo.addColorStop(1, 'rgba(255, 172, 46, 0)');
@@ -1079,7 +829,6 @@ function FullWheelCanvas({
       ctx.arc(0, 4, 22, 0, Math.PI * 2);
       ctx.fillStyle = halo;
       ctx.fill();
-      // Teardrop shape — rounded top, sharp tip pointing down at the rim
       ctx.beginPath();
       ctx.moveTo(0, 14);
       ctx.bezierCurveTo(10, 4, 10, -10, 0, -10);
@@ -1093,7 +842,6 @@ function FullWheelCanvas({
       ctx.lineWidth = 1.2;
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.stroke();
-      // Inner highlight dot
       ctx.beginPath();
       ctx.arc(-2, -4, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
@@ -1117,7 +865,6 @@ function FullWheelCanvas({
   );
 }
 
-/** Lighten/darken a hex color by a percentage. */
 function shade(hex: string, percent: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   let r = (num >> 16) & 0xff;
@@ -1130,7 +877,173 @@ function shade(hex: string, percent: number): string {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Contests                                                                   */
+/* Tournaments (Hidden if count == 0)                                         */
+/* -------------------------------------------------------------------------- */
+
+function TournamentsList() {
+  const [list, setList] = useState<TournamentRow[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tournaments', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        setList([]);
+        return;
+      }
+      const json = await res.json();
+      setList((json.tournaments as TournamentRow[]) || []);
+    } catch {
+      setList([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const join = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/tournaments/${id}/join`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        reportApiError(res, json, 'Не удалось зарегистрироваться');
+        return;
+      }
+      toast.success('Вы зарегистрированы в турнире');
+      void load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // If loading or empty, return null (do not display empty message block)
+  if (!list || list.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="flex flex-col gap-4" id="tournaments">
+      <div className="flex items-baseline justify-between px-1">
+        <span className="font-roobert text-[11px] uppercase tracking-[0.28em] text-whisper-gray font-bold">
+          Турниры ({list.length})
+        </span>
+      </div>
+
+      {list.map((t) => (
+        <TournamentCard key={t.id} tournament={t} onJoin={() => join(t.id)} busy={busyId === t.id} />
+      ))}
+    </section>
+  );
+}
+
+function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
+  const router = useRouter();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const int = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(int);
+  }, []);
+
+  const isBeforeStart = now < tournament.startsAt;
+  const isEnded = now > tournament.endsAt;
+  const targetTime = isBeforeStart ? tournament.startsAt : tournament.endsAt;
+  const remainingMs = Math.max(0, targetTime - now);
+  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={() => router.push(`/tournaments/${tournament.id}`)}
+      className="relative overflow-hidden rounded-3xl border border-white/10 hover:border-white/20 transition-all cursor-pointer bg-gradient-to-b from-white/[0.04] to-black/60 backdrop-blur-md"
+    >
+      {tournament.bannerUrl ? (
+        <img
+          src={tournament.bannerUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover opacity-40"
+        />
+      ) : null}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.85) 100%)',
+        }}
+      />
+      <div className="relative px-6 py-5 flex flex-col gap-3.5">
+        <div className="flex items-center gap-2">
+          <Trophy size={13} className="text-amber-400" strokeWidth={2} />
+          <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-amber-300/90 font-semibold">
+            Турнир · {tournament.gameType ? tournament.gameType.toUpperCase() : ''}
+          </span>
+        </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] font-semibold leading-tight truncate">
+              {tournament.title}
+            </div>
+            {tournament.description && (
+              <div className="mt-1 font-roobert text-[12px] text-whisper-gray line-clamp-2">
+                {tournament.description}
+              </div>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-roobert text-amber-400 text-[20px] font-bold leading-none tabular-nums">
+              {tournament.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+              <span className="text-[12px] text-whisper-gray font-normal">zł</span>
+            </div>
+            <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums font-medium">
+              {tournament.winnersCount} призовых мест
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-[11px] text-whisper-gray tabular-nums bg-white/[0.04] p-2.5 rounded-2xl border border-white/5">
+          <span>Старт {tournament.startBalance.toFixed(0)} TM</span>
+          <span>Взнос {tournament.entryFee.toFixed(0)} zł</span>
+          <span className="text-amber-300/90">{isEnded ? 'Завершено' : isBeforeStart ? `Старт: ${remaining}` : `Конец: ${remaining}`}</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="font-roobert text-[11px] text-whisper-gray font-medium">Игра: {tournament.gameType}</div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tournament.joined || isBeforeStart) {
+                router.push(`/tournaments/${tournament.id}`);
+              } else {
+                onJoin();
+              }
+            }}
+            disabled={busy && !tournament.joined}
+            className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-frost-white text-midnight-canvas font-roobert text-[11px] font-bold uppercase tracking-[0.18em] shadow-md transition-transform disabled:opacity-50"
+          >
+            {tournament.joined || isBeforeStart ? 'К турниру' : 'Участвовать'}
+            <ArrowRight size={12} strokeWidth={2.2} />
+          </motion.button>
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Contests (Hidden if count == 0)                                            */
 /* -------------------------------------------------------------------------- */
 
 function ContestsList({ currentUserId }: { currentUserId: string | null }) {
@@ -1143,11 +1056,14 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
         credentials: 'include',
         cache: 'no-store',
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setList([]);
+        return;
+      }
       const json = await res.json();
-      setList(json.contests as ContestRow[]);
+      setList((json.contests as ContestRow[]) || []);
     } catch {
-      // ignore
+      setList([]);
     }
   }, []);
 
@@ -1176,38 +1092,27 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
 
   void currentUserId;
 
+  // If loading or empty, return null (do not display empty message block)
+  if (!list || list.length === 0) {
+    return null;
+  }
+
   return (
-    // id="contests" — якорь, по которому Hero на главной (см.
-    // home-screen.tsx) скроллит сюда после клика по «случайному
-    // конкурсу». scroll-mt-4 даёт визуальный отступ от верха окна.
-    <section id="contests" className="flex flex-col gap-3 scroll-mt-4">
+    <section id="contests" className="flex flex-col gap-4 scroll-mt-4">
       <div className="flex items-baseline justify-between px-1">
-        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-          Конкурсы
-        </span>
-        <span className="font-roobert text-[11px] text-whisper-gray">
-          {list?.length ?? 0}
+        <span className="font-roobert text-[11px] uppercase tracking-[0.28em] text-whisper-gray font-bold">
+          Конкурсы ({list.length})
         </span>
       </div>
 
-      {list === null ? (
-        <div className="rounded-card border border-white/10 bg-white/[0.03] py-10 flex items-center justify-center">
-          <div className="w-5 h-5 rounded-full border border-white/20 border-t-frost-white animate-spin" />
-        </div>
-      ) : list.length === 0 ? (
-        <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-          Сейчас конкурсов нет. Загляните позже.
-        </div>
-      ) : (
-        list.map((c) => (
-          <ContestCard
-            key={c.id}
-            contest={c}
-            onJoin={() => join(c.id)}
-            busy={busyId === c.id}
-          />
-        ))
-      )}
+      {list.map((c) => (
+        <ContestCard
+          key={c.id}
+          contest={c}
+          onJoin={() => join(c.id)}
+          busy={busyId === c.id}
+        />
+      ))}
     </section>
   );
 }
@@ -1225,21 +1130,18 @@ function ContestCard({
   const remainingMs = Math.max(0, contest.endsAt - now);
   const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
 
-  const router = useRouter();
-
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-card border border-white/10 hover:border-white/20 transition-colors group"
+      className="relative overflow-hidden rounded-3xl border border-white/10 hover:border-white/20 transition-all bg-gradient-to-b from-white/[0.04] to-black/60 backdrop-blur-md group"
     >
-      {/* Banner art (admin-uploaded) — falls back to the gradient wash */}
       {contest.bannerUrl ? (
         <img
           src={contest.bannerUrl}
           alt=""
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover opacity-45"
+          className="absolute inset-0 w-full h-full object-cover opacity-40"
         />
       ) : null}
       <div
@@ -1250,18 +1152,10 @@ function ContestCard({
             'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.85) 100%)',
         }}
       />
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-50 mix-blend-screen pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(110% 90% at 100% 100%, rgba(255, 172, 46, 0.20) 0%, rgba(160, 224, 171, 0.10) 50%, transparent 80%)',
-        }}
-      />
-      <div className="relative px-5 py-4 flex flex-col gap-3">
+      <div className="relative px-6 py-5 flex flex-col gap-3.5">
         <div className="flex items-center gap-2">
-          <Trophy size={12} className="text-[#ffac2e]" strokeWidth={1.7} />
-          <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray group-hover:text-frost-white transition-colors">
+          <Trophy size={13} className="text-amber-400" strokeWidth={2} />
+          <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-whisper-gray group-hover:text-frost-white transition-colors font-semibold">
             {contest.visibility === 'public'
               ? 'Публичный конкурс'
               : contest.visibility === 'private'
@@ -1272,7 +1166,7 @@ function ContestCard({
 
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] leading-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+            <div className="font-roobert text-frost-white text-[18px] sm:text-[20px] font-semibold leading-tight truncate">
               {contest.title}
             </div>
             {contest.description && (
@@ -1282,12 +1176,12 @@ function ContestCard({
             )}
           </div>
           <div className="text-right shrink-0">
-            <div className="font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+            <div className="font-roobert text-amber-400 text-[20px] font-bold leading-none tabular-nums">
               {contest.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
-              <span className="text-[12px] text-whisper-gray">zł</span>
+              <span className="text-[12px] text-whisper-gray font-normal">zł</span>
             </div>
-            <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums">
-              {contest.winnersCount} победителей
+            <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums font-medium">
+              {contest.winnersCount} призовых мест
             </div>
           </div>
         </div>
@@ -1296,31 +1190,33 @@ function ContestCard({
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums">
-              <Users size={10} strokeWidth={1.8} />
-              {contest.participantCount}
+            <span className="inline-flex items-center gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums font-medium">
+              <Users size={12} strokeWidth={2} />
+              {contest.participantCount} участников
             </span>
-            <span className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+            <span className="font-roobert text-[11px] text-amber-300/90 tabular-nums font-medium">
               {(contest as any).cycleState === 'ended' ? 'до начала' : 'до конца'} {remaining}
             </span>
           </div>
           {contest.visibility === 'global' ? (
-            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85">
+            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-white/15 bg-white/[0.05] font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-frost-white/90">
               Автоучастие
             </span>
           ) : contest.joined ? (
-            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-pill border border-[rgba(160,224,171,0.55)] bg-[rgba(160,224,171,0.10)] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white">
+            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-300">
               Участвую
             </span>
           ) : (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
               onClick={(e) => { e.stopPropagation(); onJoin(); }}
               disabled={busy || contest.joined}
-              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.2em] active:scale-[0.97] transition-transform disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-frost-white text-midnight-canvas font-roobert text-[11px] font-bold uppercase tracking-[0.18em] shadow-md transition-transform disabled:opacity-50"
             >
               Участвовать
-              <ArrowRight size={11} strokeWidth={1.8} />
-            </button>
+              <ArrowRight size={12} strokeWidth={2.2} />
+            </motion.button>
           )}
         </div>
       </div>
@@ -1337,7 +1233,7 @@ function RulesPreview({ rules }: { rules: unknown }) {
       {formatted.map((label, i) => (
         <span
           key={i}
-          className="inline-flex items-center px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[10px] text-frost-white/85"
+          className="inline-flex items-center px-2.5 py-1 rounded-full border border-white/15 bg-white/[0.05] font-roobert text-[10px] text-frost-white/90 font-medium"
         >
           {label}
         </span>
@@ -1376,5 +1272,3 @@ function formatRemaining(ms: number): string {
   if (h > 0) return `${h} ч ${m} м ${s} с`;
   return `${m} м ${s} с`;
 }
-
-void AnimatePresence;
