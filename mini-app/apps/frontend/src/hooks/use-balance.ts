@@ -23,13 +23,15 @@ export function useBalance() {
     store.setLoading(true);
     try {
       const response = await apiClient.get<{
-        balance: { amount: number; currency: string; wagerTarget?: number; wagerProgress?: number; };
+        balance: { amount: number; currency: string; freeCases?: number; freeCasesJson?: Record<string, any>; wagerTarget?: number; wagerProgress?: number; };
         tournamentBalances?: Array<{ gameType: string; balance: number }>;
       }>(`/api/balance`);
       store.setBalance({
         userId: '',
         amount: response.balance.amount,
         currency: response.balance.currency,
+        freeCases: response.balance.freeCases ?? 0,
+        freeCasesJson: response.balance.freeCasesJson ?? {},
         demoMode: false,
         wagerTarget: response.balance.wagerTarget,
         wagerProgress: response.balance.wagerProgress,
@@ -48,13 +50,15 @@ export function useBalance() {
   const syncBalance = useCallback(async () => {
     try {
       const response = await apiClient.post<{
-        balance: { amount: number; currency: string; wagerTarget?: number; wagerProgress?: number; };
+        balance: { amount: number; currency: string; freeCases?: number; freeCasesJson?: Record<string, any>; wagerTarget?: number; wagerProgress?: number; };
         tournamentBalances?: Array<{ gameType: string; balance: number }>;
       }>('/api/balance/sync', {});
       useBalanceStore.getState().setBalance({
         userId: '',
         amount: response.balance.amount,
         currency: response.balance.currency,
+        freeCases: response.balance.freeCases ?? 0,
+        freeCasesJson: response.balance.freeCasesJson ?? {},
         demoMode: false,
         wagerTarget: response.balance.wagerTarget,
         wagerProgress: response.balance.wagerProgress,

@@ -322,7 +322,7 @@ export default function CaseOpeningPage() {
             {isSpinning 
               ? 'Открываем...' 
               : (freeCountForThisCase >= count)
-                ? `Бесплатно (${count} шт.)`
+                ? (freeCountForThisCase > 1 ? `Бесплатное открытие (${freeCountForThisCase})` : 'Бесплатное открытие')
                 : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`
             }
           </button>

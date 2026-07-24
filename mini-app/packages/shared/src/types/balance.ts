@@ -9,6 +9,8 @@ export const BalanceSchema = z.object({
   userId: z.string().uuid(),
   amount: z.number().nonnegative(),
   currency: z.string().default('USD'),
+  freeCases: z.number().optional(),
+  freeCasesJson: z.record(z.unknown()).optional(),
   demoMode: z.boolean().default(false),
   wagerTarget: z.number().optional(),
   wagerProgress: z.number().optional(),

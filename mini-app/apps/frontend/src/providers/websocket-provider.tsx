@@ -61,13 +61,18 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             const payload = message.payload as {
               amount: number;
               currency: string;
+              freeCases?: number;
+              freeCasesJson?: Record<string, any>;
               demoMode: boolean;
               timestamp: number;
             };
+            const curBal = useBalanceStore.getState().balance;
             useBalanceStore.getState().setBalance({
               userId,
               amount: payload.amount,
               currency: payload.currency,
+              freeCases: payload.freeCases ?? (curBal as any)?.freeCases ?? 0,
+              freeCasesJson: payload.freeCasesJson ?? (curBal as any)?.freeCasesJson ?? {},
               demoMode: payload.demoMode,
               lastSyncedAt: new Date(payload.timestamp),
             }, useBalanceStore.getState().tournamentBalances);

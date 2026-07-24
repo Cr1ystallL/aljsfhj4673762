@@ -117,7 +117,7 @@ class CasesEngine {
       const nonce = i + 1;
       const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
       
-      const prize = this.pickPrize(hash, caseTier);
+      const prize = this.pickPrize(hash, caseTier, isFree);
       prizesWon.push(prize);
       totalPayout += prize.amount;
 
@@ -182,19 +182,43 @@ class CasesEngine {
     };
   }
 
-  private pickPrize(hash: string, caseTier: CaseTier): CasePrize {
+  private pickPrize(hash: string, caseTier: CaseTier, isFree = false): CasePrize {
     // Uniform sample from a fresh hash slice
     const u = parseInt(hash.substring(0, 13), 16) / Math.pow(2, 52);
     const target = u * caseTier.totalWeight;
     
+    let prize: CasePrize | null = null;
     let acc = 0;
-    for (const prize of caseTier.prizes) {
-      acc += prize.weight;
+    for (const p of caseTier.prizes) {
+      acc += p.weight;
       if (target <= acc) {
-        return prize;
+        prize = p;
+        break;
       }
     }
-    return caseTier.prizes[caseTier.prizes.length - 1];
+    if (!prize) prize = caseTier.prizes[caseTier.prizes.length - 1];
+
+    if (isFree) {
+      const maxAllowedMultiplier = 2.5;
+      const maxAllowedAmount = caseTier.price * maxAllowedMultiplier;
+      if (prize.amount > maxAllowedAmount) {
+        const allowedPrizes = caseTier.prizes.filter(p => p.amount <= maxAllowedAmount);
+        if (allowedPrizes.length > 0) {
+          const allowedTotalWeight = allowedPrizes.reduce((s, p) => s + p.weight, 0);
+          let target2 = u * allowedTotalWeight;
+          let acc2 = 0;
+          for (const p of allowedPrizes) {
+            acc2 += p.weight;
+            if (target2 <= acc2) {
+              return p;
+            }
+          }
+          return allowedPrizes[allowedPrizes.length - 1];
+        }
+      }
+    }
+
+    return prize;
   }
 }
 
