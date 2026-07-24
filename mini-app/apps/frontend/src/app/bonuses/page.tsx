@@ -210,32 +210,33 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
         <Gem />
       </div>
 
-      <div className="relative px-5 sm:px-6 pb-6 pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          placeholder="ВВЕДИТЕ КОД"
-          maxLength={32}
-          className="w-full min-h-[52px] h-[52px] px-5 rounded-2xl border border-white/20 bg-black/60 backdrop-blur-md font-roobert text-[15px] font-bold tracking-[0.18em] text-frost-white placeholder:text-white/35 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 transition-all shrink-0"
-        />
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={submit}
-          disabled={busy}
-          className={cn(
-            'min-h-[52px] h-[52px] px-7 rounded-2xl font-roobert font-bold text-[14px] uppercase tracking-[0.15em] text-midnight-canvas transition-all inline-flex items-center justify-center gap-2 shrink-0 shadow-lg shadow-amber-500/20',
-            busy && 'opacity-60 cursor-not-allowed'
-          )}
-          style={{
-            background:
-              'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
-          }}
-        >
-          Применить
-          <ArrowRight size={16} strokeWidth={2.4} />
-        </motion.button>
+      <div className="relative px-5 sm:px-6 pb-6 pt-2">
+        <div className="relative flex items-center w-full min-h-[52px] h-[52px] p-1.5 rounded-2xl border border-white/20 bg-black/60 backdrop-blur-md focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/30 transition-all">
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            placeholder="ВВЕДИТЕ КОД"
+            maxLength={32}
+            className="flex-1 min-w-0 h-full px-4 bg-transparent font-roobert text-[14px] sm:text-[15px] font-bold tracking-[0.18em] text-frost-white placeholder:text-white/35 focus:outline-none"
+          />
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={submit}
+            disabled={busy}
+            className={cn(
+              'h-full px-5 rounded-xl font-roobert font-bold text-[12px] sm:text-[13px] uppercase tracking-[0.12em] text-midnight-canvas transition-all inline-flex items-center justify-center gap-1.5 shrink-0 shadow-md shadow-amber-500/20',
+              busy && 'opacity-60 cursor-not-allowed'
+            )}
+            style={{
+              background: 'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
+            }}
+          >
+            Применить
+            <ArrowRight size={14} strokeWidth={2.4} />
+          </motion.button>
+        </div>
       </div>
     </motion.section>
   );
