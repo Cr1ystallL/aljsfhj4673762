@@ -469,7 +469,10 @@ function DepositForm({
           className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[18px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
         />
         {error && (
-          <span className="font-roobert text-[12px] text-[#ff8a76]">{error}</span>
+          <div className="flex items-start gap-2 bg-rose-500/10 border border-rose-500/30 rounded-[14px] p-3 text-rose-300 font-roobert text-[12px] leading-relaxed">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5 text-rose-400" />
+            <span>{error}</span>
+          </div>
         )}
       </div>
 
