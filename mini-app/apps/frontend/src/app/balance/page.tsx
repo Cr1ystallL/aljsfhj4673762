@@ -528,107 +528,152 @@ function PaymentDetails({
   onCopy: (text: string, key: string) => void;
   onCancel: () => void;
 }) {
+  const isCard = /^[0-9\s-]+$/.test(order.card || '');
+
   return (
     <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-card border border-white/15 bg-white/[0.04]"
-      style={{
-        background:
-          'linear-gradient(135deg, rgba(160,224,171,0.10), rgba(255,172,46,0.08) 60%, rgba(165,45,37,0.08))',
-      }}
+      initial={{ opacity: 0, scale: 0.98, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98, y: -12 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      className="relative overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-b from-white/[0.07] to-white/[0.02] backdrop-blur-xl shadow-2xl"
     >
-      <div className="px-5 py-5 flex flex-col gap-4">
-        {/* Title row */}
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="font-roobert text-[10px] uppercase tracking-[0.28em] text-whisper-gray">
-              Реквизиты для оплаты
+      {/* Ambient background glow */}
+      <div
+        aria-hidden
+        className="absolute -top-24 -right-24 w-64 h-64 rounded-full pointer-events-none blur-3xl opacity-20"
+        style={{
+          background: 'radial-gradient(circle, rgba(160, 224, 171, 0.6) 0%, rgba(255, 172, 46, 0.4) 50%, transparent 70%)',
+        }}
+      />
+
+      <div className="relative p-5 sm:p-6 flex flex-col gap-5">
+        {/* Header bar */}
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            <span className="font-roobert text-[16px] text-frost-white mt-0.5">
-              Банковский перевод
-            </span>
+            <div>
+              <span className="font-roobert text-[11px] font-medium uppercase tracking-[0.2em] text-emerald-400/90 block">
+                Ожидает оплаты
+              </span>
+              <span className="font-roobert text-[15px] font-medium text-frost-white leading-tight">
+                Банковский перевод (PLN)
+              </span>
+            </div>
           </div>
           <button
             onClick={onCancel}
-            aria-label="Закрыть заявку"
-            className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white active:scale-95 transition-transform"
+            aria-label="Отменить заявку"
+            className="group flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/10 bg-white/[0.04] hover:bg-white/[0.1] active:scale-95 transition-all text-whisper-gray hover:text-frost-white"
           >
-            <X size={18} strokeWidth={1.8} />
+            <span className="font-roobert text-[12px]">Отменить</span>
+            <X size={14} className="group-hover:rotate-90 transition-transform duration-200" strokeWidth={2} />
           </button>
         </div>
 
-        {/* Unique amount */}
-        <div className="rounded-card border border-white/15 bg-white/[0.04] px-4 py-4">
-          <div className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray mb-1.5">
-            Переведите ТОЧНО эту сумму
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-roobert text-[32px] font-light tabular-nums text-frost-white leading-none">
-              {Number(order.uniqueAmount).toFixed(2)}{' '}
-              <span className="text-[20px] text-whisper-gray">{order.currency}</span>
+        {/* Big countdown timer block */}
+        <CountdownTimer minutes={order.expiresInMinutes} />
+
+        {/* Unique amount highlight card */}
+        <div className="relative overflow-hidden rounded-[20px] border border-amber-500/25 bg-gradient-to-r from-amber-500/10 via-white/[0.04] to-transparent p-4.5 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-300">
+              <AlertTriangle size={15} strokeWidth={2} />
+              <span className="font-roobert text-[11px] uppercase tracking-[0.18em] font-semibold">
+                Переведите ТОЧНУЮ сумму
+              </span>
+            </div>
+            <span className="font-roobert text-[10px] uppercase tracking-wider text-amber-200/80 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 font-medium">
+              До копеек
             </span>
+          </div>
+
+          <div className="flex items-baseline justify-between gap-3 bg-black/30 rounded-[14px] p-3.5 border border-white/10">
+            <div className="flex items-baseline gap-2">
+              <span className="font-roobert text-[34px] sm:text-[38px] font-bold tabular-nums text-frost-white leading-none tracking-tight">
+                {Number(order.uniqueAmount).toFixed(2)}
+              </span>
+              <span className="font-roobert text-[20px] font-medium text-whisper-gray">
+                {order.currency || 'PLN'}
+              </span>
+            </div>
+
             <button
               onClick={() => onCopy(Number(order.uniqueAmount).toFixed(2), 'amount')}
-              aria-label="Скопировать сумму"
-              className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-pill border border-amber-400/30 bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 transition-all text-amber-200 font-roobert text-[13px] font-medium shrink-0"
             >
               {copied === 'amount' ? (
-                <Check size={16} strokeWidth={2} />
+                <>
+                  <Check size={15} strokeWidth={2.5} className="text-emerald-400" />
+                  <span className="text-emerald-300">Скопировано</span>
+                </>
               ) : (
-                <Copy size={16} strokeWidth={1.7} />
+                <>
+                  <Copy size={15} strokeWidth={1.8} />
+                  <span>Копировать</span>
+                </>
               )}
             </button>
           </div>
-          <p className="mt-2 font-roobert text-[11px] text-[#ff8a76]/95 leading-snug">
-            Сумма уникальна — другая сумма НЕ будет зачтена
+
+          <p className="font-roobert text-[11px] text-whisper-gray/90 leading-snug">
+            💡 Сумма уникальна для автоматического поиска вашей транзакции. При отправке другой суммы зачисление не произойдет.
           </p>
         </div>
 
-        {/* Account / phone — provider-issued banking details */}
-        <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-3 flex flex-col gap-3">
-          <CopyRow
-            label={/^[0-9\s-]+$/.test(order.card) ? 'Номер карты' : 'Перевод Revtag'}
-            value={order.card}
-            keyId="card"
-            copied={copied}
-            onCopy={onCopy}
-          />
-        </div>
-
-        {/* Countdown timer — animated, GPU-friendly */}
-        <CountdownTimer minutes={order.expiresInMinutes} />
-
-        {/* Help block with FULL order id */}
-        <div className="rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 flex flex-col gap-1.5">
-          <div className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-            ID заявки
+        {/* Requisites row */}
+        {order.card && (
+          <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-2.5">
+            <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+              {isCard ? 'Номер карты / Счет' : 'Реквизиты для перевода (Revtag/Phone)'}
+            </span>
+            <div className="flex items-center justify-between gap-3 bg-black/20 rounded-[12px] p-3 border border-white/5">
+              <span className="font-mono text-[16px] sm:text-[18px] font-semibold text-frost-white tabular-nums tracking-wide break-all">
+                {order.card}
+              </span>
+              <button
+                onClick={() => onCopy(order.card, 'card')}
+                aria-label="Скопировать реквизиты"
+                className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-frost-white/90 active:scale-95 transition-all shrink-0"
+              >
+                {copied === 'card' ? (
+                  <Check size={16} strokeWidth={2.5} className="text-emerald-400" />
+                ) : (
+                  <Copy size={16} strokeWidth={1.8} />
+                )}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <code
-              className="font-mono text-[12px] text-frost-white/90 break-all select-all leading-snug"
-              style={{ wordBreak: 'break-all' }}
-            >
-              {order.orderId}
-            </code>
+        )}
+
+        {/* Order metadata & help */}
+        <div className="rounded-[18px] border border-white/10 bg-white/[0.02] p-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+              Идентификатор заявки
+            </span>
             <button
               onClick={() => onCopy(order.orderId, 'orderid')}
-              aria-label="Скопировать ID заявки"
-              className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform shrink-0"
+              className="flex items-center gap-1 text-whisper-gray hover:text-frost-white font-mono text-[11px] transition-colors"
             >
               {copied === 'orderid' ? (
-                <Check size={14} strokeWidth={2} />
+                <span className="text-emerald-400 font-roobert">Скопировано</span>
               ) : (
-                <Copy size={14} strokeWidth={1.7} />
+                <>
+                  <Copy size={12} />
+                  <span>Скопировать ID</span>
+                </>
               )}
             </button>
           </div>
-          <p className="font-roobert text-[11px] text-whisper-gray leading-relaxed">
-            После перевода баланс пополнится автоматически в течение нескольких
-            минут. Если зачисление задерживается — обратитесь в поддержку и
-            пришлите ID заявки.
+          <code className="font-mono text-[12px] text-frost-white/80 bg-black/30 p-2.5 rounded-[10px] border border-white/5 break-all select-all">
+            {order.orderId}
+          </code>
+          <p className="font-roobert text-[11px] text-whisper-gray leading-relaxed pt-1">
+            После подтверждения банком баланс пополнится в течение 1–5 минут. Сохраните ID заявки на случай обращения в поддержку.
           </p>
         </div>
       </div>
@@ -636,56 +681,9 @@ function PaymentDetails({
   );
 }
 
-function CopyRow({
-  label,
-  value,
-  keyId,
-  copied,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  keyId: string;
-  copied: string | null;
-  onCopy: (text: string, key: string) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="min-w-0">
-        <div className="font-roobert text-[10px] uppercase tracking-[0.18em] text-whisper-gray">
-          {label}
-        </div>
-        <div className="font-roobert text-[14px] text-frost-white tabular-nums break-all leading-snug">
-          {value}
-        </div>
-      </div>
-      <button
-        onClick={() => onCopy(value, keyId)}
-        aria-label={`Скопировать ${label}`}
-        className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform shrink-0"
-      >
-        {copied === keyId ? (
-          <Check size={14} strokeWidth={2} />
-        ) : (
-          <Copy size={14} strokeWidth={1.7} />
-        )}
-      </button>
-    </div>
-  );
-}
-
 /* ---------------------------- CountdownTimer ---------------------------- */
-/**
- * Big legible MM:SS counter with a circular progress ring around it.
- * Counts down from the full window — when it hits zero we keep showing
- * 00:00 and rely on the parent to pick up the cancelled / expired
- * transition via REST. Pure CSS animation: a stroke-dasharray on an
- * SVG circle, redrawn on each one-second tick. The ring uses the
- * brand Deep Ocean gradient so it stays on-brand without any heavy
- * effects.
- */
 function CountdownTimer({ minutes }: { minutes: number }) {
-  const total = Math.max(60, Math.floor(minutes * 60)); // seconds
+  const total = Math.max(60, Math.floor(minutes * 60));
   const [endsAt] = useState(() => Date.now() + total * 1000);
   const [now, setNow] = useState(() => Date.now());
 
@@ -698,69 +696,82 @@ function CountdownTimer({ minutes }: { minutes: number }) {
   const mm = Math.floor(remaining / 60);
   const ss = remaining % 60;
   const frac = total > 0 ? remaining / total : 0;
+  const isWarning = remaining < 300; // less than 5 minutes
 
-  // Ring geometry
-  const size = 100;
-  const stroke = 6;
+  // Ring dimensions
+  const size = 110;
+  const stroke = 7;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const dash = c * frac;
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-4 flex items-center gap-4">
-      <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div className="rounded-[20px] border border-white/10 bg-black/30 p-4.5 flex items-center gap-5">
+      <div className="relative shrink-0 flex items-center justify-center" style={{ width: size, height: size }}>
         <svg
           width={size}
           height={size}
           viewBox={`0 0 ${size} ${size}`}
+          className="transform -rotate-90 drop-shadow-md"
           aria-hidden
         >
           <defs>
-            <linearGradient id="cd-grad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgb(160, 224, 171)" />
-              <stop offset="50%" stopColor="rgb(255, 172, 46)" />
-              <stop offset="100%" stopColor="rgb(165, 45, 37)" />
+            <linearGradient id="timer-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              {isWarning ? (
+                <>
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#ef4444" />
+                </>
+              ) : (
+                <>
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="50%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </>
+              )}
             </linearGradient>
           </defs>
-          {/* Track */}
+          {/* Background circle track */}
           <circle
             cx={size / 2}
             cy={size / 2}
             r={r}
             fill="none"
-            stroke="rgba(255,255,255,0.10)"
+            stroke="rgba(255, 255, 255, 0.08)"
             strokeWidth={stroke}
           />
-          {/* Progress */}
+          {/* Animated progress ring */}
           <circle
             cx={size / 2}
             cy={size / 2}
             r={r}
             fill="none"
-            stroke="url(#cd-grad)"
+            stroke="url(#timer-gradient)"
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={`${dash} ${c - dash}`}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            style={{ transition: 'stroke-dasharray 0.5s linear' }}
+            style={{ transition: 'stroke-dasharray 0.5s ease-out' }}
           />
         </svg>
+
+        {/* Center text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-roobert text-[20px] font-light tabular-nums text-frost-white leading-none">
+          <span className={`font-roobert text-[22px] font-bold tabular-nums leading-none ${isWarning ? 'text-rose-400 animate-pulse' : 'text-frost-white'}`}>
             {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
           </span>
-          <span className="mt-0.5 font-roobert text-[8px] uppercase tracking-[0.22em] text-whisper-gray">
-            осталось
+          <span className="mt-1 font-roobert text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-medium">
+            таймер
           </span>
         </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-          Время на оплату
+
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-frost-white font-roobert text-[14px] font-semibold">
+          <Sparkles size={15} className="text-amber-400" />
+          <span>Время на совершение перевода</span>
         </div>
-        <p className="mt-1 font-roobert text-[12px] text-frost-white/85 leading-relaxed">
-          После перевода баланс пополнится автоматически. Если время
-          истекло — заявка закроется, средства не спишутся.
+        <p className="font-roobert text-[12px] text-whisper-gray leading-relaxed">
+          Заявка закроется автоматически при истечении таймера. Пожалуйста, успейте выполнить перевод до конца отсчета.
         </p>
       </div>
     </div>
@@ -768,9 +779,6 @@ function CountdownTimer({ minutes }: { minutes: number }) {
 }
 
 function _CopyRow_unused() {
-  // Removed in favour of the inlined CopyRow above. Retained as a
-  // no-op placeholder so the linter doesn't flag a dangling import
-  // during the transition; will be deleted in a follow-up.
   return null;
 }
 

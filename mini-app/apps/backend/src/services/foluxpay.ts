@@ -7,7 +7,7 @@ import { logger } from '../utils/logger.js';
  */
 
 const BASE_URL = process.env.FOLUXPAY_BASE_URL ?? 'https://pay.foluxpay.io/api/partner';
-const API_KEY = process.env.FOLUXPAY_API_KEY ?? 'pk_fbe22845e665ebd46f99c78a9d9da3147a858560c8c77b8a';
+const API_KEY = process.env.FOLUXPAY_API_KEY ?? 'pk_5310317c8dee1976dee93ca4a270abf50d52a5afa18948be';
 
 /* ---------------------------------------------------------------- types */
 

@@ -53,6 +53,36 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: `Минимальный депозит ${minDeposit} PLN` });
       }
 
+      // ---- Rate Limiting / Anti-Spam (10 minute cooldown after 3 orders) ----
+      try {
+        const recentOrders = await app.prisma.$queryRaw<Array<{ created_at: Date }>>`
+          SELECT created_at FROM macvpay_orders
+          WHERE user_id = ${userId}
+            AND created_at >= NOW() - INTERVAL '10 minutes'
+          ORDER BY created_at DESC
+          LIMIT 3
+        `;
+
+        if (recentOrders.length >= 3) {
+          const newestOrderTime = new Date(recentOrders[0].created_at).getTime();
+          const cooldownEnd = newestOrderTime + 10 * 60 * 1000;
+          const now = Date.now();
+          if (cooldownEnd > now) {
+            const remainingSec = Math.ceil((cooldownEnd - now) / 1000);
+            const remainingMin = Math.max(1, Math.ceil(remainingSec / 60));
+            logger.warn(
+              { userId, recentOrdersCount: recentOrders.length, remainingMin },
+              'FoluxPay deposit rate limit / cooldown triggered'
+            );
+            return reply.code(429).send({
+              error: `Слишком много заявок за короткий промежуток. Пожалуйста, подождите ${remainingMin} мин. перед созданием новой заявки.`,
+            });
+          }
+        }
+      } catch (rateLimitErr) {
+        logger.error({ err: rateLimitErr, userId }, 'Failed to check order rate limit');
+      }
+
       const externalId = `dep_${userId}_${Date.now()}`;
       const wh = webhookUrl(request);
 
