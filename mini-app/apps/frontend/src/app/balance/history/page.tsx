@@ -11,18 +11,9 @@ import {
   Check,
   X,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-/**
- * Payment History — Monopo Saigon Style.
- *
- * Single page that lists every deposit and withdrawal the player has
- * created, newest first. Each row collapses by default and expands
- * inline to reveal the full data the user submitted plus any admin
- * action (rejection reason for declined withdrawals, paid timestamp
- * for completed deposits, …).
- */
 
 interface DepositEntry {
   kind: 'deposit';
@@ -67,6 +58,30 @@ export default function PaymentHistoryPage() {
   const [data, setData] = useState<Entry[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [openId, setOpenId] = useState<string | null>(null);
+
+  const openPendingDeposit = useCallback(
+    (e: DepositEntry) => {
+      const remainingMs = e.expiresAt
+        ? new Date(e.expiresAt).getTime() - Date.now()
+        : 30 * 60 * 1000;
+      const expiresInMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+      const activeOrder = {
+        orderId: e.id,
+        uniqueAmount: Number(e.uniqueAmount ?? e.amount),
+        currency: e.currency || 'PLN',
+        type: e.paymentType || 'bank',
+        card: e.details || '',
+        recipient: e.recipient || '',
+        details: e.details || '',
+        expiresInMinutes,
+      };
+      try {
+        localStorage.setItem('macvbet_active_order', JSON.stringify(activeOrder));
+      } catch {}
+      router.push('/balance');
+    },
+    [router]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -150,6 +165,7 @@ export default function PaymentHistoryPage() {
                 key={e.id}
                 entry={e}
                 expanded={openId === e.id}
+                onOpenPending={openPendingDeposit}
                 onToggle={() =>
                   setOpenId((cur) => (cur === e.id ? null : e.id))
                 }
@@ -165,17 +181,29 @@ export default function PaymentHistoryPage() {
 function Row({
   entry,
   expanded,
+  onOpenPending,
   onToggle,
 }: {
   entry: Entry;
   expanded: boolean;
+  onOpenPending: (e: DepositEntry) => void;
   onToggle: () => void;
 }) {
   const isDeposit = entry.kind === 'deposit';
+  const isPendingDeposit = isDeposit && entry.status === 'pending';
+
+  const handleClick = () => {
+    if (isPendingDeposit) {
+      onOpenPending(entry as DepositEntry);
+    } else {
+      onToggle();
+    }
+  };
+
   return (
     <div>
       <button
-        onClick={onToggle}
+        onClick={handleClick}
         className="w-full text-left grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 active:bg-white/[0.04] transition-colors"
       >
         <span
@@ -217,23 +245,23 @@ function Row({
             {entry.currency}
           </div>
           <div className="font-roobert text-[10px] text-whisper-gray inline-flex items-center gap-0.5">
-            Подробнее
+            {isPendingDeposit ? 'Оплатить' : 'Подробнее'}
             <ChevronRight
               size={11}
               strokeWidth={1.7}
               className={cn(
                 'transition-transform',
-                expanded && 'rotate-90'
+                !isPendingDeposit && expanded && 'rotate-90'
               )}
             />
           </div>
         </div>
       </button>
 
-      {expanded && (
+      {expanded && !isPendingDeposit && (
         <div className="px-4 pb-4 -mt-1 flex flex-col gap-2.5">
           {entry.kind === 'deposit' ? (
-            <DepositDetails entry={entry} />
+            <DepositDetails entry={entry} onOpenPending={onOpenPending} />
           ) : (
             <WithdrawalDetails entry={entry} />
           )}
@@ -243,7 +271,13 @@ function Row({
   );
 }
 
-function DepositDetails({ entry }: { entry: DepositEntry }) {
+function DepositDetails({
+  entry,
+  onOpenPending,
+}: {
+  entry: DepositEntry;
+  onOpenPending: (e: DepositEntry) => void;
+}) {
   return (
     <div className="rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 flex flex-col gap-2.5">
       <DetailLine label="ID заявки" value={entry.id} mono />
@@ -273,6 +307,18 @@ function DepositDetails({ entry }: { entry: DepositEntry }) {
           label="Истекает"
           value={new Date(entry.expiresAt).toLocaleString('ru-RU')}
         />
+      )}
+      {entry.status === 'pending' && (
+        <button
+          onClick={(ev) => {
+            ev.stopPropagation();
+            onOpenPending(entry);
+          }}
+          className="w-full mt-2 bg-gradient-to-r from-emerald-500/20 via-amber-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-amber-500/30 border border-emerald-500/40 text-frost-white font-roobert text-[13px] font-semibold py-2.5 rounded-pill flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md"
+        >
+          <Sparkles size={14} className="text-amber-400" />
+          <span>Перейти к оплате / Реквизиты</span>
+        </button>
       )}
     </div>
   );
