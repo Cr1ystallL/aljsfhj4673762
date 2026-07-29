@@ -17,27 +17,13 @@ import {
   X,
   AlertTriangle,
   Sparkles,
+  Clock,
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
 import { GameTopBar } from '@/components/game/game-top-bar';
-
-/**
- * Balance Management — Monopo Saigon Style
- *
- * Deposit  → Banking transfer to a BLIK number (single live method).
- * Withdraw → BLIK (phone + bank) and Bank card (manual review by admins).
- *
- * Design rules followed here:
- *  - No mentions of provider name in the user UI.
- *  - Full order ID is shown verbatim (selectable, copyable).
- *  - Bright warning on the withdraw flow about wrong details.
- *  - "Coming soon" placeholder methods are removed entirely.
- *  - All animations are GPU-friendly (transform / opacity only, no
- *    layout animation).
- */
 
 type Tab = 'deposit' | 'withdraw';
 type WithdrawKind = 'blik' | 'card';
@@ -66,6 +52,43 @@ export default function BalancePage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [depositDisabledModal, setDepositDisabledModal] = useState(false);
+
+  // Restore active pending order upon page load / refresh
+  useEffect(() => {
+    let cancelled = false;
+    async function checkActiveOrder() {
+      try {
+        const res = await fetch('/api/foluxpay/active', { credentials: 'include' });
+        if (res.ok && !cancelled) {
+          const j = await res.json();
+          if (j.activeOrder) {
+            setOrder(j.activeOrder as FoluxPayOrder);
+            try {
+              localStorage.setItem('macvbet_active_order', JSON.stringify(j.activeOrder));
+            } catch {}
+            return;
+          }
+        }
+      } catch {}
+
+      if (!cancelled) {
+        try {
+          const saved = localStorage.getItem('macvbet_active_order');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && parsed.orderId) {
+              setOrder(parsed);
+            }
+          }
+        } catch {}
+      }
+    }
+
+    void checkActiveOrder();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // -------- Withdraw state --------------------------------------------------
   const [wKind, setWKind] = useState<WithdrawKind>('blik');
@@ -105,7 +128,11 @@ export default function BalancePage() {
         const msg = reportApiError(res, j, 'Не удалось создать заявку');
         setError(msg);
       } else {
-        setOrder(j as FoluxPayOrder);
+        const newOrder = j as FoluxPayOrder;
+        setOrder(newOrder);
+        try {
+          localStorage.setItem('macvbet_active_order', JSON.stringify(newOrder));
+        } catch {}
         toast.success('Заявка создана. Переведите указанную сумму.');
       }
     } catch {
@@ -129,6 +156,9 @@ export default function BalancePage() {
       // best-effort
     }
     setOrder(null);
+    try {
+      localStorage.removeItem('macvbet_active_order');
+    } catch {}
   }, [order]);
 
   const copyText = useCallback(async (text: string, key: string) => {

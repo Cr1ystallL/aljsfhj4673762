@@ -59,6 +59,59 @@ async function recordFailedOrder(
 }
 
 export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
+  /* ----------------------------------------------------------- active */
+
+  app.get('/active', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+
+    try {
+      const rows = await app.prisma.$queryRaw<
+        {
+          id: string;
+          unique_amount: string;
+          currency: string;
+          payment_type: string;
+          card: string;
+          details: string;
+          expires_at: Date;
+        }[]
+      >`
+        SELECT id, unique_amount, currency, payment_type, card, details, expires_at
+        FROM macvpay_orders
+        WHERE user_id = ${userId}
+          AND status = 'pending'
+          AND expires_at > NOW()
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+
+      if (!rows.length) {
+        return reply.send({ ok: true, activeOrder: null });
+      }
+
+      const order = rows[0];
+      const remainingMs = new Date(order.expires_at).getTime() - Date.now();
+      const expiresInMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+
+      return reply.send({
+        ok: true,
+        activeOrder: {
+          orderId: order.id,
+          uniqueAmount: Number(order.unique_amount),
+          currency: order.currency || 'PLN',
+          type: order.payment_type || 'bank',
+          card: order.card || '',
+          recipient: null,
+          details: order.details || '',
+          expiresInMinutes,
+        },
+      });
+    } catch (err) {
+      logger.error({ err, userId }, 'Failed to fetch active FoluxPay order');
+      return reply.send({ ok: true, activeOrder: null });
+    }
+  });
+
   /* ---------------------------------------------------------- deposit */
 
   app.post<{
