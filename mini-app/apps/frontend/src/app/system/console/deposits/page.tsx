@@ -40,7 +40,7 @@ interface Deposit {
   createdAt: number;
 }
 
-type StatusFilter = 'all' | 'pending' | 'paid' | 'cancelled' | 'expired';
+type StatusFilter = 'all' | 'pending' | 'paid' | 'cancelled' | 'expired' | 'failed';
 
 export default function DepositsPage() {
   const router = useRouter();
@@ -142,9 +142,13 @@ export default function DepositsPage() {
   }, [data, filter]);
 
   const counts = useMemo(() => {
-    const c = { all: data?.length ?? 0, pending: 0, paid: 0, cancelled: 0, expired: 0 };
+    const c = { all: data?.length ?? 0, pending: 0, paid: 0, cancelled: 0, expired: 0, failed: 0 };
     if (!data) return c;
-    for (const d of data) c[d.status]++;
+    for (const d of data) {
+      if (d.status in c) {
+        c[d.status as keyof typeof c]++;
+      }
+    }
     return c;
   }, [data]);
 
@@ -175,6 +179,9 @@ export default function DepositsPage() {
               </li>
               <li>
                 <b>Истёк</b> — заявка не оплачена в отведённое время.
+              </li>
+              <li>
+                <b>Не удался</b> — попытка создания заявки завершилась ошибкой (видно описание ошибки).
               </li>
             </ul>
             <p>
@@ -239,7 +246,7 @@ export default function DepositsPage() {
 
         {/* Status pills */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
-          {(['all', 'pending', 'paid', 'cancelled', 'expired'] as StatusFilter[]).map(
+          {(['all', 'pending', 'paid', 'cancelled', 'expired', 'failed'] as StatusFilter[]).map(
             (s) => (
               <button
                 key={s}
@@ -335,6 +342,12 @@ function DepositRow({
         <div className="mt-0.5 font-mono text-[10px] text-frost-white/45 truncate">
           {deposit.providerOrderId}
         </div>
+        {deposit.status === 'failed' && deposit.details && (
+          <div className="mt-1 flex items-center gap-1 font-roobert text-[11px] text-rose-400 font-medium">
+            <AlertTriangle size={12} className="shrink-0 text-rose-400" />
+            <span className="truncate">{deposit.details}</span>
+          </div>
+        )}
       </div>
 
       <div className="text-right">
@@ -343,7 +356,7 @@ function DepositRow({
             'font-roobert text-[14px] tabular-nums',
             deposit.status === 'paid'
               ? 'text-[#a0e0ab]'
-              : deposit.status === 'cancelled' || deposit.status === 'expired'
+              : deposit.status === 'cancelled' || deposit.status === 'expired' || deposit.status === 'failed'
                 ? 'text-whisper-gray line-through'
                 : 'text-frost-white'
           )}
@@ -368,12 +381,6 @@ function fmt(n: number | null | undefined): string {
 }
 
 function StatusChip({ status }: { status: Deposit['status'] | string }) {
-  // У БД могут появиться новые статусы (например, `failed`/`refunded`),
-  // которых ещё нет в нашем Record. Без fallback это падало с
-  // `Cannot read properties of undefined (reading 'Icon')` и роняло
-  // всю страницу депозитов. Поэтому даём дефолтный «нейтральный» чип
-  // и в нём же показываем сырое имя статуса — оператор сразу видит
-  // что-то не покрытое UI и поднимает багу.
   const map: Record<string, { label: string; cls: string; Icon: typeof Clock }> = {
     pending: {
       label: 'Ожидание',
@@ -393,6 +400,11 @@ function StatusChip({ status }: { status: Deposit['status'] | string }) {
     expired: {
       label: 'Истёк',
       cls: 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-[#ff8a76]',
+      Icon: AlertTriangle,
+    },
+    failed: {
+      label: 'Не удался',
+      cls: 'border-rose-500/40 bg-rose-500/10 text-rose-400',
       Icon: AlertTriangle,
     },
   };
@@ -429,6 +441,8 @@ function statusLabel(s: StatusFilter): string {
       return 'Отменённые';
     case 'expired':
       return 'Истёкшие';
+    case 'failed':
+      return 'Неудавшиеся';
   }
 }
 

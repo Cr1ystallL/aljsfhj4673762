@@ -21,6 +21,43 @@ function webhookUrl(request: { hostname: string }): string {
   return `${base}/api/foluxpay/webhook`;
 }
 
+async function recordFailedOrder(
+  app: FastifyInstance,
+  userId: string,
+  amount: number,
+  type: string,
+  reason: string
+) {
+  try {
+    const failId = `fail_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const extId = `dep_${userId}_${Date.now()}`;
+    await app.prisma.$executeRaw`
+      INSERT INTO macvpay_orders (
+        id, user_id, external_id, requested_amount, unique_amount,
+        currency, payment_type, card, recipient, details,
+        status, expires_at, created_at, updated_at
+      ) VALUES (
+        ${failId},
+        ${userId},
+        ${extId},
+        ${amount}::numeric,
+        ${amount}::numeric,
+        'PLN',
+        ${type},
+        '',
+        NULL,
+        ${reason},
+        'failed',
+        NOW(),
+        NOW(), NOW()
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
+  } catch (err) {
+    logger.error({ err, userId }, 'Failed to record failed deposit attempt');
+  }
+}
+
 export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
   /* ---------------------------------------------------------- deposit */
 
@@ -43,7 +80,9 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
 
       const cfg = await walletConfig.getMasked();
       if (!cfg.depositsEnabled) {
-        return reply.code(403).send({ error: 'Пополнения временно недоступны. Технические работы.' });
+        const errorMsg = 'Пополнения временно недоступны. Технические работы.';
+        await recordFailedOrder(app, userId, amount, type, errorMsg);
+        return reply.code(403).send({ error: errorMsg });
       }
 
       const minDeposit = Number(cfg.minDeposit ?? 10) || 10;
@@ -70,12 +109,14 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
           if (cooldownEnd > now) {
             const remainingSec = Math.ceil((cooldownEnd - now) / 1000);
             const remainingMin = Math.max(1, Math.ceil(remainingSec / 60));
+            const rateLimitMsg = `Слишком много заявок за короткий промежуток. Пожалуйста, подождите ${remainingMin} мин. перед созданием новой заявки.`;
             logger.warn(
               { userId, recentOrdersCount: recentOrders.length, remainingMin },
               'FoluxPay deposit rate limit / cooldown triggered'
             );
+            await recordFailedOrder(app, userId, amount, type, `КД (10 мин): Превышен лимит 3 заявок`);
             return reply.code(429).send({
-              error: `Слишком много заявок за короткий промежуток. Пожалуйста, подождите ${remainingMin} мин. перед созданием новой заявки.`,
+              error: rateLimitMsg,
             });
           }
         }
@@ -89,11 +130,11 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
       const result = await createOrder(amount, userId, externalId, wh, type);
 
       if (!result.success) {
+        const failReason = result.error || 'Платёжный провайдер временно недоступен.';
         logger.warn({ userId, amount, error: result.error }, 'FoluxPay order failed');
+        await recordFailedOrder(app, userId, amount, type, failReason);
         return reply.code(503).send({
-          error:
-            result.error ||
-            'Платёжный провайдер временно недоступен. Попробуйте другой способ или повторите позже.',
+          error: failReason,
         });
       }
 
