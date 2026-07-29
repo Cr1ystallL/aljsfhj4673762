@@ -577,36 +577,36 @@ function PaymentDetails({
           </button>
         </div>
 
-        {/* Big countdown timer block */}
+        {/* Digital Linear Countdown timer block */}
         <CountdownTimer minutes={order.expiresInMinutes} />
 
         {/* Unique amount highlight card */}
-        <div className="relative overflow-hidden rounded-[20px] border border-amber-500/25 bg-gradient-to-r from-amber-500/10 via-white/[0.04] to-transparent p-4.5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
+        <div className="relative rounded-[20px] border border-amber-500/30 bg-gradient-to-br from-amber-500/15 via-white/[0.03] to-transparent p-4 sm:p-5 flex flex-col gap-3.5 shadow-xl">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-amber-300">
-              <AlertTriangle size={15} strokeWidth={2} />
-              <span className="font-roobert text-[11px] uppercase tracking-[0.18em] font-semibold">
+              <AlertTriangle size={16} strokeWidth={2} className="shrink-0" />
+              <span className="font-roobert text-[12px] uppercase tracking-[0.16em] font-bold">
                 Переведите ТОЧНУЮ сумму
               </span>
             </div>
-            <span className="font-roobert text-[10px] uppercase tracking-wider text-amber-200/80 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 font-medium">
+            <span className="font-roobert text-[10px] uppercase tracking-wider text-amber-200/90 bg-amber-500/25 px-2.5 py-0.5 rounded-full border border-amber-400/30 font-semibold shrink-0">
               До копеек
             </span>
           </div>
 
-          <div className="flex items-baseline justify-between gap-3 bg-black/30 rounded-[14px] p-3.5 border border-white/10">
-            <div className="flex items-baseline gap-2">
-              <span className="font-roobert text-[34px] sm:text-[38px] font-bold tabular-nums text-frost-white leading-none tracking-tight">
+          <div className="flex items-center justify-between gap-3 bg-black/40 rounded-[16px] p-4 border border-white/10 shadow-inner">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <span className="font-roobert text-[32px] sm:text-[38px] font-bold tabular-nums text-frost-white leading-none tracking-tight truncate">
                 {Number(order.uniqueAmount).toFixed(2)}
               </span>
-              <span className="font-roobert text-[20px] font-medium text-whisper-gray">
+              <span className="font-roobert text-[18px] font-semibold text-whisper-gray shrink-0">
                 {order.currency || 'PLN'}
               </span>
             </div>
 
             <button
               onClick={() => onCopy(Number(order.uniqueAmount).toFixed(2), 'amount')}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-pill border border-amber-400/30 bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 transition-all text-amber-200 font-roobert text-[13px] font-medium shrink-0"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 transition-all text-amber-200 font-roobert text-[13px] font-semibold shrink-0 shadow-md"
             >
               {copied === 'amount' ? (
                 <>
@@ -622,9 +622,12 @@ function PaymentDetails({
             </button>
           </div>
 
-          <p className="font-roobert text-[11px] text-whisper-gray/90 leading-snug">
-            💡 Сумма уникальна для автоматического поиска вашей транзакции. При отправке другой суммы зачисление не произойдет.
-          </p>
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-[12px] p-3 flex items-start gap-2.5">
+            <span className="text-[14px] shrink-0 mt-0.5">💡</span>
+            <p className="font-roobert text-[11px] text-amber-200/90 leading-relaxed">
+              Сумма уникальна для автоматического поиска вашей транзакции. При отправке другой суммы зачисление не произойдет.
+            </p>
+          </div>
         </div>
 
         {/* Requisites row */}
@@ -699,83 +702,58 @@ function CountdownTimer({ minutes }: { minutes: number }) {
   const mm = Math.floor(remaining / 60);
   const ss = remaining % 60;
   const frac = total > 0 ? remaining / total : 0;
+  const percent = Math.min(100, Math.max(0, frac * 100));
   const isWarning = remaining < 300; // less than 5 minutes
 
-  // Ring dimensions
-  const size = 110;
-  const stroke = 7;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const dash = c * frac;
-
   return (
-    <div className="rounded-[20px] border border-white/10 bg-black/30 p-4.5 flex items-center gap-5">
-      <div className="relative shrink-0 flex items-center justify-center" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="transform -rotate-90 drop-shadow-md"
-          aria-hidden
-        >
-          <defs>
-            <linearGradient id="timer-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              {isWarning ? (
-                <>
-                  <stop offset="0%" stopColor="#f59e0b" />
-                  <stop offset="100%" stopColor="#ef4444" />
-                </>
-              ) : (
-                <>
-                  <stop offset="0%" stopColor="#10b981" />
-                  <stop offset="50%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </>
-              )}
-            </linearGradient>
-          </defs>
-          {/* Background circle track */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke="rgba(255, 255, 255, 0.08)"
-            strokeWidth={stroke}
-          />
-          {/* Animated progress ring */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke="url(#timer-gradient)"
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${c - dash}`}
-            style={{ transition: 'stroke-dasharray 0.5s ease-out' }}
-          />
-        </svg>
+    <div className="rounded-[20px] border border-white/10 bg-black/40 p-4 sm:p-5 flex flex-col gap-3.5 shadow-lg">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-frost-white">
+          <Clock size={16} className={isWarning ? "text-rose-400 animate-pulse" : "text-amber-400"} />
+          <span className="font-roobert text-[13px] font-semibold">
+            Время на совершение перевода
+          </span>
+        </div>
+        <span className="font-roobert text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.05] text-whisper-gray">
+          30 мин. окно
+        </span>
+      </div>
 
-        {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`font-roobert text-[22px] font-bold tabular-nums leading-none ${isWarning ? 'text-rose-400 animate-pulse' : 'text-frost-white'}`}>
-            {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
-          </span>
-          <span className="mt-1 font-roobert text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-medium">
-            таймер
-          </span>
+      {/* Digital Timer Display */}
+      <div className="flex items-center justify-center gap-2 py-1">
+        <div className="flex flex-col items-center gap-1">
+          <div className="bg-black/60 border border-white/15 px-4 py-2 rounded-[14px] min-w-[64px] text-center shadow-inner">
+            <span className={`font-mono text-[30px] font-bold tabular-nums leading-none ${isWarning ? 'text-rose-400 animate-pulse' : 'text-frost-white'}`}>
+              {String(mm).padStart(2, '0')}
+            </span>
+          </div>
+          <span className="font-roobert text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-medium">минут</span>
+        </div>
+
+        <span className="font-mono text-[24px] font-bold text-whisper-gray/70 pb-5">:</span>
+
+        <div className="flex flex-col items-center gap-1">
+          <div className="bg-black/60 border border-white/15 px-4 py-2 rounded-[14px] min-w-[64px] text-center shadow-inner">
+            <span className={`font-mono text-[30px] font-bold tabular-nums leading-none ${isWarning ? 'text-rose-400 animate-pulse' : 'text-frost-white'}`}>
+              {String(ss).padStart(2, '0')}
+            </span>
+          </div>
+          <span className="font-roobert text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-medium">секунд</span>
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 text-frost-white font-roobert text-[14px] font-semibold">
-          <Sparkles size={15} className="text-amber-400" />
-          <span>Время на совершение перевода</span>
+      {/* Linear progress bar track */}
+      <div className="flex flex-col gap-1.5">
+        <div className="w-full h-2 rounded-full bg-white/[0.08] overflow-hidden p-0.5 border border-white/5">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              isWarning
+                ? 'bg-gradient-to-r from-amber-500 to-rose-500'
+                : 'bg-gradient-to-r from-emerald-400 via-amber-400 to-purple-500'
+            }`}
+            style={{ width: `${percent}%` }}
+          />
         </div>
-        <p className="font-roobert text-[12px] text-whisper-gray leading-relaxed">
-          Заявка закроется автоматически при истечении таймера. Пожалуйста, успейте выполнить перевод до конца отсчета.
-        </p>
       </div>
     </div>
   );
