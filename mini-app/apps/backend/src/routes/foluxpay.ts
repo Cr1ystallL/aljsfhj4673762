@@ -92,6 +92,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
         logger.warn({ userId, amount, error: result.error }, 'FoluxPay order failed');
         return reply.code(503).send({
           error:
+            result.error ||
             'Платёжный провайдер временно недоступен. Попробуйте другой способ или повторите позже.',
         });
       }
