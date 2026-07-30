@@ -1,10 +1,10 @@
 import React from 'react';
 
 /**
- * High-Resolution Official Crypto & Payment Method Images
+ * High-Resolution Official Crypto & Payment Method Images with large default sizes
  */
 
-export function Trc20Icon({ className = 'w-7 h-7' }: { className?: string }) {
+export function Trc20Icon({ className = 'w-10 h-10' }: { className?: string }) {
   return (
     <img
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/trx.png"
@@ -14,7 +14,7 @@ export function Trc20Icon({ className = 'w-7 h-7' }: { className?: string }) {
   );
 }
 
-export function TonIcon({ className = 'w-7 h-7' }: { className?: string }) {
+export function TonIcon({ className = 'w-10 h-10' }: { className?: string }) {
   return (
     <img
       src="https://assets.coingecko.com/coins/images/17980/large/ton_symbol.png"
@@ -24,7 +24,7 @@ export function TonIcon({ className = 'w-7 h-7' }: { className?: string }) {
   );
 }
 
-export function Bep20Icon({ className = 'w-7 h-7' }: { className?: string }) {
+export function Bep20Icon({ className = 'w-10 h-10' }: { className?: string }) {
   return (
     <img
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/bnb.png"
@@ -34,7 +34,7 @@ export function Bep20Icon({ className = 'w-7 h-7' }: { className?: string }) {
   );
 }
 
-export function UsdtIcon({ className = 'w-7 h-7' }: { className?: string }) {
+export function UsdtIcon({ className = 'w-10 h-10' }: { className?: string }) {
   return (
     <img
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png"
@@ -44,7 +44,7 @@ export function UsdtIcon({ className = 'w-7 h-7' }: { className?: string }) {
   );
 }
 
-export function CryptoBotIcon({ className = 'w-12 h-12' }: { className?: string }) {
+export function CryptoBotIcon({ className = 'w-14 h-14' }: { className?: string }) {
   return (
     <img
       src="/cb.png"
@@ -54,7 +54,7 @@ export function CryptoBotIcon({ className = 'w-12 h-12' }: { className?: string 
   );
 }
 
-export function DirectCryptoIcon({ className = 'w-7 h-7' }: { className?: string }) {
+export function DirectCryptoIcon({ className = 'w-10 h-10' }: { className?: string }) {
   return (
     <img
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png"
@@ -64,7 +64,7 @@ export function DirectCryptoIcon({ className = 'w-7 h-7' }: { className?: string
   );
 }
 
-export function BankCardIcon({ className = 'w-7 h-7' }: { className?: string }) {
+export function BankCardIcon({ className = 'w-10 h-10' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect width="20" height="14" x="2" y="5" rx="2" />

@@ -341,9 +341,9 @@ export default function BalancePage() {
           {/* Animated Semi-Transparent Silver Coin on Right Side */}
           <div className="flex items-center justify-center pr-2 pointer-events-none z-0">
             <Coins
-              size={52}
-              className="text-zinc-500/25 animate-spin-slow transition-transform"
-              style={{ animationDuration: '14s' }}
+              size={54}
+              className="text-zinc-400/30 animate-spin transition-transform"
+              style={{ animationDuration: '12s' }}
             />
           </div>
         </div>
@@ -515,16 +515,16 @@ export default function BalancePage() {
                   <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
                     Способ оплаты:
                   </span>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-2.5">
                     <button
                       onClick={() => setMethod('crypto')}
-                      className={`p-3.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                      className={`py-4 px-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all min-h-[110px] ${
                         method === 'crypto'
-                          ? 'border-zinc-500 bg-zinc-800/80 text-white'
+                          ? 'border-zinc-400 bg-zinc-800 text-white shadow-lg'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <DirectCryptoIcon className="w-8 h-8" />
+                      <DirectCryptoIcon className="w-12 h-12" />
                       <span className="text-xs font-bold text-center leading-tight">
                         Криптовалюта
                         <span className="block text-[10px] font-mono text-zinc-400 font-semibold mt-0.5">(USDT)</span>
@@ -533,25 +533,25 @@ export default function BalancePage() {
 
                     <button
                       onClick={() => setMethod('cryptobot')}
-                      className={`p-3.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                      className={`py-4 px-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all min-h-[110px] ${
                         method === 'cryptobot'
-                          ? 'border-zinc-500 bg-zinc-800/80 text-white'
+                          ? 'border-zinc-400 bg-zinc-800 text-white shadow-lg'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <CryptoBotIcon className="w-12 h-12" />
+                      <CryptoBotIcon className="w-14 h-14" />
                       <span className="text-xs font-bold text-center">CryptoBot</span>
                     </button>
 
                     <button
                       onClick={() => setMethod('card')}
-                      className={`p-3.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                      className={`py-4 px-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all min-h-[110px] ${
                         method === 'card'
-                          ? 'border-zinc-500 bg-zinc-800/80 text-white'
+                          ? 'border-zinc-400 bg-zinc-800 text-white shadow-lg'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <BankCardIcon className="w-8 h-8 text-zinc-300" />
+                      <BankCardIcon className="w-12 h-12 text-zinc-300" />
                       <span className="text-xs font-bold text-center">Карта / BLIK</span>
                     </button>
                   </div>
@@ -563,41 +563,41 @@ export default function BalancePage() {
                     <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
                       Выберите сеть:
                     </span>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 gap-2.5">
                       <button
                         onClick={() => setNetwork('TRC20')}
-                        className={`p-3 rounded-lg border flex flex-col items-center gap-1.5 transition-all ${
+                        className={`py-3.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
                           network === 'TRC20'
-                            ? 'border-zinc-500 bg-zinc-800/80 text-white'
+                            ? 'border-zinc-400 bg-zinc-800 text-white shadow-md'
                             : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                         }`}
                       >
-                        <Trc20Icon className="w-6 h-6" />
-                        <span className="text-[11px] font-semibold">TRC-20</span>
+                        <Trc20Icon className="w-10 h-10" />
+                        <span className="text-xs font-extrabold">TRC-20</span>
                       </button>
 
                       <button
                         onClick={() => setNetwork('TON')}
-                        className={`p-3 rounded-lg border flex flex-col items-center gap-1.5 transition-all ${
+                        className={`py-3.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
                           network === 'TON'
-                            ? 'border-zinc-500 bg-zinc-800/80 text-white'
+                            ? 'border-zinc-400 bg-zinc-800 text-white shadow-md'
                             : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                         }`}
                       >
-                        <TonIcon className="w-6 h-6" />
-                        <span className="text-[11px] font-semibold">TON</span>
+                        <TonIcon className="w-10 h-10" />
+                        <span className="text-xs font-extrabold">TON</span>
                       </button>
 
                       <button
                         onClick={() => setNetwork('BEP20')}
-                        className={`p-3 rounded-lg border flex flex-col items-center gap-1.5 transition-all ${
+                        className={`py-3.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
                           network === 'BEP20'
-                            ? 'border-zinc-500 bg-zinc-800/80 text-white'
+                            ? 'border-zinc-400 bg-zinc-800 text-white shadow-md'
                             : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                         }`}
                       >
-                        <Bep20Icon className="w-6 h-6" />
-                        <span className="text-[11px] font-semibold">BEP-20</span>
+                        <Bep20Icon className="w-10 h-10" />
+                        <span className="text-xs font-extrabold">BEP-20</span>
                       </button>
                     </div>
                   </div>
