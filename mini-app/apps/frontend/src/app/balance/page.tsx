@@ -11,7 +11,9 @@ import {
   History,
   Clock,
   RefreshCw,
-  ShieldCheck,
+  AlertTriangle,
+  Zap,
+  X,
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
 import { toast } from '@/store/toast-store';
@@ -72,6 +74,7 @@ export default function BalancePage() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [showBankErrorModal, setShowBankErrorModal] = useState<boolean>(false);
 
   // Active Direct Crypto Deposit
   const [activeCryptoDeposit, setActiveCryptoDeposit] = useState<DirectCryptoDeposit | null>(null);
@@ -173,6 +176,38 @@ export default function BalancePage() {
       setLoading(false);
     }
   }, [depositAmountPln, network]);
+
+  const startCardDeposit = useCallback(async () => {
+    const num = parseFloat(depositAmountPln);
+    if (!Number.isFinite(num) || num < 10) {
+      setError('Минимальная сумма пополнения — 10 PLN');
+      toast.warn('Минимальная сумма пополнения — 10 PLN');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/foluxpay/deposit', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: num }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        setShowBankErrorModal(true);
+      } else if (j.redirectUrl) {
+        window.location.href = j.redirectUrl;
+      } else {
+        setShowBankErrorModal(true);
+      }
+    } catch {
+      setShowBankErrorModal(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [depositAmountPln]);
 
   const cancelDirectCryptoDeposit = useCallback(async () => {
     if (!activeCryptoDeposit) return;
@@ -598,6 +633,7 @@ export default function BalancePage() {
                   onClick={() => {
                     if (method === 'crypto') void startDirectCryptoDeposit();
                     else if (method === 'cryptobot') handleCryptoBotDeposit();
+                    else if (method === 'card') void startCardDeposit();
                   }}
                   disabled={loading}
                   className="w-full py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs uppercase tracking-wider text-white shadow-md active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-1"
@@ -738,6 +774,61 @@ export default function BalancePage() {
           </button>
         )}
       </div>
+
+      {/* Bank Error / Crypto Recommendation Modal */}
+      {showBankErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-[#13151C] border border-white/10 p-5 flex flex-col gap-4 shadow-2xl relative">
+            <button
+              onClick={() => setShowBankErrorModal(false)}
+              className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-sm text-white">Ошибка банковского платежа</span>
+                <span className="text-[11px] text-zinc-400">Временный сбой банковского шлюза</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-[#0A0B0E] border border-white/10 p-3.5 flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
+                <Zap size={14} className="text-amber-400" />
+                <span>Рекомендуем Криптовалюту (USDT)</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                К сожалению, пополнение через банковскую карту временно недоступно из-за технических ограничений шлюза.
+                <br /><br />
+                Настоятельно рекомендуем воспользоваться способом <strong className="text-zinc-200">Криптовалюта (USDT)</strong> — платежи зачисляются моментально 24/7, с минимальной комиссией и без задержек!
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-1">
+              <button
+                onClick={() => {
+                  setShowBankErrorModal(false);
+                  setMethod('crypto');
+                }}
+                className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs text-white uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Zap size={14} className="text-emerald-400" />
+                <span>Выбрать Криптовалюту (USDT)</span>
+              </button>
+              <button
+                onClick={() => setShowBankErrorModal(false)}
+                className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-medium text-zinc-400 hover:text-white transition-all"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
