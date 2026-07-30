@@ -7,106 +7,217 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronLeft,
-  ChevronRight,
-  Building2,
-  Smartphone,
-  CreditCard,
   Copy,
   Check,
   History,
   X,
   AlertTriangle,
-  Sparkles,
   Clock,
+  RefreshCw,
+  Zap,
+  ShieldCheck,
+  Wallet,
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
-import { BrandLockup } from '@/components/ui/brand-mark';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
-import { GameTopBar } from '@/components/game/game-top-bar';
+import {
+  Trc20Icon,
+  TonIcon,
+  Bep20Icon,
+  UsdtIcon,
+  CryptoBotIcon,
+  DirectCryptoIcon,
+  BankCardIcon,
+} from '@/components/ui/crypto-networks';
 
 type Tab = 'deposit' | 'withdraw';
+type DepositMethod = 'card' | 'cryptobot' | 'crypto';
+type CryptoNetwork = 'TRC20' | 'TON' | 'BEP20';
 type WithdrawKind = 'blik' | 'card';
 
 interface FoluxPayOrder {
   orderId: string;
   uniqueAmount: number;
-  type: 'bank' | 'revolut' | string;
+  type: string;
   card: string;
   recipient: string;
   details: string;
   expiresInMinutes: number;
 }
 
+interface DirectCryptoDeposit {
+  id: string;
+  network: CryptoNetwork;
+  requestedPln: number;
+  uniqueUsdt: number;
+  fxRate: number;
+  depositAddress: string;
+  status: string;
+  expiresInSeconds: number;
+  createdAt: string;
+}
+
 export default function BalancePage() {
   const router = useRouter();
   const balance = useBalanceStore((s) => s.balance);
-  const amount = balance?.amount ?? 0;
+  const amountPln = balance?.amount ?? 0;
 
   const [tab, setTab] = useState<Tab>('deposit');
+  const [method, setMethod] = useState<DepositMethod>('crypto');
+  const [network, setNetwork] = useState<CryptoNetwork>('TRC20');
 
-  // -------- Deposit state ---------------------------------------------------
-  const [depositAmount, setDepositAmount] = useState<string>('100');
-  const [order, setOrder] = useState<FoluxPayOrder | null>(null);
+  // -------- Exchange Rate ----------------------------------------------------
+  const [fxRate, setFxRate] = useState<number>(3.9);
+
+  useEffect(() => {
+    async function fetchRate() {
+      try {
+        const res = await fetch('/api/crypto-deposit/rates');
+        if (res.ok) {
+          const j = await res.json();
+          if (j.rate > 0) setFxRate(j.rate);
+        }
+      } catch {}
+    }
+    void fetchRate();
+  }, []);
+
+  // -------- Deposit State ---------------------------------------------------
+  const [depositAmountPln, setDepositAmountPln] = useState<string>('100');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [depositDisabledModal, setDepositDisabledModal] = useState(false);
 
-  // Restore active pending order upon page load / refresh
-  useEffect(() => {
-    let cancelled = false;
-    async function checkActiveOrder() {
-      try {
-        const res = await fetch('/api/foluxpay/active', { credentials: 'include' });
-        if (res.ok && !cancelled) {
-          const j = await res.json();
-          if (j.activeOrder) {
-            setOrder(j.activeOrder as FoluxPayOrder);
-            try {
-              localStorage.setItem('macvbet_active_order', JSON.stringify(j.activeOrder));
-            } catch {}
-            return;
-          }
+  // Active orders
+  const [activeFoluxOrder, setActiveFoluxOrder] = useState<FoluxPayOrder | null>(null);
+  const [activeCryptoDeposit, setActiveCryptoDeposit] = useState<DirectCryptoDeposit | null>(null);
+
+  // Countdown timer for active direct crypto deposit
+  const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
+
+  // Calculated converted amount in USD ($)
+  const convertedUsd = useMemo(() => {
+    const num = parseFloat(depositAmountPln);
+    if (!Number.isFinite(num) || num <= 0) return '0.00';
+    return (num / fxRate).toFixed(2);
+  }, [depositAmountPln, fxRate]);
+
+  // -------- Load Active Orders ----------------------------------------------
+  const checkActiveOrders = useCallback(async () => {
+    try {
+      // Check active direct crypto deposit
+      const cryptoRes = await fetch('/api/crypto-deposit/active', { credentials: 'include' });
+      if (cryptoRes.ok) {
+        const j = await cryptoRes.json();
+        if (j.activeDeposit) {
+          setActiveCryptoDeposit(j.activeDeposit as DirectCryptoDeposit);
+          setTimeLeftSec(j.activeDeposit.expiresInSeconds);
+        } else {
+          setActiveCryptoDeposit(null);
         }
-      } catch {}
-
-      if (!cancelled) {
-        try {
-          const saved = localStorage.getItem('macvbet_active_order');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed && parsed.orderId) {
-              setOrder(parsed);
-            }
-          }
-        } catch {}
       }
-    }
+    } catch {}
 
-    void checkActiveOrder();
-    return () => {
-      cancelled = true;
-    };
+    try {
+      // Check active FoluxPay order
+      const foluxRes = await fetch('/api/foluxpay/active', { credentials: 'include' });
+      if (foluxRes.ok) {
+        const j = await foluxRes.json();
+        if (j.activeOrder) {
+          setActiveFoluxOrder(j.activeOrder as FoluxPayOrder);
+        } else {
+          setActiveFoluxOrder(null);
+        }
+      }
+    } catch {}
   }, []);
 
-  // -------- Withdraw state --------------------------------------------------
-  const [wKind, setWKind] = useState<WithdrawKind>('blik');
-  const [wAmount, setWAmount] = useState<string>('100');
-  const [wPhone, setWPhone] = useState<string>('');
-  const [wBank, setWBank] = useState<string>('');
-  const [wHolder, setWHolder] = useState<string>('');
-  const [wCard, setWCard] = useState<string>('');
-  const [wSubmitting, setWSubmitting] = useState(false);
-  const [wMsg, setWMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    void checkActiveOrders();
+  }, [checkActiveOrders]);
 
-  // -------- Deposit handlers ------------------------------------------------
+  // Live timer tick for active direct crypto deposit
+  useEffect(() => {
+    if (!activeCryptoDeposit || timeLeftSec <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeftSec((prev) => {
+        if (prev <= 1) {
+          void checkActiveOrders();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeCryptoDeposit, timeLeftSec, checkActiveOrders]);
 
-  const startDeposit = useCallback(async () => {
-    const num = parseFloat(depositAmount);
+  // Polling active deposit status every 10 seconds
+  useEffect(() => {
+    if (!activeCryptoDeposit) return;
+    const pollInterval = setInterval(() => {
+      void checkActiveOrders();
+    }, 10000);
+    return () => clearInterval(pollInterval);
+  }, [activeCryptoDeposit, checkActiveOrders]);
+
+  // -------- Deposit Handlers ------------------------------------------------
+
+  const startDirectCryptoDeposit = useCallback(async () => {
+    const num = parseFloat(depositAmountPln);
     if (!Number.isFinite(num) || num < 10) {
-      setError('Минимальная сумма 10 zł');
-      toast.warn('Минимальная сумма пополнения — 10 zł');
+      setError('Минимальная сумма пополнения — 10 PLN');
+      toast.warn('Минимальная сумма пополнения — 10 PLN');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/crypto-deposit/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amountPln: num, network }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        const msg = j.error || 'Не удалось создать заявку';
+        setError(msg);
+        toast.error(msg);
+      } else {
+        setActiveCryptoDeposit(j.deposit as DirectCryptoDeposit);
+        setTimeLeftSec(j.deposit.expiresInSeconds);
+        toast.success('Заявка создана. Переведите точную сумму на указанный адрес.');
+      }
+    } catch {
+      setError('Сетевая ошибка. Попробуйте позже.');
+      toast.error('Сетевая ошибка. Проверьте подключение.');
+    } finally {
+      setLoading(false);
+    }
+  }, [depositAmountPln, network]);
+
+  const cancelDirectCryptoDeposit = useCallback(async () => {
+    if (!activeCryptoDeposit) return;
+    try {
+      await fetch('/api/crypto-deposit/cancel', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ depositId: activeCryptoDeposit.id }),
+      });
+      toast.info('Заявка отменена');
+    } catch {}
+    setActiveCryptoDeposit(null);
+  }, [activeCryptoDeposit]);
+
+  const startFoluxDeposit = useCallback(async () => {
+    const num = parseFloat(depositAmountPln);
+    if (!Number.isFinite(num) || num < 10) {
+      setError('Минимальная сумма пополнения — 10 PLN');
+      toast.warn('Минимальная сумма пополнения — 10 PLN');
       return;
     }
     setError(null);
@@ -128,907 +239,541 @@ export default function BalancePage() {
         const msg = reportApiError(res, j, 'Не удалось создать заявку');
         setError(msg);
       } else {
-        const newOrder = j as FoluxPayOrder;
-        setOrder(newOrder);
-        try {
-          localStorage.setItem('macvbet_active_order', JSON.stringify(newOrder));
-        } catch {}
-        toast.success('Заявка создана. Переведите указанную сумму.');
+        setActiveFoluxOrder(j as FoluxPayOrder);
+        toast.success('Заявка создана.');
       }
     } catch {
-      setError('Сетевая ошибка. Попробуйте позже.');
-      toast.error('Сетевая ошибка. Проверьте подключение.');
+      setError('Сетевая ошибка.');
+      toast.error('Сетевая ошибка.');
     } finally {
       setLoading(false);
     }
-  }, [depositAmount]);
-
-  const cancelDeposit = useCallback(async () => {
-    if (!order) return;
-    try {
-      await fetch('/api/foluxpay/cancel', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.orderId }),
-      });
-    } catch {
-      // best-effort
-    }
-    setOrder(null);
-    try {
-      localStorage.removeItem('macvbet_active_order');
-    } catch {}
-  }, [order]);
+  }, [depositAmountPln]);
 
   const copyText = useCallback(async (text: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
+      toast.success('Скопировано в буфер обмена');
       setTimeout(() => setCopied(null), 1500);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
-  // -------- Withdraw handlers -----------------------------------------------
+  // Format timer MM:SS
+  const formattedTimer = useMemo(() => {
+    const min = Math.floor(timeLeftSec / 60);
+    const sec = timeLeftSec % 60;
+    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  }, [timeLeftSec]);
+
+  // -------- Withdraw State & Handlers ----------------------------------------
+  const [wKind, setWKind] = useState<WithdrawKind>('blik');
+  const [wAmount, setWAmount] = useState<string>('100');
+  const [wPhone, setWPhone] = useState<string>('');
+  const [wBank, setWBank] = useState<string>('');
+  const [wHolder, setWHolder] = useState<string>('');
+  const [wCard, setWCard] = useState<string>('');
+  const [wSubmitting, setWSubmitting] = useState(false);
+  const [wMsg, setWMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const submitWithdraw = useCallback(async () => {
     const num = parseFloat(wAmount);
     if (!Number.isFinite(num) || num < 50) {
-      const text = 'Минимальная сумма для вывода — 50 zł';
+      const text = 'Минимальная сумма вывода — 50 PLN';
       setWMsg({ ok: false, text });
       toast.warn(text);
       return;
     }
-    if (num > amount) {
+    if (num > amountPln) {
       const text = 'Недостаточно средств на балансе';
       setWMsg({ ok: false, text });
       toast.warn(text);
       return;
     }
-    if (wKind === 'blik') {
-      if (!wPhone.trim() || !wBank.trim() || !wHolder.trim()) {
-        const text = 'Заполните номер телефона, банк и имя получателя';
-        setWMsg({ ok: false, text });
-        toast.warn(text);
-        return;
-      }
-    } else if (wKind === 'card') {
-      if (!wCard.trim() || !wHolder.trim()) {
-        const text = 'Заполните номер карты и имя получателя';
-        setWMsg({ ok: false, text });
-        toast.warn(text);
-        return;
-      }
-    }
+
     setWSubmitting(true);
     setWMsg(null);
+
     try {
-      const body =
-        wKind === 'blik'
-          ? {
-              method: 'blik',
-              amount: num,
-              phone: wPhone.trim(),
-              bank: wBank.trim(),
-              holder: wHolder.trim(),
-            }
-          : {
-              method: 'card',
-              amount: num,
-              card: wCard.trim(),
-              holder: wHolder.trim(),
-            };
-      const res = await fetch('/api/withdrawals', {
+      const res = await fetch('/api/withdrawals/create', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          amount: num,
+          method: wKind,
+          details: { phone: wPhone, bank: wBank, holder: wHolder, card: wCard },
+        }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await res.json();
       if (!res.ok || !j.ok) {
-        const msg = reportApiError(res, j, 'Не удалось отправить заявку');
-        setWMsg({ ok: false, text: msg });
+        const text = j.error || 'Ошибка создания заявки на вывод';
+        setWMsg({ ok: false, text });
+        toast.error(text);
       } else {
-        const ok = 'Заявка принята. Обработка занимает до 24 часов.';
-        setWMsg({ ok: true, text: ok });
-        toast.success(ok, { title: 'Заявка отправлена' });
-        setWAmount('100');
-        setWPhone('');
-        setWBank('');
-        setWCard('');
-        setWHolder('');
+        setWMsg({ ok: true, text: 'Заявка на вывод отправлена на рассмотрение!' });
+        toast.success('Заявка на вывод отправлена!');
       }
     } catch {
-      const text = 'Сетевая ошибка. Попробуйте позже.';
-      setWMsg({ ok: false, text });
-      toast.error(text);
+      setWMsg({ ok: false, text: 'Сетевая ошибка. Попробуйте позже.' });
     } finally {
       setWSubmitting(false);
     }
-  }, [wKind, wAmount, amount, wPhone, wBank, wHolder, wCard]);
-
-  // -------- Render ----------------------------------------------------------
+  }, [wAmount, amountPln, wKind, wPhone, wBank, wHolder, wCard]);
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col">
-      <GameTopBar title="Кошелёк" />
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
-
-        {/* Balance plate */}
-        <BalancePlate amount={amount} />
-
-        {/* History link */}
+    <div className="min-h-screen bg-[#0A0B10] text-white flex flex-col items-center pb-24 font-sans select-none">
+      {/* Header Bar */}
+      <div className="w-full max-w-md px-4 py-4 flex items-center justify-between border-b border-white/10 bg-black/40 backdrop-blur-md sticky top-0 z-30">
+        <button
+          onClick={() => router.back()}
+          className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/80 active:scale-95 transition-transform"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <span className="font-bold text-base tracking-wide bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent uppercase">
+          Кошелек
+        </span>
         <button
           onClick={() => router.push('/balance/history')}
-          className="rounded-card border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] active:scale-[0.99] transition-all px-4 py-3 flex items-center gap-3 text-left"
+          className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/80 active:scale-95 transition-transform"
         >
-          <span className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85">
-            <History size={15} strokeWidth={1.7} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="font-roobert text-[14px] leading-tight text-frost-white">
-              История платежей
-            </div>
-            <div className="mt-0.5 font-roobert text-[11px] text-whisper-gray">
-              Пополнения, выводы и их статусы
-            </div>
-          </div>
-          <ChevronRight size={14} className="text-frost-white/55" strokeWidth={1.7} />
+          <History size={18} />
         </button>
-
-        {/* Order overrides everything else */}
-        <AnimatePresence mode="wait">
-          {order ? (
-            <PaymentDetails
-              key="order"
-              order={order}
-              copied={copied}
-              onCopy={copyText}
-              onCancel={cancelDeposit}
-            />
-          ) : (
-            <motion.div
-              key="forms"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-              className="flex flex-col gap-5"
-            >
-              <Tabs tab={tab} onChange={setTab} />
-
-              {tab === 'deposit' ? (
-                <DepositForm
-                  amount={depositAmount}
-                  onAmountChange={(v) => {
-                    setDepositAmount(v);
-                    setError(null);
-                  }}
-                  onSubmit={startDeposit}
-                  loading={loading}
-                  error={error}
-                />
-              ) : (
-                <WithdrawForm
-                  kind={wKind}
-                  onKindChange={setWKind}
-                  amount={wAmount}
-                  onAmountChange={(v) => {
-                    setWAmount(v);
-                    setWMsg(null);
-                  }}
-                  phone={wPhone}
-                  onPhoneChange={setWPhone}
-                  bank={wBank}
-                  onBankChange={setWBank}
-                  card={wCard}
-                  onCardChange={setWCard}
-                  holder={wHolder}
-                  onHolderChange={setWHolder}
-                  submitting={wSubmitting}
-                  onSubmit={submitWithdraw}
-                  message={wMsg}
-                  balance={amount}
-                />
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="pt-2 flex items-center justify-center">
-          <BrandLockup size={56} />
-        </div>
       </div>
 
-      {/* Deposit Disabled Modal */}
-      <AnimatePresence>
-        {depositDisabledModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-[320px] rounded-[24px] border border-white/10 bg-midnight-canvas p-6 flex flex-col items-center text-center shadow-2xl"
-            >
-              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-                <AlertTriangle className="text-red-400" size={32} />
-              </div>
-              <h3 className="font-roobert text-[18px] text-frost-white mb-2">
-                Пополнения недоступны
-              </h3>
-              <p className="font-roobert text-[13px] text-whisper-gray leading-relaxed mb-6">
-                В данный момент пополнения временно отключены по техническим причинам. Пожалуйста, попробуйте позже.
-              </p>
-              <button
-                onClick={() => setDepositDisabledModal(false)}
-                className="w-full bg-white/10 hover:bg-white/15 active:bg-white/20 text-frost-white font-roobert text-[14px] px-6 py-3 rounded-pill transition-colors"
-              >
-                Понятно
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </main>
-  );
-}
+      <div className="w-full max-w-md px-4 pt-4 flex flex-col gap-5">
+        {/* Balance Card */}
+        <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-b from-white/10 via-white/[0.04] to-black/60 p-5 shadow-2xl backdrop-blur-xl">
+          <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-purple-600/20 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-blue-600/20 blur-3xl pointer-events-none" />
 
-/* -------------------------------------------------------------------------- */
-/* Subcomponents                                                              */
-/* -------------------------------------------------------------------------- */
-
-function BalancePlate({ amount }: { amount: number }) {
-  // Memoize the formatted number so repeated re-renders don't redo Intl work.
-  const formatted = useMemo(
-    () => amount.toLocaleString('ru-RU', { maximumFractionDigits: 2 }),
-    [amount]
-  );
-  return (
-    <section className="relative overflow-hidden rounded-card border border-white/10 bg-white/[0.03]">
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-60 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(120% 110% at 80% 110%, rgba(160, 224, 171, 0.20) 0%, rgba(255, 172, 46, 0.12) 45%, transparent 80%)',
-        }}
-      />
-      <div className="relative px-5 py-6 flex flex-col gap-1.5">
-        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-          Текущий баланс
-        </span>
-        <div className="flex items-baseline gap-2">
-          <span className="font-roobert text-[44px] font-light leading-none tabular-nums text-frost-white">
-            {formatted}
-          </span>
-          <span className="font-roobert text-[18px] text-whisper-gray">zł</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  return (
-    <div className="flex items-center gap-2">
-      <TabButton
-        active={tab === 'deposit'}
-        onClick={() => onChange('deposit')}
-        icon={<ArrowDownToLine size={14} strokeWidth={1.8} />}
-        label="Пополнение"
-      />
-      <TabButton
-        active={tab === 'withdraw'}
-        onClick={() => onChange('withdraw')}
-        icon={<ArrowUpFromLine size={14} strokeWidth={1.8} />}
-        label="Вывод"
-      />
-    </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-pill border transition-colors active:scale-[0.99] ${
-        active
-          ? 'border-white/25 text-frost-white'
-          : 'border-white/10 text-frost-white/60 hover:text-frost-white hover:border-white/20'
-      }`}
-      style={
-        active
-          ? {
-              background:
-                'linear-gradient(135deg, rgba(160, 224, 171, 0.18), rgba(255, 172, 46, 0.18) 50%, rgba(165, 45, 37, 0.18))',
-            }
-          : { background: 'rgba(255, 255, 255, 0.03)' }
-      }
-    >
-      {icon}
-      <span className="font-roobert text-[13px]">{label}</span>
-    </button>
-  );
-}
-
-/* ------------------------------ DepositForm ------------------------------- */
-
-function DepositForm({
-  amount,
-  onAmountChange,
-  onSubmit,
-  loading,
-  error,
-}: {
-  amount: string;
-  onAmountChange: (v: string) => void;
-  onSubmit: () => void;
-  loading: boolean;
-  error: string | null;
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Amount */}
-      <div className="flex flex-col gap-1.5">
-        <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-          Сумма пополнения, zł
-        </span>
-        <input
-          type="number"
-          step={10}
-          min={10}
-          value={amount}
-          onChange={(e) => onAmountChange(e.target.value)}
-          className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[18px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
-        />
-        {error && (
-          <div className="flex items-start gap-2 bg-rose-500/10 border border-rose-500/30 rounded-[14px] p-3 text-rose-300 font-roobert text-[12px] leading-relaxed">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5 text-rose-400" />
-            <span>{error}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Single live method */}
-      <button
-        onClick={onSubmit}
-        disabled={loading}
-        className="relative overflow-hidden text-left rounded-card border border-white/15 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/25 px-4 py-4 flex items-center gap-4 transition-colors active:scale-[0.99] disabled:opacity-60"
-      >
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-40 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(80% 100% at 100% 0%, rgba(160,224,171,0.18), transparent 60%)',
-          }}
-        />
-        <span className="relative w-12 h-12 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85 shrink-0">
-          <Building2 size={22} strokeWidth={1.6} />
-        </span>
-        <div className="relative flex-1 min-w-0">
-          <div className="font-roobert text-[15px] leading-tight text-frost-white">
-            Банковский перевод
-          </div>
-          <div className="mt-1 font-roobert text-[12px] text-whisper-gray">
-            Перевод на номер BLIK
-          </div>
-        </div>
-        <div className="relative">
-          {loading ? (
-            <div className="w-4 h-4 rounded-full border border-white/20 border-t-frost-white animate-spin" />
-          ) : (
-            <Sparkles size={14} className="text-frost-white/70" strokeWidth={1.6} />
-          )}
-        </div>
-      </button>
-
-      <p className="font-roobert text-[11px] text-whisper-gray text-center px-4 leading-relaxed">
-        Заявка действует 30 минут. Сумма уникальна — переводите ровно столько,
-        сколько указано на следующем экране.
-      </p>
-    </div>
-  );
-}
-
-/* ----------------------------- PaymentDetails ----------------------------- */
-
-function PaymentDetails({
-  order,
-  copied,
-  onCopy,
-  onCancel,
-}: {
-  order: FoluxPayOrder;
-  copied: string | null;
-  onCopy: (text: string, key: string) => void;
-  onCancel: () => void;
-}) {
-  const isCard = /^[0-9\s-]+$/.test(order.card || '');
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, scale: 0.98, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98, y: -12 }}
-      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-      className="relative overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-b from-white/[0.07] to-white/[0.02] backdrop-blur-xl shadow-2xl"
-    >
-      {/* Ambient background glow */}
-      <div
-        aria-hidden
-        className="absolute -top-24 -right-24 w-64 h-64 rounded-full pointer-events-none blur-3xl opacity-20"
-        style={{
-          background: 'radial-gradient(circle, rgba(160, 224, 171, 0.6) 0%, rgba(255, 172, 46, 0.4) 50%, transparent 70%)',
-        }}
-      />
-
-      <div className="relative p-5 sm:p-6 flex flex-col gap-5">
-        {/* Header bar */}
-        <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <div>
-              <span className="font-roobert text-[11px] font-medium uppercase tracking-[0.2em] text-emerald-400/90 block">
-                Ожидает оплаты
-              </span>
-              <span className="font-roobert text-[15px] font-medium text-frost-white leading-tight">
-                Банковский перевод (PLN)
-              </span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs uppercase tracking-widest text-white/50 font-medium">Ваш баланс</span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-semibold text-emerald-400">
+              <ShieldCheck size={12} />
+              <span>Защищено</span>
             </div>
           </div>
+
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold tracking-tight text-white">
+              {amountPln.toLocaleString('ru-RU', { minimumFractionDigits: 2 })}
+            </span>
+            <span className="text-lg font-bold text-white/60">PLN</span>
+          </div>
+
+          <div className="mt-1 text-xs text-white/40 font-medium">
+            ≈ {(amountPln / fxRate).toFixed(2)} USD ($)
+          </div>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="grid grid-cols-2 p-1 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md">
           <button
-            onClick={onCancel}
-            aria-label="Отменить заявку"
-            className="group flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/10 bg-white/[0.04] hover:bg-white/[0.1] active:scale-95 transition-all text-whisper-gray hover:text-frost-white"
-          >
-            <span className="font-roobert text-[12px]">Отменить</span>
-            <X size={14} className="group-hover:rotate-90 transition-transform duration-200" strokeWidth={2} />
-          </button>
-        </div>
-
-        {/* Digital Linear Countdown timer block */}
-        <CountdownTimer minutes={order.expiresInMinutes} />
-
-        {/* Unique amount highlight card */}
-        <div className="relative rounded-[20px] border border-amber-500/30 bg-gradient-to-br from-amber-500/15 via-white/[0.03] to-transparent p-4 sm:p-5 flex flex-col gap-3.5 shadow-xl">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-amber-300">
-              <AlertTriangle size={16} strokeWidth={2} className="shrink-0" />
-              <span className="font-roobert text-[12px] uppercase tracking-[0.16em] font-bold">
-                Переведите ТОЧНУЮ сумму
-              </span>
-            </div>
-            <span className="font-roobert text-[10px] uppercase tracking-wider text-amber-200/90 bg-amber-500/25 px-2.5 py-0.5 rounded-full border border-amber-400/30 font-semibold shrink-0">
-              До копеек
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 bg-black/40 rounded-[16px] p-4 border border-white/10 shadow-inner">
-            <div className="flex items-baseline gap-2 min-w-0">
-              <span className="font-roobert text-[32px] sm:text-[38px] font-bold tabular-nums text-frost-white leading-none tracking-tight truncate">
-                {Number(order.uniqueAmount).toFixed(2)}
-              </span>
-              <span className="font-roobert text-[18px] font-semibold text-whisper-gray shrink-0">
-                {order.currency || 'PLN'}
-              </span>
-            </div>
-
-            <button
-              onClick={() => onCopy(Number(order.uniqueAmount).toFixed(2), 'amount')}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 transition-all text-amber-200 font-roobert text-[13px] font-semibold shrink-0 shadow-md"
-            >
-              {copied === 'amount' ? (
-                <>
-                  <Check size={15} strokeWidth={2.5} className="text-emerald-400" />
-                  <span className="text-emerald-300">Скопировано</span>
-                </>
-              ) : (
-                <>
-                  <Copy size={15} strokeWidth={1.8} />
-                  <span>Копировать</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-[12px] p-3 flex items-start gap-2.5">
-            <span className="text-[14px] shrink-0 mt-0.5">💡</span>
-            <p className="font-roobert text-[11px] text-amber-200/90 leading-relaxed">
-              Сумма уникальна для автоматического поиска вашей транзакции. При отправке другой суммы зачисление не произойдет.
-            </p>
-          </div>
-        </div>
-
-        {/* Requisites row */}
-        {order.card && (
-          <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-2.5">
-            <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-              {isCard ? 'Номер карты / Счет' : 'Реквизиты для перевода (Revtag/Phone)'}
-            </span>
-            <div className="flex items-center justify-between gap-3 bg-black/20 rounded-[12px] p-3 border border-white/5">
-              <span className="font-mono text-[16px] sm:text-[18px] font-semibold text-frost-white tabular-nums tracking-wide break-all">
-                {order.card}
-              </span>
-              <button
-                onClick={() => onCopy(order.card, 'card')}
-                aria-label="Скопировать реквизиты"
-                className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-frost-white/90 active:scale-95 transition-all shrink-0"
-              >
-                {copied === 'card' ? (
-                  <Check size={16} strokeWidth={2.5} className="text-emerald-400" />
-                ) : (
-                  <Copy size={16} strokeWidth={1.8} />
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Order metadata & help */}
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.02] p-4 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-              Идентификатор заявки
-            </span>
-            <button
-              onClick={() => onCopy(order.orderId, 'orderid')}
-              className="flex items-center gap-1 text-whisper-gray hover:text-frost-white font-mono text-[11px] transition-colors"
-            >
-              {copied === 'orderid' ? (
-                <span className="text-emerald-400 font-roobert">Скопировано</span>
-              ) : (
-                <>
-                  <Copy size={12} />
-                  <span>Скопировать ID</span>
-                </>
-              )}
-            </button>
-          </div>
-          <code className="font-mono text-[12px] text-frost-white/80 bg-black/30 p-2.5 rounded-[10px] border border-white/5 break-all select-all">
-            {order.orderId}
-          </code>
-          <p className="font-roobert text-[11px] text-whisper-gray leading-relaxed pt-1">
-            После подтверждения банком баланс пополнится в течение 1–5 минут. Сохраните ID заявки на случай обращения в поддержку.
-          </p>
-        </div>
-      </div>
-    </motion.section>
-  );
-}
-
-/* ---------------------------- CountdownTimer ---------------------------- */
-function CountdownTimer({ minutes }: { minutes: number }) {
-  const total = Math.max(60, Math.floor(minutes * 60));
-  const [endsAt] = useState(() => Date.now() + total * 1000);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(id);
-  }, []);
-
-  const remaining = Math.max(0, Math.floor((endsAt - now) / 1000));
-  const mm = Math.floor(remaining / 60);
-  const ss = remaining % 60;
-  const frac = total > 0 ? remaining / total : 0;
-  const percent = Math.min(100, Math.max(0, frac * 100));
-  const isWarning = remaining < 300; // less than 5 minutes
-
-  return (
-    <div className="rounded-[20px] border border-white/10 bg-black/40 p-4 sm:p-5 flex flex-col gap-3.5 shadow-lg">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-frost-white">
-          <Clock size={16} className={isWarning ? "text-rose-400 animate-pulse" : "text-amber-400"} />
-          <span className="font-roobert text-[13px] font-semibold">
-            Время на совершение перевода
-          </span>
-        </div>
-        <span className="font-roobert text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.05] text-whisper-gray">
-          30 мин. окно
-        </span>
-      </div>
-
-      {/* Digital Timer Display */}
-      <div className="flex items-center justify-center gap-2 py-1">
-        <div className="flex flex-col items-center gap-1">
-          <div className="bg-black/60 border border-white/15 px-4 py-2 rounded-[14px] min-w-[64px] text-center shadow-inner">
-            <span className={`font-mono text-[30px] font-bold tabular-nums leading-none ${isWarning ? 'text-rose-400 animate-pulse' : 'text-frost-white'}`}>
-              {String(mm).padStart(2, '0')}
-            </span>
-          </div>
-          <span className="font-roobert text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-medium">минут</span>
-        </div>
-
-        <span className="font-mono text-[24px] font-bold text-whisper-gray/70 pb-5">:</span>
-
-        <div className="flex flex-col items-center gap-1">
-          <div className="bg-black/60 border border-white/15 px-4 py-2 rounded-[14px] min-w-[64px] text-center shadow-inner">
-            <span className={`font-mono text-[30px] font-bold tabular-nums leading-none ${isWarning ? 'text-rose-400 animate-pulse' : 'text-frost-white'}`}>
-              {String(ss).padStart(2, '0')}
-            </span>
-          </div>
-          <span className="font-roobert text-[9px] uppercase tracking-[0.2em] text-whisper-gray font-medium">секунд</span>
-        </div>
-      </div>
-
-      {/* Linear progress bar track */}
-      <div className="flex flex-col gap-1.5">
-        <div className="w-full h-2 rounded-full bg-white/[0.08] overflow-hidden p-0.5 border border-white/5">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              isWarning
-                ? 'bg-gradient-to-r from-amber-500 to-rose-500'
-                : 'bg-gradient-to-r from-emerald-400 via-amber-400 to-purple-500'
+            onClick={() => setTab('deposit')}
+            className={`py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              tab === 'deposit'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/25'
+                : 'text-white/50 hover:text-white'
             }`}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function _CopyRow_unused() {
-  return null;
-}
-
-/* ------------------------------ WithdrawForm ------------------------------ */
-
-function WithdrawForm({
-  kind,
-  onKindChange,
-  amount,
-  onAmountChange,
-  phone,
-  onPhoneChange,
-  bank,
-  onBankChange,
-  card,
-  onCardChange,
-  holder,
-  onHolderChange,
-  submitting,
-  onSubmit,
-  message,
-  balance,
-}: {
-  kind: WithdrawKind;
-  onKindChange: (k: WithdrawKind) => void;
-  amount: string;
-  onAmountChange: (v: string) => void;
-  phone: string;
-  onPhoneChange: (v: string) => void;
-  bank: string;
-  onBankChange: (v: string) => void;
-  card: string;
-  onCardChange: (v: string) => void;
-  holder: string;
-  onHolderChange: (v: string) => void;
-  submitting: boolean;
-  onSubmit: () => void;
-  message: { ok: boolean; text: string } | null;
-  balance: number;
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Warning */}
-      <div className="rounded-card border border-[#ff8a76]/40 bg-[#ff8a76]/10 px-4 py-3 flex items-start gap-3">
-        <AlertTriangle
-          size={16}
-          strokeWidth={1.8}
-          className="text-[#ff8a76] mt-0.5 shrink-0"
-        />
-        <p className="font-roobert text-[12px] text-frost-white/90 leading-relaxed">
-          Если реквизиты указаны неверно — деньги могут быть утеряны и возврату
-          не подлежат. Перепроверьте каждое поле перед отправкой заявки.
-        </p>
-      </div>
-
-      {/* Method picker */}
-      <div className="grid grid-cols-2 gap-2">
-        <MethodChip
-          active={kind === 'blik'}
-          onClick={() => onKindChange('blik')}
-          icon={<Smartphone size={18} strokeWidth={1.6} />}
-          label="BLIK"
-          hint="По номеру телефона"
-        />
-        <MethodChip
-          active={kind === 'card'}
-          onClick={() => onKindChange('card')}
-          icon={<CreditCard size={18} strokeWidth={1.6} />}
-          label="Карта"
-          hint="Польский банк"
-        />
-      </div>
-
-      {/* Amount */}
-      <Field label="Сумма вывода, zł">
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            step={10}
-            min={50}
-            value={amount}
-            onChange={(e) => onAmountChange(e.target.value)}
-            className="flex-1 bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[16px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
-          />
-          <button
-            onClick={() => onAmountChange(String(Math.floor(balance)))}
-            className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] hover:border-white/25 font-roobert text-[12px] text-frost-white/85 transition-colors"
           >
-            Всё
+            <ArrowDownToLine size={15} />
+            <span>Пополнение</span>
+          </button>
+          <button
+            onClick={() => setTab('withdraw')}
+            className={`py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              tab === 'withdraw'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/25'
+                : 'text-white/50 hover:text-white'
+            }`}
+          >
+            <ArrowUpFromLine size={15} />
+            <span>Вывод средств</span>
           </button>
         </div>
-      </Field>
 
-      {/* Method-specific fields */}
-      {kind === 'blik' ? (
-        <>
-          <Field label="Номер телефона (BLIK)">
-            <input
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="+48 600 000 000"
-              value={phone}
-              onChange={(e) => onPhoneChange(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[15px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
-            />
-          </Field>
-          <Field label="Банк получателя">
-            <input
-              type="text"
-              inputMode="text"
-              placeholder="Например: PKO BP, mBank, Santander"
-              value={bank}
-              onChange={(e) => onBankChange(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[15px] text-frost-white focus:outline-none focus:border-white/30"
-            />
-          </Field>
-          <Field label="Имя владельца счёта">
-            <input
-              type="text"
-              inputMode="text"
-              autoComplete="name"
-              placeholder="Имя и фамилия как в банке"
-              value={holder}
-              onChange={(e) => onHolderChange(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[15px] text-frost-white focus:outline-none focus:border-white/30"
-            />
-          </Field>
-        </>
-      ) : (
-        <>
-          <Field label="Номер карты">
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="cc-number"
-              placeholder="0000 0000 0000 0000"
-              value={card}
-              onChange={(e) => onCardChange(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[15px] tabular-nums text-frost-white focus:outline-none focus:border-white/30"
-            />
-          </Field>
-          <Field label="Имя владельца">
-            <input
-              type="text"
-              inputMode="text"
-              autoComplete="cc-name"
-              placeholder="Как указано на карте"
-              value={holder}
-              onChange={(e) => onHolderChange(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-4 py-2.5 font-roobert text-[15px] text-frost-white focus:outline-none focus:border-white/30"
-            />
-          </Field>
-        </>
-      )}
+        {/* TAB 1: DEPOSIT */}
+        {tab === 'deposit' && (
+          <div className="flex flex-col gap-5">
+            {/* Active Direct Crypto Deposit View */}
+            {activeCryptoDeposit ? (
+              <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-5 backdrop-blur-xl flex flex-col gap-4">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                      Ожидание оплаты
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-1 text-xs font-mono font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2.5 py-1 rounded-full">
+                    <Clock size={13} />
+                    <span>{formattedTimer}</span>
+                  </div>
+                </div>
 
-      {/* Submit */}
-      <button
-        onClick={onSubmit}
-        disabled={submitting}
-        className="relative overflow-hidden rounded-pill border border-white/20 px-4 py-3 font-roobert text-[14px] text-frost-white active:scale-[0.99] disabled:opacity-60 transition-transform"
-        style={{
-          background:
-            'linear-gradient(90deg, rgba(160,224,171,0.85) 0%, rgba(255,172,46,0.85) 50%, rgba(165,45,37,0.85) 100%)',
-        }}
-      >
-        {submitting ? 'Отправка…' : 'Отправить заявку'}
-      </button>
+                <div className="text-xs text-white/60">
+                  Заявка: <span className="font-mono font-bold text-white">{activeCryptoDeposit.id}</span>
+                </div>
 
-      {message && (
-        <div
-          className={`rounded-card border px-4 py-3 font-roobert text-[12px] leading-relaxed ${
-            message.ok
-              ? 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-frost-white'
-              : 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-frost-white'
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
+                {/* QR Code */}
+                <div className="flex flex-col items-center justify-center my-2 p-3 rounded-xl bg-white/5 border border-white/10">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                      activeCryptoDeposit.depositAddress
+                    )}`}
+                    alt="QR Code"
+                    className="w-40 h-40 rounded-lg shadow-md border border-white/20"
+                  />
+                  <span className="text-[11px] text-white/50 mt-2">Сканируйте для оплаты</span>
+                </div>
 
-      <p className="font-roobert text-[11px] text-whisper-gray text-center px-2 leading-relaxed">
-        Заявки на вывод обрабатываются вручную операторами. Среднее время —
-        до 24 часов.
-      </p>
-    </div>
-  );
-}
+                {/* Network & Exact Amount */}
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                    Сеть перевода:
+                  </div>
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+                    {activeCryptoDeposit.network === 'TRC20' && <Trc20Icon className="w-6 h-6" />}
+                    {activeCryptoDeposit.network === 'TON' && <TonIcon className="w-6 h-6" />}
+                    {activeCryptoDeposit.network === 'BEP20' && <Bep20Icon className="w-6 h-6" />}
+                    <span className="font-bold text-sm text-white">
+                      {activeCryptoDeposit.network === 'TRC20' && 'TRON (USDT TRC-20)'}
+                      {activeCryptoDeposit.network === 'TON' && 'TON (USDT TON / TON)'}
+                      {activeCryptoDeposit.network === 'BEP20' && 'BNB Smart Chain (BEP-20)'}
+                    </span>
+                  </div>
+                </div>
 
-function MethodChip({
-  active,
-  onClick,
-  icon,
-  label,
-  hint,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-left rounded-card border px-4 py-3 flex flex-col gap-2 transition-colors active:scale-[0.99] ${
-        active
-          ? 'border-white/30 bg-white/[0.06]'
-          : 'border-white/10 bg-white/[0.03] hover:border-white/20'
-      }`}
-    >
-      <span className="w-10 h-10 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85">
-        {icon}
-      </span>
-      <div>
-        <div className="font-roobert text-[14px] leading-tight text-frost-white">
-          {label}
-        </div>
-        <div className="mt-0.5 font-roobert text-[11px] text-whisper-gray">
-          {hint}
-        </div>
+                {/* Exact USDT Amount */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-xs text-amber-400/90 font-bold uppercase tracking-wider">
+                    Отправьте ТОЧНУЮ сумму:
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-amber-400/10 border border-amber-400/30">
+                    <span className="font-mono text-lg font-extrabold text-amber-300">
+                      {activeCryptoDeposit.uniqueUsdt.toFixed(4)} USDT
+                    </span>
+                    <button
+                      onClick={() =>
+                        copyText(activeCryptoDeposit.uniqueUsdt.toFixed(4), 'usdt_amount')
+                      }
+                      className="p-2 rounded-lg bg-amber-400/20 text-amber-200 active:scale-95"
+                    >
+                      {copied === 'usdt_amount' ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Wallet Address */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                    Адрес кошелька:
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <span className="font-mono text-xs text-white/90 break-all select-all pr-2">
+                      {activeCryptoDeposit.depositAddress}
+                    </span>
+                    <button
+                      onClick={() => copyText(activeCryptoDeposit.depositAddress, 'wallet_addr')}
+                      className="p-2 rounded-lg bg-white/10 text-white active:scale-95 flex-shrink-0"
+                    >
+                      {copied === 'wallet_addr' ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={checkActiveOrders}
+                    className="flex-1 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold text-xs uppercase tracking-wider text-white flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-purple-600/30"
+                  >
+                    <RefreshCw size={14} />
+                    <span>Проверить статус</span>
+                  </button>
+                  <button
+                    onClick={cancelDirectCryptoDeposit}
+                    className="px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-xs uppercase tracking-wider text-white/60 hover:text-white active:scale-95 transition-all"
+                  >
+                    Отменить
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Deposit Form */
+              <div className="flex flex-col gap-5">
+                {/* Method Selector */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                    Способ пополнения:
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setMethod('crypto')}
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${
+                        method === 'crypto'
+                          ? 'border-purple-500 bg-purple-500/15 shadow-lg shadow-purple-500/20'
+                          : 'border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <DirectCryptoIcon className="w-7 h-7" />
+                      <span className="text-[11px] font-bold text-white">Крипта</span>
+                    </button>
+
+                    <button
+                      onClick={() => setMethod('cryptobot')}
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${
+                        method === 'cryptobot'
+                          ? 'border-cyan-500 bg-cyan-500/15 shadow-lg shadow-cyan-500/20'
+                          : 'border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <CryptoBotIcon className="w-7 h-7" />
+                      <span className="text-[11px] font-bold text-white">CryptoBot</span>
+                    </button>
+
+                    <button
+                      onClick={() => setMethod('card')}
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${
+                        method === 'card'
+                          ? 'border-blue-500 bg-blue-500/15 shadow-lg shadow-blue-500/20'
+                          : 'border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <BankCardIcon className="w-7 h-7" />
+                      <span className="text-[11px] font-bold text-white">Карта / BLIK</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Network Selection (If Direct Crypto selected) */}
+                {method === 'crypto' && (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                      Выберите крипто-сеть:
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        onClick={() => setNetwork('TRC20')}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${
+                          network === 'TRC20'
+                            ? 'border-red-500 bg-red-500/15 shadow-lg shadow-red-500/20'
+                            : 'border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <Trc20Icon className="w-7 h-7" />
+                        <span className="text-[11px] font-bold text-white">TRC-20</span>
+                      </button>
+
+                      <button
+                        onClick={() => setNetwork('TON')}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${
+                          network === 'TON'
+                            ? 'border-sky-500 bg-sky-500/15 shadow-lg shadow-sky-500/20'
+                            : 'border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <TonIcon className="w-7 h-7" />
+                        <span className="text-[11px] font-bold text-white">TON</span>
+                      </button>
+
+                      <button
+                        onClick={() => setNetwork('BEP20')}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${
+                          network === 'BEP20'
+                            ? 'border-amber-500 bg-amber-500/15 shadow-lg shadow-amber-500/20'
+                            : 'border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <Bep20Icon className="w-7 h-7" />
+                        <span className="text-[11px] font-bold text-white">BEP-20</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Amount Input with Live PLN -> USD Conversion */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                    Сумма пополнения:
+                  </span>
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      value={depositAmountPln}
+                      onChange={(e) => setDepositAmountPln(e.target.value)}
+                      placeholder="100"
+                      className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3.5 text-lg font-bold text-white placeholder-white/20 focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                    <span className="absolute right-4 font-bold text-sm text-white/60">PLN</span>
+                  </div>
+
+                  {/* Real-time USD conversion badge */}
+                  <div className="flex items-center justify-between px-1 text-xs text-white/60">
+                    <span>Конвертация в USD ($):</span>
+                    <span className="font-mono font-bold text-emerald-400">≈ {convertedUsd} USDT ($)</span>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="grid grid-cols-4 gap-2 mt-1">
+                    {['50', '100', '250', '500'].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => setDepositAmountPln(val)}
+                        className="py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+                      >
+                        {val} PLN
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {error && <div className="text-xs font-semibold text-rose-400 px-1">{error}</div>}
+
+                {/* Submit Deposit Button */}
+                <button
+                  onClick={() => {
+                    if (method === 'crypto') void startDirectCryptoDeposit();
+                    else if (method === 'card') void startFoluxDeposit();
+                    else if (method === 'cryptobot') router.push('/balance'); // CryptoBot instructions
+                  }}
+                  disabled={loading}
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 font-bold text-sm uppercase tracking-wider text-white shadow-xl shadow-purple-600/30 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Zap size={16} />
+                      <span>Получить реквизиты для оплаты</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: WITHDRAW */}
+        {tab === 'withdraw' && (
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                Способ вывода:
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setWKind('blik')}
+                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                    wKind === 'blik'
+                      ? 'border-purple-500 bg-purple-500/15 text-white'
+                      : 'border-white/10 bg-white/[0.03] text-white/50'
+                  }`}
+                >
+                  <BankCardIcon className="w-5 h-5" />
+                  <span className="text-xs font-bold">BLIK / Телефон</span>
+                </button>
+                <button
+                  onClick={() => setWKind('card')}
+                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                    wKind === 'card'
+                      ? 'border-purple-500 bg-purple-500/15 text-white'
+                      : 'border-white/10 bg-white/[0.03] text-white/50'
+                  }`}
+                >
+                  <BankCardIcon className="w-5 h-5" />
+                  <span className="text-xs font-bold">Карта</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Withdraw Amount */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                Сумма вывода (мин. 50 PLN):
+              </span>
+              <div className="relative flex items-center">
+                <input
+                  type="number"
+                  value={wAmount}
+                  onChange={(e) => setWAmount(e.target.value)}
+                  placeholder="100"
+                  className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3.5 text-lg font-bold text-white placeholder-white/20 focus:outline-none focus:border-purple-500 transition-colors"
+                />
+                <span className="absolute right-4 font-bold text-sm text-white/60">PLN</span>
+              </div>
+            </div>
+
+            {/* Requisites Inputs */}
+            {wKind === 'blik' ? (
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  value={wPhone}
+                  onChange={(e) => setWPhone(e.target.value)}
+                  placeholder="Номер телефона для BLIK"
+                  className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+                <input
+                  type="text"
+                  value={wBank}
+                  onChange={(e) => setWBank(e.target.value)}
+                  placeholder="Название банка"
+                  className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+                <input
+                  type="text"
+                  value={wHolder}
+                  onChange={(e) => setWHolder(e.target.value)}
+                  placeholder="Имя и Фамилия получателя"
+                  className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  value={wCard}
+                  onChange={(e) => setWCard(e.target.value)}
+                  placeholder="Номер карты"
+                  className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+                <input
+                  type="text"
+                  value={wHolder}
+                  onChange={(e) => setWHolder(e.target.value)}
+                  placeholder="Имя и Фамилия получателя"
+                  className="w-full bg-white/[0.04] border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            )}
+
+            {wMsg && (
+              <div
+                className={`text-xs font-semibold px-1 ${
+                  wMsg.ok ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {wMsg.text}
+              </div>
+            )}
+
+            <button
+              onClick={() => void submitWithdraw()}
+              disabled={wSubmitting}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 font-bold text-sm uppercase tracking-wider text-white shadow-xl shadow-purple-600/30 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+            >
+              {wSubmitting ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span>Отправить заявку на вывод</span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
-    </button>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-        {label}
-      </span>
-      {children}
-    </label>
+    </div>
   );
 }

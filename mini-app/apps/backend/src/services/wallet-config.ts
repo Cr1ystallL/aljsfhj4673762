@@ -31,6 +31,12 @@ export interface WalletConfig {
   maxWithdrawal: number;
   /** Required wager multiplier vs deposit before withdrawal. */
   wagerMultiplier: number;
+  /** Deposit Wallet Address for TRON (USDT TRC-20) */
+  walletTrc20: string;
+  /** Deposit Wallet Address for TON (USDT TON / TON) */
+  walletTon: string;
+  /** Deposit Wallet Address for BNB Smart Chain (USDT BEP-20) */
+  walletBep20: string;
 }
 
 const DEFAULTS: WalletConfig = {
@@ -40,6 +46,9 @@ const DEFAULTS: WalletConfig = {
   minWithdrawal: 50,
   maxWithdrawal: 100000,
   wagerMultiplier: 1,
+  walletTrc20: process.env.WALLET_TRC20 || 'TYDny76y8Z423hX7hZ48g8273648hG823j',
+  walletTon: process.env.WALLET_TON || 'UQAZ83748293748923748923748923748923748923748',
+  walletBep20: process.env.WALLET_BEP20 || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
 };
 
 const KEY = 'wallet_config';
@@ -57,6 +66,9 @@ class WalletConfigService {
           maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
           wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
           depositsEnabled: parsed.depositsEnabled ?? DEFAULTS.depositsEnabled,
+          walletTrc20: strOr(parsed.walletTrc20, DEFAULTS.walletTrc20),
+          walletTon: strOr(parsed.walletTon, DEFAULTS.walletTon),
+          walletBep20: strOr(parsed.walletBep20, DEFAULTS.walletBep20),
         };
       }
     } catch (err) {
@@ -74,6 +86,9 @@ class WalletConfigService {
           maxWithdrawal: numOr(parsed.maxWithdrawal, DEFAULTS.maxWithdrawal),
           wagerMultiplier: numOr(parsed.wagerMultiplier, DEFAULTS.wagerMultiplier),
           depositsEnabled: parsed.depositsEnabled ?? DEFAULTS.depositsEnabled,
+          walletTrc20: strOr(parsed.walletTrc20, DEFAULTS.walletTrc20),
+          walletTon: strOr(parsed.walletTon, DEFAULTS.walletTon),
+          walletBep20: strOr(parsed.walletBep20, DEFAULTS.walletBep20),
         };
         await redisClient.getClient().set(KEY, JSON.stringify(config)).catch(() => {});
         return config;
@@ -131,6 +146,13 @@ class WalletConfigService {
 function numOr(v: unknown, fallback: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function strOr(v: unknown, fallback: string): string {
+  if (typeof v === 'string' && v.trim().length > 0) {
+    return v.trim();
+  }
+  return fallback;
 }
 
 export const walletConfig = new WalletConfigService();

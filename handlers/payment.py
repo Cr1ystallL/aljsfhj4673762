@@ -110,6 +110,7 @@ def fetch_usdt_pln_rate() -> float:
 def get_deposit_methods_keyboard(lang: str) -> InlineKeyboardMarkup:
     """Клавиатура выбора способа пополнения"""
     keyboard = [
+        [InlineKeyboardButton(text="Крипта (Прямой перевод)", callback_data="deposit_direct_crypto")],
         [InlineKeyboardButton(text=get_text(lang, 'deposit_cryptobot'), callback_data="deposit_cryptobot")],
         [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="back_to_profile")]
     ]

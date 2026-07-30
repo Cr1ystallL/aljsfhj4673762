@@ -13,6 +13,8 @@ import { bonusesRoutes } from './bonuses.js';
 import { presenceRoutes } from './presence.js';
 import { tournamentRoutes } from './tournaments.js';
 import { partnerRoutes } from './partner.js';
+import { cryptoDepositRoutes } from './crypto-deposit.js';
+import { cryptoWorker } from '../services/crypto-worker.js';
 
 /**
  * Register all application routes
@@ -32,6 +34,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // MacvPay deposits
   await app.register(foluxpayRoutes, { prefix: '/api/foluxpay' });
+
+  // Direct Crypto deposits
+  await app.register(cryptoDepositRoutes, { prefix: '/api/crypto-deposit' });
 
   // User withdrawal requests (admin-reviewed)
   await app.register(withdrawalRoutes, { prefix: '/api/withdrawals' });
@@ -61,4 +66,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Partner (RevShare)
   await app.register(partnerRoutes, { prefix: '/api/partner' });
+
+  // Start background blockchain worker
+  cryptoWorker.start(app.prisma);
 }

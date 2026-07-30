@@ -23,6 +23,9 @@ interface WalletCfg {
   minWithdrawal: number;
   maxWithdrawal: number;
   wagerMultiplier: number;
+  walletTrc20?: string;
+  walletTon?: string;
+  walletBep20?: string;
 }
 
 export default function WalletPage() {
@@ -174,6 +177,44 @@ export default function WalletPage() {
           />
         </Section>
 
+        {/* Crypto Deposit Addresses */}
+        <Section
+          title="Адреса кошельков для прямого пополнения"
+          help={{
+            title: 'Адреса для приема криптовалют',
+            body: (
+              <>
+                <p>
+                  На эти адреса пользователи переводят криптовалюту напрямую.
+                  Система автоматически проверяет входящие переводы в блокчейне каждые 10–15 секунд.
+                </p>
+                <p>
+                  Изменения сохраняются в базе данных и действуют сразу после сохранения без перезагрузки сервера.
+                </p>
+              </>
+            ),
+          }}
+        >
+          <TextField
+            label="TRON (USDT TRC-20)"
+            value={cfg.walletTrc20 || ''}
+            placeholder="TYDny76y8Z423hX7hZ48g8273648hG823j"
+            onChange={(v) => setCfg((c) => c ? { ...c, walletTrc20: v } : c)}
+          />
+          <TextField
+            label="TON (USDT TON / TON)"
+            value={cfg.walletTon || ''}
+            placeholder="UQAZ83748293748923748923748923748923748923748"
+            onChange={(v) => setCfg((c) => c ? { ...c, walletTon: v } : c)}
+          />
+          <TextField
+            label="BNB Smart Chain (USDT BEP-20)"
+            value={cfg.walletBep20 || ''}
+            placeholder="0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+            onChange={(v) => setCfg((c) => c ? { ...c, walletBep20: v } : c)}
+          />
+        </Section>
+
         {/* Save */}
         <div className="rounded-card border border-white/10 bg-white/[0.03] px-4 py-4 flex flex-col gap-2.5">
           <label className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
@@ -268,6 +309,33 @@ function NumField({
           </span>
         )}
       </div>
+    </label>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5 col-span-1 sm:col-span-2">
+      <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+        {label}
+      </span>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3.5 py-2 font-mono text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+      />
     </label>
   );
 }
