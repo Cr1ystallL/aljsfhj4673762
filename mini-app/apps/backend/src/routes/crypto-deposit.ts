@@ -3,7 +3,7 @@ import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { walletConfig } from '../services/wallet-config.js';
 import { logger } from '../utils/logger.js';
 
-export function cryptoDepositRoutes(app: FastifyInstance): void {
+export async function cryptoDepositRoutes(app: FastifyInstance): Promise<void> {
   // Fetch current exchange rate USDT/PLN
   app.get('/rates', async (_request, reply) => {
     try {
