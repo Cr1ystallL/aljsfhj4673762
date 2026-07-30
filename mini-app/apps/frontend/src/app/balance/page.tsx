@@ -276,22 +276,10 @@ export default function BalancePage() {
   return (
     <div className="min-h-screen bg-[#0A0B0E] text-zinc-100 flex flex-col items-center pb-24 font-sans select-none">
       {/* Header Bar */}
-      <div className="w-full max-w-md px-4 py-4 flex items-center justify-between border-b border-white/10 bg-[#0A0B0E]/90 backdrop-blur-md sticky top-0 z-30">
-        <button
-          onClick={() => router.back()}
-          className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 active:scale-95 transition-transform"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <span className="font-semibold text-sm tracking-wide text-zinc-100 uppercase">
+      <div className="w-full max-w-md px-4 py-4 flex items-center justify-center border-b border-white/10 bg-[#0A0B0E]/90 backdrop-blur-md sticky top-0 z-30">
+        <span className="font-semibold text-sm tracking-wide text-zinc-100 uppercase text-center">
           Кошелек
         </span>
-        <button
-          onClick={() => router.push('/balance/history')}
-          className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 active:scale-95 transition-transform"
-        >
-          <History size={16} />
-        </button>
       </div>
 
       <div className="w-full max-w-md px-4 pt-4 flex flex-col gap-4">
@@ -301,10 +289,6 @@ export default function BalancePage() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
               Баланс аккаунта
             </span>
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800 border border-zinc-700 text-[10px] text-zinc-300">
-              <ShieldCheck size={11} />
-              <span>Безопасно</span>
-            </div>
           </div>
 
           <div className="flex items-baseline gap-2 mt-1">
