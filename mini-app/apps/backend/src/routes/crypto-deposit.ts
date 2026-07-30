@@ -3,7 +3,35 @@ import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { walletConfig } from '../services/wallet-config.js';
 import { logger } from '../utils/logger.js';
 
+async function ensureTable(app: FastifyInstance) {
+  try {
+    await app.prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS direct_crypto_deposits (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL,
+        telegram_id BIGINT NOT NULL,
+        network VARCHAR(32) NOT NULL,
+        requested_pln NUMERIC(20, 2) NOT NULL,
+        unique_usdt NUMERIC(20, 4) NOT NULL,
+        fx_rate NUMERIC(10, 4) NOT NULL,
+        deposit_address TEXT NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        tx_hash TEXT,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        paid_at TIMESTAMP WITH TIME ZONE,
+        credit_tx_id VARCHAR(64)
+      );
+    `;
+  } catch (err) {
+    logger.error({ err }, 'Failed to ensure direct_crypto_deposits table');
+  }
+}
+
 export async function cryptoDepositRoutes(app: FastifyInstance): Promise<void> {
+  await ensureTable(app);
+
   // Fetch current exchange rate USDT/PLN
   app.get('/rates', async (_request, reply) => {
     try {
@@ -150,7 +178,7 @@ export async function cryptoDepositRoutes(app: FastifyInstance): Promise<void> {
         ) VALUES (
           ${depositId},
           ${userId},
-          ${BigInt(telegramId)},
+          ${BigInt(telegramId || 0)},
           ${network},
           ${amountPln}::numeric,
           ${uniqueUsdt}::numeric,
