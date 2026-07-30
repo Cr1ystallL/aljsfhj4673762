@@ -64,7 +64,7 @@ export function DirectCryptoIcon({ className = 'w-14 h-14' }: { className?: stri
   );
 }
 
-export function BankCardIcon({ className = 'w-10 h-10' }: { className?: string }) {
+export function BankCardIcon({ className = 'w-14 h-14' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect width="20" height="14" x="2" y="5" rx="2" />

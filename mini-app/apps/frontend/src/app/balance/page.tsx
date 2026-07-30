@@ -562,7 +562,7 @@ export default function BalancePage() {
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <BankCardIcon className="w-12 h-12 text-zinc-300" />
+                      <BankCardIcon className="w-14 h-14 text-zinc-300" />
                       <span className="text-xs font-bold text-center">Карта / BLIK</span>
                     </button>
                   </div>
