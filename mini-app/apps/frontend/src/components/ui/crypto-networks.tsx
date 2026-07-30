@@ -44,7 +44,7 @@ export function UsdtIcon({ className = 'w-7 h-7' }: { className?: string }) {
   );
 }
 
-export function CryptoBotIcon({ className = 'w-8 h-8' }: { className?: string }) {
+export function CryptoBotIcon({ className = 'w-12 h-12' }: { className?: string }) {
   return (
     <img
       src="/cb.png"

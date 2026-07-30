@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Zap,
   X,
+  Coins,
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
 import { toast } from '@/store/toast-store';
@@ -319,22 +320,31 @@ export default function BalancePage() {
 
       <div className="w-full max-w-md px-4 pt-4 flex flex-col gap-4">
         {/* Balance Card */}
-        <div className="rounded-xl border border-white/10 bg-[#13151C] p-4 flex flex-col gap-1 shadow-md">
-          <div className="flex items-center justify-between">
+        <div className="rounded-xl border border-white/10 bg-[#13151C] p-4 flex items-center justify-between shadow-md relative overflow-hidden">
+          <div className="flex flex-col gap-1 z-10">
             <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
               Баланс аккаунта
             </span>
+
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-2xl font-bold tracking-tight text-white">
+                {amountPln.toLocaleString('ru-RU', { minimumFractionDigits: 2 })}
+              </span>
+              <span className="text-sm font-semibold text-zinc-400">PLN</span>
+            </div>
+
+            <div className="text-xs text-zinc-500 font-medium">
+              ≈ {(amountPln / fxRate).toFixed(2)} USD ($)
+            </div>
           </div>
 
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-bold tracking-tight text-white">
-              {amountPln.toLocaleString('ru-RU', { minimumFractionDigits: 2 })}
-            </span>
-            <span className="text-sm font-semibold text-zinc-400">PLN</span>
-          </div>
-
-          <div className="text-xs text-zinc-500 font-medium">
-            ≈ {(amountPln / fxRate).toFixed(2)} USD ($)
+          {/* Animated Semi-Transparent Silver Coin on Right Side */}
+          <div className="flex items-center justify-center pr-2 pointer-events-none z-0">
+            <Coins
+              size={52}
+              className="text-zinc-500/25 animate-spin-slow transition-transform"
+              style={{ animationDuration: '14s' }}
+            />
           </div>
         </div>
 
@@ -508,41 +518,41 @@ export default function BalancePage() {
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => setMethod('crypto')}
-                      className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${
+                      className={`p-3.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
                         method === 'crypto'
                           ? 'border-zinc-500 bg-zinc-800/80 text-white'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <DirectCryptoIcon className="w-6 h-6" />
-                      <span className="text-xs font-semibold text-center leading-tight">
+                      <DirectCryptoIcon className="w-8 h-8" />
+                      <span className="text-xs font-bold text-center leading-tight">
                         Криптовалюта
-                        <span className="block text-[9px] font-mono text-zinc-400 mt-0.5">(USDT)</span>
+                        <span className="block text-[10px] font-mono text-zinc-400 font-semibold mt-0.5">(USDT)</span>
                       </span>
                     </button>
 
                     <button
                       onClick={() => setMethod('cryptobot')}
-                      className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${
+                      className={`p-3.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
                         method === 'cryptobot'
                           ? 'border-zinc-500 bg-zinc-800/80 text-white'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <CryptoBotIcon className="w-8 h-8" />
-                      <span className="text-[11px] font-semibold">CryptoBot</span>
+                      <CryptoBotIcon className="w-12 h-12" />
+                      <span className="text-xs font-bold text-center">CryptoBot</span>
                     </button>
 
                     <button
                       onClick={() => setMethod('card')}
-                      className={`p-3 rounded-lg border flex flex-col items-center gap-1.5 transition-all ${
+                      className={`p-3.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
                         method === 'card'
                           ? 'border-zinc-500 bg-zinc-800/80 text-white'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <BankCardIcon className="w-6 h-6 text-zinc-300" />
-                      <span className="text-[11px] font-semibold">Карта / BLIK</span>
+                      <BankCardIcon className="w-8 h-8 text-zinc-300" />
+                      <span className="text-xs font-bold text-center">Карта / BLIK</span>
                     </button>
                   </div>
                 </div>
