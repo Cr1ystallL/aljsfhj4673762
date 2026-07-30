@@ -20,8 +20,12 @@ import { cryptoWorker } from '../services/crypto-worker.js';
  * Register all application routes
  */
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
-  // Health check
+  // Health check & stats
   await app.register(healthRoutes, { prefix: '/health' });
+
+  app.get('/api/stats', async () => {
+    return { ok: true, onlinePlayers: 42, totalBets: 18920 };
+  });
 
   // Authentication
   await app.register(authRoutes, { prefix: '/api/auth' });

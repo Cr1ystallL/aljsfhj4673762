@@ -15,12 +15,10 @@ import {
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
 import { toast } from '@/store/toast-store';
-import { reportApiError } from '@/lib/api/errors';
 import {
   Trc20Icon,
   TonIcon,
   Bep20Icon,
-  UsdtIcon,
   CryptoBotIcon,
   DirectCryptoIcon,
   BankCardIcon,
@@ -30,16 +28,6 @@ type Tab = 'deposit' | 'withdraw';
 type DepositMethod = 'crypto' | 'cryptobot' | 'card';
 type CryptoNetwork = 'TRC20' | 'TON' | 'BEP20';
 type WithdrawKind = 'blik' | 'card';
-
-interface FoluxPayOrder {
-  orderId: string;
-  uniqueAmount: number;
-  type: string;
-  card: string;
-  recipient: string;
-  details: string;
-  expiresInMinutes: number;
-}
 
 interface DirectCryptoDeposit {
   id: string;
@@ -81,11 +69,11 @@ export default function BalancePage() {
   // Deposit State
   const [depositAmountPln, setDepositAmountPln] = useState<string>('100');
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Active orders
-  const [activeFoluxOrder, setActiveFoluxOrder] = useState<FoluxPayOrder | null>(null);
+  // Active Direct Crypto Deposit
   const [activeCryptoDeposit, setActiveCryptoDeposit] = useState<DirectCryptoDeposit | null>(null);
   const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
 
@@ -96,8 +84,9 @@ export default function BalancePage() {
     return (num / fxRate).toFixed(2);
   }, [depositAmountPln, fxRate]);
 
-  // Load Active Orders
-  const checkActiveOrders = useCallback(async () => {
+  // Load Active Direct Crypto Deposit
+  const checkActiveOrders = useCallback(async (isManualCheck = false) => {
+    if (isManualCheck) setChecking(true);
     try {
       const cryptoRes = await fetch('/api/crypto-deposit/active', { credentials: 'include' });
       if (cryptoRes.ok) {
@@ -105,27 +94,25 @@ export default function BalancePage() {
         if (j.activeDeposit) {
           setActiveCryptoDeposit(j.activeDeposit as DirectCryptoDeposit);
           setTimeLeftSec(j.activeDeposit.expiresInSeconds);
+          if (isManualCheck) {
+            toast.info('Транзакция пока не обнаружена в блокчейне. Ожидаем подтверждения сети...');
+          }
         } else {
+          if (activeCryptoDeposit && isManualCheck) {
+            toast.success('Оплата успешно подтверждена! Баланс зачислен.');
+          }
           setActiveCryptoDeposit(null);
         }
       }
-    } catch {}
-
-    try {
-      const foluxRes = await fetch('/api/foluxpay/active', { credentials: 'include' });
-      if (foluxRes.ok) {
-        const j = await foluxRes.json();
-        if (j.activeOrder) {
-          setActiveFoluxOrder(j.activeOrder as FoluxPayOrder);
-        } else {
-          setActiveFoluxOrder(null);
-        }
-      }
-    } catch {}
-  }, []);
+    } catch {
+      if (isManualCheck) toast.error('Сетевая ошибка при проверке');
+    } finally {
+      if (isManualCheck) setChecking(false);
+    }
+  }, [activeCryptoDeposit]);
 
   useEffect(() => {
-    void checkActiveOrders();
+    void checkActiveOrders(false);
   }, [checkActiveOrders]);
 
   // Countdown Timer
@@ -134,7 +121,7 @@ export default function BalancePage() {
     const interval = setInterval(() => {
       setTimeLeftSec((prev) => {
         if (prev <= 1) {
-          void checkActiveOrders();
+          void checkActiveOrders(false);
           return 0;
         }
         return prev - 1;
@@ -147,7 +134,7 @@ export default function BalancePage() {
   useEffect(() => {
     if (!activeCryptoDeposit) return;
     const pollInterval = setInterval(() => {
-      void checkActiveOrders();
+      void checkActiveOrders(false);
     }, 10000);
     return () => clearInterval(pollInterval);
   }, [activeCryptoDeposit, checkActiveOrders]);
@@ -201,6 +188,14 @@ export default function BalancePage() {
     setActiveCryptoDeposit(null);
   }, [activeCryptoDeposit]);
 
+  // CryptoBot Handler
+  const handleCryptoBotDeposit = useCallback(() => {
+    toast.info('Переходим к пополнению через CryptoBot...');
+    setTimeout(() => {
+      window.open('https://t.me/MacvBet_bot?start=deposit_cryptobot', '_blank');
+    }, 600);
+  }, []);
+
   const copyText = useCallback(async (text: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -214,6 +209,13 @@ export default function BalancePage() {
     const min = Math.floor(timeLeftSec / 60);
     const sec = timeLeftSec % 60;
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  }, [timeLeftSec]);
+
+  // 12-segment digital progress ratio
+  const activeSegments = useMemo(() => {
+    const totalSec = 25 * 60;
+    const ratio = Math.max(0, Math.min(1, timeLeftSec / totalSec));
+    return Math.ceil(ratio * 12);
   }, [timeLeftSec]);
 
   // Withdraw State & Handlers
@@ -273,7 +275,7 @@ export default function BalancePage() {
 
   return (
     <div className="min-h-screen bg-[#0A0B0E] text-zinc-100 flex flex-col items-center pb-24 font-sans select-none">
-      {/* Top Bar */}
+      {/* Header Bar */}
       <div className="w-full max-w-md px-4 py-4 flex items-center justify-between border-b border-white/10 bg-[#0A0B0E]/90 backdrop-blur-md sticky top-0 z-30">
         <button
           onClick={() => router.back()}
@@ -293,7 +295,7 @@ export default function BalancePage() {
       </div>
 
       <div className="w-full max-w-md px-4 pt-4 flex flex-col gap-4">
-        {/* Minimalist Matte Balance Card */}
+        {/* Balance Card */}
         <div className="rounded-xl border border-white/10 bg-[#13151C] p-4 flex flex-col gap-1 shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
@@ -348,34 +350,72 @@ export default function BalancePage() {
           <div className="flex flex-col gap-4">
             {/* Active Direct Crypto View */}
             {activeCryptoDeposit ? (
-              <div className="rounded-xl border border-zinc-700 bg-[#13151C] p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="rounded-xl border border-zinc-700 bg-[#13151C] p-4 flex flex-col gap-4">
+                {/* Header Status Indicator */}
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    {/* Status Dot: Yellow for pending, Green for paid */}
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        activeCryptoDeposit.status === 'paid'
+                          ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
+                          : 'bg-amber-400 animate-pulse shadow-sm shadow-amber-400/50'
+                      }`}
+                    />
                     <span className="text-xs font-semibold text-zinc-200">
-                      Ожидание перевода
+                      {activeCryptoDeposit.status === 'paid' ? 'Оплата получена' : 'Ожидание перевода'}
                     </span>
                   </div>
-                  <div className="inline-flex items-center gap-1 text-xs font-mono text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700">
-                    <Clock size={12} />
-                    <span>{formattedTimer}</span>
+                  <div className="text-[10px] font-mono text-zinc-400 uppercase">
+                    {activeCryptoDeposit.id}
                   </div>
                 </div>
 
-                <div className="text-[11px] text-zinc-400">
-                  ID транзакции: <span className="font-mono text-zinc-200 font-semibold">{activeCryptoDeposit.id}</span>
+                {/* Prominent Large Timer & 12-Segment Progress Bar */}
+                <div className="flex flex-col items-center justify-center py-2 px-3 rounded-lg bg-[#0A0B0E] border border-white/10">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-1">
+                    Осталось времени на перевод
+                  </div>
+                  <div className="text-3xl font-extrabold font-mono tracking-wider text-zinc-100 my-0.5">
+                    {formattedTimer}
+                  </div>
+
+                  {/* 12-Segment Digital Progress Bar */}
+                  <div className="flex items-center gap-1 w-full max-w-[200px] mt-2">
+                    {Array.from({ length: 12 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                          idx < activeSegments
+                            ? 'bg-zinc-200 shadow-sm shadow-white/30'
+                            : 'bg-zinc-800'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
 
-                {/* Clean QR Code */}
-                <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-[#0A0B0E] border border-white/10">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                      activeCryptoDeposit.depositAddress
-                    )}`}
-                    alt="QR Code"
-                    className="w-36 h-36 rounded-md border border-white/10"
-                  />
-                  <span className="text-[10px] text-zinc-500 mt-2">Сканируйте в кошельке</span>
+                {/* Stylized QR Code Container with Centered Logo Badge */}
+                <div className="flex flex-col items-center justify-center my-1 p-4 rounded-xl bg-[#0A0B0E] border border-white/10 relative">
+                  <div className="relative p-2 rounded-lg bg-[#13151C] border border-white/15 shadow-inner">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                        activeCryptoDeposit.depositAddress
+                      )}&color=ffffff&bgcolor=13151c`}
+                      alt="QR Code"
+                      className="w-44 h-44 rounded-md"
+                    />
+
+                    {/* Centered Brand Logo Badge */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-9 h-9 rounded-full bg-[#13151C] border border-zinc-600 flex items-center justify-center shadow-lg">
+                        <span className="font-extrabold text-xs text-white tracking-widest">M</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 mt-2 font-medium">
+                    Сканируйте QR-код для моментального ввода адреса
+                  </span>
                 </div>
 
                 {/* Selected Network */}
@@ -395,8 +435,8 @@ export default function BalancePage() {
 
                 {/* Exact USDT Amount */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] text-zinc-300 font-semibold">Точная сумма перевода:</span>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-zinc-700">
+                  <span className="text-[11px] text-zinc-200 font-semibold">Точная сумма перевода:</span>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-zinc-600">
                     <span className="font-mono text-sm font-bold text-white">
                       {activeCryptoDeposit.uniqueUsdt.toFixed(4)} USDT
                     </span>
@@ -428,11 +468,12 @@ export default function BalancePage() {
                 {/* Actions */}
                 <div className="flex gap-2 mt-1">
                   <button
-                    onClick={checkActiveOrders}
-                    className="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs text-white flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    onClick={() => void checkActiveOrders(true)}
+                    disabled={checking}
+                    className="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs text-white flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
                   >
-                    <RefreshCw size={13} />
-                    <span>Проверить статус</span>
+                    <RefreshCw size={13} className={checking ? 'animate-spin' : ''} />
+                    <span>{checking ? 'Проверка...' : 'Проверить статус'}</span>
                   </button>
                   <button
                     onClick={cancelDirectCryptoDeposit}
@@ -577,7 +618,7 @@ export default function BalancePage() {
                 <button
                   onClick={() => {
                     if (method === 'crypto') void startDirectCryptoDeposit();
-                    else if (method === 'cryptobot') router.push('/balance');
+                    else if (method === 'cryptobot') handleCryptoBotDeposit();
                   }}
                   disabled={loading}
                   className="w-full py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs uppercase tracking-wider text-white shadow-md active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-1"
@@ -585,7 +626,9 @@ export default function BalancePage() {
                   {loading ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <span>Получить реквизиты</span>
+                    <span>
+                      {method === 'cryptobot' ? 'Перейти в CryptoBot' : 'Получить реквизиты'}
+                    </span>
                   )}
                 </button>
               </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * High-Resolution Official Crypto & Payment Icons
+ * High-Resolution Official Crypto & Payment Icons with fail-safe fallback rendering
  */
 
 export function Trc20Icon({ className = 'w-7 h-7' }: { className?: string }) {
@@ -10,6 +10,9 @@ export function Trc20Icon({ className = 'w-7 h-7' }: { className?: string }) {
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/trx.png"
       alt="TRON"
       className={`${className} object-contain`}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
     />
   );
 }
@@ -17,9 +20,12 @@ export function Trc20Icon({ className = 'w-7 h-7' }: { className?: string }) {
 export function TonIcon({ className = 'w-7 h-7' }: { className?: string }) {
   return (
     <img
-      src="https://cryptologos.cc/logos/toncoin-ton-logo.png"
+      src="https://assets.coingecko.com/coins/images/17980/large/ton_symbol.png"
       alt="TON"
       className={`${className} object-contain`}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
     />
   );
 }
@@ -30,6 +36,9 @@ export function Bep20Icon({ className = 'w-7 h-7' }: { className?: string }) {
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/bnb.png"
       alt="BEP-20"
       className={`${className} object-contain`}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
     />
   );
 }
@@ -40,6 +49,9 @@ export function UsdtIcon({ className = 'w-7 h-7' }: { className?: string }) {
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png"
       alt="USDT"
       className={`${className} object-contain`}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
     />
   );
 }
@@ -47,9 +59,12 @@ export function UsdtIcon({ className = 'w-7 h-7' }: { className?: string }) {
 export function CryptoBotIcon({ className = 'w-7 h-7' }: { className?: string }) {
   return (
     <img
-      src="https://cryptologos.cc/logos/telegram-logo.png"
+      src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg"
       alt="CryptoBot"
       className={`${className} object-contain`}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
     />
   );
 }
@@ -60,6 +75,9 @@ export function DirectCryptoIcon({ className = 'w-7 h-7' }: { className?: string
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png"
       alt="Direct Crypto"
       className={`${className} object-contain`}
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = 'none';
+      }}
     />
   );
 }
