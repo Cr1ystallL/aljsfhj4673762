@@ -480,7 +480,7 @@ export default function BalancePage() {
                       }`}
                     >
                       <DirectCryptoIcon className="w-6 h-6" />
-                      <span className="text-[11px] font-semibold">Крипта</span>
+                      <span className="text-[10px] font-semibold text-center leading-tight">Криптовалюта (USDT)</span>
                     </button>
 
                     <button

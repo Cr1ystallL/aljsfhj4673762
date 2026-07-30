@@ -47,12 +47,9 @@ export function UsdtIcon({ className = 'w-7 h-7' }: { className?: string }) {
 export function CryptoBotIcon({ className = 'w-7 h-7' }: { className?: string }) {
   return (
     <img
-      src="https://raw.githubusercontent.com/TelegramCrypto/bot-api/main/logo.png"
+      src="/cb.png"
       alt="CryptoBot"
-      className={`${className} object-contain rounded-full`}
-      onError={(e) => {
-        (e.target as HTMLImageElement).src = "https://cryptologos.cc/logos/telegram-logo.png";
-      }}
+      className={`${className} object-contain`}
     />
   );
 }
