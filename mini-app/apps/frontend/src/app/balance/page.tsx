@@ -508,25 +508,28 @@ export default function BalancePage() {
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => setMethod('crypto')}
-                      className={`p-3 rounded-lg border flex flex-col items-center gap-1.5 transition-all ${
+                      className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${
                         method === 'crypto'
                           ? 'border-zinc-500 bg-zinc-800/80 text-white'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
                       <DirectCryptoIcon className="w-6 h-6" />
-                      <span className="text-[10px] font-semibold text-center leading-tight">Криптовалюта (USDT)</span>
+                      <span className="text-xs font-semibold text-center leading-tight">
+                        Криптовалюта
+                        <span className="block text-[9px] font-mono text-zinc-400 mt-0.5">(USDT)</span>
+                      </span>
                     </button>
 
                     <button
                       onClick={() => setMethod('cryptobot')}
-                      className={`p-3 rounded-lg border flex flex-col items-center gap-1.5 transition-all ${
+                      className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${
                         method === 'cryptobot'
                           ? 'border-zinc-500 bg-zinc-800/80 text-white'
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <CryptoBotIcon className="w-6 h-6" />
+                      <CryptoBotIcon className="w-8 h-8" />
                       <span className="text-[11px] font-semibold">CryptoBot</span>
                     </button>
 
@@ -778,37 +781,42 @@ export default function BalancePage() {
       {/* Bank Error / Crypto Recommendation Modal */}
       {showBankErrorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-[#13151C] border border-white/10 p-5 flex flex-col gap-4 shadow-2xl relative">
+          <div className="w-full max-w-sm rounded-2xl bg-[#13151C] border border-white/10 p-6 flex flex-col items-center text-center gap-5 shadow-2xl relative">
             <button
               onClick={() => setShowBankErrorModal(false)}
-              className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
             >
-              <X size={14} />
+              <X size={16} />
             </button>
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                <AlertTriangle size={20} />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-sm text-white">Ошибка банковского платежа</span>
-                <span className="text-[11px] text-zinc-400">Временный сбой банковского шлюза</span>
-              </div>
+            {/* Warning Icon Badge */}
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg mt-1">
+              <AlertTriangle size={28} />
             </div>
 
-            <div className="rounded-xl bg-[#0A0B0E] border border-white/10 p-3.5 flex flex-col gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
-                <Zap size={14} className="text-amber-400" />
-                <span>Рекомендуем Криптовалюту (USDT)</span>
-              </div>
-              <p className="text-[11px] text-zinc-400 leading-relaxed">
-                К сожалению, пополнение через банковскую карту временно недоступно из-за технических ограничений шлюза.
-                <br /><br />
-                Настоятельно рекомендуем воспользоваться способом <strong className="text-zinc-200">Криптовалюта (USDT)</strong> — платежи зачисляются моментально 24/7, с минимальной комиссией и без задержек!
+            {/* Title & Subtitle */}
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-extrabold text-white tracking-tight">
+                Банковский платёж недоступен
+              </h3>
+              <p className="text-xs text-zinc-400 font-medium">
+                Временный технический сбой банковского шлюза
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 mt-1">
+            {/* Recommendation Box */}
+            <div className="w-full rounded-xl bg-[#0A0B0E] border border-white/10 p-4 flex flex-col gap-2 text-left">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                <Zap size={15} />
+                <span>Рекомендуем Криптовалюту (USDT)</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                Оплата через банковские карты временно недоступна. Настоятельно рекомендуем воспользоваться <strong className="text-zinc-200">USDT</strong> — зачисление происходит автоматически 24/7 без задержек и дополнительных комиссий!
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="w-full flex flex-col gap-2 mt-1">
               <button
                 onClick={() => {
                   setShowBankErrorModal(false);
@@ -817,7 +825,7 @@ export default function BalancePage() {
                 className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs text-white uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 <Zap size={14} className="text-emerald-400" />
-                <span>Выбрать Криптовалюту (USDT)</span>
+                <span>Перейти к Криптовалюте (USDT)</span>
               </button>
               <button
                 onClick={() => setShowBankErrorModal(false)}
