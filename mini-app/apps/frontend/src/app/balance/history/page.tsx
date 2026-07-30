@@ -99,14 +99,14 @@ export default function PaymentHistoryPage() {
         <header className="flex items-center justify-between border-b border-white/10 pb-3">
           <button
             onClick={() => router.back()}
-            className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 active:scale-95 transition-transform"
+            className="w-11 h-11 rounded-xl bg-[#13151C] border border-white/15 flex items-center justify-center text-white hover:bg-zinc-800 active:scale-95 transition-all shadow-sm"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={22} />
           </button>
           <span className="font-semibold text-sm tracking-wide text-zinc-100 uppercase">
             История транзакций
           </span>
-          <div className="w-8 h-8" />
+          <div className="w-11 h-11" />
         </header>
 
         {/* Filters */}

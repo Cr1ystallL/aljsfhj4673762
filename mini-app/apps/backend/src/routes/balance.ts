@@ -177,6 +177,33 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
           macvpayRows = [];
         }
 
+        // ---- Direct Crypto Deposits -----------------------------
+        interface DirectCryptoRow {
+          id: string;
+          network: string;
+          requested_pln: string;
+          unique_usdt: string;
+          deposit_address: string;
+          status: string;
+          expires_at: Date;
+          paid_at: Date | null;
+          created_at: Date;
+        }
+        let directCryptoRows: DirectCryptoRow[] = [];
+        try {
+          const { Prisma } = await import('@prisma/client');
+          directCryptoRows = await (
+            request.server as unknown as { prisma: typeof import('../lib/prisma.js').prisma }
+          ).prisma.$queryRaw<DirectCryptoRow[]>(Prisma.sql`
+            SELECT id, network, requested_pln, unique_usdt, deposit_address, status,
+                   expires_at, paid_at, created_at
+              FROM direct_crypto_deposits
+             WHERE user_id = ${userId}
+             ORDER BY created_at DESC
+             LIMIT ${limit}
+          `);
+        } catch {
+          directCryptoRows = [];
         // ---- Withdrawals ---------------------------------------
         interface WithdrawalRow {
           id: string;
@@ -211,7 +238,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
 
         const now = Date.now();
 
-        const deposits = macvpayRows.map((o) => {
+        const foluxDeposits = macvpayRows.map((o) => {
           const expiresAt = o.expires_at?.getTime() ?? null;
           let status = o.status;
           if (status === 'pending' && expiresAt && expiresAt < now) {
@@ -232,6 +259,30 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
             createdAt: o.created_at.getTime(),
           };
         });
+
+        const cryptoDeposits = directCryptoRows.map((d) => {
+          const expiresAt = d.expires_at?.getTime() ?? null;
+          let status = d.status;
+          if (status === 'pending' && expiresAt && expiresAt < now) {
+            status = 'expired';
+          }
+          return {
+            kind: 'deposit' as const,
+            id: d.id,
+            amount: Number(d.requested_pln),
+            uniqueAmount: Number(d.unique_usdt),
+            currency: 'PLN',
+            paymentType: `crypto_${d.network.toLowerCase()}`,
+            status,
+            details: d.deposit_address,
+            recipient: null,
+            expiresAt,
+            paidAt: d.paid_at?.getTime() ?? null,
+            createdAt: d.created_at.getTime(),
+          };
+        });
+
+        const deposits = [...foluxDeposits, ...cryptoDeposits];
 
         const withdrawals = withdrawalRows.map((w) => {
           // Pull readable inputs from metadata so the user sees what

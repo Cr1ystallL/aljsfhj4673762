@@ -192,7 +192,7 @@ export default function BalancePage() {
   const handleCryptoBotDeposit = useCallback(() => {
     toast.info('Переходим к пополнению через CryptoBot...');
     setTimeout(() => {
-      window.open('https://t.me/MacvBet_bot?start=deposit_cryptobot', '_blank');
+      window.open('https://t.me/MacvBet_bot?start=deposit_balance', '_blank');
     }, 600);
   }, []);
 
@@ -303,36 +303,38 @@ export default function BalancePage() {
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-2 p-1 rounded-lg bg-[#13151C] border border-white/10">
-          <button
-            onClick={() => setTab('deposit')}
-            className={`py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-              tab === 'deposit'
-                ? 'bg-zinc-800 text-white shadow-sm border border-zinc-700'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <ArrowDownToLine size={14} />
-            <span>Пополнение</span>
-          </button>
-          <button
-            onClick={() => setTab('withdraw')}
-            className={`py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-              tab === 'withdraw'
-                ? 'bg-zinc-800 text-white shadow-sm border border-zinc-700'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <ArrowUpFromLine size={14} />
-            <span>Вывод</span>
-          </button>
-        </div>
+        {/* Tab Switcher - Hidden when requisites are active */}
+        {!activeCryptoDeposit && (
+          <div className="grid grid-cols-2 p-1 rounded-lg bg-[#13151C] border border-white/10">
+            <button
+              onClick={() => setTab('deposit')}
+              className={`py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                tab === 'deposit'
+                  ? 'bg-zinc-800 text-white shadow-sm border border-zinc-700'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <ArrowDownToLine size={14} />
+              <span>Пополнение</span>
+            </button>
+            <button
+              onClick={() => setTab('withdraw')}
+              className={`py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                tab === 'withdraw'
+                  ? 'bg-zinc-800 text-white shadow-sm border border-zinc-700'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <ArrowUpFromLine size={14} />
+              <span>Вывод</span>
+            </button>
+          </div>
+        )}
 
         {/* TAB 1: DEPOSIT */}
         {tab === 'deposit' && (
           <div className="flex flex-col gap-4">
-            {/* Active Direct Crypto View */}
+            {/* Active Direct Crypto Requisites View */}
             {activeCryptoDeposit ? (
               <div className="rounded-xl border border-zinc-700 bg-[#13151C] p-4 flex flex-col gap-4">
                 {/* Header Status Indicator */}
@@ -379,9 +381,9 @@ export default function BalancePage() {
                   </div>
                 </div>
 
-                {/* Stylized QR Code Container with Centered Logo Badge */}
-                <div className="flex flex-col items-center justify-center my-1 p-4 rounded-xl bg-[#0A0B0E] border border-white/10 relative">
-                  <div className="relative p-2 rounded-lg bg-[#13151C] border border-white/15 shadow-inner">
+                {/* Clean QR Code Container (NO OVERLAY LOGO) */}
+                <div className="flex flex-col items-center justify-center my-1 p-4 rounded-xl bg-[#0A0B0E] border border-white/10">
+                  <div className="p-2.5 rounded-lg bg-[#13151C] border border-white/15 shadow-inner">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
                         activeCryptoDeposit.depositAddress
@@ -389,13 +391,6 @@ export default function BalancePage() {
                       alt="QR Code"
                       className="w-44 h-44 rounded-md"
                     />
-
-                    {/* Centered Brand Logo Badge */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-9 h-9 rounded-full bg-[#13151C] border border-zinc-600 flex items-center justify-center shadow-lg">
-                        <span className="font-extrabold text-xs text-white tracking-widest">M</span>
-                      </div>
-                    </div>
                   </div>
                   <span className="text-[10px] text-zinc-400 mt-2 font-medium">
                     Сканируйте QR-код для моментального ввода адреса
@@ -621,7 +616,7 @@ export default function BalancePage() {
         )}
 
         {/* TAB 2: WITHDRAW */}
-        {tab === 'withdraw' && (
+        {tab === 'withdraw' && !activeCryptoDeposit && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
@@ -732,14 +727,16 @@ export default function BalancePage() {
           </div>
         )}
 
-        {/* History Navigation Button */}
-        <button
-          onClick={() => router.push('/balance/history')}
-          className="w-full py-3 rounded-lg bg-[#13151C] hover:bg-zinc-800 border border-white/10 font-semibold text-xs text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all active:scale-95 mt-2"
-        >
-          <History size={14} />
-          <span>История транзакций</span>
-        </button>
+        {/* History Navigation Button - Hidden when requisites are active */}
+        {!activeCryptoDeposit && (
+          <button
+            onClick={() => router.push('/balance/history')}
+            className="w-full py-3 rounded-lg bg-[#13151C] hover:bg-zinc-800 border border-white/10 font-semibold text-xs text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all active:scale-95 mt-2"
+          >
+            <History size={14} />
+            <span>История транзакций</span>
+          </button>
+        )}
       </div>
     </div>
   );
