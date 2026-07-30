@@ -204,6 +204,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
           `);
         } catch {
           directCryptoRows = [];
+        }
         // ---- Withdrawals ---------------------------------------
         interface WithdrawalRow {
           id: string;
