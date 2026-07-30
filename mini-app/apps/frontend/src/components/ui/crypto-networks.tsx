@@ -34,7 +34,7 @@ export function Bep20Icon({ className = 'w-10 h-10' }: { className?: string }) {
   );
 }
 
-export function UsdtIcon({ className = 'w-10 h-10' }: { className?: string }) {
+export function UsdtIcon({ className = 'w-12 h-12' }: { className?: string }) {
   return (
     <img
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png"
@@ -54,7 +54,7 @@ export function CryptoBotIcon({ className = 'w-14 h-14' }: { className?: string 
   );
 }
 
-export function DirectCryptoIcon({ className = 'w-10 h-10' }: { className?: string }) {
+export function DirectCryptoIcon({ className = 'w-14 h-14' }: { className?: string }) {
   return (
     <img
       src="https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png"

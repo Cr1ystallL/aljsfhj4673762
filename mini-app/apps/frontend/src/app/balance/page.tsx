@@ -311,6 +311,18 @@ export default function BalancePage() {
 
   return (
     <div className="min-h-screen bg-[#0A0B0E] text-zinc-100 flex flex-col items-center pb-24 font-sans select-none">
+      {/* Global CSS keyframes for 5s coin spin */}
+      <style jsx global>{`
+        @keyframes spin5sKeyframes {
+          0% { transform: rotate(0deg); }
+          25% { transform: rotate(360deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .coin-spin-5s {
+          animation: spin5sKeyframes 5s ease-in-out infinite !important;
+        }
+      `}</style>
+
       {/* Header Bar */}
       <div className="w-full max-w-md px-4 py-4 flex items-center justify-center border-b border-white/10 bg-[#0A0B0E]/90 backdrop-blur-md sticky top-0 z-30">
         <span className="font-semibold text-sm tracking-wide text-zinc-100 uppercase text-center">
@@ -338,12 +350,11 @@ export default function BalancePage() {
             </div>
           </div>
 
-          {/* Animated Semi-Transparent Silver Coin on Right Side */}
+          {/* Animated Semi-Transparent Silver Coin on Right Side (Rotates every 5s) */}
           <div className="flex items-center justify-center pr-2 pointer-events-none z-0">
             <Coins
-              size={54}
-              className="text-zinc-400/30 animate-spin transition-transform"
-              style={{ animationDuration: '12s' }}
+              size={56}
+              className="text-zinc-400/35 coin-spin-5s"
             />
           </div>
         </div>
@@ -524,7 +535,7 @@ export default function BalancePage() {
                           : 'border-white/10 bg-[#13151C] text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
-                      <DirectCryptoIcon className="w-12 h-12" />
+                      <DirectCryptoIcon className="w-14 h-14" />
                       <span className="text-xs font-bold text-center leading-tight">
                         Криптовалюта
                         <span className="block text-[10px] font-mono text-zinc-400 font-semibold mt-0.5">(USDT)</span>
