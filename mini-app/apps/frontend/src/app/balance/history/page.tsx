@@ -11,7 +11,7 @@ import {
   Check,
   X,
   AlertTriangle,
-  Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -61,23 +61,6 @@ export default function PaymentHistoryPage() {
 
   const openPendingDeposit = useCallback(
     (e: DepositEntry) => {
-      const remainingMs = e.expiresAt
-        ? new Date(e.expiresAt).getTime() - Date.now()
-        : 30 * 60 * 1000;
-      const expiresInMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
-      const activeOrder = {
-        orderId: e.id,
-        uniqueAmount: Number(e.uniqueAmount ?? e.amount),
-        currency: e.currency || 'PLN',
-        type: e.paymentType || 'bank',
-        card: e.details || '',
-        recipient: e.recipient || '',
-        details: e.details || '',
-        expiresInMinutes,
-      };
-      try {
-        localStorage.setItem('macvbet_active_order', JSON.stringify(activeOrder));
-      } catch {}
       router.push('/balance');
     },
     [router]
@@ -110,65 +93,58 @@ export default function PaymentHistoryPage() {
   }, [data, filter]);
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-5">
+    <main className="min-h-screen w-full bg-[#0A0B0E] text-zinc-100 flex flex-col items-center pb-24 font-sans select-none">
+      <div className="w-full max-w-md px-4 pt-4 flex flex-col gap-4">
         {/* Header */}
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between border-b border-white/10 pb-3">
           <button
             onClick={() => router.back()}
-            aria-label="Назад"
-            className="w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 active:scale-95 transition-transform"
+            className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 active:scale-95 transition-transform"
           >
-            <ChevronLeft size={18} strokeWidth={1.8} />
+            <ChevronLeft size={18} />
           </button>
-          <span className="font-roobert text-[14px] uppercase tracking-[0.28em] text-whisper-gray">
-            История
+          <span className="font-semibold text-sm tracking-wide text-zinc-100 uppercase">
+            История транзакций
           </span>
-          <span className="w-11 h-11" />
+          <div className="w-8 h-8" />
         </header>
 
         {/* Filters */}
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-3 gap-2 p-1 rounded-lg bg-[#13151C] border border-white/10">
           {(['all', 'deposit', 'withdrawal'] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                'flex-1 px-3 py-2 rounded-pill border font-roobert text-[12px] transition-colors',
+                'py-2 rounded-md font-semibold text-xs transition-all uppercase tracking-wider',
                 filter === f
-                  ? 'border-white/30 bg-white/[0.06] text-frost-white'
-                  : 'border-white/10 bg-white/[0.03] text-frost-white/65'
+                  ? 'bg-zinc-800 text-white shadow-sm border border-zinc-700'
+                  : 'text-zinc-400 hover:text-white'
               )}
             >
-              {f === 'all'
-                ? 'Все'
-                : f === 'deposit'
-                  ? 'Пополнения'
-                  : 'Выводы'}
+              {f === 'all' ? 'Все' : f === 'deposit' ? 'Депозиты' : 'Выводы'}
             </button>
           ))}
         </div>
 
         {/* List */}
         {filtered === null ? (
-          <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
-            <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+          <div className="rounded-xl border border-white/10 bg-[#13151C] py-16 flex items-center justify-center">
+            <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-10 text-center font-roobert text-[12px] text-whisper-gray">
-            Здесь будут ваши пополнения и выводы.
+          <div className="rounded-xl border border-white/10 bg-[#13151C] px-4 py-12 text-center text-xs text-zinc-400">
+            История транзакций пока пуста.
           </div>
         ) : (
-          <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden divide-y divide-white/5">
+          <div className="rounded-xl border border-white/10 bg-[#13151C] overflow-hidden divide-y divide-white/5 shadow-md">
             {filtered.map((e) => (
               <Row
                 key={e.id}
                 entry={e}
                 expanded={openId === e.id}
                 onOpenPending={openPendingDeposit}
-                onToggle={() =>
-                  setOpenId((cur) => (cur === e.id ? null : e.id))
-                }
+                onToggle={() => setOpenId((cur) => (cur === e.id ? null : e.id))}
               />
             ))}
           </div>
@@ -204,62 +180,51 @@ function Row({
     <div>
       <button
         onClick={handleClick}
-        className="w-full text-left grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 active:bg-white/[0.04] transition-colors"
+        className="w-full text-left grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 hover:bg-white/[0.02] active:bg-white/[0.04] transition-colors"
       >
         <span
           className={cn(
-            'w-10 h-10 rounded-pill border flex items-center justify-center shrink-0',
+            'w-9 h-9 rounded-lg border flex items-center justify-center shrink-0',
             isDeposit
-              ? 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-[#a0e0ab]'
-              : 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-[#ff8a76]'
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+              : 'border-zinc-700 bg-zinc-800 text-zinc-300'
           )}
         >
-          {isDeposit ? (
-            <ArrowDownToLine size={16} strokeWidth={1.8} />
-          ) : (
-            <ArrowUpFromLine size={16} strokeWidth={1.8} />
-          )}
+          {isDeposit ? <ArrowDownToLine size={16} /> : <ArrowUpFromLine size={16} />}
         </span>
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-roobert text-[14px] text-frost-white">
+            <span className="font-semibold text-xs text-white">
               {isDeposit ? 'Пополнение' : 'Вывод'}
             </span>
             <StatusChip status={entry.status} />
           </div>
-          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
+          <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
             {new Date(entry.createdAt).toLocaleString('ru-RU')}
           </div>
         </div>
         <div className="text-right">
           <div
             className={cn(
-              'font-roobert text-[14px] tabular-nums',
-              isDeposit ? 'text-[#a0e0ab]' : 'text-frost-white'
+              'font-bold text-xs font-mono',
+              isDeposit ? 'text-emerald-400' : 'text-white'
             )}
           >
             {isDeposit ? '+' : '−'}
-            {entry.amount.toLocaleString('ru-RU', {
-              maximumFractionDigits: 2,
-            })}{' '}
-            {entry.currency}
+            {entry.amount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} {entry.currency}
           </div>
-          <div className="font-roobert text-[10px] text-whisper-gray inline-flex items-center gap-0.5">
-            {isPendingDeposit ? 'Оплатить' : 'Подробнее'}
+          <div className="text-[10px] text-zinc-400 inline-flex items-center gap-0.5 mt-0.5">
+            {isPendingDeposit ? 'Детали' : 'Подробнее'}
             <ChevronRight
               size={11}
-              strokeWidth={1.7}
-              className={cn(
-                'transition-transform',
-                !isPendingDeposit && expanded && 'rotate-90'
-              )}
+              className={cn('transition-transform', !isPendingDeposit && expanded && 'rotate-90')}
             />
           </div>
         </div>
       </button>
 
       {expanded && !isPendingDeposit && (
-        <div className="px-4 pb-4 -mt-1 flex flex-col gap-2.5">
+        <div className="px-4 pb-3.5 -mt-1 flex flex-col gap-2">
           {entry.kind === 'deposit' ? (
             <DepositDetails entry={entry} onOpenPending={onOpenPending} />
           ) : (
@@ -279,46 +244,14 @@ function DepositDetails({
   onOpenPending: (e: DepositEntry) => void;
 }) {
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 flex flex-col gap-2.5">
+    <div className="rounded-lg border border-white/10 bg-[#0A0B0E] px-3.5 py-3 flex flex-col gap-2 text-xs">
       <DetailLine label="ID заявки" value={entry.id} mono />
-      <DetailLine label="Метод" value={methodLabel(entry.paymentType)} />
+      <DetailLine label="Способ" value={methodLabel(entry.paymentType)} />
       {entry.details && (
-        <DetailLine
-          label={entry.paymentType === 'bank' ? 'Номер счёта / BLIK' : 'Телефон'}
-          value={entry.details}
-        />
-      )}
-      {entry.uniqueAmount != null && (
-        <DetailLine
-          label="Сумма к переводу"
-          value={`${entry.uniqueAmount.toLocaleString('ru-RU', {
-            maximumFractionDigits: 2,
-          })} ${entry.currency}`}
-        />
+        <DetailLine label="Детали" value={entry.details} />
       )}
       {entry.paidAt && (
-        <DetailLine
-          label="Зачислено"
-          value={new Date(entry.paidAt).toLocaleString('ru-RU')}
-        />
-      )}
-      {entry.expiresAt && entry.status === 'pending' && (
-        <DetailLine
-          label="Истекает"
-          value={new Date(entry.expiresAt).toLocaleString('ru-RU')}
-        />
-      )}
-      {entry.status === 'pending' && (
-        <button
-          onClick={(ev) => {
-            ev.stopPropagation();
-            onOpenPending(entry);
-          }}
-          className="w-full mt-2 bg-gradient-to-r from-emerald-500/20 via-amber-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-amber-500/30 border border-emerald-500/40 text-frost-white font-roobert text-[13px] font-semibold py-2.5 rounded-pill flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md"
-        >
-          <Sparkles size={14} className="text-amber-400" />
-          <span>Перейти к оплате / Реквизиты</span>
-        </button>
+        <DetailLine label="Зачислено" value={new Date(entry.paidAt).toLocaleString('ru-RU')} />
       )}
     </div>
   );
@@ -326,21 +259,13 @@ function DepositDetails({
 
 function WithdrawalDetails({ entry }: { entry: WithdrawalEntry }) {
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 flex flex-col gap-2.5">
+    <div className="rounded-lg border border-white/10 bg-[#0A0B0E] px-3.5 py-3 flex flex-col gap-2 text-xs">
       <DetailLine label="ID заявки" value={entry.id} mono />
-      <DetailLine label="Метод" value={methodLabel(entry.method)} />
-      {entry.details.phone && (
-        <DetailLine label="Телефон" value={entry.details.phone} />
-      )}
-      {entry.details.bank && (
-        <DetailLine label="Банк" value={entry.details.bank} />
-      )}
-      {entry.details.card && (
-        <DetailLine label="Карта" value={entry.details.card} />
-      )}
-      {entry.details.holder && (
-        <DetailLine label="Получатель" value={entry.details.holder} />
-      )}
+      <DetailLine label="Способ" value={methodLabel(entry.method)} />
+      {entry.details.phone && <DetailLine label="Телефон" value={entry.details.phone} />}
+      {entry.details.bank && <DetailLine label="Банк" value={entry.details.bank} />}
+      {entry.details.card && <DetailLine label="Карта" value={entry.details.card} />}
+      {entry.details.holder && <DetailLine label="Получатель" value={entry.details.holder} />}
       {entry.reviewedAt && (
         <DetailLine
           label={entry.status === 'rejected' ? 'Отклонено' : 'Обработано'}
@@ -348,19 +273,11 @@ function WithdrawalDetails({ entry }: { entry: WithdrawalEntry }) {
         />
       )}
       {entry.rejectionReason && (
-        <div className="rounded-card border border-[#ff8a76]/30 bg-[#ff8a76]/10 px-3 py-2.5 flex items-start gap-2">
-          <AlertTriangle
-            size={13}
-            strokeWidth={1.8}
-            className="text-[#ff8a76] mt-0.5 shrink-0"
-          />
-          <div className="min-w-0">
-            <div className="font-roobert text-[10px] uppercase tracking-[0.18em] text-[#ff8a76]/85">
-              Причина отклонения
-            </div>
-            <div className="mt-0.5 font-roobert text-[12px] text-frost-white/95 break-words">
-              {entry.rejectionReason}
-            </div>
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 flex items-start gap-2 text-rose-300">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <div className="min-w-0 text-xs">
+            <div className="font-semibold">Причина отклонения:</div>
+            <div>{entry.rejectionReason}</div>
           </div>
         </div>
       )}
@@ -368,26 +285,11 @@ function WithdrawalDetails({ entry }: { entry: WithdrawalEntry }) {
   );
 }
 
-function DetailLine({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function DetailLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="font-roobert text-[10px] uppercase tracking-[0.18em] text-whisper-gray">
-        {label}
-      </span>
-      <span
-        className={cn(
-          'font-roobert text-[12px] text-frost-white break-all leading-snug',
-          mono && 'font-mono select-all'
-        )}
-      >
+      <span className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</span>
+      <span className={cn('text-xs text-zinc-200 break-all', mono && 'font-mono select-all')}>
         {value}
       </span>
     </div>
@@ -395,55 +297,47 @@ function DetailLine({
 }
 
 function StatusChip({ status }: { status: string }) {
-  const map: Record<
-    string,
-    { label: string; cls: string; Icon: typeof Clock }
-  > = {
+  const map: Record<string, { label: string; cls: string; Icon: typeof Clock }> = {
     pending: {
       label: 'Ожидание',
-      cls: 'border-white/15 bg-white/[0.04] text-frost-white/85',
+      cls: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
       Icon: Clock,
     },
     paid: {
       label: 'Подтверждён',
-      cls: 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-[#a0e0ab]',
+      cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
       Icon: Check,
     },
     approved: {
       label: 'Одобрен',
-      cls: 'border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-[#a0e0ab]',
+      cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
       Icon: Check,
     },
     cancelled: {
       label: 'Отменён',
-      cls: 'border-white/10 bg-white/[0.03] text-whisper-gray',
+      cls: 'border-white/10 bg-white/5 text-zinc-400',
       Icon: X,
     },
     expired: {
       label: 'Истёк',
-      cls: 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-[#ff8a76]',
+      cls: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
       Icon: AlertTriangle,
     },
     rejected: {
       label: 'Отклонён',
-      cls: 'border-[#ff8a76]/40 bg-[#ff8a76]/10 text-[#ff8a76]',
+      cls: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
       Icon: X,
     },
   };
   const m = map[status] ?? {
     label: status,
-    cls: 'border-white/10 bg-white/[0.04] text-frost-white/65',
+    cls: 'border-white/10 bg-white/5 text-zinc-400',
     Icon: Clock,
   };
   const Icon = m.Icon;
   return (
-    <span
-      className={cn(
-        'shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border font-roobert text-[10px] uppercase tracking-[0.18em]',
-        m.cls
-      )}
-    >
-      <Icon size={10} strokeWidth={1.8} />
+    <span className={cn('shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-wider font-semibold', m.cls)}>
+      <Icon size={10} />
       {m.label}
     </span>
   );

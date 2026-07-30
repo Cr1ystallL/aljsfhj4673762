@@ -731,6 +731,15 @@ export default function BalancePage() {
             </button>
           </div>
         )}
+
+        {/* History Navigation Button */}
+        <button
+          onClick={() => router.push('/balance/history')}
+          className="w-full py-3 rounded-lg bg-[#13151C] hover:bg-zinc-800 border border-white/10 font-semibold text-xs text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all active:scale-95 mt-2"
+        >
+          <History size={14} />
+          <span>История транзакций</span>
+        </button>
       </div>
     </div>
   );

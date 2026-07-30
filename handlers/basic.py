@@ -91,6 +91,29 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         await message.answer(get_text('ru', 'choose_language'), reply_markup=keyboard)
         return
     
+    # Проверка на спец-аргументы пополнения (переход из Mini App)
+    if command.args and command.args.strip() in ["deposit_balance", "deposit_cryptobot"]:
+        from handlers.payment import fetch_usdt_pln_rate, get_min_deposit_pln, DepositStates
+        rate = fetch_usdt_pln_rate()
+        min_pln = await get_min_deposit_pln()
+        min_usdt = max(round(min_pln / rate + 1e-8, 2), 0.01)
+        lang = current_lang or 'ru'
+        text = get_text(
+            lang,
+            'deposit_enter_amount',
+            min_amount=f"{min_usdt:.2f}",
+            min_pln=f"{min_pln:.2f}",
+        )
+        msg = await message.answer(text)
+        await state.update_data(
+            prompt_message_id=msg.message_id,
+            min_usdt=min_usdt,
+            min_pln=min_pln,
+            rate=rate,
+        )
+        await state.set_state(DepositStates.waiting_for_amount)
+        return
+
     # Язык установлен - показываем приветствие
     lang = current_lang
     welcome_text = get_text(lang, 'welcome', name=username)
