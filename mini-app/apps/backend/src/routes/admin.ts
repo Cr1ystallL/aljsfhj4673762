@@ -2502,7 +2502,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         }
 
         const where = normalizedStatus
-          ? Prisma.sql` WHERE status = ${normalizedStatus}`
+          ? normalizedStatus === 'paid'
+            ? Prisma.sql` WHERE status IN ('paid', 'credited')`
+            : Prisma.sql` WHERE status = ${normalizedStatus}`
           : Prisma.empty;
         let orders: FoluxpayOrderRow[] = [];
         try {

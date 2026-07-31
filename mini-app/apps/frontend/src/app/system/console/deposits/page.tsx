@@ -138,6 +138,9 @@ export default function DepositsPage() {
   const filtered = useMemo(() => {
     if (!data) return null;
     if (filter === 'all') return data;
+    if (filter === 'paid') {
+      return data.filter((d) => d.status === 'paid' || d.status === 'credited');
+    }
     return data.filter((d) => d.status === filter);
   }, [data, filter]);
 
@@ -145,8 +148,9 @@ export default function DepositsPage() {
     const c = { all: data?.length ?? 0, pending: 0, paid: 0, cancelled: 0, expired: 0, failed: 0 };
     if (!data) return c;
     for (const d of data) {
-      if (d.status in c) {
-        c[d.status as keyof typeof c]++;
+      const key = (d.status === 'credited' ? 'paid' : d.status) as keyof typeof c;
+      if (key in c) {
+        c[key]++;
       }
     }
     return c;
@@ -354,14 +358,14 @@ function DepositRow({
         <div
           className={cn(
             'font-roobert text-[14px] tabular-nums',
-            deposit.status === 'paid'
+            deposit.status === 'paid' || deposit.status === 'credited'
               ? 'text-[#a0e0ab]'
               : deposit.status === 'cancelled' || deposit.status === 'expired' || deposit.status === 'failed'
                 ? 'text-whisper-gray line-through'
                 : 'text-frost-white'
           )}
         >
-          {deposit.status === 'paid' ? '+' : ''}
+          {deposit.status === 'paid' || deposit.status === 'credited' ? '+' : ''}
           {fmt(deposit.amount)} {deposit.currency}
         </div>
         {deposit.uniqueAmount > 0 && (
@@ -388,6 +392,11 @@ function StatusChip({ status }: { status: Deposit['status'] | string }) {
       Icon: Clock,
     },
     paid: {
+      label: 'Подтверждён',
+      cls: 'border-[#a0e0ab]/35 bg-[#a0e0ab]/10 text-[#a0e0ab]',
+      Icon: Check,
+    },
+    credited: {
       label: 'Подтверждён',
       cls: 'border-[#a0e0ab]/35 bg-[#a0e0ab]/10 text-[#a0e0ab]',
       Icon: Check,
