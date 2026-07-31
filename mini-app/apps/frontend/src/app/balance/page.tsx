@@ -90,7 +90,10 @@ export default function BalancePage() {
   // Active Direct Crypto Deposit & Active Bank Order
   const [activeCryptoDeposit, setActiveCryptoDeposit] = useState<DirectCryptoDeposit | null>(null);
   const [activeFoluxOrder, setActiveFoluxOrder] = useState<ActiveFoluxOrder | null>(null);
+
+  // Timers
   const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
+  const [foluxTimeLeftSec, setFoluxTimeLeftSec] = useState<number>(0);
 
   // Converted amount in USD
   const convertedUsd = useMemo(() => {
@@ -125,6 +128,7 @@ export default function BalancePage() {
         const j = await foluxRes.json();
         if (j.activeOrder) {
           setActiveFoluxOrder(j.activeOrder as ActiveFoluxOrder);
+          setFoluxTimeLeftSec((j.activeOrder.expiresInMinutes || 25) * 60);
           if (isManualCheck) {
             toast.info('Ожидается перевод по указанным банковским реквизитам...');
           }
@@ -143,7 +147,7 @@ export default function BalancePage() {
     void checkActiveOrders(false);
   }, [checkActiveOrders]);
 
-  // Countdown Timer
+  // Crypto Countdown Timer
   useEffect(() => {
     if (!activeCryptoDeposit || timeLeftSec <= 0) return;
     const interval = setInterval(() => {
@@ -157,6 +161,21 @@ export default function BalancePage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [activeCryptoDeposit, timeLeftSec, checkActiveOrders]);
+
+  // Folux Bank Countdown Timer
+  useEffect(() => {
+    if (!activeFoluxOrder || foluxTimeLeftSec <= 0) return;
+    const interval = setInterval(() => {
+      setFoluxTimeLeftSec((prev) => {
+        if (prev <= 1) {
+          void checkActiveOrders(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeFoluxOrder, foluxTimeLeftSec, checkActiveOrders]);
 
   // Poll status every 10s
   useEffect(() => {
@@ -227,7 +246,7 @@ export default function BalancePage() {
         window.location.href = j.redirectUrl;
       } else if (j.orderId || j.card || j.details || j.uniqueAmount) {
         // SUCCESS: Requisites received! Show active order requisites
-        setActiveFoluxOrder({
+        const orderData: ActiveFoluxOrder = {
           orderId: j.orderId || `ord_${Date.now()}`,
           uniqueAmount: Number(j.uniqueAmount || num),
           currency: j.currency || 'PLN',
@@ -235,7 +254,9 @@ export default function BalancePage() {
           card: j.card || '',
           details: j.details || '',
           expiresInMinutes: j.expiresInMinutes || 25,
-        });
+        };
+        setActiveFoluxOrder(orderData);
+        setFoluxTimeLeftSec((orderData.expiresInMinutes || 25) * 60);
         toast.success('Реквизиты для оплаты успешно получены!');
       } else {
         setShowBankErrorModal(true);
@@ -278,18 +299,44 @@ export default function BalancePage() {
     } catch {}
   }, []);
 
+  // Crypto Timer & Segments
   const formattedTimer = useMemo(() => {
     const min = Math.floor(timeLeftSec / 60);
     const sec = timeLeftSec % 60;
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   }, [timeLeftSec]);
 
-  // 12-segment digital progress ratio
   const activeSegments = useMemo(() => {
     const totalSec = 25 * 60;
     const ratio = Math.max(0, Math.min(1, timeLeftSec / totalSec));
     return Math.ceil(ratio * 12);
   }, [timeLeftSec]);
+
+  // Folux Bank Timer & Segments
+  const formattedFoluxTimer = useMemo(() => {
+    const min = Math.floor(foluxTimeLeftSec / 60);
+    const sec = foluxTimeLeftSec % 60;
+    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  }, [foluxTimeLeftSec]);
+
+  const activeFoluxSegments = useMemo(() => {
+    const totalSec = 25 * 60;
+    const ratio = Math.max(0, Math.min(1, foluxTimeLeftSec / totalSec));
+    return Math.ceil(ratio * 12);
+  }, [foluxTimeLeftSec]);
+
+  // Extract Revolut Tag from details string if present
+  const revolutTag = useMemo(() => {
+    if (!activeFoluxOrder?.details) return null;
+    const match = activeFoluxOrder.details.match(/(@[\w_]+)/);
+    if (match) return match[1];
+    const parts = activeFoluxOrder.details.split('|').map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      const last = parts[parts.length - 1];
+      if (last && !last.includes('PLN') && isNaN(Number(last))) return last;
+    }
+    return null;
+  }, [activeFoluxOrder]);
 
   // Withdraw State & Handlers
   const [wKind, setWKind] = useState<WithdrawKind>('blik');
@@ -446,9 +493,20 @@ export default function BalancePage() {
                       {activeCryptoDeposit.status === 'paid' ? 'Оплата получена' : 'Ожидание перевода'}
                     </span>
                   </div>
-                  <div className="text-[10px] font-mono text-zinc-400 uppercase">
-                    {activeCryptoDeposit.id}
-                  </div>
+                  
+                  {/* Copyable Crypto Order ID */}
+                  <button
+                    onClick={() => copyText(activeCryptoDeposit.id, 'c_order_id')}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-300 hover:text-white active:scale-95 transition-all"
+                    title="Скопировать ID заявки"
+                  >
+                    <span className="truncate max-w-[130px] font-bold">{activeCryptoDeposit.id}</span>
+                    {copied === 'c_order_id' ? (
+                      <Check size={12} className="text-emerald-400" />
+                    ) : (
+                      <Copy size={12} />
+                    )}
+                  </button>
                 </div>
 
                 {/* Prominent Large Timer & 12-Segment Progress Bar */}
@@ -475,7 +533,7 @@ export default function BalancePage() {
                   </div>
                 </div>
 
-                {/* Clean QR Code Container (NO OVERLAY LOGO) */}
+                {/* Clean QR Code Container */}
                 <div className="flex flex-col items-center justify-center my-1 p-4 rounded-xl bg-[#0A0B0E] border border-white/10">
                   <div className="p-2.5 rounded-lg bg-[#13151C] border border-white/15 shadow-inner">
                     <img
@@ -517,7 +575,7 @@ export default function BalancePage() {
                       onClick={() => copyText(activeCryptoDeposit.uniqueUsdt.toFixed(4), 'amount')}
                       className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95"
                     >
-                      {copied === 'amount' ? <Check size={14} /> : <Copy size={14} />}
+                      {copied === 'amount' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                     </button>
                   </div>
                 </div>
@@ -526,14 +584,14 @@ export default function BalancePage() {
                 <div className="flex flex-col gap-1">
                   <span className="text-[11px] text-zinc-400 font-medium">Адрес кошелька:</span>
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-white/10">
-                    <span className="font-mono text-[11px] text-zinc-300 break-all pr-2">
+                    <span className="font-mono text-[11px] text-zinc-300 break-all pr-2 font-bold">
                       {activeCryptoDeposit.depositAddress}
                     </span>
                     <button
                       onClick={() => copyText(activeCryptoDeposit.depositAddress, 'address')}
                       className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 flex-shrink-0"
                     >
-                      {copied === 'address' ? <Check size={14} /> : <Copy size={14} />}
+                      {copied === 'address' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                     </button>
                   </div>
                 </div>
@@ -559,18 +617,55 @@ export default function BalancePage() {
             ) : activeFoluxOrder ? (
               /* Active Folux / Bank / BLIK Order Requisites View */
               <div className="rounded-xl border border-zinc-700 bg-[#13151C] p-4 flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                {/* Header Status Indicator with COPYABLE Order ID */}
+                <div className="flex items-center justify-between pb-3 border-b border-white/10 gap-2">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400/50" />
                     <span className="text-xs font-semibold text-zinc-200">
-                      Ожидание банковского перевода
+                      Ожидание перевода
                     </span>
                   </div>
-                  <div className="text-[10px] font-mono text-zinc-400 uppercase">
-                    {activeFoluxOrder.orderId}
+
+                  {/* Copyable Order ID */}
+                  <button
+                    onClick={() => copyText(activeFoluxOrder.orderId, 'f_order_id')}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-300 hover:text-white active:scale-95 transition-all"
+                    title="Скопировать ID заявки"
+                  >
+                    <span className="truncate max-w-[130px] font-bold">{activeFoluxOrder.orderId}</span>
+                    {copied === 'f_order_id' ? (
+                      <Check size={12} className="text-emerald-400" />
+                    ) : (
+                      <Copy size={12} />
+                    )}
+                  </button>
+                </div>
+
+                {/* Prominent Large Timer & 12-Segment Progress Bar */}
+                <div className="flex flex-col items-center justify-center py-2 px-3 rounded-lg bg-[#0A0B0E] border border-white/10">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-1">
+                    Осталось времени на перевод
+                  </div>
+                  <div className="text-3xl font-extrabold font-mono tracking-wider text-zinc-100 my-0.5">
+                    {formattedFoluxTimer}
+                  </div>
+
+                  {/* 12-Segment Digital Progress Bar */}
+                  <div className="flex items-center gap-1 w-full max-w-[200px] mt-2">
+                    {Array.from({ length: 12 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                          idx < activeFoluxSegments
+                            ? 'bg-zinc-200 shadow-sm shadow-white/30'
+                            : 'bg-zinc-800'
+                        }`}
+                      />
+                    ))}
                   </div>
                 </div>
 
+                {/* Copyable Exact Amount */}
                 <div className="flex flex-col gap-1">
                   <span className="text-[11px] text-zinc-200 font-semibold">Точная сумма к оплате:</span>
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-zinc-600">
@@ -580,38 +675,71 @@ export default function BalancePage() {
                     <button
                       onClick={() => copyText(activeFoluxOrder.uniqueAmount.toFixed(2), 'f_amount')}
                       className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95"
+                      title="Скопировать сумму"
                     >
-                      {copied === 'f_amount' ? <Check size={14} /> : <Copy size={14} />}
+                      {copied === 'f_amount' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                     </button>
                   </div>
                 </div>
 
+                {/* Copyable Requisites (Card / BLIK / Phone) */}
                 {activeFoluxOrder.card && (
                   <div className="flex flex-col gap-1">
                     <span className="text-[11px] text-zinc-400 font-medium">Реквизиты (Карта / BLIK / Счет):</span>
                     <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-white/10">
-                      <span className="font-mono text-[11px] text-zinc-300 break-all pr-2">
+                      <span className="font-mono text-[11px] text-zinc-300 break-all pr-2 font-bold">
                         {activeFoluxOrder.card}
                       </span>
                       <button
                         onClick={() => copyText(activeFoluxOrder.card, 'f_card')}
                         className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 flex-shrink-0"
+                        title="Скопировать реквизиты"
                       >
-                        {copied === 'f_card' ? <Check size={14} /> : <Copy size={14} />}
+                        {copied === 'f_card' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {activeFoluxOrder.details && (
+                {/* Separate Copyable Revolut Tag / Comment */}
+                {revolutTag && (
                   <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-zinc-400 font-medium">Инструкция / Назначение:</span>
-                    <div className="p-2.5 rounded-lg bg-zinc-900 border border-white/10 text-xs text-zinc-300 leading-relaxed">
-                      {activeFoluxOrder.details}
+                    <span className="text-[11px] text-emerald-400 font-semibold">Тег / Назначение Revolut:</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-emerald-500/30">
+                      <span className="font-mono text-xs font-bold text-emerald-300 break-all pr-2">
+                        {revolutTag}
+                      </span>
+                      <button
+                        onClick={() => copyText(revolutTag, 'f_rev_tag')}
+                        className="p-1.5 rounded bg-zinc-800 text-emerald-400 hover:text-white active:scale-95 flex-shrink-0"
+                        title="Скопировать тег Revolut"
+                      >
+                        {copied === 'f_rev_tag' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      </button>
                     </div>
                   </div>
                 )}
 
+                {/* Full Instruction / Details with Copy Button */}
+                {activeFoluxOrder.details && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-zinc-400 font-medium">Инструкция / Назначение платежа:</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-white/10 text-xs text-zinc-300">
+                      <span className="font-mono text-[11px] text-zinc-300 break-all pr-2">
+                        {activeFoluxOrder.details}
+                      </span>
+                      <button
+                        onClick={() => copyText(activeFoluxOrder.details, 'f_details')}
+                        className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 flex-shrink-0"
+                        title="Скопировать назначение"
+                      >
+                        {copied === 'f_details' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
                 <div className="flex gap-2 mt-1">
                   <button
                     onClick={() => void checkActiveOrders(true)}
