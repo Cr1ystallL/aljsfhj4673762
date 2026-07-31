@@ -90,6 +90,76 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const order = rows[0];
+
+      // Auto-reconcile on active order check if paid at provider
+      try {
+        const remoteStatus = await getOrderStatus(order.id);
+        if (remoteStatus.success && remoteStatus.status === 'paid') {
+          const paidAmount = Number(remoteStatus.paid_amount) || Number(order.unique_amount);
+
+          await app.prisma.$transaction(async (tx) => {
+            const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
+              UPDATE balances
+              SET amount = amount + ${paidAmount}::numeric,
+                  wager_target = wager_target + ${paidAmount * 2}::numeric,
+                  auto_rtp_target = auto_rtp_target + ${paidAmount * 2}::numeric,
+                  updated_at = NOW(),
+                  last_synced_at = NOW(),
+                  version = version + 1
+              WHERE user_id = ${userId}
+                AND demo_mode = false
+              RETURNING amount
+            `;
+
+            let afterAmount: number;
+            if (balanceRows.length === 0) {
+              const created = await tx.$queryRaw<Array<{ amount: string }>>`
+                INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
+                VALUES (gen_random_uuid(), ${userId}, ${paidAmount}::numeric, 'PLN', false, ${paidAmount * 2}::numeric, ${paidAmount * 2}::numeric, NOW(), NOW())
+                RETURNING amount
+              `;
+              afterAmount = Number(created[0]?.amount ?? paidAmount);
+            } else {
+              afterAmount = Number(balanceRows[0].amount);
+            }
+
+            const beforeAmount = afterAmount - paidAmount;
+            const txId = `dep_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+            await tx.transaction.create({
+              data: {
+                id: txId,
+                userId: userId,
+                type: 'deposit',
+                amount: paidAmount,
+                balanceBefore: beforeAmount,
+                balanceAfter: afterAmount,
+                metadata: {
+                  foluxPayOrderId: order.id,
+                  provider: 'foluxpay',
+                  source: 'active_check_auto_reconcile',
+                },
+              },
+            });
+
+            await tx.$executeRaw`
+              UPDATE macvpay_orders
+              SET status = 'credited',
+                  paid_amount = ${paidAmount},
+                  paid_at = NOW(),
+                  credit_tx_id = ${txId},
+                  updated_at = NOW()
+              WHERE id = ${order.id} AND status IN ('pending', 'expired')
+            `;
+          });
+
+          logger.info({ orderId: order.id, userId, paidAmount }, 'Auto-credited FoluxPay order on active check');
+          return reply.send({ ok: true, activeOrder: null, credited: true });
+        }
+      } catch (err) {
+        logger.error({ err, orderId: order.id }, 'Error checking live order status during /active');
+      }
+
       const remainingMs = new Date(order.expires_at).getTime() - Date.now();
       const expiresInMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
 

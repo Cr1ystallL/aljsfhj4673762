@@ -13,16 +13,13 @@ let cronInterval: NodeJS.Timeout | null = null;
 async function runFoluxpayCron() {
   try {
     // Find orders that are pending or expired and need reconciliation.
-    // Wait at least 2 minutes since creation to give webhook a chance first.
-    const cutoff = new Date(Date.now() - 2 * 60 * 1000);
-    
     const pendingOrders = await prisma.$queryRaw<
       { id: string; user_id: string; unique_amount: number; status: string }[]
     >`
       SELECT id, user_id, unique_amount, status
       FROM macvpay_orders
       WHERE status IN ('pending', 'expired')
-        AND created_at < ${cutoff}
+      ORDER BY created_at DESC
       LIMIT 50
     `;
 
@@ -103,8 +100,8 @@ async function runFoluxpayCron() {
           logger.info({ orderId: order.id, userId: order.user_id, amount: paidAmount }, 'Cron reconciled and credited FoluxPay order');
         }
         
-        // Wait 2 seconds between requests to avoid hitting strict rate limits
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait 1 second between requests to avoid hitting strict rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (err) {
         logger.error({ err, orderId: order.id }, 'Error during FoluxPay cron reconciliation for order');
       }
@@ -116,8 +113,8 @@ async function runFoluxpayCron() {
 
 export function startFoluxpayCron() {
   if (cronInterval) return;
-  // Run every 60 seconds
-  cronInterval = setInterval(runFoluxpayCron, 60 * 1000);
+  // Run every 15 seconds
+  cronInterval = setInterval(runFoluxpayCron, 15 * 1000);
   logger.info('FoluxPay cron started');
 }
 

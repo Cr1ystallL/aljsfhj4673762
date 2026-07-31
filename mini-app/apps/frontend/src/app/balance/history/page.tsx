@@ -308,6 +308,11 @@ function StatusChip({ status }: { status: string }) {
       cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
       Icon: Check,
     },
+    credited: {
+      label: 'Зачислен',
+      cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+      Icon: Check,
+    },
     approved: {
       label: 'Одобрен',
       cls: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
