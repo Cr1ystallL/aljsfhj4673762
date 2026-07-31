@@ -720,24 +720,6 @@ export default function BalancePage() {
                   </div>
                 )}
 
-                {/* Full Instruction / Details with Copy Button */}
-                {activeFoluxOrder.details && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-zinc-400 font-medium">Инструкция / Назначение платежа:</span>
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-white/10 text-xs text-zinc-300">
-                      <span className="font-mono text-[11px] text-zinc-300 break-all pr-2">
-                        {activeFoluxOrder.details}
-                      </span>
-                      <button
-                        onClick={() => copyText(activeFoluxOrder.details, 'f_details')}
-                        className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 flex-shrink-0"
-                        title="Скопировать назначение"
-                      >
-                        {copied === 'f_details' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Actions */}
                 <div className="flex gap-2 mt-1">
