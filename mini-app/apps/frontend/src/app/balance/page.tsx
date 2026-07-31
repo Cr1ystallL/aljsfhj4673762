@@ -17,6 +17,7 @@ import {
   Coins,
 } from 'lucide-react';
 import { useBalanceStore } from '@/store/balance-store';
+import { useBalance } from '@/hooks/use-balance';
 import { toast } from '@/store/toast-store';
 import {
   Trc20Icon,
@@ -58,6 +59,7 @@ export default function BalancePage() {
   const router = useRouter();
   const balance = useBalanceStore((s) => s.balance);
   const amountPln = balance?.amount ?? 0;
+  const { fetchBalance } = useBalance();
 
   const [tab, setTab] = useState<Tab>('deposit');
   const [method, setMethod] = useState<DepositMethod>('crypto');
@@ -133,7 +135,14 @@ export default function BalancePage() {
             toast.info('Ожидается перевод по указанным банковским реквизитам...');
           }
         } else {
+          const hadOrder = Boolean(activeFoluxOrder || j.credited);
           setActiveFoluxOrder(null);
+          if (hadOrder) {
+            void fetchBalance();
+            if (isManualCheck) {
+              toast.success('Оплата успешно подтверждена! Баланс зачислен.');
+            }
+          }
         }
       }
     } catch {
@@ -141,7 +150,7 @@ export default function BalancePage() {
     } finally {
       if (isManualCheck) setChecking(false);
     }
-  }, []);
+  }, [activeFoluxOrder, fetchBalance]);
 
   useEffect(() => {
     void checkActiveOrders(false);
