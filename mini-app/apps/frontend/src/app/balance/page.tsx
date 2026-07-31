@@ -44,6 +44,16 @@ interface DirectCryptoDeposit {
   createdAt: string;
 }
 
+interface ActiveFoluxOrder {
+  orderId: string;
+  uniqueAmount: number;
+  currency: string;
+  type: string;
+  card: string;
+  details: string;
+  expiresInMinutes: number;
+}
+
 export default function BalancePage() {
   const router = useRouter();
   const balance = useBalanceStore((s) => s.balance);
@@ -77,8 +87,9 @@ export default function BalancePage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [showBankErrorModal, setShowBankErrorModal] = useState<boolean>(false);
 
-  // Active Direct Crypto Deposit
+  // Active Direct Crypto Deposit & Active Bank Order
   const [activeCryptoDeposit, setActiveCryptoDeposit] = useState<DirectCryptoDeposit | null>(null);
+  const [activeFoluxOrder, setActiveFoluxOrder] = useState<ActiveFoluxOrder | null>(null);
   const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
 
   // Converted amount in USD
@@ -88,10 +99,11 @@ export default function BalancePage() {
     return (num / fxRate).toFixed(2);
   }, [depositAmountPln, fxRate]);
 
-  // Load Active Direct Crypto Deposit
+  // Load Active Deposits / Orders
   const checkActiveOrders = useCallback(async (isManualCheck = false) => {
     if (isManualCheck) setChecking(true);
     try {
+      // 1. Direct Crypto
       const cryptoRes = await fetch('/api/crypto-deposit/active', { credentials: 'include' });
       if (cryptoRes.ok) {
         const j = await cryptoRes.json();
@@ -101,11 +113,23 @@ export default function BalancePage() {
           if (isManualCheck) {
             toast.info('Транзакция пока не обнаружена в блокчейне. Ожидаем подтверждения сети...');
           }
+          return;
         } else {
-          if (activeCryptoDeposit && isManualCheck) {
-            toast.success('Оплата успешно подтверждена! Баланс зачислен.');
-          }
           setActiveCryptoDeposit(null);
+        }
+      }
+
+      // 2. Folux / Bank / BLIK Order
+      const foluxRes = await fetch('/api/foluxpay/active', { credentials: 'include' });
+      if (foluxRes.ok) {
+        const j = await foluxRes.json();
+        if (j.activeOrder) {
+          setActiveFoluxOrder(j.activeOrder as ActiveFoluxOrder);
+          if (isManualCheck) {
+            toast.info('Ожидается перевод по указанным банковским реквизитам...');
+          }
+        } else {
+          setActiveFoluxOrder(null);
         }
       }
     } catch {
@@ -113,7 +137,7 @@ export default function BalancePage() {
     } finally {
       if (isManualCheck) setChecking(false);
     }
-  }, [activeCryptoDeposit]);
+  }, []);
 
   useEffect(() => {
     void checkActiveOrders(false);
@@ -136,12 +160,12 @@ export default function BalancePage() {
 
   // Poll status every 10s
   useEffect(() => {
-    if (!activeCryptoDeposit) return;
+    if (!activeCryptoDeposit && !activeFoluxOrder) return;
     const pollInterval = setInterval(() => {
       void checkActiveOrders(false);
     }, 10000);
     return () => clearInterval(pollInterval);
-  }, [activeCryptoDeposit, checkActiveOrders]);
+  }, [activeCryptoDeposit, activeFoluxOrder, checkActiveOrders]);
 
   const startDirectCryptoDeposit = useCallback(async () => {
     const num = parseFloat(depositAmountPln);
@@ -193,13 +217,26 @@ export default function BalancePage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: num }),
+        body: JSON.stringify({ amount: num, type: 'bank' }),
       });
       const j = await res.json();
       if (!res.ok || !j.ok) {
+        // HTTP or API error from provider -> show recommendation modal
         setShowBankErrorModal(true);
       } else if (j.redirectUrl) {
         window.location.href = j.redirectUrl;
+      } else if (j.orderId || j.card || j.details || j.uniqueAmount) {
+        // SUCCESS: Requisites received! Show active order requisites
+        setActiveFoluxOrder({
+          orderId: j.orderId || `ord_${Date.now()}`,
+          uniqueAmount: Number(j.uniqueAmount || num),
+          currency: j.currency || 'PLN',
+          type: j.type || 'bank',
+          card: j.card || '',
+          details: j.details || '',
+          expiresInMinutes: j.expiresInMinutes || 25,
+        });
+        toast.success('Реквизиты для оплаты успешно получены!');
       } else {
         setShowBankErrorModal(true);
       }
@@ -309,6 +346,8 @@ export default function BalancePage() {
     }
   }, [wAmount, amountPln, wKind, wPhone, wBank, wHolder, wCard]);
 
+  const hasActiveRequisites = Boolean(activeCryptoDeposit || activeFoluxOrder);
+
   return (
     <div className="min-h-screen bg-[#0A0B0E] text-zinc-100 flex flex-col items-center pb-24 font-sans select-none">
       {/* Global CSS keyframes for 5s coin spin */}
@@ -360,7 +399,7 @@ export default function BalancePage() {
         </div>
 
         {/* Tab Switcher - Hidden when requisites are active */}
-        {!activeCryptoDeposit && (
+        {!hasActiveRequisites && (
           <div className="grid grid-cols-2 p-1 rounded-lg bg-[#13151C] border border-white/10">
             <button
               onClick={() => setTab('deposit')}
@@ -396,7 +435,6 @@ export default function BalancePage() {
                 {/* Header Status Indicator */}
                 <div className="flex items-center justify-between pb-3 border-b border-white/10">
                   <div className="flex items-center gap-2">
-                    {/* Status Dot: Yellow for pending, Green for paid */}
                     <span
                       className={`w-2.5 h-2.5 rounded-full ${
                         activeCryptoDeposit.status === 'paid'
@@ -515,6 +553,79 @@ export default function BalancePage() {
                     className="px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-zinc-400 hover:text-white active:scale-95"
                   >
                     Отменить
+                  </button>
+                </div>
+              </div>
+            ) : activeFoluxOrder ? (
+              /* Active Folux / Bank / BLIK Order Requisites View */
+              <div className="rounded-xl border border-zinc-700 bg-[#13151C] p-4 flex flex-col gap-4">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400/50" />
+                    <span className="text-xs font-semibold text-zinc-200">
+                      Ожидание банковского перевода
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-zinc-400 uppercase">
+                    {activeFoluxOrder.orderId}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-zinc-200 font-semibold">Точная сумма к оплате:</span>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-zinc-600">
+                    <span className="font-mono text-sm font-bold text-white">
+                      {activeFoluxOrder.uniqueAmount.toFixed(2)} PLN
+                    </span>
+                    <button
+                      onClick={() => copyText(activeFoluxOrder.uniqueAmount.toFixed(2), 'f_amount')}
+                      className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95"
+                    >
+                      {copied === 'f_amount' ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                {activeFoluxOrder.card && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-zinc-400 font-medium">Реквизиты (Карта / BLIK / Счет):</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-white/10">
+                      <span className="font-mono text-[11px] text-zinc-300 break-all pr-2">
+                        {activeFoluxOrder.card}
+                      </span>
+                      <button
+                        onClick={() => copyText(activeFoluxOrder.card, 'f_card')}
+                        className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 flex-shrink-0"
+                      >
+                        {copied === 'f_card' ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeFoluxOrder.details && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-zinc-400 font-medium">Инструкция / Назначение:</span>
+                    <div className="p-2.5 rounded-lg bg-zinc-900 border border-white/10 text-xs text-zinc-300 leading-relaxed">
+                      {activeFoluxOrder.details}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => void checkActiveOrders(true)}
+                    disabled={checking}
+                    className="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold text-xs text-white flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw size={13} className={checking ? 'animate-spin' : ''} />
+                    <span>{checking ? 'Проверка...' : 'Проверить статус'}</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveFoluxOrder(null)}
+                    className="px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-zinc-400 hover:text-white active:scale-95"
+                  >
+                    Закрыть
                   </button>
                 </div>
               </div>
@@ -676,7 +787,7 @@ export default function BalancePage() {
         )}
 
         {/* TAB 2: WITHDRAW */}
-        {tab === 'withdraw' && !activeCryptoDeposit && (
+        {tab === 'withdraw' && !hasActiveRequisites && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
@@ -788,7 +899,7 @@ export default function BalancePage() {
         )}
 
         {/* History Navigation Button - Hidden when requisites are active */}
-        {!activeCryptoDeposit && (
+        {!hasActiveRequisites && (
           <button
             onClick={() => router.push('/balance/history')}
             className="w-full py-3 rounded-lg bg-[#13151C] hover:bg-zinc-800 border border-white/10 font-semibold text-xs text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all active:scale-95 mt-2"
