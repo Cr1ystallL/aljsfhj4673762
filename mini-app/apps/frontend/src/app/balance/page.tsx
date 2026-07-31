@@ -701,24 +701,34 @@ export default function BalancePage() {
                   </div>
                 )}
 
-                {/* Separate Copyable Revolut Tag / Comment */}
-                {revolutTag && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-emerald-400 font-semibold">Тег / Назначение Revolut:</span>
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-emerald-500/30">
-                      <span className="font-mono text-xs font-bold text-emerald-300 break-all pr-2">
-                        {revolutTag}
-                      </span>
+                {/* Tech Support Box */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-sky-400 font-semibold flex items-center gap-1">
+                    <span>Техническая поддержка:</span>
+                  </span>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-sky-500/30">
+                    <span className="font-mono text-xs font-bold text-sky-300 break-all pr-2">
+                      @FoLuxPaySup_bot
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       <button
-                        onClick={() => copyText(revolutTag, 'f_rev_tag')}
-                        className="p-1.5 rounded bg-zinc-800 text-emerald-400 hover:text-white active:scale-95 flex-shrink-0"
-                        title="Скопировать тег Revolut"
+                        onClick={() => copyText('@FoLuxPaySup_bot', 'f_sup')}
+                        className="p-1.5 rounded bg-zinc-800 text-sky-400 hover:text-white active:scale-95"
+                        title="Скопировать контакт поддержки"
                       >
-                        {copied === 'f_rev_tag' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        {copied === 'f_sup' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                       </button>
+                      <a
+                        href="https://t.me/FoLuxPaySup_bot"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-semibold text-sky-300 hover:bg-sky-500/25 active:scale-95 transition-all"
+                      >
+                        Написать
+                      </a>
                     </div>
                   </div>
-                )}
+                </div>
 
 
                 {/* Actions */}
