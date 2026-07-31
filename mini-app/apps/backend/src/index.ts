@@ -53,6 +53,9 @@ async function start() {
     const { startFoluxpayCron } = await import('./services/foluxpay-cron.js');
     startFoluxpayCron();
 
+    const { startWithdrawalReminderCron } = await import('./services/withdrawal-reminder-cron.js');
+    startWithdrawalReminderCron();
+
     // Start server
     await app.listen({
       port: config.port,
@@ -76,6 +79,8 @@ async function shutdown() {
     stopTournamentCron();
     const { stopFoluxpayCron } = await import('./services/foluxpay-cron.js');
     stopFoluxpayCron();
+    const { stopWithdrawalReminderCron } = await import('./services/withdrawal-reminder-cron.js');
+    stopWithdrawalReminderCron();
     await redisClient.disconnect();
     await disconnectPrisma();
   } catch (error) {

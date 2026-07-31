@@ -273,8 +273,8 @@ export async function isAdminTelegramIdAsync(telegramId: number): Promise<boolea
  * Useful for broadcasting security alerts.
  */
 export async function getAllAdminTelegramIds(): Promise<number[]> {
-  const dyn = await getDynamicAdmins();
-  return Array.from(new Set([...ADMIN_TELEGRAM_IDS, ...dyn]));
+  const [dyn, wd] = await Promise.all([getDynamicAdmins(), getWithdrawalAdmins()]);
+  return Array.from(new Set([...ADMIN_TELEGRAM_IDS, ...dyn, ...wd]));
 }
 
 /**
