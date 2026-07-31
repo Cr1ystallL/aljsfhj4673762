@@ -325,17 +325,13 @@ export default function BalancePage() {
     return Math.ceil(ratio * 12);
   }, [foluxTimeLeftSec]);
 
-  // Extract Revolut Tag from details string if present
-  const revolutTag = useMemo(() => {
-    if (!activeFoluxOrder?.details) return null;
-    const match = activeFoluxOrder.details.match(/(@[\w_]+)/);
-    if (match) return match[1];
-    const parts = activeFoluxOrder.details.split('|').map((s) => s.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      const last = parts[parts.length - 1];
-      if (last && !last.includes('PLN') && isNaN(Number(last))) return last;
+  // Support Username handle for payment assistance
+  const supportUsername = useMemo(() => {
+    if (activeFoluxOrder?.details) {
+      const match = activeFoluxOrder.details.match(/(@[\w_]+)/);
+      if (match) return match[1];
     }
-    return null;
+    return '@FoLuxPaySup_bot';
   }, [activeFoluxOrder]);
 
   // Withdraw State & Handlers
@@ -701,34 +697,24 @@ export default function BalancePage() {
                   </div>
                 )}
 
-                {/* Tech Support Box */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] text-sky-400 font-semibold flex items-center gap-1">
-                    <span>Техническая поддержка:</span>
-                  </span>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-sky-500/30">
-                    <span className="font-mono text-xs font-bold text-sky-300 break-all pr-2">
-                      @FoLuxPaySup_bot
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* Tech Support Username Box */}
+                {supportUsername && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-zinc-400 font-medium">Тех. поддержка (при возникновении вопросов):</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-white/10">
+                      <span className="font-mono text-xs font-bold text-sky-400 break-all pr-2">
+                        {supportUsername}
+                      </span>
                       <button
-                        onClick={() => copyText('@FoLuxPaySup_bot', 'f_sup')}
-                        className="p-1.5 rounded bg-zinc-800 text-sky-400 hover:text-white active:scale-95"
-                        title="Скопировать контакт поддержки"
+                        onClick={() => copyText(supportUsername, 'f_support_tag')}
+                        className="p-1.5 rounded bg-zinc-800 text-zinc-300 hover:text-white active:scale-95 flex-shrink-0"
+                        title="Скопировать юзернейм тех. поддержки"
                       >
-                        {copied === 'f_sup' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        {copied === 'f_support_tag' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                       </button>
-                      <a
-                        href="https://t.me/FoLuxPaySup_bot"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-semibold text-sky-300 hover:bg-sky-500/25 active:scale-95 transition-all"
-                      >
-                        Написать
-                      </a>
                     </div>
                   </div>
-                </div>
+                )}
 
 
                 {/* Actions */}
