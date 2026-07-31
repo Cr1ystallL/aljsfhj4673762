@@ -329,9 +329,9 @@ export default function BalancePage() {
   const supportUsername = useMemo(() => {
     if (activeFoluxOrder?.details) {
       const match = activeFoluxOrder.details.match(/(@[\w_]+)/);
-      if (match) return match[1];
+      if (match && match[1] !== '@FoLuxPaySup_bot') return match[1];
     }
-    return '@FoLuxPaySup_bot';
+    return '@MacvBetSupport';
   }, [activeFoluxOrder]);
 
   // Withdraw State & Handlers
