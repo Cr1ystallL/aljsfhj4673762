@@ -482,8 +482,8 @@ export class MacvpotEngine extends EventEmitter {
 
     this.bets.push(newParticipant);
 
-    // If this is the FIRST bet in the round, start the 25-second countdown!
-    if (this.bets.length === 1) {
+    // Trigger 25-second countdown ONLY when at least 2 players are in the pot!
+    if (this.bets.length === 2) {
       if (this.timer) clearTimeout(this.timer);
       const config = await gameConfig.get('macvpot');
       const bettingDurationSec = (config.extras?.bettingDuration as number) || 25;
@@ -547,6 +547,11 @@ export class MacvpotEngine extends EventEmitter {
     }
 
     this.recalculateChances();
+
+    if (this.bets.length < 2) {
+      if (this.timer) clearTimeout(this.timer);
+      this.phaseEndsAt = null;
+    }
 
     const cancelEvent = createEvent('macvpot:bet_cancelled', {
       roundId: this.roundId,
