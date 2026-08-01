@@ -184,8 +184,7 @@ export class MacvpotEngine extends EventEmitter {
     this.nonce = 1;
 
     const config = await gameConfig.get('macvpot');
-    const bettingDurationSec = (config.extras?.bettingDuration as number) || 25;
-    this.phaseEndsAt = Date.now() + bettingDurationSec * 1000;
+    this.phaseEndsAt = null; // Timer starts on 1st bet placement
 
     try {
       await prisma.gameRound.create({
@@ -220,16 +219,11 @@ export class MacvpotEngine extends EventEmitter {
 
     if (this.timer) clearTimeout(this.timer);
 
-    // If 0 players: extend betting timer by 10 seconds to wait for players
+    // If 0 players: keep phaseEndsAt null until first bet
     if (this.bets.length === 0) {
-      const config = await gameConfig.get('macvpot');
-      const bettingDurationSec = (config.extras?.bettingDuration as number) || 25;
-      this.phaseEndsAt = Date.now() + bettingDurationSec * 1000;
+      this.phaseEndsAt = null;
       this.broadcastState();
       this.isProcessingPhase = false;
-      this.timer = setTimeout(() => {
-        void this.endBettingPhase();
-      }, bettingDurationSec * 1000);
       return;
     }
 
@@ -498,6 +492,16 @@ export class MacvpotEngine extends EventEmitter {
     };
 
     this.bets.push(newParticipant);
+
+    // If this is the FIRST bet in the round, trigger fresh 25s betting countdown!
+    if (this.bets.length === 1) {
+      if (this.timer) clearTimeout(this.timer);
+      const bettingDurationSec = (config.extras?.bettingDuration as number) || 25;
+      this.phaseEndsAt = Date.now() + bettingDurationSec * 1000;
+      this.timer = setTimeout(() => {
+        void this.endBettingPhase();
+      }, bettingDurationSec * 1000);
+    }
 
     // Recalculate real-time win chances for all participants
     this.recalculateChances();

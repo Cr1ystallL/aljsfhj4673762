@@ -16,9 +16,25 @@ interface MacvpotRouletteProps {
   onSpinComplete: () => void;
 }
 
-const ITEM_WIDTH = 130; // Width of each avatar item card in px
+const ITEM_WIDTH = 120; // Width of each avatar item card in px
+
+// Seeded PRNG for stable deterministic sector track order
+function seededPRNG(seedStr: string) {
+  let h = 2166136261 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 16777619);
+  }
+  return function () {
+    h += h << 13;
+    h ^= h >>> 7;
+    h += h << 3;
+    h ^= h >>> 17;
+    return (h += h << 5) >>> 0;
+  };
+}
 
 function generateRouletteSequence(
+  roundId: string,
   bets: MacvpotParticipant[],
   winnerUserId: string | null,
   length = 80,
@@ -28,6 +44,7 @@ function generateRouletteSequence(
     return [];
   }
 
+  const prng = seededPRNG(roundId || 'macvpot_seed');
   const winner = bets.find((b) => b.userId === winnerUserId) || bets[0];
 
   // Weighted random distribution array based on chances
@@ -39,16 +56,14 @@ function generateRouletteSequence(
     }
   }
 
-  const getRandomItem = () => {
-    return weightedPool[Math.floor(Math.random() * weightedPool.length)] || bets[0];
-  };
-
   const seq: MacvpotParticipant[] = [];
   for (let i = 0; i < length; i++) {
     if (i === winIndex && winnerUserId) {
       seq.push(winner);
     } else {
-      seq.push(getRandomItem());
+      const randVal = prng();
+      const item = weightedPool[randVal % weightedPool.length] || bets[0];
+      seq.push(item);
     }
   }
 
@@ -73,7 +88,7 @@ export function MacvpotRoulette({
   // Generate track sequence when bets or roundId changes
   useEffect(() => {
     if (!isSpinning) {
-      const initialSeq = generateRouletteSequence(bets, null, 80, 70);
+      const initialSeq = generateRouletteSequence(roundId, bets, null, 80, 70);
       setTrack(initialSeq);
       void controls.set({ x: 0 });
       spunRoundIdRef.current = null;
@@ -88,7 +103,7 @@ export function MacvpotRoulette({
       }
       spunRoundIdRef.current = roundId;
 
-      const winSeq = generateRouletteSequence(bets, winnerUserId, 80, 70);
+      const winSeq = generateRouletteSequence(roundId, bets, winnerUserId, 80, 70);
       setTrack(winSeq);
 
       // Reset to start position instantly
@@ -101,8 +116,8 @@ export function MacvpotRoulette({
       setTimeout(() => {
         const containerWidth = containerRef.current?.offsetWidth || 340;
         const centerOffset = containerWidth / 2 - ITEM_WIDTH / 2;
-        // Random micro-offset inside target card (-40px to +40px)
-        const randomStop = (Math.random() - 0.5) * (ITEM_WIDTH * 0.7);
+        // Random micro-offset inside target card (-35px to +35px)
+        const randomStop = (Math.random() - 0.5) * (ITEM_WIDTH * 0.6);
 
         const targetX = -(70 * ITEM_WIDTH) + centerOffset + randomStop;
 
@@ -125,10 +140,10 @@ export function MacvpotRoulette({
   return (
     <div
       ref={containerRef}
-      className="w-full flex flex-col gap-2 relative bg-black/60 rounded-3xl py-6 border border-white/10 overflow-hidden shadow-[0_8px_32px_0_rgba(0,0,0,0.8)] backdrop-blur-2xl min-h-[140px] justify-center"
+      className="w-full flex flex-col gap-2 relative bg-black/80 rounded-3xl py-5 border border-white/10 overflow-hidden shadow-[0_8px_32px_0_rgba(0,0,0,0.9)] backdrop-blur-2xl min-h-[160px] justify-center"
     >
       {/* Central target liquid glass selector line */}
-      <div className="absolute top-0 bottom-0 left-1/2 w-[4px] bg-gradient-to-b from-amber-300 via-white to-amber-300 -translate-x-1/2 z-20 shadow-[0_0_15px_rgba(255,255,255,0.8)] pointer-events-none rounded-full" />
+      <div className="absolute top-0 bottom-0 left-1/2 w-[4px] bg-gradient-to-b from-amber-300 via-white to-amber-300 -translate-x-1/2 z-20 shadow-[0_0_15px_rgba(255,255,255,0.9)] pointer-events-none rounded-full" />
 
       {/* Side vignettes for edge fading */}
       <div className="absolute top-0 bottom-0 left-0 w-20 sm:w-32 bg-gradient-to-r from-black to-transparent z-30 pointer-events-none" />
@@ -170,34 +185,42 @@ export function MacvpotRoulette({
               return (
                 <div
                   key={idx}
-                  className="flex-shrink-0 flex items-center justify-center p-2"
-                  style={{ width: `${ITEM_WIDTH}px`, height: '130px' }}
+                  className="flex-shrink-0 p-1.5"
+                  style={{ width: `${ITEM_WIDTH}px`, height: '140px' }}
                 >
-                  <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] p-2 flex flex-col items-center justify-center gap-1.5 backdrop-blur-md relative overflow-hidden shadow-lg group">
-                    <div className="w-12 h-12 rounded-full p-[2px] bg-gradient-to-tr from-white/20 via-amber-400/40 to-white/20 shadow-md relative flex items-center justify-center overflow-hidden">
-                      {item.user?.photoUrl ? (
-                        <Image
-                          src={item.user.photoUrl}
-                          alt={name}
-                          width={44}
-                          height={44}
-                          className="rounded-full object-cover w-full h-full"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center text-white font-bold text-base">
-                          {initial}
-                        </div>
-                      )}
+                  <div className="w-full h-full rounded-2xl border border-white/20 bg-black relative overflow-hidden shadow-xl group">
+                    {/* Full-Cover Avatar Fill */}
+                    {item.user?.photoUrl ? (
+                      <Image
+                        src={item.user.photoUrl}
+                        alt={name}
+                        width={120}
+                        height={140}
+                        className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-300"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center text-white text-3xl font-black">
+                        {initial}
+                      </div>
+                    )}
+
+                    {/* Dark Gradients for Text Legibility */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 pointer-events-none" />
+
+                    {/* Top: Player Name */}
+                    <div className="absolute top-2 left-2 right-2 text-center z-10">
+                      <span className="text-[11px] font-bold text-white drop-shadow-md truncate block">
+                        {name}
+                      </span>
                     </div>
 
-                    <span className="text-[11px] font-semibold text-white/90 truncate max-w-[100px]">
-                      {name}
-                    </span>
-
-                    <span className="text-[10px] font-semibold text-amber-300 bg-white/[0.06] px-2 py-0.5 rounded-full border border-white/10">
-                      {item.chance > 0 ? `${item.chance}%` : 'Jackpot'}
-                    </span>
+                    {/* Bottom: Chance Badge */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
+                      <span className="text-[10px] font-extrabold text-amber-300 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-400/40 shadow-md">
+                        {item.chance > 0 ? `${item.chance}%` : 'Jackpot'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
