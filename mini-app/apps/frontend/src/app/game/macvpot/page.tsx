@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { Trophy, Users, Clock, Flame, RotateCcw, Sparkles, Zap, DollarSign } from 'lucide-react';
+import { Trophy, Users, Clock, Flame, RotateCcw, Sparkles } from 'lucide-react';
 import { MacvpotRoulette } from '@/components/game/macvpot/macvpot-roulette';
 import { MacvpotWinnerModal } from '@/components/game/macvpot/macvpot-winner-modal';
 import { MacvpotHistory } from '@/components/game/macvpot/macvpot-history';
@@ -222,18 +222,19 @@ export default function MacvpotPage() {
     }
   };
 
-  // Preset bet helpers
-  const handlePreset = (fn: (current: number) => number) => {
+  // Preset bet helpers (1/2 and 2X)
+  const handleHalf = () => {
     const current = parseInt(betAmount, 10) || 0;
-    const next = Math.max(10, fn(current));
-    setBetAmount(String(next));
+    setBetAmount(String(Math.max(10, Math.floor(current / 2))));
+  };
+
+  const handleDouble = () => {
+    const current = parseInt(betAmount, 10) || 0;
+    setBetAmount(String(Math.max(10, current * 2)));
   };
 
   return (
-    <main className="min-h-screen w-full bg-black text-frost-white relative overflow-x-hidden selection:bg-purple-500 selection:text-white">
-      {/* Background dark radial aura */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-purple-900/10 rounded-full blur-[140px] pointer-events-none -z-10" />
-
+    <main className="min-h-screen w-full bg-black text-frost-white relative overflow-x-hidden selection:bg-amber-400 selection:text-black">
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
         {/* 1. TOP BAR */}
         <GameTopBar title="MacvPot" Icon={Trophy} />
@@ -253,8 +254,8 @@ export default function MacvpotPage() {
           }}
         />
 
-        {/* 4. ЭЛЕМЕНТ ДЛЯ НАСТРОЙКИ СТАВКИ */}
-        <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12] p-5 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative overflow-hidden">
+        {/* 4. ЭЛЕМЕНТ ДЛЯ НАСТРОЙКИ СТАВКИ (LIQUID GLASS STYLE) */}
+        <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12]/90 p-5 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.8)] flex flex-col gap-4 relative overflow-hidden">
           {/* Top Info Bar inside Betting Element */}
           <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
             <div className="flex items-center gap-2">
@@ -266,15 +267,15 @@ export default function MacvpotPage() {
                   Общий Банк
                 </span>
                 <span className="text-xl sm:text-2xl font-black text-amber-400 font-roobert tracking-tight">
-                  {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs text-white/50 font-normal">монет</span>
+                  {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs text-white/50 font-normal">zł</span>
                 </span>
               </div>
             </div>
 
             {/* Status & Timer Badge */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold text-purple-300">
-                <Clock size={13} className="text-purple-400" />
+              <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold text-white/80">
+                <Clock size={13} className="text-amber-400" />
                 {state?.phase === 'betting' && `Сбор: ${timeLeft}с`}
                 {state?.phase === 'delay' && `Пауза: ${timeLeft}с`}
                 {state?.phase === 'spinning' && 'Вращение...'}
@@ -282,7 +283,7 @@ export default function MacvpotPage() {
               </div>
 
               <div className="flex items-center gap-1 bg-white/[0.04] border border-white/10 px-2.5 py-1.5 rounded-xl text-xs text-white/60 font-medium">
-                <Users size={13} className="text-purple-400" />
+                <Users size={13} className="text-white/40" />
                 <span>{state?.playerCount || 0}</span>
               </div>
             </div>
@@ -293,106 +294,66 @@ export default function MacvpotPage() {
             <div className="flex items-center justify-between text-xs font-bold text-white/50 uppercase tracking-wider px-1">
               <span>Сумма вашей ставки</span>
               {userBet && (
-                <span className="text-purple-400 font-semibold">
-                  Ваша ставка: {userBet.amount} монет ({userBet.chance}%)
+                <span className="text-amber-400 font-semibold">
+                  Ваша ставка: {userBet.amount} zł ({userBet.chance}%)
                 </span>
               )}
             </div>
 
             {!userBet ? (
               <div className="flex flex-col gap-3">
-                {/* Main Input Row */}
+                {/* Input Row: 1/2 on left, Input in center (with zł suffix), 2X on right */}
                 <div className="flex items-center gap-2">
+                  {/* Left: 1/2 button */}
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={handleHalf}
+                    className="px-4 py-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all disabled:opacity-40 shrink-0"
+                  >
+                    1/2
+                  </button>
+
+                  {/* Center: Input field with zł suffix */}
                   <div className="relative w-full">
                     <input
                       type="number"
                       disabled={!isBettingPhase || isSubmitting}
                       value={betAmount}
                       onChange={(e) => setBetAmount(e.target.value)}
-                      placeholder="Введите ставку"
-                      className="w-full bg-black/60 border border-white/15 rounded-2xl pl-4 pr-10 py-3.5 text-white font-bold text-base focus:border-purple-500 focus:bg-black focus:outline-none transition-all disabled:opacity-50"
+                      placeholder="Сумма"
+                      className="w-full bg-black/60 border border-white/15 rounded-2xl pl-4 pr-10 py-3.5 text-white font-bold text-base focus:border-amber-400/50 focus:bg-black focus:outline-none transition-all disabled:opacity-50 text-center"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/40 pointer-events-none">
-                      монет
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/40 pointer-events-none">
+                      zł
                     </span>
                   </div>
 
+                  {/* Right: 2X button */}
                   <button
                     disabled={!isBettingPhase || isSubmitting}
-                    onClick={handlePlaceBet}
-                    className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-[0_0_25px_rgba(168,85,247,0.4)] active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap"
-                  >
-                    Поставить
-                  </button>
-                </div>
-
-                {/* Quick Action Preset Buttons */}
-                <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => c + 10)}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
-                  >
-                    +10
-                  </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => c + 50)}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
-                  >
-                    +50
-                  </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => c + 100)}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
-                  >
-                    +100
-                  </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => c + 500)}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
-                  >
-                    +500
-                  </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => c + 1000)}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
-                  >
-                    +1K
-                  </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => Math.floor(c / 2))}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-purple-300 active:scale-95 transition-all"
-                  >
-                    1/2
-                  </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => handlePreset((c) => c * 2)}
-                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-purple-300 active:scale-95 transition-all"
+                    onClick={handleDouble}
+                    className="px-4 py-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all disabled:opacity-40 shrink-0"
                   >
                     2X
                   </button>
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => setBetAmount(String(Math.floor(balance)))}
-                    className="py-2 rounded-xl bg-purple-950/60 border border-purple-500/30 hover:bg-purple-900/60 text-xs font-bold text-amber-400 active:scale-95 transition-all"
-                  >
-                    MAX
-                  </button>
                 </div>
+
+                {/* Bottom: Full-width Place Bet Button */}
+                <button
+                  disabled={!isBettingPhase || isSubmitting}
+                  onClick={handlePlaceBet}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-black font-extrabold text-base shadow-[0_0_25px_rgba(245,158,11,0.3)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none mt-1"
+                >
+                  Поставить
+                </button>
               </div>
             ) : (
               /* User Bet Active Card */
-              <div className="w-full flex items-center justify-between bg-purple-950/40 border border-purple-500/30 p-3.5 rounded-2xl">
+              <div className="w-full flex items-center justify-between bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl">
                 <div className="flex flex-col">
                   <span className="text-xs text-white/60">Ваша ставка принята</span>
                   <span className="text-base font-black text-amber-400">
-                    {userBet.amount} монет <span className="text-xs font-bold text-purple-300">({userBet.chance}%)</span>
+                    {userBet.amount} zł <span className="text-xs font-bold text-white/70">({userBet.chance}%)</span>
                   </span>
                 </div>
 
@@ -415,14 +376,14 @@ export default function MacvpotPage() {
         <div className="w-full flex flex-col gap-2.5 mt-2">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
-              <Users size={14} className="text-purple-400" />
+              <Users size={14} className="text-white/40" />
               Все ставки раунда ({state?.bets.length || 0})
             </h3>
-            <span className="text-[11px] text-purple-300/70 font-medium">Шансы считаются в реальном времени</span>
+            <span className="text-[11px] text-white/40 font-medium">Шансы считаются в реальном времени</span>
           </div>
 
           {state?.bets && state.bets.length > 0 ? (
-            <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12] overflow-hidden backdrop-blur-xl shadow-xl flex flex-col divide-y divide-white/5">
+            <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12]/90 overflow-hidden backdrop-blur-xl shadow-xl flex flex-col divide-y divide-white/5">
               {/* Header */}
               <div className="grid grid-cols-12 px-4 py-3 bg-black/40 text-[11px] font-bold text-white/40 uppercase tracking-wider">
                 <div className="col-span-5 sm:col-span-6">Участник</div>
@@ -442,13 +403,13 @@ export default function MacvpotPage() {
                   >
                     {/* Chance Progress Underlay Bar */}
                     <div
-                      className="absolute top-0 bottom-0 left-0 bg-purple-600/10 pointer-events-none transition-all duration-500"
+                      className="absolute top-0 bottom-0 left-0 bg-white/[0.04] pointer-events-none transition-all duration-500"
                       style={{ width: `${Math.min(100, p.chance)}%` }}
                     />
 
                     {/* Avatar & Name */}
                     <div className="col-span-5 sm:col-span-6 flex items-center gap-3 z-10">
-                      <div className="w-8 h-8 rounded-full bg-purple-950 border border-purple-500/40 flex items-center justify-center overflow-hidden shrink-0 shadow-md">
+                      <div className="w-8 h-8 rounded-full bg-slate-900 border border-white/20 flex items-center justify-center overflow-hidden shrink-0 shadow-md">
                         {p.user?.photoUrl ? (
                           <Image
                             src={p.user.photoUrl}
@@ -469,12 +430,12 @@ export default function MacvpotPage() {
 
                     {/* Bet Amount */}
                     <div className="col-span-4 sm:col-span-3 text-right font-black text-amber-400 text-xs sm:text-sm z-10">
-                      {p.amount.toLocaleString('ru-RU')} <span className="text-[10px] font-normal text-white/50">монет</span>
+                      {p.amount.toLocaleString('ru-RU')} <span className="text-[10px] font-normal text-white/50">zł</span>
                     </div>
 
                     {/* Chance % */}
                     <div className="col-span-3 text-right z-10">
-                      <span className="font-extrabold text-xs sm:text-sm text-purple-300 bg-purple-950/80 px-2.5 py-1 rounded-xl border border-purple-500/30 shadow-inner">
+                      <span className="font-extrabold text-xs sm:text-sm text-white/90 bg-white/[0.06] px-2.5 py-1 rounded-xl border border-white/10 shadow-inner">
                         {p.chance}%
                       </span>
                     </div>
@@ -483,7 +444,7 @@ export default function MacvpotPage() {
               })}
             </div>
           ) : (
-            <div className="w-full py-10 text-center text-xs text-white/40 border border-white/5 bg-[#0d0d12] rounded-3xl flex flex-col items-center gap-2">
+            <div className="w-full py-10 text-center text-xs text-white/40 border border-white/5 bg-[#0d0d12]/90 rounded-3xl flex flex-col items-center gap-2">
               <Trophy size={28} className="text-white/20" />
               <span>Ставок в этом раунде пока нет. Сделайте первую ставку!</span>
             </div>

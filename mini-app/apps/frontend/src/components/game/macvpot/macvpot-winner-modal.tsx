@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { Trophy, X } from 'lucide-react';
 import type { MacvpotHistoryRow } from '@/app/game/macvpot/page';
 
 interface MacvpotWinnerModalProps {
@@ -28,7 +28,7 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const colors = ['#a855f7', '#ec4899', '#3b82f6', '#eab308', '#22c55e', '#ffffff'];
+    const colors = ['#f59e0b', '#fbbf24', '#ffffff', '#94a3b8', '#38bdf8'];
     const particles: Array<{
       x: number;
       y: number;
@@ -112,7 +112,7 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 bg-black/85 backdrop-blur-md"
           />
 
           {/* Animated Winner Card */}
@@ -121,7 +121,7 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.8, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-            className="relative w-full max-w-sm rounded-3xl border border-purple-500/30 bg-gradient-to-b from-[#1a102b] via-[#120a1f] to-[#0a0612] p-6 shadow-[0_0_50px_rgba(168,85,247,0.4)] text-center flex flex-col items-center gap-4 z-50 overflow-hidden"
+            className="relative w-full max-w-sm rounded-3xl border border-white/15 bg-gradient-to-b from-[#181820] via-[#0d0d12] to-black p-6 shadow-[0_0_50px_rgba(255,255,255,0.1)] text-center flex flex-col items-center gap-4 z-50 overflow-hidden backdrop-blur-2xl"
           >
             {/* Close Button */}
             <button
@@ -131,16 +131,13 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
               <X size={20} />
             </button>
 
-            {/* Glowing background aura */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-purple-600/20 rounded-full blur-[60px] pointer-events-none" />
-
             {/* Trophy Icon Badge */}
-            <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-400 shadow-inner">
+            <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 shadow-inner">
               <Trophy size={26} className="animate-bounce" />
             </div>
 
             <div className="flex flex-col items-center gap-1">
-              <span className="text-xs font-bold uppercase tracking-widest text-purple-400">
+              <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
                 ПОБЕДИТЕЛЬ
               </span>
               <h2 className="text-2xl font-black text-white font-roobert">
@@ -148,12 +145,12 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
               </h2>
             </div>
 
-            {/* Winner Avatar with Enlargement & Glow */}
+            {/* Winner Avatar */}
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1.1 }}
               transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1.5 }}
-              className="w-24 h-24 rounded-full p-[3px] bg-gradient-to-tr from-purple-500 via-pink-500 to-amber-400 shadow-[0_0_30px_rgba(236,72,153,0.6)] my-1"
+              className="w-24 h-24 rounded-full p-[3px] bg-gradient-to-tr from-amber-400 via-white to-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] my-1"
             >
               {winner.photoUrl ? (
                 <Image
@@ -172,17 +169,17 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
             </motion.div>
 
             {/* Stats Breakdown Card */}
-            <div className="w-full rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 flex flex-col gap-2.5 text-xs text-frost-white/80">
+            <div className="w-full rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 flex flex-col gap-2.5 text-xs text-white/80">
               <div className="flex items-center justify-between">
                 <span className="text-white/50">Ставка:</span>
                 <span className="font-semibold text-white">
-                  {winner.betAmount.toLocaleString('ru-RU')} монет
+                  {winner.betAmount.toLocaleString('ru-RU')} zł
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-white/50">Шанс:</span>
-                <span className="font-semibold text-purple-300 bg-purple-900/50 px-2 py-0.5 rounded-full border border-purple-500/30">
+                <span className="font-semibold text-amber-300 bg-white/[0.06] px-2 py-0.5 rounded-full border border-white/10">
                   {winner.chance}%
                 </span>
               </div>
@@ -192,14 +189,14 @@ export function MacvpotWinnerModal({ winner, isOpen, onClose }: MacvpotWinnerMod
               <div className="flex items-center justify-between text-sm">
                 <span className="font-bold text-white">Выигрыш:</span>
                 <span className="font-black text-amber-400 text-base">
-                  {winner.payout.toLocaleString('ru-RU')} монет
+                  {winner.payout.toLocaleString('ru-RU')} zł
                 </span>
               </div>
             </div>
 
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-sm shadow-lg shadow-purple-900/40 hover:brightness-110 active:scale-98 transition-all mt-1"
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-black text-sm shadow-lg hover:brightness-110 active:scale-98 transition-all mt-1"
             >
               Отлично!
             </button>
