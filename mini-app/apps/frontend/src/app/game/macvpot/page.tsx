@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { Trophy, Users, Clock, Flame, RotateCcw, AlertCircle } from 'lucide-react';
+import { Trophy, Users, Clock, Flame, RotateCcw, Sparkles, Zap, DollarSign } from 'lucide-react';
 import { MacvpotRoulette } from '@/components/game/macvpot/macvpot-roulette';
 import { MacvpotWinnerModal } from '@/components/game/macvpot/macvpot-winner-modal';
 import { MacvpotHistory } from '@/components/game/macvpot/macvpot-history';
@@ -81,7 +81,7 @@ export default function MacvpotPage() {
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Fetch initial REST state
+  // Fetch REST state snapshot
   const loadState = useCallback(async () => {
     try {
       const res = await fetch('/api/games/macvpot/state', { credentials: 'include' });
@@ -99,7 +99,7 @@ export default function MacvpotPage() {
     void loadState();
   }, [fetchBalance, loadState]);
 
-  // WebSocket Connection
+  // WebSocket Live Connection
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -108,7 +108,6 @@ export default function MacvpotPage() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      // Join room
       ws.send(JSON.stringify({ type: 'game:join', payload: { roomId: 'macvpot_main' } }));
     };
 
@@ -145,7 +144,7 @@ export default function MacvpotPage() {
     };
   }, [fetchBalance, isSpinning]);
 
-  // Countdown timer handler
+  // Phase Countdown timer
   useEffect(() => {
     if (!state?.phaseEndsAt) {
       setTimeLeft(0);
@@ -189,7 +188,7 @@ export default function MacvpotPage() {
       if (!res.ok || !data.success) {
         toast.error(data.error || 'Ошибка при размещении ставки');
       } else {
-        toast.success('Ставка сделана!');
+        toast.success('Ставка принята!');
         void fetchBalance();
       }
     } catch {
@@ -213,7 +212,7 @@ export default function MacvpotPage() {
       if (!res.ok || !data.success) {
         toast.error(data.error || 'Ошибка отмены ставки');
       } else {
-        toast.success('Ставка отменена, баланс возвращен');
+        toast.success('Ставка отменена!');
         void fetchBalance();
       }
     } catch {
@@ -223,49 +222,26 @@ export default function MacvpotPage() {
     }
   };
 
+  // Preset bet helpers
+  const handlePreset = (fn: (current: number) => number) => {
+    const current = parseInt(betAmount, 10) || 0;
+    const next = Math.max(10, fn(current));
+    setBetAmount(String(next));
+  };
+
   return (
-    <main className="min-h-screen w-full bg-[#0a0714] text-frost-white relative overflow-x-hidden">
+    <main className="min-h-screen w-full bg-black text-frost-white relative overflow-x-hidden selection:bg-purple-500 selection:text-white">
+      {/* Background dark radial aura */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-purple-900/10 rounded-full blur-[140px] pointer-events-none -z-10" />
+
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
+        {/* 1. TOP BAR */}
         <GameTopBar title="MacvPot" Icon={Trophy} />
 
-        {/* Jackpot Header & Status Card */}
-        <div className="w-full rounded-3xl border border-purple-500/20 bg-gradient-to-r from-purple-950/40 via-black/50 to-indigo-950/40 p-5 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 rounded-full blur-[60px] pointer-events-none" />
+        {/* 2. ИСТОРИЯ ПРОШЛЫХ РАУНДОВ */}
+        <MacvpotHistory history={state?.history || []} />
 
-          {/* Bank & Players */}
-          <div className="flex flex-col items-center sm:items-start gap-1">
-            <span className="text-xs font-bold uppercase tracking-widest text-purple-300 flex items-center gap-1.5">
-              <Flame size={15} className="text-amber-400" />
-              Общий Банк
-            </span>
-            <div className="text-3xl sm:text-4xl font-black text-amber-400 font-roobert tracking-tight">
-              {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xl font-medium">монет</span>
-            </div>
-            <div className="text-xs text-white/50 flex items-center gap-1.5 mt-0.5">
-              <Users size={14} className="text-purple-400" />
-              Участников: <span className="font-bold text-white">{state?.playerCount || 0}</span>
-            </div>
-          </div>
-
-          {/* Phase Countdown Timer */}
-          <div className="flex flex-col items-center sm:items-end gap-1 bg-white/[0.03] border border-white/10 px-4 py-2.5 rounded-2xl w-full sm:w-auto">
-            <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1">
-              <Clock size={13} className="text-purple-400" />
-              {state?.phase === 'betting' && 'Сбор ставок'}
-              {state?.phase === 'delay' && 'Ожидание спина'}
-              {state?.phase === 'spinning' && 'Вращение'}
-              {state?.phase === 'completed' && 'Завершен'}
-            </span>
-            <span className="text-xl font-bold font-mono text-purple-300">
-              {state?.phase === 'betting' && `${timeLeft}с`}
-              {state?.phase === 'delay' && `${timeLeft}с`}
-              {state?.phase === 'spinning' && 'Рулетка...'}
-              {state?.phase === 'completed' && 'Победитель!'}
-            </span>
-          </div>
-        </div>
-
-        {/* Horizontal Roulette */}
+        {/* 3. РУЛЕТКА */}
         <MacvpotRoulette
           bets={state?.bets || []}
           winningTicket={state?.winningTicket || null}
@@ -277,150 +253,245 @@ export default function MacvpotPage() {
           }}
         />
 
-        {/* Betting Controls Box */}
-        <div className="w-full rounded-2xl border border-white/10 bg-white/[0.02] p-4 backdrop-blur-xl flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-white/50">
-              Ваша ставка
-            </span>
-            {userBet && (
-              <span className="text-xs font-semibold text-purple-400">
-                Ваша ставка внесена: {userBet.amount} монет ({userBet.chance}%)
-              </span>
-            )}
+        {/* 4. ЭЛЕМЕНТ ДЛЯ НАСТРОЙКИ СТАВКИ */}
+        <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12] p-5 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative overflow-hidden">
+          {/* Top Info Bar inside Betting Element */}
+          <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                <Flame size={18} className="animate-pulse" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                  Общий Банк
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-amber-400 font-roobert tracking-tight">
+                  {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs text-white/50 font-normal">монет</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Status & Timer Badge */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold text-purple-300">
+                <Clock size={13} className="text-purple-400" />
+                {state?.phase === 'betting' && `Сбор: ${timeLeft}с`}
+                {state?.phase === 'delay' && `Пауза: ${timeLeft}с`}
+                {state?.phase === 'spinning' && 'Вращение...'}
+                {state?.phase === 'completed' && 'Завершен'}
+              </div>
+
+              <div className="flex items-center gap-1 bg-white/[0.04] border border-white/10 px-2.5 py-1.5 rounded-xl text-xs text-white/60 font-medium">
+                <Users size={13} className="text-purple-400" />
+                <span>{state?.playerCount || 0}</span>
+              </div>
+            </div>
           </div>
 
-          {!userBet ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  disabled={!isBettingPhase || isSubmitting}
-                  value={betAmount}
-                  onChange={(e) => setBetAmount(e.target.value)}
-                  placeholder="Ставка"
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-semibold focus:border-purple-500 focus:outline-none transition-all disabled:opacity-50"
-                />
-
-                <button
-                  disabled={!isBettingPhase || isSubmitting}
-                  onClick={handlePlaceBet}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 text-white font-bold text-sm shadow-lg shadow-purple-900/30 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
-                >
-                  Вступить в Jackpot
-                </button>
-              </div>
-
-              {/* Quick Amount Shortcuts */}
-              <div className="grid grid-cols-5 gap-2">
-                {[10, 50, 100, 500, 1000].map((amt) => (
-                  <button
-                    key={amt}
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={() => setBetAmount(String(amt))}
-                    className="py-1.5 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
-                  >
-                    {amt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between bg-purple-950/30 border border-purple-500/20 p-3 rounded-xl">
-              <div className="flex flex-col text-xs">
-                <span className="text-white/60">Вы зашли с суммой:</span>
-                <span className="text-sm font-bold text-amber-400">{userBet.amount} монет ({userBet.chance}%)</span>
-              </div>
-
-              {isBettingPhase && (
-                <button
-                  disabled={isSubmitting}
-                  onClick={handleCancelBet}
-                  className="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white font-semibold text-xs transition-all active:scale-95 flex items-center gap-1.5"
-                >
-                  <RotateCcw size={14} />
-                  Отменить ставку
-                </button>
+          {/* Bet Input & Controls */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between text-xs font-bold text-white/50 uppercase tracking-wider px-1">
+              <span>Сумма вашей ставки</span>
+              {userBet && (
+                <span className="text-purple-400 font-semibold">
+                  Ваша ставка: {userBet.amount} монет ({userBet.chance}%)
+                </span>
               )}
             </div>
-          )}
+
+            {!userBet ? (
+              <div className="flex flex-col gap-3">
+                {/* Main Input Row */}
+                <div className="flex items-center gap-2">
+                  <div className="relative w-full">
+                    <input
+                      type="number"
+                      disabled={!isBettingPhase || isSubmitting}
+                      value={betAmount}
+                      onChange={(e) => setBetAmount(e.target.value)}
+                      placeholder="Введите ставку"
+                      className="w-full bg-black/60 border border-white/15 rounded-2xl pl-4 pr-10 py-3.5 text-white font-bold text-base focus:border-purple-500 focus:bg-black focus:outline-none transition-all disabled:opacity-50"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/40 pointer-events-none">
+                      монет
+                    </span>
+                  </div>
+
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={handlePlaceBet}
+                    className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-[0_0_25px_rgba(168,85,247,0.4)] active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap"
+                  >
+                    Поставить
+                  </button>
+                </div>
+
+                {/* Quick Action Preset Buttons */}
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => c + 10)}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
+                  >
+                    +10
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => c + 50)}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
+                  >
+                    +50
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => c + 100)}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
+                  >
+                    +100
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => c + 500)}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
+                  >
+                    +500
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => c + 1000)}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all"
+                  >
+                    +1K
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => Math.floor(c / 2))}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-purple-300 active:scale-95 transition-all"
+                  >
+                    1/2
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => handlePreset((c) => c * 2)}
+                    className="py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-purple-300 active:scale-95 transition-all"
+                  >
+                    2X
+                  </button>
+                  <button
+                    disabled={!isBettingPhase || isSubmitting}
+                    onClick={() => setBetAmount(String(Math.floor(balance)))}
+                    className="py-2 rounded-xl bg-purple-950/60 border border-purple-500/30 hover:bg-purple-900/60 text-xs font-bold text-amber-400 active:scale-95 transition-all"
+                  >
+                    MAX
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* User Bet Active Card */
+              <div className="w-full flex items-center justify-between bg-purple-950/40 border border-purple-500/30 p-3.5 rounded-2xl">
+                <div className="flex flex-col">
+                  <span className="text-xs text-white/60">Ваша ставка принята</span>
+                  <span className="text-base font-black text-amber-400">
+                    {userBet.amount} монет <span className="text-xs font-bold text-purple-300">({userBet.chance}%)</span>
+                  </span>
+                </div>
+
+                {isBettingPhase && (
+                  <button
+                    disabled={isSubmitting}
+                    onClick={handleCancelBet}
+                    className="px-4 py-2.5 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-red-950/50"
+                  >
+                    <RotateCcw size={14} />
+                    Отменить
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Participants Table */}
-        <div className="w-full flex flex-col gap-2 mt-2">
+        {/* 5. СПИСОК ВСЕХ СТАВОК (КТО ПОСТАВИЛ, СКОЛЬКО, КАКИЕ ШАНСЫ) */}
+        <div className="w-full flex flex-col gap-2.5 mt-2">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 flex items-center gap-1.5">
               <Users size={14} className="text-purple-400" />
-              Участники раунда ({state?.bets.length || 0})
+              Все ставки раунда ({state?.bets.length || 0})
             </h3>
-            <span className="text-[11px] text-white/40">Шансы обновляются в реальном времени</span>
+            <span className="text-[11px] text-purple-300/70 font-medium">Шансы считаются в реальном времени</span>
           </div>
 
           {state?.bets && state.bets.length > 0 ? (
-            <div className="w-full rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
-              <div className="grid grid-cols-12 px-4 py-2.5 border-b border-white/5 text-[11px] font-bold text-white/40 uppercase tracking-wider">
-                <div className="col-span-6">Игрок</div>
-                <div className="col-span-3 text-right">Ставка</div>
+            <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12] overflow-hidden backdrop-blur-xl shadow-xl flex flex-col divide-y divide-white/5">
+              {/* Header */}
+              <div className="grid grid-cols-12 px-4 py-3 bg-black/40 text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                <div className="col-span-5 sm:col-span-6">Участник</div>
+                <div className="col-span-4 sm:col-span-3 text-right">Ставка</div>
                 <div className="col-span-3 text-right">Шанс</div>
               </div>
 
-              <div className="divide-y divide-white/5">
-                {state.bets.map((p) => {
-                  const name = p.user?.firstName || p.user?.username || 'Игрок';
-                  const initial = name.charAt(0).toUpperCase();
+              {/* Rows */}
+              {state.bets.map((p) => {
+                const name = p.user?.firstName || p.user?.username || 'Игрок';
+                const initial = name.charAt(0).toUpperCase();
 
-                  return (
+                return (
+                  <div
+                    key={p.betId}
+                    className="grid grid-cols-12 px-4 py-3.5 items-center hover:bg-white/[0.02] transition-colors relative overflow-hidden group"
+                  >
+                    {/* Chance Progress Underlay Bar */}
                     <div
-                      key={p.betId}
-                      className="grid grid-cols-12 px-4 py-3 items-center text-xs hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="col-span-6 flex items-center gap-2.5 overflow-hidden">
-                        <div className="w-7 h-7 rounded-full bg-purple-950 border border-purple-500/30 flex items-center justify-center overflow-hidden shrink-0">
-                          {p.user?.photoUrl ? (
-                            <Image
-                              src={p.user.photoUrl}
-                              alt={name}
-                              width={28}
-                              height={28}
-                              className="object-cover w-full h-full"
-                              unoptimized
-                            />
-                          ) : (
-                            <span className="text-white font-bold text-xs">{initial}</span>
-                          )}
-                        </div>
-                        <span className="font-semibold text-white truncate">{name}</span>
-                      </div>
+                      className="absolute top-0 bottom-0 left-0 bg-purple-600/10 pointer-events-none transition-all duration-500"
+                      style={{ width: `${Math.min(100, p.chance)}%` }}
+                    />
 
-                      <div className="col-span-3 text-right font-medium text-amber-400">
-                        {p.amount.toLocaleString('ru-RU')} монет
+                    {/* Avatar & Name */}
+                    <div className="col-span-5 sm:col-span-6 flex items-center gap-3 z-10">
+                      <div className="w-8 h-8 rounded-full bg-purple-950 border border-purple-500/40 flex items-center justify-center overflow-hidden shrink-0 shadow-md">
+                        {p.user?.photoUrl ? (
+                          <Image
+                            src={p.user.photoUrl}
+                            alt={name}
+                            width={32}
+                            height={32}
+                            className="object-cover w-full h-full"
+                            unoptimized
+                          />
+                        ) : (
+                          <span className="text-white font-bold text-xs">{initial}</span>
+                        )}
                       </div>
-
-                      <div className="col-span-3 text-right font-bold text-purple-300">
-                        {p.chance}%
-                      </div>
+                      <span className="font-bold text-xs sm:text-sm text-white truncate max-w-[110px] sm:max-w-[200px]">
+                        {name}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Bet Amount */}
+                    <div className="col-span-4 sm:col-span-3 text-right font-black text-amber-400 text-xs sm:text-sm z-10">
+                      {p.amount.toLocaleString('ru-RU')} <span className="text-[10px] font-normal text-white/50">монет</span>
+                    </div>
+
+                    {/* Chance % */}
+                    <div className="col-span-3 text-right z-10">
+                      <span className="font-extrabold text-xs sm:text-sm text-purple-300 bg-purple-950/80 px-2.5 py-1 rounded-xl border border-purple-500/30 shadow-inner">
+                        {p.chance}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <div className="w-full py-8 text-center text-xs text-white/40 border border-white/5 bg-white/[0.02] rounded-2xl">
-              Ставок пока нет. Будьте первым!
+            <div className="w-full py-10 text-center text-xs text-white/40 border border-white/5 bg-[#0d0d12] rounded-3xl flex flex-col items-center gap-2">
+              <Trophy size={28} className="text-white/20" />
+              <span>Ставок в этом раунде пока нет. Сделайте первую ставку!</span>
             </div>
           )}
         </div>
-
-        {/* History Section */}
-        <div className="w-full flex flex-col gap-2 mt-4">
-          <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider px-1">
-            История MacvPot
-          </h3>
-          <MacvpotHistory history={state?.history || []} />
-        </div>
       </div>
 
-      {/* Winner Celebration Overlay */}
+      {/* Winner Celebration Modal */}
       <MacvpotWinnerModal
         winner={state?.winner || null}
         isOpen={showWinnerModal}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { ShieldCheck, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShieldCheck, Copy, Check, X, ExternalLink, Trophy, Sparkles } from 'lucide-react';
 import type { MacvpotHistoryRow } from '@/app/game/macvpot/page';
 
 interface MacvpotHistoryProps {
@@ -10,7 +10,7 @@ interface MacvpotHistoryProps {
 }
 
 export function MacvpotHistory({ history }: MacvpotHistoryProps) {
-  const [expandedRound, setExpandedRound] = useState<string | null>(null);
+  const [selectedRound, setSelectedRound] = useState<MacvpotHistoryRow | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = (text: string, key: string) => {
@@ -21,129 +21,179 @@ export function MacvpotHistory({ history }: MacvpotHistoryProps) {
 
   if (history.length === 0) {
     return (
-      <div className="w-full text-center py-8 text-white/40 text-sm border border-white/5 bg-white/[0.02] rounded-2xl">
-        История пока пуста. Будьте первым участником!
+      <div className="w-full flex items-center justify-center py-3 px-4 rounded-2xl bg-white/[0.02] border border-white/5 text-xs text-white/40 font-medium">
+        <Sparkles size={14} className="text-purple-400 mr-2" />
+        История раундов формируется... Будьте первым победителем!
       </div>
     );
   }
 
   return (
-    <div className="w-full flex flex-col gap-2.5">
-      {history.map((item) => {
-        const isExpanded = expandedRound === item.roundId;
-        const winnerName = item.winner?.name || 'Нет победителя';
-        const winnerInitial = winnerName.charAt(0).toUpperCase();
-        const dateStr = new Date(item.endedAt).toLocaleTimeString('ru-RU', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        });
+    <div className="w-full flex flex-col gap-2">
+      {/* Top horizontal scrolling history chips */}
+      <div className="w-full flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-0.5">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-white/40 shrink-0 flex items-center gap-1 mr-1">
+          <Trophy size={12} className="text-amber-400" />
+          Раунды:
+        </div>
 
-        return (
-          <div
-            key={item.roundId}
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-md overflow-hidden transition-all hover:bg-white/[0.04]"
-          >
-            <div
-              onClick={() => setExpandedRound(isExpanded ? null : item.roundId)}
-              className="p-3.5 flex items-center justify-between gap-3 cursor-pointer select-none"
+        {history.map((item) => {
+          const winnerName = item.winner?.name || 'Ничья';
+          const winnerInitial = winnerName.charAt(0).toUpperCase();
+
+          return (
+            <button
+              key={item.roundId}
+              onClick={() => setSelectedRound(item)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-purple-900/20 hover:border-purple-500/40 active:scale-95 transition-all shrink-0 group"
             >
-              {/* Left: Winner info */}
+              <div className="w-5 h-5 rounded-full bg-purple-950 border border-purple-500/40 flex items-center justify-center overflow-hidden shrink-0">
+                {item.winner?.photoUrl ? (
+                  <Image
+                    src={item.winner.photoUrl}
+                    alt={winnerName}
+                    width={20}
+                    height={20}
+                    className="object-cover w-full h-full"
+                    unoptimized
+                  />
+                ) : (
+                  <span className="text-[10px] font-bold text-white">{winnerInitial}</span>
+                )}
+              </div>
+
+              <span className="text-xs font-bold text-amber-400 font-mono">
+                {item.totalPot.toLocaleString('ru-RU')}
+              </span>
+
+              <span className="text-[10px] font-semibold text-purple-300 bg-purple-950/80 px-1.5 py-0.2 rounded-md border border-purple-500/30">
+                {item.winner?.chance || 0}%
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Provably Fair Detail Modal */}
+      {selectedRound && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-3xl border border-purple-500/30 bg-[#0f091c] p-5 text-white flex flex-col gap-4 shadow-2xl relative overflow-hidden">
+            <button
+              onClick={() => setSelectedRound(null)}
+              className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-400">
+                <ShieldCheck size={22} />
+              </div>
+              <div className="flex flex-col">
+                <h3 className="font-bold text-base font-roobert text-white">
+                  Проверка честности раунда
+                </h3>
+                <span className="text-xs text-white/40 font-mono">
+                  ID: {selectedRound.roundId.substring(0, 18)}...
+                </span>
+              </div>
+            </div>
+
+            {/* Winner summary */}
+            <div className="w-full rounded-2xl bg-white/[0.03] border border-white/10 p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-950/80 border border-purple-500/30 flex items-center justify-center overflow-hidden shrink-0">
-                  {item.winner?.photoUrl ? (
+                <div className="w-10 h-10 rounded-full bg-purple-950 border border-purple-500/40 flex items-center justify-center overflow-hidden">
+                  {selectedRound.winner?.photoUrl ? (
                     <Image
-                      src={item.winner.photoUrl}
-                      alt={winnerName}
+                      src={selectedRound.winner.photoUrl}
+                      alt={selectedRound.winner.name}
                       width={40}
                       height={40}
                       className="object-cover w-full h-full"
                       unoptimized
                     />
                   ) : (
-                    <span className="text-white font-bold text-sm">{winnerInitial}</span>
+                    <span className="font-bold text-sm text-white">
+                      {(selectedRound.winner?.name || 'П').charAt(0).toUpperCase()}
+                    </span>
                   )}
                 </div>
-
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-white truncate max-w-[120px] sm:max-w-[180px]">
-                      {winnerName}
-                    </span>
-                    {item.winner && (
-                      <span className="text-[10px] font-medium text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded-full border border-purple-500/20">
-                        {item.winner.chance}%
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-white/40">{dateStr}</span>
+                  <span className="font-bold text-sm text-white">
+                    {selectedRound.winner?.name || 'Нет победителя'}
+                  </span>
+                  <span className="text-xs text-purple-300 font-semibold">
+                    Шанс: {selectedRound.winner?.chance}%
+                  </span>
                 </div>
               </div>
 
-              {/* Right: Bank info & Accordion toggle */}
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-end">
-                  <span className="font-black text-amber-400 text-sm">
-                    +{item.totalPot.toLocaleString('ru-RU')} монет
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-white/50">Банк раунда</span>
+                <span className="font-black text-amber-400 text-base">
+                  {selectedRound.totalPot.toLocaleString('ru-RU')} монет
+                </span>
+              </div>
+            </div>
+
+            {/* Provably Fair Seeds */}
+            <div className="flex flex-col gap-2 text-xs">
+              <div className="flex flex-col gap-1 bg-black/40 border border-white/10 p-3 rounded-2xl">
+                <span className="text-white/50 font-medium">Server Seed (Открытый ключ):</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-purple-300 break-all text-[11px]">
+                    {selectedRound.serverSeed || 'Скрыт'}
                   </span>
-                  <span className="text-[11px] text-white/40">
-                    {item.playerCount} участников
+                  <button
+                    onClick={() => handleCopy(selectedRound.serverSeed, 'ss')}
+                    className="p-1 text-white/60 hover:text-white"
+                  >
+                    {copiedKey === 'ss' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 bg-black/40 border border-white/10 p-3 rounded-2xl">
+                <span className="text-white/50 font-medium">Server Seed Hash (SHA256):</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-purple-300 break-all text-[11px]">
+                    {selectedRound.serverSeedHash}
+                  </span>
+                  <button
+                    onClick={() => handleCopy(selectedRound.serverSeedHash, 'ssh')}
+                    className="p-1 text-white/60 hover:text-white"
+                  >
+                    {copiedKey === 'ssh' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-black/40 border border-white/10 p-2.5 rounded-2xl flex flex-col gap-0.5">
+                  <span className="text-white/50 text-[10px]">Client Seed:</span>
+                  <span className="font-mono text-purple-300 text-[11px] truncate">
+                    {selectedRound.clientSeed}
                   </span>
                 </div>
 
-                <div className="text-white/40">
-                  {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                <div className="bg-black/40 border border-white/10 p-2.5 rounded-2xl flex flex-col gap-0.5">
+                  <span className="text-white/50 text-[10px]">Выигрышный билет:</span>
+                  <span className="font-mono text-amber-400 text-xs font-bold">
+                    #{selectedRound.winningTicket}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Provably Fair details accordion */}
-            {isExpanded && (
-              <div className="px-3.5 pb-3.5 pt-2 border-t border-white/5 bg-black/20 flex flex-col gap-2 text-xs">
-                <div className="flex items-center justify-between text-purple-300 font-medium">
-                  <span className="flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-purple-400" />
-                    Provably Fair (Честность)
-                  </span>
-                  <span className="text-white/40">Билет #{item.winningTicket}</span>
-                </div>
-
-                <div className="space-y-1.5 text-[11px]">
-                  <div className="flex items-center justify-between bg-white/[0.03] p-2 rounded-xl">
-                    <span className="text-white/50">Server Seed Hash:</span>
-                    <button
-                      onClick={() => handleCopy(item.serverSeedHash, `ssh-${item.roundId}`)}
-                      className="flex items-center gap-1 text-white/80 hover:text-white font-mono"
-                    >
-                      <span>{item.serverSeedHash.substring(0, 16)}...</span>
-                      {copiedKey === `ssh-${item.roundId}` ? (
-                        <Check size={12} className="text-green-400" />
-                      ) : (
-                        <Copy size={12} />
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between bg-white/[0.03] p-2 rounded-xl">
-                    <span className="text-white/50">Server Seed (Открыт):</span>
-                    <button
-                      onClick={() => handleCopy(item.serverSeed, `ss-${item.roundId}`)}
-                      className="flex items-center gap-1 text-white/80 hover:text-white font-mono"
-                    >
-                      <span>{item.serverSeed ? `${item.serverSeed.substring(0, 16)}...` : 'Скрыт'}</span>
-                      {copiedKey === `ss-${item.roundId}` ? (
-                        <Check size={12} className="text-green-400" />
-                      ) : (
-                        <Copy size={12} />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <button
+              onClick={() => setSelectedRound(null)}
+              className="w-full py-2.5 rounded-xl bg-purple-600/80 hover:bg-purple-600 text-white font-bold text-xs transition-all"
+            >
+              Закрыть
+            </button>
           </div>
-        );
-      })}
+        </div>
+      )}
     </div>
   );
 }
