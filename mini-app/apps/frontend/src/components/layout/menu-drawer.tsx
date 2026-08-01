@@ -53,7 +53,6 @@ const ALL_IN_APP_GAMES: InAppGame[] = [
   { id: 'bridges', name: 'Bridges', bg: '/Bridges.png' },
   { id: 'cases', name: 'Case', bg: '/case.png', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
   { id: 'keno', name: 'Keno', bg: '/keno.png?v=2', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
-  { id: 'chicken-road', name: 'MacvRoad', bg: '/MacvRoad.png?v=2', badge: { label: 'NEW', color: 'green', Icon: Sparkles } },
 ];
 
 export function MenuDrawer({

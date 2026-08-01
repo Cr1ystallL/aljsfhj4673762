@@ -22,11 +22,6 @@ import {
   BRIDGES_LEVELS,
   type BridgesLevel,
 } from '../games/bridges/bridges-engine.js';
-import {
-  chickenRoadEngine,
-  CHICKEN_ROAD_LEVELS,
-  type ChickenRoadLevel,
-} from '../games/chicken-road/chicken-road-engine.js';
 import { hiloEngine } from '../games/hilo/hilo-engine.js';
 import { casesEngine } from '../games/cases/cases-engine.js';
 import { macvpotManager } from '../games/macvpot/macvpot-singleton.js';
@@ -104,7 +99,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     'blackjack',
     'hilo',
     'cases',
-    'chicken-road',
     'macvpot',
   ];
 
@@ -1657,148 +1651,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }
     }
   );
-
-  /* -------------------------------------------------------------- chicken-road */
-
-  app.get('/chicken-road/state', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
-    const state = chickenRoadEngine.getActiveGame(userId);
-    return reply.send({ ok: true, state });
-  });
-
-  app.get<{ Querystring: { limit?: string } }>(
-    '/chicken-road/my-history',
-    {
-      preHandler: authenticate,
-      schema: { querystring: { type: 'object', properties: { limit: { type: 'string' } } } },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
-      try {
-        const bets = await app.prisma.bet.findMany({
-          where: { userId, gameType: 'chicken-road', payout: { not: null } },
-          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
-          take: limit,
-          select: { id: true, amount: true, payout: true, multiplier: true, placedAt: true, resolvedAt: true },
-        });
-        const history = bets.map((b) => ({
-          id: b.id,
-          betAmount: Number(b.amount),
-          multiplier: Number(b.multiplier ?? 0),
-          payout: Number(b.payout ?? 0),
-          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
-        }));
-        return reply.send({ success: true, history });
-      } catch (error) {
-        logger.error(error, 'Failed to fetch chicken-road my-history');
-        return reply.code(500).send({ error: 'Internal Server Error' });
-      }
-    }
-  );
-
-  app.get<{ Querystring: { limit?: string } }>(
-    '/chicken-road/history',
-    {
-      preHandler: authenticate,
-      schema: { querystring: { type: 'object', properties: { limit: { type: 'string' } } } },
-    },
-    async (request, reply) => {
-      if (!(await ensureVisible('chicken-road', request as AuthenticatedRequest, reply))) return;
-      const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
-      try {
-        const bets = await app.prisma.bet.findMany({
-          where: { gameType: 'chicken-road', payout: { not: null } },
-          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
-          take: limit,
-          select: {
-            id: true, amount: true, payout: true, multiplier: true, placedAt: true, resolvedAt: true,
-            user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true } },
-          },
-        });
-        const history = bets.map((b) => ({
-          id: b.id,
-          name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
-          photoUrl: b.user.photoUrl ?? null,
-          betAmount: Number(b.amount),
-          multiplier: Number(b.multiplier ?? 0),
-          payout: Number(b.payout ?? 0),
-          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
-        }));
-        return reply.send({ success: true, history });
-      } catch (error) {
-        logger.error(error, 'Failed to fetch chicken-road history');
-        return reply.code(500).send({ error: 'Internal Server Error' });
-      }
-    }
-  );
-
-  app.post<{ Body: { amount: number; level: ChickenRoadLevel } }>(
-    '/chicken-road/bet',
-    {
-      preHandler: authenticate,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['amount', 'level'],
-          properties: {
-            amount: { type: 'number', minimum: 1 },
-            level: { type: 'string', enum: CHICKEN_ROAD_LEVELS as unknown as string[] },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const { amount, level } = request.body;
-
-      if (!(await ensureVisible('chicken-road', request as AuthenticatedRequest, reply))) return;
-
-      if (!checkRateLimit(userId, 'chicken-road:bet')) {
-        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
-      }
-
-      try {
-        const result = await chickenRoadEngine.placeBet(userId, amount, level, false);
-        return reply.send({ success: true, result });
-      } catch (error) {
-        logger.error(error, 'Failed to place chicken-road bet');
-        return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
-      }
-    }
-  );
-
-  app.post('/chicken-road/step', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
-
-    if (!checkRateLimit(userId, 'chicken-road:step')) {
-      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
-    }
-
-    try {
-      const result = await chickenRoadEngine.step(userId);
-      return reply.send({ success: true, result });
-    } catch (error) {
-      logger.error(error, 'Failed to make chicken-road step');
-      return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
-    }
-  });
-
-  app.post('/chicken-road/cashout', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
-
-    if (!checkRateLimit(userId, 'chicken-road:cashout')) {
-      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
-    }
-
-    try {
-      const result = await chickenRoadEngine.cashout(userId);
-      return reply.send({ success: true, result });
-    } catch (error) {
-      logger.error(error, 'Failed to cashout chicken-road');
-      return reply.code(400).send({ error: 'Bad Request', message: (error as Error).message });
-    }
-  });
 
   /* -------------------------------------------------------------------------- */
   /* MacvPot (Jackpot) endpoints                                                */

@@ -55,15 +55,6 @@ interface InAppGame {
 
 const IN_APP_GAMES: InAppGame[] = [
   {
-    id: 'macvpot',
-    name: 'MacvPot',
-    href: '/game/macvpot',
-    bg: '/MacvPot.png',
-    badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
-    isPopular: true,
-    category: 'fast',
-  },
-  {
     id: 'crash',
     name: 'MacvJet',
     href: '/game/crash',
@@ -150,11 +141,12 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'table',
   },
   {
-    id: 'chicken-road',
-    name: 'MacvRoad',
-    href: '/game/chicken-road',
-    bg: '/MacvRoad.png?v=2',
-    badge: { label: 'NEW', color: 'green', Icon: Sparkles },
+    id: 'macvpot',
+    name: 'MacvPot',
+    href: '/game/macvpot',
+    bg: '/MacvPot.png',
+    badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
+    isPopular: true,
     category: 'fast',
   },
 ];
@@ -303,7 +295,7 @@ export function HomeScreen() {
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
-    if ((gameId === 'blackjack' || gameId === 'chicken-road') && !isAdmin) {
+    if (gameId === 'blackjack' && !isAdmin) {
       return false;
     }
     if (hidden[gameId] && !isAdmin) return false;

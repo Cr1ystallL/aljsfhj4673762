@@ -27,7 +27,6 @@ export type GameType =
   | 'blackjack'
   | 'hilo'
   | 'cases'
-  | 'chicken-road'
   | 'macvpot';
 
 export interface GameConfig {
@@ -88,17 +87,6 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     maxBet: 10000,
     houseEdge: 0.01,
     wagerContribution: 0.5, // Plinko default to 50%
-    extras: {
-      maxPayout: 1_000_000,
-    },
-  },
-  'chicken-road': {
-    paused: false,
-    hidden: false,
-    minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.04, // Used only if dynamic math is needed, but we hardcoded 96% RTP (4% edge)
-    wagerContribution: 1.0,
     extras: {
       maxPayout: 1_000_000,
     },
