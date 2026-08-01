@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { Trophy, Users, Clock, Flame, RotateCcw, Sparkles } from 'lucide-react';
