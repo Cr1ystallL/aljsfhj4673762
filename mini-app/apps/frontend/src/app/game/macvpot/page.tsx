@@ -351,13 +351,14 @@ export default function MacvpotPage() {
                   </button>
                 </div>
 
-                {/* Bottom: Full-width Place Bet Button */}
+                {/* Bottom: Full-width Place Bet Button (Liquid Glass Dark Gray Style) */}
                 <button
                   disabled={!isBettingPhase || isSubmitting}
                   onClick={handlePlaceBet}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-black font-extrabold text-base shadow-[0_0_25px_rgba(245,158,11,0.3)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none mt-1"
+                  className="w-full py-4 rounded-2xl bg-gradient-to-b from-white/10 via-white/[0.05] to-black/60 border border-white/20 hover:border-white/40 text-white font-extrabold text-base tracking-wide shadow-[0_4px_20px_rgba(255,255,255,0.06),inset_0_1px_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_25px_rgba(255,255,255,0.12),inset_0_1px_2px_rgba(255,255,255,0.4)] hover:bg-white/[0.12] active:scale-[0.98] transition-all backdrop-blur-xl disabled:opacity-40 disabled:pointer-events-none mt-1 flex items-center justify-center gap-2 group"
                 >
-                  Поставить
+                  <Sparkles size={16} className="text-white/60 group-hover:text-amber-400 transition-colors" />
+                  <span>Поставить</span>
                 </button>
               </div>
             ) : (
