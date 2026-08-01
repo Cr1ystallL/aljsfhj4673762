@@ -483,7 +483,7 @@ export class MacvpotEngine extends EventEmitter {
     this.bets.push(newParticipant);
 
     // Trigger 25-second countdown ONLY when at least 2 players are in the pot!
-    if (this.bets.length === 2) {
+    if (this.bets.length >= 2 && !this.phaseEndsAt) {
       if (this.timer) clearTimeout(this.timer);
       const config = await gameConfig.get('macvpot');
       const bettingDurationSec = (config.extras?.bettingDuration as number) || 25;

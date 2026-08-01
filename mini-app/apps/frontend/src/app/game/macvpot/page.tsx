@@ -179,20 +179,33 @@ export default function MacvpotPage() {
     };
   }, [fetchBalance, isSpinning, loadState, wsUrl]);
 
-  // Phase Countdown timer
+  // Phase Countdown timer (synced with server timestamp to handle clock drift)
   useEffect(() => {
-    if (!state?.phaseEndsAt) {
+    if (!state?.phaseEndsAt || state.phase !== 'betting') {
       setTimeLeft(0);
       return;
     }
 
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((state.phaseEndsAt! - Date.now()) / 1000));
+    const serverNow = state.timestamp || Date.now();
+    const remainingMsOnServer = state.phaseEndsAt - serverNow;
+
+    if (remainingMsOnServer <= 0) {
+      setTimeLeft(0);
+      return;
+    }
+
+    const clientTargetEndsAt = Date.now() + remainingMsOnServer;
+
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.ceil((clientTargetEndsAt - Date.now()) / 1000));
       setTimeLeft(remaining);
-    }, 200);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 200);
 
     return () => clearInterval(interval);
-  }, [state?.phaseEndsAt]);
+  }, [state?.phaseEndsAt, state?.timestamp, state?.phase]);
 
   const userBet = state?.bets.find((b) => b.userId === user?.userId);
   const isBettingPhase = state?.phase === 'betting';
