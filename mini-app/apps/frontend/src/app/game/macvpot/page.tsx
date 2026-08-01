@@ -302,18 +302,18 @@ export default function MacvpotPage() {
         {/* 4. ЭЛЕМЕНТ ДЛЯ НАСТРОЙКИ СТАВКИ (LIQUID GLASS STYLE) */}
         <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12]/90 p-5 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.8)] flex flex-col gap-4 relative overflow-hidden">
           {/* Top Info Bar inside Betting Element */}
-          <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3.5 relative">
-            {/* Left: Total Pot */}
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-400/15 border-2 border-amber-400/30 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.35)] shrink-0">
-                <Flame size={24} className="animate-pulse" />
+          <div className="flex items-center justify-between gap-3 border-b border-white/5 pb-4 relative">
+            {/* Left: Total Pot (Flame box 2x larger) */}
+            <div className="flex items-center gap-3.5">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-amber-400/15 border-2 border-amber-400/35 flex items-center justify-center text-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.4)] shrink-0">
+                <Flame size={40} className="animate-pulse" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-white/40">
                   Общий Банк
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-amber-400 font-roobert tracking-tight">
-                  {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs text-white/50 font-normal">zł</span>
+                <span className="text-2xl sm:text-3xl font-black text-amber-400 font-roobert tracking-tight">
+                  {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs sm:text-sm text-white/50 font-normal">zł</span>
                 </span>
               </div>
             </div>
@@ -325,19 +325,19 @@ export default function MacvpotPage() {
                   Вращение...
                 </span>
               ) : !state?.bets || state.bets.length < 2 ? (
-                <span className="text-xs font-semibold text-white/40 text-center tracking-wide">
-                  Ожидание 2-го игрока...
+                <span className="text-xs sm:text-sm font-bold text-white/50 text-center tracking-wide max-w-[160px] sm:max-w-[240px]">
+                  Ждем минимум 2х игроков для начала
                 </span>
               ) : (
                 <span
                   className={
                     timeLeft === 3
-                      ? 'text-red-500 text-4xl sm:text-5xl font-black font-mono scale-125 drop-shadow-[0_0_25px_rgba(239,68,68,0.9)] transition-all'
+                      ? 'text-red-500 text-4xl sm:text-6xl font-black font-mono scale-125 drop-shadow-[0_0_30px_rgba(239,68,68,0.95)] transition-all'
                       : timeLeft === 2
-                      ? 'text-amber-400 text-4xl sm:text-5xl font-black font-mono scale-125 drop-shadow-[0_0_25px_rgba(245,158,11,0.9)] transition-all'
+                      ? 'text-amber-400 text-4xl sm:text-6xl font-black font-mono scale-125 drop-shadow-[0_0_30px_rgba(245,158,11,0.95)] transition-all'
                       : timeLeft === 1
-                      ? 'text-emerald-400 text-4xl sm:text-5xl font-black font-mono scale-125 drop-shadow-[0_0_25px_rgba(16,185,129,0.9)] transition-all'
-                      : 'text-white text-3xl sm:text-4xl font-black font-mono tracking-wider'
+                      ? 'text-emerald-400 text-4xl sm:text-6xl font-black font-mono scale-125 drop-shadow-[0_0_30px_rgba(16,185,129,0.95)] transition-all'
+                      : 'text-white text-3xl sm:text-5xl font-black font-mono tracking-wider'
                   }
                 >
                   {timeLeft}
