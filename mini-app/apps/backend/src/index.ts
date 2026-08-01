@@ -45,6 +45,7 @@ async function start() {
     // worker start. Crash engine is bootstrapped through a separate
     // singleton imported by the routes module.
     await import('./games/wheel/wheel-singleton.js');
+    await import('./games/macvpot/macvpot-singleton.js');
     
     // Start automated background jobs
     const { startTournamentCron } = await import('./services/tournament-cron.js');

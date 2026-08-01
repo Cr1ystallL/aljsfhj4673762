@@ -83,6 +83,10 @@ export function ProvablyFairCalculator() {
           const segmentIndex = Math.floor((segmentInt / max) * 15);
           finalValue = `Сектор ${segmentIndex}`;
           break;
+        case 'macvpot':
+          const winningTicketPercentage = (u * 100).toFixed(2);
+          finalValue = `Выигрышный процент: ${winningTicketPercentage}%`;
+          break;
         case 'mines':
         case 'plinko':
         case 'bridges':
@@ -122,6 +126,7 @@ export function ProvablyFairCalculator() {
               onChange={(e) => setGame(e.target.value as any)}
               className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all appearance-none font-medium"
             >
+              <option value="macvpot">MacvPot (Jackpot)</option>
               <option value="crash">MacvJet (Crash)</option>
               <option value="coinflip">Coinflip</option>
               <option value="wheel">Wheel</option>

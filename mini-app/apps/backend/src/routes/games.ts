@@ -29,6 +29,7 @@ import {
 } from '../games/chicken-road/chicken-road-engine.js';
 import { hiloEngine } from '../games/hilo/hilo-engine.js';
 import { casesEngine } from '../games/cases/cases-engine.js';
+import { macvpotManager } from '../games/macvpot/macvpot-singleton.js';
 import { CASES, getCases } from '../games/cases/config.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
@@ -103,6 +104,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     'blackjack',
     'hilo',
     'cases',
+    'chicken-road',
+    'macvpot',
   ];
 
   app.get('/availability', { preHandler: authenticate }, async (request, reply) => {
@@ -1797,6 +1800,49 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  /* -------------------------------------------------------------------------- */
+  /* MacvPot (Jackpot) endpoints                                                */
+  /* -------------------------------------------------------------------------- */
+
+  app.get('/macvpot/state', { preHandler: authenticate }, async (request, reply) => {
+    if (!(await ensureVisible('macvpot', request as AuthenticatedRequest, reply))) return;
+    return reply.send({ success: true, state: macvpotManager.getSnapshot() });
+  });
+
+  app.post('/macvpot/bet', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    const { amount } = request.body as { amount: number };
+
+    if (!(await ensureVisible('macvpot', request as AuthenticatedRequest, reply))) return;
+
+    if (!checkRateLimit(userId, 'macvpot:bet')) {
+      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+    }
+
+    const res = await macvpotManager.placeBet(userId, Number(amount), false);
+    if (!res.success) {
+      return reply.code(400).send({ error: res.error });
+    }
+
+    return reply.send({ success: true, participant: res.participant });
+  });
+
+  app.post('/macvpot/cancel-bet', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+
+    if (!(await ensureVisible('macvpot', request as AuthenticatedRequest, reply))) return;
+
+    if (!checkRateLimit(userId, 'macvpot:cancel-bet')) {
+      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
+    }
+
+    const res = await macvpotManager.cancelBet(userId, false);
+    if (!res.success) {
+      return reply.code(400).send({ error: res.error });
+    }
+
+    return reply.send({ success: true });
+  });
 }
 
 

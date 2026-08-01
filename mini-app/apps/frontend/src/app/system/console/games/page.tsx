@@ -22,7 +22,7 @@ import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo' | 'cases';
+type GameType = 'crash' | 'macvpot' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo' | 'cases';
 
 interface GameCfg {
   paused: boolean;
@@ -39,7 +39,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo', 'cases'];
+const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo', 'cases'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);
@@ -538,6 +538,58 @@ function GameCard({
                 onChange={(v) => updateExtra('waitingPhaseSeconds', v)}
               />
             </Field>
+          )}
+
+          {gameType === 'macvpot' && (
+            <div className="grid grid-cols-3 gap-3">
+              <Field
+                label="Сбор ставок (сек)"
+                help={{
+                  title: 'Время приёма ставок',
+                  body: <p>Длительность первой фазы приёма ставок (по умолчанию 25 секунд).</p>,
+                }}
+              >
+                <NumberInput
+                  value={Number(form.extras?.bettingDuration ?? 25)}
+                  step={1}
+                  min={5}
+                  max={120}
+                  onChange={(v) => updateExtra('bettingDuration', v)}
+                />
+              </Field>
+
+              <Field
+                label="Пауза перед вращением (сек)"
+                help={{
+                  title: 'Задержка перед спином',
+                  body: <p>Пауза после блокировки ставок перед стартом рулетки (по умолчанию 3 секунды).</p>,
+                }}
+              >
+                <NumberInput
+                  value={Number(form.extras?.rollDelay ?? 3)}
+                  step={1}
+                  min={1}
+                  max={15}
+                  onChange={(v) => updateExtra('rollDelay', v)}
+                />
+              </Field>
+
+              <Field
+                label="Длительность вращения (сек)"
+                help={{
+                  title: 'Длительность вращения рулетки',
+                  body: <p>Время анимации вращения горизонтальной рулетки (по умолчанию 12 секунд).</p>,
+                }}
+              >
+                <NumberInput
+                  value={Number(form.extras?.rollDuration ?? 12)}
+                  step={1}
+                  min={5}
+                  max={30}
+                  onChange={(v) => updateExtra('rollDuration', v)}
+                />
+              </Field>
+            </div>
           )}
 
           {gameType === 'bridges' && (

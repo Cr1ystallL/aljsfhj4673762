@@ -14,6 +14,7 @@ import {
   Headphones,
   Layers,
   Sparkles,
+  Trophy,
   User,
   Wallet,
   X,
@@ -41,6 +42,7 @@ interface InAppGame {
 }
 
 const ALL_IN_APP_GAMES: InAppGame[] = [
+  { id: 'macvpot', name: 'MacvPot', bg: '/MacvPot.png', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
   { id: 'crash', name: 'MacvJet', bg: '/MacvJet.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
   { id: 'mines', name: 'Mines', bg: '/Mines.png', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
   { id: 'hilo', name: 'Hi-Lo', bg: '/hilo.png', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },

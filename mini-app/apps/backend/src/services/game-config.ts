@@ -27,7 +27,8 @@ export type GameType =
   | 'blackjack'
   | 'hilo'
   | 'cases'
-  | 'chicken-road';
+  | 'chicken-road'
+  | 'macvpot';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve
@@ -175,6 +176,20 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     houseEdge: 0.01,
     wagerContribution: 1.0,
     extras: {},
+  },
+  macvpot: {
+    paused: false,
+    hidden: false,
+    minBet: 10,
+    maxBet: 100000,
+    houseEdge: 0.04, // 96% RTP
+    wagerContribution: 1.0,
+    extras: {
+      bettingDuration: 25,
+      rollDelay: 3,
+      rollDuration: 12,
+      rtp: 96,
+    },
   },
 };
 

@@ -13,6 +13,7 @@ import type {
   ServerErrorEvent,
 } from '@casino/shared';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
+import { macvpotManager } from '../games/macvpot/macvpot-singleton.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -149,6 +150,13 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
               socket.send(JSON.stringify(stateEvent));
             }
           }
+
+          if (roomId === 'macvpot_main') {
+            const snapshot = macvpotManager.getSnapshot();
+            const stateEvent = createEvent('macvpot:state', snapshot as any);
+            socket.send(JSON.stringify(stateEvent));
+          }
+
           return;
         }
 

@@ -42,6 +42,7 @@ export type GameKey =
   | 'keno'
   | 'cases'
   | 'chicken-road'
+  | 'macvpot'
   | 'unknown';
 
 /**
@@ -169,6 +170,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   keno: { label: 'Keno', Icon: Dice5 },
   cases: { label: 'Case', Icon: Box },
   'chicken-road': { label: 'MacvRoad', Icon: ClownIcon },
+  macvpot: { label: 'MacvPot', Icon: Trophy },
   unknown: { label: 'Прочее', Icon: Box },
 };
 
@@ -193,6 +195,7 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('keno')) return 'keno';
   if (v.startsWith('cases') || v.startsWith('case')) return 'cases';
   if (v.startsWith('chicken-road') || v.startsWith('chicken')) return 'chicken-road';
+  if (v.startsWith('macvpot') || v.startsWith('pot')) return 'macvpot';
   return 'unknown';
 }
 
