@@ -142,9 +142,11 @@ export default function MacvpotPage() {
         } else if (msg.type === 'macvpot:bet_placed') {
           soundManager.play('game.bet_placed');
           void fetchBalance();
+          void loadState();
         } else if (msg.type === 'macvpot:refund') {
           toast.warn('В раунде остался 1 игрок. Ставка возвращена.');
           void fetchBalance();
+          void loadState();
         }
       } catch {}
     };
@@ -155,7 +157,7 @@ export default function MacvpotPage() {
         ws.close();
       }
     };
-  }, [fetchBalance, isSpinning]);
+  }, [fetchBalance, isSpinning, loadState]);
 
   // Phase Countdown timer
   useEffect(() => {
@@ -203,6 +205,7 @@ export default function MacvpotPage() {
       } else {
         toast.success('Ставка принята!');
         void fetchBalance();
+        await loadState();
       }
     } catch {
       toast.error('Ошибка сети');
@@ -227,6 +230,7 @@ export default function MacvpotPage() {
       } else {
         toast.success('Ставка отменена!');
         void fetchBalance();
+        await loadState();
       }
     } catch {
       toast.error('Ошибка сети');
