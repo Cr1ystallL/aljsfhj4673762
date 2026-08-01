@@ -179,7 +179,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
   },
   macvpot: {
     paused: false,
-    hidden: false,
+    hidden: true, // Visible ONLY to admins by default
     minBet: 10,
     maxBet: 100000,
     houseEdge: 0.04, // 96% RTP

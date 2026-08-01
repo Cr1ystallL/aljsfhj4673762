@@ -452,11 +452,12 @@ export class MacvpotEngine extends EventEmitter {
     const dummyBet: Bet = {
       id: betId,
       userId,
+      gameId: 'macvpot',
       roundId: this.roundId,
-      gameType: 'macvpot',
       amount,
       state: 'pending',
-      placedAt: new Date(),
+      placedAt: Date.now(),
+      metadata: { gameType: 'macvpot' },
     };
 
     // Transactional debit from user balance
