@@ -302,35 +302,53 @@ export default function MacvpotPage() {
         {/* 4. ЭЛЕМЕНТ ДЛЯ НАСТРОЙКИ СТАВКИ (LIQUID GLASS STYLE) */}
         <div className="w-full rounded-3xl border border-white/10 bg-[#0d0d12]/90 p-5 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.8)] flex flex-col gap-4 relative overflow-hidden">
           {/* Top Info Bar inside Betting Element */}
-          <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
+          <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3 relative">
+            {/* Left: Total Pot */}
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
-                <Flame size={18} className="animate-pulse" />
+              <div className="w-8 h-8 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                <Flame size={16} className="animate-pulse" />
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
                   Общий Банк
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-amber-400 font-roobert tracking-tight">
+                <span className="text-lg sm:text-xl font-black text-amber-400 font-roobert tracking-tight">
                   {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs text-white/50 font-normal">zł</span>
                 </span>
               </div>
             </div>
 
-            {/* Status & Timer Badge */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold text-white/80">
-                <Clock size={13} className="text-amber-400" />
-                {state?.phase === 'betting' && `Сбор: ${timeLeft}с`}
-                {state?.phase === 'delay' && `Пауза: ${timeLeft}с`}
-                {state?.phase === 'spinning' && 'Вращение...'}
-                {state?.phase === 'completed' && 'Завершен'}
-              </div>
+            {/* Center: Timer Numbers (No Borders, Clean Typography, 3-Red, 2-Yellow, 1-Green) */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+              {state?.phase === 'spinning' ? (
+                <span className="text-amber-400 text-sm font-black uppercase tracking-widest animate-pulse">
+                  Вращение...
+                </span>
+              ) : !state?.bets || state.bets.length === 0 ? (
+                <span className="text-xs font-semibold text-white/40 text-center tracking-wide">
+                  Ожидание первого игрока...
+                </span>
+              ) : (
+                <span
+                  className={
+                    timeLeft === 3
+                      ? 'text-red-500 text-3xl font-black font-mono scale-125 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] transition-all'
+                      : timeLeft === 2
+                      ? 'text-amber-400 text-3xl font-black font-mono scale-125 drop-shadow-[0_0_15px_rgba(245,158,11,0.8)] transition-all'
+                      : timeLeft === 1
+                      ? 'text-emerald-400 text-3xl font-black font-mono scale-125 drop-shadow-[0_0_15px_rgba(16,185,129,0.8)] transition-all'
+                      : 'text-white text-2xl font-black font-mono tracking-wider'
+                  }
+                >
+                  {timeLeft}s
+                </span>
+              )}
+            </div>
 
-              <div className="flex items-center gap-1 bg-white/[0.04] border border-white/10 px-2.5 py-1.5 rounded-xl text-xs text-white/60 font-medium">
-                <Users size={13} className="text-white/40" />
-                <span>{state?.playerCount || 0}</span>
-              </div>
+            {/* Right: Players Count */}
+            <div className="flex items-center gap-1.5 bg-white/[0.04] px-3 py-1.5 rounded-xl border border-white/10 text-xs text-white/70 font-bold">
+              <Users size={14} className="text-white/40" />
+              <span>{state?.playerCount || 0}</span>
             </div>
           </div>
 
