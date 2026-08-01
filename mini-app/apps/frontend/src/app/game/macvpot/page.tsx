@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { Trophy, Users, Clock, Flame, RotateCcw, Sparkles } from 'lucide-react';
 import { MacvpotRoulette } from '@/components/game/macvpot/macvpot-roulette';
-import { MacvpotWinnerModal } from '@/components/game/macvpot/macvpot-winner-modal';
+import { MacvpotWinnerBanner } from '@/components/game/macvpot/macvpot-winner-banner';
 import { MacvpotHistory } from '@/components/game/macvpot/macvpot-history';
 import { toast } from '@/store/toast-store';
 import { useBalance } from '@/hooks/use-balance';
@@ -76,7 +76,7 @@ export default function MacvpotPage() {
   const [betAmount, setBetAmount] = useState<string>('100');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
-  const [showWinnerModal, setShowWinnerModal] = useState<boolean>(false);
+  const [showWinnerBanner, setShowWinnerBanner] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -88,7 +88,15 @@ export default function MacvpotPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.state) {
-          setState(data.state);
+          setState((prev) => {
+            // Keep winner banner when completed
+            if (data.state.phase === 'completed' && data.state.winner) {
+              setShowWinnerBanner(true);
+            } else if (data.state.phase === 'betting' && prev?.phase === 'completed') {
+              setShowWinnerBanner(false);
+            }
+            return data.state;
+          });
         }
       }
     } catch {}
@@ -97,6 +105,13 @@ export default function MacvpotPage() {
   useEffect(() => {
     void fetchBalance();
     void loadState();
+
+    // Fallback sync polling every 2.5s
+    const pollInterval = setInterval(() => {
+      void loadState();
+    }, 2500);
+
+    return () => clearInterval(pollInterval);
   }, [fetchBalance, loadState]);
 
   const wsUrl = useMemo(() => {
@@ -120,24 +135,29 @@ export default function MacvpotPage() {
       const sessionId = useAuthStore.getState().sessionId;
       if (sessionId) {
         ws.send(JSON.stringify({ type: 'auth', payload: { sessionId }, timestamp: Date.now() }));
+      } else {
+        ws.send(JSON.stringify({ type: 'game:join', payload: { roomId: 'macvpot_main' } }));
       }
-      ws.send(JSON.stringify({ type: 'game:join', payload: { roomId: 'macvpot_main' } }));
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'macvpot:state') {
+
+        if (msg.type === 'auth_success') {
+          ws.send(JSON.stringify({ type: 'game:join', payload: { roomId: 'macvpot_main' } }));
+        } else if (msg.type === 'macvpot:state') {
           const newState = msg.payload as MacvpotState;
           setState(newState);
 
           if (newState.phase === 'spinning' && !isSpinning) {
             setIsSpinning(true);
           } else if (newState.phase === 'completed' && newState.winner) {
-            setShowWinnerModal(true);
+            setShowWinnerBanner(true);
             void fetchBalance();
           } else if (newState.phase === 'betting') {
             setIsSpinning(false);
+            setShowWinnerBanner(false);
           }
         } else if (msg.type === 'macvpot:bet_placed') {
           soundManager.play('game.bet_placed');
@@ -157,7 +177,7 @@ export default function MacvpotPage() {
         ws.close();
       }
     };
-  }, [fetchBalance, isSpinning, loadState]);
+  }, [fetchBalance, isSpinning, loadState, wsUrl]);
 
   // Phase Countdown timer
   useEffect(() => {
@@ -259,15 +279,24 @@ export default function MacvpotPage() {
         {/* 2. ИСТОРИЯ ПРОШЛЫХ РАУНДОВ */}
         <MacvpotHistory history={state?.history || []} />
 
+        {/* INLINE WINNER BANNER */}
+        {showWinnerBanner && state?.winner && (
+          <MacvpotWinnerBanner
+            winner={state.winner}
+            onClose={() => setShowWinnerBanner(false)}
+          />
+        )}
+
         {/* 3. РУЛЕТКА */}
         <MacvpotRoulette
+          roundId={state?.roundId || 'init'}
           bets={state?.bets || []}
           winningTicket={state?.winningTicket || null}
           winnerUserId={state?.winner?.userId || null}
           isSpinning={state?.phase === 'spinning'}
           spinDurationMs={state?.spinDurationMs || 12000}
           onSpinComplete={() => {
-            setShowWinnerModal(true);
+            setShowWinnerBanner(true);
           }}
         />
 
@@ -469,13 +498,6 @@ export default function MacvpotPage() {
           )}
         </div>
       </div>
-
-      {/* Winner Celebration Modal */}
-      <MacvpotWinnerModal
-        winner={state?.winner || null}
-        isOpen={showWinnerModal}
-        onClose={() => setShowWinnerModal(false)}
-      />
     </main>
   );
 }

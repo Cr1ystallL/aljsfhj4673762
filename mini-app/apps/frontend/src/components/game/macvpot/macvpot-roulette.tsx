@@ -7,6 +7,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import type { MacvpotParticipant } from '@/app/game/macvpot/page';
 
 interface MacvpotRouletteProps {
+  roundId: string;
   bets: MacvpotParticipant[];
   winningTicket: number | null;
   winnerUserId: string | null;
@@ -55,6 +56,7 @@ function generateRouletteSequence(
 }
 
 export function MacvpotRoulette({
+  roundId,
   bets,
   winningTicket,
   winnerUserId,
@@ -66,18 +68,26 @@ export function MacvpotRoulette({
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
   const lastPassedRef = useRef<number>(-1);
+  const spunRoundIdRef = useRef<string | null>(null);
 
-  // Generate track sequence when bets or state changes
+  // Generate track sequence when bets or roundId changes
   useEffect(() => {
     if (!isSpinning) {
       const initialSeq = generateRouletteSequence(bets, null, 80, 70);
       setTrack(initialSeq);
       void controls.set({ x: 0 });
+      spunRoundIdRef.current = null;
     }
-  }, [bets, isSpinning, controls]);
+  }, [bets, isSpinning, controls, roundId]);
 
   useEffect(() => {
     if (isSpinning && winnerUserId && bets.length > 0) {
+      // Prevent double spinning for the same round
+      if (spunRoundIdRef.current === roundId) {
+        return;
+      }
+      spunRoundIdRef.current = roundId;
+
       const winSeq = generateRouletteSequence(bets, winnerUserId, 80, 70);
       setTrack(winSeq);
 
@@ -110,7 +120,7 @@ export function MacvpotRoulette({
           });
       }, 50);
     }
-  }, [isSpinning, winnerUserId, bets, spinDurationMs, controls, onSpinComplete]);
+  }, [isSpinning, winnerUserId, bets, spinDurationMs, controls, onSpinComplete, roundId]);
 
   return (
     <div
