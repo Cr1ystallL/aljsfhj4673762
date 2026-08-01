@@ -8,6 +8,7 @@ import {
   Spade,
   Dice5,
   Box,
+  Trophy,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
