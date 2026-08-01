@@ -1,4 +1,5 @@
 import { MacvpotEngine } from './macvpot-engine.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Singleton instance of MacvpotEngine.
@@ -7,5 +8,9 @@ import { MacvpotEngine } from './macvpot-engine.js';
  */
 export const macvpotManager = new MacvpotEngine();
 
-// Eager initialization
-void macvpotManager.init();
+try {
+  void macvpotManager.init();
+  logger.info('MacvPot engine initialized');
+} catch (err) {
+  logger.error({ err }, 'MacvPot engine bootstrap failed');
+}
