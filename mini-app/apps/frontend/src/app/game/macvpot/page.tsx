@@ -103,6 +103,8 @@ export default function MacvpotPage() {
   }, []);
 
   useEffect(() => {
+    soundManager.initialize();
+    soundManager.register('cases.tick', { src: '/audio/tick.mp3', category: 'sfx' });
     void fetchBalance();
     void loadState();
 
