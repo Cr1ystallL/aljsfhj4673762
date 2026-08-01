@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { Trophy, Users, Clock, Flame, RotateCcw, Sparkles } from 'lucide-react';
 import { MacvpotRoulette } from '@/components/game/macvpot/macvpot-roulette';
-import { MacvpotWinnerBanner } from '@/components/game/macvpot/macvpot-winner-banner';
+import { MacvpotTotemWinner } from '@/components/game/macvpot/macvpot-totem-winner';
 import { MacvpotHistory } from '@/components/game/macvpot/macvpot-history';
 import { toast } from '@/store/toast-store';
 import { useBalance } from '@/hooks/use-balance';
@@ -272,20 +272,19 @@ export default function MacvpotPage() {
 
   return (
     <main className="min-h-screen w-full bg-black text-frost-white relative overflow-x-hidden selection:bg-amber-400 selection:text-black">
+      {/* MINECRAFT TOTEM OF UNDYING WINNER ACTIVATION ANIMATION */}
+      <MacvpotTotemWinner
+        winner={state?.winner || null}
+        isOpen={showWinnerBanner}
+        onClose={() => setShowWinnerBanner(false)}
+      />
+
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
         {/* 1. TOP BAR */}
         <GameTopBar title="MacvPot" Icon={Trophy} />
 
         {/* 2. ИСТОРИЯ ПРОШЛЫХ РАУНДОВ */}
         <MacvpotHistory history={state?.history || []} />
-
-        {/* INLINE WINNER BANNER */}
-        {showWinnerBanner && state?.winner && (
-          <MacvpotWinnerBanner
-            winner={state.winner}
-            onClose={() => setShowWinnerBanner(false)}
-          />
-        )}
 
         {/* 3. РУЛЕТКА */}
         <MacvpotRoulette
@@ -322,7 +321,7 @@ export default function MacvpotPage() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold text-white/80">
                 <Clock size={13} className="text-amber-400" />
-                {state?.phase === 'betting' && `Сбор: ${timeLeft}с`}
+                {state?.phase === 'betting' && (timeLeft > 0 ? `Сбор: ${timeLeft}с` : 'Ожидание ставок')}
                 {state?.phase === 'delay' && `Пауза: ${timeLeft}с`}
                 {state?.phase === 'spinning' && 'Вращение...'}
                 {state?.phase === 'completed' && 'Завершен'}
