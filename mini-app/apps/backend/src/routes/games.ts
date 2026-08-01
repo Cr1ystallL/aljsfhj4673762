@@ -1656,8 +1656,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   /* MacvPot (Jackpot) endpoints                                                */
   /* -------------------------------------------------------------------------- */
 
-  app.get('/macvpot/state', { preHandler: authenticate }, async (request, reply) => {
-    if (!(await ensureVisible('macvpot', request as AuthenticatedRequest, reply))) return;
+  app.get('/macvpot/state', async (request, reply) => {
     return reply.send({ success: true, state: macvpotManager.getSnapshot() });
   });
 
