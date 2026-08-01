@@ -321,7 +321,7 @@ export default function MacvpotPage() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold text-white/80">
                 <Clock size={13} className="text-amber-400" />
-                {state?.phase === 'betting' && (timeLeft > 0 ? `Сбор: ${timeLeft}с` : 'Ожидание ставок')}
+                {state?.phase === 'betting' && `Сбор: ${timeLeft}с`}
                 {state?.phase === 'delay' && `Пауза: ${timeLeft}с`}
                 {state?.phase === 'spinning' && 'Вращение...'}
                 {state?.phase === 'completed' && 'Завершен'}
