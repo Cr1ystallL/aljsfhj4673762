@@ -167,7 +167,7 @@ export class BettingPipeline {
     // Honour admin-controlled limits and pause flag. The engine knows
     // its game-type from `bet.gameId` (e.g. "crash_main_..." → "crash").
     const gt = bet.gameId.split('_')[0];
-    const supported: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'];
+    const supported: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack', 'macvpot'];
     if (supported.includes(gt as GameType)) {
       const cfg = await gameConfig.get(gt as GameType);
       if (cfg.paused) {

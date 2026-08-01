@@ -99,15 +99,28 @@ export default function MacvpotPage() {
     void loadState();
   }, [fetchBalance, loadState]);
 
+  const wsUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const baseRaw = process.env.NEXT_PUBLIC_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+    let base = baseRaw.replace(/\/$/, '');
+    if (!base.endsWith('/api')) {
+      base = base.replace(/\/ws$/, '');
+    }
+    return base.endsWith('/api/ws') ? base : `${base.replace(/\/api$/, '')}/api/ws`;
+  }, []);
+
   // WebSocket Live Connection
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    if (!wsUrl) return;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      const sessionId = useAuthStore.getState().sessionId;
+      if (sessionId) {
+        ws.send(JSON.stringify({ type: 'auth', payload: { sessionId }, timestamp: Date.now() }));
+      }
       ws.send(JSON.stringify({ type: 'game:join', payload: { roomId: 'macvpot_main' } }));
     };
 

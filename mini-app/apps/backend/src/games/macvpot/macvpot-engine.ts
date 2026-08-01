@@ -461,9 +461,24 @@ export class MacvpotEngine extends EventEmitter {
     };
 
     // Transactional debit from user balance
-    const processed = await bettingPipeline.processBet(dummyBet, demoMode);
-    if (!processed) {
-      return { success: false, error: 'Недостаточно средств на балансе' };
+    let betSuccess = false;
+    let lastError = 'Недостаточно средств на балансе';
+    try {
+      await bettingPipeline.processBet(dummyBet, demoMode);
+      betSuccess = true;
+    } catch (error: any) {
+      lastError = error?.message || lastError;
+      // If primary mode failed due to balance, attempt alternate balance mode
+      try {
+        await bettingPipeline.processBet(dummyBet, !demoMode);
+        betSuccess = true;
+      } catch (subErr: any) {
+        lastError = subErr?.message || lastError;
+      }
+    }
+
+    if (!betSuccess) {
+      return { success: false, error: lastError };
     }
 
     // Allocate ticket range
