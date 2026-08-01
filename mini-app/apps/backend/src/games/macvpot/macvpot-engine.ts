@@ -170,6 +170,7 @@ export class MacvpotEngine extends EventEmitter {
   private async startNewRound(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
 
+    this.isProcessingPhase = false;
     this.roundId = randomUUID();
     this.phase = 'betting';
     this.totalPot = 0;
