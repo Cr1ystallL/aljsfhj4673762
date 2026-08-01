@@ -204,10 +204,6 @@ export class MacvpotEngine extends EventEmitter {
     }
 
     this.broadcastState();
-
-    this.timer = setTimeout(() => {
-      void this.endBettingPhase();
-    }, bettingDurationSec * 1000);
   }
 
   /**
