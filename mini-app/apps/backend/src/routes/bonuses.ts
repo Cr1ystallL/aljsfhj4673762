@@ -156,13 +156,25 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
             WHERE user_id = ${userId} AND status = 'active'
           `;
 
-          // Activate this bonus
-          await app.prisma.$executeRaw`
-            INSERT INTO user_deposit_bonuses (id, deposit_bonus_id, user_id, status, created_at)
-            VALUES (gen_random_uuid()::text, ${id}, ${userId}, 'active', NOW())
-            ON CONFLICT (deposit_bonus_id, user_id)
-            DO UPDATE SET status = 'active'
+          // Activate this bonus safely without ON CONFLICT dependency
+          const existing = await app.prisma.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM user_deposit_bonuses
+            WHERE deposit_bonus_id = ${id} AND user_id = ${userId}
+            LIMIT 1
           `;
+
+          if (existing[0]) {
+            await app.prisma.$executeRaw`
+              UPDATE user_deposit_bonuses
+              SET status = 'active'
+              WHERE deposit_bonus_id = ${id} AND user_id = ${userId}
+            `;
+          } else {
+            await app.prisma.$executeRaw`
+              INSERT INTO user_deposit_bonuses (id, deposit_bonus_id, user_id, status, created_at)
+              VALUES (gen_random_uuid()::text, ${id}, ${userId}, 'active', NOW())
+            `;
+          }
 
           return reply.send({ ok: true, active: true });
         } else {
@@ -1097,20 +1109,6 @@ async function initDepositBonuses(app: FastifyInstance) {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
-
-    const countRows = await app.prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(*)::bigint AS count FROM deposit_bonuses
-    `;
-    if (Number(countRows[0]?.count ?? 0) === 0) {
-      await app.prisma.$executeRawUnsafe(`
-        INSERT INTO deposit_bonuses (id, title, description, banner_url, type, bonus_value, min_deposit, wager_multiplier, active)
-        VALUES 
-          (gen_random_uuid()::text, '🔥 +100% к депозиту', 'Получите дополнительно +100% к сумме пополнения при депозите от 100 zł.', NULL, 'percent', 100, 100, 50, true),
-          (gen_random_uuid()::text, '⚡ +50 zł в подарок', 'Фиксированный подарок +50 zł на ваш счет при депозите от 100 zł.', NULL, 'fixed', 50, 100, 45, true),
-          (gen_random_uuid()::text, '👑 VIP Booster +150%', 'Эксклюзивный хайроллер-бонус +150% к пополнению при депозите от 250 zł.', NULL, 'percent', 150, 250, 40, true),
-          (gen_random_uuid()::text, '🚀 Стартовый бонус +50%', 'Лёгкий старт с бонусом +50% к депозиту от 50 zł.', NULL, 'percent', 50, 50, 30, true);
-      `);
-    }
   } catch (err) {
     logger.error(err, 'Failed to init deposit bonuses tables');
   }

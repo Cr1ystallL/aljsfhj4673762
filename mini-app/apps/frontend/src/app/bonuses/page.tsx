@@ -241,55 +241,46 @@ function DepositBonusesSection() {
             Разовые Депозитные Бонусы
           </span>
         </div>
-        <span className="text-[10px] text-amber-400/80 font-mono">Доступны всем 1 раз</span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {offers.map((offer, idx) => {
+        {offers.map((offer) => {
           const isActive = offer.userStatus === 'active';
           const isUsed = offer.userStatus === 'used';
-          const theme = getCardStyleTheme(offer.title, idx);
 
           return (
             <div
               key={offer.id}
-              className={`relative aspect-square overflow-hidden rounded-2xl border transition-all duration-300 p-3 flex flex-col justify-between group ${
+              className={`relative aspect-square overflow-hidden rounded-2xl border transition-all duration-300 p-2.5 flex flex-col justify-between group ${
                 isActive
-                  ? 'border-emerald-400/90 shadow-[0_0_30px_rgba(52,211,153,0.35)] bg-emerald-950/20'
+                  ? 'border-emerald-400 bg-emerald-950/30'
                   : isUsed
                   ? 'border-white/5 bg-white/[0.01] opacity-40'
-                  : `border-white/15 hover:border-amber-400/60 ${theme.glowShadow}`
+                  : 'border-white/12 bg-black/60 hover:border-amber-400/50'
               }`}
             >
-              {/* Shimmer Light Sweep on Hover */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none z-20" />
-
-              {/* Optional Banner Image or Custom Dynamic Gradient Background */}
+              {/* Optional Banner Image Background or Clean Dark Fallback */}
               {offer.bannerUrl ? (
                 <>
                   <img
                     src={offer.bannerUrl}
                     alt={offer.title}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
                 </>
               ) : (
-                <>
-                  <div className={`absolute inset-0 ${theme.gradientBg}`} />
-                  {/* Subtle Grid / Pattern Glow Overlay */}
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.08),transparent)]" />
-                </>
+                <div className="absolute inset-0 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black" />
               )}
 
               {/* Top Badges */}
               <div className="relative z-10 flex items-center justify-between gap-1">
-                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-extrabold font-roobert shadow-md ${theme.badgeBg}`}>
+                <span className="px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/20 text-amber-300 text-[10px] font-extrabold font-roobert backdrop-blur-md">
                   {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
                 </span>
 
                 {isActive ? (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 text-[9px] font-mono font-bold uppercase backdrop-blur-md flex items-center gap-1 shadow-sm">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 text-[9px] font-mono font-bold uppercase backdrop-blur-md flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                     <span>Активен</span>
                   </span>
@@ -300,56 +291,58 @@ function DepositBonusesSection() {
                 ) : null}
               </div>
 
-              {/* Middle Content */}
-              <div className="relative z-10 flex flex-col gap-0.5 my-auto">
-                <h3 className={`font-roobert text-[12.5px] sm:text-[13.5px] font-extrabold leading-snug line-clamp-2 drop-shadow-lg ${offer.bannerUrl ? 'text-white' : theme.titleGrad}`}>
-                  {offer.title}
-                </h3>
-                <div className="text-[10px] font-roobert text-whisper-gray flex items-center gap-1">
-                  <span>Депозит от:</span>
-                  <b className="text-amber-300 font-bold drop-shadow-sm">{offer.minDeposit} zł</b>
+              {/* Bottom Info & Action (Title placed right above the button, NOT in center) */}
+              <div className="relative z-10 mt-auto flex flex-col gap-1 pt-1">
+                <div className="flex flex-col gap-0.5">
+                  <h3 className="font-roobert text-[11.5px] sm:text-[12.5px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
+                    {offer.title}
+                  </h3>
+                  <div className="text-[9.5px] font-roobert text-whisper-gray flex items-center gap-1">
+                    <span>Депозит от:</span>
+                    <b className="text-amber-300 font-bold">{offer.minDeposit} zł</b>
+                  </div>
                 </div>
-              </div>
 
-              {/* Bottom Action Button */}
-              <div className="relative z-10 pt-1">
-                {isActive ? (
-                  <div className="flex items-center gap-1">
+                {/* Bottom Action Button */}
+                <div className="pt-0.5">
+                  {isActive ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => router.push('/balance/deposit')}
+                        className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-[10.5px] transition-all text-center truncate active:scale-95"
+                      >
+                        Депозит 🚀
+                      </button>
+                      <button
+                        onClick={() => toggleBonus(offer)}
+                        disabled={busyId === offer.id}
+                        className="px-2 py-1.5 rounded-xl border border-white/20 bg-black/80 text-rose-300 text-[10px] hover:bg-rose-500/30 transition-all font-roobert active:scale-95"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : isUsed ? (
                     <button
-                      onClick={() => router.push('/balance/deposit')}
-                      className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-[10.5px] shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all text-center truncate active:scale-95"
+                      disabled
+                      className="w-full py-1.5 rounded-xl bg-white/10 text-whisper-gray font-medium text-[10px] cursor-not-allowed text-center"
                     >
-                      Депозит 🚀
+                      Использован
                     </button>
+                  ) : (
                     <button
                       onClick={() => toggleBonus(offer)}
                       disabled={busyId === offer.id}
-                      className="px-2 py-1.5 rounded-xl border border-white/20 bg-black/70 text-rose-300 text-[10px] hover:bg-rose-500/30 transition-all font-roobert active:scale-95"
+                      className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-extrabold text-[11px] active:scale-95 transition-all flex items-center justify-center gap-1"
                     >
-                      ✕
+                      {busyId === offer.id ? (
+                        <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Zap size={12} fill="currentColor" />
+                      )}
+                      <span>Активировать</span>
                     </button>
-                  </div>
-                ) : isUsed ? (
-                  <button
-                    disabled
-                    className="w-full py-1.5 rounded-xl bg-white/10 text-whisper-gray font-medium text-[10px] cursor-not-allowed text-center"
-                  >
-                    Использован
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => toggleBonus(offer)}
-                    disabled={busyId === offer.id}
-                    className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-200 text-black font-extrabold text-[11px] shadow-[0_0_20px_rgba(255,172,46,0.35)] active:scale-95 transition-all flex items-center justify-center gap-1"
-                  >
-                    {busyId === offer.id ? (
-                      <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Zap size={12} fill="currentColor" />
-                    )}
-                    <span>Активировать</span>
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           );

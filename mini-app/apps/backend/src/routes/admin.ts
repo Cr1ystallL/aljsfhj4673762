@@ -3658,56 +3658,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         )
       `).catch(() => {});
 
-      // Auto-restore any missing default bonuses if empty or requested
-      const DEFAULT_OFFERS = [
-        {
-          title: '🔥 +100% к депозиту',
-          description: 'Получите дополнительно +100% к сумме пополнения при депозите от 100 zł.',
-          bannerUrl: null,
-          type: 'percent',
-          bonusValue: 100,
-          minDeposit: 100,
-          wagerMultiplier: 50,
-        },
-        {
-          title: '⚡ +50 zł в подарок',
-          description: 'Фиксированный подарок +50 zł на ваш счет при депозите от 100 zł.',
-          bannerUrl: null,
-          type: 'fixed',
-          bonusValue: 50,
-          minDeposit: 100,
-          wagerMultiplier: 45,
-        },
-        {
-          title: '👑 VIP Booster +150%',
-          description: 'Эксклюзивный хайроллер-бонус +150% к пополнению при депозите от 250 zł.',
-          bannerUrl: null,
-          type: 'percent',
-          bonusValue: 150,
-          minDeposit: 250,
-          wagerMultiplier: 40,
-        },
-        {
-          title: '🚀 Стартовый бонус +50%',
-          description: 'Лёгкий старт с бонусом +50% к депозиту от 50 zł.',
-          bannerUrl: null,
-          type: 'percent',
-          bonusValue: 50,
-          minDeposit: 50,
-          wagerMultiplier: 30,
-        },
-      ];
-
-      for (const offer of DEFAULT_OFFERS) {
-        await app.prisma.$executeRaw`
-          INSERT INTO deposit_bonuses (id, title, description, banner_url, type, bonus_value, min_deposit, wager_multiplier, active)
-          SELECT gen_random_uuid()::text, ${offer.title}, ${offer.description}, ${offer.bannerUrl}, ${offer.type}, ${offer.bonusValue}::numeric, ${offer.minDeposit}::numeric, ${offer.wagerMultiplier}::numeric, true
-          WHERE NOT EXISTS (
-            SELECT 1 FROM deposit_bonuses WHERE title = ${offer.title}
-          );
-        `.catch(() => {});
-      }
-
       let rows: Array<{
         id: string;
         title: string;
