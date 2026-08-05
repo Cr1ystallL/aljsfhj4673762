@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
