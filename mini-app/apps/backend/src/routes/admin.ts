@@ -2666,11 +2666,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           `);
         } catch {}
 
-        // 3. Transactions table (type = 'deposit')
+        // 3. Transactions table (all deposit & topup transaction types)
         interface GeneralTxRow {
           id: string;
           user_id: string;
           amount: string;
+          type: string;
           description: string | null;
           metadata: Prisma.JsonValue;
           created_at: Date;
@@ -2682,11 +2683,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             SELECT id::text AS id,
                    user_id::text AS user_id,
                    amount::text AS amount,
+                   type,
                    description,
                    metadata,
                    created_at
               FROM transactions
-             WHERE type = 'deposit'
+             WHERE type IN ('deposit', 'manual_deposit', 'deposit_bonus', 'foluxpay', 'cryptobot', 'topup', 'credit', 'manual', 'deposit_credit')
+                OR LOWER(COALESCE(description, '')) LIKE '%депозит%'
+                OR LOWER(COALESCE(description, '')) LIKE '%пополнени%'
+                OR LOWER(COALESCE(description, '')) LIKE '%deposit%'
+                OR LOWER(COALESCE(description, '')) LIKE '%crypto-%'
              ORDER BY created_at DESC
              LIMIT ${limit}
           `);
@@ -2749,7 +2755,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             details: `Кошелек: ${dc.deposit_address}`,
             expiresAt,
             paidAt: dc.paid_at ? new Date(dc.paid_at).getTime() : null,
-            createdAt: new Date(dc.created_at).getTime(),
+            createdAt: dc.created_at ? new Date(dc.created_at).getTime() : Date.now(),
           };
         });
 
@@ -2779,7 +2785,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             details: o.details,
             expiresAt,
             paidAt: o.paid_at ? new Date(o.paid_at).getTime() : null,
-            createdAt: new Date(o.created_at).getTime(),
+            createdAt: o.created_at ? new Date(o.created_at).getTime() : Date.now(),
           };
         });
 
@@ -2802,14 +2808,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               amount: Number(t.amount ?? 0),
               uniqueAmount: 0,
               currency: 'PLN',
-              type: meta?.provider ? String(meta.provider) : 'deposit',
+              type: t.type || (meta?.provider ? String(meta.provider) : 'deposit'),
               status: 'paid' as const,
               card: null,
               recipient: null,
               details: t.description || 'Зачисление депозита',
               expiresAt: null,
-              paidAt: new Date(t.created_at).getTime(),
-              createdAt: new Date(t.created_at).getTime(),
+              paidAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
+              createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
             };
           });
 
