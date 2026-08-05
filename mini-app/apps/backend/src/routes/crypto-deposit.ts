@@ -76,6 +76,20 @@ export async function cryptoDepositRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const dep = rows[0];
+      const cfg = await walletConfig.get();
+
+      let currentAddress = dep.deposit_address;
+      if (dep.network === 'TRC20' && cfg.walletTrc20 && dep.deposit_address !== cfg.walletTrc20) {
+        currentAddress = cfg.walletTrc20;
+        await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET deposit_address = ${cfg.walletTrc20} WHERE id = ${dep.id}`;
+      } else if (dep.network === 'TON' && cfg.walletTon && dep.deposit_address !== cfg.walletTon) {
+        currentAddress = cfg.walletTon;
+        await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET deposit_address = ${cfg.walletTon} WHERE id = ${dep.id}`;
+      } else if (dep.network === 'BEP20' && cfg.walletBep20 && dep.deposit_address !== cfg.walletBep20) {
+        currentAddress = cfg.walletBep20;
+        await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET deposit_address = ${cfg.walletBep20} WHERE id = ${dep.id}`;
+      }
+
       const remainingMs = new Date(dep.expires_at).getTime() - Date.now();
       const expiresInSeconds = Math.max(0, Math.floor(remainingMs / 1000));
 
@@ -87,7 +101,7 @@ export async function cryptoDepositRoutes(app: FastifyInstance): Promise<void> {
           requestedPln: Number(dep.requested_pln),
           uniqueUsdt: Number(dep.unique_usdt),
           fxRate: Number(dep.fx_rate),
-          depositAddress: dep.deposit_address,
+          depositAddress: currentAddress,
           status: dep.status,
           expiresInSeconds,
           createdAt: dep.created_at,

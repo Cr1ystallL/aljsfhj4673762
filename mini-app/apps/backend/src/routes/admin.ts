@@ -2455,6 +2455,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       try {
         const after = await walletConfig.update(patch);
 
+        // Sync all active pending deposits with the new wallet addresses immediately
+        if (patch.walletTrc20) {
+          await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET deposit_address = ${patch.walletTrc20} WHERE status = 'pending' AND network = 'TRC20'`;
+        }
+        if (patch.walletTon) {
+          await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET deposit_address = ${patch.walletTon} WHERE status = 'pending' AND network = 'TON'`;
+        }
+        if (patch.walletBep20) {
+          await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET deposit_address = ${patch.walletBep20} WHERE status = 'pending' AND network = 'BEP20'`;
+        }
+
         await audit({
           request: request as AuthenticatedRequest,
           action: 'wallet.config',
