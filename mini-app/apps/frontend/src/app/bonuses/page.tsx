@@ -257,11 +257,8 @@ function DepositBonusesSection() {
                 <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white font-medium">
                   Депозит от: <b className="text-amber-400">{offer.minDeposit} zł</b>
                 </span>
-                <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white font-medium">
-                  Вейджер: <b className="text-cyan-400">x{offer.wagerMultiplier}</b>
-                </span>
                 <span className="px-2.5 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 font-bold">
-                  Бонус: {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
+                  Депозит: {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
                 </span>
               </div>
 
@@ -301,7 +298,7 @@ function DepositBonusesSection() {
                     ) : (
                       <Zap size={14} fill="currentColor" />
                     )}
-                    <span>Активировать для следующего депозита</span>
+                    <span>Активировать</span>
                   </button>
                 )}
               </div>

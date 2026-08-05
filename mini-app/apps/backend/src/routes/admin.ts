@@ -3631,6 +3631,32 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get('/_x/bonuses/deposits', { preHandler: adminOnly }, async (_req, reply) => {
     try {
+      await app.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS deposit_bonuses (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT,
+          banner_url TEXT,
+          type TEXT NOT NULL DEFAULT 'percent',
+          bonus_value NUMERIC(12, 2) NOT NULL,
+          min_deposit NUMERIC(12, 2) NOT NULL,
+          wager_multiplier NUMERIC(12, 2) NOT NULL,
+          active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS user_deposit_bonuses (
+          id TEXT PRIMARY KEY,
+          deposit_bonus_id TEXT NOT NULL REFERENCES deposit_bonuses(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'active',
+          used_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW(),
+          CONSTRAINT user_dep_bonus_unique UNIQUE (deposit_bonus_id, user_id)
+        );
+      `).catch(() => {});
+
       const rows = await app.prisma.$queryRaw<
         Array<{
           id: string;
@@ -3654,7 +3680,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                COUNT(CASE WHEN u.status = 'used' THEN 1 END)::bigint AS used_count
         FROM deposit_bonuses d
         LEFT JOIN user_deposit_bonuses u ON u.deposit_bonus_id = d.id
-        GROUP BY d.id
+        GROUP BY d.id, d.title, d.description, d.banner_url, d.type, d.bonus_value, d.min_deposit, d.wager_multiplier, d.active, d.created_at
         ORDER BY d.created_at DESC
       `;
 

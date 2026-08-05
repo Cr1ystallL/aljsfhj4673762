@@ -3408,9 +3408,6 @@ function DepositBonusFormWithPreview({
             <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-white">
               Депозит от: <b className="text-amber-400">{minDeposit || 0} zł</b>
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-white">
-              Вейджер: <b className="text-cyan-400">x{wagerMultiplier || 0}</b>
-            </span>
             <span className="px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 font-bold">
               {type === 'percent' ? `+${bonusValue || 0}%` : `+${bonusValue || 0} zł`}
             </span>
@@ -3419,9 +3416,10 @@ function DepositBonusFormWithPreview({
           <div className="mt-4 pt-3 border-t border-white/5">
             <button
               disabled
-              className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-semibold text-[11.5px] shadow-sm opacity-90 cursor-default"
+              className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-semibold text-[11.5px] shadow-sm opacity-90 cursor-default flex items-center justify-center gap-1"
             >
-              Активировать для следующего депозита
+              <Zap size={13} fill="currentColor" />
+              <span>Активировать</span>
             </button>
           </div>
         </div>
