@@ -97,6 +97,51 @@ export default function BalancePage() {
   const [timeLeftSec, setTimeLeftSec] = useState<number>(0);
   const [foluxTimeLeftSec, setFoluxTimeLeftSec] = useState<number>(0);
 
+  // Active Deposit Bonus
+  const [activeBonus, setActiveBonus] = useState<{
+    id: string;
+    title: string;
+    description: string | null;
+    type: 'percent' | 'fixed';
+    bonusValue: number;
+    minDeposit: number;
+    wagerMultiplier: number;
+  } | null>(null);
+
+  useEffect(() => {
+    async function loadActiveBonus() {
+      try {
+        const res = await fetch('/api/bonuses/deposit-offers', { credentials: 'include' });
+        if (res.ok) {
+          const j = await res.json();
+          const active = (j.offers ?? []).find((o: any) => o.userStatus === 'active');
+          if (active) {
+            setActiveBonus(active);
+          } else {
+            setActiveBonus(null);
+          }
+        }
+      } catch {}
+    }
+    void loadActiveBonus();
+  }, []);
+
+  const toggleDeactivateBonus = async () => {
+    if (!activeBonus) return;
+    try {
+      const res = await fetch(`/api/bonuses/deposit-offers/${activeBonus.id}/toggle`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deactivate' }),
+      });
+      if (res.ok) {
+        toast.info('Бонус отключен');
+        setActiveBonus(null);
+      }
+    } catch {}
+  };
+
   // Converted amount in USD
   const convertedUsd = useMemo(() => {
     const num = parseFloat(depositAmountPln);
@@ -481,6 +526,31 @@ export default function BalancePage() {
         {/* TAB 1: DEPOSIT */}
         {tab === 'deposit' && (
           <div className="flex flex-col gap-4">
+            {/* Active Deposit Bonus Banner */}
+            {activeBonus && (
+              <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 flex flex-col gap-1.5 font-sans">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-white">
+                    <Zap size={14} className="text-amber-400 fill-amber-400" />
+                    <span>Активен бонус: {activeBonus.title}</span>
+                  </span>
+                  <button
+                    onClick={toggleDeactivateBonus}
+                    className="text-[10px] px-2 py-0.5 rounded-full border border-white/20 hover:border-white/40 text-zinc-400 hover:text-white"
+                  >
+                    Отключить
+                  </button>
+                </div>
+                <div className="text-[11px] text-zinc-300">
+                  При пополнении от <b>{activeBonus.minDeposit} zł</b> вы получите{' '}
+                  <b className="text-amber-300">
+                    {activeBonus.type === 'percent' ? `+${activeBonus.bonusValue}%` : `+${activeBonus.bonusValue} zł`}
+                  </b>{' '}
+                  на счет! (Вейджер x{activeBonus.wagerMultiplier})
+                </div>
+              </div>
+            )}
+
             {/* Active Direct Crypto Requisites View */}
             {activeCryptoDeposit ? (
               <div className="rounded-xl border border-zinc-700 bg-[#13151C] p-4 flex flex-col gap-4">

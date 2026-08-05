@@ -91,6 +91,9 @@ export default function BonusesPage() {
       <GameTopBar title="Бонусы" Icon={Sparkles} />
       
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
+        {/* Deposit Bonuses Section (One-time deposit bonuses) */}
+        <DepositBonusesSection />
+
         {/* Promo Code Hero */}
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 
@@ -104,6 +107,209 @@ export default function BonusesPage() {
         <ContestsList currentUserId={user?.id ?? null} />
       </div>
     </main>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Deposit Bonuses Section                                                   */
+/* -------------------------------------------------------------------------- */
+
+interface DepositOffer {
+  id: string;
+  title: string;
+  description: string | null;
+  bannerUrl: string | null;
+  type: 'percent' | 'fixed';
+  bonusValue: number;
+  minDeposit: number;
+  wagerMultiplier: number;
+  userStatus: 'active' | 'used' | 'none';
+}
+
+function DepositBonusesSection() {
+  const router = useRouter();
+  const [offers, setOffers] = useState<DepositOffer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const loadOffers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bonuses/deposit-offers', { credentials: 'include' });
+      if (res.ok) {
+        const j = await res.json();
+        setOffers(j.offers ?? []);
+      }
+    } catch {
+      setOffers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOffers();
+  }, [loadOffers]);
+
+  const toggleBonus = async (offer: DepositOffer) => {
+    if (offer.userStatus === 'used') return;
+    setBusyId(offer.id);
+    const action = offer.userStatus === 'active' ? 'deactivate' : 'activate';
+
+    try {
+      const res = await fetch(`/api/bonuses/deposit-offers/${offer.id}/toggle`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!res.ok) {
+        const j = await res.json();
+        toast.error(j.error || 'Не удалось обновить статус бонуса');
+      } else {
+        if (action === 'activate') {
+          toast.success(`Бонус «${offer.title}» активирован для следующего депозита!`);
+        } else {
+          toast.info('Бонус деактивирован');
+        }
+        await loadOffers();
+      }
+    } catch {
+      toast.error('Ошибка при обновлении бонуса');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 rounded-card border border-white/10 bg-white/[0.03] flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mr-2" />
+        <span className="text-xs text-whisper-gray font-roobert">Загрузка депозитных бонусов...</span>
+      </div>
+    );
+  }
+
+  if (offers.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+            <Zap size={14} />
+          </div>
+          <span className="font-roobert text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-bold">
+            Разовые Депозитные Бонусы
+          </span>
+        </div>
+        <span className="text-[10px] text-amber-400/80 font-mono">Доступны всем 1 раз</span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
+        {offers.map((offer) => {
+          const isActive = offer.userStatus === 'active';
+          const isUsed = offer.userStatus === 'used';
+
+          return (
+            <div
+              key={offer.id}
+              className={`relative overflow-hidden rounded-2xl border transition-all p-4 flex flex-col justify-between ${
+                isActive
+                  ? 'border-emerald-500/50 bg-gradient-to-r from-emerald-500/15 via-black/80 to-black/90 shadow-[0_0_25px_rgba(16,185,129,0.2)]'
+                  : isUsed
+                  ? 'border-white/5 bg-white/[0.01] opacity-60'
+                  : 'border-white/10 bg-white/[0.03] hover:border-amber-400/30'
+              }`}
+            >
+              {/* Optional Banner Image */}
+              {offer.bannerUrl && (
+                <div className="w-full h-28 rounded-xl overflow-hidden mb-3 border border-white/10">
+                  <img src={offer.bannerUrl} alt={offer.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-roobert text-[15px] font-bold text-white flex items-center gap-2">
+                    <span>{offer.title}</span>
+                    {isActive && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9.5px] font-mono uppercase font-bold">
+                        Активен
+                      </span>
+                    )}
+                    {isUsed && (
+                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9.5px] font-mono uppercase">
+                        Использован
+                      </span>
+                    )}
+                  </h3>
+                  {offer.description && (
+                    <p className="font-roobert text-[12px] text-whisper-gray mt-1 leading-relaxed">
+                      {offer.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Offer Badges */}
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-roobert">
+                <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white font-medium">
+                  Депозит от: <b className="text-amber-400">{offer.minDeposit} zł</b>
+                </span>
+                <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white font-medium">
+                  Вейджер: <b className="text-cyan-400">x{offer.wagerMultiplier}</b>
+                </span>
+                <span className="px-2.5 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 font-bold">
+                  Бонус: {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
+                </span>
+              </div>
+
+              {/* Action Button */}
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+                {isActive ? (
+                  <div className="flex items-center gap-2 w-full">
+                    <button
+                      onClick={() => router.push('/balance/deposit')}
+                      className="flex-1 py-2 rounded-xl bg-emerald-500 text-black font-bold text-[12px] shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:bg-emerald-400 transition-all text-center"
+                    >
+                      Перейти к пополнению 🚀
+                    </button>
+                    <button
+                      onClick={() => toggleBonus(offer)}
+                      disabled={busyId === offer.id}
+                      className="px-3 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-rose-500/20 hover:border-rose-500/30 text-rose-300 text-[11px] transition-all font-roobert"
+                    >
+                      {busyId === offer.id ? '...' : 'Отключить'}
+                    </button>
+                  </div>
+                ) : isUsed ? (
+                  <button
+                    disabled
+                    className="w-full py-2 rounded-xl bg-white/5 text-whisper-gray font-medium text-[12px] cursor-not-allowed"
+                  >
+                    Разовый бонус уже использован
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleBonus(offer)}
+                    disabled={busyId === offer.id}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-semibold text-[12px] shadow-[0_0_20px_rgba(255,172,46,0.2)] transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {busyId === offer.id ? (
+                      <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Zap size={14} fill="currentColor" />
+                    )}
+                    <span>Активировать для следующего депозита</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

@@ -3606,6 +3606,211 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ----- deposit bonuses ----------------------------------------------- */
+
+  /**
+   * GET /api/_x/bonuses/deposits
+   * Lists all deposit bonuses for admin console.
+   */
+  app.get('/_x/bonuses/deposits', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const rows = await app.prisma.$queryRaw<
+        Array<{
+          id: string;
+          title: string;
+          description: string | null;
+          banner_url: string | null;
+          type: string;
+          bonus_value: string;
+          min_deposit: string;
+          wager_multiplier: string;
+          active: boolean;
+          created_at: Date;
+          activations_count: bigint;
+          used_count: bigint;
+        }>
+      >`
+        SELECT d.id, d.title, d.description, d.banner_url, d.type,
+               d.bonus_value::text, d.min_deposit::text, d.wager_multiplier::text,
+               d.active, d.created_at,
+               COUNT(u.id)::bigint AS activations_count,
+               COUNT(CASE WHEN u.status = 'used' THEN 1 END)::bigint AS used_count
+        FROM deposit_bonuses d
+        LEFT JOIN user_deposit_bonuses u ON u.deposit_bonus_id = d.id
+        GROUP BY d.id
+        ORDER BY d.created_at DESC
+      `;
+
+      return reply.send({
+        ok: true,
+        bonuses: rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          bannerUrl: r.banner_url,
+          type: r.type,
+          bonusValue: Number(r.bonus_value),
+          minDeposit: Number(r.min_deposit),
+          wagerMultiplier: Number(r.wager_multiplier),
+          active: r.active,
+          createdAt: r.created_at.getTime(),
+          activationsCount: Number(r.activations_count),
+          usedCount: Number(r.used_count),
+        })),
+      });
+    } catch (err) {
+      logger.error(err, 'Admin deposit bonuses list failed');
+      return reply.code(500).send({ error: 'Failed to list deposit bonuses' });
+    }
+  });
+
+  /**
+   * POST /api/_x/bonuses/deposits
+   * Creates a deposit bonus.
+   */
+  app.post<{
+    Body: {
+      title: string;
+      description?: string;
+      bannerUrl?: string | null;
+      type: 'percent' | 'fixed';
+      bonusValue: number;
+      minDeposit: number;
+      wagerMultiplier: number;
+      active?: boolean;
+      reason?: string;
+    };
+  }>('/_x/bonuses/deposits', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = (request.body?.reason ?? '').trim();
+    if (!reason || reason.length < 3) {
+      return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
+    }
+
+    const { title, description, bannerUrl, type, bonusValue, minDeposit, wagerMultiplier, active } = request.body;
+    if (!title || !type || !bonusValue || !minDeposit || !wagerMultiplier) {
+      return reply.code(400).send({ error: 'Missing required deposit bonus fields' });
+    }
+
+    try {
+      const id = randomUUID();
+      await app.prisma.$executeRaw`
+        INSERT INTO deposit_bonuses (
+          id, title, description, banner_url, type, bonus_value, min_deposit, wager_multiplier, active, created_at, updated_at
+        ) VALUES (
+          ${id}, ${title}, ${description || null}, ${bannerUrl || null}, ${type},
+          ${bonusValue}::numeric, ${minDeposit}::numeric, ${wagerMultiplier}::numeric, ${active ?? true}, NOW(), NOW()
+        )
+      `;
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'deposit_bonus.create',
+        targetType: 'deposit_bonus',
+        targetId: id,
+        payloadAfter: request.body,
+        reason,
+      });
+
+      return reply.send({ ok: true, id });
+    } catch (err) {
+      logger.error(err, 'Create deposit bonus failed');
+      return reply.code(500).send({ error: 'Failed to create deposit bonus' });
+    }
+  });
+
+  /**
+   * PATCH /api/_x/bonuses/deposits/:id
+   * Edits ANY field of an existing deposit bonus.
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: {
+      title?: string;
+      description?: string | null;
+      bannerUrl?: string | null;
+      type?: 'percent' | 'fixed';
+      bonusValue?: number;
+      minDeposit?: number;
+      wagerMultiplier?: number;
+      active?: boolean;
+      reason?: string;
+    };
+  }>('/_x/bonuses/deposits/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = (request.body?.reason ?? '').trim();
+    if (!reason || reason.length < 3) {
+      return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
+    }
+
+    const { id } = request.params;
+    const updates: Prisma.Sql[] = [];
+
+    if (request.body.title !== undefined) updates.push(Prisma.sql`title = ${request.body.title}`);
+    if (request.body.description !== undefined) updates.push(Prisma.sql`description = ${request.body.description}`);
+    if (request.body.bannerUrl !== undefined) updates.push(Prisma.sql`banner_url = ${request.body.bannerUrl}`);
+    if (request.body.type !== undefined) updates.push(Prisma.sql`type = ${request.body.type}`);
+    if (request.body.bonusValue !== undefined) updates.push(Prisma.sql`bonus_value = ${request.body.bonusValue}::numeric`);
+    if (request.body.minDeposit !== undefined) updates.push(Prisma.sql`min_deposit = ${request.body.minDeposit}::numeric`);
+    if (request.body.wagerMultiplier !== undefined) updates.push(Prisma.sql`wager_multiplier = ${request.body.wagerMultiplier}::numeric`);
+    if (request.body.active !== undefined) updates.push(Prisma.sql`active = ${request.body.active}`);
+
+    if (updates.length === 0) {
+      return reply.code(400).send({ error: 'Nothing to update' });
+    }
+
+    updates.push(Prisma.sql`updated_at = NOW()`);
+
+    try {
+      await app.prisma.$executeRaw`
+        UPDATE deposit_bonuses
+        SET ${Prisma.join(updates, ', ')}
+        WHERE id = ${id}
+      `;
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'deposit_bonus.update',
+        targetType: 'deposit_bonus',
+        targetId: id,
+        payloadAfter: request.body,
+        reason,
+      });
+
+      return reply.send({ ok: true });
+    } catch (err) {
+      logger.error(err, 'Update deposit bonus failed');
+      return reply.code(500).send({ error: 'Failed to update deposit bonus' });
+    }
+  });
+
+  /**
+   * DELETE /api/_x/bonuses/deposits/:id
+   */
+  app.delete<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/bonuses/deposits/:id',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
+      }
+      const { id } = request.params;
+      try {
+        await app.prisma.$executeRaw`DELETE FROM deposit_bonuses WHERE id = ${id}`;
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'deposit_bonus.delete',
+          targetType: 'deposit_bonus',
+          targetId: id,
+          reason,
+        });
+        return reply.send({ ok: true });
+      } catch (err) {
+        logger.error(err, 'Delete deposit bonus failed');
+        return reply.code(500).send({ error: 'Failed to delete deposit bonus' });
+      }
+    }
+  );
+
   /**
    * PATCH /api/_x/bonuses/promos/:id
    * Body: { active?, perUserLimit?, maxRedemptions?, expiresAt?, note?, reason }

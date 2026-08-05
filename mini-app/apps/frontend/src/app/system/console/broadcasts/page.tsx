@@ -195,12 +195,12 @@ export default function BroadcastsListPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
           <div className="font-roobert text-[11px] uppercase tracking-[0.2em] text-whisper-gray">
-            Управление кампейными
+            Управление рассылками
           </div>
           <div className="font-roobert text-[22px] font-light text-frost-white flex items-center gap-2">
             <span>Рассылки & Удержание аудитории</span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20 font-mono">
-              {data?.length ?? 0} компаний
+              {data?.length ?? 0} рассылок
             </span>
           </div>
         </div>
@@ -309,7 +309,7 @@ export default function BroadcastsListPage() {
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
           <div className="flex items-center justify-between text-whisper-gray mb-1">
-            <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em]">Всего компаний</span>
+            <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em]">Всего рассылок</span>
             <BarChart3 size={14} />
           </div>
           <div className="font-roobert text-[20px] font-light text-white tabular-nums">
@@ -353,7 +353,7 @@ export default function BroadcastsListPage() {
         <div className="flex items-center gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10">
           {(
             [
-              { id: 'all', label: 'Все компании' },
+              { id: 'all', label: 'Все рассылки' },
               { id: 'scheduled', label: 'Запланированы / Отправляются' },
               { id: 'sent', label: 'Завершенные' },
               { id: 'failed', label: 'С ошибками' },
@@ -435,10 +435,11 @@ export default function BroadcastsListPage() {
                   )}
                 </div>
 
-                {/* Broadcast Message Text */}
-                <div className="mt-3 font-roobert text-[13.5px] text-white/95 leading-relaxed bg-black/30 p-3 rounded-xl border border-white/5 font-mono">
-                  {b.text}
-                </div>
+                {/* Broadcast Message Text with HTML parsing and line breaks */}
+                <div
+                  className="mt-3 font-roobert text-[13.5px] text-white/95 leading-relaxed bg-black/30 p-3.5 rounded-xl border border-white/5 whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: b.text }}
+                />
 
                 {/* Delivery Progress & Stats */}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[11px] font-roobert text-whisper-gray">

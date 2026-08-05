@@ -55,6 +55,133 @@ function pickSector(): { amount: number; index: number } {
 /* ================================================================ Routes */
 
 export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
+  void initDepositBonuses(app);
+
+  /* -------------------------------------------------- deposit bonuses */
+
+  /**
+   * GET /api/bonuses/deposit-offers
+   * Returns list of available deposit bonuses and player's activation status.
+   */
+  app.get('/deposit-offers', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    try {
+      const bonuses = await app.prisma.$queryRaw<
+        Array<{
+          id: string;
+          title: string;
+          description: string | null;
+          banner_url: string | null;
+          type: string;
+          bonus_value: string;
+          min_deposit: string;
+          wager_multiplier: string;
+          active: boolean;
+        }>
+      >`
+        SELECT id, title, description, banner_url, type, bonus_value::text,
+               min_deposit::text, wager_multiplier::text, active
+        FROM deposit_bonuses
+        WHERE active = true
+        ORDER BY min_deposit ASC
+      `;
+
+      const userBonuses = await app.prisma.$queryRaw<
+        Array<{ deposit_bonus_id: string; status: string }>
+      >`
+        SELECT deposit_bonus_id, status
+        FROM user_deposit_bonuses
+        WHERE user_id = ${userId}
+      `;
+
+      const userMap = new Map<string, string>();
+      for (const u of userBonuses) {
+        userMap.set(u.deposit_bonus_id, u.status);
+      }
+
+      const items = bonuses.map((b) => ({
+        id: b.id,
+        title: b.title,
+        description: b.description,
+        bannerUrl: b.banner_url,
+        type: b.type,
+        bonusValue: Number(b.bonus_value),
+        minDeposit: Number(b.min_deposit),
+        wagerMultiplier: Number(b.wager_multiplier),
+        userStatus: userMap.get(b.id) || 'none', // 'active', 'used', 'none'
+      }));
+
+      return reply.send({ ok: true, offers: items });
+    } catch (err) {
+      logger.error(err, 'Failed to fetch deposit offers');
+      return reply.code(500).send({ error: 'Failed to fetch deposit offers' });
+    }
+  });
+
+  /**
+   * POST /api/bonuses/deposit-offers/:id/toggle
+   * Body: { action: 'activate' | 'deactivate' }
+   */
+  app.post<{ Params: { id: string }; Body: { action?: 'activate' | 'deactivate' } }>(
+    '/deposit-offers/:id/toggle',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { userId } = (request as AuthenticatedRequest).user;
+      const { id } = request.params;
+      const action = request.body?.action ?? 'activate';
+
+      try {
+        const bonusRows = await app.prisma.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM deposit_bonuses WHERE id = ${id} AND active = true LIMIT 1
+        `;
+        if (!bonusRows[0]) {
+          return reply.code(404).send({ error: 'Депозитный бонус не найден' });
+        }
+
+        const userRows = await app.prisma.$queryRaw<Array<{ status: string }>>`
+          SELECT status FROM user_deposit_bonuses
+          WHERE deposit_bonus_id = ${id} AND user_id = ${userId}
+          LIMIT 1
+        `;
+
+        if (userRows[0]?.status === 'used') {
+          return reply.code(400).send({ error: 'Вы уже использовали этот разовый бонус' });
+        }
+
+        if (action === 'activate') {
+          // Deactivate any other active deposit bonus for this user so only 1 is active
+          await app.prisma.$executeRaw`
+            UPDATE user_deposit_bonuses
+            SET status = 'cancelled'
+            WHERE user_id = ${userId} AND status = 'active'
+          `;
+
+          // Activate this bonus
+          await app.prisma.$executeRaw`
+            INSERT INTO user_deposit_bonuses (id, deposit_bonus_id, user_id, status, created_at)
+            VALUES (gen_random_uuid()::text, ${id}, ${userId}, 'active', NOW())
+            ON CONFLICT (deposit_bonus_id, user_id)
+            DO UPDATE SET status = 'active'
+          `;
+
+          return reply.send({ ok: true, active: true });
+        } else {
+          // Deactivate
+          await app.prisma.$executeRaw`
+            UPDATE user_deposit_bonuses
+            SET status = 'cancelled'
+            WHERE deposit_bonus_id = ${id} AND user_id = ${userId}
+          `;
+
+          return reply.send({ ok: true, active: false });
+        }
+      } catch (err) {
+        logger.error(err, 'Failed to toggle deposit bonus');
+        return reply.code(500).send({ error: 'Failed to toggle deposit bonus' });
+      }
+    }
+  );
+
   /* ----------------------------------------------------- promo codes */
 
   /**
@@ -936,5 +1063,58 @@ async function checkActivationRules(
   return null;
 }
 
+/* ================================================================ Deposit Bonuses */
+
+/**
+ * Ensures deposit_bonuses and user_deposit_bonuses tables exist and seeds
+ * initial 4 default deposit bonuses if empty.
+ */
+async function initDepositBonuses(app: FastifyInstance) {
+  try {
+    await app.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS deposit_bonuses (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        banner_url TEXT,
+        type TEXT NOT NULL DEFAULT 'percent',
+        bonus_value NUMERIC(12, 2) NOT NULL,
+        min_deposit NUMERIC(12, 2) NOT NULL,
+        wager_multiplier NUMERIC(12, 2) NOT NULL,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS user_deposit_bonuses (
+        id TEXT PRIMARY KEY,
+        deposit_bonus_id TEXT NOT NULL REFERENCES deposit_bonuses(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'active',
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT user_dep_bonus_unique UNIQUE (deposit_bonus_id, user_id)
+      );
+    `);
+
+    const countRows = await app.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count FROM deposit_bonuses
+    `;
+    if (Number(countRows[0]?.count ?? 0) === 0) {
+      await app.prisma.$executeRawUnsafe(`
+        INSERT INTO deposit_bonuses (id, title, description, banner_url, type, bonus_value, min_deposit, wager_multiplier, active)
+        VALUES 
+          (gen_random_uuid()::text, '🔥 +100% к депозиту', 'Получите дополнительно +100% к сумме пополнения при депозите от 100 zł.', NULL, 'percent', 100, 100, 50, true),
+          (gen_random_uuid()::text, '⚡ +50 zł в подарок', 'Фиксированный подарок +50 zł на ваш счет при депозите от 100 zł.', NULL, 'fixed', 50, 100, 45, true),
+          (gen_random_uuid()::text, '👑 VIP Booster +150%', 'Эксклюзивный хайроллер-бонус +150% к пополнению при депозите от 250 zł.', NULL, 'percent', 150, 250, 40, true),
+          (gen_random_uuid()::text, '🚀 Стартовый бонус +50%', 'Лёгкий старт с бонусом +50% к депозиту от 50 zł.', NULL, 'percent', 50, 50, 30, true);
+      `);
+    }
+  } catch (err) {
+    logger.error(err, 'Failed to init deposit bonuses tables');
+  }
+}
+
 // suppress unused — helper kept for future ref-link issuance
 void randomBytes;
+
