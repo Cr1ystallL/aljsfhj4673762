@@ -91,14 +91,14 @@ export default function BonusesPage() {
       <GameTopBar title="Бонусы" Icon={Sparkles} />
       
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
-        {/* Deposit Bonuses Section (One-time deposit bonuses) */}
-        <DepositBonusesSection />
-
         {/* Promo Code Hero */}
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 
         {/* Lucky Wheel Hero */}
         <LuckyWheelHero onWin={() => void fetchBalance()} />
+
+        {/* Deposit Bonuses Section (One-time deposit bonuses) */}
+        <DepositBonusesSection />
 
         {/* Tournaments List (Only rendered if active tournaments > 0) */}
         <TournamentsList />
