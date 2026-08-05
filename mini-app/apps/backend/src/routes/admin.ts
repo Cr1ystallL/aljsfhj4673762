@@ -2420,6 +2420,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       maxWithdrawal?: number;
       wagerMultiplier?: number;
       depositsEnabled?: boolean;
+      walletTrc20?: string;
+      walletTon?: string;
+      walletBep20?: string;
     };
   }>(
     '/_x/wallet-config',
@@ -2439,6 +2442,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         'maxWithdrawal',
         'wagerMultiplier',
         'depositsEnabled',
+        'walletTrc20',
+        'walletTon',
+        'walletBep20',
       ];
       for (const f of fields) {
         const v = (request.body as Record<string, unknown>)[f as string];
@@ -2459,7 +2465,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           reason,
         });
 
-        return reply.send({ ok: true, config: await walletConfig.getMasked() });
+        return reply.send({ ok: true, config: await walletConfig.get() });
       } catch (error) {
         logger.error(error, 'Wallet config update failed');
         return reply.code(400).send({ error: 'Bad Request' });
