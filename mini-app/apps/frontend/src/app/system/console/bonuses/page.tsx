@@ -3016,13 +3016,22 @@ function DepositBonusesAdminSection() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="font-roobert text-[14px] text-frost-white">Депозитные бонусы (Разовые)</span>
-        <button
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-amber-400 text-black font-semibold font-roobert text-[12px] shadow-md hover:bg-amber-300 transition-colors"
-        >
-          <Plus size={14} strokeWidth={2} />
-          Создать бонус
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void reload()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-white/10 text-white font-roobert text-[11.5px] hover:bg-white/15 border border-white/15 transition-colors"
+          >
+            <Repeat size={13} />
+            Восстановить стандарты
+          </button>
+          <button
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-amber-400 text-black font-semibold font-roobert text-[12px] shadow-md hover:bg-amber-300 transition-colors"
+          >
+            <Plus size={14} strokeWidth={2} />
+            Создать бонус
+          </button>
+        </div>
       </div>
 
       {list === null ? (
