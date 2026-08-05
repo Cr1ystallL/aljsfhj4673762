@@ -251,12 +251,12 @@ function DepositBonusesSection() {
           return (
             <div
               key={offer.id}
-              className={`relative aspect-square overflow-hidden rounded-2xl border transition-all duration-300 p-2.5 flex flex-col justify-between group ${
+              className={`relative aspect-square overflow-hidden rounded-2xl transition-all duration-300 p-2.5 flex flex-col justify-between group ${
                 isActive
-                  ? 'border-emerald-400 bg-emerald-950/30'
+                  ? 'bg-emerald-950/30 ring-1 ring-emerald-400/40 shadow-[0_0_22px_rgba(16,185,129,0.25)]'
                   : isUsed
-                  ? 'border-white/5 bg-white/[0.01] opacity-40'
-                  : 'border-white/12 bg-black/60 hover:border-amber-400/50'
+                  ? 'bg-white/[0.01] opacity-40'
+                  : 'bg-black/80 shadow-[0_0_18px_rgba(251,191,36,0.14)] hover:shadow-[0_0_26px_rgba(251,191,36,0.26)]'
               }`}
             >
               {/* Optional Banner Image Background or Clean Dark Fallback */}

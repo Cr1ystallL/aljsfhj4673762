@@ -3376,7 +3376,7 @@ function DepositBonusFormWithPreview({
           <span>Предпросмотр на странице бонусов</span>
         </div>
 
-        <div className="relative aspect-square max-w-[280px] mx-auto w-full overflow-hidden rounded-2xl border border-amber-400/30 bg-midnight-canvas/90 p-3 shadow-xl flex flex-col justify-between group">
+        <div className="relative aspect-square max-w-[280px] mx-auto w-full overflow-hidden rounded-2xl bg-black/80 shadow-[0_0_20px_rgba(251,191,36,0.18)] p-3 flex flex-col justify-between group">
           {bannerUrl ? (
             <>
               <img
@@ -3384,20 +3384,20 @@ function DepositBonusFormWithPreview({
                 alt={title || 'Превью'}
                 className="absolute inset-0 w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
             </>
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/15 via-black/80 to-black/95" />
+            <div className="absolute inset-0 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black" />
           )}
 
           {/* Top Badges */}
           <div className="relative z-10 flex items-center justify-between gap-1">
-            <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold font-roobert backdrop-blur-md">
+            <span className="px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/20 text-amber-300 text-[10px] font-bold font-roobert backdrop-blur-md">
               {type === 'percent' ? `+${bonusValue || 0}%` : `+${bonusValue || 0} zł`}
             </span>
 
             {active ? (
-              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono font-bold uppercase backdrop-blur-md">
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 text-[9px] font-mono font-bold uppercase backdrop-blur-md">
                 Активен
               </span>
             ) : (
@@ -3407,26 +3407,27 @@ function DepositBonusFormWithPreview({
             )}
           </div>
 
-          {/* Middle Content */}
-          <div className="relative z-10 flex flex-col gap-0.5 my-auto">
-            <h3 className="font-roobert text-[13px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
-              {title || '🔥 Название бонуса'}
-            </h3>
-            <div className="text-[10px] font-roobert text-whisper-gray flex items-center gap-1">
-              <span>Депозит от:</span>
-              <b className="text-amber-400 font-bold">{minDeposit || 0} zł</b>
+          {/* Bottom Info & Action */}
+          <div className="relative z-10 mt-auto flex flex-col gap-1 pt-1">
+            <div className="flex flex-col gap-0.5">
+              <h3 className="font-roobert text-[12px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
+                {title || '🔥 Название бонуса'}
+              </h3>
+              <div className="text-[9.5px] font-roobert text-whisper-gray flex items-center gap-1">
+                <span>Депозит от:</span>
+                <b className="text-amber-300 font-bold">{minDeposit || 0} zł</b>
+              </div>
             </div>
-          </div>
 
-          {/* Bottom Action Button */}
-          <div className="relative z-10 pt-1">
-            <button
-              disabled
-              className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-extrabold text-[11px] shadow-sm opacity-90 cursor-default flex items-center justify-center gap-1"
-            >
-              <Zap size={12} fill="currentColor" />
-              <span>Активировать</span>
-            </button>
+            <div className="pt-0.5">
+              <button
+                disabled
+                className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-extrabold text-[11px] shadow-sm opacity-90 cursor-default flex items-center justify-center gap-1"
+              >
+                <Zap size={12} fill="currentColor" />
+                <span>Активировать</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
