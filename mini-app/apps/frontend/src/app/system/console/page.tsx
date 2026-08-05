@@ -306,6 +306,7 @@ export default function AdminDashboardPage() {
                 </div>
               ) : (
                 data.perGame
+                  .filter((g) => resolveGameKey(g.gameType) !== 'unknown')
                   .slice()
                   .sort((a, b) => b.wagered - a.wagered)
                   .map((g, i) => (
