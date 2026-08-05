@@ -17,6 +17,7 @@ import {
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 import { HelpButton } from '@/components/admin/help-button';
 import { cn } from '@/lib/utils';
+import { WorldGeoMap } from './WorldGeoMap';
 
 /**
  * Admin → Dashboard.
@@ -242,34 +243,8 @@ export default function AdminDashboardPage() {
 
           {/* New beautiful online analytics section */}
           <OnlineAnalyticsSection graph={data.activityGraph} newUsersGraph={data.newUsersGraph} />
-          {/* Timeline */}
-          <section className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
-            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-              <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
-                GGR · 14 дней
-              </span>
-              <div className="inline-flex items-center gap-2">
-                <span className="font-roobert text-[11px] text-whisper-gray">
-                  {data.timeline.length} точек
-                </span>
-                <HelpButton title="График GGR за 14 дней">
-                  <p>
-                    Каждый столбик — один день. Высота равна модулю
-                    дневного GGR. Зелёно-оранжевые столбики вверх — день
-                    в плюс для казино, красные вниз — в минус.
-                  </p>
-                  <p>
-                    Тонкая горизонтальная линия посередине = ноль. Если
-                    видите много красных подряд — стоит проверить
-                    конкретные раунды и крупные выигрыши.
-                  </p>
-                </HelpButton>
-              </div>
-            </div>
-            <div className="px-4 py-4">
-              <TimelineChart points={data.timeline} />
-            </div>
-          </section>
+          {/* World Geo Map analytics section */}
+          <WorldGeoMap />
 
           {/* Biggest win */}
           {data.biggestWin && (
