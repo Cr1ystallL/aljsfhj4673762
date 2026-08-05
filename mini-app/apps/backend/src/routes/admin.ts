@@ -2947,6 +2947,107 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
+   * GET /api/_x/broadcasts/reengage-stats
+   * Returns count of users inactive for > 3 days.
+   */
+  app.get(
+    '/_x/broadcasts/reengage-stats',
+    { preHandler: adminOnly },
+    async (_request, reply) => {
+      try {
+        const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        const rows = await app.prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*)::bigint AS count
+          FROM users
+          WHERE is_blocked = false
+            AND id NOT IN (SELECT DISTINCT user_id FROM bets WHERE placed_at >= ${cutoff})
+        `;
+        const inactiveCount = Number(rows[0]?.count ?? 0);
+        return reply.send({ ok: true, inactive3dCount: inactiveCount });
+      } catch (error) {
+        logger.error(error, 'Reengage stats failed');
+        return reply.code(500).send({ error: 'Failed to fetch inactive stats' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/broadcasts/quick-reengage
+   * Generates a 10 PLN promo code with a 15x wager requirement,
+   * creates a broadcast for users inactive > 3 days,
+   * explicitly omitting the wager text from the message text sent to users.
+   */
+  app.post<{ Body?: { amount?: number; wagerMultiplier?: number } }>(
+    '/_x/broadcasts/quick-reengage',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      try {
+        const amount = request.body?.amount ?? 10;
+        const wagerMultiplier = request.body?.wagerMultiplier ?? 15;
+        const code = `GIFT10_${randomUUID().slice(0, 6).toUpperCase()}`;
+
+        // 1. Create Promo Code in Database with 15x Wager Rule
+        const rules = JSON.stringify([{ type: 'wager', multiplier: wagerMultiplier }]);
+        await app.prisma.$executeRaw`
+          INSERT INTO promo_codes (
+            id, code, amount, currency, max_redemptions, per_user_limit,
+            created_by_user_id, active, note, rules, created_at, updated_at
+          ) VALUES (
+            gen_random_uuid(), ${code}, ${amount}::numeric, 'PLN', NULL, 1,
+            ${(request as AuthenticatedRequest).user.userId}, true,
+            'Auto Re-engagement 3D promo code', ${rules}::jsonb, NOW(), NOW()
+          )
+        `;
+
+        // 2. Build Broadcast Message Text (EXPLICITLY OMITTING WAGER TEXT)
+        const text = `<b>🎁 Мы соскучились по вам!</b>\n\nВам зачислен персональный бонус <b>${amount} PLN</b>!\n\nАктивируйте промокод <code>${code}</code> в профиле и возвращайтесь к победам! 🚀`;
+
+        // 3. Create Broadcast for users inactive > 3 days
+        const audience: AudienceFilter = { inactiveDays: 3 };
+        const audienceJson = JSON.stringify(audience);
+        const broadcastId = randomUUID();
+
+        const where = audienceWhere(audience);
+        const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
+        );
+        const totalTargets = Number(countRows[0]?.c ?? 0);
+
+        await app.prisma.$executeRaw`
+          INSERT INTO broadcasts (
+            id, status, text, parse_mode, media_url, audience,
+            scheduled_at, total_targets, created_by, created_by_tg, created_at, updated_at
+          ) VALUES (
+            ${broadcastId}, 'scheduled', ${text}, 'HTML', NULL, ${audienceJson}::jsonb,
+            NOW(), ${totalTargets}, ${(request as AuthenticatedRequest).user.userId},
+            ${(request as AuthenticatedRequest).user.telegramId}, NOW(), NOW()
+          )
+        `;
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'broadcast.quick_reengage',
+          targetType: 'broadcast',
+          targetId: broadcastId,
+          payloadAfter: { code, amount, wagerMultiplier, totalTargets },
+          reason: `Quick re-engagement broadcast for ${totalTargets} inactive users with 10 PLN promo code (15x wager)`,
+        });
+
+        return reply.send({
+          ok: true,
+          broadcastId,
+          code,
+          totalTargets,
+          amount,
+        });
+      } catch (error) {
+        logger.error(error, 'Quick reengage broadcast failed');
+        return reply.code(500).send({ error: 'Failed to launch quick re-engagement broadcast' });
+      }
+    }
+  );
+
+  /**
    * GET /api/_x/broadcasts
    * Lists recent broadcasts (newest first).
    */
