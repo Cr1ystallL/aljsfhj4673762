@@ -1084,17 +1084,18 @@ async function initDepositBonuses(app: FastifyInstance) {
         active BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
-      );
+      )
+    `);
 
+    await app.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS user_deposit_bonuses (
         id TEXT PRIMARY KEY,
-        deposit_bonus_id TEXT NOT NULL REFERENCES deposit_bonuses(id) ON DELETE CASCADE,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        deposit_bonus_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
         used_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT NOW(),
-        CONSTRAINT user_dep_bonus_unique UNIQUE (deposit_bonus_id, user_id)
-      );
+        created_at TIMESTAMP DEFAULT NOW()
+      )
     `);
 
     const countRows = await app.prisma.$queryRaw<Array<{ count: bigint }>>`
