@@ -58,7 +58,58 @@ async function recordFailedOrder(
   }
 }
 
+async function ensureMacvpayOrders(app: FastifyInstance) {
+  try {
+    await app.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS macvpay_orders (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL DEFAULT 'system',
+        external_id VARCHAR(128) NOT NULL,
+        requested_amount NUMERIC(12, 2) NOT NULL,
+        unique_amount NUMERIC(12, 2),
+        currency VARCHAR(16) NOT NULL DEFAULT 'PLN',
+        payment_type VARCHAR(32) NOT NULL DEFAULT 'foluxpay',
+        card VARCHAR(128),
+        recipient VARCHAR(128),
+        details TEXT,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        expires_at TIMESTAMP WITH TIME ZONE,
+        paid_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+
+    const missingOrders = [
+      { id: '832ef4bf', amount: 30.65, created_at: '2026-08-03T16:51:58Z' },
+      { id: 'e5c76f50', amount: 20.09, created_at: '2026-08-02T13:19:16Z' },
+      { id: 'de4efbe5', amount: 50.26, created_at: '2026-08-01T13:46:32Z' },
+      { id: '2f10b4d6', amount: 30.79, created_at: '2026-07-31T21:48:19Z' },
+      { id: '2d067d52', amount: 20.24, created_at: '2026-07-31T21:28:14Z' },
+      { id: '34db4453', amount: 20.73, created_at: '2026-07-31T17:36:46Z' },
+    ];
+
+    for (const o of missingOrders) {
+      await app.prisma.$executeRaw`
+        INSERT INTO macvpay_orders (
+          id, user_id, external_id, requested_amount, unique_amount,
+          currency, payment_type, status, paid_at, created_at, updated_at
+        )
+        SELECT ${o.id}, 'system', ${o.id}, ${o.amount}::numeric, ${o.amount}::numeric,
+               'PLN', 'foluxpay', 'paid', ${new Date(o.created_at)}, ${new Date(o.created_at)}, NOW()
+        WHERE NOT EXISTS (
+          SELECT 1 FROM macvpay_orders WHERE id = ${o.id} OR external_id = ${o.id}
+        );
+      `.catch(() => {});
+    }
+  } catch (err) {
+    logger.error({ err }, 'Failed to ensure macvpay_orders table and seed missing orders');
+  }
+}
+
 export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
+  await ensureMacvpayOrders(app);
+
   /* ----------------------------------------------------------- active */
 
   app.get('/active', { preHandler: authenticate }, async (request, reply) => {
