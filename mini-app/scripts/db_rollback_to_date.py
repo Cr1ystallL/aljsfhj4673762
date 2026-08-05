@@ -16,11 +16,16 @@ import psycopg2.extras
 
 def load_env():
     search_paths = [
+        '/var/www/MACVBET/mini-app/apps/backend/.env',
+        '/var/www/MACVBET/.env',
+        '/var/www/MACVBET/mini-app/.env',
         os.path.join(os.getcwd(), '.env'),
         os.path.join(os.getcwd(), '..', '.env'),
+        os.path.join(os.getcwd(), 'apps', 'backend', '.env'),
         os.path.join(os.path.dirname(__file__), '.env'),
         os.path.join(os.path.dirname(__file__), '..', '.env'),
         os.path.join(os.path.dirname(__file__), '..', '..', '.env'),
+        os.path.join(os.path.dirname(__file__), '..', 'apps', 'backend', '.env'),
     ]
     for p in search_paths:
         p = os.path.abspath(p)
@@ -32,14 +37,15 @@ def load_env():
                     if line and not line.startswith('#') and '=' in line:
                         k, v = line.split('=', 1)
                         os.environ.setdefault(k.strip(), v.strip().strip('"\''))
-            break
 
 def get_pg_connection():
     load_env()
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        print("[!] DATABASE_URL environment variable is missing.")
-        return None
+        db_url = "postgresql://postgres:postgres@localhost:5432/casino_miniapp"
+        print(f"[*] DATABASE_URL not set in env, using default fallback: {db_url}")
+    else:
+        print(f"[*] Connecting to database using DATABASE_URL...")
     return psycopg2.connect(db_url)
 
 def perform_rollback(cutoff_date_str, execute=False):
