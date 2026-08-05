@@ -1109,6 +1109,12 @@ async function initDepositBonuses(app: FastifyInstance) {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+
+    // Automatically remove initial demo bonuses from DB
+    await app.prisma.$executeRaw`
+      DELETE FROM deposit_bonuses
+      WHERE title IN ('🔥 +100% к депозиту', '⚡ +50 zł в подарок', '👑 VIP Booster +150%', '🚀 Стартовый бонус +50%')
+    `.catch(() => {});
   } catch (err) {
     logger.error(err, 'Failed to init deposit bonuses tables');
   }
