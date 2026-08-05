@@ -18,6 +18,10 @@ import {
   Wallet as WalletIcon,
   Repeat,
   Trash2,
+  Upload,
+  Image as ImageIcon,
+  Eye,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { gameLabel, type GameKey } from '@/components/ui/game-icon';
@@ -2820,7 +2824,7 @@ function Modal({
         onClick={(e) => e.stopPropagation()}
         className={cn(
           'rounded-card border border-white/10 bg-midnight-canvas relative my-auto w-full',
-          wide ? 'max-w-[640px]' : 'max-w-[480px]'
+          wide ? 'max-w-[880px]' : 'max-w-[480px]'
         )}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 sticky top-0 bg-midnight-canvas/95 backdrop-blur-sm z-10">
@@ -3127,165 +3131,91 @@ function DepositBonusesAdminSection() {
   );
 }
 
-function EditDepositBonusModal({
-  bonus,
+function DepositBonusFormWithPreview({
+  initialTitle = '',
+  initialDescription = '',
+  initialBannerUrl = '',
+  initialType = 'percent',
+  initialBonusValue = 100,
+  initialMinDeposit = 100,
+  initialWagerMultiplier = 50,
+  initialActive = true,
+  submitLabel = 'Сохранить',
   onClose,
-  onSaved,
+  onSubmit,
 }: {
-  bonus: DepositBonusAdminRow;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialBannerUrl?: string;
+  initialType?: 'percent' | 'fixed';
+  initialBonusValue?: number;
+  initialMinDeposit?: number;
+  initialWagerMultiplier?: number;
+  initialActive?: boolean;
+  submitLabel: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSubmit: (data: {
+    title: string;
+    description: string | null;
+    bannerUrl: string | null;
+    type: 'percent' | 'fixed';
+    bonusValue: number;
+    minDeposit: number;
+    wagerMultiplier: number;
+    active: boolean;
+    reason: string;
+  }) => Promise<void>;
 }) {
-  const [title, setTitle] = useState(bonus.title);
-  const [description, setDescription] = useState(bonus.description || '');
-  const [bannerUrl, setBannerUrl] = useState(bonus.bannerUrl || '');
-  const [type, setType] = useState<'percent' | 'fixed'>(bonus.type);
-  const [bonusValue, setBonusValue] = useState(bonus.bonusValue);
-  const [minDeposit, setMinDeposit] = useState(bonus.minDeposit);
-  const [wagerMultiplier, setWagerMultiplier] = useState(bonus.wagerMultiplier);
-  const [active, setActive] = useState(bonus.active);
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription);
+  const [bannerUrl, setBannerUrl] = useState(initialBannerUrl);
+  const [type, setType] = useState<'percent' | 'fixed'>(initialType);
+  const [bonusValue, setBonusValue] = useState<number>(initialBonusValue);
+  const [minDeposit, setMinDeposit] = useState<number>(initialMinDeposit);
+  const [wagerMultiplier, setWagerMultiplier] = useState<number>(initialWagerMultiplier);
+  const [active, setActive] = useState(initialActive);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const submit = async () => {
-    if (reason.trim().length < 3) {
-      setErr('Причина обязательна (минимум 3 символа)');
-      return;
-    }
-    setBusy(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
     setErr(null);
 
+    const formData = new FormData();
+    formData.append('file', file);
+
     try {
-      const res = await fetch(`/api/_x/bonuses/deposits/${bonus.id}`, {
-        method: 'PATCH',
+      const res = await fetch('/api/_x/upload', {
+        method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          bannerUrl: bannerUrl.trim() || null,
-          type,
-          bonusValue,
-          minDeposit,
-          wagerMultiplier,
-          active,
-          reason: reason.trim(),
-        }),
+        body: formData,
       });
 
       if (!res.ok) {
         const j = await res.json();
-        setErr(j.error || 'Не удалось сохранить');
+        setErr(j.error || 'Ошибка загрузки файла');
       } else {
-        onSaved();
+        const j = await res.json();
+        if (j.url) {
+          setBannerUrl(j.url);
+        }
       }
     } catch {
-      setErr('Ошибка подключения');
+      setErr('Не удалось загрузить файл');
     } finally {
-      setBusy(false);
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  return (
-    <Modal onClose={onClose} title="Редактирование депозитного бонуса">
-      <Field label="Название бонуса">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-        />
-      </Field>
-
-      <Field label="Описание">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
-        />
-      </Field>
-
-      <Field label="Ссылка на баннер / фото (оставьте пустым для темы без фото)">
-        <input
-          value={bannerUrl}
-          onChange={(e) => setBannerUrl(e.target.value)}
-          placeholder="https://..."
-          className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-        />
-      </Field>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Тип бонуса">
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as 'percent' | 'fixed')}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-          >
-            <option value="percent" className="bg-midnight-canvas text-white">Процент (+%)</option>
-            <option value="fixed" className="bg-midnight-canvas text-white">Фиксированный (+zł)</option>
-          </select>
-        </Field>
-
-        <Field label="Значение бонуса">
-          <NumInput value={bonusValue} step={5} min={1} onChange={setBonusValue} />
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Мин. депозит (zł)">
-          <NumInput value={minDeposit} step={10} min={1} onChange={setMinDeposit} />
-        </Field>
-
-        <Field label="Вейджер (множитель)">
-          <NumInput value={wagerMultiplier} step={1} min={0} onChange={setWagerMultiplier} />
-        </Field>
-      </div>
-
-      <Toggle checked={active} onChange={setActive} label="Бонус активен для выбора игроками" />
-
-      <ReasonField reason={reason} onChange={setReason} />
-      {err && <div className="font-roobert text-[12px] text-rose-400">{err}</div>}
-
-      <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10 mt-2">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
-        >
-          Отмена
-        </button>
-        <button
-          onClick={submit}
-          disabled={busy}
-          className="px-4 py-2 rounded-pill bg-amber-400 text-black font-semibold font-roobert text-[12px] disabled:opacity-50 shadow-md"
-        >
-          {busy ? 'Сохранение…' : 'Сохранить изменения'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-function CreateDepositBonusModal({
-  onClose,
-  onSaved,
-}: {
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [bannerUrl, setBannerUrl] = useState('');
-  const [type, setType] = useState<'percent' | 'fixed'>('percent');
-  const [bonusValue, setBonusValue] = useState<number>(100);
-  const [minDeposit, setMinDeposit] = useState<number>(100);
-  const [wagerMultiplier, setWagerMultiplier] = useState<number>(50);
-  const [active, setActive] = useState(true);
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async () => {
+  const handleFormSubmit = async () => {
     if (!title.trim()) {
       setErr('Укажите название бонуса');
       return;
@@ -3298,113 +3228,274 @@ function CreateDepositBonusModal({
     setErr(null);
 
     try {
-      const res = await fetch('/api/_x/bonuses/deposits', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          bannerUrl: bannerUrl.trim() || null,
-          type,
-          bonusValue,
-          minDeposit,
-          wagerMultiplier,
-          active,
-          reason: reason.trim(),
-        }),
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim() || null,
+        bannerUrl: bannerUrl.trim() || null,
+        type,
+        bonusValue,
+        minDeposit,
+        wagerMultiplier,
+        active,
+        reason: reason.trim(),
       });
-
-      if (!res.ok) {
-        const j = await res.json();
-        setErr(j.error || 'Не удалось создать бонус');
-      } else {
-        onSaved();
-      }
-    } catch {
-      setErr('Ошибка подключения');
+    } catch (e: any) {
+      setErr(e?.message || 'Ошибка сохранения');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} title="Создание депозитного бонуса">
-      <Field label="Название бонуса">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="например: 🔥 +100% к депозиту"
-          className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-        />
-      </Field>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-1">
+      {/* Left Column: Form Inputs */}
+      <div className="lg:col-span-7 flex flex-col gap-3.5">
+        <Field label="Название бонуса">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="например: 🔥 +100% к депозиту"
+            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3.5 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+          />
+        </Field>
 
-      <Field label="Описание">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Описание бонуса для игроков..."
-          rows={2}
-          className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
-        />
-      </Field>
+        <Field label="Описание">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Описание бонуса для игроков..."
+            rows={2}
+            className="w-full bg-white/[0.04] border border-white/15 rounded-card px-3.5 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30 resize-none"
+          />
+        </Field>
 
-      <Field label="Ссылка на баннер / фото (оставьте пустым для темы без фото)">
-        <input
-          value={bannerUrl}
-          onChange={(e) => setBannerUrl(e.target.value)}
-          placeholder="https://..."
-          className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
-        />
-      </Field>
+        {/* File Upload & Banner URL field */}
+        <Field label="Загрузка фото / Баннера бонуса">
+          <div className="flex flex-col gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Тип бонуса">
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as 'percent' | 'fixed')}
-            className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-white/10 hover:bg-white/15 text-white font-roobert text-[12px] border border-white/15 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Upload size={13} />
+                {uploading ? 'Загрузка...' : 'Загрузить файл с компьютера'}
+              </button>
+
+              {bannerUrl && (
+                <button
+                  type="button"
+                  onClick={() => setBannerUrl('')}
+                  className="px-2.5 py-1.5 rounded-pill bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-roobert hover:bg-rose-500/20"
+                >
+                  Удалить фото
+                </button>
+              )}
+            </div>
+
+            <input
+              value={bannerUrl}
+              onChange={(e) => setBannerUrl(e.target.value)}
+              placeholder="или вставьте прямую ссылку на фото (https://...)"
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3.5 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-white/30"
+            />
+          </div>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Тип бонуса">
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as 'percent' | 'fixed')}
+              className="w-full bg-white/[0.04] border border-white/15 rounded-pill px-3 py-2 font-roobert text-[13px] text-frost-white focus:outline-none focus:border-white/30"
+            >
+              <option value="percent" className="bg-midnight-canvas text-white">Процент (+%)</option>
+              <option value="fixed" className="bg-midnight-canvas text-white">Фиксированный (+zł)</option>
+            </select>
+          </Field>
+
+          <Field label="Значение бонуса">
+            <NumInput value={bonusValue} step={5} min={1} onChange={setBonusValue} />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Мин. депозит (zł)">
+            <NumInput value={minDeposit} step={10} min={1} onChange={setMinDeposit} />
+          </Field>
+
+          <Field label="Вейджер (множитель)">
+            <NumInput value={wagerMultiplier} step={1} min={0} onChange={setWagerMultiplier} />
+          </Field>
+        </div>
+
+        <Toggle checked={active} onChange={setActive} label="Бонус активен для выбора игроками" />
+
+        <ReasonField reason={reason} onChange={setReason} />
+        {err && <div className="font-roobert text-[12px] text-rose-400">{err}</div>}
+
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10 mt-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
           >
-            <option value="percent" className="bg-midnight-canvas text-white">Процент (+%)</option>
-            <option value="fixed" className="bg-midnight-canvas text-white">Фиксированный (+zł)</option>
-          </select>
-        </Field>
-
-        <Field label="Значение бонуса">
-          <NumInput value={bonusValue} step={5} min={1} onChange={setBonusValue} />
-        </Field>
+            Отмена
+          </button>
+          <button
+            onClick={handleFormSubmit}
+            disabled={busy || uploading}
+            className="px-5 py-2 rounded-pill bg-amber-400 text-black font-semibold font-roobert text-[12px] disabled:opacity-50 shadow-md hover:bg-amber-300 transition-colors"
+          >
+            {busy ? 'Сохранение…' : submitLabel}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Мин. депозит (zł)">
-          <NumInput value={minDeposit} step={10} min={1} onChange={setMinDeposit} />
-        </Field>
+      {/* Right Column: Live Interactive Preview Card */}
+      <div className="lg:col-span-5 flex flex-col gap-3">
+        <div className="flex items-center gap-1.5 font-roobert text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+          <Eye size={14} />
+          <span>Предпросмотр на странице бонусов</span>
+        </div>
 
-        <Field label="Вейджер (множитель)">
-          <NumInput value={wagerMultiplier} step={1} min={0} onChange={setWagerMultiplier} />
-        </Field>
+        <div className="rounded-2xl border border-amber-400/30 bg-midnight-canvas/90 p-4 shadow-xl flex flex-col justify-between">
+          {bannerUrl ? (
+            <div className="w-full rounded-xl overflow-hidden mb-3 border border-white/10 bg-black/50 transition-all">
+              <img
+                src={bannerUrl}
+                alt={title || 'Превью'}
+                className="w-full h-auto max-h-[260px] object-cover"
+              />
+            </div>
+          ) : (
+            <div className="w-full h-24 rounded-xl border border-dashed border-white/15 bg-white/[0.02] mb-3 flex flex-col items-center justify-center gap-1 text-whisper-gray">
+              <ImageIcon size={20} className="text-white/30" />
+              <span className="text-[10px] font-roobert">Тема карточки без фото</span>
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-roobert text-[15px] font-bold text-white flex items-center gap-1.5">
+                <span>{title || '🔥 Название бонуса'}</span>
+              </h3>
+              {active ? (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-mono uppercase font-bold">
+                  Активен
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9px] font-mono uppercase">
+                  Выключен
+                </span>
+              )}
+            </div>
+
+            <p className="font-roobert text-[12px] text-whisper-gray mt-1 leading-snug">
+              {description || 'Здесь будет отображаться описание бонуса для игроков.'}
+            </p>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10.5px] font-roobert">
+            <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-white">
+              Депозит от: <b className="text-amber-400">{minDeposit || 0} zł</b>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-white">
+              Вейджер: <b className="text-cyan-400">x{wagerMultiplier || 0}</b>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 font-bold">
+              {type === 'percent' ? `+${bonusValue || 0}%` : `+${bonusValue || 0} zł`}
+            </span>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-white/5">
+            <button
+              disabled
+              className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-semibold text-[11.5px] shadow-sm opacity-90 cursor-default"
+            >
+              Активировать для следующего депозита
+            </button>
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      <Toggle checked={active} onChange={setActive} label="Бонус активен для выбора игроками" />
+function EditDepositBonusModal({
+  bonus,
+  onClose,
+  onSaved,
+}: {
+  bonus: DepositBonusAdminRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  return (
+    <Modal onClose={onClose} title="Редактирование депозитного бонуса" wide>
+      <DepositBonusFormWithPreview
+        initialTitle={bonus.title}
+        initialDescription={bonus.description || ''}
+        initialBannerUrl={bonus.bannerUrl || ''}
+        initialType={bonus.type}
+        initialBonusValue={bonus.bonusValue}
+        initialMinDeposit={bonus.minDeposit}
+        initialWagerMultiplier={bonus.wagerMultiplier}
+        initialActive={bonus.active}
+        submitLabel="Сохранить изменения"
+        onClose={onClose}
+        onSubmit={async (data) => {
+          const res = await fetch(`/api/_x/bonuses/deposits/${bonus.id}`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          if (!res.ok) {
+            const j = await res.json();
+            throw new Error(j.error || 'Не удалось сохранить');
+          }
+          onSaved();
+        }}
+      />
+    </Modal>
+  );
+}
 
-      <ReasonField reason={reason} onChange={setReason} />
-      {err && <div className="font-roobert text-[12px] text-rose-400">{err}</div>}
-
-      <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10 mt-2">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white/85"
-        >
-          Отмена
-        </button>
-        <button
-          onClick={submit}
-          disabled={busy}
-          className="px-4 py-2 rounded-pill bg-amber-400 text-black font-semibold font-roobert text-[12px] disabled:opacity-50 shadow-md"
-        >
-          {busy ? 'Создание…' : 'Создать бонус'}
-        </button>
-      </div>
+function CreateDepositBonusModal({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  return (
+    <Modal onClose={onClose} title="Создание депозитного бонуса" wide>
+      <DepositBonusFormWithPreview
+        submitLabel="Создать бонус"
+        onClose={onClose}
+        onSubmit={async (data) => {
+          const res = await fetch('/api/_x/bonuses/deposits', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          if (!res.ok) {
+            const j = await res.json();
+            throw new Error(j.error || 'Не удалось создать бонус');
+          }
+          onSaved();
+        }}
+      />
     </Modal>
   );
 }

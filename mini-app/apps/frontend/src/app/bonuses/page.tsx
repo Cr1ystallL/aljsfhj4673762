@@ -224,8 +224,8 @@ function DepositBonusesSection() {
             >
               {/* Optional Banner Image */}
               {offer.bannerUrl && (
-                <div className="w-full h-28 rounded-xl overflow-hidden mb-3 border border-white/10">
-                  <img src={offer.bannerUrl} alt={offer.title} className="w-full h-full object-cover" />
+                <div className="w-full rounded-xl overflow-hidden mb-3 border border-white/10 bg-black/40">
+                  <img src={offer.bannerUrl} alt={offer.title} className="w-full h-auto max-h-[260px] object-cover" />
                 </div>
               )}
 
