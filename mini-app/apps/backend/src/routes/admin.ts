@@ -3668,37 +3668,35 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           min_deposit: string;
           wager_multiplier: string;
           active: boolean;
-          created_at: Date;
-          activations_count: bigint;
-          used_count: bigint;
+          created_at: any;
+          activations_count: string;
+          used_count: string;
         }>
       >`
         SELECT d.id, d.title, d.description, d.banner_url, d.type,
                d.bonus_value::text, d.min_deposit::text, d.wager_multiplier::text,
                d.active, d.created_at,
-               COUNT(u.id)::bigint AS activations_count,
-               COUNT(CASE WHEN u.status = 'used' THEN 1 END)::bigint AS used_count
+               (SELECT COUNT(*)::text FROM user_deposit_bonuses u WHERE u.deposit_bonus_id = d.id) AS activations_count,
+               (SELECT COUNT(*)::text FROM user_deposit_bonuses u WHERE u.deposit_bonus_id = d.id AND u.status = 'used') AS used_count
         FROM deposit_bonuses d
-        LEFT JOIN user_deposit_bonuses u ON u.deposit_bonus_id = d.id
-        GROUP BY d.id, d.title, d.description, d.banner_url, d.type, d.bonus_value, d.min_deposit, d.wager_multiplier, d.active, d.created_at
         ORDER BY d.created_at DESC
       `;
 
       return reply.send({
         ok: true,
-        bonuses: rows.map((r) => ({
+        bonuses: (rows || []).map((r) => ({
           id: r.id,
           title: r.title,
           description: r.description,
           bannerUrl: r.banner_url,
           type: r.type,
-          bonusValue: Number(r.bonus_value),
-          minDeposit: Number(r.min_deposit),
-          wagerMultiplier: Number(r.wager_multiplier),
-          active: r.active,
-          createdAt: r.created_at.getTime(),
-          activationsCount: Number(r.activations_count),
-          usedCount: Number(r.used_count),
+          bonusValue: Number(r.bonus_value || 0),
+          minDeposit: Number(r.min_deposit || 0),
+          wagerMultiplier: Number(r.wager_multiplier || 0),
+          active: Boolean(r.active),
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+          activationsCount: Number(r.activations_count || 0),
+          usedCount: Number(r.used_count || 0),
         })),
       });
     } catch (err) {
