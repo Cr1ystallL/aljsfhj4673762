@@ -612,9 +612,10 @@ export default function BalancePage() {
                 <div className="flex flex-col items-center justify-center my-1 p-4 rounded-xl bg-[#0A0B0E] border border-white/10">
                   <div className="p-2.5 rounded-lg bg-[#13151C] border border-white/15 shadow-inner">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                      key={activeCryptoDeposit.depositAddress}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
                         activeCryptoDeposit.depositAddress
-                      )}&color=ffffff&bgcolor=13151c`}
+                      )}&color=ffffff&bgcolor=13151c&v=${encodeURIComponent(activeCryptoDeposit.depositAddress)}`}
                       alt="QR Code"
                       className="w-44 h-44 rounded-md"
                     />
