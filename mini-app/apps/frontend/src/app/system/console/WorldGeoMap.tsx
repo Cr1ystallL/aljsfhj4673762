@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, Users, Radio, Wallet, ShieldAlert, Sparkles, Navigation } from 'lucide-react';
 
-interface CountryData {
+export interface CountryGeoData {
   id: string;
   name: string;
   flag: string;
@@ -14,11 +14,18 @@ interface CountryData {
   wagered: number;
   vpnPercent: number;
   share: number;
-  cx: number; // SVG X coordinate %
-  cy: number; // SVG Y coordinate %
+  cx: number; // SVG X coord (0..1000)
+  cy: number; // SVG Y coord (0..500)
 }
 
-const COUNTRIES_DATA: CountryData[] = [
+interface WorldGeoMapProps {
+  serverGeoStats?: CountryGeoData[];
+  totalUsersCount?: number;
+  totalProfit?: number;
+}
+
+// Precise SVG ViewBox 0..1000 x 0..500 pin coordinates
+const DEFAULT_GEO_DATA: CountryGeoData[] = [
   {
     id: 'PL',
     name: 'Польша',
@@ -29,8 +36,8 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 1250900,
     vpnPercent: 3.2,
     share: 62.4,
-    cx: 54,
-    cy: 32,
+    cx: 535,
+    cy: 142,
   },
   {
     id: 'DE',
@@ -42,11 +49,11 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 318000,
     vpnPercent: 5.4,
     share: 13.6,
-    cx: 50,
-    cy: 33,
+    cx: 500,
+    cy: 145,
   },
   {
-    id: 'UK',
+    id: 'GB',
     name: 'Великобритания',
     flag: '🇬🇧',
     users: 185,
@@ -55,8 +62,8 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 210000,
     vpnPercent: 8.1,
     share: 8.1,
-    cx: 45,
-    cy: 30,
+    cx: 460,
+    cy: 135,
   },
   {
     id: 'UA',
@@ -68,8 +75,8 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 142000,
     vpnPercent: 2.1,
     share: 6.3,
-    cx: 59,
-    cy: 35,
+    cx: 575,
+    cy: 150,
   },
   {
     id: 'NL',
@@ -81,8 +88,8 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 95000,
     vpnPercent: 6.8,
     share: 4.0,
-    cx: 48,
-    cy: 31,
+    cx: 485,
+    cy: 138,
   },
   {
     id: 'ES',
@@ -94,8 +101,8 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 61000,
     vpnPercent: 4.5,
     share: 2.8,
-    cx: 44,
-    cy: 42,
+    cx: 445,
+    cy: 195,
   },
   {
     id: 'FR',
@@ -107,8 +114,8 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 44000,
     vpnPercent: 3.9,
     share: 2.0,
-    cx: 47,
-    cy: 37,
+    cx: 475,
+    cy: 170,
   },
   {
     id: 'US',
@@ -120,17 +127,27 @@ const COUNTRIES_DATA: CountryData[] = [
     wagered: 29000,
     vpnPercent: 12.5,
     share: 1.2,
-    cx: 22,
-    cy: 38,
+    cx: 210,
+    cy: 175,
   },
 ];
 
-export function WorldGeoMap() {
+export function WorldGeoMap({ serverGeoStats }: WorldGeoMapProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'online' | 'deposits'>('users');
-  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(COUNTRIES_DATA[0]);
-  const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
+  const [geoList, setGeoList] = useState<CountryGeoData[]>(DEFAULT_GEO_DATA);
+  const [selectedCountry, setSelectedCountry] = useState<CountryGeoData | null>(null);
+  const [hoveredCountry, setHoveredCountry] = useState<CountryGeoData | null>(null);
 
-  const displayCountry = hoveredCountry || selectedCountry || COUNTRIES_DATA[0];
+  useEffect(() => {
+    if (serverGeoStats && serverGeoStats.length > 0) {
+      setGeoList(serverGeoStats);
+      setSelectedCountry(serverGeoStats[0]);
+    } else {
+      setSelectedCountry(DEFAULT_GEO_DATA[0]);
+    }
+  }, [serverGeoStats]);
+
+  const displayCountry = hoveredCountry || selectedCountry || geoList[0];
 
   const formatPln = (val: number) => {
     return val.toLocaleString('ru-RU');
@@ -146,13 +163,13 @@ export function WorldGeoMap() {
           </span>
           <div>
             <div className="font-roobert text-[11px] uppercase tracking-[0.06em] text-whisper-gray">
-              География игроков
+              География пользователей
             </div>
             <div className="font-roobert text-[14px] font-medium text-frost-white flex items-center gap-2">
-              <span>Интерактивная карта визитов</span>
+              <span>Интерактивная карта трафика</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Geo
+                Live DB Geo
               </span>
             </div>
           </div>
@@ -188,137 +205,170 @@ export function WorldGeoMap() {
       </div>
 
       {/* Main Map Container */}
-      <div className="relative p-4 md:p-6 min-h-[380px] flex flex-col justify-between overflow-hidden">
-        {/* Subtle Map Background Pattern */}
-        <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
+      <div className="relative p-4 md:p-6 flex flex-col justify-between overflow-hidden">
+        {/* Subtle Map Grid Background */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
 
-        {/* Vector SVG World Map Canvas */}
-        <div className="relative w-full aspect-[2/1] max-h-[340px] border border-white/5 rounded-2xl bg-black/40 p-4 overflow-hidden flex items-center justify-center">
+        {/* Realistic Vector World Map Canvas */}
+        <div className="relative w-full aspect-[2.1/1] min-h-[320px] max-h-[440px] border border-white/10 rounded-2xl bg-black/60 p-4 overflow-hidden flex items-center justify-center shadow-inner">
           <svg
-            viewBox="0 0 100 50"
-            className="w-full h-full text-white/10 drop-shadow-md select-none"
+            viewBox="0 0 1000 500"
+            className="w-full h-full text-white/20 select-none"
             preserveAspectRatio="xMidYMid meet"
           >
-            {/* World Continents Rough Vector outlines */}
-            {/* North America */}
-            <path
-              d="M 12 10 Q 25 8 32 18 Q 28 28 18 32 Q 10 24 12 10 Z"
-              fill="currentColor"
-              className="hover:text-white/20 transition-colors"
-            />
-            {/* South America */}
-            <path
-              d="M 28 33 Q 35 34 32 45 Q 26 48 24 40 Z"
-              fill="currentColor"
-              className="hover:text-white/20 transition-colors"
-            />
-            {/* Europe */}
-            <path
-              d="M 43 12 Q 58 10 59 22 Q 48 25 43 18 Z"
-              fill="currentColor"
-              className="hover:text-white/20 transition-colors"
-            />
-            {/* Africa */}
-            <path
-              d="M 45 23 Q 57 24 54 39 Q 47 43 44 32 Z"
-              fill="currentColor"
-              className="hover:text-white/20 transition-colors"
-            />
-            {/* Asia */}
-            <path
-              d="M 59 10 Q 85 8 88 24 Q 72 32 58 23 Z"
-              fill="currentColor"
-              className="hover:text-white/20 transition-colors"
-            />
-            {/* Australia */}
-            <path
-              d="M 78 35 Q 88 34 86 44 Q 77 45 78 35 Z"
-              fill="currentColor"
-              className="hover:text-white/20 transition-colors"
-            />
+            <g fill="none" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" strokeLinecap="round">
+              {/* North America */}
+              <path d="M 60 70 L 110 50 L 180 40 L 220 50 L 290 40 L 295 70 L 250 80 L 220 110 L 270 120 L 300 100 L 310 130 L 280 150 L 290 190 L 250 200 L 240 230 L 210 240 L 190 280 L 175 250 L 170 210 L 130 210 L 90 160 L 70 110 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* Greenland */}
+              <path d="M 320 20 L 410 15 L 430 45 L 390 85 L 340 70 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* South America */}
+              <path d="M 240 250 L 280 255 L 320 270 L 350 310 L 340 370 L 300 440 L 270 470 L 250 430 L 240 360 L 220 300 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* Europe & Scandinavia */}
+              <path d="M 440 180 L 460 135 L 480 138 L 500 145 L 535 142 L 575 150 L 590 180 L 550 210 L 510 220 L 475 170 L 445 195 Z" fill="rgba(255,255,255,0.05)" className="hover:fill-white/10 transition-colors" />
+              {/* Scandinavia */}
+              <path d="M 480 100 L 520 60 L 550 70 L 540 120 L 500 125 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* British Isles */}
+              <path d="M 445 120 L 470 115 L 465 145 L 440 140 Z" fill="rgba(255,255,255,0.04)" className="hover:fill-white/10 transition-colors" />
+              {/* Africa */}
+              <path d="M 440 220 L 540 210 L 590 250 L 600 300 L 560 370 L 520 420 L 480 370 L 450 300 L 420 250 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* Madagascar */}
+              <path d="M 610 350 L 630 360 L 620 410 L 605 400 Z" fill="rgba(255,255,255,0.03)" />
+              {/* Russia & Asia */}
+              <path d="M 580 130 L 650 155 L 700 120 L 800 90 L 920 80 L 960 120 L 900 170 L 850 200 L 780 240 L 710 220 L 650 200 L 600 170 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* Middle East & Arabia */}
+              <path d="M 560 210 L 630 215 L 640 260 L 580 290 L 550 240 Z" fill="rgba(255,255,255,0.03)" />
+              {/* India */}
+              <path d="M 680 210 L 740 220 L 730 300 L 690 280 Z" fill="rgba(255,255,255,0.03)" />
+              {/* China & East Asia */}
+              <path d="M 740 180 L 850 170 L 880 240 L 800 280 L 740 230 Z" fill="rgba(255,255,255,0.03)" />
+              {/* Japan */}
+              <path d="M 900 150 L 930 160 L 910 210 L 890 190 Z" fill="rgba(255,255,255,0.04)" />
+              {/* Australia */}
+              <path d="M 770 340 L 870 330 L 890 400 L 830 440 L 760 410 Z" fill="rgba(255,255,255,0.03)" className="hover:fill-white/10 transition-colors" />
+              {/* New Zealand */}
+              <path d="M 920 420 L 940 430 L 930 470 Z" fill="rgba(255,255,255,0.03)" />
+            </g>
 
-            {/* Connecting lines from active country */}
+            {/* Latitude / Longitude Subtle Lines */}
+            <line x1="0" y1="250" x2="1000" y2="250" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+            <line x1="500" y1="0" x2="500" y2="500" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
+
+            {/* Connecting laser lines to selected country */}
             {displayCountry && (
-              <line
-                x1={displayCountry.cx}
-                y1={displayCountry.cy}
-                x2={displayCountry.cx}
-                y2={displayCountry.cy - 6}
-                stroke="#FFAC2E"
-                strokeWidth="0.3"
-                strokeDasharray="0.6 0.6"
-                className="animate-pulse"
-              />
+              <g>
+                <line
+                  x1={displayCountry.cx}
+                  y1={displayCountry.cy}
+                  x2={displayCountry.cx}
+                  y2={displayCountry.cy - 30}
+                  stroke="#FFAC2E"
+                  strokeWidth="1.5"
+                  strokeDasharray="2 2"
+                  className="animate-pulse"
+                />
+                <circle cx={displayCountry.cx} cy={displayCountry.cy - 30} r="3" fill="#FFAC2E" />
+              </g>
             )}
 
-            {/* Interactive Pins on Map */}
-            {COUNTRIES_DATA.map((c) => {
+            {/* Country Markers / Pins */}
+            {geoList.map((c) => {
               const isSelected = displayCountry?.id === c.id;
-              const sizeMultiplier = Math.max(1, (c.share / 100) * 4);
+              const radius = Math.max(6, (c.share / 100) * 24);
 
               return (
-                <g key={c.id} className="cursor-pointer" onClick={() => setSelectedCountry(c)}>
-                  {/* Outer pulse */}
+                <g
+                  key={c.id}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedCountry(c)}
+                  onMouseEnter={() => setHoveredCountry(c)}
+                  onMouseLeave={() => setHoveredCountry(null)}
+                >
+                  {/* Outer Pulsing Aura */}
                   <circle
                     cx={c.cx}
                     cy={c.cy}
-                    r={sizeMultiplier + 1.2}
-                    className={`transition-all ${
+                    r={radius + 8}
+                    className={`transition-all duration-300 ${
                       isSelected
-                        ? 'fill-amber-400/30 stroke-amber-400 animate-ping'
-                        : 'fill-amber-400/10'
+                        ? 'fill-amber-400/25 stroke-amber-400 animate-ping'
+                        : 'fill-sky-400/10 stroke-sky-400/30'
                     }`}
+                    strokeWidth="1"
                   />
-                  {/* Main Pin Dot */}
+                  {/* Outer Halo */}
                   <circle
                     cx={c.cx}
                     cy={c.cy}
-                    r={sizeMultiplier}
-                    fill={isSelected ? '#FFAC2E' : '#38BDF8'}
-                    className="transition-all hover:scale-150"
-                    onMouseEnter={() => setHoveredCountry(c)}
-                    onMouseLeave={() => setHoveredCountry(null)}
+                    r={radius + 3}
+                    fill={isSelected ? 'rgba(255,172,46,0.2)' : 'rgba(56,189,248,0.15)'}
+                    stroke={isSelected ? '#FFAC2E' : '#38BDF8'}
+                    strokeWidth="1"
                   />
+                  {/* Core Pin */}
+                  <circle
+                    cx={c.cx}
+                    cy={c.cy}
+                    r={radius}
+                    fill={isSelected ? '#FFAC2E' : '#38BDF8'}
+                    className="transition-transform duration-200 hover:scale-125"
+                  />
+                  {/* Text label on map */}
+                  <text
+                    x={c.cx}
+                    y={c.cy + radius + 14}
+                    textAnchor="middle"
+                    fill="#FFFFFF"
+                    fontSize="11"
+                    fontWeight="600"
+                    className="pointer-events-none font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+                  >
+                    {c.flag} {c.id} ({c.share}%)
+                  </text>
                 </g>
               );
             })}
           </svg>
 
-          {/* Interactive Floating Hover / Selected Card */}
+          {/* Interactive Floating Stat Details Card */}
           <AnimatePresence mode="wait">
             {displayCountry && (
               <motion.div
                 key={displayCountry.id}
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                initial={{ opacity: 0, y: 15, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="absolute top-4 right-4 max-w-[260px] w-full p-3.5 rounded-xl border border-white/15 bg-black/80 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.6)] z-20 pointer-events-auto"
+                exit={{ opacity: 0, y: -15, scale: 0.95 }}
+                className="absolute top-4 right-4 max-w-[280px] w-full p-4 rounded-2xl border border-white/20 bg-black/85 backdrop-blur-2xl shadow-[0_16px_50px_rgba(0,0,0,0.8)] z-20"
               >
-                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2.5 mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl leading-none">{displayCountry.flag}</span>
-                    <span className="font-roobert text-[13px] font-semibold text-white">
-                      {displayCountry.name}
-                    </span>
+                    <span className="text-2xl leading-none">{displayCountry.flag}</span>
+                    <div>
+                      <span className="font-roobert text-[14px] font-bold text-white block">
+                        {displayCountry.name}
+                      </span>
+                      <span className="text-[10px] text-whisper-gray font-mono">
+                        ISO Code: {displayCountry.id}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-400/15 text-amber-400 font-bold">
+                  <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-400 font-bold border border-amber-400/30">
                     {displayCountry.share}%
                   </span>
                 </div>
 
-                <div className="space-y-2 text-[11px] font-roobert">
+                <div className="space-y-2.5 font-roobert text-[12px]">
                   <div className="flex justify-between items-center text-whisper-gray">
                     <span className="flex items-center gap-1.5">
-                      <Users size={12} className="text-amber-400" /> Игроки:
+                      <Users size={13} className="text-amber-400" /> Игроки:
                     </span>
                     <span className="font-semibold text-white">
-                      {displayCountry.users.toLocaleString()}
+                      {displayCountry.users.toLocaleString('ru-RU')} чел.
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center text-whisper-gray">
                     <span className="flex items-center gap-1.5">
-                      <Radio size={12} className="text-emerald-400 animate-pulse" /> Онлайн сейчас:
+                      <Radio size={13} className="text-emerald-400 animate-pulse" /> Онлайн сейчас:
                     </span>
                     <span className="font-semibold text-emerald-400">
                       {displayCountry.online} чел.
@@ -327,7 +377,7 @@ export function WorldGeoMap() {
 
                   <div className="flex justify-between items-center text-whisper-gray">
                     <span className="flex items-center gap-1.5">
-                      <Wallet size={12} className="text-cyan-400" /> Депозиты:
+                      <Wallet size={13} className="text-cyan-400" /> Депозиты:
                     </span>
                     <span className="font-semibold text-white">
                       {formatPln(displayCountry.deposits)} zł
@@ -336,16 +386,16 @@ export function WorldGeoMap() {
 
                   <div className="flex justify-between items-center text-whisper-gray">
                     <span className="flex items-center gap-1.5">
-                      <Sparkles size={12} className="text-purple-400" /> Оборот ставок:
+                      <Sparkles size={13} className="text-purple-400" /> Оборот ставок:
                     </span>
                     <span className="font-semibold text-white">
                       {formatPln(displayCountry.wagered)} zł
                     </span>
                   </div>
 
-                  <div className="pt-2 border-t border-white/10 flex justify-between items-center text-[10px] text-whisper-gray">
+                  <div className="pt-2 border-t border-white/10 flex justify-between items-center text-[10.5px]">
                     <span className="flex items-center gap-1 text-slate-400">
-                      <ShieldAlert size={10} /> VPN трафик:
+                      <ShieldAlert size={11} /> VPN / Proxy:
                     </span>
                     <span className="font-mono text-amber-300 font-medium">
                       {displayCountry.vpnPercent}%
@@ -357,9 +407,9 @@ export function WorldGeoMap() {
           </AnimatePresence>
         </div>
 
-        {/* Top Countries Bar List */}
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2.5">
-          {COUNTRIES_DATA.slice(0, 4).map((country) => {
+        {/* Top Countries Summary Bar */}
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {geoList.slice(0, 4).map((country) => {
             const isSelected = displayCountry?.id === country.id;
             return (
               <button
@@ -367,18 +417,18 @@ export function WorldGeoMap() {
                 onClick={() => setSelectedCountry(country)}
                 onMouseEnter={() => setHoveredCountry(country)}
                 onMouseLeave={() => setHoveredCountry(null)}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
+                className={`p-3 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? 'border-amber-400/50 bg-amber-400/10 shadow-[0_0_15px_rgba(255,172,46,0.15)]'
-                    : 'border-white/5 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+                    ? 'border-amber-400/60 bg-amber-400/15 shadow-[0_0_20px_rgba(255,172,46,0.2)]'
+                    : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
                 }`}
               >
-                <div className="flex items-center justify-between text-[11px] mb-1">
-                  <span className="flex items-center gap-1.5 text-white font-medium truncate">
-                    <span>{country.flag}</span>
+                <div className="flex items-center justify-between text-[12px] mb-1.5">
+                  <span className="flex items-center gap-1.5 text-white font-semibold truncate">
+                    <span className="text-base">{country.flag}</span>
                     <span>{country.name}</span>
                   </span>
-                  <span className="font-mono text-[10px] text-amber-400 font-semibold">
+                  <span className="font-mono text-[11px] text-amber-400 font-bold">
                     {country.share}%
                   </span>
                 </div>
@@ -389,9 +439,9 @@ export function WorldGeoMap() {
                     style={{ width: `${country.share}%` }}
                   />
                 </div>
-                <div className="mt-1 flex justify-between text-[9.5px] text-whisper-gray">
-                  <span>{country.users} игрок.</span>
-                  <span className="text-emerald-400 font-medium">{country.online} онл.</span>
+                <div className="mt-1.5 flex justify-between text-[10px] text-whisper-gray font-roobert">
+                  <span>{country.users.toLocaleString()} игр.</span>
+                  <span className="text-emerald-400 font-semibold">{country.online} онл.</span>
                 </div>
               </button>
             );

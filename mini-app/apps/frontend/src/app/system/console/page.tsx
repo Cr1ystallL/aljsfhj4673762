@@ -34,6 +34,7 @@ import { WorldGeoMap } from './WorldGeoMap';
 
 interface AdminStats {
   generatedAt: number;
+  geoStats?: import('./WorldGeoMap').CountryGeoData[];
   users: { total: number; new24h: number; new7d: number };
   balances: {
     totalLiability: number;
@@ -244,7 +245,7 @@ export default function AdminDashboardPage() {
           {/* New beautiful online analytics section */}
           <OnlineAnalyticsSection graph={data.activityGraph} newUsersGraph={data.newUsersGraph} />
           {/* World Geo Map analytics section */}
-          <WorldGeoMap />
+          <WorldGeoMap serverGeoStats={data.geoStats} />
 
           {/* Biggest win */}
           {data.biggestWin && (
