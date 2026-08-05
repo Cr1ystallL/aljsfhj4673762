@@ -3376,58 +3376,55 @@ function DepositBonusFormWithPreview({
           <span>Предпросмотр на странице бонусов</span>
         </div>
 
-        <div className="rounded-2xl border border-amber-400/30 bg-midnight-canvas/90 p-4 shadow-xl flex flex-col justify-between">
+        <div className="relative aspect-square max-w-[280px] mx-auto w-full overflow-hidden rounded-2xl border border-amber-400/30 bg-midnight-canvas/90 p-3 shadow-xl flex flex-col justify-between group">
           {bannerUrl ? (
-            <div className="w-full rounded-xl overflow-hidden mb-3 border border-white/10 bg-black/50 transition-all">
+            <>
               <img
                 src={bannerUrl}
                 alt={title || 'Превью'}
-                className="w-full h-auto max-h-[260px] object-cover"
+                className="absolute inset-0 w-full h-full object-cover"
               />
-            </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30" />
+            </>
           ) : (
-            <div className="w-full h-24 rounded-xl border border-dashed border-white/15 bg-white/[0.02] mb-3 flex flex-col items-center justify-center gap-1 text-whisper-gray">
-              <ImageIcon size={20} className="text-white/30" />
-              <span className="text-[10px] font-roobert">Тема карточки без фото</span>
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/15 via-black/80 to-black/95" />
           )}
 
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-roobert text-[15px] font-bold text-white flex items-center gap-1.5">
-                <span>{title || '🔥 Название бонуса'}</span>
-              </h3>
-              {active ? (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-mono uppercase font-bold">
-                  Активен
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9px] font-mono uppercase">
-                  Выключен
-                </span>
-              )}
-            </div>
-
-            <p className="font-roobert text-[12px] text-whisper-gray mt-1 leading-snug">
-              {description || 'Здесь будет отображаться описание бонуса для игроков.'}
-            </p>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10.5px] font-roobert">
-            <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-white">
-              Депозит от: <b className="text-amber-400">{minDeposit || 0} zł</b>
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 font-bold">
+          {/* Top Badges */}
+          <div className="relative z-10 flex items-center justify-between gap-1">
+            <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold font-roobert backdrop-blur-md">
               {type === 'percent' ? `+${bonusValue || 0}%` : `+${bonusValue || 0} zł`}
             </span>
+
+            {active ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono font-bold uppercase backdrop-blur-md">
+                Активен
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9px] font-mono uppercase backdrop-blur-md">
+                Выключен
+              </span>
+            )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-white/5">
+          {/* Middle Content */}
+          <div className="relative z-10 flex flex-col gap-0.5 my-auto">
+            <h3 className="font-roobert text-[13px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
+              {title || '🔥 Название бонуса'}
+            </h3>
+            <div className="text-[10px] font-roobert text-whisper-gray flex items-center gap-1">
+              <span>Депозит от:</span>
+              <b className="text-amber-400 font-bold">{minDeposit || 0} zł</b>
+            </div>
+          </div>
+
+          {/* Bottom Action Button */}
+          <div className="relative z-10 pt-1">
             <button
               disabled
-              className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-semibold text-[11.5px] shadow-sm opacity-90 cursor-default flex items-center justify-center gap-1"
+              className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-black font-extrabold text-[11px] shadow-sm opacity-90 cursor-default flex items-center justify-center gap-1"
             >
-              <Zap size={13} fill="currentColor" />
+              <Zap size={12} fill="currentColor" />
               <span>Активировать</span>
             </button>
           </div>

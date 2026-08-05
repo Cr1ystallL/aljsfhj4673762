@@ -206,7 +206,7 @@ function DepositBonusesSection() {
         <span className="text-[10px] text-amber-400/80 font-mono">Доступны всем 1 раз</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {offers.map((offer) => {
           const isActive = offer.userStatus === 'active';
           const isUsed = offer.userStatus === 'used';
@@ -214,89 +214,91 @@ function DepositBonusesSection() {
           return (
             <div
               key={offer.id}
-              className={`relative overflow-hidden rounded-2xl border transition-all p-4 flex flex-col justify-between ${
+              className={`relative aspect-square overflow-hidden rounded-2xl border transition-all p-3 flex flex-col justify-between group ${
                 isActive
-                  ? 'border-emerald-500/50 bg-gradient-to-r from-emerald-500/15 via-black/80 to-black/90 shadow-[0_0_25px_rgba(16,185,129,0.2)]'
+                  ? 'border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.25)]'
                   : isUsed
-                  ? 'border-white/5 bg-white/[0.01] opacity-60'
-                  : 'border-white/10 bg-white/[0.03] hover:border-amber-400/30'
+                  ? 'border-white/5 bg-white/[0.01] opacity-50'
+                  : 'border-white/12 bg-white/[0.03] hover:border-amber-400/40 hover:bg-white/[0.05]'
               }`}
             >
-              {/* Optional Banner Image */}
-              {offer.bannerUrl && (
-                <div className="w-full rounded-xl overflow-hidden mb-3 border border-white/10 bg-black/40">
-                  <img src={offer.bannerUrl} alt={offer.title} className="w-full h-auto max-h-[260px] object-cover" />
-                </div>
+              {/* Optional Banner Image Background */}
+              {offer.bannerUrl ? (
+                <>
+                  <img
+                    src={offer.bannerUrl}
+                    alt={offer.title}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30" />
+                </>
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/15 via-black/80 to-black/95" />
               )}
 
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-roobert text-[15px] font-bold text-white flex items-center gap-2">
-                    <span>{offer.title}</span>
-                    {isActive && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9.5px] font-mono uppercase font-bold">
-                        Активен
-                      </span>
-                    )}
-                    {isUsed && (
-                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9.5px] font-mono uppercase">
-                        Использован
-                      </span>
-                    )}
-                  </h3>
-                  {offer.description && (
-                    <p className="font-roobert text-[12px] text-whisper-gray mt-1 leading-relaxed">
-                      {offer.description}
-                    </p>
-                  )}
+              {/* Top Badges */}
+              <div className="relative z-10 flex items-center justify-between gap-1">
+                <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold font-roobert backdrop-blur-md">
+                  {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
+                </span>
+
+                {isActive ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono font-bold uppercase backdrop-blur-md">
+                    Активен
+                  </span>
+                ) : isUsed ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9px] font-mono uppercase backdrop-blur-md">
+                    Использован
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Middle Content */}
+              <div className="relative z-10 flex flex-col gap-0.5 my-auto">
+                <h3 className="font-roobert text-[12px] sm:text-[13px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
+                  {offer.title}
+                </h3>
+                <div className="text-[10px] font-roobert text-whisper-gray flex items-center gap-1">
+                  <span>Депозит от:</span>
+                  <b className="text-amber-400 font-bold">{offer.minDeposit} zł</b>
                 </div>
               </div>
 
-              {/* Offer Badges */}
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-roobert">
-                <span className="px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white font-medium">
-                  Депозит от: <b className="text-amber-400">{offer.minDeposit} zł</b>
-                </span>
-                <span className="px-2.5 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 font-bold">
-                  Депозит: {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
-                </span>
-              </div>
-
-              {/* Action Button */}
-              <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+              {/* Bottom Action Button */}
+              <div className="relative z-10 pt-1">
                 {isActive ? (
-                  <div className="flex items-center gap-2 w-full">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => router.push('/balance/deposit')}
-                      className="flex-1 py-2 rounded-xl bg-emerald-500 text-black font-bold text-[12px] shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:bg-emerald-400 transition-all text-center"
+                      className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[10.5px] shadow-md transition-all text-center truncate"
                     >
-                      Перейти к пополнению 🚀
+                      Депозит 🚀
                     </button>
                     <button
                       onClick={() => toggleBonus(offer)}
                       disabled={busyId === offer.id}
-                      className="px-3 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-rose-500/20 hover:border-rose-500/30 text-rose-300 text-[11px] transition-all font-roobert"
+                      className="px-2 py-1.5 rounded-xl border border-white/20 bg-black/60 text-rose-300 text-[10px] hover:bg-rose-500/30 transition-all font-roobert"
                     >
-                      {busyId === offer.id ? '...' : 'Отключить'}
+                      ✕
                     </button>
                   </div>
                 ) : isUsed ? (
                   <button
                     disabled
-                    className="w-full py-2 rounded-xl bg-white/5 text-whisper-gray font-medium text-[12px] cursor-not-allowed"
+                    className="w-full py-1.5 rounded-xl bg-white/10 text-whisper-gray font-medium text-[10px] cursor-not-allowed text-center"
                   >
-                    Разовый бонус уже использован
+                    Использован
                   </button>
                 ) : (
                   <button
                     onClick={() => toggleBonus(offer)}
                     disabled={busyId === offer.id}
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-semibold text-[12px] shadow-[0_0_20px_rgba(255,172,46,0.2)] transition-all flex items-center justify-center gap-1.5"
+                    className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-extrabold text-[11px] shadow-[0_0_15px_rgba(255,172,46,0.3)] transition-all flex items-center justify-center gap-1"
                   >
                     {busyId === offer.id ? (
-                      <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <Zap size={14} fill="currentColor" />
+                      <Zap size={12} fill="currentColor" />
                     )}
                     <span>Активировать</span>
                   </button>
