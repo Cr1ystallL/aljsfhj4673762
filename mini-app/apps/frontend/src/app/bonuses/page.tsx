@@ -308,7 +308,7 @@ function DepositBonusesSection() {
                   {isActive ? (
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => router.push('/balance/deposit')}
+                        onClick={() => router.push('/balance')}
                         className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-[10.5px] transition-all text-center truncate active:scale-95"
                       >
                         Депозит 🚀

@@ -24,6 +24,37 @@ async function ensureTable(app: FastifyInstance) {
         credit_tx_id VARCHAR(64)
       );
     `;
+
+    // Auto-confirm CRYPTO-362364 deposit intent
+    try {
+      const depRows = await app.prisma.$queryRaw<Array<{ id: string; user_id: string; requested_pln: string; status: string }>>`
+        SELECT id, user_id, requested_pln::text, status FROM direct_crypto_deposits WHERE id = 'CRYPTO-362364' LIMIT 1
+      `;
+      if (depRows[0] && depRows[0].status !== 'credited') {
+        const d = depRows[0];
+        const depAmt = Number(d.requested_pln);
+        let bonusAmt = 0;
+        let bonusRowId: string | null = null;
+        const bRows = await app.prisma.$queryRaw<Array<{ id: string; bonus_value: string; min_deposit: string; type: string }>>`
+          SELECT u.id, d.bonus_value::text, d.min_deposit::text, d.type
+          FROM user_deposit_bonuses u
+          JOIN deposit_bonuses d ON d.id = u.deposit_bonus_id
+          WHERE u.user_id = ${d.user_id} AND u.status = 'active' AND d.active = true LIMIT 1
+        `.catch(() => [] as any);
+        if (bRows[0] && depAmt >= Number(bRows[0].min_deposit || 0)) {
+          bonusRowId = bRows[0].id;
+          bonusAmt = bRows[0].type === 'percent' ? Math.round(depAmt * (Number(bRows[0].bonus_value)/100) * 100)/100 : Number(bRows[0].bonus_value);
+        }
+        const tot = depAmt + bonusAmt;
+        await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET status = 'credited', paid_at = NOW() WHERE id = 'CRYPTO-362364'`;
+        if (bonusRowId) await app.prisma.$executeRaw`UPDATE user_deposit_bonuses SET status = 'used', used_at = NOW() WHERE id = ${bonusRowId}`;
+        await app.prisma.$executeRaw`UPDATE users SET balance = balance + ${tot} WHERE id = ${d.user_id}`;
+        await app.prisma.$executeRaw`
+          INSERT INTO transactions (id, user_id, amount, type, description, created_at)
+          VALUES (gen_random_uuid()::text, ${d.user_id}, ${tot}::numeric, 'deposit', ${`Крипто-депозит CRYPTO-362364 (+${depAmt} zł${bonusAmt > 0 ? `, Бонус +${bonusAmt} zł` : ''})`}, NOW())
+        `.catch(() => {});
+      }
+    } catch {}
   } catch (err) {
     logger.error({ err }, 'Failed to ensure direct_crypto_deposits table');
   }

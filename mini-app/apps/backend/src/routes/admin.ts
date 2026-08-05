@@ -2805,6 +2805,130 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /**
+   * POST /api/_x/deposits/crypto/confirm
+   * Body: { depositId: string }
+   * Manually confirms a direct crypto deposit intent, crediting balance + active deposit bonus.
+   */
+  app.post<{ Body: { depositId: string } }>(
+    '/_x/deposits/crypto/confirm',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const depositId = (request.body?.depositId ?? '').trim();
+      if (!depositId) {
+        return reply.code(400).send({ error: 'depositId mandatory' });
+      }
+
+      try {
+        const rows = await app.prisma.$queryRaw<Array<{
+          id: string;
+          user_id: string;
+          requested_pln: string;
+          status: string;
+        }>>`
+          SELECT id, user_id, requested_pln::text, status
+          FROM direct_crypto_deposits
+          WHERE id = ${depositId}
+          LIMIT 1
+        `;
+
+        if (!rows[0]) {
+          return reply.code(404).send({ error: 'Заявка на крипто-депозит не найдена' });
+        }
+        const dep = rows[0];
+        if (dep.status === 'credited' || dep.status === 'paid') {
+          return reply.code(400).send({ error: 'Депозит уже зачислен' });
+        }
+
+        const userId = dep.user_id;
+        const depositAmount = Number(dep.requested_pln);
+
+        // Check active deposit bonus for this user
+        let bonusAdded = 0;
+        let bonusIdUsed: string | null = null;
+
+        try {
+          const activeBonusRows = await app.prisma.$queryRaw<Array<{
+            id: string;
+            deposit_bonus_id: string;
+            bonus_value: string;
+            min_deposit: string;
+            type: string;
+          }>>`
+            SELECT u.id, u.deposit_bonus_id, d.bonus_value::text, d.min_deposit::text, d.type
+            FROM user_deposit_bonuses u
+            JOIN deposit_bonuses d ON d.id = u.deposit_bonus_id
+            WHERE u.user_id = ${userId} AND u.status = 'active' AND d.active = true
+            LIMIT 1
+          `;
+
+          if (activeBonusRows[0]) {
+            const b = activeBonusRows[0];
+            const minDep = Number(b.min_deposit || 0);
+            if (depositAmount >= minDep) {
+              bonusIdUsed = b.id;
+              const val = Number(b.bonus_value || 0);
+              if (b.type === 'percent') {
+                bonusAdded = Math.round((depositAmount * (val / 100)) * 100) / 100;
+              } else {
+                bonusAdded = val;
+              }
+            }
+          }
+        } catch {}
+
+        const totalCredit = depositAmount + bonusAdded;
+
+        // 1. Update deposit status
+        await app.prisma.$executeRaw`
+          UPDATE direct_crypto_deposits
+          SET status = 'credited', paid_at = NOW(), updated_at = NOW()
+          WHERE id = ${depositId}
+        `;
+
+        // 2. Mark bonus used if applicable
+        if (bonusIdUsed) {
+          await app.prisma.$executeRaw`
+            UPDATE user_deposit_bonuses
+            SET status = 'used', used_at = NOW()
+            WHERE id = ${bonusIdUsed}
+          `;
+        }
+
+        // 3. Update user balance
+        await app.prisma.$executeRaw`
+          UPDATE users
+          SET balance = balance + ${totalCredit}
+          WHERE id = ${userId}
+        `;
+
+        // 4. Create transaction log
+        await app.prisma.$executeRaw`
+          INSERT INTO transactions (id, user_id, amount, type, description, created_at)
+          VALUES (
+            gen_random_uuid()::text,
+            ${userId},
+            ${totalCredit}::numeric,
+            'deposit',
+            ${`Крипто-депозит ${depositId} (+${depositAmount} zł${bonusAdded > 0 ? `, Бонус +${bonusAdded} zł` : ''})`},
+            NOW()
+          )
+        `.catch(() => {});
+
+        return reply.send({
+          ok: true,
+          depositId,
+          depositAmount,
+          bonusAdded,
+          totalCredit,
+        });
+      } catch (err) {
+        logger.error(err, 'Failed to confirm crypto deposit');
+        return reply.code(500).send({ error: 'Ошибка подтверждения депозита' });
+      }
+    }
+  );
+
   /* ============================================================== Phase 5 */
   /* ----------------------------------------------------------- broadcasts */
 
