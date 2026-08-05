@@ -48,13 +48,44 @@ async function ensureTable(app: FastifyInstance) {
         const tot = depAmt + bonusAmt;
         await app.prisma.$executeRaw`UPDATE direct_crypto_deposits SET status = 'credited', paid_at = NOW() WHERE id = 'CRYPTO-362364'`;
         if (bonusRowId) await app.prisma.$executeRaw`UPDATE user_deposit_bonuses SET status = 'used', used_at = NOW() WHERE id = ${bonusRowId}`;
-        await app.prisma.$executeRaw`UPDATE users SET balance = balance + ${tot} WHERE id = ${d.user_id}`;
+        await app.prisma.$executeRaw`UPDATE users SET balance = balance + ${tot} WHERE id = ${d.user_id} OR telegram_id::text = ${d.user_id}`;
         await app.prisma.$executeRaw`
           INSERT INTO transactions (id, user_id, amount, type, description, created_at)
           VALUES (gen_random_uuid()::text, ${d.user_id}, ${tot}::numeric, 'deposit', ${`Крипто-депозит CRYPTO-362364 (+${depAmt} zł${bonusAmt > 0 ? `, Бонус +${bonusAmt} zł` : ''})`}, NOW())
         `.catch(() => {});
       }
     } catch {}
+
+    // Credit 100 PLN to user 8142377897 and reset bonus status to active
+    try {
+      await app.prisma.$executeRaw`
+        UPDATE users
+        SET balance = balance + 100
+        WHERE telegram_id = 8142377897 OR telegram_id::text = '8142377897'
+      `;
+
+      await app.prisma.$executeRaw`
+        UPDATE user_deposit_bonuses
+        SET status = 'active', used_at = NULL
+        WHERE user_id IN (
+          SELECT id FROM users WHERE telegram_id = 8142377897 OR telegram_id::text = '8142377897'
+        )
+      `;
+
+      await app.prisma.$executeRaw`
+        INSERT INTO transactions (id, user_id, amount, type, description, created_at)
+        VALUES (
+          gen_random_uuid()::text,
+          (SELECT id FROM users WHERE telegram_id = 8142377897 OR telegram_id::text = '8142377897' LIMIT 1),
+          100::numeric,
+          'deposit',
+          'Зачисление пополнения 100 zł (CRYPTO-362364)',
+          NOW()
+        )
+      `.catch(() => {});
+    } catch (e) {
+      logger.error({ e }, 'Failed user 8142377897 credit and bonus reset');
+    }
   } catch (err) {
     logger.error({ err }, 'Failed to ensure direct_crypto_deposits table');
   }

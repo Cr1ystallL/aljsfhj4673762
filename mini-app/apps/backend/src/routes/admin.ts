@@ -2899,7 +2899,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         await app.prisma.$executeRaw`
           UPDATE users
           SET balance = balance + ${totalCredit}
-          WHERE id = ${userId}
+          WHERE id = ${userId} OR telegram_id::text = ${userId}
         `;
 
         // 4. Create transaction log
