@@ -126,6 +126,44 @@ interface DepositOffer {
   userStatus: 'active' | 'used' | 'none';
 }
 
+function getCardStyleTheme(title: string, index: number) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('100%') || t.includes('100')) {
+    return {
+      gradientBg: 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/35 via-amber-950/60 to-black',
+      glowShadow: 'shadow-[0_0_25px_rgba(245,158,11,0.25)] hover:shadow-[0_0_35px_rgba(245,158,11,0.4)]',
+      badgeBg: 'bg-gradient-to-r from-amber-400 to-amber-500 text-black border-amber-300',
+      titleGrad: 'bg-gradient-to-r from-amber-100 via-amber-300 to-amber-500 bg-clip-text text-transparent',
+      accentIcon: '🔥',
+    };
+  }
+  if (t.includes('50 zł') || t.includes('50zl') || t.includes('подарок')) {
+    return {
+      gradientBg: 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-500/30 via-blue-950/60 to-black',
+      glowShadow: 'shadow-[0_0_25px_rgba(6,182,212,0.25)] hover:shadow-[0_0_35px_rgba(6,182,212,0.4)]',
+      badgeBg: 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black border-cyan-300',
+      titleGrad: 'bg-gradient-to-r from-cyan-100 via-sky-300 to-amber-300 bg-clip-text text-transparent',
+      accentIcon: '⚡',
+    };
+  }
+  if (t.includes('vip') || t.includes('booster') || t.includes('150%')) {
+    return {
+      gradientBg: 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-500/35 via-purple-950/60 to-black',
+      glowShadow: 'shadow-[0_0_25px_rgba(168,85,247,0.3)] hover:shadow-[0_0_35px_rgba(168,85,247,0.45)]',
+      badgeBg: 'bg-gradient-to-r from-purple-400 via-amber-300 to-amber-400 text-black border-amber-300',
+      titleGrad: 'bg-gradient-to-r from-purple-200 via-amber-200 to-amber-400 bg-clip-text text-transparent',
+      accentIcon: '👑',
+    };
+  }
+  return {
+    gradientBg: 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/30 via-emerald-950/60 to-black',
+    glowShadow: 'shadow-[0_0_25px_rgba(16,185,129,0.25)] hover:shadow-[0_0_35px_rgba(16,185,129,0.4)]',
+    badgeBg: 'bg-gradient-to-r from-emerald-400 to-teal-400 text-black border-emerald-300',
+    titleGrad: 'bg-gradient-to-r from-emerald-100 via-teal-200 to-amber-300 bg-clip-text text-transparent',
+    accentIcon: '🚀',
+  };
+}
+
 function DepositBonusesSection() {
   const router = useRouter();
   const [offers, setOffers] = useState<DepositOffer[]>([]);
