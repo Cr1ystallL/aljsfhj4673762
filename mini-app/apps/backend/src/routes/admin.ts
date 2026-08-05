@@ -2603,16 +2603,40 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: adminOnly },
     async (request, reply) => {
       const limit = Math.min(
-        200,
-        Math.max(10, parseInt(request.query.limit ?? '50', 10))
+        500,
+        Math.max(10, parseInt(request.query.limit ?? '200', 10))
       );
       const statusFilter = request.query.status;
       const normalizedStatus =
         statusFilter && statusFilter !== 'all' ? statusFilter : undefined;
+
       try {
-        // ---- FoluxPay orders ---------------------------------------------
-        // Raw query — table is created via the foluxpay migration and may
-        // not exist in the Prisma client schema yet on every deployment.
+        // 1. Direct Crypto Deposits (direct_crypto_deposits table)
+        interface DirectCryptoRow {
+          id: string;
+          user_id: string;
+          network: string;
+          requested_pln: string;
+          unique_usdt: string;
+          deposit_address: string;
+          status: string;
+          expires_at: Date | null;
+          paid_at: Date | null;
+          created_at: Date;
+        }
+
+        let directCryptoRows: DirectCryptoRow[] = [];
+        try {
+          directCryptoRows = await app.prisma.$queryRaw<DirectCryptoRow[]>(Prisma.sql`
+            SELECT id, user_id, network, requested_pln, unique_usdt,
+                   deposit_address, status, expires_at, paid_at, created_at
+              FROM direct_crypto_deposits
+             ORDER BY created_at DESC
+             LIMIT ${limit}
+          `);
+        } catch {}
+
+        // 2. FoluxPay / MacvPay orders (macvpay_orders table)
         interface FoluxpayOrderRow {
           id: string;
           user_id: string;
@@ -2630,66 +2654,59 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           created_at: Date;
         }
 
-        const where = normalizedStatus
-          ? normalizedStatus === 'paid'
-            ? Prisma.sql` WHERE status IN ('paid', 'credited')`
-            : Prisma.sql` WHERE status = ${normalizedStatus}`
-          : Prisma.empty;
         let orders: FoluxpayOrderRow[] = [];
         try {
           orders = await app.prisma.$queryRaw<FoluxpayOrderRow[]>(Prisma.sql`
             SELECT id, user_id, external_id, requested_amount, unique_amount,
                    currency, payment_type, status, card, recipient, details,
                    expires_at, paid_at, created_at
-              FROM macvpay_orders${where}
+              FROM macvpay_orders
              ORDER BY created_at DESC
              LIMIT ${limit}
           `);
-        } catch (err) {
-          // Table missing on older deployments — fall through with empty.
-          logger.warn({ err }, 'macvpay_orders read failed; returning empty');
-          orders = [];
-        }
+        } catch {}
 
-        interface CryptoBotTxRow {
+        // 3. Transactions table (type = 'deposit')
+        interface GeneralTxRow {
           id: string;
           user_id: string;
           amount: string;
+          description: string | null;
           metadata: Prisma.JsonValue;
           created_at: Date;
         }
 
-        const allowFallback = !normalizedStatus || normalizedStatus === 'paid';
-        let txRows: CryptoBotTxRow[] = [];
-        if (allowFallback) {
-          try {
-            txRows = await app.prisma.$queryRaw<CryptoBotTxRow[]>(Prisma.sql`
-              SELECT id::text AS id,
-                     user_id::text AS user_id,
-                     amount::text AS amount,
-                     metadata,
-                     created_at
-                FROM transactions
-               WHERE type = 'deposit'
-                 AND metadata ? 'provider'
-                 AND metadata->>'provider' = 'cryptobot'
-               ORDER BY created_at DESC
-               LIMIT ${limit}
-            `);
-          } catch (err) {
-            logger.warn({ err }, 'cryptobot deposit fallback read failed');
-            txRows = [];
-          }
-        }
+        let generalTxRows: GeneralTxRow[] = [];
+        try {
+          generalTxRows = await app.prisma.$queryRaw<GeneralTxRow[]>(Prisma.sql`
+            SELECT id::text AS id,
+                   user_id::text AS user_id,
+                   amount::text AS amount,
+                   description,
+                   metadata,
+                   created_at
+              FROM transactions
+             WHERE type = 'deposit'
+             ORDER BY created_at DESC
+             LIMIT ${limit}
+          `);
+        } catch {}
 
+        // Collect all user IDs to resolve names & photos
         const userIdSet = new Set<string>();
-        for (const o of orders) userIdSet.add(o.user_id);
-        for (const t of txRows) userIdSet.add(t.user_id);
+        for (const dc of directCryptoRows) if (dc.user_id) userIdSet.add(dc.user_id);
+        for (const o of orders) if (o.user_id) userIdSet.add(o.user_id);
+        for (const tx of generalTxRows) if (tx.user_id) userIdSet.add(tx.user_id);
 
         const userIds = Array.from(userIdSet);
         const users = userIds.length
           ? await app.prisma.user.findMany({
-              where: { id: { in: userIds } },
+              where: {
+                OR: [
+                  { id: { in: userIds } },
+                  { telegramId: { in: userIds.filter((x) => !isNaN(Number(x))).map((x) => BigInt(x)) } }
+                ]
+              },
               select: {
                 id: true,
                 firstName: true,
@@ -2699,28 +2716,57 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               },
             })
           : [];
-        const byId = new Map(users.map((u) => [u.id, u]));
 
-        const list = orders.map((o) => {
+        const byId = new Map<string, typeof users[0]>();
+        for (const u of users) {
+          byId.set(u.id, u);
+          if (u.telegramId) byId.set(u.telegramId.toString(), u);
+        }
+
+        // Map Direct Crypto Deposits
+        const directList = directCryptoRows.map((dc) => {
+          const u = byId.get(dc.user_id);
+          const expiresAt = dc.expires_at ? new Date(dc.expires_at).getTime() : null;
+          let status = dc.status;
+          if (status === 'credited') status = 'paid';
+          if (status === 'pending' && expiresAt && expiresAt < Date.now()) status = 'expired';
+
+          return {
+            id: dc.id,
+            providerOrderId: dc.id,
+            externalId: dc.id,
+            userId: dc.user_id,
+            name: u?.firstName || u?.username || (u?.telegramId ? `id${u.telegramId.toString().slice(-4)}` : 'Игрок'),
+            telegramId: u?.telegramId ? Number(u.telegramId) : null,
+            photoUrl: u?.photoUrl ?? null,
+            amount: Number(dc.requested_pln ?? 0),
+            uniqueAmount: Number(dc.unique_usdt ?? 0),
+            currency: 'PLN',
+            type: `crypto_${dc.network.toLowerCase()}`,
+            status,
+            card: dc.deposit_address,
+            recipient: dc.network,
+            details: `Кошелек: ${dc.deposit_address}`,
+            expiresAt,
+            paidAt: dc.paid_at ? new Date(dc.paid_at).getTime() : null,
+            createdAt: new Date(dc.created_at).getTime(),
+          };
+        });
+
+        // Map FoluxPay Orders
+        const foluxList = orders.map((o) => {
           const u = byId.get(o.user_id);
-          const expiresAt = o.expires_at ? o.expires_at.getTime() : null;
-          // Compute live status: an order is "expired" once we passed
-          // expires_at while still in 'pending'.
+          const expiresAt = o.expires_at ? new Date(o.expires_at).getTime() : null;
           let status = o.status;
-          if (status === 'pending' && expiresAt && expiresAt < Date.now()) {
-            status = 'expired';
-          }
+          if (status === 'credited') status = 'paid';
+          if (status === 'pending' && expiresAt && expiresAt < Date.now()) status = 'expired';
+
           return {
             id: o.id,
             providerOrderId: o.id,
             externalId: o.external_id,
             userId: o.user_id,
-            name:
-              u?.firstName ||
-              u?.username ||
-              (u?.telegramId
-                ? `id${u.telegramId.toString().slice(-4)}`
-                : 'Игрок'),
+            name: u?.firstName || u?.username || (u?.telegramId ? `id${u.telegramId.toString().slice(-4)}` : 'Игрок'),
             telegramId: u?.telegramId ? Number(u.telegramId) : null,
             photoUrl: u?.photoUrl ?? null,
             amount: Number(o.requested_amount ?? 0),
@@ -2732,75 +2778,56 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             recipient: o.recipient,
             details: o.details,
             expiresAt,
-            paidAt: o.paid_at ? o.paid_at.getTime() : null,
-            createdAt: o.created_at.getTime(),
+            paidAt: o.paid_at ? new Date(o.paid_at).getTime() : null,
+            createdAt: new Date(o.created_at).getTime(),
           };
         });
 
-        const ordersById = new Map(list.map((o) => [o.id, o]));
+        // Map General Deposit Transactions (deduplicated against existing IDs)
+        const existingIds = new Set([...directList.map((x) => x.id), ...foluxList.map((x) => x.id)]);
 
-        const cryptoBotList = txRows.map((t) => {
-          const u = byId.get(t.user_id);
-          const meta =
-            t.metadata && typeof t.metadata === 'object' && t.metadata !== null
-              ? (t.metadata as Record<string, unknown>)
-              : null;
-          const amountUsdt = Number(t.amount ?? 0);
-          const invoiceId = meta?.invoiceId;
-          const providerOrderIdRaw =
-            typeof invoiceId === 'string' || typeof invoiceId === 'number'
-              ? String(invoiceId)
-              : t.id;
-          const providerOrderId = providerOrderIdRaw.startsWith('cryptobot_')
-            ? providerOrderIdRaw
-            : `cryptobot_${providerOrderIdRaw}`;
-          const currency =
-            typeof meta?.currency === 'string' ? meta.currency : 'USDT';
-          const amountPln = Number(meta?.amountLocal ?? 0);
-          const fxRate = Number(meta?.fxRate ?? 0);
-          const linked = ordersById.get(providerOrderId);
+        const txList = generalTxRows
+          .filter((t) => !existingIds.has(t.id))
+          .map((t) => {
+            const u = byId.get(t.user_id);
+            const meta = t.metadata && typeof t.metadata === 'object' ? (t.metadata as any) : {};
+            return {
+              id: t.id,
+              providerOrderId: t.id,
+              externalId: t.id,
+              userId: t.user_id,
+              name: u?.firstName || u?.username || (u?.telegramId ? `id${u.telegramId.toString().slice(-4)}` : 'Игрок'),
+              telegramId: u?.telegramId ? Number(u.telegramId) : null,
+              photoUrl: u?.photoUrl ?? null,
+              amount: Number(t.amount ?? 0),
+              uniqueAmount: 0,
+              currency: 'PLN',
+              type: meta?.provider ? String(meta.provider) : 'deposit',
+              status: 'paid' as const,
+              card: null,
+              recipient: null,
+              details: t.description || 'Зачисление депозита',
+              expiresAt: null,
+              paidAt: new Date(t.created_at).getTime(),
+              createdAt: new Date(t.created_at).getTime(),
+            };
+          });
 
-          return {
-            id: t.id,
-            providerOrderId,
-            externalId: providerOrderId,
-            userId: t.user_id,
-            name:
-              linked?.name ||
-              u?.firstName ||
-              u?.username ||
-              (u?.telegramId
-                ? `id${u.telegramId.toString().slice(-4)}`
-                : 'Игрок'),
-            telegramId: linked?.telegramId ?? (u?.telegramId ? Number(u.telegramId) : null),
-            photoUrl: linked?.photoUrl ?? u?.photoUrl ?? null,
-            amount: linked?.currency === 'PLN' && amountPln > 0 ? amountPln : amountUsdt,
-            uniqueAmount: linked?.uniqueAmount ?? 0,
-            currency: linked?.currency ?? currency,
-            type: 'cryptobot',
-            status: 'paid' as const,
-            card: linked?.card ?? null,
-            recipient: linked?.recipient ?? null,
-            details: linked?.details ?? null,
-            expiresAt: linked?.expiresAt ?? null,
-            paidAt: linked?.paidAt ?? t.created_at.getTime(),
-            createdAt: linked?.createdAt ?? t.created_at.getTime(),
-            meta: {
-              fxRate,
-              amountUsdt,
-              amountPln,
-            },
-          };
-        });
+        let combined = [...directList, ...foluxList, ...txList];
 
-        const combined = [...list, ...cryptoBotList]
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, limit);
+        if (normalizedStatus) {
+          combined = combined.filter((x) => {
+            if (normalizedStatus === 'paid') return x.status === 'paid';
+            return x.status === normalizedStatus;
+          });
+        }
 
-        return reply.send({ ok: true, deposits: combined });
+        combined.sort((a, b) => b.createdAt - a.createdAt);
+
+        return reply.send({ ok: true, deposits: combined.slice(0, limit) });
       } catch (error) {
         logger.error(error, 'Deposits list failed');
-        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+        return reply.send({ ok: true, deposits: [] });
       }
     }
   );
