@@ -207,44 +207,53 @@ function DepositBonusesSection() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {offers.map((offer) => {
+        {offers.map((offer, idx) => {
           const isActive = offer.userStatus === 'active';
           const isUsed = offer.userStatus === 'used';
+          const theme = getCardStyleTheme(offer.title, idx);
 
           return (
             <div
               key={offer.id}
-              className={`relative aspect-square overflow-hidden rounded-2xl border transition-all p-3 flex flex-col justify-between group ${
+              className={`relative aspect-square overflow-hidden rounded-2xl border transition-all duration-300 p-3 flex flex-col justify-between group ${
                 isActive
-                  ? 'border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.25)]'
+                  ? 'border-emerald-400/90 shadow-[0_0_30px_rgba(52,211,153,0.35)] bg-emerald-950/20'
                   : isUsed
-                  ? 'border-white/5 bg-white/[0.01] opacity-50'
-                  : 'border-white/12 bg-white/[0.03] hover:border-amber-400/40 hover:bg-white/[0.05]'
+                  ? 'border-white/5 bg-white/[0.01] opacity-40'
+                  : `border-white/15 hover:border-amber-400/60 ${theme.glowShadow}`
               }`}
             >
-              {/* Optional Banner Image Background */}
+              {/* Shimmer Light Sweep on Hover */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none z-20" />
+
+              {/* Optional Banner Image or Custom Dynamic Gradient Background */}
               {offer.bannerUrl ? (
                 <>
                   <img
                     src={offer.bannerUrl}
                     alt={offer.title}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/30" />
                 </>
               ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/15 via-black/80 to-black/95" />
+                <>
+                  <div className={`absolute inset-0 ${theme.gradientBg}`} />
+                  {/* Subtle Grid / Pattern Glow Overlay */}
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.08),transparent)]" />
+                </>
               )}
 
               {/* Top Badges */}
               <div className="relative z-10 flex items-center justify-between gap-1">
-                <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold font-roobert backdrop-blur-md">
+                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-extrabold font-roobert shadow-md ${theme.badgeBg}`}>
                   {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
                 </span>
 
                 {isActive ? (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono font-bold uppercase backdrop-blur-md">
-                    Активен
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 text-[9px] font-mono font-bold uppercase backdrop-blur-md flex items-center gap-1 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>Активен</span>
                   </span>
                 ) : isUsed ? (
                   <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9px] font-mono uppercase backdrop-blur-md">
@@ -255,12 +264,12 @@ function DepositBonusesSection() {
 
               {/* Middle Content */}
               <div className="relative z-10 flex flex-col gap-0.5 my-auto">
-                <h3 className="font-roobert text-[12px] sm:text-[13px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
+                <h3 className={`font-roobert text-[12.5px] sm:text-[13.5px] font-extrabold leading-snug line-clamp-2 drop-shadow-lg ${offer.bannerUrl ? 'text-white' : theme.titleGrad}`}>
                   {offer.title}
                 </h3>
                 <div className="text-[10px] font-roobert text-whisper-gray flex items-center gap-1">
                   <span>Депозит от:</span>
-                  <b className="text-amber-400 font-bold">{offer.minDeposit} zł</b>
+                  <b className="text-amber-300 font-bold drop-shadow-sm">{offer.minDeposit} zł</b>
                 </div>
               </div>
 
@@ -270,14 +279,14 @@ function DepositBonusesSection() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => router.push('/balance/deposit')}
-                      className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[10.5px] shadow-md transition-all text-center truncate"
+                      className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-[10.5px] shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all text-center truncate active:scale-95"
                     >
                       Депозит 🚀
                     </button>
                     <button
                       onClick={() => toggleBonus(offer)}
                       disabled={busyId === offer.id}
-                      className="px-2 py-1.5 rounded-xl border border-white/20 bg-black/60 text-rose-300 text-[10px] hover:bg-rose-500/30 transition-all font-roobert"
+                      className="px-2 py-1.5 rounded-xl border border-white/20 bg-black/70 text-rose-300 text-[10px] hover:bg-rose-500/30 transition-all font-roobert active:scale-95"
                     >
                       ✕
                     </button>
@@ -293,7 +302,7 @@ function DepositBonusesSection() {
                   <button
                     onClick={() => toggleBonus(offer)}
                     disabled={busyId === offer.id}
-                    className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-extrabold text-[11px] shadow-[0_0_15px_rgba(255,172,46,0.3)] transition-all flex items-center justify-center gap-1"
+                    className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-200 text-black font-extrabold text-[11px] shadow-[0_0_20px_rgba(255,172,46,0.35)] active:scale-95 transition-all flex items-center justify-center gap-1"
                   >
                     {busyId === offer.id ? (
                       <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
