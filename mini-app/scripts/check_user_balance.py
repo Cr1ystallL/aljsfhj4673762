@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Detailed user balance inspection script for post-27th July activity and pre-rollback balance audit.
+Detailed user balance inspection script targeting 5th August balance state.
 
 Usage:
   python3 scripts/check_user_balance.py --tg-ids 837158208 1876418609 687005254
@@ -44,9 +44,9 @@ def get_pg_connection():
         db_url = "postgresql://postgres:postgres@localhost:5432/casino_miniapp"
     return psycopg2.connect(db_url)
 
-def inspect_user(cursor, telegram_id, start_date_str="2026-07-27"):
+def inspect_user(cursor, telegram_id):
     print("\n" + "=" * 75)
-    print(f"       POST-27TH BALANCE AUDIT FOR TELEGRAM ID: {telegram_id}")
+    print(f"       BALANCE AUDIT ON 5TH AUGUST FOR TELEGRAM ID: {telegram_id}")
     print("=" * 75 + "\n")
 
     # 1. User details
@@ -69,39 +69,27 @@ def inspect_user(cursor, telegram_id, start_date_str="2026-07-27"):
     print(f"   - Registered:  {user['created_at']}")
     print("")
 
-    # 2. Current DB Balance
-    cursor.execute("SELECT amount, wager_target, wager_progress, updated_at FROM balances WHERE user_id = %s", (user_id,))
-    balance = cursor.fetchone()
-    if balance:
-        print(f"💰 Current DB Balance: {balance['amount']} USD/PLN (Updated: {balance['updated_at']})")
-    else:
-        print("⚠️ No balance row found in DB!")
-    print("")
-
-    # 3. Base Balance on 27.07 (last tx before 2026-07-27 00:00:00)
-    cutoff_ts = f"{start_date_str} 00:00:00"
+    # 2. Last Transaction BEFORE or ON 5th August 2026 23:59:59
+    end_of_5th = "2026-08-05 23:59:59"
     cursor.execute("""
-        SELECT balance_after, created_at FROM transactions
-        WHERE user_id = %s AND created_at < %s
+        SELECT balance_after, created_at, type, amount FROM transactions
+        WHERE user_id = %s AND created_at <= %s
         ORDER BY created_at DESC LIMIT 1
-    """, (user_id, cutoff_ts))
-    base_tx = cursor.fetchone()
-    base_balance = float(base_tx['balance_after']) if base_tx else 0.0
-    print(f"📌 Base Balance ON {start_date_str} (before post-27 activity): {base_balance} PLN/USD")
-    if base_tx:
-        print(f"   (Last tx before cutoff at {base_tx['created_at']})")
-    print("")
+    """, (user_id, end_of_5th))
+    tx_5th = cursor.fetchone()
 
-    # 4. Check Contest Draws in Admin Audit Log after 27.07
+    bal_table_on_5th = float(tx_5th['balance_after']) if tx_5th else 0.0
+
+    # 3. Check Contest Winnings ON or BEFORE 5th August
     cursor.execute("""
         SELECT id, action, payload_after, reason, created_at
         FROM admin_audit_log
-        WHERE action = 'contest.draw' AND created_at >= %s
+        WHERE action = 'contest.draw' AND created_at <= %s
         ORDER BY created_at ASC
-    """, (cutoff_ts,))
+    """, (end_of_5th,))
     contest_logs = cursor.fetchall()
     
-    contest_winnings = 0.0
+    contest_winnings_up_to_5th = 0.0
     contest_details = []
 
     for clog in contest_logs:
@@ -116,68 +104,53 @@ def inspect_user(cursor, telegram_id, start_date_str="2026-07-27"):
                 if w.get('userId') == user_id:
                     amt = float(w.get('amount', 0))
                     place = w.get('place')
-                    contest_winnings += amt
+                    contest_winnings_up_to_5th += amt
                     contest_details.append({
                         'date': clog['created_at'],
                         'place': place,
-                        'amount': amt,
-                        'reason': clog['reason']
+                        'amount': amt
                     })
 
-    if contest_details:
-        print(f"🏆 Contest Wins after {start_date_str}:")
-        for cd in contest_details:
-            print(f"   - [{cd['date']}] Place #{cd['place']}: +{cd['amount']} PLN (Reason: {cd['reason']})")
-        print(f"   Total Contest Winnings: +{contest_winnings} PLN")
+    # Total balance on 5th August = Transaction table balance on 5th + contest wins on/before 5th
+    total_balance_on_5th = bal_table_on_5th + contest_winnings_up_to_5th
+
+    print(f"📅 BALANCE STATE ON 5TH AUGUST 2026 (23:59:59):")
+    if tx_5th:
+        print(f"   - Last Transaction on/before 5th Aug: {bal_table_on_5th:.2f} PLN/USD (at {tx_5th['created_at']})")
     else:
-        print(f"🏆 Contest Wins after {start_date_str}: None")
+        print(f"   - No transactions recorded on or before 5th Aug (Balance: 0.00)")
+
+    if contest_details:
+        print(f"   - Contest Winnings on/before 5th Aug: +{contest_winnings_up_to_5th:.2f} PLN/USD")
+        for cd in contest_details:
+            print(f"     * [{cd['date']}] Place #{cd['place']}: +{cd['amount']} PLN")
+    else:
+        print(f"   - Contest Winnings on/before 5th Aug: 0.00")
+
+    print(f"   👉 TOTAL EFFECTIVE BALANCE ON 5TH AUGUST: {total_balance_on_5th:.2f} PLN/USD")
     print("")
 
-    # 5. Transactions recorded after 27.07
+    # 4. Transactions on 5th August specifically
     cursor.execute("""
         SELECT id, type, amount, balance_before, balance_after, game_type, created_at
         FROM transactions
-        WHERE user_id = %s AND created_at >= %s
+        WHERE user_id = %s AND created_at >= '2026-08-05 00:00:00' AND created_at <= '2026-08-05 23:59:59'
         ORDER BY created_at ASC
-    """, (user_id, cutoff_ts))
-    post_txs = cursor.fetchall()
-
-    print(f"📊 Transactions recorded after {start_date_str} ({len(post_txs)} transactions):")
-    max_bal_tx = base_balance
-    min_bal_tx = base_balance
-    if post_txs:
-        for t in post_txs:
-            b_after = float(t['balance_after'])
-            if b_after > max_bal_tx:
-                max_bal_tx = b_after
-            if b_after < min_bal_tx:
-                min_bal_tx = b_after
+    """, (user_id,))
+    txs_on_5th = cursor.fetchall()
+    print(f"📋 Transactions ON 5th August ({len(txs_on_5th)} txs):")
+    if txs_on_5th:
+        for t in txs_on_5th:
             game = f" ({t['game_type']})" if t['game_type'] else ""
-            print(f"   [{t['created_at']}] Type: {t['type']:<12}{game:<15} Amount: {t['amount']:>10} | Bal: {t['balance_before']} -> {t['balance_after']}")
+            print(f"   [{t['created_at']}] Type: {t['type']:<12}{game:<15} Amt: {t['amount']:>8} | Bal: {t['balance_before']} -> {t['balance_after']}")
     else:
-        print("   - No transaction records exist after 27th (wiped by rollback or no activity recorded).")
-    print("")
+        print("   - No transactions on 5th August.")
 
-    # 6. Overall Pre-Rollback Balance Estimation
-    calculated_pre_rollback_balance = base_balance + contest_winnings
-    if post_txs:
-        net_tx_change = float(post_txs[-1]['balance_after']) - float(post_txs[0]['balance_before'])
-        calculated_pre_rollback_balance += net_tx_change
-
-    max_reached_after_27 = max(max_bal_tx, base_balance + contest_winnings)
-
-    print(f"💡 SUMMARY FOR USER {telegram_id} (@{user['username'] or 'N/A'}):")
-    print(f"   1️⃣ Balance ON 27th July:                  {base_balance:.2f} PLN/USD")
-    print(f"   2️⃣ Contest Winnings (won after 27th):     +{contest_winnings:.2f} PLN/USD")
-    print(f"   3️⃣ Max Peak Balance reached after 27th:  {max_reached_after_27:.2f} PLN/USD")
-    print(f"   4️⃣ Calculated Total Balance BEFORE Rollback: {calculated_pre_rollback_balance:.2f} PLN/USD")
-    print(f"   5️⃣ Current DB Balance:                    {float(balance['amount']) if balance else 0.0:.2f} PLN/USD")
-    print("=" * 75 + "\n")
+    print("\n" + "=" * 75 + "\n")
 
 def main():
-    parser = argparse.ArgumentParser(description="Inspect user balance history after July 27th.")
-    parser.add_argument("--tg-ids", nargs="+", type=int, required=True, help="List of Telegram IDs (e.g. 837158208 1876418609 687005254)")
-    parser.add_argument("--start-date", default="2026-07-27", help="Cutoff date YYYY-MM-DD (default 2026-07-27)")
+    parser = argparse.ArgumentParser(description="Inspect user balance history specifically on 5th August.")
+    parser.add_argument("--tg-ids", nargs="+", type=int, required=True, help="List of Telegram IDs")
 
     args = parser.parse_args()
 
@@ -185,7 +158,7 @@ def main():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     for tg_id in args.tg_ids:
-        inspect_user(cursor, tg_id, args.start_date)
+        inspect_user(cursor, tg_id)
 
     conn.close()
 
