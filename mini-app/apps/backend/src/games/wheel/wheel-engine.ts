@@ -571,14 +571,18 @@ class WheelEngine extends EventEmitter {
  */
 function pickSegment(hash: string, bias: number): number {
   const b = Math.max(-1, Math.min(1, bias));
-  // Per-multiplier weight scalers. With b=0 they're all 1.
-  const scaler: Record<WheelMultiplier, number> = {
-    2: 1 + b * 0.15,
-    3: 1 + b * 0.05,
-    5: 1 - b * 0.2,
-    30: 1 - b * 0.6,
+  // Weighted distribution for realistic casino odds:
+  // 2x:  weight 6.0 (prob ~47.6%) -> RTP ~95%
+  // 3x:  weight 4.0 (prob ~31.7%) -> RTP ~95%
+  // 5x:  weight 2.4 (prob ~19.0%) -> RTP ~95%
+  // 30x: weight 0.2 (prob ~1.6%)  -> 30x drops very rarely (~1 in 63 spins)
+  const baseScaler: Record<WheelMultiplier, number> = {
+    2: 6.0 * (1 + b * 0.15),
+    3: 4.0 * (1 + b * 0.05),
+    5: 2.4 * (1 - b * 0.2),
+    30: 0.2 * (1 - b * 0.6),
   };
-  const weights = SLOT_LAYOUT.map((m) => Math.max(0.05, scaler[m]));
+  const weights = SLOT_LAYOUT.map((m) => Math.max(0.01, baseScaler[m]));
   const total = weights.reduce((a, x) => a + x, 0);
 
   // Uniform sample from a fresh hash slice (independent of curve U).
