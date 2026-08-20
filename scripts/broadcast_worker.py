@@ -138,8 +138,13 @@ async def _send_one(
                 disable_web_page_preview=True,
             )
         return "delivered", None
-    except TelegramForbiddenError:
-        return "blocked", "user blocked the bot"
+    except TelegramForbiddenError as e:
+        msg = str(e).lower()
+        if "deactivat" in msg:
+            return "blocked", "user deactivated"
+        if "blocked" in msg:
+            return "blocked", "user blocked the bot"
+        return "blocked", str(e)[:200]
     except TelegramAPIError as e:
         return "error", str(e)[:500]
     except Exception as e:
