@@ -26,6 +26,7 @@ import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
 import { useRouter } from 'next/navigation';
 import { useIsAdmin } from '@/lib/admin-probe';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 /**
  * Profile Page — Pure Black Obsidian & Apple Design System
@@ -79,9 +80,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Sticky Header */}
-        <GameTopBar title="Профиль" hideBalance={true} />
+        <GameTopBar title="Профиль" hideBalance={true} width="wide" />
 
-        <div className="relative z-10 mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3.5 pt-4 flex flex-col gap-4">
+        <div className={`relative z-10 mx-auto w-full ${PAGE_WIDTH.wide} px-3.5 pt-4 flex flex-col gap-4`}>
 
           {/* ========================================================================= */}
           {/* HERO IDENTITY CARD — FULL REDESIGN (Pure Pitch Black & Obsidian Glass)    */}

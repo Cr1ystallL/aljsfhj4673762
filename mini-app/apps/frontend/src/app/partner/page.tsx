@@ -9,6 +9,7 @@ import { ArrowLeft, Users, Copy, CheckCircle2, TrendingUp, DollarSign, Activity,
 import { motion, AnimatePresence } from 'framer-motion';
 import { partnerService } from '@/services/partner.service';
 import { BrandLockup } from '@/components/ui/brand-mark';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 export default function PartnerPage() {
   const router = useRouter();
@@ -116,7 +117,7 @@ export default function PartnerPage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white overflow-x-hidden flex flex-col">
-      <GameTopBar title="Партнёрам" Icon={Users} />
+      <GameTopBar title="Партнёрам" Icon={Users} width="wide" />
       <AnimatePresence>
         {showWithdrawModal && stats && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -150,7 +151,7 @@ export default function PartnerPage() {
         )}
       </AnimatePresence>
 
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
+      <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-4 pb-32 flex flex-col gap-6`}>
 
         {isLoading ? (
           <div className="flex items-center justify-center h-48">
