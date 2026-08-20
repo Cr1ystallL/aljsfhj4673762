@@ -6,7 +6,7 @@ import { BottomNavigation } from './bottom-navigation';
 import { MenuDrawer } from './menu-drawer';
 import { useNavStore } from '@/store/nav-store';
 import { useAuthStore } from '@/store/auth-store';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Menu } from 'lucide-react';
 
 const HIDEABLE_PREFIXES = ['/game/'];
 
@@ -40,14 +40,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {/* Side Pull Tab for Mobile Phones (Left edge gesture handle) */}
+      {/* Edge handle for the drawer. A 14px sliver is a fine thumb target and a
+          poor pointer target, so it grows and gains a label on desktop. It sits
+          mid-height rather than in a corner: the page header is full-width and
+          sticky at a higher layer, so anything near the top would end up
+          underneath it. */}
       {!isMenuOpen && !isConsole && (
         <button
           onClick={() => setIsMenuOpen(true)}
           aria-label="Открыть боковое меню"
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-3.5 h-16 rounded-r-xl border border-l-0 border-white/20 bg-midnight-canvas/80 backdrop-blur-md flex items-center justify-center text-whisper-gray/80 hover:text-frost-white active:scale-[0.95] transition-all shadow-lg"
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-3.5 h-16 lg:w-auto lg:h-auto lg:px-3 lg:py-3.5 rounded-r-xl border border-l-0 border-white/20 bg-midnight-canvas/80 backdrop-blur-md flex items-center justify-center gap-1.5 text-whisper-gray/80 hover:text-frost-white hover:border-white/35 active:scale-[0.95] transition-all shadow-lg"
         >
-          <ChevronRight size={12} strokeWidth={2.5} />
+          <Menu size={14} strokeWidth={2.2} className="hidden lg:block" />
+          <span className="hidden lg:block font-roobert text-[12px] font-medium">
+            Меню
+          </span>
+          <ChevronRight size={12} strokeWidth={2.5} className="lg:hidden" />
         </button>
       )}
 
