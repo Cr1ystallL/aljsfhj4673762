@@ -12,3 +12,11 @@ The following rules must be strictly adhered to by any agent or subagent working
 - This allows the user to click "Copy" once and paste everything into their SSH terminal.
 - Add descriptive `# comments` inside the bash block explaining what each step does.
 - You must ALWAYS include the `clear` command at the very beginning of the bash script block so the terminal is cleared before execution.
+
+## 3. Optional Direct VPS Access
+- Rule 2 is the default. If the environment provides the secrets `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY`, the agent may reach the server itself through `./scripts/agent_vps.sh` (read logs, inspect PM2, deploy).
+- Setup instructions live in `docs/VPS_AGENT_ACCESS.md`; the behavioral rules for that access live in `.cursor/skills/vps-access/SKILL.md`.
+- Until those secrets exist, follow rule 2 strictly.
+
+## 4. Skills
+- Agent skills live in `.cursor/skills/<name>/SKILL.md` and are committed to the repository. The catalog and upstream sources are documented in `SKILLS/AVAILABLE_SKILLS.md`.
