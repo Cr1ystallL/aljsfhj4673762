@@ -9,6 +9,7 @@ import { PlinkoIcon } from '@/components/ui/game-icon';
 import { CasesRoulette } from '@/components/game/cases/cases-roulette';
 import { CasesHistory } from '@/components/game/cases/cases-history';
 import { useBalance } from '@/hooks/use-balance';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -65,7 +66,7 @@ export default function CaseOpeningPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   
   const { balance, fetchBalance, optimisticUpdate, freezeBalance, unfreezeBalance } = useBalance();
-  const activeBalance = balance?.amount ?? 10000;
+  const { amount: activeBalance, isReady: isBalanceReady } = useActiveBalance('cases');
   const freeCases = (balance as any)?.freeCases ?? 0;
   const freeCasesJson = (balance as any)?.freeCasesJson as Record<string, { count: number }> | undefined;
   const freeCountForThisCase = id === 'case_1'
@@ -140,7 +141,11 @@ export default function CaseOpeningPage() {
     
     const isFreeSpin = freeCountForThisCase >= count;
     const totalCost = isFreeSpin ? 0 : caseTier.price * count;
-    
+
+    if (!isFreeSpin && !isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     if (activeBalance < totalCost) {
       toast.warn(`Недостаточно средств. Нужно ${totalCost.toLocaleString('ru-RU')} zł`);
       return;
@@ -316,7 +321,11 @@ export default function CaseOpeningPage() {
           {/* Main Action Button */}
           <button
             onClick={handleOpen}
-            disabled={isSpinning || (freeCountForThisCase < count && activeBalance < caseTier.price * count)}
+            disabled={
+              isSpinning ||
+              (freeCountForThisCase < count &&
+                (!isBalanceReady || activeBalance < caseTier.price * count))
+            }
             className="w-full py-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[17px] text-white/95 shadow-sm border border-white/10"
           >
             {isSpinning 
