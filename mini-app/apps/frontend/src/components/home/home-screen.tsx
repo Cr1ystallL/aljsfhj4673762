@@ -172,7 +172,7 @@ interface HeroContest {
 }
 
 export function HomeScreen() {
-  const { t } = useT();
+  const { t, localeTag } = useT();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { fetchBalance } = useBalance();
@@ -337,13 +337,15 @@ export function HomeScreen() {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
             </span>
             <span className="text-frost-white font-medium tracking-tight transition-all duration-300">
-              {displayOnline} онлайн
+              {t('home.online', { n: displayOnline })}
             </span>
           </div>
           <div className="flex items-center gap-1.5 text-amber-300 font-semibold tracking-tight">
             <TrendingUp size={14} strokeWidth={2.2} className="text-amber-400" />
             <span>
-              Выплаты 24ч: {payouts24h.toLocaleString('ru-RU')} zł
+              {t('home.payouts24h', {
+                amount: payouts24h.toLocaleString(localeTag),
+              })}
             </span>
           </div>
         </div>
@@ -383,7 +385,7 @@ export function HomeScreen() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по играм..."
+              placeholder={t('home.searchPlaceholder')}
               className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/15 bg-black/40 text-[13px] font-roobert text-frost-white placeholder:text-whisper-gray/70 focus:outline-none focus:border-amber-400/50 focus:bg-black/60 transition-all backdrop-blur-xl shadow-inner"
             />
             {searchQuery && (
@@ -402,25 +404,25 @@ export function HomeScreen() {
               active={activeCategory === 'all'}
               onClick={() => setActiveCategory('all')}
               icon={<Gamepad2 size={14} />}
-              label="Все"
+              label={t('home.filterAll')}
             />
             <CategoryTab
               active={activeCategory === 'popular'}
               onClick={() => setActiveCategory('popular')}
               icon={<Flame size={14} className="text-amber-400" />}
-              label="TOP Игры"
+              label={t('home.filterTop')}
             />
             <CategoryTab
               active={activeCategory === 'fast'}
               onClick={() => setActiveCategory('fast')}
               icon={<Zap size={14} className="text-cyan-400" />}
-              label="Быстрые"
+              label={t('home.filterFast')}
             />
             <CategoryTab
               active={activeCategory === 'table'}
               onClick={() => setActiveCategory('table')}
               icon={<Layers size={14} className="text-purple-400" />}
-              label="Аркадные"
+              label={t('home.filterArcade')}
             />
           </div>
         </div>
@@ -429,15 +431,15 @@ export function HomeScreen() {
         <div className="flex items-baseline justify-between px-1">
           <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
             {activeCategory === 'all'
-              ? 'Все доступные игры'
+              ? t('home.sectionAll')
               : activeCategory === 'popular'
-              ? 'Популярные игры'
+              ? t('home.sectionPopular')
               : activeCategory === 'fast'
-              ? 'Быстрые раунды'
-              : 'Аркады и слоты'}
+              ? t('home.sectionFast')
+              : t('home.sectionArcade')}
           </span>
           <span className="font-roobert text-[11px] text-whisper-gray">
-            {filteredGames.length} {getGamesWord(filteredGames.length)}
+            {t('home.gamesCount', { n: filteredGames.length })}
           </span>
         </div>
 
@@ -445,7 +447,7 @@ export function HomeScreen() {
         {filteredGames.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
             <p className="font-roobert text-[14px] text-whisper-gray">
-              Игры не найдены
+              {t('home.empty')}
             </p>
             <button
               onClick={() => {
@@ -454,7 +456,7 @@ export function HomeScreen() {
               }}
               className="mt-3 text-[12px] text-frost-white underline hover:opacity-80 font-roobert"
             >
-              Сбросить фильтры
+              {t('home.resetFilters')}
             </button>
           </div>
         ) : (
@@ -469,14 +471,14 @@ export function HomeScreen() {
         <div className="grid grid-cols-2 gap-3 pt-2">
           <QuickAction
             icon={<Wallet size={18} strokeWidth={1.5} />}
-            label="Управление балансом"
-            sublabel="Пополнение и вывод"
+            label={t('home.wallet')}
+            sublabel={t('home.walletSub')}
             onClick={() => router.push('/balance')}
           />
           <QuickAction
             icon={<Sparkles size={18} strokeWidth={1.5} />}
-            label="Бонусы"
-            sublabel="Промокоды и колесо"
+            label={t('home.bonuses')}
+            sublabel={t('home.bonusesSub')}
             onClick={() => router.push('/bonuses')}
           />
         </div>
@@ -644,6 +646,7 @@ function ContestHero({
   contest: HeroContest;
   onClick: () => void;
 }) {
+  const { t } = useT();
   const remainingMs = Math.max(0, contest.endsAt - Date.now());
   const remaining = formatRemainingShort(remainingMs);
   return (
@@ -679,8 +682,8 @@ function ContestHero({
         <span className="inline-flex items-center gap-2 font-roobert text-[10px] uppercase tracking-[0.32em] text-amber-300/90">
           <Trophy size={11} className="text-[#ffac2e]" strokeWidth={2} />
           {contest.visibility === 'global'
-            ? 'Глобальный турнир'
-            : 'Активный конкурс'}
+            ? t('home.globalTournament')
+            : t('home.contest')}
         </span>
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">

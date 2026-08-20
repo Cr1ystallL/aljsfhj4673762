@@ -9,12 +9,6 @@ import {
   StakeField,
 } from '@/components/game/kit';
 
-/**
- * Plinko Bet Panel — stake row + auto toggle + primary CTA.
- * Visual pieces come from the shared game kit so Crash / Mines / Plinko
- * stay on the same radius, type, and pill language.
- */
-
 interface PlinkoBetPanelProps {
   amount: number;
   onAmountChange: (next: number) => void;
@@ -25,7 +19,6 @@ interface PlinkoBetPanelProps {
   autoEnabled: boolean;
   onAutoToggle: (enabled: boolean) => void;
 
-  /** True when the user has enough balance for the current stake. */
   canAfford?: boolean;
 
   onPrimary: () => void;
@@ -43,7 +36,9 @@ export function PlinkoBetPanel({
   onPrimary,
 }: PlinkoBetPanelProps) {
   const { t } = useT();
+  const inputsLocked = busy || autoEnabled;
   const ctaDisabled = (busy && !autoEnabled) || (!autoEnabled && !canAfford);
+  const ctaActive = autoEnabled || (!busy && canAfford);
   const ctaLabel = autoEnabled
     ? t('common.stop')
     : busy
@@ -53,47 +48,50 @@ export function PlinkoBetPanel({
         : t('plinko.drop');
 
   return (
-    <BetPanelShell className="backdrop-blur-xl">
-      <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2">
-        <StakeField
-          variant="halve-double"
-          amount={amount}
-          onAmountChange={onAmountChange}
-          minBet={minBet}
-          maxBet={maxBet}
-          disabled={busy || autoEnabled}
-          inputClassName="text-[18px]"
-        />
+    <BetPanelShell>
+      <div className="grid grid-cols-2 items-stretch">
+        <div className="px-4 py-3 border-r border-white/10">
+          <StakeField
+            amount={amount}
+            onAmountChange={onAmountChange}
+            minBet={minBet}
+            maxBet={maxBet}
+            disabled={inputsLocked}
+            label={t('common.bet')}
+            decreaseLabel={t('common.decreaseBet')}
+            increaseLabel={t('common.increaseBet')}
+          />
+        </div>
 
-        <button
-          type="button"
-          onClick={() => onAutoToggle(!autoEnabled)}
-          className={cn(
-            'shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-pill border text-[10px] uppercase tracking-[0.18em] font-roobert transition-colors',
-            autoEnabled
-              ? 'bg-frost-white text-midnight-canvas border-frost-white'
-              : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
-          )}
-        >
-          {t('bridges.autoBet')}
-          <span
-            className={cn(
-              'text-[9px] tracking-[0.16em]',
-              autoEnabled ? 'text-midnight-canvas/70' : 'text-frost-white/55'
-            )}
-          >
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert truncate">
+              {t('common.autoBet')}
+            </span>
+            <button
+              type="button"
+              onClick={() => onAutoToggle(!autoEnabled)}
+              className={cn(
+                'shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border text-[9px] uppercase tracking-[0.16em] font-roobert transition-colors',
+                autoEnabled
+                  ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                  : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
+              )}
+            >
+              {autoEnabled ? t('common.on') : t('common.off')}
+            </button>
+          </div>
+          <div className="mt-2 font-roobert text-[22px] font-light tabular-nums text-frost-white">
             {autoEnabled ? t('common.on') : t('common.off')}
-          </span>
-        </button>
+          </div>
+        </div>
       </div>
 
       <BetPanelCtaRow>
         <GamePrimaryButton
           onClick={onPrimary}
           disabled={ctaDisabled}
-          tone={
-            autoEnabled ? 'stop' : !busy && canAfford ? 'gradient' : 'muted'
-          }
+          tone={ctaActive ? 'solid' : 'muted'}
         >
           {ctaLabel}
         </GamePrimaryButton>

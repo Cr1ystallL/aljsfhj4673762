@@ -113,21 +113,21 @@ export function StakeField({
         </div>
       ) : null}
       <div className={cn('flex items-center justify-between gap-2', label && 'mt-2')}>
-        <IconStepper
+        <KitStepperButton
           onClick={halve}
           disabled={disabled}
           ariaLabel={decreaseLabel}
         >
           <Minus size={12} strokeWidth={2.2} />
-        </IconStepper>
+        </KitStepperButton>
         {input}
-        <IconStepper
+        <KitStepperButton
           onClick={double}
           disabled={disabled}
           ariaLabel={increaseLabel}
         >
           <Plus size={12} strokeWidth={2.2} />
-        </IconStepper>
+        </KitStepperButton>
       </div>
     </div>
   );
@@ -154,7 +154,7 @@ function HalveDoubleButton({
   );
 }
 
-function IconStepper({
+export function KitStepperButton({
   children,
   onClick,
   disabled,

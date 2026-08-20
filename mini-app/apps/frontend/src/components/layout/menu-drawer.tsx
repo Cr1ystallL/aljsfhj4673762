@@ -26,6 +26,7 @@ import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
+import { useT } from '@/i18n/use-t';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -62,6 +63,7 @@ export function MenuDrawer({
   isAuthenticated = false,
 }: MenuDrawerProps) {
   const router = useRouter();
+  const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const balanceStore = useBalanceStore((s) => s.balance);
 
@@ -156,7 +158,7 @@ export function MenuDrawer({
                 <BrandWordmark size={32} />
                 <button
                   onClick={onClose}
-                  aria-label="Закрыть меню"
+                  aria-label={t('nav.closeMenu')}
                   className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white flex items-center justify-center active:scale-95 transition-all"
                 >
                   <X size={18} />
@@ -181,10 +183,10 @@ export function MenuDrawer({
                   </div>
                   <div className="min-w-0">
                     <div className="font-roobert font-medium text-[14px] text-frost-white truncate">
-                      {user?.firstName || 'Игрок'}
+                      {user?.firstName || t('profile.player')}
                     </div>
                     <div className="font-roobert text-[11px] text-amber-300 font-bold tracking-tight">
-                      {(balanceStore?.amount ?? 0).toLocaleString('ru-RU')} zł
+                      {(balanceStore?.amount ?? 0).toLocaleString(localeTag)} zł
                     </div>
                   </div>
                 </div>
@@ -206,7 +208,7 @@ export function MenuDrawer({
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-baseline justify-between">
                   <span className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                    Игры Mini App
+                    {t('nav.gamesMiniApp')}
                   </span>
                   <span className="font-roobert text-[10px] text-whisper-gray">
                     {visibleGames.length}
@@ -274,7 +276,7 @@ export function MenuDrawer({
                               {g.name}
                             </div>
                             <div className="text-[9px] font-roobert text-whisper-gray uppercase tracking-wider">
-                              Играть
+                              {t('common.play')}
                             </div>
                           </div>
                         </div>
@@ -287,14 +289,14 @@ export function MenuDrawer({
               {/* Completely Redesigned "Разделы" (Sections) Section */}
               <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
                 <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                  Разделы приложения
+                  {t('nav.sections')}
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <SectionCard
                     icon={<Wallet size={18} className="text-emerald-400" />}
-                    title="Кошелёк и баланс"
-                    description="Пополнение и вывод средств"
+                    title={t('nav.walletTitle')}
+                    description={t('nav.walletDesc')}
                     onClick={() => {
                       onClose();
                       router.push('/balance');
@@ -302,8 +304,8 @@ export function MenuDrawer({
                   />
                   <SectionCard
                     icon={<Sparkles size={18} className="text-amber-400" />}
-                    title="Бонусы и турниры"
-                    description="Промокоды, конкурсы, колесо"
+                    title={t('nav.bonusesTitle')}
+                    description={t('nav.bonusesDesc')}
                     onClick={() => {
                       onClose();
                       router.push('/bonuses');
@@ -311,8 +313,8 @@ export function MenuDrawer({
                   />
                   <SectionCard
                     icon={<BookOpen size={18} className="text-sky-400" />}
-                    title="Правила и FAQ"
-                    description="Режимы игр, отыгрыш, честная игра"
+                    title={t('nav.faqTitle')}
+                    description={t('nav.faqDesc')}
                     onClick={() => {
                       onClose();
                       router.push('/info');
@@ -320,8 +322,8 @@ export function MenuDrawer({
                   />
                   <SectionCard
                     icon={<Headphones size={18} className="text-cyan-400" />}
-                    title="Служба поддержки"
-                    description="Помощь 24/7 в Telegram"
+                    title={t('nav.supportTitle')}
+                    description={t('nav.supportDesc')}
                     onClick={() => {
                       onClose();
                       window.open('https://t.me/MacvBetSupport', '_blank');

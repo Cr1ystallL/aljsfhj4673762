@@ -10,6 +10,7 @@ import { PlinkoIcon } from '@/components/ui/game-icon'; // Reuse or create a new
 import { CasesHistory } from '@/components/game/cases/cases-history';
 import { toast } from '@/store/toast-store';
 import { useBalance } from '@/hooks/use-balance';
+import { useT } from '@/i18n/use-t';
 
 export interface CasePrize {
   id: string;
@@ -29,6 +30,7 @@ export interface CaseTier {
 }
 
 export default function CasesPage() {
+  const { t } = useT();
   const router = useRouter();
   const [cases, setCases] = useState<CaseTier[]>([]);
   const { fetchBalance } = useBalance();
@@ -49,7 +51,7 @@ export default function CasesPage() {
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
         <GameTopBar
-          title="Кейсы"
+          title={t('cases.title')}
           Icon={PlinkoIcon}
           onHowToPlay={() => router.push('/info#faq')}
         />

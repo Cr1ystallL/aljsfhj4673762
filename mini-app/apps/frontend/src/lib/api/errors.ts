@@ -1,4 +1,5 @@
 import { toast } from '@/store/toast-store';
+import { tNow } from '@/i18n/use-t';
 
 /**
  * Centralised mapping from a server error payload to a user-facing
@@ -27,26 +28,26 @@ interface ApiErrorBody {
   code?: string;
 }
 
-const FRIENDLY: Record<string, { kind: 'error' | 'warn'; text: string }> = {
+const FRIENDLY: Record<string, { kind: 'error' | 'warn'; key: 'errors.insufficientBalance' | 'errors.accountBlocked' | 'errors.withdrawalLocked' | 'errors.rateLimit' | 'errors.gamePaused' }> = {
   INSUFFICIENT_BALANCE: {
     kind: 'warn',
-    text: 'Недостаточно средств на балансе',
+    key: 'errors.insufficientBalance',
   },
   ACCOUNT_BLOCKED: {
     kind: 'error',
-    text: 'Аккаунт заблокирован администратором',
+    key: 'errors.accountBlocked',
   },
   WITHDRAWAL_LOCKED: {
     kind: 'error',
-    text: 'Вывод временно заблокирован администратором',
+    key: 'errors.withdrawalLocked',
   },
   RATE_LIMIT_EXCEEDED: {
     kind: 'warn',
-    text: 'Слишком много запросов, подождите секунду',
+    key: 'errors.rateLimit',
   },
   GAME_PAUSED: {
     kind: 'warn',
-    text: 'Игра временно приостановлена администратором',
+    key: 'errors.gamePaused',
   },
 };
 
@@ -102,9 +103,10 @@ export function reportApiError(
   const explicitCode = body?.code ?? null;
   if (explicitCode && FRIENDLY[explicitCode]) {
     const m = FRIENDLY[explicitCode];
-    toast[m.kind](m.text);
+    const text = tNow(m.key);
+    toast[m.kind](text);
     if (explicitCode === 'INSUFFICIENT_BALANCE') dispatchBalanceForceSync();
-    return m.text;
+    return text;
   }
 
   // Otherwise look at the message text.
@@ -113,9 +115,10 @@ export function reportApiError(
   const inferred = text ? inferCode(text) : null;
   if (inferred && FRIENDLY[inferred]) {
     const m = FRIENDLY[inferred];
-    toast[m.kind](m.text);
+    const text = tNow(m.key);
+    toast[m.kind](text);
     if (inferred === 'INSUFFICIENT_BALANCE') dispatchBalanceForceSync();
-    return m.text;
+    return text;
   }
   if (text) {
     // Server-provided message — show it verbatim.
@@ -125,11 +128,11 @@ export function reportApiError(
 
   // Status-code fallback.
   const status = res?.status ?? 0;
-  let msg = fallback || 'Что-то пошло не так. Попробуйте ещё раз.';
-  if (status === 401) msg = 'Войдите в аккаунт ещё раз';
-  else if (status === 403) msg = 'Действие запрещено администратором';
-  else if (status === 429) msg = 'Слишком много запросов, подождите секунду';
-  else if (status >= 500) msg = 'Внутренняя ошибка сервера, попробуйте позже';
+  let msg = fallback || tNow('errors.generic');
+  if (status === 401) msg = tNow('errors.unauthorized');
+  else if (status === 403) msg = tNow('errors.forbidden');
+  else if (status === 429) msg = tNow('errors.rateLimit');
+  else if (status >= 500) msg = tNow('errors.server');
   toast.error(msg);
   return msg;
 }
@@ -151,7 +154,7 @@ export async function apiAction<T = unknown>(
       ...init,
     });
   } catch {
-    toast.error('Сетевая ошибка. Проверьте подключение.');
+    toast.error(tNow('errors.network'));
     throw new Error('network');
   }
 

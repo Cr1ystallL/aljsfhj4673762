@@ -66,14 +66,14 @@ export const BottomNavigation = memo(function BottomNavigation({
           >
             <button
               onClick={() => setCollapsed(false)}
-              aria-label="Вытянуть панель навигации"
+              aria-label={t('nav.expandDock')}
               className="group px-4 py-2 rounded-full border border-white/20 bg-midnight-canvas/90 backdrop-blur-2xl shadow-[0_8px_25px_rgba(0,0,0,0.7)] flex items-center gap-2 text-frost-white active:scale-95 transition-all"
             >
               <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
                 <ChevronUp size={14} strokeWidth={2.5} />
               </div>
               <span className="font-roobert text-[11px] font-medium tracking-tight text-whisper-gray group-hover:text-frost-white transition-colors">
-                Навигация
+                {t('nav.navigation')}
               </span>
             </button>
           </motion.div>
@@ -91,7 +91,7 @@ export const BottomNavigation = memo(function BottomNavigation({
             {hideable && (
               <button
                 onClick={() => setCollapsed(true)}
-                aria-label="Свернуть панель"
+                aria-label={t('nav.collapseDock')}
                 className="absolute -top-3 left-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full border border-white/20 bg-midnight-canvas text-whisper-gray hover:text-frost-white flex items-center justify-center active:scale-90 transition-all shadow-md z-20"
               >
                 <ChevronDown size={14} strokeWidth={2.2} />

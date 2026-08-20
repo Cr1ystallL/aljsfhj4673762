@@ -28,6 +28,13 @@ import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
+import {
+  BetPanelCtaRow,
+  BetPanelShell,
+  GamePrimaryButton,
+  KitStepperButton,
+  StakeField,
+} from '@/components/game/kit';
 
 /**
  * Bridges — premium redesign with a proper betting panel.
@@ -829,155 +836,92 @@ function BetPanel({
 }) {
   const { t } = useT();
   const clamp = (v: number) => Math.max(minBet, Math.min(maxBet, v));
+  const ctaDisabled = disabled;
+  const ctaActive = balanceReady && canAfford && !busy;
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.04] overflow-hidden">
-      {/* Stake row */}
-      <div className="px-4 pt-3.5 pb-3 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-            {t('bridges.betAmount')}
-          </span>
-          <span className="font-roobert text-[10px] tabular-nums text-whisper-gray">
-            Balance{' '}
-            {balanceAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
-            zł
-          </span>
+    <BetPanelShell>
+      <div className="grid grid-cols-2 items-stretch">
+        <div className="px-4 py-3 border-r border-white/10">
+          <StakeField
+            amount={amount}
+            onAmountChange={(next) => setAmount(clamp(next))}
+            minBet={minBet}
+            maxBet={maxBet}
+            disabled={autoEnabled}
+            label={t('common.bet')}
+            decreaseLabel={t('common.decreaseBet')}
+            increaseLabel={t('common.increaseBet')}
+          />
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAmount(clamp(Math.max(minBet, amount - 1)))}
-            className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
-            aria-label="Decrease"
-          >
-            <Minus size={14} strokeWidth={2.2} />
-          </button>
-          <button
-            onClick={() => setAmount(clamp(Math.max(minBet, +(amount / 2).toFixed(2))))}
-            className="px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
-          >
-            ½
-          </button>
-          <div className="flex-1 inline-flex items-center justify-center min-w-0 px-3 h-11 rounded-pill border border-white/15 bg-white/[0.03]">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert truncate">
+              {t('common.autoBet')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setAutoEnabled(!autoEnabled)}
+              disabled={!autoEnabled && disabled}
+              className={cn(
+                'shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border text-[9px] uppercase tracking-[0.16em] font-roobert transition-colors disabled:opacity-40',
+                autoEnabled
+                  ? 'bg-frost-white text-midnight-canvas border-frost-white'
+                  : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
+              )}
+            >
+              {autoEnabled ? t('common.on') : t('common.off')}
+            </button>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <KitStepperButton
+              onClick={() => setAutoCount(Math.max(0, autoCount - 1))}
+              disabled={autoEnabled}
+              ariaLabel={t('common.decreaseBet')}
+            >
+              <Minus size={12} strokeWidth={2.2} />
+            </KitStepperButton>
             <input
               type="number"
-              step={1}
-              min={minBet}
-              max={maxBet}
-              value={amount}
+              min={0}
+              max={9999}
+              value={autoCount}
               onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (Number.isFinite(v)) setAmount(clamp(v));
+                const v = parseInt(e.target.value, 10);
+                setAutoCount(Number.isFinite(v) ? Math.max(0, Math.min(9999, v)) : 0);
               }}
-              className="w-full bg-transparent text-frost-white font-roobert text-[20px] font-light tabular-nums focus:outline-none text-center"
+              placeholder="∞"
+              disabled={autoEnabled}
+              className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[22px] font-light tabular-nums focus:outline-none text-center disabled:opacity-50"
             />
-            <span className="font-roobert text-[12px] text-whisper-gray ml-1.5">
-              zł
-            </span>
+            <KitStepperButton
+              onClick={() => setAutoCount(Math.min(9999, autoCount + 1))}
+              disabled={autoEnabled}
+              ariaLabel={t('common.increaseBet')}
+            >
+              <Plus size={12} strokeWidth={2.2} />
+            </KitStepperButton>
           </div>
-          <button
-            onClick={() => setAmount(clamp(Math.max(minBet, +(amount * 2).toFixed(2))))}
-            className="px-3 h-9 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[11px] uppercase tracking-[0.18em] text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
-          >
-            ×2
-          </button>
-          <button
-            onClick={() => setAmount(clamp(amount + 1))}
-            className="w-9 h-9 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/85 hover:border-white/25 active:scale-95 transition-all"
-            aria-label="Increase"
-          >
-            <Plus size={14} strokeWidth={2.2} />
-          </button>
-        </div>
-
-        {/* Quick chips (none — keep panel cleaner) */}
-      </div>
-
-      <div className="h-px bg-white/[0.06]" />
-
-      {/* Auto-bet row */}
-      <div className="px-4 py-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
-        <Repeat
-          size={14}
-          strokeWidth={1.7}
-          className={cn(autoEnabled ? 'text-[#ffac2e]' : 'text-frost-white/55')}
-        />
-        <div className="min-w-0">
-          <div className="font-roobert text-[12px] text-frost-white">
-            {t('bridges.autoBet')}
-          </div>
-          <div className="font-roobert text-[10px] text-whisper-gray">
-            {autoEnabled
-              ? autoCount > 0
-                ? t('bridges.autoRunsLeft', { left: autoRemaining, total: autoCount })
-                : t('bridges.autoUntilStop')
-              : t('bridges.autoOff')}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            max={9999}
-            value={autoCount}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              setAutoCount(Number.isFinite(v) ? Math.max(0, Math.min(9999, v)) : 0);
-            }}
-            placeholder="∞"
-            disabled={autoEnabled}
-            className="w-16 h-9 px-2 rounded-pill border border-white/15 bg-white/[0.03] font-roobert text-[13px] tabular-nums text-frost-white text-center focus:outline-none focus:border-white/30 disabled:opacity-50"
-          />
-          <button
-            onClick={() => setAutoEnabled(!autoEnabled)}
-            disabled={!autoEnabled && disabled}
-            className={cn(
-              'shrink-0 inline-flex items-center justify-center px-3 h-9 rounded-pill border font-roobert text-[11px] uppercase tracking-[0.18em] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
-              autoEnabled
-                ? 'border-[#ffac2e]/55 bg-[#ffac2e]/15 text-frost-white'
-                : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25'
-            )}
-          >
-            {autoEnabled ? t('bridges.stop') : t('bridges.start')}
-          </button>
         </div>
       </div>
 
-      {/* Primary CTA — large premium button */}
-      <div className="px-3 pb-3 pt-1 relative">
-        {/* Halo glow */}
-        <span
-          aria-hidden
-          className="hidden md:block absolute inset-x-3 inset-y-1 rounded-pill opacity-50 pointer-events-none"
-          style={{
-            background:
-              'linear-gradient(90deg, rgba(160,224,171,0.65), rgba(255,172,46,0.55) 50%, rgba(165,45,37,0.55))',
-            filter: 'blur(18px)',
-          }}
-        />
-        <button
+      <BetPanelCtaRow>
+        <GamePrimaryButton
           onClick={onStart}
-          disabled={disabled}
-          className="relative w-full h-14 rounded-pill font-roobert font-semibold text-[14px] uppercase tracking-[0.18em] text-midnight-canvas active:scale-[0.99] disabled:opacity-50 transition-transform inline-flex items-center justify-center gap-2"
-          style={{
-            background:
-              'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 50%, rgb(165, 45, 37) 100%)',
-            boxShadow:
-              '0 6px 24px rgba(255, 172, 46, 0.30), inset 0 1px 0 rgba(255,255,255,0.40), inset 0 -2px 0 rgba(0,0,0,0.20)',
-          }}
+          disabled={ctaDisabled}
+          tone={ctaActive ? 'solid' : 'muted'}
         >
-          <Play size={14} strokeWidth={2.2} fill="currentColor" />
           {!balanceReady
-            ? t('bridges.loadingBalance')
+            ? t('common.loadingBalance')
             : !canAfford
-              ? t('bridges.insufficientFunds')
+              ? t('common.insufficientFunds')
               : busy
                 ? t('bridges.starting')
                 : t('bridges.startRound')}
-        </button>
-      </div>
-    </div>
+        </GamePrimaryButton>
+      </BetPanelCtaRow>
+    </BetPanelShell>
   );
 }
 

@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH, type PageWidth } from '@/components/layout/page-width';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Game Top Bar — Apple Design & Taste-Skill Premium Header (V10)
@@ -40,6 +41,7 @@ export function GameTopBar({
   width = 'reading',
 }: GameTopBarProps) {
   const router = useRouter();
+  const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const balanceStore = useBalanceStore((s) => s.balance);
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
@@ -75,7 +77,7 @@ export function GameTopBar({
             <button
               type="button"
               onClick={() => router.push('/')}
-              aria-label="Назад в меню"
+              aria-label={t('nav.backToMenu')}
               className="p-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white hover:bg-white/[0.08] active:scale-[0.95] transition-all flex items-center justify-center shrink-0"
             >
               <ChevronLeft size={20} strokeWidth={2.2} />
@@ -84,7 +86,7 @@ export function GameTopBar({
             <button
               type="button"
               onClick={() => router.push('/')}
-              aria-label="Главная"
+              aria-label={t('nav.home')}
               className="p-1 rounded-xl transition-all hover:scale-105 hover:bg-white/5 active:scale-95 shrink-0"
             >
               <BrandLockup size={38} />
@@ -113,7 +115,7 @@ export function GameTopBar({
               {!hideBalance && (
                 <button
                   onClick={() => router.push('/balance')}
-                  aria-label="Кошелёк"
+                  aria-label={t('nav.wallet')}
                   className="group flex items-center gap-2 hover:opacity-90 transition-all active:scale-[0.96] mr-0.5"
                 >
                   <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
@@ -121,7 +123,7 @@ export function GameTopBar({
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="font-roobert font-bold text-frost-white text-[14px] sm:text-[15px] tabular-nums tracking-tight">
-                      {balanceAmount.toLocaleString('ru-RU', {
+                      {balanceAmount.toLocaleString(localeTag, {
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 2,
                       })}
@@ -141,14 +143,14 @@ export function GameTopBar({
               {!isProfilePage && (
                 <button
                   onClick={() => router.push('/profile')}
-                  aria-label="Профиль"
+                  aria-label={t('nav.profile')}
                   className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
                 >
                   {user?.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={user.photoUrl}
-                      alt={user.firstName || 'Профиль'}
+                      alt={user.firstName || t('nav.profile')}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       draggable={false}
@@ -166,7 +168,7 @@ export function GameTopBar({
           {onHowToPlay && (
             <button
               onClick={onHowToPlay}
-              aria-label="Как играть"
+              aria-label={t('common.howToPlay')}
               className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white hover:bg-white/[0.08] hover:border-white/20 transition-all active:scale-[0.95] shrink-0"
             >
               <HelpCircle size={16} strokeWidth={2} />

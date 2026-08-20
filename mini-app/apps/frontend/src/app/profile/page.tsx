@@ -40,7 +40,7 @@ import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { t } = useT();
+  const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
@@ -200,11 +200,11 @@ export default function ProfilePage() {
                   </div>
                   <div className="text-left">
                     <span className="block text-[10px] uppercase font-bold tracking-[0.16em] text-whisper-gray">
-                      Текущий баланс
+                      {t('profile.currentBalance')}
                     </span>
                     <div className="flex items-baseline gap-1.5 mt-0.5">
                       <span className="font-roobert text-[20px] font-bold text-white tabular-nums tracking-tight">
-                        {balanceAmount.toLocaleString('ru-RU', {
+                        {balanceAmount.toLocaleString(localeTag, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}
@@ -226,11 +226,11 @@ export default function ProfilePage() {
                 <div className="w-full mt-3 p-4 rounded-2xl border border-white/10 bg-white/[0.02] flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-roobert text-[12px] font-medium text-whisper-gray">Отыгрыш бонуса</span>
+                      <span className="font-roobert text-[12px] font-medium text-whisper-gray">{t('profile.wager')}</span>
                       <button 
                         onClick={() => setIsWagerModalOpen(true)}
                         className="text-whisper-gray/70 hover:text-white transition-colors p-0.5"
-                        aria-label="Что такое отыгрыш?"
+                        aria-label={t('profile.wagerHelp')}
                       >
                         <HelpCircle size={14} strokeWidth={2} />
                       </button>
@@ -262,8 +262,8 @@ export default function ProfilePage() {
           <section className="grid grid-cols-2 gap-2.5">
             <StatTile
               icon={<Dice5 size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Всего ставок"
-              value={stats.totalBets.toLocaleString('ru-RU')}
+              label={t('profile.totalBets')}
+              value={stats.totalBets.toLocaleString(localeTag)}
               suffix={`(${stats.totalWagered.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
@@ -271,7 +271,7 @@ export default function ProfilePage() {
             />
             <StatTile
               icon={<Coins size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Сумма выигрышей"
+              label={t('profile.totalWon')}
               value={`${stats.totalWon.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
@@ -279,7 +279,7 @@ export default function ProfilePage() {
             />
             <StatTile
               icon={<Trophy size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Макс выигрыш"
+              label={t('profile.maxWin')}
               value={`${stats.maxWin.toLocaleString('ru-RU', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 2,
@@ -287,7 +287,7 @@ export default function ProfilePage() {
             />
             <StatTile
               icon={<Sparkles size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Макс коэфф."
+              label={t('profile.maxMult')}
               value={
                 stats.maxMultiplier > 0
                   ? `x${stats.maxMultiplier.toFixed(2)}`
@@ -302,7 +302,7 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2">
                 <Clock size={15} className="text-whisper-gray" strokeWidth={1.8} />
                 <span className="font-roobert font-medium text-white text-[15px]">
-                  Последние ставки
+                  {t('profile.recentBets')}
                 </span>
               </div>
               <span className="font-roobert text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tracking-wider">
@@ -313,7 +313,7 @@ export default function ProfilePage() {
             {txLoading ? (
               <div className="rounded-[22px] border border-white/10 bg-[#0c0d0f] py-14 flex flex-col items-center justify-center gap-3">
                 <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                <span className="text-[12px] text-whisper-gray">Загрузка истории...</span>
+                <span className="text-[12px] text-whisper-gray">{t('profile.loadingHistory')}</span>
               </div>
             ) : stats.bets.length === 0 ? (
               <EmptyBets onPlay={() => router.push('/game/crash')} />
@@ -338,7 +338,7 @@ export default function ProfilePage() {
             >
               <Shield size={16} className="text-white/80" strokeWidth={1.8} />
               <span className="font-roobert text-[12px] font-medium uppercase tracking-[0.2em] text-white">
-                Панель администратора
+                {t('profile.adminPanel')}
               </span>
               <ArrowUpRight size={14} className="text-whisper-gray" strokeWidth={1.8} />
             </motion.button>
@@ -368,7 +368,7 @@ export default function ProfilePage() {
               <button
                 onClick={() => setIsWagerModalOpen(false)}
                 className="absolute right-4 top-4 p-1.5 rounded-full bg-white/5 border border-white/10 text-whisper-gray hover:text-white hover:bg-white/10 transition-colors"
-                aria-label="Закрыть"
+                aria-label={t('common.close')}
               >
                 <X size={16} strokeWidth={2} />
               </button>
@@ -377,21 +377,21 @@ export default function ProfilePage() {
                 <div className="p-2 rounded-xl bg-white/10 border border-white/15 text-white">
                   <HelpCircle size={18} strokeWidth={2} />
                 </div>
-                <h3 className="font-roobert text-[16.5px] font-medium">Как работает отыгрыш?</h3>
+                <h3 className="font-roobert text-[16.5px] font-medium">{t('profile.wagerHow')}</h3>
               </div>
               
               <div className="space-y-3 font-roobert text-[13px] text-whisper-gray/90 leading-relaxed">
                 <p className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
-                  <strong className="text-white font-medium">Отыгрыш (вейджер)</strong> — это сумма ставок, которую необходимо сделать в играх, чтобы перевести бонусные средства в реальный баланс.
+                  <strong className="text-white font-medium">{t('profile.wager')}</strong>
+                  {' — '}
+                  {t('profile.wagerBody')}
                 </p>
                 <div className="p-3 rounded-xl border border-white/10 bg-white/[0.04] text-whisper-gray text-[12.5px]">
-                  <strong className="text-white block mb-0.5">Пример:</strong>
-                  Бонус 100 zł с вейджером x5 требует суммарных ставок на 500 zł (100 × 5).
+                  <strong className="text-white block mb-0.5">{t('profile.wagerExampleTitle')}</strong>
+                  {t('profile.wagerExample')}
                 </div>
                 <p className="text-[12px] text-whisper-gray/80">
-                  Учитываются ставки во всех играх, но вклад отличается: Mines
-                  засчитывается на 30%, Plinko — на 50%, остальные игры — полностью.
-                  По достижении 100% средства доступны к выводу.
+                  {t('profile.wagerGames')}
                 </p>
               </div>
 
@@ -402,14 +402,14 @@ export default function ProfilePage() {
                 }}
                 className="mt-4 w-full rounded-2xl border border-white/15 bg-white/[0.05] hover:bg-white/10 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all"
               >
-                Таблица отыгрыша по играм
+                {t('profile.wagerTable')}
               </button>
 
               <button
                 onClick={() => setIsWagerModalOpen(false)}
                 className="mt-2 w-full rounded-2xl bg-white/15 hover:bg-white/20 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all border border-white/15"
               >
-                Понятно
+                {t('common.gotIt')}
               </button>
             </motion.div>
           </div>
@@ -617,6 +617,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
 }
 
 function EmptyBets({ onPlay }: { onPlay: () => void }) {
+  const { t } = useT();
   return (
     <div className="rounded-[24px] border border-white/10 bg-[#0c0d0f] py-12 px-6 flex flex-col items-center text-center shadow-lg">
       <motion.div 
@@ -627,10 +628,10 @@ function EmptyBets({ onPlay }: { onPlay: () => void }) {
         <Dice5 size={22} className="text-white/70" strokeWidth={1.8} />
       </motion.div>
       <p className="font-roobert font-medium text-white text-[15.5px]">
-        Ставки появятся здесь
+        {t('common.emptyHistory')}
       </p>
       <p className="mt-1 font-roobert text-[12px] text-whisper-gray max-w-[280px] leading-relaxed">
-        Самое время сыграть. Честный RTP от 97% и моментальные выплаты.
+        {t('profile.emptyBets')}
       </p>
       <motion.button
         whileHover={{ scale: 1.02 }}
@@ -638,7 +639,7 @@ function EmptyBets({ onPlay }: { onPlay: () => void }) {
         onClick={onPlay}
         className="mt-5 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white text-black font-roobert font-semibold text-[12px] uppercase tracking-[0.18em] shadow-lg hover:bg-white/90 transition-all"
       >
-        Играть
+        {t('common.play')}
         <ChevronRight size={14} strokeWidth={2.5} />
       </motion.button>
     </div>

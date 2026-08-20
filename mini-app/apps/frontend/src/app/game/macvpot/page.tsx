@@ -11,6 +11,13 @@ import { toast } from '@/store/toast-store';
 import { useBalance } from '@/hooks/use-balance';
 import { useAuthStore } from '@/store/auth-store';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { useT } from '@/i18n/use-t';
+import {
+  BetPanelCtaRow,
+  BetPanelShell,
+  GamePrimaryButton,
+  StakeField,
+} from '@/components/game/kit';
 
 export type MacvpotPhase = 'betting' | 'delay' | 'spinning' | 'completed';
 
@@ -69,6 +76,7 @@ export interface MacvpotState {
 }
 
 export default function MacvpotPage() {
+  const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const { balance, fetchBalance } = useBalance();
 
@@ -216,12 +224,12 @@ export default function MacvpotPage() {
   const handlePlaceBet = async () => {
     const amountNum = parseInt(betAmount, 10);
     if (isNaN(amountNum) || amountNum <= 0) {
-      toast.warn('Введите корректную сумму ставки');
+      toast.warn(t('common.enterStake'));
       return;
     }
 
-    if (amountNum > balance) {
-      toast.warn('Недостаточно средств на балансе');
+    if (amountNum > (balance?.amount ?? 0)) {
+      toast.warn(t('errors.insufficientBalance'));
       return;
     }
 
@@ -325,10 +333,10 @@ export default function MacvpotPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                  Общий Банк
+                  {t('macvpot.pot')}
                 </span>
                 <span className="text-xl sm:text-2xl font-black text-amber-400 font-roobert tracking-tight">
-                  {(state?.totalPot || 0).toLocaleString('ru-RU')} <span className="text-xs text-white/50 font-normal">zł</span>
+                  {(state?.totalPot || 0).toLocaleString(localeTag)} <span className="text-xs text-white/50 font-normal">zł</span>
                 </span>
               </div>
             </div>
@@ -337,11 +345,11 @@ export default function MacvpotPage() {
             <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
               {state?.phase === 'spinning' ? (
                 <span className="text-amber-400 text-sm font-black uppercase tracking-widest animate-pulse">
-                  Вращение...
+                  {t('macvpot.spinning')}
                 </span>
               ) : !state?.bets || state.bets.length < 2 ? (
                 <span className="text-xs font-bold text-white/50 text-center tracking-wide max-w-[140px] sm:max-w-[200px]">
-                  Минимум 2 игрока для начала
+                  {t('macvpot.minPlayers')}
                 </span>
               ) : (
                 <span
@@ -370,67 +378,42 @@ export default function MacvpotPage() {
           {/* Bet Input & Controls */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between text-xs font-bold text-white/50 uppercase tracking-wider px-1">
-              <span>Сумма вашей ставки</span>
+              <span>{t('macvpot.yourStake')}</span>
               {userBet && (
                 <span className="text-amber-400 font-semibold">
-                  Ваша ставка: {userBet.amount} zł ({userBet.chance}%)
+                  {t('macvpot.yourBet', { amount: userBet.amount, chance: userBet.chance })}
                 </span>
               )}
             </div>
 
             {!userBet ? (
-              <div className="flex flex-col gap-3">
-                {/* Input Row: 1/2 on left, Input in center (with zł suffix), 2X on right */}
-                <div className="flex items-center gap-2">
-                  {/* Left: 1/2 button */}
-                  <button
+              <BetPanelShell>
+                <div className="px-4 py-3">
+                  <StakeField
+                    amount={parseFloat(betAmount) || 10}
+                    onAmountChange={(next) => setBetAmount(String(Math.max(10, Math.round(next))))}
+                    minBet={10}
+                    maxBet={Math.max(10, Math.floor(balance?.amount ?? 10))}
                     disabled={!isBettingPhase || isSubmitting}
-                    onClick={handleHalf}
-                    className="px-4 py-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all disabled:opacity-40 shrink-0"
-                  >
-                    1/2
-                  </button>
-
-                  {/* Center: Input field with zł suffix */}
-                  <div className="relative w-full">
-                    <input
-                      type="number"
-                      disabled={!isBettingPhase || isSubmitting}
-                      value={betAmount}
-                      onChange={(e) => setBetAmount(e.target.value)}
-                      placeholder="Сумма"
-                      className="w-full bg-black/60 border border-white/15 rounded-2xl pl-4 pr-10 py-3.5 text-white font-bold text-base focus:border-amber-400/50 focus:bg-black focus:outline-none transition-all disabled:opacity-50 text-center"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/40 pointer-events-none">
-                      zł
-                    </span>
-                  </div>
-
-                  {/* Right: 2X button */}
-                  <button
-                    disabled={!isBettingPhase || isSubmitting}
-                    onClick={handleDouble}
-                    className="px-4 py-3.5 rounded-2xl bg-white/[0.04] border border-white/10 hover:bg-white/10 text-xs font-bold text-white/80 active:scale-95 transition-all disabled:opacity-40 shrink-0"
-                  >
-                    2X
-                  </button>
+                    label={t('common.bet')}
+                    decreaseLabel={t('common.decreaseBet')}
+                    increaseLabel={t('common.increaseBet')}
+                  />
                 </div>
-
-                {/* Bottom: Full-width Place Bet Button (Liquid Glass Dark Gray Style) */}
-                <button
-                  disabled={!isBettingPhase || isSubmitting}
-                  onClick={handlePlaceBet}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-b from-white/10 via-white/[0.05] to-black/60 border border-white/20 hover:border-white/40 text-white font-extrabold text-base tracking-wide shadow-[0_4px_20px_rgba(255,255,255,0.06),inset_0_1px_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_25px_rgba(255,255,255,0.12),inset_0_1px_2px_rgba(255,255,255,0.4)] hover:bg-white/[0.12] active:scale-[0.98] transition-all backdrop-blur-xl disabled:opacity-40 disabled:pointer-events-none mt-1 flex items-center justify-center gap-2 group"
-                >
-                  <Sparkles size={16} className="text-white/60 group-hover:text-amber-400 transition-colors" />
-                  <span>Поставить</span>
-                </button>
-              </div>
+                <BetPanelCtaRow>
+                  <GamePrimaryButton
+                    onClick={handlePlaceBet}
+                    disabled={!isBettingPhase || isSubmitting}
+                    tone={isBettingPhase && !isSubmitting ? 'solid' : 'muted'}
+                  >
+                    {t('common.placeBet')}
+                  </GamePrimaryButton>
+                </BetPanelCtaRow>
+              </BetPanelShell>
             ) : (
-              /* User Bet Active Card */
-              <div className="w-full flex items-center justify-between bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl">
+              <div className="w-full flex items-center justify-between bg-white/[0.03] border border-white/10 p-3.5 rounded-card">
                 <div className="flex flex-col">
-                  <span className="text-xs text-white/60">Ваша ставка принята</span>
+                  <span className="text-xs text-white/60">{t('macvpot.accepted')}</span>
                   <span className="text-base font-black text-amber-400">
                     {userBet.amount} zł <span className="text-xs font-bold text-white/70">({userBet.chance}%)</span>
                   </span>
@@ -440,10 +423,10 @@ export default function MacvpotPage() {
                   <button
                     disabled={isSubmitting}
                     onClick={handleCancelBet}
-                    className="px-4 py-2.5 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-red-950/50"
+                    className="px-4 py-2.5 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.16em] transition-all active:scale-95 flex items-center gap-1.5 disabled:opacity-40"
                   >
                     <RotateCcw size={14} />
-                    Отменить
+                    {t('macvpot.cancel')}
                   </button>
                 )}
               </div>

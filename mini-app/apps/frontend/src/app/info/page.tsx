@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Shield, CheckCircle2, HelpCircle, Scale, ChevronDown } from 'lucide-react';
 import { ProvablyFairCalculator } from '@/components/info/provably-fair-calculator';
+import { useT } from '@/i18n/use-t';
 
 function Accordion({ question, answer }: { question: string, answer: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,13 +31,14 @@ function Accordion({ question, answer }: { question: string, answer: React.React
 
 export default function InfoPage() {
   const router = useRouter();
+  const { t } = useT();
   const [activeTab, setActiveTab] = useState<'rules' | 'privacy' | 'faq' | 'fairness'>('rules');
 
   const tabs = [
-    { id: 'rules', label: 'Соглашение', icon: Shield },
-    { id: 'privacy', label: 'Политика', icon: CheckCircle2 },
-    { id: 'faq', label: 'FAQ', icon: HelpCircle },
-    { id: 'fairness', label: 'Честная игра', icon: Scale },
+    { id: 'rules', label: t('info.rules'), icon: Shield },
+    { id: 'privacy', label: t('info.privacy'), icon: CheckCircle2 },
+    { id: 'faq', label: t('info.faq'), icon: HelpCircle },
+    { id: 'fairness', label: t('info.fairness'), icon: Scale },
   ] as const;
 
   // Deep links such as /info#faq open the right tab. Read from the hash rather
@@ -60,7 +62,7 @@ export default function InfoPage() {
             <ChevronLeft size={24} />
           </button>
           <h1 className="font-roobert font-bold text-xl tracking-wide uppercase bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-            Информация
+            {t('info.title')}
           </h1>
         </div>
         
