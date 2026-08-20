@@ -12,38 +12,35 @@ import { BrandMark } from '@/components/ui/brand-mark';
  * `onReady` signal fires so the user always gets a moment with the
  * brand mark + tagline rather than an instant flash.
  *
- * Tagline pool is irreverent on purpose — matches the brand voice
- * the user requested. A random line is picked once per mount; the
- * pool itself is exported so the layout can also pick a random title
- * for the document.
+ * A random line is picked once per mount; the pool itself is exported
+ * so the layout can also pick a random title for the document.
+ *
+ * COPY CONSTRAINT — do not loosen without a legal review.
+ * These strings are the most visible text in the product: the splash
+ * covers the whole screen on boot and the title shows in the Telegram
+ * header. Gambling promotion rules and Telegram's own policy leave no
+ * room for substance, addiction or treatment metaphors, for profanity,
+ * or for urging someone to bet. Keep the tone about the product —
+ * provably fair draws, the game list, the interface.
  */
 
 export const SPLASH_TAGLINES: ReadonlyArray<string> = [
-  'MacvBet: Вмажь по ставке.',
-  'Ломанулся? Иди крутить.',
-  'После MacvBet даже «соль» — скучно.',
-  'Только MacvBet. Остальное — детский порошок.',
-  'Не ссы, просто ставь.',
-  'Реабилитация? Нахер. MacvBet.',
-  'Знаешь тот приход? Забудь. Есть MacvBet.',
+  'MacvBet — играй красиво.',
+  'Честная математика в каждом раунде.',
+  'Provably fair: проверь любой раунд.',
+  'Классика казино в Telegram.',
+  'Твоя игра, твой темп.',
+  'Прозрачные шансы, открытая проверка.',
+  'Спокойный интерфейс, честный результат.',
 ];
 
 export const TITLE_TAGLINES: ReadonlyArray<string> = [
-  'MacvBet — новая доза драйва.',
-  'Твой приход без последствий.',
-  'Зависимость от выигрышей.',
-  'МаксBet — макродоза удачи.',
-  'Подсел на выигрыши? Лечись деньгами.',
-  'Твой первый раз — бесплатно.',
-  'Ломка по джекпоту? Лови лечение.',
-  'Подсел на MacvBet — ломки нет.',
-  'Не тормози — ускорь ставкой.',
-  'МаксBet — вена удачи.',
-  'Каждая ставка — микродоза адреналина.',
-  'Поймай передоз выигрышей.',
-  'Чистый кайф без химии.',
-  'Твоя бывшая — ломка. MacvBet — лечение.',
-  'Дай волю зависимости.',
+  'MacvBet',
+  'MacvBet — казино в Telegram',
+  'MacvBet — provably fair игры',
+  'MacvBet — прозрачные шансы',
+  'MacvBet — Crash, Mines, Plinko',
+  'MacvBet — играй красиво',
 ];
 
 export function pickRandom<T>(pool: ReadonlyArray<T>): T {
