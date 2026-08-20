@@ -3086,70 +3086,63 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   /**
    * Classify non-banned users into disjoint inactivity reasons.
    *
-   * Priority:
-   *   1. latest broadcast to this telegram_id failed as blocked/deactivated
-   *   2. never placed a bet and never opened a game session, and last
-   *      bot/app touch is older than `cutoff`
-   *   3. last activity (bot touch, bet, or game session) is older than `cutoff`
+   * The CTE is inlined in every caller (not nested via Prisma.sql
+   * interpolation) because Prisma 5 parameterizes nested fragments as
+   * `$1`, which turns `WITH ${cte}` into invalid `WITH $1`.
+   *
+   * Recency of a failed delivery uses `id DESC` so this still works if
+   * `attempted_at` was never added on the VPS.
    */
-  function inactiveClassifiedCte(cutoff: Date): Prisma.Sql {
-    return Prisma.sql`
-      last_bet AS (
-        SELECT user_id, MAX(placed_at) AS last_bet_at
-        FROM bets
-        GROUP BY user_id
-      ),
-      last_session AS (
-        SELECT user_id, MAX(last_activity_at) AS last_session_at
-        FROM game_sessions
-        GROUP BY user_id
-      ),
-      last_delivery AS (
-        SELECT DISTINCT ON (telegram_id)
-          telegram_id, status, error
-        FROM broadcast_recipients
-        ORDER BY telegram_id, attempted_at DESC NULLS LAST, id DESC
-      ),
-      classified AS (
-        SELECT
-          u.id AS user_id,
-          u.telegram_id,
-          CASE
-            WHEN ld.status = 'blocked'
-                 AND COALESCE(ld.error, '') ILIKE '%deactivat%' THEN 'deactivated'
-            WHEN ld.status = 'blocked' THEN 'bot_blocked'
-            WHEN lb.last_bet_at IS NULL
-                 AND ls.last_session_at IS NULL
-                 AND GREATEST(u.updated_at, u.created_at) < ${cutoff}
-              THEN 'never_played'
-            WHEN GREATEST(
-                   u.updated_at,
-                   COALESCE(lb.last_bet_at, '-infinity'::timestamp),
-                   COALESCE(ls.last_session_at, '-infinity'::timestamp)
-                 ) < ${cutoff}
-              THEN 'dormant'
-            ELSE 'active'
-          END AS reason
-        FROM users u
-        LEFT JOIN last_bet lb ON lb.user_id = u.id
-        LEFT JOIN last_session ls ON ls.user_id = u.id
-        LEFT JOIN last_delivery ld ON ld.telegram_id = u.telegram_id
-        WHERE u.is_blocked = false
-      )
-    `;
+  function inactiveCutoff(inactiveDays: number): Date {
+    return new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
   }
 
   async function inactiveReasonCounts(
     inactiveDays: number
   ): Promise<Record<InactiveReason, number>> {
-    const cutoff = new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
+    const cutoff = inactiveCutoff(inactiveDays);
     const rows = await app.prisma.$queryRaw<Array<{ reason: string; c: bigint }>>(
       Prisma.sql`
-        WITH ${inactiveClassifiedCte(cutoff)}
-        SELECT reason, COUNT(*)::bigint AS c
-        FROM classified
-        WHERE reason <> 'active'
-        GROUP BY reason
+        WITH last_bet AS (
+          SELECT user_id, MAX(placed_at) AS last_bet_at
+          FROM bets
+          GROUP BY user_id
+        ),
+        last_session AS (
+          SELECT user_id, MAX(last_activity_at) AS last_session_at
+          FROM game_sessions
+          GROUP BY user_id
+        ),
+        last_delivery AS (
+          SELECT DISTINCT ON (telegram_id)
+            telegram_id, status, error
+          FROM broadcast_recipients
+          ORDER BY telegram_id, id DESC
+        )
+        SELECT
+          CASE
+            WHEN ld.status = 'blocked'
+                 AND POSITION('deactivat' IN LOWER(COALESCE(ld.error, ''))) > 0
+              THEN 'deactivated'
+            WHEN ld.status = 'blocked' THEN 'bot_blocked'
+            WHEN lb.last_bet_at IS NULL
+                 AND ls.last_session_at IS NULL
+                 AND u.updated_at < ${cutoff}::timestamp
+                 AND u.created_at < ${cutoff}::timestamp
+              THEN 'never_played'
+            WHEN u.updated_at < ${cutoff}::timestamp
+                 AND COALESCE(lb.last_bet_at, u.updated_at) < ${cutoff}::timestamp
+                 AND COALESCE(ls.last_session_at, u.updated_at) < ${cutoff}::timestamp
+              THEN 'dormant'
+            ELSE 'active'
+          END AS reason,
+          COUNT(*)::bigint AS c
+        FROM users u
+        LEFT JOIN last_bet lb ON lb.user_id = u.id
+        LEFT JOIN last_session ls ON ls.user_id = u.id
+        LEFT JOIN last_delivery ld ON ld.telegram_id = u.telegram_id
+        WHERE u.is_blocked = false
+        GROUP BY 1
       `
     );
     const counts: Record<InactiveReason, number> = {
@@ -3164,6 +3157,27 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }
     }
     return counts;
+  }
+
+  async function countReengageAudience(opts: {
+    inactiveDays: number;
+    reasons: InactiveReason[];
+    samplePercent: number;
+    telegramIds?: bigint[];
+  }): Promise<number> {
+    if (opts.telegramIds && opts.telegramIds.length > 0) {
+      const rows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
+        Prisma.sql`
+          SELECT COUNT(*)::bigint AS c
+          FROM users
+          WHERE is_blocked = false
+            AND telegram_id IN (${Prisma.join(opts.telegramIds)})
+        `
+      );
+      return Number(rows[0]?.c ?? 0);
+    }
+    const ids = await resolveReengageTelegramIds(opts);
+    return ids.length;
   }
 
   async function resolveReengageTelegramIds(opts: {
@@ -3186,34 +3200,115 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     if (opts.reasons.length === 0) return [];
 
-    const cutoff = new Date(Date.now() - opts.inactiveDays * 24 * 60 * 60 * 1000);
-    const reasonSql = Prisma.join(
-      opts.reasons.map((r) => Prisma.sql`${r}`)
-    );
+    const cutoff = inactiveCutoff(opts.inactiveDays);
+    const reasonSql = Prisma.join(opts.reasons.map((r) => Prisma.sql`${r}`));
     const seed = `reengage:${opts.inactiveDays}:${opts.reasons.join(',')}`;
     const pct = Math.min(100, Math.max(1, opts.samplePercent));
 
     const rows = await app.prisma.$queryRaw<Array<{ telegram_id: bigint }>>(
-      Prisma.sql`
-        WITH ${inactiveClassifiedCte(cutoff)},
-        matching AS (
-          SELECT telegram_id
-          FROM classified
-          WHERE reason IN (${reasonSql})
-        ),
-        numbered AS (
-          SELECT
-            telegram_id,
-            COUNT(*) OVER() AS total,
-            ROW_NUMBER() OVER (
-              ORDER BY md5(telegram_id::text || ${seed})
-            ) AS rn
-          FROM matching
-        )
-        SELECT telegram_id
-        FROM numbered
-        WHERE rn <= CEIL(total * ${pct}::numeric / 100.0)
-      `
+      pct >= 100
+        ? Prisma.sql`
+            WITH last_bet AS (
+              SELECT user_id, MAX(placed_at) AS last_bet_at
+              FROM bets
+              GROUP BY user_id
+            ),
+            last_session AS (
+              SELECT user_id, MAX(last_activity_at) AS last_session_at
+              FROM game_sessions
+              GROUP BY user_id
+            ),
+            last_delivery AS (
+              SELECT DISTINCT ON (telegram_id)
+                telegram_id, status, error
+              FROM broadcast_recipients
+              ORDER BY telegram_id, id DESC
+            ),
+            classified AS (
+              SELECT
+                u.telegram_id,
+                CASE
+                  WHEN ld.status = 'blocked'
+                       AND POSITION('deactivat' IN LOWER(COALESCE(ld.error, ''))) > 0
+                    THEN 'deactivated'
+                  WHEN ld.status = 'blocked' THEN 'bot_blocked'
+                  WHEN lb.last_bet_at IS NULL
+                       AND ls.last_session_at IS NULL
+                       AND u.updated_at < ${cutoff}::timestamp
+                       AND u.created_at < ${cutoff}::timestamp
+                    THEN 'never_played'
+                  WHEN u.updated_at < ${cutoff}::timestamp
+                       AND COALESCE(lb.last_bet_at, u.updated_at) < ${cutoff}::timestamp
+                       AND COALESCE(ls.last_session_at, u.updated_at) < ${cutoff}::timestamp
+                    THEN 'dormant'
+                  ELSE 'active'
+                END AS reason
+              FROM users u
+              LEFT JOIN last_bet lb ON lb.user_id = u.id
+              LEFT JOIN last_session ls ON ls.user_id = u.id
+              LEFT JOIN last_delivery ld ON ld.telegram_id = u.telegram_id
+              WHERE u.is_blocked = false
+            )
+            SELECT telegram_id
+            FROM classified
+            WHERE reason IN (${reasonSql})
+          `
+        : Prisma.sql`
+            WITH last_bet AS (
+              SELECT user_id, MAX(placed_at) AS last_bet_at
+              FROM bets
+              GROUP BY user_id
+            ),
+            last_session AS (
+              SELECT user_id, MAX(last_activity_at) AS last_session_at
+              FROM game_sessions
+              GROUP BY user_id
+            ),
+            last_delivery AS (
+              SELECT DISTINCT ON (telegram_id)
+                telegram_id, status, error
+              FROM broadcast_recipients
+              ORDER BY telegram_id, id DESC
+            ),
+            classified AS (
+              SELECT
+                u.telegram_id,
+                CASE
+                  WHEN ld.status = 'blocked'
+                       AND POSITION('deactivat' IN LOWER(COALESCE(ld.error, ''))) > 0
+                    THEN 'deactivated'
+                  WHEN ld.status = 'blocked' THEN 'bot_blocked'
+                  WHEN lb.last_bet_at IS NULL
+                       AND ls.last_session_at IS NULL
+                       AND u.updated_at < ${cutoff}::timestamp
+                       AND u.created_at < ${cutoff}::timestamp
+                    THEN 'never_played'
+                  WHEN u.updated_at < ${cutoff}::timestamp
+                       AND COALESCE(lb.last_bet_at, u.updated_at) < ${cutoff}::timestamp
+                       AND COALESCE(ls.last_session_at, u.updated_at) < ${cutoff}::timestamp
+                    THEN 'dormant'
+                  ELSE 'active'
+                END AS reason
+              FROM users u
+              LEFT JOIN last_bet lb ON lb.user_id = u.id
+              LEFT JOIN last_session ls ON ls.user_id = u.id
+              LEFT JOIN last_delivery ld ON ld.telegram_id = u.telegram_id
+              WHERE u.is_blocked = false
+            ),
+            matching AS (
+              SELECT telegram_id FROM classified WHERE reason IN (${reasonSql})
+            ),
+            numbered AS (
+              SELECT
+                telegram_id,
+                COUNT(*) OVER() AS total,
+                ROW_NUMBER() OVER (ORDER BY md5(telegram_id::text || ${seed})) AS rn
+              FROM matching
+            )
+            SELECT telegram_id
+            FROM numbered
+            WHERE rn <= CEIL(total * ${pct}::numeric / 100.0)
+          `
     );
     return rows.map((r) => r.telegram_id);
   }
@@ -3356,7 +3451,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const reasons = parseInactiveReasons(src.reasons);
         const telegramIds = parseTelegramIdList(src.telegramIds);
         const reasonCounts = await inactiveReasonCounts(inactiveDays);
-        const selectedIds = await resolveReengageTelegramIds({
+        const selectedCount = await countReengageAudience({
           inactiveDays,
           reasons,
           samplePercent,
@@ -3371,14 +3466,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           samplePercent,
           reasons: reasonCounts,
           selectedReasons: reasons,
-          selectedCount: selectedIds.length,
+          selectedCount,
           explicitIds: telegramIds.length,
           totalInactive,
           inactive3dCount: reachable,
         });
       } catch (error) {
         logger.error(error, 'Reengage stats failed');
-        return reply.code(500).send({ error: 'Failed to fetch inactive stats' });
+        const detail = error instanceof Error ? error.message : String(error);
+        return reply.code(500).send({
+          error: 'Failed to fetch inactive stats',
+          detail,
+        });
       }
     },
   });
