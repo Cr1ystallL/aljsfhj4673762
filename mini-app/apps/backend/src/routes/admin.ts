@@ -2965,6 +2965,25 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   /* ============================================================== Phase 5 */
   /* ----------------------------------------------------------- broadcasts */
 
+  type InactiveReason =
+    | 'bot_blocked'
+    | 'deactivated'
+    | 'never_played'
+    | 'dormant';
+
+  const INACTIVE_REASONS: InactiveReason[] = [
+    'bot_blocked',
+    'deactivated',
+    'never_played',
+    'dormant',
+  ];
+  const DEFAULT_REENGAGE_REASONS: InactiveReason[] = [
+    'never_played',
+    'dormant',
+  ];
+  const DEFAULT_REENGAGE_TEMPLATE =
+    '<b>🎁 Мы соскучились по вам!</b>\n\nВам зачислен персональный бонус <b>{amount} PLN</b>!\n\nАктивируйте промокод <code>{code}</code> в профиле и возвращайтесь к победам! 🚀';
+
   interface AudienceFilter {
     all?: boolean;
     minBalance?: number;
@@ -2974,6 +2993,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     telegramIds?: number[];
     channelId?: string;
     channels?: string[];
+    kind?: 'reengage' | string;
+    reasons?: InactiveReason[];
+    samplePercent?: number;
+    promoCode?: string;
+    promoAmount?: number;
+    wagerMultiplier?: number;
   }
 
   interface BroadcastButton {
@@ -3014,6 +3039,195 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return Prisma.sql` WHERE ${Prisma.join(conds, ' AND ')}`;
+  }
+
+  function parseInactiveReasons(raw: unknown): InactiveReason[] {
+    const source = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(',')
+        : [];
+    const picked = source
+      .map((v) => String(v).trim())
+      .filter((v): v is InactiveReason =>
+        INACTIVE_REASONS.includes(v as InactiveReason)
+      );
+    return picked.length > 0 ? [...new Set(picked)] : [...DEFAULT_REENGAGE_REASONS];
+  }
+
+  function parseTelegramIdList(raw: unknown): bigint[] {
+    if (raw == null) return [];
+    const chunks = Array.isArray(raw)
+      ? raw.map((v) => String(v))
+      : String(raw).split(/[\s,;]+/);
+    const ids: bigint[] = [];
+    const seen = new Set<string>();
+    for (const chunk of chunks) {
+      const trimmed = chunk.trim();
+      if (!/^-?\d+$/.test(trimmed)) continue;
+      if (seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      try {
+        ids.push(BigInt(trimmed));
+      } catch {
+        continue;
+      }
+      if (ids.length >= 20_000) break;
+    }
+    return ids;
+  }
+
+  function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(n)));
+  }
+
+  /**
+   * Classify non-banned users into disjoint inactivity reasons.
+   *
+   * Priority:
+   *   1. latest broadcast to this telegram_id failed as blocked/deactivated
+   *   2. never placed a bet and never opened a game session, and last
+   *      bot/app touch is older than `cutoff`
+   *   3. last activity (bot touch, bet, or game session) is older than `cutoff`
+   */
+  function inactiveClassifiedCte(cutoff: Date): Prisma.Sql {
+    return Prisma.sql`
+      last_bet AS (
+        SELECT user_id, MAX(placed_at) AS last_bet_at
+        FROM bets
+        GROUP BY user_id
+      ),
+      last_session AS (
+        SELECT user_id, MAX(last_activity_at) AS last_session_at
+        FROM game_sessions
+        GROUP BY user_id
+      ),
+      last_delivery AS (
+        SELECT DISTINCT ON (telegram_id)
+          telegram_id, status, error
+        FROM broadcast_recipients
+        ORDER BY telegram_id, attempted_at DESC NULLS LAST, id DESC
+      ),
+      classified AS (
+        SELECT
+          u.id AS user_id,
+          u.telegram_id,
+          CASE
+            WHEN ld.status = 'blocked'
+                 AND COALESCE(ld.error, '') ILIKE '%deactivat%' THEN 'deactivated'
+            WHEN ld.status = 'blocked' THEN 'bot_blocked'
+            WHEN lb.last_bet_at IS NULL
+                 AND ls.last_session_at IS NULL
+                 AND GREATEST(u.updated_at, u.created_at) < ${cutoff}
+              THEN 'never_played'
+            WHEN GREATEST(
+                   u.updated_at,
+                   COALESCE(lb.last_bet_at, '-infinity'::timestamp),
+                   COALESCE(ls.last_session_at, '-infinity'::timestamp)
+                 ) < ${cutoff}
+              THEN 'dormant'
+            ELSE 'active'
+          END AS reason
+        FROM users u
+        LEFT JOIN last_bet lb ON lb.user_id = u.id
+        LEFT JOIN last_session ls ON ls.user_id = u.id
+        LEFT JOIN last_delivery ld ON ld.telegram_id = u.telegram_id
+        WHERE u.is_blocked = false
+      )
+    `;
+  }
+
+  async function inactiveReasonCounts(
+    inactiveDays: number
+  ): Promise<Record<InactiveReason, number>> {
+    const cutoff = new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
+    const rows = await app.prisma.$queryRaw<Array<{ reason: string; c: bigint }>>(
+      Prisma.sql`
+        WITH ${inactiveClassifiedCte(cutoff)}
+        SELECT reason, COUNT(*)::bigint AS c
+        FROM classified
+        WHERE reason <> 'active'
+        GROUP BY reason
+      `
+    );
+    const counts: Record<InactiveReason, number> = {
+      bot_blocked: 0,
+      deactivated: 0,
+      never_played: 0,
+      dormant: 0,
+    };
+    for (const row of rows) {
+      if (INACTIVE_REASONS.includes(row.reason as InactiveReason)) {
+        counts[row.reason as InactiveReason] = Number(row.c);
+      }
+    }
+    return counts;
+  }
+
+  async function resolveReengageTelegramIds(opts: {
+    inactiveDays: number;
+    reasons: InactiveReason[];
+    samplePercent: number;
+    telegramIds?: bigint[];
+  }): Promise<bigint[]> {
+    if (opts.telegramIds && opts.telegramIds.length > 0) {
+      const rows = await app.prisma.$queryRaw<Array<{ telegram_id: bigint }>>(
+        Prisma.sql`
+          SELECT telegram_id
+          FROM users
+          WHERE is_blocked = false
+            AND telegram_id IN (${Prisma.join(opts.telegramIds)})
+        `
+      );
+      return rows.map((r) => r.telegram_id);
+    }
+
+    if (opts.reasons.length === 0) return [];
+
+    const cutoff = new Date(Date.now() - opts.inactiveDays * 24 * 60 * 60 * 1000);
+    const reasonSql = Prisma.join(
+      opts.reasons.map((r) => Prisma.sql`${r}`)
+    );
+    const seed = `reengage:${opts.inactiveDays}:${opts.reasons.join(',')}`;
+    const pct = Math.min(100, Math.max(1, opts.samplePercent));
+
+    const rows = await app.prisma.$queryRaw<Array<{ telegram_id: bigint }>>(
+      Prisma.sql`
+        WITH ${inactiveClassifiedCte(cutoff)},
+        matching AS (
+          SELECT telegram_id
+          FROM classified
+          WHERE reason IN (${reasonSql})
+        ),
+        numbered AS (
+          SELECT
+            telegram_id,
+            COUNT(*) OVER() AS total,
+            ROW_NUMBER() OVER (
+              ORDER BY md5(telegram_id::text || ${seed})
+            ) AS rn
+          FROM matching
+        )
+        SELECT telegram_id
+        FROM numbered
+        WHERE rn <= CEIL(total * ${pct}::numeric / 100.0)
+      `
+    );
+    return rows.map((r) => r.telegram_id);
+  }
+
+  function renderReengageText(
+    template: string,
+    amount: number,
+    code: string
+  ): string {
+    const filled = template
+      .replaceAll('{amount}', String(amount))
+      .replaceAll('{code}', code);
+    if (filled.includes(code)) return filled;
+    return `${filled}\n\n<code>${code}</code>`;
   }
 
   /**
@@ -3122,71 +3336,140 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
-   * GET /api/_x/broadcasts/reengage-stats
-   * Returns count of users inactive for > 3 days.
+   * GET|POST /api/_x/broadcasts/reengage-stats
+   * Breakdown of inactive users by determinable reason, plus the
+   * selected cohort size after reason + sample (or explicit IDs).
+   * POST is used when the admin pastes a long ID list.
    */
-  app.get(
-    '/_x/broadcasts/reengage-stats',
-    { preHandler: adminOnly },
-    async (_request, reply) => {
+  app.route({
+    method: ['GET', 'POST'],
+    url: '/_x/broadcasts/reengage-stats',
+    preHandler: adminOnly,
+    handler: async (request, reply) => {
       try {
-        const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-        const rows = await app.prisma.$queryRaw<Array<{ count: bigint }>>`
-          SELECT COUNT(*)::bigint AS count
-          FROM users
-          WHERE is_blocked = false
-            AND id NOT IN (SELECT DISTINCT user_id FROM bets WHERE placed_at >= ${cutoff})
-        `;
-        const inactiveCount = Number(rows[0]?.count ?? 0);
-        return reply.send({ ok: true, inactive3dCount: inactiveCount });
+        const src =
+          request.method === 'POST'
+            ? ((request.body as Record<string, unknown> | null) ?? {})
+            : ((request.query as Record<string, unknown> | null) ?? {});
+        const inactiveDays = clampInt(src.inactiveDays, 3, 1, 365);
+        const samplePercent = clampInt(src.samplePercent, 100, 1, 100);
+        const reasons = parseInactiveReasons(src.reasons);
+        const telegramIds = parseTelegramIdList(src.telegramIds);
+        const reasonCounts = await inactiveReasonCounts(inactiveDays);
+        const selectedIds = await resolveReengageTelegramIds({
+          inactiveDays,
+          reasons,
+          samplePercent,
+          telegramIds: telegramIds.length > 0 ? telegramIds : undefined,
+        });
+        const reachable = reasonCounts.never_played + reasonCounts.dormant;
+        const totalInactive =
+          reachable + reasonCounts.bot_blocked + reasonCounts.deactivated;
+        return reply.send({
+          ok: true,
+          inactiveDays,
+          samplePercent,
+          reasons: reasonCounts,
+          selectedReasons: reasons,
+          selectedCount: selectedIds.length,
+          explicitIds: telegramIds.length,
+          totalInactive,
+          inactive3dCount: reachable,
+        });
       } catch (error) {
         logger.error(error, 'Reengage stats failed');
         return reply.code(500).send({ error: 'Failed to fetch inactive stats' });
       }
-    }
-  );
+    },
+  });
 
   /**
    * POST /api/_x/broadcasts/quick-reengage
-   * Generates a 10 PLN promo code with a 15x wager requirement,
-   * creates a broadcast for users inactive > 3 days,
-   * explicitly omitting the wager text from the message text sent to users.
+   * Configurable re-engagement: promo amount, message template,
+   * inactivity window, reason mix, sample %, or explicit telegram IDs.
+   * The resolved cohort is frozen as `audience.telegramIds` so the
+   * worker sends exactly the previewed set.
    */
-  app.post<{ Body?: { amount?: number; wagerMultiplier?: number } }>(
+  app.post<{
+    Body?: {
+      amount?: number;
+      wagerMultiplier?: number;
+      inactiveDays?: number;
+      reasons?: InactiveReason[] | string;
+      samplePercent?: number;
+      telegramIds?: number[] | string;
+      text?: string;
+    };
+  }>(
     '/_x/broadcasts/quick-reengage',
     { preHandler: adminOnly },
     async (request, reply) => {
       try {
-        const amount = request.body?.amount ?? 10;
-        const wagerMultiplier = request.body?.wagerMultiplier ?? 15;
-        const code = `GIFT10_${randomUUID().slice(0, 6).toUpperCase()}`;
+        const amount = clampInt(request.body?.amount, 10, 1, 10_000);
+        const wagerMultiplier = clampInt(
+          request.body?.wagerMultiplier,
+          15,
+          1,
+          200
+        );
+        const inactiveDays = clampInt(request.body?.inactiveDays, 3, 1, 365);
+        const samplePercent = clampInt(request.body?.samplePercent, 100, 1, 100);
+        const reasons = parseInactiveReasons(request.body?.reasons);
+        const telegramIds = parseTelegramIdList(request.body?.telegramIds);
+        const template = (request.body?.text ?? DEFAULT_REENGAGE_TEMPLATE).trim();
+        if (!template || template.length > 4000) {
+          return reply
+            .code(400)
+            .send({ error: 'Текст сообщения должен быть от 1 до 4000 символов' });
+        }
 
-        // 1. Create Promo Code in Database with 15x Wager Rule
-        const rules = JSON.stringify([{ type: 'wager', multiplier: wagerMultiplier }]);
+        const selectedIds = await resolveReengageTelegramIds({
+          inactiveDays,
+          reasons,
+          samplePercent,
+          telegramIds: telegramIds.length > 0 ? telegramIds : undefined,
+        });
+        if (selectedIds.length === 0) {
+          return reply
+            .code(400)
+            .send({ error: 'Нет получателей по выбранным фильтрам' });
+        }
+
+        const code = `GIFT${amount}_${randomUUID().slice(0, 6).toUpperCase()}`;
+        const rules = JSON.stringify([
+          { type: 'wager', multiplier: wagerMultiplier },
+        ]);
+        const note = telegramIds.length > 0
+          ? `Re-engagement promo (explicit ${selectedIds.length} ids)`
+          : `Re-engagement ${inactiveDays}d [${reasons.join(',')}] sample ${samplePercent}%`;
+
         await app.prisma.$executeRaw`
           INSERT INTO promo_codes (
             id, code, amount, currency, max_redemptions, per_user_limit,
             created_by_user_id, active, note, rules, created_at, updated_at
           ) VALUES (
-            gen_random_uuid(), ${code}, ${amount}::numeric, 'PLN', NULL, 1,
+            gen_random_uuid(), ${code}, ${amount}::numeric, 'PLN',
+            ${selectedIds.length}, 1,
             ${(request as AuthenticatedRequest).user.userId}, true,
-            'Auto Re-engagement 3D promo code', ${rules}::jsonb, NOW(), NOW()
+            ${note}, ${rules}::jsonb, NOW(), NOW()
           )
         `;
 
-        // 2. Build Broadcast Message Text (EXPLICITLY OMITTING WAGER TEXT)
-        const text = `<b>🎁 Мы соскучились по вам!</b>\n\nВам зачислен персональный бонус <b>${amount} PLN</b>!\n\nАктивируйте промокод <code>${code}</code> в профиле и возвращайтесь к победам! 🚀`;
-
-        // 3. Create Broadcast for users inactive > 3 days
-        const audience: AudienceFilter = { inactiveDays: 3 };
+        const text = renderReengageText(template, amount, code);
+        const frozenIds = selectedIds.map((id) => Number(id));
+        const audience: AudienceFilter = {
+          kind: 'reengage',
+          telegramIds: frozenIds,
+          inactiveDays,
+          reasons: telegramIds.length > 0 ? [] : reasons,
+          samplePercent: telegramIds.length > 0 ? 100 : samplePercent,
+          promoCode: code,
+          promoAmount: amount,
+          wagerMultiplier,
+        };
         const audienceJson = JSON.stringify(audience);
         const broadcastId = randomUUID();
-
-        const where = audienceWhere(audience);
-        const countRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>(
-          Prisma.sql`SELECT COUNT(*)::bigint AS c FROM users${where}`
-        );
-        const totalTargets = Number(countRows[0]?.c ?? 0);
+        const totalTargets = selectedIds.length;
 
         await app.prisma.$executeRaw`
           INSERT INTO broadcasts (
@@ -3204,8 +3487,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           action: 'broadcast.quick_reengage',
           targetType: 'broadcast',
           targetId: broadcastId,
-          payloadAfter: { code, amount, wagerMultiplier, totalTargets },
-          reason: `Quick re-engagement broadcast for ${totalTargets} inactive users with 10 PLN promo code (15x wager)`,
+          payloadAfter: {
+            code,
+            amount,
+            wagerMultiplier,
+            totalTargets,
+            inactiveDays,
+            reasons,
+            samplePercent,
+            explicitIds: telegramIds.length,
+          },
+          reason: `Re-engagement broadcast for ${totalTargets} users with ${amount} PLN promo (${wagerMultiplier}x wager)`,
         });
 
         return reply.send({
@@ -3214,10 +3506,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           code,
           totalTargets,
           amount,
+          wagerMultiplier,
+          inactiveDays,
+          reasons: telegramIds.length > 0 ? [] : reasons,
+          samplePercent: telegramIds.length > 0 ? 100 : samplePercent,
         });
       } catch (error) {
         logger.error(error, 'Quick reengage broadcast failed');
-        return reply.code(500).send({ error: 'Failed to launch quick re-engagement broadcast' });
+        return reply
+          .code(500)
+          .send({ error: 'Failed to launch re-engagement broadcast' });
       }
     }
   );
@@ -3478,6 +3776,219 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         logger.error(error, 'Broadcast recipients fetch failed');
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * GET /api/_x/broadcasts/:id/effectiveness
+   * Delivery mix + how quickly delivered users came back / redeemed
+   * the promo attached to this broadcast (if any).
+   */
+  app.get<{ Params: { id: string } }>(
+    '/_x/broadcasts/:id/effectiveness',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const bcRows = await app.prisma.$queryRaw<
+          Array<{
+            id: string;
+            status: string;
+            audience: unknown;
+            total_targets: number;
+            delivered: number;
+            failed: number;
+            started_at: Date | null;
+            finished_at: Date | null;
+            created_at: Date;
+          }>
+        >(Prisma.sql`
+          SELECT id, status, audience, total_targets, delivered, failed,
+                 started_at, finished_at, created_at
+          FROM broadcasts
+          WHERE id = ${id}
+          LIMIT 1
+        `);
+        const bc = bcRows[0];
+        if (!bc) {
+          return reply.code(404).send({ error: 'Broadcast not found' });
+        }
+
+        const audience =
+          bc.audience && typeof bc.audience === 'object'
+            ? (bc.audience as AudienceFilter)
+            : {};
+        const promoCode =
+          typeof audience.promoCode === 'string' ? audience.promoCode : '';
+
+        const stats = await app.prisma.$queryRaw<
+          Array<{
+            delivered: bigint;
+            blocked: bigint;
+            errors: bigint;
+            recipient_total: bigint;
+            returned: bigint;
+            played: bigint;
+            redeemed: bigint;
+            median_hours_to_play: number | null;
+            median_hours_to_redeem: number | null;
+            median_hours_to_return: number | null;
+          }>
+        >(Prisma.sql`
+          WITH rec AS (
+            SELECT
+              br.telegram_id,
+              br.status,
+              br.attempted_at,
+              u.id AS user_id,
+              u.updated_at
+            FROM broadcast_recipients br
+            LEFT JOIN users u ON u.telegram_id = br.telegram_id
+            WHERE br.broadcast_id = ${id}
+          ),
+          delivery AS (
+            SELECT
+              COUNT(*) FILTER (WHERE status = 'delivered')::bigint AS delivered,
+              COUNT(*) FILTER (WHERE status = 'blocked')::bigint AS blocked,
+              COUNT(*) FILTER (WHERE status = 'error')::bigint AS errors,
+              COUNT(*)::bigint AS recipient_total
+            FROM rec
+          ),
+          delivered_users AS (
+            SELECT * FROM rec
+            WHERE status = 'delivered' AND user_id IS NOT NULL
+          ),
+          first_bets AS (
+            SELECT d.telegram_id, MIN(b.placed_at) AS first_bet_at
+            FROM delivered_users d
+            JOIN bets b
+              ON b.user_id = d.user_id
+             AND b.placed_at >= d.attempted_at
+            GROUP BY d.telegram_id
+          ),
+          session_back AS (
+            SELECT d.telegram_id, MAX(gs.last_activity_at) AS last_session_at
+            FROM delivered_users d
+            JOIN game_sessions gs ON gs.user_id = d.user_id
+            GROUP BY d.telegram_id
+          ),
+          redemptions AS (
+            SELECT d.telegram_id, MIN(pr.created_at) AS redeemed_at
+            FROM delivered_users d
+            JOIN promo_redemptions pr ON pr.user_id = d.user_id
+            JOIN promo_codes pc ON pc.id = pr.promo_code_id
+            WHERE ${promoCode} <> ''
+              AND pc.code = ${promoCode}
+              AND pr.created_at >= d.attempted_at
+            GROUP BY d.telegram_id
+          ),
+          returned_users AS (
+            SELECT
+              d.telegram_id,
+              (
+                fb.first_bet_at IS NOT NULL
+                OR r.redeemed_at IS NOT NULL
+                OR COALESCE(sb.last_session_at, '-infinity'::timestamp) >= d.attempted_at
+                OR d.updated_at >= d.attempted_at
+              ) AS did_return,
+              LEAST(
+                COALESCE(fb.first_bet_at, 'infinity'::timestamp),
+                COALESCE(r.redeemed_at, 'infinity'::timestamp)
+              ) AS precise_returned_at
+            FROM delivered_users d
+            LEFT JOIN first_bets fb ON fb.telegram_id = d.telegram_id
+            LEFT JOIN session_back sb ON sb.telegram_id = d.telegram_id
+            LEFT JOIN redemptions r ON r.telegram_id = d.telegram_id
+          )
+          SELECT
+            (SELECT delivered FROM delivery) AS delivered,
+            (SELECT blocked FROM delivery) AS blocked,
+            (SELECT errors FROM delivery) AS errors,
+            (SELECT recipient_total FROM delivery) AS recipient_total,
+            (
+              SELECT COUNT(*)::bigint FROM returned_users WHERE did_return
+            ) AS returned,
+            (SELECT COUNT(*)::bigint FROM first_bets) AS played,
+            (SELECT COUNT(*)::bigint FROM redemptions) AS redeemed,
+            (
+              SELECT percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (fb.first_bet_at - d.attempted_at)) / 3600.0
+              )
+              FROM delivered_users d
+              JOIN first_bets fb ON fb.telegram_id = d.telegram_id
+            ) AS median_hours_to_play,
+            (
+              SELECT percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (r.redeemed_at - d.attempted_at)) / 3600.0
+              )
+              FROM delivered_users d
+              JOIN redemptions r ON r.telegram_id = d.telegram_id
+            ) AS median_hours_to_redeem,
+            (
+              SELECT percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (ru.precise_returned_at - d.attempted_at)) / 3600.0
+              )
+              FROM delivered_users d
+              JOIN returned_users ru ON ru.telegram_id = d.telegram_id
+              WHERE ru.precise_returned_at <> 'infinity'::timestamp
+            ) AS median_hours_to_return
+        `);
+
+        const row = stats[0];
+        const delivered = Number(row?.delivered ?? bc.delivered ?? 0);
+        const blocked = Number(row?.blocked ?? 0);
+        const errors = Number(row?.errors ?? 0);
+        const returned = Number(row?.returned ?? 0);
+        const played = Number(row?.played ?? 0);
+        const redeemed = Number(row?.redeemed ?? 0);
+        const pct = (n: number) =>
+          delivered > 0 ? Math.round((n / delivered) * 1000) / 10 : 0;
+
+        return reply.send({
+          ok: true,
+          broadcastId: id,
+          status: bc.status,
+          startedAt: bc.started_at?.getTime() ?? null,
+          finishedAt: bc.finished_at?.getTime() ?? null,
+          audience: {
+            kind: audience.kind ?? null,
+            inactiveDays: audience.inactiveDays ?? null,
+            reasons: audience.reasons ?? [],
+            samplePercent: audience.samplePercent ?? null,
+            promoCode: promoCode || null,
+            promoAmount: audience.promoAmount ?? null,
+            wagerMultiplier: audience.wagerMultiplier ?? null,
+          },
+          delivery: {
+            totalTargets: bc.total_targets,
+            delivered,
+            blocked,
+            errors,
+            failed: blocked + errors,
+          },
+          activity: {
+            returned,
+            returnRate: pct(returned),
+            played,
+            playRate: pct(played),
+            medianHoursToReturn: row?.median_hours_to_return ?? null,
+            medianHoursToPlay: row?.median_hours_to_play ?? null,
+          },
+          promo: promoCode
+            ? {
+                code: promoCode,
+                amount: audience.promoAmount ?? null,
+                wagerMultiplier: audience.wagerMultiplier ?? null,
+                redeemed,
+                redemptionRate: pct(redeemed),
+                medianHoursToRedeem: row?.median_hours_to_redeem ?? null,
+              }
+            : null,
+        });
+      } catch (error) {
+        logger.error(error, 'Broadcast effectiveness fetch failed');
+        return reply.code(500).send({ error: 'Failed to fetch effectiveness' });
       }
     }
   );
