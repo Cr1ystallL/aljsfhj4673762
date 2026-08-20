@@ -1627,11 +1627,19 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           },
         });
         
+        // Read the live tiers rather than the module-level defaults, otherwise
+        // renamed or repriced cases show stale names in the feed.
+        const cfg = await gameConfig.get('cases');
+        const cases = getCases(
+          cfg.extras?.casesWeights as Record<string, number[]> | undefined,
+          cfg.extras?.casesPrices as number[] | undefined
+        );
+
         const history = bets.map(b => {
           const meta = b.metadata as any;
-          const caseData = CASES.find(c => c.id === meta?.caseId);
+          const caseData = cases.find(c => c.id === meta?.caseId);
           const prizeData = caseData?.prizes.find(p => p.id === meta?.prizeId);
-          
+
           return {
             id: b.id,
             name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
@@ -1641,6 +1649,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
             caseId: meta?.caseId,
             caseName: caseData?.name,
+            casePrice: caseData?.price,
+            prizeId: meta?.prizeId,
             prizeColor: prizeData?.color
           };
         });

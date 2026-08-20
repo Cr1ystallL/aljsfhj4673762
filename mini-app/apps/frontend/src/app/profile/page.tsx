@@ -389,13 +389,25 @@ export default function ProfilePage() {
                   Бонус 100 zł с вейджером x5 требует суммарных ставок на 500 zł (100 × 5).
                 </div>
                 <p className="text-[12px] text-whisper-gray/80">
-                  Учитываются любые ставки. По достижении 100% средства мгновенно доступны к выводу.
+                  Учитываются ставки во всех играх, но вклад отличается: Mines
+                  засчитывается на 30%, Plinko — на 50%, остальные игры — полностью.
+                  По достижении 100% средства доступны к выводу.
                 </p>
               </div>
-              
+
+              <button
+                onClick={() => {
+                  setIsWagerModalOpen(false);
+                  router.push('/info#faq');
+                }}
+                className="mt-4 w-full rounded-2xl border border-white/15 bg-white/[0.05] hover:bg-white/10 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all"
+              >
+                Таблица отыгрыша по играм
+              </button>
+
               <button
                 onClick={() => setIsWagerModalOpen(false)}
-                className="mt-5 w-full rounded-2xl bg-white/15 hover:bg-white/20 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all border border-white/15"
+                className="mt-2 w-full rounded-2xl bg-white/15 hover:bg-white/20 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all border border-white/15"
               >
                 Понятно
               </button>
