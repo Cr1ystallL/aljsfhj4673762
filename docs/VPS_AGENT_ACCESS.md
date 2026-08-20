@@ -128,10 +128,18 @@ fi
 #!/usr/bin/env bash
 set -euo pipefail
 APP_DIR="/var/www/MACVBET/mini-app"
+# sudo подрезает PATH, а pnpm/pm2 часто стоят в /usr/local/bin или в nvm
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
 case "${1:-}" in
   status)  pm2 status ;;
-  logs)    pm2 logs "${2:-}" --lines "${3:-100}" --nostream ;;
+  logs)
+    if [ -n "${2:-}" ]; then
+      pm2 logs "$2" --lines "${3:-100}" --nostream
+    else
+      pm2 logs --lines "${3:-100}" --nostream
+    fi
+    ;;
   restart) pm2 restart "${2:-all}" && pm2 save ;;
   gitlog)  git -C "$APP_DIR" log --oneline -20 ;;
   deploy)
