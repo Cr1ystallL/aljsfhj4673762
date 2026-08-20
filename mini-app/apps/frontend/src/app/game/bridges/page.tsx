@@ -81,7 +81,13 @@ const QUICK_AMOUNTS: number[] = [];
 void QUICK_AMOUNTS;
 
 export default function BridgesPage() {
-  const { balance, fetchBalance } = useBalance();
+  const { balance, isLoading: isBalanceLoading, fetchBalance } = useBalance();
+  const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
+  const tournamentBalance = tournamentBalances.find(
+    (entry) => entry.gameType === 'bridges'
+  );
+  const isBalanceReady = tournamentBalance !== undefined || balance !== null;
+  const activeBalance = tournamentBalance?.balance ?? balance?.amount ?? 0;
   const [state, setState] = useState<PublicState | null>(null);
   const [busy, setBusy] = useState(false);
   const [amount, setAmount] = useState(10);
@@ -121,8 +127,8 @@ export default function BridgesPage() {
       setAutoEnabled(false);
       return;
     }
-    const have = balance?.amount ?? 0;
-    if (amount > have || amount <= 0) {
+    if (!isBalanceReady) return;
+    if (amount > activeBalance || amount <= 0) {
       setAutoEnabled(false);
       toast.warn('Авто-ставка остановлена — недостаточно средств');
       return;
@@ -130,10 +136,20 @@ export default function BridgesPage() {
     const id = setTimeout(() => void startGame(), 600);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoEnabled, state?.state, activeBalance, autoRemaining]);
+  }, [
+    autoEnabled,
+    state?.state,
+    activeBalance,
+    autoRemaining,
+    isBalanceReady,
+  ]);
 
   const startGame = async () => {
     if (busy) return;
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     if (amount <= 0) {
       toast.warn('Введите сумму ставки');
       return;
@@ -141,7 +157,7 @@ export default function BridgesPage() {
     const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tournamentBalance ? '🏆' : 'zł'}`
       );
       return;
     }
@@ -247,6 +263,8 @@ export default function BridgesPage() {
     () => Math.max(minBet, Math.floor(activeBalance)),
     [activeBalance]
   );
+  const canAfford =
+    isBalanceReady && amount >= minBet && amount <= activeBalance;
 
   const isActive = state?.state === 'active';
   const ladder = state?.ladder ?? previewLadder(level);
@@ -319,7 +337,9 @@ export default function BridgesPage() {
             autoCount={autoCount}
             setAutoCount={setAutoCount}
             autoRemaining={autoRemaining}
-            disabled={false}
+            disabled={busy || isBalanceLoading || !canAfford}
+            balanceReady={isBalanceReady}
+            canAfford={canAfford}
             balanceAmount={activeBalance}
           />
         )}
@@ -762,6 +782,9 @@ function BetPanel({
   autoCount,
   setAutoCount,
   autoRemaining,
+  disabled,
+  balanceReady,
+  canAfford,
   balanceAmount,
 }: {
   amount: number;
@@ -775,6 +798,9 @@ function BetPanel({
   autoCount: number;
   setAutoCount: (v: number) => void;
   autoRemaining: number;
+  disabled: boolean;
+  balanceReady: boolean;
+  canAfford: boolean;
   balanceAmount: number;
 }) {
   const clamp = (v: number) => Math.max(minBet, Math.min(maxBet, v));
@@ -880,8 +906,9 @@ function BetPanel({
           />
           <button
             onClick={() => setAutoEnabled(!autoEnabled)}
+            disabled={!autoEnabled && disabled}
             className={cn(
-              'shrink-0 inline-flex items-center justify-center px-3 h-9 rounded-pill border font-roobert text-[11px] uppercase tracking-[0.18em] transition-all active:scale-95',
+              'shrink-0 inline-flex items-center justify-center px-3 h-9 rounded-pill border font-roobert text-[11px] uppercase tracking-[0.18em] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
               autoEnabled
                 ? 'border-[#ffac2e]/55 bg-[#ffac2e]/15 text-frost-white'
                 : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25'
@@ -906,7 +933,7 @@ function BetPanel({
         />
         <button
           onClick={onStart}
-          disabled={busy}
+          disabled={disabled}
           className="relative w-full h-14 rounded-pill font-roobert font-semibold text-[14px] uppercase tracking-[0.18em] text-midnight-canvas active:scale-[0.99] disabled:opacity-50 transition-transform inline-flex items-center justify-center gap-2"
           style={{
             background:
@@ -916,7 +943,13 @@ function BetPanel({
           }}
         >
           <Play size={14} strokeWidth={2.2} fill="currentColor" />
-          Start Round
+          {!balanceReady
+            ? 'Loading Balance'
+            : !canAfford
+              ? 'Insufficient Funds'
+              : busy
+                ? 'Starting'
+                : 'Start Round'}
         </button>
       </div>
     </div>
