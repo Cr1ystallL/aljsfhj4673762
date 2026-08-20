@@ -456,7 +456,7 @@ export function HomeScreen() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredGames.map((g, i) => (
               <GameTile key={g.id} game={g} index={i} router={router} />
             ))}
@@ -464,7 +464,7 @@ export function HomeScreen() {
         )}
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-2 gap-3 pt-2">
           <QuickAction
             icon={<Wallet size={18} strokeWidth={1.5} />}
             label="Управление балансом"

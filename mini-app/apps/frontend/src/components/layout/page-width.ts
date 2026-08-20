@@ -11,7 +11,9 @@
  */
 export const PAGE_WIDTH = {
   reading: 'max-w-[480px] sm:max-w-[640px]',
-  wide: 'max-w-[480px] sm:max-w-[640px] lg:max-w-[900px] xl:max-w-page',
+  // md (768), not lg (1024): Telegram Desktop windows after fullscreen
+  // are often 800–1000px, so an lg-only widen never fired.
+  wide: 'max-w-[480px] sm:max-w-[640px] md:max-w-[840px] lg:max-w-[960px] xl:max-w-page',
 } as const;
 
 export type PageWidth = keyof typeof PAGE_WIDTH;
