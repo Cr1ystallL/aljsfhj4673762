@@ -9,9 +9,11 @@ import { PlinkoIcon } from '@/components/ui/game-icon';
 import { CasesRoulette } from '@/components/game/cases/cases-roulette';
 import { CasesHistory } from '@/components/game/cases/cases-history';
 import { useBalance } from '@/hooks/use-balance';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { toast } from '@/store/toast-store';
 import { reportApiError } from '@/lib/api/errors';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { distributePercentages } from '@casino/shared';
 import type { CaseTier, CasePrize } from '../page';
 
 function Confetti({ active }: { active: boolean }) {
@@ -65,7 +67,7 @@ export default function CaseOpeningPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   
   const { balance, fetchBalance, optimisticUpdate, freezeBalance, unfreezeBalance } = useBalance();
-  const activeBalance = balance?.amount ?? 10000;
+  const { amount: activeBalance, isReady: isBalanceReady } = useActiveBalance('cases');
   const freeCases = (balance as any)?.freeCases ?? 0;
   const freeCasesJson = (balance as any)?.freeCasesJson as Record<string, { count: number }> | undefined;
   const freeCountForThisCase = id === 'case_1'
@@ -106,31 +108,13 @@ export default function CaseOpeningPage() {
       });
   }, [id, router]);
 
-  function getFakeChance(casePrice: number, prizeId: string): string {
-    let boost = 0;
-    if (casePrice >= 10000) boost = 3.5;
-    else if (casePrice >= 5000) boost = 2.0;
-    else if (casePrice >= 1000) boost = 1.0;
-    else if (casePrice >= 500) boost = 0.5;
-    else if (casePrice >= 100) boost = 0.2;
-    else if (casePrice >= 50) boost = 0.1;
-
-    let baseChance = 0;
-    switch(prizeId) {
-      case '100x': baseChance = 0.05 + (boost * 0.1); break;
-      case '25x': baseChance = 0.2 + (boost * 0.2); break;
-      case '10x': baseChance = 0.8 + (boost * 0.5); break;
-      case '5x': baseChance = 2.0 + (boost * 1.0); break;
-      case '2.5x': baseChance = 4.0 + (boost * 1.5); break;
-      case '1x': baseChance = 35.0 - (boost * 1.5); break;
-      case '0.5x': baseChance = 10.0 - (boost * 1.0); break;
-      case '0.2x': baseChance = 12.5 - (boost * 0.5); break;
-      case '0.1x': baseChance = 35.0 - (boost * 0.3); break;
-      default: baseChance = 1.0;
-    }
-    
-    return Math.max(0.01, baseChance).toFixed(2) + '%';
-  }
+  // The backend publishes chances that already add up to 100. Deriving them
+  // from the same weights only covers a frontend deployed ahead of its backend.
+  const dropChances = caseTier
+    ? caseTier.prizes.every((p) => typeof p.probabilityPercent === 'number')
+      ? caseTier.prizes.map((p) => p.probabilityPercent as number)
+      : distributePercentages(caseTier.prizes.map((p) => p.weight))
+    : [];
 
   const handleOpen = async () => {
     if (!caseTier) return;
@@ -140,7 +124,11 @@ export default function CaseOpeningPage() {
     
     const isFreeSpin = freeCountForThisCase >= count;
     const totalCost = isFreeSpin ? 0 : caseTier.price * count;
-    
+
+    if (!isFreeSpin && !isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     if (activeBalance < totalCost) {
       toast.warn(`Недостаточно средств. Нужно ${totalCost.toLocaleString('ru-RU')} zł`);
       return;
@@ -316,7 +304,11 @@ export default function CaseOpeningPage() {
           {/* Main Action Button */}
           <button
             onClick={handleOpen}
-            disabled={isSpinning || (freeCountForThisCase < count && activeBalance < caseTier.price * count)}
+            disabled={
+              isSpinning ||
+              (freeCountForThisCase < count &&
+                (!isBalanceReady || activeBalance < caseTier.price * count))
+            }
             className="w-full py-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[17px] text-white/95 shadow-sm border border-white/10"
           >
             {isSpinning 
@@ -333,7 +325,7 @@ export default function CaseOpeningPage() {
           <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">Содержимое кейса</h2>
           
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-            {caseTier.prizes.map((p) => (
+            {caseTier.prizes.map((p, i) => (
               <div 
                 key={p.id}
                 className="rounded-lg border border-white/5 bg-white/[0.03] p-3 flex flex-col items-center justify-center gap-1 relative overflow-hidden"
@@ -344,7 +336,7 @@ export default function CaseOpeningPage() {
                 </div>
                 <div className="font-bold text-sm text-white/90 z-10">{p.id}</div>
                 <div className="text-xs font-semibold text-emerald-400/90 z-10">{p.amount.toLocaleString('ru-RU')} zł</div>
-                <div className="text-[10px] text-white/40 uppercase font-medium mt-1 z-10">{getFakeChance(caseTier.price, p.id)}</div>
+                <div className="text-[10px] text-white/40 uppercase font-medium mt-1 z-10">{(dropChances[i] ?? 0).toFixed(2)}%</div>
                 <div 
                   className="absolute inset-0 opacity-10 pointer-events-none"
                   style={{ background: `radial-gradient(circle at center, ${p.color} 0%, transparent 70%)` }}

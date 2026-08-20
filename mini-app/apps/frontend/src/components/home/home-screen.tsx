@@ -24,6 +24,7 @@ import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 /**
  * Home Screen — Apple & Taste-Skill Premium Casino Menu (V3)
@@ -323,9 +324,9 @@ export function HomeScreen() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white selection:bg-white/20">
-      <GameTopBar title="Главная" />
+      <GameTopBar title="Главная" width="wide" />
 
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-3 pb-32 flex flex-col gap-5">
+      <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-3 pb-32 flex flex-col gap-5`}>
         {/* Live Casino Social Proof Ticker */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-lg">
           <div className="flex items-center gap-2.5">
@@ -455,7 +456,7 @@ export function HomeScreen() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredGames.map((g, i) => (
               <GameTile key={g.id} game={g} index={i} router={router} />
             ))}

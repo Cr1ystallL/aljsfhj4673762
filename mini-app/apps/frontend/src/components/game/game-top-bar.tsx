@@ -7,6 +7,7 @@ import { BrandLockup } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
+import { PAGE_WIDTH, type PageWidth } from '@/components/layout/page-width';
 
 /**
  * Game Top Bar — Apple Design & Taste-Skill Premium Header (V10)
@@ -25,6 +26,8 @@ interface GameTopBarProps {
   currency?: string;
   serverSeedHash?: string;
   extraAction?: React.ReactNode;
+  /** Match the page's own container so header and content stay aligned. */
+  width?: PageWidth;
 }
 
 export function GameTopBar({
@@ -34,6 +37,7 @@ export function GameTopBar({
   onHowToPlay,
   hideBalance = false,
   extraAction,
+  width = 'reading',
 }: GameTopBarProps) {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -62,7 +66,9 @@ export function GameTopBar({
 
   return (
     <header className="sticky top-0 z-50 w-full bg-midnight-canvas/80 backdrop-blur-2xl border-b border-white/10 shadow-2xl transition-all">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3.5 py-2.5 flex items-center justify-between gap-2">
+      <div
+        className={`mx-auto w-full px-3.5 py-2.5 flex items-center justify-between gap-2 ${PAGE_WIDTH[width]}`}
+      >
         {/* Left Cluster: Brand / Back button & Page Title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {!isHome ? (
