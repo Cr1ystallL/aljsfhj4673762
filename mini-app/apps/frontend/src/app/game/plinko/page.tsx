@@ -15,7 +15,7 @@ import {
 import { PlinkoRulesModal } from '@/components/game/plinko/plinko-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -59,10 +59,13 @@ const DEFAULT_CONFIG: PlinkoConfig = {
 const AUTO_INTERVAL_MS = 700;
 
 export default function PlinkoGamePage() {
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'plinko');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    isTournament,
+    currencyLabel,
+  } = useActiveBalance('plinko');
 
   const [config, setConfig] = useState<PlinkoConfig>(DEFAULT_CONFIG);
   const [risk, setRisk] = useState<PlinkoRisk>('medium');
@@ -181,10 +184,14 @@ export default function PlinkoGamePage() {
       toast.warn('Введите сумму ставки');
       return;
     }
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
       );
       return;
     }

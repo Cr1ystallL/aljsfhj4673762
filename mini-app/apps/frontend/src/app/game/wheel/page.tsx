@@ -7,7 +7,7 @@ import { Disc3, ChevronDown, Trophy } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -101,7 +101,7 @@ const PICKS: number[] = [2, 3, 5, 30];
 /* ========================================================================== */
 
 export default function WheelPage() {
-  const { balance, fetchBalance } = useBalance();
+  const { fetchBalance } = useBalance();
   const [layout, setLayout] = useState<number[] | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [clockSkew, setClockSkew] = useState(0);
@@ -246,9 +246,12 @@ export default function WheelPage() {
 
   /* ----- Bet placement --------------------------------------------------- */
 
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'wheel');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    isTournament,
+    currencyLabel,
+  } = useActiveBalance('wheel');
 
   const placeBet = async () => {
     if (busy) return;
@@ -256,10 +259,14 @@ export default function WheelPage() {
       toast.warn('Введите сумму ставки');
       return;
     }
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
       );
       return;
     }

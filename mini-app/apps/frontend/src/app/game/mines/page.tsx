@@ -19,7 +19,7 @@ import {
   type MinesHistoryEntry,
 } from '@/components/game/mines/mines-history';
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -52,10 +52,13 @@ interface ServerState {
 }
 
 export default function MinesGamePage() {
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'mines');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    isTournament,
+    currencyLabel,
+  } = useActiveBalance('mines');
 
   const [server, setServer] = useState<ServerState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -176,10 +179,14 @@ export default function MinesGamePage() {
       toast.warn('Введите сумму ставки');
       return;
     }
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
       );
       return;
     }

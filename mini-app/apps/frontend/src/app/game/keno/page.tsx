@@ -10,7 +10,7 @@ import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-pa
 import { KenoLiveBets, type KenoLiveBetEntry } from '@/components/game/keno/keno-live-bets';
 import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -24,10 +24,13 @@ interface KenoServerResult extends GameResultInfo {
 }
 
 export default function KenoGamePage() {
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'keno');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    isTournament,
+    currencyLabel,
+  } = useActiveBalance('keno');
 
   // Game configuration
   const MAX_PICKS = 7;
@@ -130,6 +133,10 @@ export default function KenoGamePage() {
   const handleBet = async () => {
     if (phase !== 'idle' || picks.length === 0 || busy) return;
     
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     if (amount > activeBalance) {
       toast.error('Недостаточно средств');
       return;
@@ -215,7 +222,7 @@ export default function KenoGamePage() {
       <GameTopBar
         title="Keno"
         balance={displayBalance}
-        currency={tBal ? 'T-COIN' : 'zł'}
+        currency={isTournament ? 'T-COIN' : 'zł'}
         serverSeedHash={serverSeedHash ?? undefined}
       />
 
@@ -294,11 +301,11 @@ export default function KenoGamePage() {
             busy={busy}
             maxPick={MAX_PICKS}
             activeBalance={displayBalance}
-            currency={tBal ? 'T-COIN' : 'zł'}
+            currency={isTournament ? 'T-COIN' : 'zł'}
           />
 
           <div className="flex-1 w-full pt-2 min-h-[400px] lg:min-h-0">
-            <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'zł'} />
+            <KenoLiveBets entries={history} currency={isTournament ? 'T-COIN' : 'zł'} />
           </div>
           
           {/* Provably Fair Hook */}

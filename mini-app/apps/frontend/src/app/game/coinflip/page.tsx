@@ -11,7 +11,7 @@ import { CoinflipHistory } from '@/components/game/coinflip/coinflip-history';
 import { CoinflipRulesModal } from '@/components/game/coinflip/coinflip-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -46,10 +46,12 @@ import type {
 const STEP_MULTIPLIER = 1.94;
 
 export default function CoinflipGamePage() {
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'coinflip');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    currencyLabel,
+  } = useActiveBalance('coinflip');
 
   const [mode, setMode] = useState<CoinflipMode>('multiply');
   const [amount, setAmount] = useState(10);
@@ -166,10 +168,14 @@ export default function CoinflipGamePage() {
         toast.warn('Введите сумму ставки');
         return;
       }
+      if (!isBalanceReady) {
+        toast.warn('Баланс ещё загружается');
+        return;
+      }
       const have = activeBalance;
       if (amount > have) {
         toast.warn(
-          `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+          `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
         );
         return;
       }
@@ -205,10 +211,15 @@ export default function CoinflipGamePage() {
           setBusy(false);
           return;
         }
+        if (!isBalanceReady) {
+          toast.warn('Баланс ещё загружается');
+          setBusy(false);
+          return;
+        }
         const have = activeBalance;
         if (amount > have) {
           toast.warn(
-            `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+            `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
           );
           setBusy(false);
           return;
@@ -304,7 +315,7 @@ export default function CoinflipGamePage() {
   const sessionFinished = !!multi && multi.status !== 'awaiting';
 
   /** True when the user has enough balance to start a NEW session. */
-  const canAfford = activeBalance >= amount && amount >= minBet;
+  const canAfford = isBalanceReady && activeBalance >= amount && amount >= minBet;
 
   const currentRound = multi?.round ?? 1;
   const maxRounds = multi?.maxRounds ?? 20;
@@ -397,8 +408,14 @@ export default function CoinflipGamePage() {
 
           {/* Insufficient-balance hint */}
           {!sessionActive && !canAfford && (
-            <span className="relative font-roobert text-[11px] text-[#ff8a76]/85">
-              Недостаточно средств для ставки
+            <span
+              className={`relative font-roobert text-[11px] ${
+                isBalanceReady ? 'text-[#ff8a76]/85' : 'text-whisper-gray'
+              }`}
+            >
+              {isBalanceReady
+                ? 'Недостаточно средств для ставки'
+                : 'Баланс загружается'}
             </span>
           )}
 
@@ -427,6 +444,10 @@ export default function CoinflipGamePage() {
           minBet={minBet}
           maxBet={maxBet}
           locked={sessionActive || flipping || busy}
+          balanceAmount={activeBalance}
+          balanceReady={isBalanceReady}
+          currencyLabel={currencyLabel}
+          shortOnFunds={!sessionActive && isBalanceReady && !canAfford}
         />
 
         {/* Quick-mode result reveal */}

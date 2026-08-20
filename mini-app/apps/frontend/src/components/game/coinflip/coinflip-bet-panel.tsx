@@ -39,6 +39,15 @@ interface CoinflipBetPanelProps {
   maxBet: number;
   /** Disable mid-round so the user can't change parameters during a flip. */
   locked?: boolean;
+
+  /** Funds available for this game. */
+  balanceAmount: number;
+  /** False while the first balance request is still in flight. */
+  balanceReady: boolean;
+  /** Currency marker rendered next to the balance. */
+  currencyLabel: string;
+  /** Stake exceeds the balance, so the stake row is flagged before the toss. */
+  shortOnFunds: boolean;
 }
 
 export function CoinflipBetPanel({
@@ -49,6 +58,10 @@ export function CoinflipBetPanel({
   minBet,
   maxBet,
   locked = false,
+  balanceAmount,
+  balanceReady,
+  currencyLabel,
+  shortOnFunds,
 }: CoinflipBetPanelProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -137,7 +150,12 @@ export function CoinflipBetPanel({
               </button>
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-2">
+          <div
+            className={cn(
+              'mt-2 flex items-center gap-2 rounded-pill transition-colors',
+              shortOnFunds && 'px-2 -mx-2 bg-[#ff8a76]/[0.08]'
+            )}
+          >
             <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
             <input
               type="number"
@@ -152,11 +170,26 @@ export function CoinflipBetPanel({
                 }
               }}
               disabled={locked}
-              className="flex-1 min-w-0 bg-transparent text-frost-white font-roobert text-[20px] font-light tabular-nums focus:outline-none"
+              className={cn(
+                'flex-1 min-w-0 bg-transparent font-roobert text-[20px] font-light tabular-nums focus:outline-none',
+                shortOnFunds ? 'text-[#ff8a76]' : 'text-frost-white'
+              )}
               step={1}
               min={minBet}
               max={maxBet}
             />
+          </div>
+          <div
+            className={cn(
+              'mt-1 font-roobert text-[10px] tabular-nums',
+              shortOnFunds ? 'text-[#ff8a76]' : 'text-whisper-gray'
+            )}
+          >
+            {balanceReady
+              ? `Баланс ${balanceAmount.toLocaleString('ru-RU', {
+                  maximumFractionDigits: 2,
+                })} ${currencyLabel}`
+              : 'Баланс загружается'}
           </div>
         </div>
 
