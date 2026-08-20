@@ -5,6 +5,7 @@ import { Shield, Wifi } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CrashLiveStream } from '@/lib/games/crash/crash-live-stream';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Crash Stage — Premium Curve v3
@@ -59,7 +60,8 @@ export const CrashStage = memo(function CrashStage({
   connected,
   lastCrashPoint,
 }: CrashStageProps) {
-  // Countdown phase has been collapsed into waiting (round flips
+  const { t } = useT();
+  // Countdown phase has been collapsed into waiting (round flips)
   // straight to active after betting closes), so the prop is accepted
   // for API compatibility but no longer rendered.
   void countdown;
@@ -523,7 +525,7 @@ export const CrashStage = memo(function CrashStage({
                 className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Betting open
+                  {t('crash.bettingOpen')}
                 </span>
                 {timeRemaining !== null && (
                   <span className="font-roobert text-frost-white text-[13px] tabular-nums leading-none">
@@ -542,7 +544,7 @@ export const CrashStage = memo(function CrashStage({
                 className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-[rgba(255,172,46,0.1)] border border-[rgba(255,172,46,0.3)] shadow-[0_0_15px_rgba(255,172,46,0.15)]"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-[#ffac2e] font-roobert">
-                  Starting in
+                  {t('crash.startingIn')}
                 </span>
                 {timeRemaining !== null && (
                   <span className="font-roobert text-[#ffac2e] text-[13px] tabular-nums leading-none font-bold">
@@ -560,7 +562,7 @@ export const CrashStage = memo(function CrashStage({
                 className="px-4 py-1.5 rounded-pill bg-white/[0.04] border border-white/10"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  Connecting…
+                  {t('crash.connecting')}
                 </span>
               </motion.div>
             )}
@@ -603,7 +605,7 @@ export const CrashStage = memo(function CrashStage({
                     : '1.00×'}
                 </span>
                 <span className="mt-2 text-[10px] uppercase tracking-[0.22em] text-whisper-gray font-roobert">
-                  {phase === 'completed' ? 'Crashed' : 'Multiplier'}
+                  {phase === 'completed' ? t('crash.crashed') : t('crash.multiplier')}
                 </span>
               </motion.div>
             )}
@@ -621,7 +623,7 @@ export const CrashStage = memo(function CrashStage({
             <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
               {serverSeedHash
                 ? `${serverSeedHash.slice(0, 10)}…`
-                : 'loading hash'}
+                : t('crash.loadingHash')}
             </span>
           </div>
 
@@ -639,7 +641,7 @@ export const CrashStage = memo(function CrashStage({
               strokeWidth={2}
             />
             <span className="text-[10px] font-roobert text-frost-white/70 tabular-nums">
-              {connected ? `${latencyMs} ms` : 'offline'}
+              {connected ? `${latencyMs} ms` : t('crash.offline')}
             </span>
           </div>
         </div>

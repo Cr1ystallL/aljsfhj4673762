@@ -26,6 +26,8 @@ import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
 import { useRouter } from 'next/navigation';
 import { useIsAdmin } from '@/lib/admin-probe';
+import { LanguageSwitcher } from '@/components/profile/language-switcher';
+import { useT } from '@/i18n/use-t';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 /**
@@ -38,6 +40,7 @@ import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { t } = useT();
   const { user } = useAuthStore();
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
@@ -80,7 +83,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Sticky Header */}
-        <GameTopBar title="Профиль" hideBalance={true} width="wide" />
+        <GameTopBar title={t('profile.title')} hideBalance={true} width="wide" />
 
         <div className={`relative z-10 mx-auto w-full ${PAGE_WIDTH.wide} px-3.5 pt-4 flex flex-col gap-4`}>
 
@@ -93,6 +96,7 @@ export default function ProfilePage() {
             transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
             className="relative overflow-hidden rounded-[32px] border border-white/12 bg-[#0c0d0f] shadow-[0_24px_60px_rgba(0,0,0,0.95)]"
           >
+            <LanguageSwitcher className="absolute top-3 right-3 z-10" />
             {/* Pure Black User Photo Backdrop (No Blue Tint) */}
             {user?.photoUrl ? (
               <>
@@ -148,7 +152,7 @@ export default function ProfilePage() {
 
               {/* User Full Name */}
               <h2 className="mt-3.5 font-roobert text-[25px] font-bold text-white tracking-tight leading-snug">
-                {user?.firstName || 'Игрок'}
+                {user?.firstName || t('profile.player')}
                 {user?.lastName ? ` ${user.lastName}` : ''}
               </h2>
 
@@ -172,7 +176,7 @@ export default function ProfilePage() {
                         className="flex items-center gap-1 text-frost-white"
                       >
                         <Check size={12} strokeWidth={2.5} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-whisper-gray">Скопировано</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-whisper-gray">{t('profile.copied')}</span>
                       </motion.div>
                     ) : (
                       <motion.div key="copy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

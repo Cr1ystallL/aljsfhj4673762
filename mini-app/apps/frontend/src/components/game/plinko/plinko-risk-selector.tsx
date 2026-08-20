@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { PlinkoRisk } from '@/lib/games/plinko/types';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Plinko Risk Selector — Monopo Saigon Style
@@ -9,11 +10,7 @@ import type { PlinkoRisk } from '@/lib/games/plinko/types';
  * Three-segment pill switching between low/medium/high risk tiers. The
  * active tier is filled with frost white, the others stay frosted.
  */
-const TIERS: Array<{ key: PlinkoRisk; label: string }> = [
-  { key: 'low', label: 'Low' },
-  { key: 'medium', label: 'Medium' },
-  { key: 'high', label: 'High' },
-];
+const TIER_KEYS: PlinkoRisk[] = ['low', 'medium', 'high'];
 
 interface PlinkoRiskSelectorProps {
   value: PlinkoRisk;
@@ -26,15 +23,16 @@ export function PlinkoRiskSelector({
   onChange,
   disabled,
 }: PlinkoRiskSelectorProps) {
+  const { t } = useT();
   return (
     <div className="rounded-pill border border-white/15 bg-white/[0.04] backdrop-blur-md p-1 inline-flex">
-      {TIERS.map((t) => {
-        const active = t.key === value;
+      {TIER_KEYS.map((key) => {
+        const active = key === value;
         return (
           <button
-            key={t.key}
+            key={key}
             type="button"
-            onClick={() => !disabled && onChange(t.key)}
+            onClick={() => !disabled && onChange(key)}
             disabled={disabled}
             className={cn(
               'px-3 sm:px-4 py-1 rounded-pill font-roobert text-[11px] uppercase tracking-[0.16em] transition-colors',
@@ -43,7 +41,13 @@ export function PlinkoRiskSelector({
                 : 'text-frost-white/70 hover:text-frost-white'
             )}
           >
-            {t.label}
+            {t(
+              key === 'low'
+                ? 'risk.low'
+                : key === 'medium'
+                  ? 'risk.medium'
+                  : 'risk.high'
+            )}
           </button>
         );
       })}

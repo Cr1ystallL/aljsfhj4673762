@@ -8,6 +8,7 @@ import { PresenceProvider } from './presence-provider';
 import { BlockedGuard } from './blocked-guard';
 import { MaintenanceGuard } from './maintenance-guard';
 import { ToastHost } from '@/components/ui/toast-host';
+import { LocaleSync } from './locale-sync';
 import { useState } from 'react';
 
 /**
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <BlockedGuard>
                 <MaintenanceGuard>
                   <SplashGate>
+                    <LocaleSync />
                     <ToastHost />
                     {children}
                   </SplashGate>

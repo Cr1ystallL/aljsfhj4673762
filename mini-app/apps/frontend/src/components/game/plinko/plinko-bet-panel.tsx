@@ -1,23 +1,18 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useT } from '@/i18n/use-t';
 import { cn } from '@/lib/utils';
+import {
+  BetPanelCtaRow,
+  BetPanelShell,
+  GamePrimaryButton,
+  StakeField,
+} from '@/components/game/kit';
 
 /**
- * Plinko Bet Panel — Monopo Saigon Style
- *
- * One compact card that fits on the first viewport with the board:
- *
- *   ┌─ stake row ─────────────────────────┐
- *   │  ½  zł amount  ×2     [Auto  ON]     │
- *   └─────────────────────────────────────┘
- *   ┌─ primary CTA ───────────────────────┐
- *   │             Drop                    │
- *   └─────────────────────────────────────┘
- *
- * Auto toggle is owned by the parent page; this component only renders
- * its current state and reports the user's intent.
+ * Plinko Bet Panel — stake row + auto toggle + primary CTA.
+ * Visual pieces come from the shared game kit so Crash / Mines / Plinko
+ * stay on the same radius, type, and pill language.
  */
 
 interface PlinkoBetPanelProps {
@@ -47,69 +42,29 @@ export function PlinkoBetPanel({
   canAfford = true,
   onPrimary,
 }: PlinkoBetPanelProps) {
-  const halve = () =>
-    onAmountChange(Math.max(minBet, +(amount / 2 || minBet).toFixed(2)));
-  const dbl = () =>
-    onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
-
-  const [inputValue, setInputValue] = useState(amount.toString());
-  useEffect(() => {
-    setInputValue(amount.toString());
-  }, [amount]);
-
+  const { t } = useT();
+  const ctaDisabled = (busy && !autoEnabled) || (!autoEnabled && !canAfford);
   const ctaLabel = autoEnabled
-    ? 'Стоп'
+    ? t('common.stop')
     : busy
-    ? '…'
-    : !canAfford
-    ? 'Недостаточно средств'
-    : 'Бросить';
+      ? '…'
+      : !canAfford
+        ? t('common.insufficientFunds')
+        : t('plinko.drop');
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden">
-      {/* Top row: stake controls + Auto toggle */}
+    <BetPanelShell className="backdrop-blur-xl">
       <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <button
-            onClick={halve}
-            disabled={busy || autoEnabled}
-            className="shrink-0 px-2.5 py-1 rounded-pill border border-white/15 text-frost-white/70 hover:text-frost-white hover:border-white/25 disabled:opacity-40 transition-colors text-[11px] font-roobert tabular-nums"
-          >
-            ½
-          </button>
+        <StakeField
+          variant="halve-double"
+          amount={amount}
+          onAmountChange={onAmountChange}
+          minBet={minBet}
+          maxBet={maxBet}
+          disabled={busy || autoEnabled}
+          inputClassName="text-[18px]"
+        />
 
-          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
-            <input
-              type="number"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onBlur={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v)) {
-                  onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
-                } else {
-                  setInputValue(amount.toString());
-                }
-              }}
-              disabled={busy || autoEnabled}
-              className="w-full min-w-0 bg-transparent text-frost-white font-roobert text-[18px] font-light tabular-nums focus:outline-none"
-              step={1}
-              min={minBet}
-              max={maxBet}
-            />
-          </div>
-
-          <button
-            onClick={dbl}
-            disabled={busy || autoEnabled}
-            className="shrink-0 px-2.5 py-1 rounded-pill border border-white/15 text-frost-white/70 hover:text-frost-white hover:border-white/25 disabled:opacity-40 transition-colors text-[11px] font-roobert tabular-nums"
-          >
-            ×2
-          </button>
-        </div>
-
-        {/* Auto toggle */}
         <button
           type="button"
           onClick={() => onAutoToggle(!autoEnabled)}
@@ -120,49 +75,29 @@ export function PlinkoBetPanel({
               : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
           )}
         >
-          Авто
+          {t('bridges.autoBet')}
           <span
             className={cn(
               'text-[9px] tracking-[0.16em]',
               autoEnabled ? 'text-midnight-canvas/70' : 'text-frost-white/55'
             )}
           >
-            {autoEnabled ? 'ВКЛ' : 'ВЫКЛ'}
+            {autoEnabled ? t('common.on') : t('common.off')}
           </span>
         </button>
       </div>
 
-      {/* Primary CTA */}
-      <div className="px-3 pb-3 pt-1 border-t border-white/10">
-        <motion.button
+      <BetPanelCtaRow>
+        <GamePrimaryButton
           onClick={onPrimary}
-          disabled={(busy && !autoEnabled) || (!autoEnabled && !canAfford)}
-          whileHover={!busy && (autoEnabled || canAfford) ? { scale: 1.01 } : undefined}
-          whileTap={!busy && (autoEnabled || canAfford) ? { scale: 0.99 } : undefined}
-          style={
-            !busy && (autoEnabled || canAfford)
-              ? autoEnabled
-                ? {
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255, 255, 255, 0.25)',
-                  }
-                : {
-                    background:
-                      'linear-gradient(90deg, rgb(160, 224, 171) 0%, rgb(255, 172, 46) 55%, rgb(165, 45, 37) 100%)',
-                    color: '#0a0a0a',
-                  }
-              : undefined
+          disabled={ctaDisabled}
+          tone={
+            autoEnabled ? 'stop' : !busy && canAfford ? 'gradient' : 'muted'
           }
-          className={cn(
-            'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors inline-flex items-center justify-center gap-2',
-            ((busy && !autoEnabled) || (!autoEnabled && !canAfford)) &&
-              'bg-white/[0.06] text-frost-white/70 border border-white/15'
-          )}
         >
           {ctaLabel}
-        </motion.button>
-      </div>
-    </div>
+        </GamePrimaryButton>
+      </BetPanelCtaRow>
+    </BetPanelShell>
   );
 }

@@ -5,6 +5,7 @@ import { User, Crown } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Body, Caption } from '@/components/ui/typography';
 import type { PlayerState } from '@/lib/game-engine/types';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Player List Component
@@ -24,6 +25,7 @@ interface PlayerListProps {
 }
 
 export function PlayerList({ players, currentUserId, maxDisplay = 10 }: PlayerListProps) {
+  const { t } = useT();
   const displayPlayers = players.slice(0, maxDisplay);
   const remainingCount = Math.max(0, players.length - maxDisplay);
 
@@ -31,7 +33,7 @@ export function PlayerList({ players, currentUserId, maxDisplay = 10 }: PlayerLi
     return (
       <GlassCard className="p-4">
         <Caption className="text-center text-white/40">
-          No players yet
+          {t('players.noPlayers')}
         </Caption>
       </GlassCard>
     );
@@ -41,7 +43,7 @@ export function PlayerList({ players, currentUserId, maxDisplay = 10 }: PlayerLi
     <GlassCard className="p-4">
       <div className="flex items-center justify-between mb-3">
         <Caption className="text-white/60">
-          Players ({players.length})
+          {t('players.count', { n: players.length })}
         </Caption>
       </div>
 
@@ -77,7 +79,9 @@ export function PlayerList({ players, currentUserId, maxDisplay = 10 }: PlayerLi
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <Body className="text-sm truncate">
-                    {player.userId === currentUserId ? 'You' : `Player ${player.userId.substring(0, 6)}`}
+                    {player.userId === currentUserId
+                      ? t('players.you')
+                      : t('players.player', { id: player.userId.substring(0, 6) })}
                   </Body>
                   {player.bet && (
                     <Caption className="text-white/40">
@@ -103,9 +107,9 @@ export function PlayerList({ players, currentUserId, maxDisplay = 10 }: PlayerLi
                     {player.bet.state === 'won' && player.bet.payout
                       ? `+$${player.bet.payout.toFixed(2)}`
                       : player.bet.state === 'lost'
-                      ? 'Lost'
+                      ? t('players.lost')
                       : player.bet.state === 'active'
-                      ? 'Active'
+                      ? t('players.active')
                       : player.bet.state}
                   </div>
                 )}
@@ -116,7 +120,7 @@ export function PlayerList({ players, currentUserId, maxDisplay = 10 }: PlayerLi
 
         {remainingCount > 0 && (
           <Caption className="text-center text-white/40 pt-2">
-            +{remainingCount} more player{remainingCount > 1 ? 's' : ''}
+            {t('players.more', { n: remainingCount })}
           </Caption>
         )}
       </div>
