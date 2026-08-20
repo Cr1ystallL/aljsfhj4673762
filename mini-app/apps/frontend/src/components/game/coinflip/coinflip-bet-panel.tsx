@@ -5,29 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import type { CoinflipMode } from '@/lib/games/coinflip/types';
-
-/**
- * Coinflip Bet Panel — Monopo Saigon Style
- *
- * Two columns:
- *   - Stake (left): zł input with halve / double pills.
- *   - Mode (right): dropdown selecting "Multiplier" (multiply) /
- *     "Quick play" (quick).
- *
- * Mirrors the layout from the design reference but built entirely out
- * of frosted-glass pills — no off-palette accents.
- *
- * The mode dropdown is rendered via a React portal anchored to the
- * trigger button. Sibling cards below the panel (history, multiplier
- * strip) all have their own backdrop-blur stacking contexts, which
- * silently steal pointer events from any z-indexed child of the panel.
- * Portaling lifts the menu into <body> where nothing can paint over it.
- */
-
-const MODE_LABEL: Record<CoinflipMode, string> = {
-  multiply: 'Множитель',
-  quick: 'Быстрая игра',
-};
+import { useT } from '@/i18n/use-t';
+import { BetPanelShell, StakeField } from '@/components/game/kit';
 
 interface CoinflipBetPanelProps {
   amount: number;
@@ -37,16 +16,11 @@ interface CoinflipBetPanelProps {
 
   minBet: number;
   maxBet: number;
-  /** Disable mid-round so the user can't change parameters during a flip. */
   locked?: boolean;
 
-  /** Funds available for this game. */
   balanceAmount: number;
-  /** False while the first balance request is still in flight. */
   balanceReady: boolean;
-  /** Currency marker rendered next to the balance. */
   currencyLabel: string;
-  /** Stake exceeds the balance, so the stake row is flagged before the toss. */
   shortOnFunds: boolean;
 }
 
@@ -63,33 +37,27 @@ export function CoinflipBetPanel({
   currencyLabel,
   shortOnFunds,
 }: CoinflipBetPanelProps) {
+  const { t, localeTag } = useT();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuRect, setMenuRect] = useState<{
     top: number;
     left: number;
+    width: number;
   } | null>(null);
 
-  const [inputValue, setInputValue] = useState(amount.toString());
-  useEffect(() => {
-    setInputValue(amount.toString());
-  }, [amount]);
+  const modeLabel =
+    mode === 'multiply' ? t('coinflip.multiply') : t('coinflip.quick');
 
-  const halve = () =>
-    onAmountChange(Math.max(minBet, +(amount / 2 || minBet).toFixed(2)));
-  const dbl = () =>
-    onAmountChange(Math.min(maxBet, +(amount * 2 || minBet).toFixed(2)));
-
-  /** Recompute menu placement on open + on viewport changes. */
   useEffect(() => {
     if (!open) {
       setMenuRect(null);
       return;
     }
     const place = () => {
-      const t = triggerRef.current;
-      if (!t) return;
-      const r = t.getBoundingClientRect();
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
       setMenuRect({ top: r.bottom + 4, left: r.left, width: r.width });
     };
     place();
@@ -101,14 +69,12 @@ export function CoinflipBetPanel({
     };
   }, [open]);
 
-  /** Close on outside click / Escape. */
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      const t = triggerRef.current;
-      if (!t) return;
-      if (t.contains(e.target as Node)) return;
-      // Anything else outside both the button and the menu — close.
+      const el = triggerRef.current;
+      if (!el) return;
+      if (el.contains(e.target as Node)) return;
       const menu = document.getElementById('coinflip-mode-menu');
       if (menu && menu.contains(e.target as Node)) return;
       setOpen(false);
@@ -125,60 +91,19 @@ export function CoinflipBetPanel({
   }, [open]);
 
   return (
-    <div className="relative rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+    <BetPanelShell>
       <div className="grid grid-cols-2 items-stretch">
-        {/* Stake */}
         <div className="px-4 py-3 border-r border-white/10">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-              Ставка
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={halve}
-                disabled={locked}
-                className="px-2 py-0.5 rounded-pill border border-white/15 text-frost-white/70 hover:text-frost-white hover:border-white/25 disabled:opacity-40 transition-colors text-[10px] font-roobert tabular-nums"
-              >
-                ½
-              </button>
-              <button
-                onClick={dbl}
-                disabled={locked}
-                className="px-2 py-0.5 rounded-pill border border-white/15 text-frost-white/70 hover:text-frost-white hover:border-white/25 disabled:opacity-40 transition-colors text-[10px] font-roobert tabular-nums"
-              >
-                ×2
-              </button>
-            </div>
-          </div>
-          <div
-            className={cn(
-              'mt-2 flex items-center gap-2 rounded-pill transition-colors',
-              shortOnFunds && 'px-2 -mx-2 bg-[#ff8a76]/[0.08]'
-            )}
-          >
-            <span className="text-whisper-gray text-[12px] font-roobert">zł</span>
-            <input
-              type="number"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onBlur={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v)) {
-                  onAmountChange(Math.max(minBet, Math.min(maxBet, v)));
-                } else {
-                  setInputValue(amount.toString());
-                }
-              }}
-              disabled={locked}
-              className={cn(
-                'flex-1 min-w-0 bg-transparent font-roobert text-[20px] font-light tabular-nums focus:outline-none',
-                shortOnFunds ? 'text-[#ff8a76]' : 'text-frost-white'
-              )}
-              step={1}
-              min={minBet}
-              max={maxBet}
-            />
-          </div>
+          <StakeField
+            amount={amount}
+            onAmountChange={onAmountChange}
+            minBet={minBet}
+            maxBet={maxBet}
+            disabled={locked}
+            label={t('common.bet')}
+            decreaseLabel={t('common.decreaseBet')}
+            increaseLabel={t('common.increaseBet')}
+          />
           <div
             className={cn(
               'mt-1 font-roobert text-[10px] tabular-nums',
@@ -186,17 +111,16 @@ export function CoinflipBetPanel({
             )}
           >
             {balanceReady
-              ? `Баланс ${balanceAmount.toLocaleString('ru-RU', {
+              ? `${balanceAmount.toLocaleString(localeTag, {
                   maximumFractionDigits: 2,
                 })} ${currencyLabel}`
-              : 'Баланс загружается'}
+              : t('common.loadingBalance')}
           </div>
         </div>
 
-        {/* Mode */}
         <div className="px-4 py-3">
           <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-            Режим
+            {t('common.mode')}
           </span>
           <button
             ref={triggerRef}
@@ -208,9 +132,7 @@ export function CoinflipBetPanel({
               open && 'border-white/30'
             )}
           >
-            <span className="font-roobert text-[12px] truncate">
-              {MODE_LABEL[mode]}
-            </span>
+            <span className="font-roobert text-[12px] truncate">{modeLabel}</span>
             <ChevronDown
               size={12}
               strokeWidth={1.8}
@@ -220,7 +142,6 @@ export function CoinflipBetPanel({
         </div>
       </div>
 
-      {/* Portal-rendered menu — escapes any backdrop-blur stacking context */}
       {open && !locked && menuRect && typeof document !== 'undefined'
         ? createPortal(
             <div
@@ -246,13 +167,13 @@ export function CoinflipBetPanel({
                     k === mode ? 'text-frost-white' : 'text-frost-white/70'
                   )}
                 >
-                  {MODE_LABEL[k]}
+                  {k === 'multiply' ? t('coinflip.multiply') : t('coinflip.quick')}
                 </button>
               ))}
             </div>,
             document.body
           )
         : null}
-    </div>
+    </BetPanelShell>
   );
 }

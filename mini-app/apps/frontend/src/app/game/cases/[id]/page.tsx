@@ -15,6 +15,8 @@ import { reportApiError } from '@/lib/api/errors';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { distributePercentages } from '@casino/shared';
 import type { CaseTier, CasePrize } from '../page';
+import { useT } from '@/i18n/use-t';
+import { GamePrimaryButton } from '@/components/game/kit';
 
 function Confetti({ active }: { active: boolean }) {
   useEffect(() => {
@@ -55,6 +57,7 @@ const liquidGlassSvg = (
 );
 
 export default function CaseOpeningPage() {
+  const { t, localeTag } = useT();
   const { id } = useParams() as { id: string };
   const router = useRouter();
   
@@ -97,13 +100,13 @@ export default function CaseOpeningPage() {
           if (found) {
             setCaseTier(found);
           } else {
-            toast.warn('Кейс не найден');
+            toast.warn(t('cases.notFound'));
             router.push('/game/cases');
           }
         }
       })
       .catch(() => {
-        toast.warn('Ошибка загрузки кейса');
+        toast.warn(t('cases.loadError'));
         router.push('/game/cases');
       });
   }, [id, router]);
@@ -274,7 +277,7 @@ export default function CaseOpeningPage() {
           <div className="flex items-center justify-between">
             {/* Turbo Toggle */}
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-white/70">Турбо крутка</span>
+              <span className="text-sm font-medium text-white/70">{t('cases.turbo')}</span>
               <div 
                 onClick={() => !isSpinning && setIsTurbo(!isTurbo)}
                 className={`w-[44px] h-[24px] flex items-center rounded-full p-[2px] cursor-pointer shadow-inner border border-white/5 transition-colors duration-500 ease-in-out ${isTurbo ? 'bg-emerald-500/80 border-emerald-500/50' : 'bg-white/10'}`}
@@ -302,27 +305,30 @@ export default function CaseOpeningPage() {
           </div>
           
           {/* Main Action Button */}
-          <button
+          <GamePrimaryButton
             onClick={handleOpen}
             disabled={
               isSpinning ||
               (freeCountForThisCase < count &&
                 (!isBalanceReady || activeBalance < caseTier.price * count))
             }
-            className="w-full py-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] active:bg-white/[0.04] disabled:opacity-50 disabled:pointer-events-none transition-all font-semibold text-[17px] text-white/95 shadow-sm border border-white/10"
+            tone={isSpinning ? 'muted' : 'solid'}
           >
-            {isSpinning 
-              ? 'Открываем...' 
-              : (freeCountForThisCase >= count)
-                ? (freeCountForThisCase > 1 ? `Бесплатное открытие (${freeCountForThisCase})` : 'Бесплатное открытие')
-                : `Открыть за ${(caseTier.price * count).toLocaleString('ru-RU')} zł`
-            }
-          </button>
+            {isSpinning
+              ? t('cases.opening')
+              : freeCountForThisCase >= count
+                ? freeCountForThisCase > 1
+                  ? t('cases.freeOpenCount', { n: freeCountForThisCase })
+                  : t('cases.freeOpen')
+                : t('cases.openFor', {
+                    amount: (caseTier.price * count).toLocaleString(localeTag),
+                  })}
+          </GamePrimaryButton>
         </div>
 
         {/* Prizes List */}
         <div className="mt-6">
-          <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">Содержимое кейса</h2>
+          <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">{t('cases.contents')}</h2>
           
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
             {caseTier.prizes.map((p, i) => (

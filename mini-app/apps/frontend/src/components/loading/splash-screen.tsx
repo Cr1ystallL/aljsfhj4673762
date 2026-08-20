@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BrandMark } from '@/components/ui/brand-mark';
+import { useT } from '@/i18n/use-t';
+import type { TxKey } from '@/i18n/use-t';
 
 /**
  * Splash Screen — first-paint surface.
@@ -23,6 +25,16 @@ import { BrandMark } from '@/components/ui/brand-mark';
  * or for urging someone to bet. Keep the tone about the product —
  * provably fair draws, the game list, the interface.
  */
+
+const SPLASH_KEYS: TxKey[] = [
+  'splash.l1',
+  'splash.l2',
+  'splash.l3',
+  'splash.l4',
+  'splash.l5',
+  'splash.l6',
+  'splash.l7',
+];
 
 export const SPLASH_TAGLINES: ReadonlyArray<string> = [
   'MacvBet — играй красиво.',
@@ -58,10 +70,13 @@ const POST_READY_HOLD_MS = 2000;
 const MIN_TOTAL_MS = 1200;
 
 export function SplashScreen({ ready }: SplashScreenProps) {
+  const { t } = useT();
   const [visible, setVisible] = useState(true);
-  // Lock the chosen tagline once on mount so it doesn't shuffle if
-  // the component re-renders during boot.
-  const tagline = useMemo(() => pickRandom(SPLASH_TAGLINES), []);
+  const taglineKey = useMemo(
+    () => SPLASH_KEYS[Math.floor(Math.random() * SPLASH_KEYS.length)],
+    []
+  );
+  const tagline = t(taglineKey);
   const mountedAt = useMemo(() => Date.now(), []);
 
   useEffect(() => {

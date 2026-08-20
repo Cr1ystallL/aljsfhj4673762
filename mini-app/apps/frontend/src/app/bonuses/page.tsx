@@ -21,6 +21,7 @@ import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Bonuses Page — Premium Redesign.
@@ -84,12 +85,13 @@ interface ContestRow {
 }
 
 export default function BonusesPage() {
+  const { t } = useT();
   const { user } = useAuthStore();
   const { fetchBalance } = useBalance();
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col selection:bg-amber-500/30">
-      <GameTopBar title="Бонусы" Icon={Sparkles} width="wide" />
+      <GameTopBar title={t('bonuses.title')} Icon={Sparkles} width="wide" />
       
       <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-4 pb-32 flex flex-col gap-6`}>
         {/* Promo Code Hero */}

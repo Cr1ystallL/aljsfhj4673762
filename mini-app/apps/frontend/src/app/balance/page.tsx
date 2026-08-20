@@ -27,6 +27,7 @@ import {
   DirectCryptoIcon,
   BankCardIcon,
 } from '@/components/ui/crypto-networks';
+import { useT } from '@/i18n/use-t';
 
 type Tab = 'deposit' | 'withdraw';
 type DepositMethod = 'crypto' | 'cryptobot' | 'card';
@@ -56,6 +57,7 @@ interface ActiveFoluxOrder {
 }
 
 export default function BalancePage() {
+  const { t, localeTag } = useT();
   const router = useRouter();
   const balance = useBalanceStore((s) => s.balance);
   const amountPln = balance?.amount ?? 0;
@@ -462,7 +464,7 @@ export default function BalancePage() {
       {/* Header Bar */}
       <div className="w-full max-w-md px-4 py-4 flex items-center justify-center border-b border-white/10 bg-[#0A0B0E]/90 backdrop-blur-md sticky top-0 z-30">
         <span className="font-semibold text-sm tracking-wide text-zinc-100 uppercase text-center">
-          Кошелек
+          {t('nav.wallet')}
         </span>
       </div>
 
@@ -471,12 +473,12 @@ export default function BalancePage() {
         <div className="rounded-xl border border-white/10 bg-[#13151C] p-4 flex items-center justify-between shadow-md relative overflow-hidden">
           <div className="flex flex-col gap-1 z-10">
             <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
-              Баланс аккаунта
+              {t('balance.title')}
             </span>
 
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-bold tracking-tight text-white">
-                {amountPln.toLocaleString('ru-RU', { minimumFractionDigits: 2 })}
+                {amountPln.toLocaleString(localeTag, { minimumFractionDigits: 2 })}
               </span>
               <span className="text-sm font-semibold text-zinc-400">PLN</span>
             </div>
@@ -1091,7 +1093,7 @@ export default function BalancePage() {
             className="w-full py-3 rounded-lg bg-[#13151C] hover:bg-zinc-800 border border-white/10 font-semibold text-xs text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all active:scale-95 mt-2"
           >
             <History size={14} />
-            <span>История транзакций</span>
+            <span>{t('balance.history')}</span>
           </button>
         )}
       </div>

@@ -44,6 +44,13 @@ export function translate(
   return interpolate(fromLocale ?? fromDefault ?? key, vars);
 }
 
+export function tNow(
+  key: TxKey,
+  vars?: Record<string, string | number>
+): string {
+  return translate(useLocaleStore.getState().locale, key, vars);
+}
+
 export function useT() {
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);

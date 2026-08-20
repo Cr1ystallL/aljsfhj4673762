@@ -14,6 +14,13 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/use-t';
+import {
+  BetPanelCtaRow,
+  BetPanelShell,
+  GamePrimaryButton,
+  StakeField,
+} from '@/components/game/kit';
 
 /* ========================================================================== */
 /*  Monopo Saigon — Wheel of Fortune                                          */
@@ -104,6 +111,7 @@ const PICKS: number[] = [2, 3, 5, 30];
 
 export default function WheelPage() {
   const router = useRouter();
+  const { t, localeTag } = useT();
   const { fetchBalance } = useBalance();
   const [layout, setLayout] = useState<number[] | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -263,18 +271,21 @@ export default function WheelPage() {
       return;
     }
     if (!isBalanceReady) {
-      toast.warn('Баланс ещё загружается');
+      toast.warn(t('common.loadingBalance'));
       return;
     }
     const have = activeBalance;
     if (amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
+        t('common.insufficientWithBalance', {
+          amount: have.toLocaleString(localeTag, { maximumFractionDigits: 2 }),
+          currency: currencyLabel,
+        })
       );
       return;
     }
     if (snap?.phase !== 'waiting') {
-      toast.warn('Приём ставок закрыт');
+      toast.warn(t('wheel.bettingClosed'));
       return;
     }
     setBusy(true);
@@ -368,116 +379,45 @@ export default function WheelPage() {
         </div>
 
         {/* ---- Bet Panel ---- */}
-        <div
-          style={{
-            borderRadius: 0,
-            background: '#0a0a0a',
-            border: '1px solid #1a1a1a',
-          }}
-        >
-          {/* Bet + Payout row */}
-          <div className="grid grid-cols-2">
-            {/* Bet input */}
-            <div className="px-5 py-4" style={{ borderRight: '1px solid #1a1a1a' }}>
-              <div
-                className="font-sans uppercase tracking-[0.2em] text-[#6d6d6d]"
-                style={{ fontSize: 10, lineHeight: '1.58' }}
-              >
-                Ставка
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="number"
-                  step={1}
-                  min={minBet}
-                  max={maxBet}
-                  value={amountInput}
-                  onChange={(e) => {
-                    setAmountInput(e.target.value);
-                  }}
-                  onBlur={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (Number.isFinite(v)) {
-                      setAmountInput(Math.max(minBet, Math.min(maxBet, v)).toString());
-                    } else {
-                      setAmountInput(minBet.toString());
-                    }
-                  }}
-                  className="flex-1 min-w-0 bg-transparent text-[#ffffff] font-sans tabular-nums focus:outline-none"
-                  style={{ fontSize: 22, fontWeight: 300, lineHeight: 1.15 }}
-                />
-                <span
-                  className="font-sans text-[#6d6d6d] uppercase"
-                  style={{ fontSize: 11, letterSpacing: '0.08em' }}
-                >
-                  zł
-                </span>
-              </div>
+        <BetPanelShell>
+          <div className="grid grid-cols-2 items-stretch">
+            <div className="px-4 py-3 border-r border-white/10">
+              <StakeField
+                amount={amount || minBet}
+                onAmountChange={(next) => setAmountInput(String(next))}
+                minBet={minBet}
+                maxBet={maxBet}
+                disabled={busy || uiPhase !== 'waiting'}
+                label={t('common.bet')}
+                decreaseLabel={t('common.decreaseBet')}
+                increaseLabel={t('common.increaseBet')}
+              />
             </div>
-
-            {/* Potential payout */}
-            <div className="px-5 py-4">
-              <div
-                className="font-sans uppercase tracking-[0.2em] text-[#6d6d6d]"
-                style={{ fontSize: 10, lineHeight: '1.58' }}
-              >
-                Выигрыш
-              </div>
-              <div className="mt-2">
-                <span
-                  className="font-sans text-[#ffffff] tabular-nums"
-                  style={{ fontSize: 22, fontWeight: 300, lineHeight: 1.15 }}
-                >
-                  {(amount * pick).toLocaleString('ru-RU', {
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span
-                  className="font-sans text-[#6d6d6d] uppercase ml-1.5"
-                  style={{ fontSize: 11, letterSpacing: '0.08em' }}
-                >
-                  zł
-                </span>
+            <div className="px-4 py-3">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
+                {t('common.payout')}
+              </span>
+              <div className="mt-2 font-roobert text-[22px] font-light tabular-nums text-frost-white">
+                {(amount * pick).toLocaleString(localeTag, {
+                  maximumFractionDigits: 2,
+                })}
               </div>
             </div>
           </div>
-
-          {/* CTA */}
-          <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid #1a1a1a' }}>
-            <button
+          <BetPanelCtaRow>
+            <GamePrimaryButton
               onClick={placeBet}
               disabled={busy || uiPhase !== 'waiting'}
-              className="w-full transition-all active:scale-[0.99]"
-              style={{
-                height: 48,
-                borderRadius: 75,
-                fontSize: 12,
-                fontWeight: 400,
-                letterSpacing: '0.2em',
-                textTransform: 'uppercase' as const,
-                fontFamily: 'inherit',
-                background:
-                  uiPhase === 'waiting' && !busy ? '#ffffff' : '#1a1a1a',
-                color:
-                  uiPhase === 'waiting' && !busy ? '#000000' : '#636363',
-                border:
-                  uiPhase === 'waiting' && !busy
-                    ? '1px solid #ffffff'
-                    : '1px solid #2a2a2a',
-                cursor:
-                  uiPhase === 'waiting' && !busy
-                    ? 'pointer'
-                    : 'not-allowed',
-              }}
+              tone={uiPhase === 'waiting' && !busy ? 'solid' : 'muted'}
             >
               {uiPhase === 'waiting'
-                ? `Поставить ×${pick}`
+                ? t('wheel.placeWithMult', { x: pick })
                 : uiPhase === 'spinning'
-                  ? 'Крутится…'
-                  : 'Раунд завершён'}
-            </button>
-          </div>
-        </div>
+                  ? t('common.spinning')
+                  : t('common.roundOver')}
+            </GamePrimaryButton>
+          </BetPanelCtaRow>
+        </BetPanelShell>
 
         {/* Quick bet presets */}
         <div className="flex items-center justify-center gap-2">
@@ -485,39 +425,21 @@ export default function WheelPage() {
             <button
               key={v}
               onClick={() => setAmountInput(Math.min(v, maxBet).toString())}
-              className="font-sans tabular-nums transition-colors"
-              style={{
-                fontSize: 11,
-                fontWeight: amount === v ? 600 : 300,
-                color: amount === v ? '#ffffff' : '#636363',
-                letterSpacing: '0.05em',
-                padding: '6px 12px',
-                borderRadius: 75,
-                border:
-                  amount === v
-                    ? '1px solid #636363'
-                    : '1px solid transparent',
-                background: 'transparent',
-              }}
+              className={cn(
+                'font-roobert tabular-nums text-[11px] px-3 py-1.5 rounded-pill border transition-colors',
+                amount === v
+                  ? 'border-white/30 text-frost-white'
+                  : 'border-transparent text-whisper-gray'
+              )}
             >
               {v}
             </button>
           ))}
           <button
             onClick={() => setAmountInput(maxBet.toString())}
-            className="font-sans transition-colors"
-            style={{
-              fontSize: 11,
-              fontWeight: 300,
-              color: '#636363',
-              letterSpacing: '0.05em',
-              padding: '6px 12px',
-              borderRadius: 75,
-              border: '1px solid transparent',
-              background: 'transparent',
-            }}
+            className="font-roobert text-[11px] px-3 py-1.5 rounded-pill text-whisper-gray uppercase tracking-[0.16em]"
           >
-            MAX
+            {t('common.max')}
           </button>
         </div>
 
@@ -541,14 +463,15 @@ function PhaseBar({
   snap: Snapshot | null;
   uiPhase: Phase;
 }) {
+  const { t } = useT();
   if (!snap) return null;
 
   const phaseLabel =
     uiPhase === 'waiting'
-      ? 'Приём ставок'
+      ? t('wheel.bettingOpen')
       : uiPhase === 'spinning'
-        ? 'Вращение'
-        : 'Результат';
+        ? t('common.spinning')
+        : t('coinflip.result');
 
   return (
     <div className="flex items-center justify-between">

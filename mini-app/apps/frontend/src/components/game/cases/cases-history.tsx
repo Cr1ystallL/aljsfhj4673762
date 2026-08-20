@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { useT } from '@/i18n/use-t';
 
 interface CaseHistoryEntry {
   id: string;
@@ -26,6 +27,7 @@ function formatMultiplier(prizeId: string | undefined): string | null {
 }
 
 export function CasesHistory() {
+  const { t } = useT();
   const [history, setHistory] = useState<CaseHistoryEntry[]>([]);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function CasesHistory() {
   if (history.length === 0) {
     return (
       <div className="w-full h-16 flex items-center justify-center text-white/40 text-sm">
-        Загрузка истории...
+        {t('profile.loadingHistory')}
       </div>
     );
   }
