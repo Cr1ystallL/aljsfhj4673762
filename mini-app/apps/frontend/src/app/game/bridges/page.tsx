@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -81,6 +83,7 @@ const QUICK_AMOUNTS: number[] = [];
 void QUICK_AMOUNTS;
 
 export default function BridgesPage() {
+  const router = useRouter();
   const { balance, isLoading: isBalanceLoading, fetchBalance } = useBalance();
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
   const tournamentBalance = tournamentBalances.find(
@@ -277,7 +280,11 @@ export default function BridgesPage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <GameTopBar title="Bridges" Icon={Footprints} />
+        <GameTopBar
+          title="Bridges"
+          Icon={Footprints}
+          onHowToPlay={() => router.push('/info#faq')}
+        />
 
         {/* Difficulty pills */}
         <div className="grid grid-cols-3 gap-2">

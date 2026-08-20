@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -25,6 +27,7 @@ export interface CaseTier {
 }
 
 export default function CasesPage() {
+  const router = useRouter();
   const [cases, setCases] = useState<CaseTier[]>([]);
   const { fetchBalance } = useBalance();
 
@@ -43,7 +46,11 @@ export default function CasesPage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
-        <GameTopBar title="Кейсы" Icon={PlinkoIcon} />
+        <GameTopBar
+          title="Кейсы"
+          Icon={PlinkoIcon}
+          onHowToPlay={() => router.push('/info#faq')}
+        />
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {cases.map((c) => {

@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import gsap from 'gsap';
@@ -101,6 +103,7 @@ const PICKS: number[] = [2, 3, 5, 30];
 /* ========================================================================== */
 
 export default function WheelPage() {
+  const router = useRouter();
   const { balance, fetchBalance } = useBalance();
   const [layout, setLayout] = useState<number[] | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -303,7 +306,11 @@ export default function WheelPage() {
   return (
     <main className="min-h-screen w-full bg-[#000000] text-[#ffffff]">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-5">
-        <GameTopBar title="Wheel" Icon={Disc3} />
+        <GameTopBar
+          title="Wheel"
+          Icon={Disc3}
+          onHowToPlay={() => router.push('/info#faq')}
+        />
 
         {/* History */}
         {snap && <HistoryStrip history={snap.history.slice(0, 12)} />}

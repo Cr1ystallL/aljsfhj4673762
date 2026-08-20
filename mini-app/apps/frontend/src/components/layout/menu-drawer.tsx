@@ -310,6 +310,15 @@ export function MenuDrawer({
                     }}
                   />
                   <SectionCard
+                    icon={<BookOpen size={18} className="text-sky-400" />}
+                    title="Правила и FAQ"
+                    description="Режимы игр, отыгрыш, честная игра"
+                    onClick={() => {
+                      onClose();
+                      router.push('/info');
+                    }}
+                  />
+                  <SectionCard
                     icon={<Headphones size={18} className="text-cyan-400" />}
                     title="Служба поддержки"
                     description="Помощь 24/7 в Telegram"
