@@ -81,6 +81,7 @@ export const ru = {
       'Выбери ставку и уровень риска и брось шар. Он отскакивает от штырей и падает в один из карманов внизу — множитель кармана и есть выплата.',
     rulesHint:
       'Выше риск — больше множители по краям, но ниже шанс туда попасть. RTP 99% на каждом уровне.',
+    drop: 'Бросить',
   },
   coinflip: {
     howTo: 'Как играть в Coinflip',
@@ -229,6 +230,7 @@ export const en: Messages = {
       'Pick a stake and a risk tier, then drop the ball. It bounces off the pins and lands in one of the buckets at the bottom — that bucket’s multiplier decides the payout.',
     rulesHint:
       'The higher the risk, the bigger the multipliers in the outer buckets, but also the lower the average chance of landing there. RTP is 99% on every tier.',
+    drop: 'Drop',
   },
   coinflip: {
     howTo: 'How to play Coinflip',
@@ -375,6 +377,7 @@ export const pl: Messages = {
       'Wybierz stawkę i poziom ryzyka, a potem rzuć kulkę. Odbija się od kołków i wpada do kieszeni na dole — mnożnik kieszeni to wygrana.',
     rulesHint:
       'Wyższe ryzyko to większe mnożniki na brzegach, ale mniejsza szansa tam trafić. RTP 99% na każdym poziomie.',
+    drop: 'Rzuć',
   },
   coinflip: {
     howTo: 'Jak grać w Coinflip',
