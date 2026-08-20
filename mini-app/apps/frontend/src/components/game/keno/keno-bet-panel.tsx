@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import type { KenoRisk } from '@/lib/game-engine/types';
+import { useT } from '@/i18n/use-t';
 
 export type KenoPhase = 'idle' | 'playing' | 'revealing';
 
@@ -40,6 +41,7 @@ export function KenoBetPanel({
   activeBalance,
   currency,
 }: KenoBetPanelProps) {
+  const { t } = useT();
   const [amountStr, setAmountStr] = useState(amount.toString());
 
   const handleAmountStr = (val: string) => {
@@ -147,7 +149,11 @@ export function KenoBetPanel({
                   : 'text-white/40 hover:text-white/70 hover:bg-white/5 disabled:opacity-50'
               )}
             >
-              {r}
+              {r === 'low'
+                ? t('risk.low')
+                : r === 'medium'
+                  ? t('risk.medium')
+                  : t('risk.high')}
             </button>
           ))}
         </div>

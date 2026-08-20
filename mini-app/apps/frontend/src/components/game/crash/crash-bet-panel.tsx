@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Minus, Plus } from 'lucide-react';
 import { memo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Crash Bet Panel — Monopo Saigon Style
@@ -66,6 +67,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
   onPrimary,
   busy = false,
 }: CrashBetPanelProps) {
+  const { t } = useT();
   const inputsLocked = slotPhase !== 'idle';
 
   const [inputValue, setInputValue] = useState(amount.toString());
@@ -76,17 +78,17 @@ export const CrashBetPanel = memo(function CrashBetPanel({
   const ctaLabel = (() => {
     switch (slotPhase) {
       case 'idle':
-        return bettingClosed ? 'Round in progress' : 'Play';
+        return bettingClosed ? t('crash.roundInProgress') : t('crash.play');
       case 'queued':
-        return 'Cancel';
+        return t('common.cancel');
       case 'locked':
-        return 'Locked';
+        return t('crash.locked');
       case 'cashable':
-        return `Cash Out · x${multiplier.toFixed(2)}`;
+        return t('common.cashOutWithMult', { x: multiplier.toFixed(2) });
       case 'finished_won':
-        return 'Cashed Out';
+        return t('common.cashedOut');
       case 'finished_lost':
-        return 'Lost';
+        return t('common.lost');
     }
   })();
 
@@ -118,14 +120,14 @@ export const CrashBetPanel = memo(function CrashBetPanel({
         {/* Stake */}
         <div className="px-4 py-3 border-r border-white/10">
           <div className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-            Bet
+            {t('common.bet')}
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
             <button
               onClick={decAmount}
               disabled={inputsLocked}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Decrease bet"
+              aria-label={t('common.decreaseBet')}
             >
               <Minus size={12} strokeWidth={2.2} />
             </button>
@@ -151,7 +153,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
               onClick={incAmount}
               disabled={inputsLocked}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Increase bet"
+              aria-label={t('common.increaseBet')}
             >
               <Plus size={12} strokeWidth={2.2} />
             </button>
@@ -162,7 +164,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
         <div className="px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert truncate">
-              Auto-cashout
+              {t('crash.autoCashout')}
             </span>
             <button
               onClick={() => onAutoCashoutToggle(!autoCashoutEnabled)}
@@ -174,7 +176,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
                   : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35'
               )}
             >
-              {autoCashoutEnabled ? 'On' : 'Off'}
+              {autoCashoutEnabled ? t('common.on') : t('common.off')}
             </button>
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
@@ -182,7 +184,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
               onClick={decAuto}
               disabled={inputsLocked || !autoCashoutEnabled}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Decrease multiplier"
+              aria-label={t('common.decreaseMult')}
             >
               <Minus size={12} strokeWidth={2.2} />
             </button>
@@ -198,7 +200,7 @@ export const CrashBetPanel = memo(function CrashBetPanel({
               onClick={incAuto}
               disabled={inputsLocked || !autoCashoutEnabled}
               className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label="Increase multiplier"
+              aria-label={t('common.increaseMult')}
             >
               <Plus size={12} strokeWidth={2.2} />
             </button>

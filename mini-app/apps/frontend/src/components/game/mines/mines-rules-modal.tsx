@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { useT } from '@/i18n/use-t';
 
 interface MinesRulesModalProps {
   open: boolean;
@@ -9,6 +10,7 @@ interface MinesRulesModalProps {
 }
 
 export function MinesRulesModal({ open, onClose }: MinesRulesModalProps) {
+  const { t } = useT();
   return (
     <AnimatePresence>
       {open && (
@@ -22,7 +24,7 @@ export function MinesRulesModal({ open, onClose }: MinesRulesModalProps) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common.close')}
             className="absolute inset-0 bg-midnight-canvas/85 backdrop-blur-sm"
           />
 
@@ -36,25 +38,21 @@ export function MinesRulesModal({ open, onClose }: MinesRulesModalProps) {
             <button
               onClick={onClose}
               className="absolute top-3 right-3 w-11 h-11 rounded-pill border border-white/15 bg-white/[0.04] flex items-center justify-center text-frost-white/80 hover:text-frost-white hover:border-white/25 active:scale-95 transition-all"
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               <X size={18} strokeWidth={1.8} />
             </button>
 
             <h2 className="font-roobert text-frost-white text-[22px] font-normal leading-tight pr-8">
-              How to play Mines
+              {t('mines.howTo')}
             </h2>
 
             <p className="mt-4 font-roobert text-[14px] text-frost-white/85 leading-snug">
-              5×5 board — 25 cells. Pick a mine count and place a stake.
-              Reveal safe cells one by one, each one boosts the
-              multiplier. Cash out any time. Hit a mine and the stake
-              is lost.
+              {t('mines.rules')}
             </p>
 
             <p className="mt-3 font-roobert text-[12px] text-whisper-gray leading-snug">
-              The more mines, the higher the multiplier per safe reveal.
-              RTP 99%.
+              {t('mines.rulesHint')}
             </p>
 
             <div className="mt-5 flex justify-end">
@@ -62,7 +60,7 @@ export function MinesRulesModal({ open, onClose }: MinesRulesModalProps) {
                 onClick={onClose}
                 className="inline-flex items-center px-5 py-2 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 transition-colors"
               >
-                Got it
+                {t('common.gotIt')}
               </button>
             </div>
           </motion.div>

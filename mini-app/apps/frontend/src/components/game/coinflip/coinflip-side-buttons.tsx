@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { CoinSide } from '@/lib/games/coinflip/types';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Coinflip Side Buttons — Monopo Saigon Style
@@ -31,10 +32,11 @@ export function CoinflipSideButtons({
   selected,
   captions,
 }: CoinflipSideButtonsProps) {
+  const { t } = useT();
   return (
     <div className="grid grid-cols-2 gap-2">
       <SideButton
-        label="Heads"
+        label={t('coinflip.heads')}
         caption={captions?.heads}
         active={selected === 'heads'}
         disabled={disabled}
@@ -42,7 +44,7 @@ export function CoinflipSideButtons({
         accent="primary"
       />
       <SideButton
-        label="Tails"
+        label={t('coinflip.tails')}
         caption={captions?.tails}
         active={selected === 'tails'}
         disabled={disabled}

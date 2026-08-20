@@ -24,6 +24,8 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/use-t';
+import type { TxKey } from '@/i18n/use-t';
 
 /**
  * Bridges — premium redesign with a proper betting panel.
@@ -46,7 +48,7 @@ import { cn } from '@/lib/utils';
  * has at least `amount` balance. A counter shows remaining auto-bet
  * runs; setting it to 0 means infinite.
  *
- * All UI text in English.
+ * All UI text goes through the locale dictionaries (RU default).
  */
 
 type Level = 'easy' | 'medium' | 'hard';
@@ -70,17 +72,26 @@ interface PublicState {
   bustedAt?: { row: number; col: number };
 }
 
-const LEVEL_LABEL: Record<Level, { en: string; sub: string }> = {
-  easy: { en: 'Easy', sub: '1 trap per row' },
-  medium: { en: 'Medium', sub: '2 traps per row' },
-  hard: { en: 'Hard', sub: '3 traps per row' },
-};
+function bridgesLevel(
+  t: (key: TxKey, vars?: Record<string, string | number>) => string,
+  lv: Level
+) {
+  switch (lv) {
+    case 'easy':
+      return { label: t('bridges.easy'), sub: t('bridges.easySub') };
+    case 'medium':
+      return { label: t('bridges.medium'), sub: t('bridges.mediumSub') };
+    case 'hard':
+      return { label: t('bridges.hard'), sub: t('bridges.hardSub') };
+  }
+}
 
 const QUICK_AMOUNTS: number[] = [];
 // Unused — kept as a placeholder so hot-reload doesn't whine about empties.
 void QUICK_AMOUNTS;
 
 export default function BridgesPage() {
+  const { t, localeTag } = useT();
   const { balance, isLoading: isBalanceLoading, fetchBalance } = useBalance();
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
   const tournamentBalance = tournamentBalances.find(
@@ -171,7 +182,7 @@ export default function BridgesPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Could not start round');
+        reportApiError(res, j, t('bridges.startFailed'));
         throw new Error(j?.message ?? 'start failed');
       }
       setState(j.state);
@@ -200,7 +211,7 @@ export default function BridgesPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Cannot step here');
+        reportApiError(res, j, t('bridges.stepFailed'));
         throw new Error(j?.message ?? 'step failed');
       }
       const next = j.state as PublicState;
@@ -232,11 +243,11 @@ export default function BridgesPage() {
       });
       const j = await res.json();
       if (!res.ok) {
-        reportApiError(res, j, 'Could not cash out');
+        reportApiError(res, j, t('bridges.cashoutFailed'));
         throw new Error(j?.message ?? 'cashout failed');
       }
       setState(j.state);
-      toast.cashout((j.state as PublicState)?.currentMultiplier ?? 0, 'Cashed out');
+      toast.cashout((j.state as PublicState)?.currentMultiplier ?? 0, t('bridges.cashedToast'));
       soundManager.play('game.cashout');
       void fetchBalance();
     } catch (err) {
@@ -297,10 +308,10 @@ export default function BridgesPage() {
                 )}
               >
                 <div className="font-roobert text-[14px] font-semibold">
-                  {LEVEL_LABEL[lv].en}
+                  {bridgesLevel(t, lv).label}
                 </div>
                 <div className="font-roobert text-[10px] text-whisper-gray">
-                  {LEVEL_LABEL[lv].sub}
+                  {bridgesLevel(t, lv).sub}
                 </div>
               </button>
             );
@@ -356,10 +367,12 @@ export default function BridgesPage() {
             )}
           >
             {state.picks.length > 0
-              ? `Cash Out · ${potentialPayout.toLocaleString('en-US', {
-                  maximumFractionDigits: 2,
-                })} zł`
-              : 'Step on the bridge'}
+              ? t('bridges.cashOut', {
+                  amount: potentialPayout.toLocaleString(localeTag, {
+                    maximumFractionDigits: 2,
+                  }),
+                })
+              : t('bridges.step')}
           </button>
         )}
 
@@ -369,7 +382,7 @@ export default function BridgesPage() {
             className="w-full h-14 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[14px] font-semibold uppercase tracking-[0.18em] active:scale-[0.99] inline-flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(255,255,255,0.18)]"
           >
             <RotateCcw size={15} strokeWidth={1.8} />
-            New Round
+            {t('bridges.newRound')}
           </button>
         )}
       </div>
@@ -390,6 +403,7 @@ function HeadlinePlate({
   potentialPayout: number;
   level: Level;
 }) {
+  const { t, localeTag } = useT();
   const status = state?.state ?? 'idle';
 
   return (
@@ -406,27 +420,30 @@ function HeadlinePlate({
         <div className="min-w-0">
           <div className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
             {status === 'active'
-              ? 'Current Win'
+              ? t('bridges.currentWin')
               : status === 'cashed'
-                ? 'Cashed Out'
+                ? t('bridges.cashedOut')
                 : status === 'busted'
-                  ? 'Round Lost'
-                  : 'Ready'}
+                  ? t('bridges.roundLost')
+                  : t('bridges.ready')}
           </div>
           <div className="mt-1 font-roobert text-[28px] font-light tabular-nums text-frost-white leading-none">
             {state?.state === 'cashed'
-              ? `+${(state.finalPayout ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+              ? `+${(state.finalPayout ?? 0).toLocaleString(localeTag, { maximumFractionDigits: 2 })}`
               : state?.state === 'busted'
                 ? '0.00'
-                : potentialPayout.toLocaleString('en-US', {
+                : potentialPayout.toLocaleString(localeTag, {
                     maximumFractionDigits: 2,
                   })}{' '}
             <span className="text-[14px] text-whisper-gray">zł</span>
           </div>
           <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
             {state
-              ? `${LEVEL_LABEL[state.level].en} · stake ${state.betAmount.toLocaleString('en-US')} zł`
-              : `${LEVEL_LABEL[level].en}`}
+              ? t('bridges.stakeLine', {
+                  level: bridgesLevel(t, state.level).label,
+                  amount: state.betAmount.toLocaleString(localeTag),
+                })
+              : bridgesLevel(t, level).label}
           </div>
         </div>
 
@@ -803,6 +820,7 @@ function BetPanel({
   canAfford: boolean;
   balanceAmount: number;
 }) {
+  const { t } = useT();
   const clamp = (v: number) => Math.max(minBet, Math.min(maxBet, v));
 
   return (
@@ -811,7 +829,7 @@ function BetPanel({
       <div className="px-4 pt-3.5 pb-3 flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
-            Bet amount
+            {t('bridges.betAmount')}
           </span>
           <span className="font-roobert text-[10px] tabular-nums text-whisper-gray">
             Balance{' '}
@@ -880,14 +898,14 @@ function BetPanel({
         />
         <div className="min-w-0">
           <div className="font-roobert text-[12px] text-frost-white">
-            Auto-bet
+            {t('bridges.autoBet')}
           </div>
           <div className="font-roobert text-[10px] text-whisper-gray">
             {autoEnabled
               ? autoCount > 0
-                ? `${autoRemaining} of ${autoCount} runs left`
-                : 'Running until you stop'
-              : 'Off'}
+                ? t('bridges.autoRunsLeft', { left: autoRemaining, total: autoCount })
+                : t('bridges.autoUntilStop')
+              : t('bridges.autoOff')}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -914,7 +932,7 @@ function BetPanel({
                 : 'border-white/15 bg-white/[0.04] text-frost-white/85 hover:border-white/25'
             )}
           >
-            {autoEnabled ? 'Stop' : 'Start'}
+            {autoEnabled ? t('bridges.stop') : t('bridges.start')}
           </button>
         </div>
       </div>
@@ -944,12 +962,12 @@ function BetPanel({
         >
           <Play size={14} strokeWidth={2.2} fill="currentColor" />
           {!balanceReady
-            ? 'Loading Balance'
+            ? t('bridges.loadingBalance')
             : !canAfford
-              ? 'Insufficient Funds'
+              ? t('bridges.insufficientFunds')
               : busy
-                ? 'Starting'
-                : 'Start Round'}
+                ? t('bridges.starting')
+                : t('bridges.startRound')}
         </button>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useNavStore } from '@/store/nav-store';
+import { useT } from '@/i18n/use-t';
 
 interface BottomNavigationProps {
   onMenuClick: () => void;
@@ -41,6 +42,7 @@ export const BottomNavigation = memo(function BottomNavigation({
 }: BottomNavigationProps) {
   const pathname = usePathname();
   const { collapsed, hideable, setCollapsed } = useNavStore();
+  const { t } = useT();
 
   const isHomeActive = pathname === '/';
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
@@ -100,7 +102,7 @@ export const BottomNavigation = memo(function BottomNavigation({
             <NavItem
               active={false}
               onClick={onMenuClick}
-              label="Меню"
+              label={t('nav.menu')}
               icon={<Menu size={19} className="stroke-[2]" />}
             />
 
@@ -108,14 +110,14 @@ export const BottomNavigation = memo(function BottomNavigation({
             <NavItem
               active={isBonusesActive}
               onClick={onBonusesClick}
-              label="Бонусы"
+              label={t('nav.bonuses')}
               icon={<Sparkles size={19} className="stroke-[2]" />}
             />
 
             {/* Center Primary Action — Enlarged Neutral Liquid Glass Button */}
             <button
               onClick={onPlayClick}
-              aria-label="Главная"
+              aria-label={t('nav.home')}
               className="relative -top-3.5 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-150 z-10 shrink-0"
             >
               {/* Pure Neutral Liquid Glass Container (No Color Tint) */}
@@ -141,7 +143,7 @@ export const BottomNavigation = memo(function BottomNavigation({
                 </div>
               </div>
               <span className="mt-0.5 font-roobert text-[10px] font-bold text-frost-white tracking-tight opacity-90">
-                Игры
+                {t('nav.games')}
               </span>
             </button>
 
@@ -149,7 +151,7 @@ export const BottomNavigation = memo(function BottomNavigation({
             <NavItem
               active={isPartnerActive}
               onClick={onPartnerClick}
-              label="Партнёрам"
+              label={t('nav.partner')}
               icon={<Users size={19} className="stroke-[2]" />}
             />
 
@@ -157,7 +159,7 @@ export const BottomNavigation = memo(function BottomNavigation({
             <NavItem
               active={isProfileActive}
               onClick={onProfileClick}
-              label="Профиль"
+              label={t('nav.profile')}
               icon={<User size={19} className="stroke-[2]" />}
             />
           </motion.nav>

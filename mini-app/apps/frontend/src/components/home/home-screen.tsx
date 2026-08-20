@@ -25,6 +25,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Home Screen — Apple & Taste-Skill Premium Casino Menu (V3)
@@ -171,6 +172,7 @@ interface HeroContest {
 }
 
 export function HomeScreen() {
+  const { t } = useT();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { fetchBalance } = useBalance();
@@ -324,7 +326,7 @@ export function HomeScreen() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white selection:bg-white/20">
-      <GameTopBar title="Главная" width="wide" />
+      <GameTopBar title={t('nav.home')} width="wide" />
 
       <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-3 pb-32 flex flex-col gap-5`}>
         {/* Live Casino Social Proof Ticker */}
