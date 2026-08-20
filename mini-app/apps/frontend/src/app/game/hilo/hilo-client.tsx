@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuthStore } from '@/store/auth-store';
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { apiClient } from '@/lib/api/client';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -32,10 +32,12 @@ interface HiloState {
 export function HiloClient() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'hilo');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    currencyLabel,
+  } = useActiveBalance('hilo');
 
   const [state, setState] = useState<HiloState | null>(null);
   const [betAmount, setBetAmount] = useState<string>('10');
@@ -126,8 +128,12 @@ export function HiloClient() {
       toast.warn('Введите корректную сумму ставки');
       return;
     }
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     if (amount > activeBalance) {
-      toast.warn(`Недостаточно средств — у вас ${activeBalance.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`);
+      toast.warn(`Недостаточно средств — у вас ${activeBalance.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`);
       return;
     }
     try {
@@ -216,6 +222,13 @@ export function HiloClient() {
   const isPlaying = state?.status === 'playing';
   const isBusted = state?.status === 'busted';
   const isCashed = state?.status === 'cashed_out';
+
+  const parsedBet = parseFloat(betAmount);
+  const isBetValid = Number.isFinite(parsedBet) && parsedBet > 0;
+  const canAfford = isBalanceReady && isBetValid && parsedBet <= activeBalance;
+  // Only the fresh-round button depends on funds; "Новая игра" just resets.
+  const isStartingRound = !isPlaying && !isBusted && !isCashed;
+  const isShortOnFunds = isStartingRound && isBalanceReady && isBetValid && !canAfford;
 
   const currentRank = state?.currentCard?.rank || 1;
   const higherProb = ((14 - currentRank) / 13) * 100;
@@ -351,12 +364,20 @@ export function HiloClient() {
               <span className="font-roobert text-[12px] uppercase tracking-[0.2em] text-white/50">
                 Сумма ставки
               </span>
-              <span className="font-roobert text-[12px] text-frost-white">
-                {isPlaying ? `${currentBet.toFixed(2)} zł` : `${activeBalance.toFixed(2)} zł`}
+              <span
+                className={`font-roobert text-[12px] tabular-nums ${
+                  isShortOnFunds ? 'text-[#ff8a76]' : 'text-frost-white'
+                }`}
+              >
+                {isPlaying
+                  ? `${currentBet.toFixed(2)} zł`
+                  : !isBalanceReady
+                    ? 'Загрузка…'
+                    : `${activeBalance.toFixed(2)} ${currencyLabel}`}
               </span>
             </div>
             
-            <div className={`flex items-center justify-between rounded-pill border transition-colors ${isPlaying ? 'border-white/5 bg-white/[0.02] opacity-50' : 'border-white/15 bg-white/[0.04] focus-within:border-white/30'}`}>
+            <div className={`flex items-center justify-between rounded-pill border transition-colors ${isPlaying ? 'border-white/5 bg-white/[0.02] opacity-50' : isShortOnFunds ? 'border-[#ff8a76]/60 bg-[#ff8a76]/[0.06]' : 'border-white/15 bg-white/[0.04] focus-within:border-white/30'}`}>
               <div className="flex items-center pl-4 w-1/2">
                 <span className="text-white/40 font-roobert mr-1">zł</span>
                 <input
@@ -394,10 +415,20 @@ export function HiloClient() {
             {!isPlaying ? (
               <button
                 onClick={isBusted || isCashed ? handleSwap : handleStart}
-                disabled={!isStateLoaded || loading}
+                disabled={
+                  !isStateLoaded ||
+                  loading ||
+                  (isStartingRound && (!isBalanceReady || !canAfford))
+                }
                 className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                {isBusted || isCashed ? 'Новая игра' : 'Ставка'}
+                {isBusted || isCashed
+                  ? 'Новая игра'
+                  : !isBalanceReady
+                    ? 'Загрузка баланса'
+                    : isShortOnFunds
+                      ? 'Недостаточно средств'
+                      : 'Ставка'}
               </button>
             ) : (
               <button
@@ -457,7 +488,7 @@ export function HiloClient() {
         </section>
 
         {/* Live History Ticker */}
-        <HiloHistory entries={history} currency={tBal ? '🏆' : 'zł'} />
+        <HiloHistory entries={history} currency={currencyLabel} />
       </div>
       
       {/* Hide scrollbar styles injected */}
