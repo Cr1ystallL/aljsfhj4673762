@@ -14,6 +14,8 @@ export interface CasePrize {
   amount: number;
   weight: number;
   color: string;
+  /** Served by the backend; prizes of a tier always add up to exactly 100. */
+  probabilityPercent?: number;
 }
 
 export interface CaseTier {
