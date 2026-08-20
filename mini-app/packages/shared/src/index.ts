@@ -6,3 +6,4 @@
 export * from './types';
 export * from './constants';
 export * from './utils/validation';
+export * from './utils/probability';
