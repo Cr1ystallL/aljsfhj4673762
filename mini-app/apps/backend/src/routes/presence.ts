@@ -28,6 +28,18 @@ const PRESENCE_KEY = (userId: string) => `presence:${userId}`;
 const PRESENCE_TTL_SECONDS = 45;
 const MAX_PATHNAME_LENGTH = 200;
 
+/** Public count of live Mini App sessions (Redis TTL 45s). No PII. */
+export async function countOnlinePresence(): Promise<number> {
+  try {
+    const client = redisClient.getClient();
+    const keys = await client.keys('presence:*');
+    return keys.length;
+  } catch (err) {
+    logger.warn({ err }, 'Presence count failed');
+    return 0;
+  }
+}
+
 interface PresenceRecord {
   userId: string;
   name: string;

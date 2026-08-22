@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+/**
+ * Proxy /api/balance/* to Fastify so same-origin cookie auth works
+ * for lobby hooks (catch-up) and any other balance GET/POST.
+ */
+function backendBaseUrl(): string {
+  return process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
+}
+
+export const dynamic = 'force-dynamic';
+
+async function proxy(
+  request: NextRequest,
+  slug: string[] | undefined,
+  method: 'GET' | 'POST'
+) {
+  const pathSeg = slug?.length ? slug.join('/') : '';
+  const fullUrl = `${backendBaseUrl()}/api/balance${
+    pathSeg ? `/${pathSeg}` : ''
+  }${request.nextUrl.search}`;
+
+  const headers: Record<string, string> = {};
+  const cookie = request.headers.get('cookie');
+  if (cookie) headers['cookie'] = cookie;
+
+  let body: string | undefined;
+  if (method === 'POST') {
+    headers['content-type'] =
+      request.headers.get('content-type') || 'application/json';
+    body = await request.text();
+  }
+
+  const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
+  const text = await res.text();
+  return new NextResponse(text, {
+    status: res.status,
+    headers: {
+      'content-type': res.headers.get('content-type') || 'application/json',
+    },
+  });
+}
+
+export async function GET(
+  request: NextRequest,
+  ctx: { params: Promise<{ slug?: string[] }> }
+) {
+  const { slug } = await ctx.params;
+  return proxy(request, slug, 'GET');
+}
+
+export async function POST(
+  request: NextRequest,
+  ctx: { params: Promise<{ slug?: string[] }> }
+) {
+  const { slug } = await ctx.params;
+  return proxy(request, slug, 'POST');
+}
