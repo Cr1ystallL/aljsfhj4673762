@@ -22,7 +22,7 @@ export function HomeLuckFeed({ items }: { items: LuckFeedItem[] }) {
   const loop = items.length >= 4 && !reduceMotion ? [...items, ...items] : items;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-midnight-canvas/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
+    <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#0a0c10] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-midnight-canvas to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-midnight-canvas to-transparent" />
       <div

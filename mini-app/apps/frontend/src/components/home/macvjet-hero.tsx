@@ -236,7 +236,7 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.28]"
         style={{
-          backgroundImage: "url(/MacvJet16-9.png)",
+          backgroundImage: "url(/tiles/macvjet-hero.webp)",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -278,7 +278,7 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
           </div>
 
           {live.last != null && live.phase !== "crashed" && (
-            <div className="shrink-0 rounded-2xl bg-white/[0.06] px-2.5 py-1.5 text-right ring-1 ring-white/10 backdrop-blur-md">
+            <div className="shrink-0 rounded-2xl bg-black/45 px-2.5 py-1.5 text-right ring-1 ring-white/10">
               <div className="font-roobert text-[9px] font-semibold uppercase tracking-wider text-white/35">
                 {t("home.jetLast")}
               </div>

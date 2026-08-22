@@ -43,15 +43,15 @@ interface InAppGame {
 }
 
 const ALL_IN_APP_GAMES: InAppGame[] = [
-  { id: 'macvpot', name: 'MacvPot', bg: '/MacvPot.png', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
-  { id: 'crash', name: 'MacvJet', bg: '/MacvJet.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
-  { id: 'mines', name: 'Mines', bg: '/Mines.png', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
-  { id: 'hilo', name: 'Hi-Lo', bg: '/hilo.png', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
-  { id: 'coinflip', name: 'Coinflip', bg: '/Coinflip.png', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
-  { id: 'blackjack', name: 'Blackjack', bg: '/bj.png', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
-  { id: 'wheel', name: 'Wheel', bg: '/Wheel.png', badge: { label: 'x50', color: 'gold', Icon: Zap } },
-  { id: 'cases', name: 'Case', bg: '/case.png', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
-  { id: 'keno', name: 'Keno', bg: '/keno.png?v=2', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
+  { id: 'macvpot', name: 'MacvPot', bg: '/tiles/macvpot.webp', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
+  { id: 'crash', name: 'MacvJet', bg: '/tiles/macvjet.webp', badge: { label: 'TOP', color: 'red', Icon: Flame } },
+  { id: 'mines', name: 'Mines', bg: '/tiles/mines.webp', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
+  { id: 'hilo', name: 'Hi-Lo', bg: '/tiles/hilo.webp', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
+  { id: 'coinflip', name: 'Coinflip', bg: '/tiles/coinflip.webp', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
+  { id: 'blackjack', name: 'Blackjack', bg: '/tiles/bj.webp', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
+  { id: 'wheel', name: 'Wheel', bg: '/tiles/wheel.webp', badge: { label: 'x50', color: 'gold', Icon: Zap } },
+  { id: 'cases', name: 'Case', bg: '/tiles/case.webp', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
+  { id: 'keno', name: 'Keno', bg: '/tiles/keno.webp', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
 ];
 
 export function MenuDrawer({
@@ -139,7 +139,7 @@ export function MenuDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/80"
           />
 
           {/* Drawer panel */}
@@ -148,7 +148,7 @@ export function MenuDrawer({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas/95 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
+            className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
           >
             {/* Top Header */}
             <div className="p-4 border-b border-white/10 flex flex-col gap-3.5">
