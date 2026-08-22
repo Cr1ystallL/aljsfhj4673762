@@ -1,18 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, Dice5, Trash2, ChevronDown, Check } from 'lucide-react';
-
-import { Dice5, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { useT } from '@/i18n/use-t';
-import { Pressable } from '@/components/ui/pressable';
-import {
-  BetPanelCtaRow,
-  BetPanelShell,
-  GamePrimaryButton,
-  StakeField,
-} from '@/components/game/kit';
 
 export type KenoPhase = 'idle' | 'playing' | 'revealing';
 type KenoRisk = 'low' | 'medium' | 'high';
@@ -30,7 +22,7 @@ interface KenoBetPanelProps {
   busy: boolean;
   maxPick: number;
   activeBalance: number;
-  currency: string;
+  currency?: string;
 }
 
 const RISK_OPTIONS: Array<{ value: KenoRisk; label: string; dotColor: string }> = [
@@ -53,6 +45,7 @@ export function KenoBetPanel({
   maxPick,
   activeBalance,
 }: KenoBetPanelProps) {
+  const { t } = useT();
   const [amountStr, setAmountStr] = useState(amount.toString());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

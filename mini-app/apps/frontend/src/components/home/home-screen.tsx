@@ -172,6 +172,13 @@ export function HomeScreen() {
   const [tournaments, setTournaments] = useState<HeroTournament[] | null>(null);
   const [eventTab, setEventTab] = useState<'all' | 'tournaments' | 'contests'>('all');
 
+  const reduceMotion = useReducedMotion();
+  const splashVisible = useSplashStore((s) => s.visible);
+  const [lobbyReady, setLobbyReady] = useState(false);
+  const [skipEntrance, setSkipEntrance] = useState(false);
+  const [online, setOnline] = useState(0);
+  const crashLobby = useCrashLobby();
+
   // Dynamic live online state
   const [rawOnline, setRawOnline] = useState<number>(6);
   const [payouts24h, setPayouts24h] = useState<number>(2840);
@@ -525,6 +532,7 @@ export function HomeScreen() {
         </div>
         </EntranceBlock>
 
+        <EntranceBlock>
         {/* In-App Games Grid Only (Square, Square, Rectangle Repeating Pattern) */}
         {filteredGames.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
