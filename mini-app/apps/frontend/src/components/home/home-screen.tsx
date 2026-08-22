@@ -25,7 +25,9 @@ import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
+import type { TxKey } from '@/i18n/use-t';
 
 /**
  * Home Screen — Apple & Taste-Skill Premium Casino Menu (V3)
@@ -476,6 +478,18 @@ export function HomeScreen() {
   );
 }
 
+const GAME_TAG: Record<string, TxKey> = {
+  crash: 'home.tag.crash',
+  mines: 'home.tag.mines',
+  hilo: 'home.tag.hilo',
+  coinflip: 'home.tag.coinflip',
+  macvpot: 'home.tag.macvpot',
+  blackjack: 'home.tag.blackjack',
+  wheel: 'home.tag.wheel',
+  cases: 'home.tag.cases',
+  keno: 'home.tag.keno',
+};
+
 function GameTile({
   game,
   index,
@@ -485,19 +499,21 @@ function GameTile({
   index: number;
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useT();
   const BadgeIcon = game.badge?.Icon;
+  const tag = GAME_TAG[game.id];
 
   return (
-    <button
+    <Pressable
       onClick={() => router.push(game.href)}
-      className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas ${
+      className={`group relative overflow-hidden rounded-[20px] border border-white/10 bg-midnight-canvas ${
         game.wide ? 'col-span-2 aspect-[16/9]' : 'aspect-[5/6]'
-      } text-left active:scale-[0.97] hover:border-white/25 transition-all duration-200 shadow-lg`}
+      } text-left hover:border-white/25 shadow-lg`}
     >
       {game.bg && (
         <div
           aria-hidden
-          className="absolute inset-0 opacity-55 group-hover:opacity-75 transition-opacity duration-300"
+          className="absolute inset-0 opacity-70 group-hover:opacity-90 transition-opacity duration-300"
           style={{
             backgroundImage: `url(${game.bg})`,
             backgroundSize: 'cover',
@@ -557,12 +573,12 @@ function GameTile({
           <div className="font-roobert text-[19px] sm:text-[20px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
             {game.name}
           </div>
-          <div className="mt-0.5 font-roobert text-[10px] text-whisper-gray/90 tracking-wide uppercase">
-            Mini App Game
+          <div className="mt-0.5 font-roobert text-[10px] text-frost-white/55 tracking-[0.08em] uppercase">
+            {tag ? t(tag) : game.name}
           </div>
         </div>
       </div>
-    </button>
+    </Pressable>
   );
 }
 
@@ -697,10 +713,11 @@ function ContestHero({
 }
 
 function MacvJetHero({ onClick }: { onClick: () => void }) {
+  const { t } = useT();
   return (
-    <button
+    <Pressable
       onClick={onClick}
-      className="relative overflow-hidden rounded-2xl border border-white/15 bg-midnight-canvas text-left active:scale-[0.98] hover:border-white/30 transition-all shadow-xl"
+      className="relative overflow-hidden rounded-[20px] border border-white/15 bg-midnight-canvas text-left hover:border-white/30 shadow-xl w-full"
     >
       <div
         aria-hidden
@@ -732,15 +749,15 @@ function MacvJetHero({ onClick }: { onClick: () => void }) {
       <div className="relative px-5 py-5 sm:px-6 sm:py-6 flex flex-col gap-4">
         <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray flex items-center gap-1.5">
           <Flame size={12} className="text-red-400" />
-          Рекомендуем · Фирменная игра
+          {t('home.heroKicker')}
         </span>
         <div className="flex items-end justify-between gap-4">
           <div>
-            <div className="font-roobert text-frost-white text-[36px] sm:text-[44px] font-normal leading-none tracking-tight">
+            <div className="font-roobert text-frost-white text-[36px] sm:text-[44px] font-normal leading-none tracking-[-0.03em]">
               MacvJet
             </div>
             <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
-              Взлетай и забирай умножение до x10,000
+              {t('home.heroCrashSub')}
             </div>
           </div>
           <span className="shrink-0 w-11 h-11 rounded-xl border border-white/25 bg-white/[0.08] flex items-center justify-center backdrop-blur-md text-frost-white">
@@ -748,7 +765,7 @@ function MacvJetHero({ onClick }: { onClick: () => void }) {
           </span>
         </div>
       </div>
-    </button>
+    </Pressable>
   );
 }
 

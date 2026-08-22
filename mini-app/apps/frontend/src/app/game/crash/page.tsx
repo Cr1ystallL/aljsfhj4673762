@@ -277,6 +277,14 @@ export default function CrashGamePage() {
 
   const bettingClosed = snapshot.phase === 'starting' || snapshot.phase === 'active' || snapshot.phase === 'completed' || snapshot.phase === 'resolving';
 
+  const cashouts = useMemo(
+    () =>
+      snapshot.players
+        .filter((p) => p.status === 'cashed' && typeof p.multiplier === 'number')
+        .map((p) => ({ key: p.key, multiplier: p.multiplier as number })),
+    [snapshot.players]
+  );
+
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
@@ -298,6 +306,7 @@ export default function CrashGamePage() {
           latencyMs={snapshot.latencyMs}
           connected={snapshot.connected}
           lastCrashPoint={snapshot.lastCrashPoint}
+          cashouts={cashouts}
         />
 
         <div className="flex flex-col gap-2.5">
