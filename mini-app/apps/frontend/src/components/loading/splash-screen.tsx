@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
+import { useSplashStore } from '@/store/splash-store';
 
 /**
  * Splash Screen — first-paint surface.
@@ -84,7 +85,10 @@ export function SplashScreen({ ready }: SplashScreenProps) {
     const elapsed = Date.now() - mountedAt;
     const remainingMin = Math.max(0, MIN_TOTAL_MS - elapsed);
     const wait = Math.max(POST_READY_HOLD_MS, remainingMin);
-    const id = setTimeout(() => setVisible(false), wait);
+    const id = setTimeout(() => {
+      setVisible(false);
+      useSplashStore.getState().dismiss();
+    }, wait);
     return () => clearTimeout(id);
   }, [ready, mountedAt]);
 

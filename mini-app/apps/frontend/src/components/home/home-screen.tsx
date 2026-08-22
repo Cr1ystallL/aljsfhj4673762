@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
-  Crown,
   Flame,
   Gamepad2,
-  Gem,
-  Gift,
   Layers,
   Sparkles,
   TrendingUp,
@@ -26,6 +24,8 @@ import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { Pressable } from '@/components/ui/pressable';
 import { MacvJetHero, useCrashLobby } from '@/components/home/macvjet-hero';
+import { HomeCatchUp } from '@/components/home/home-catch-up';
+import { useSplashStore } from '@/store/splash-store';
 import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
 
@@ -69,7 +69,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Mines',
     href: '/game/mines',
     bg: '/Mines.png',
-    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
     isPopular: true,
     category: 'fast',
   },
@@ -79,7 +78,6 @@ const IN_APP_GAMES: InAppGame[] = [
     href: '/game/hilo',
     bg: '/hilo.png',
     wide: true,
-    badge: { label: 'FAST', color: 'cyan', Icon: Zap },
     category: 'fast',
   },
   {
@@ -87,7 +85,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Coinflip',
     href: '/game/coinflip',
     bg: '/Coinflip.png',
-    badge: { label: '50/50', color: 'cyan', Icon: Gem },
     category: 'fast',
   },
   {
@@ -105,7 +102,6 @@ const IN_APP_GAMES: InAppGame[] = [
     href: '/game/blackjack',
     bg: '/bj.png',
     wide: true,
-    badge: { label: 'PRO', color: 'gold', Icon: Crown },
     category: 'table',
   },
   {
@@ -123,7 +119,6 @@ const IN_APP_GAMES: InAppGame[] = [
     href: '/game/cases',
     bg: '/case.png',
     wide: true,
-    badge: { label: 'BONUS', color: 'green', Icon: Gift },
     category: 'fast',
   },
   {
@@ -131,7 +126,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Keno',
     href: '/game/keno',
     bg: '/keno.png?v=2',
-    badge: { label: 'LOTTO', color: 'purple', Icon: Layers },
     category: 'table',
   },
 ];
@@ -162,11 +156,40 @@ export function HomeScreen() {
   const [online, setOnline] = useState<number>(0);
   const [payouts24h, setPayouts24h] = useState<number>(0);
   const crashLobby = useCrashLobby(true);
+  const splashVisible = useSplashStore((s) => s.visible);
+  const reduceMotion = useReducedMotion();
+  const [lobbyReady, setLobbyReady] = useState(false);
+  const [skipEntrance, setSkipEntrance] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     void fetchBalance();
   }, [fetchBalance, isAuthenticated]);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('macv.home.entered') === '1') {
+        setSkipEntrance(true);
+        setLobbyReady(true);
+        return;
+      }
+    } catch {
+      /* private mode */
+    }
+    if (!splashVisible) {
+      setLobbyReady(true);
+      try {
+        sessionStorage.setItem('macv.home.entered', '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [splashVisible]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setLobbyReady(true), 8000);
+    return () => window.clearTimeout(id);
+  }, []);
 
   // Real lobby stats (presence + paid withdrawals) — refresh quietly
   useEffect(() => {
@@ -262,6 +285,19 @@ export function HomeScreen() {
     return eligible[Math.floor(Math.random() * eligible.length)] ?? null;
   }, [contests]);
 
+  const catchContest = useMemo(() => {
+    if (heroContest) {
+      return {
+        title: heroContest.title,
+        endsAt: heroContest.endsAt,
+        href: '/bonuses#contests',
+      };
+    }
+    const extra = contests?.find((c) => c.state === 'live' || c.state === 'scheduled');
+    if (!extra) return null;
+    return { title: extra.title, endsAt: extra.endsAt, href: '/bonuses#contests' };
+  }, [heroContest, contests]);
+
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
@@ -295,7 +331,21 @@ export function HomeScreen() {
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white selection:bg-white/20">
       <GameTopBar title={t('nav.home')} width="wide" />
 
-      <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-3 pb-32 flex flex-col gap-5`}>
+      <motion.div
+        className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-3 pb-32 flex flex-col gap-5`}
+        initial={skipEntrance ? false : 'hidden'}
+        animate={lobbyReady ? 'show' : 'hidden'}
+        variants={{
+          hidden: {},
+          show: {
+            transition: {
+              staggerChildren: reduceMotion || skipEntrance ? 0 : 0.07,
+              delayChildren: reduceMotion || skipEntrance ? 0 : 0.05,
+            },
+          },
+        }}
+      >
+        <EntranceBlock>
         {/* Presence ticker — real counts, glass chrome */}
         <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-midnight-canvas/70 px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-[0_8px_25px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
           <div className="flex items-center gap-2.5">
@@ -322,18 +372,34 @@ export function HomeScreen() {
             </div>
           )}
         </div>
+        </EntranceBlock>
 
         {isGameVisible('crash') && (
-          <MacvJetHero onOpen={() => router.push('/game/crash')} />
+          <EntranceBlock>
+            <MacvJetHero onOpen={() => router.push('/game/crash')} />
+          </EntranceBlock>
         )}
         {heroContest && (
-          <ContestHero
-            contest={heroContest}
-            onClick={() => router.push('/bonuses#contests')}
-          />
+          <EntranceBlock>
+            <ContestHero
+              contest={heroContest}
+              onClick={() => router.push('/bonuses#contests')}
+            />
+          </EntranceBlock>
+        )}
+
+        {isAuthenticated && (
+          <EntranceBlock>
+            <HomeCatchUp
+              contest={catchContest}
+              hideContest={!!heroContest}
+              onOpen={(href) => router.push(href)}
+            />
+          </EntranceBlock>
         )}
 
         {/* Search & Category Filter Section */}
+        <EntranceBlock>
         <div className="flex flex-col gap-3">
           {/* Search bar with HIGH-CONTRAST amber SVG icon */}
           <div className="relative w-full">
@@ -397,8 +463,10 @@ export function HomeScreen() {
             />
           </div>
         </div>
+        </EntranceBlock>
 
         {/* Section Label */}
+        <EntranceBlock>
         <div className="flex items-baseline justify-between px-1">
           <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-white/45">
             {activeCategory === 'all'
@@ -413,8 +481,9 @@ export function HomeScreen() {
             {t('home.gamesCount', { n: filteredGames.length })}
           </span>
         </div>
+        </EntranceBlock>
 
-        {/* In-App Games Grid Only */}
+        <EntranceBlock>
         {filteredGames.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
             <p className="font-roobert text-[14px] text-whisper-gray">
@@ -437,8 +506,9 @@ export function HomeScreen() {
             ))}
           </div>
         )}
+        </EntranceBlock>
 
-        {/* Quick Actions */}
+        <EntranceBlock>
         <div className="grid grid-cols-2 gap-3 pt-2">
           <QuickAction
             icon={<Wallet size={18} strokeWidth={1.5} />}
@@ -453,13 +523,35 @@ export function HomeScreen() {
             onClick={() => router.push('/bonuses')}
           />
         </div>
+        </EntranceBlock>
 
-        {/* Footer brand lockup */}
+        <EntranceBlock>
         <div className="pt-6 flex items-center justify-center">
           <BrandLockup size={64} />
         </div>
-      </div>
+        </EntranceBlock>
+      </motion.div>
     </main>
+  );
+}
+
+function EntranceBlock({ children }: { children: React.ReactNode }) {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.div
+      variants={{
+        hidden: { opacity: 0, y: reduceMotion ? 0 : 10 },
+        show: {
+          opacity: 1,
+          y: 0,
+          transition: reduceMotion
+            ? { duration: 0.2 }
+            : { type: 'spring', stiffness: 260, damping: 32, mass: 0.85 },
+        },
+      }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
