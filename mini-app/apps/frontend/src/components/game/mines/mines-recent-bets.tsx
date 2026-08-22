@@ -3,15 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { History } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-/**
- * Mines "Last bets" Strip — Monopo Saigon Style
- *
- * Horizontal scroller of the current player's most recent completed
- * mines bets. Each card carries the multiplier pill, payout and stake.
- * Sits directly under the bet panel so the player gets instant context
- * on how their last few rounds went.
- */
+import { useT } from '@/i18n/use-t';
 
 export interface MinesRecentBet {
   id: string;
@@ -27,18 +19,20 @@ interface MinesRecentBetsProps {
 }
 
 export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps) {
+  const { t, localeTag } = useT();
+
   return (
-    <section className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+    <section className="rounded-[20px] border border-white/12 bg-white/[0.03] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
         <History size={12} className="text-frost-white/65" strokeWidth={1.6} />
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-          Недавние ставки
+          {t('mines.recent')}
         </span>
       </div>
 
       {bets.length === 0 ? (
         <div className="px-3 py-3 text-center font-roobert text-[12px] text-whisper-gray">
-          Ваши последние раунды появятся здесь.
+          {t('mines.recentEmpty')}
         </div>
       ) : (
         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-3">
@@ -52,11 +46,11 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0 }}
-                  className="shrink-0 min-w-[120px] rounded-card border border-white/10 px-3 py-2"
+                  className="shrink-0 min-w-[120px] rounded-[14px] border border-white/10 px-3 py-2"
                   style={{
                     background: won
                       ? b.multiplier >= 5
-                        ? 'linear-gradient(135deg, rgba(255,172,46,0.16), rgba(160,224,171,0.10))'
+                        ? 'linear-gradient(135deg, rgba(255,172,46,0.16), rgba(186,230,253,0.10))'
                         : 'rgba(255,255,255,0.04)'
                       : 'rgba(165,45,37,0.10)',
                   }}
@@ -71,7 +65,7 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
                         : 'border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.16)] text-[#ff8a76]'
                     )}
                   >
-                    {won ? `x${b.multiplier.toFixed(2)}` : 'Бомба'}
+                    {won ? `x${b.multiplier.toFixed(2)}` : t('mines.bust')}
                   </div>
                   <div
                     className={cn(
@@ -80,18 +74,15 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
                     )}
                   >
                     {won ? '+' : '−'}
-                    {(won
-                      ? b.payout
-                      : b.betAmount
-                    ).toLocaleString('ru-RU', {
+                    {(won ? b.payout : b.betAmount).toLocaleString(localeTag, {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}
                     {currency}
                   </div>
                   <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                    ставка{' '}
-                    {b.betAmount.toLocaleString('ru-RU', {
+                    {t('mines.stake')}{' '}
+                    {b.betAmount.toLocaleString(localeTag, {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}

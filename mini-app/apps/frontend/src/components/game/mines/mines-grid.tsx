@@ -1,30 +1,14 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Bomb, Gem } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
+import { Pressable } from '@/components/ui/pressable';
 
 /**
- * Mines Grid — Monopo Saigon Style
- *
- * 5×5 board of pill-rounded tiles. Each cell has up to four visual states:
- *   - idle        → number 1..25, frosted glass tile, hoverable.
- *   - revealed    → diamond icon, deep-ocean tint.
- *   - safe-shown  → diamond icon, frost tint (revealed at end of round).
- *   - exploded    → bomb icon, deep-amber → red gradient.
- *   - mine-shown  → bomb icon, soft red tint.
- *
- * Optimisation note: `backdrop-blur` on every idle tile (25 layers) was
- * the single biggest GPU drain on iPhone — every paint required 25 blur
- * passes against the page background. Using `backdrop-blur-md` carries
- * a paint-rect-multiplier penalty *per layer*, so we kill it on touch
- * devices via the global media query and rely on the slightly more
- * opaque `bg-white/[0.04]` solid fill.
- *
- * The previous implementation also wrapped every cell in a `motion.button`
- * with an `animate` prop on every render. Now only the cells that just
- * resolved animate — idle cells are plain `<button>` elements.
+ * Mines field — stone tiles, glass diamond, steel mine.
+ * No Lucide gem/bomb: those read as emoji on a 5×5 board.
+ * Idle cells stay cheap (no blur, no Framer) for 25 tiles on WebView.
  */
 
 type CellState = 'idle' | 'revealed' | 'exploded' | 'mine-shown' | 'safe-shown';
@@ -38,6 +22,59 @@ interface MinesGridProps {
 }
 
 const CELLS = Array.from({ length: 25 }, (_, i) => i);
+
+function DiamondGlyph({ lit }: { lit: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      aria-hidden
+      className={lit ? 'drop-shadow-[0_0_8px_rgba(186,230,253,0.35)]' : ''}
+    >
+      <path
+        d="M12 3.2 20.2 10.4 12 20.8 3.8 10.4Z"
+        fill={lit ? 'rgba(186,230,253,0.22)' : 'rgba(255,255,255,0.06)'}
+        stroke={lit ? 'rgba(224,242,254,0.92)' : 'rgba(255,255,255,0.45)'}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 3.2 8.2 10.4h7.6Z"
+        fill={lit ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.08)'}
+        stroke="none"
+      />
+      <path
+        d="M3.8 10.4h16.4M8.2 10.4 12 20.8 15.8 10.4"
+        fill="none"
+        stroke={lit ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.18)'}
+        strokeWidth="0.9"
+      />
+    </svg>
+  );
+}
+
+function MineGlyph({ hot }: { hot: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+      <circle
+        cx="12"
+        cy="13"
+        r="6.4"
+        fill={hot ? 'rgba(40,18,16,0.95)' : 'rgba(22,22,24,0.95)'}
+        stroke={hot ? 'rgba(255,138,118,0.85)' : 'rgba(255,255,255,0.28)'}
+        strokeWidth="1.3"
+      />
+      <circle cx="10.2" cy="11.2" r="1.6" fill="rgba(255,255,255,0.14)" />
+      <path
+        d="M12 4.2v2.4M12 19.4v1.2M5.2 13H4M20 13h-1.2M7.2 7.4l-0.9-0.9M17.7 17.9l-0.9-0.9M16.8 7.4l0.9-0.9M7.2 18.6l-0.9 0.9"
+        stroke={hot ? 'rgba(255,172,46,0.75)' : 'rgba(255,255,255,0.28)'}
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 export const MinesGrid = memo(function MinesGrid({
   revealed,
@@ -57,29 +94,24 @@ export const MinesGrid = memo(function MinesGrid({
 
   return (
     <div className="relative">
-      {/* Soft Deep Ocean halo — barely visible, just enough atmosphere. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-2 rounded-card opacity-60"
+        className="pointer-events-none absolute -inset-3 rounded-[22px] opacity-70"
         style={{
           background:
-            'radial-gradient(70% 50% at 50% 100%, rgba(165, 45, 37, 0.10) 0%, rgba(255, 172, 46, 0.06) 45%, rgba(160, 224, 171, 0.04) 70%, transparent 90%)',
+            'radial-gradient(80% 60% at 50% 110%, rgba(148,163,184,0.12) 0%, transparent 70%)',
         }}
       />
-
       <div className="relative grid grid-cols-5 gap-2">
-        {CELLS.map((i) => {
-          const state = cellState(i);
-          return (
-            <Cell
-              key={i}
-              index={i}
-              state={state}
-              disabled={disabled}
-              onCellClick={onCellClick}
-            />
-          );
-        })}
+        {CELLS.map((i) => (
+          <Cell
+            key={i}
+            index={i}
+            state={cellState(i)}
+            disabled={disabled}
+            onCellClick={onCellClick}
+          />
+        ))}
       </div>
     </div>
   );
@@ -96,25 +128,30 @@ const Cell = memo(function Cell({
   disabled: boolean;
   onCellClick?: (i: number) => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const isClickable = !disabled && state === 'idle';
 
-  // Idle cells render a plain button — no framer-motion overhead at all.
-  // The reveal animation only runs on the cell that just changed state,
-  // and the cells that get exposed at end of round draw without animation.
   if (state === 'idle') {
     return (
-      <button
+      <Pressable
         type="button"
         onClick={() => isClickable && onCellClick?.(index)}
         disabled={!isClickable}
         className={cn(
-          'relative aspect-square rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-md flex items-center justify-center font-roobert font-light tabular-nums select-none text-frost-white/55 transition-colors active:bg-white/[0.08]',
+          'relative aspect-square rounded-[14px] border border-white/10 flex items-center justify-center font-roobert tabular-nums select-none text-white/40',
           !isClickable && 'cursor-default'
         )}
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(18,19,22,0.92) 48%, rgba(8,8,10,0.98) 100%)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+        }}
         aria-label={`Cell ${index + 1}`}
       >
-        <span className="relative text-[14px]">{index + 1}</span>
-      </button>
+        <span className="relative text-[13px] font-medium tracking-tight">
+          {index + 1}
+        </span>
+      </Pressable>
     );
   }
 
@@ -122,69 +159,45 @@ const Cell = memo(function Cell({
     <motion.button
       type="button"
       disabled
-      animate={state === 'revealed' ? { scale: [0.85, 1.05, 1] } : { scale: 1 }}
-      transition={
-        state === 'revealed'
-          ? { duration: 0.35, ease: 'easeOut' }
-          : { duration: 0.2 }
+      animate={
+        reduceMotion
+          ? { scale: 1, opacity: 1 }
+          : state === 'revealed'
+            ? { scale: [0.92, 1] }
+            : state === 'exploded'
+              ? { scale: [1.04, 1] }
+              : { scale: 1 }
       }
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        'relative aspect-square rounded-card border flex items-center justify-center font-roobert font-light tabular-nums select-none overflow-hidden cursor-default',
-        state === 'revealed' &&
-          'border-[rgba(160,224,171,0.45)] text-frost-white shadow-[inset_0_0_18px_rgba(160,224,171,0.18)]',
-        state === 'safe-shown' &&
-          'border-white/15 bg-white/[0.05] text-frost-white/70',
-        state === 'exploded' &&
-          'border-[rgba(165,45,37,0.6)] text-frost-white shadow-[inset_0_0_22px_rgba(165,45,37,0.35)]',
-        state === 'mine-shown' &&
-          'border-[rgba(165,45,37,0.25)] bg-[rgba(165,45,37,0.10)] text-[#ff8a76]'
+        'relative aspect-square rounded-[14px] border flex items-center justify-center select-none overflow-hidden cursor-default',
+        state === 'revealed' && 'border-sky-200/35',
+        state === 'safe-shown' && 'border-white/12 bg-white/[0.04]',
+        state === 'exploded' && 'border-rose-400/45',
+        state === 'mine-shown' && 'border-white/10 bg-[#141214]'
       )}
+      style={
+        state === 'revealed'
+          ? {
+              background:
+                'linear-gradient(160deg, rgba(186,230,253,0.20) 0%, rgba(12,16,22,0.92) 70%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16)',
+            }
+          : state === 'exploded'
+            ? {
+                background:
+                  'linear-gradient(160deg, rgba(255,172,46,0.22) 0%, rgba(80,18,16,0.92) 70%)',
+                boxShadow: 'inset 0 0 16px rgba(165,45,37,0.35)',
+              }
+            : undefined
+      }
       aria-label={`Cell ${index + 1}`}
     >
-      {state === 'revealed' && (
-        <span
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(160, 224, 171, 0.32) 0%, rgba(255, 172, 46, 0.18) 100%)',
-          }}
-        />
-      )}
-      {state === 'exploded' && (
-        <span
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(255, 172, 46, 0.28) 0%, rgba(165, 45, 37, 0.55) 100%)',
-          }}
-        />
-      )}
-
       <span className="relative">
-        {state === 'revealed' && (
-          <Gem
-            size={20}
-            strokeWidth={1.6}
-            className="text-[#a0e0ab]"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(160, 224, 171, 0.45))' }}
-          />
-        )}
-        {state === 'safe-shown' && (
-          <Gem size={18} strokeWidth={1.6} className="text-frost-white/75" />
-        )}
-        {state === 'exploded' && (
-          <Bomb
-            size={20}
-            strokeWidth={1.6}
-            className="text-[#ff8a76]"
-            style={{ filter: 'drop-shadow(0 0 8px rgba(165, 45, 37, 0.55))' }}
-          />
-        )}
-        {state === 'mine-shown' && (
-          <Bomb size={18} strokeWidth={1.6} className="text-[#ff8a76]/85" />
-        )}
+        {state === 'revealed' && <DiamondGlyph lit />}
+        {state === 'safe-shown' && <DiamondGlyph lit={false} />}
+        {state === 'exploded' && <MineGlyph hot />}
+        {state === 'mine-shown' && <MineGlyph hot={false} />}
       </span>
     </motion.button>
   );

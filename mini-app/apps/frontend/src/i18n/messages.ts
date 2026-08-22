@@ -224,6 +224,10 @@ export const ru = {
     minesRange: '1–24',
     fewerMines: 'Меньше мин',
     moreMines: 'Больше мин',
+    recent: 'Недавние ставки',
+    recentEmpty: 'Последние раунды появятся здесь',
+    stake: 'ставка',
+    bust: 'Мина',
   },
   coinflip: {
     howTo: 'Как играть в Coinflip',
@@ -541,6 +545,10 @@ export const en: Messages = {
     minesRange: '1–24',
     fewerMines: 'Fewer mines',
     moreMines: 'More mines',
+    recent: 'Recent bets',
+    recentEmpty: 'Your last rounds will show up here',
+    stake: 'stake',
+    bust: 'Mine',
   },
   coinflip: {
     howTo: 'How to play Coinflip',
@@ -856,6 +864,10 @@ export const pl: Messages = {
     minesRange: '1–24',
     fewerMines: 'Mniej min',
     moreMines: 'Więcej min',
+    recent: 'Ostatnie zakłady',
+    recentEmpty: 'Twoje ostatnie rundy pojawią się tutaj',
+    stake: 'stawka',
+    bust: 'Mina',
   },
   coinflip: {
     howTo: 'Jak grać w Coinflip',
