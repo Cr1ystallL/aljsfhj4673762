@@ -275,6 +275,7 @@ export const ru = {
     profitLower: 'Прибыль, если ниже',
     higher: 'Выше',
     lower: 'Ниже',
+    deck: 'Колода',
   },
   cases: {
     title: 'Кейсы',
@@ -596,6 +597,7 @@ export const en: Messages = {
     profitLower: 'Profit if lower',
     higher: 'Higher',
     lower: 'Lower',
+    deck: 'Deck',
   },
   cases: {
     title: 'Cases',
@@ -915,6 +917,7 @@ export const pl: Messages = {
     profitLower: 'Zysk, jeśli niżej',
     higher: 'Wyżej',
     lower: 'Niżej',
+    deck: 'Talia',
   },
   cases: {
     title: 'Skrzynki',

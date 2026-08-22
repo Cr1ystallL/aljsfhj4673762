@@ -353,7 +353,7 @@ export default function CoinflipGamePage() {
         />
 
         {/* Hero — coin centre stage, then round/multiplier plate, then side picks */}
-        <section className="relative rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 pt-6 pb-4 flex flex-col items-center gap-4 overflow-hidden">
+        <section className="relative rounded-[20px] border border-white/12 bg-white/[0.03] px-4 pt-7 pb-4 flex flex-col items-center gap-4 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
           {/* Atmospheric backdrop */}
           <div
             aria-hidden

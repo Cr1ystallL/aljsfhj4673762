@@ -1,35 +1,19 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import type { CoinSide } from '@/lib/games/coinflip/types';
 import { cn } from '@/lib/utils';
 
 /**
- * Coin — Monopo Saigon Style
- *
- * The protagonist of the coinflip screen. Two states:
- *   - idle              → static coin showing the requested side.
- *   - flipping (flipKey changes) → 8-rotation Y-axis spin then settles
- *                          on the resolved side.
- *
- * Faces use the brand artwork shipped in `/public`:
- *   - HEADS → /CoinFlip_Desert.png
- *   - TAILS → /CoinFlip_Reshka.png
- *
- * The settled side is communicated via the `face` prop. When the parent
- * wants to play a flip animation, it bumps `flipKey` and updates `face`
- * to the final side; the component handles the spin internally.
- *
- * Note: we use plain `<img>` rather than `next/image` because the
- * production server is not running Sharp, and `next/image` with `fill`
- * inside a SSR-rendered component otherwise crashes the Next runtime.
+ * One coin in the middle of the table.
+ * Rotation is derived from flipKey so a new toss interrupts the last
+ * spring instead of remounting the mesh.
  */
 
 interface CoinflipCoinProps {
   face: CoinSide;
-  /** Bump this to trigger a fresh flip animation. */
+  /** Increments on every toss — drives accumulated spin. */
   flipKey: number;
-  /** True while the parent is awaiting a server round resolution. */
   flipping?: boolean;
   className?: string;
 }
@@ -40,62 +24,83 @@ export function CoinflipCoin({
   flipping = false,
   className,
 }: CoinflipCoinProps) {
-  return (
-    <div className={cn('relative w-44 h-44 sm:w-52 sm:h-52', className)}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={flipKey}
-          initial={flipping ? { rotateY: 0, scale: 0.96 } : { rotateY: 0, scale: 1 }}
-          animate={
-            flipping
-              ? {
-                  rotateY: [0, 360, 720, 1080, 1440, 1800, 2160 + (face === 'tails' ? 180 : 0)],
-                  scale: [1, 1.04, 0.98, 1.04, 0.98, 1.04, 1],
-                }
-              : { rotateY: face === 'tails' ? 180 : 0, scale: 1 }
-          }
-          transition={
-            flipping
-              ? { duration: 1.2, ease: [0.4, 0, 0.2, 1] }
-              : { duration: 0.35, ease: 'easeOut' }
-          }
-          style={{ transformStyle: 'preserve-3d' }}
-          className="relative w-full h-full"
-        >
-          {/* HEADS face — front */}
-          <div
-            className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
-            style={{
-              backfaceVisibility: 'hidden',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/CoinFlip_Desert.png"
-              alt="Heads"
-              className="w-full h-full object-cover scale-[1.18]"
-              draggable={false}
-            />
-          </div>
+  const reduceMotion = useReducedMotion();
+  const rotateY = flipKey * 1800 + (face === 'tails' ? 180 : 0);
 
-          {/* TAILS face — back */}
-          <div
-            className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
-            style={{
-              transform: 'rotateY(180deg)',
-              backfaceVisibility: 'hidden',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/CoinFlip_Reshka.png"
-              alt="Tails"
-              className="w-full h-full object-cover scale-[1.18]"
-              draggable={false}
-            />
-          </div>
-        </motion.div>
-      </AnimatePresence>
+  return (
+    <div className={cn('relative w-52 h-52 sm:w-60 sm:h-60', className)}>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-8 rounded-full opacity-70"
+        style={{
+          background:
+            'radial-gradient(circle, rgba(255,172,46,0.18) 0%, rgba(255,255,255,0.04) 42%, transparent 70%)',
+        }}
+      />
+      <motion.div
+        animate={
+          reduceMotion
+            ? { rotateY: face === 'tails' ? 180 : 0, scale: 1 }
+            : {
+                rotateY,
+                scale: flipping ? 1.04 : 1,
+              }
+        }
+        transition={
+          reduceMotion
+            ? { duration: 0.2 }
+            : flipping
+              ? { type: 'spring', visualDuration: 1.12, bounce: 0.12 }
+              : { type: 'spring', stiffness: 220, damping: 26, mass: 0.85 }
+        }
+        style={{ transformStyle: 'preserve-3d' }}
+        className="relative h-full w-full"
+      >
+        <CoinFace src="/CoinFlip_Desert.png" alt="Heads" />
+        <CoinFace
+          src="/CoinFlip_Reshka.png"
+          alt="Tails"
+          back
+        />
+      </motion.div>
+    </div>
+  );
+}
+
+function CoinFace({
+  src,
+  alt,
+  back = false,
+}: {
+  src: string;
+  alt: string;
+  back?: boolean;
+}) {
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden rounded-full"
+      style={{
+        transform: back ? 'rotateY(180deg)' : undefined,
+        backfaceVisibility: 'hidden',
+        boxShadow:
+          'inset 0 0 0 2px rgba(255,255,255,0.22), inset 0 -10px 18px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.45)',
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className="h-full w-full scale-[1.16] object-cover"
+        draggable={false}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-full"
+        style={{
+          background:
+            'linear-gradient(160deg, rgba(255,255,255,0.28) 0%, transparent 38%, transparent 62%, rgba(0,0,0,0.28) 100%)',
+        }}
+      />
     </div>
   );
 }
