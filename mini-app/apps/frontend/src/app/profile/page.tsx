@@ -5,18 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy,
   Check,
-  Coins,
   Dice5,
-  Trophy,
   ChevronRight,
   Wallet,
   HelpCircle,
   X,
   Shield,
   Clock,
-  CheckCircle2,
   ArrowUpRight,
-  Sparkles,
 } from 'lucide-react';
 import { PageTransition } from '@/components/ui/page-transition';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -27,6 +23,8 @@ import { useAuthStore } from '@/store/auth-store';
 import { useRouter } from 'next/navigation';
 import { useIsAdmin } from '@/lib/admin-probe';
 import { LanguageSwitcher } from '@/components/profile/language-switcher';
+import { ProfileTrophyShelf } from '@/components/profile/profile-trophy-shelf';
+import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 
@@ -94,7 +92,7 @@ export default function ProfilePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
-            className="relative overflow-hidden rounded-[32px] border border-white/12 bg-[#0c0d0f] shadow-[0_24px_60px_rgba(0,0,0,0.95)]"
+            className="relative overflow-hidden rounded-[20px] border border-white/12 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl"
           >
             <LanguageSwitcher className="absolute top-3 right-3 z-10" />
             {/* Pure Black User Photo Backdrop (No Blue Tint) */}
@@ -158,10 +156,9 @@ export default function ProfilePage() {
 
               {/* Telegram ID Copy Button */}
               {user?.telegramId !== undefined && (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
+                <Pressable
                   onClick={handleCopyId}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 active:scale-95 transition-all shadow-sm"
+                  className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04]"
                 >
                   <span className="font-roobert text-[12px] font-medium text-whisper-gray tabular-nums">
                     #{user.telegramId}
@@ -184,15 +181,13 @@ export default function ProfilePage() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.button>
+                </Pressable>
               )}
 
               {/* Elevated Obsidian Balance Card */}
-              <motion.div
-                whileHover={{ scale: 1.01, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+              <Pressable
                 onClick={() => router.push('/balance')}
-                className="mt-5 w-full p-4 rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.06] via-white/[0.03] to-white/[0.01] backdrop-blur-xl flex items-center justify-between shadow-xl cursor-pointer hover:border-white/25 transition-all group"
+                className="mt-5 w-full p-4 rounded-[16px] border border-white/12 bg-white/[0.04] flex items-center justify-between shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-inner">
@@ -216,10 +211,10 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray group-hover:text-white group-hover:bg-white/10 transition-all">
+                <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray">
                   <ChevronRight size={22} strokeWidth={2.2} />
                 </div>
-              </motion.div>
+              </Pressable>
 
               {/* Active Wager Progress Section */}
               {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
@@ -237,7 +232,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-roobert text-[12px] font-bold text-white tabular-nums">
-                        {balance.wagerProgress.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} zł
+                        {balance.wagerProgress.toLocaleString(localeTag, { maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł
                       </span>
                       <span className="text-[10px] font-bold text-white px-2 py-0.5 rounded-md bg-white/10 border border-white/15 tabular-nums">
                         {wagerProgressPercent.toFixed(0)}%
@@ -258,43 +253,15 @@ export default function ProfilePage() {
             </div>
           </motion.section>
 
-          {/* Key Gaming Stats (2x2 Grid) */}
-          <section className="grid grid-cols-2 gap-2.5">
-            <StatTile
-              icon={<Dice5 size={16} className="text-white/80" strokeWidth={1.8} />}
-              label={t('profile.totalBets')}
-              value={stats.totalBets.toLocaleString(localeTag)}
-              suffix={`(${stats.totalWagered.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })} zł)`}
-            />
-            <StatTile
-              icon={<Coins size={16} className="text-white/80" strokeWidth={1.8} />}
-              label={t('profile.totalWon')}
-              value={`${stats.totalWon.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })} zł`}
-            />
-            <StatTile
-              icon={<Trophy size={16} className="text-white/80" strokeWidth={1.8} />}
-              label={t('profile.maxWin')}
-              value={`${stats.maxWin.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })} zł`}
-            />
-            <StatTile
-              icon={<Sparkles size={16} className="text-white/80" strokeWidth={1.8} />}
-              label={t('profile.maxMult')}
-              value={
-                stats.maxMultiplier > 0
-                  ? `x${stats.maxMultiplier.toFixed(2)}`
-                  : '—'
-              }
-            />
-          </section>
+          <ProfileTrophyShelf
+            stats={{
+              totalBets: stats.totalBets,
+              totalWon: stats.totalWon,
+              maxWin: stats.maxWin,
+              maxMultiplier: stats.maxMultiplier,
+              favorite: stats.favorite,
+            }}
+          />
 
           {/* Recent Bets Section */}
           <section className="mt-1">
@@ -306,7 +273,10 @@ export default function ProfilePage() {
                 </span>
               </div>
               <span className="font-roobert text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tracking-wider">
-                {Math.min(transactions.length, 7)} из {transactions.length}
+                {t('profile.shownOf', {
+                  n: Math.min(transactions.length, 7),
+                  total: transactions.length,
+                })}
               </span>
             </div>
 
@@ -439,6 +409,7 @@ interface DerivedStats {
   totalWon: number;
   maxWin: number;
   maxMultiplier: number;
+  favorite: ReturnType<typeof resolveGameKey> | null;
   bets: BetRowData[];
 }
 
@@ -504,68 +475,49 @@ function deriveStats(transactions: Array<any>): DerivedStats {
     });
   }
 
+  const counts = new Map<BetRowData['game'], number>();
+  for (const b of bets) {
+    if (b.game === 'unknown') continue;
+    counts.set(b.game, (counts.get(b.game) ?? 0) + 1);
+  }
+  let favorite: BetRowData['game'] | null = null;
+  let favoriteN = 0;
+  for (const [game, n] of counts) {
+    if (n > favoriteN) {
+      favorite = game;
+      favoriteN = n;
+    }
+  }
+
   return {
     totalBets: bets.length,
     totalWagered: bets.reduce((acc, b) => acc + b.stake, 0),
     totalWon,
     maxWin,
     maxMultiplier,
+    favorite,
     bets,
   };
 }
 
 /* -------------------------------------------------------------- subcomponents */
 
-function StatTile({
-  icon,
-  label,
-  value,
-  suffix,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  suffix?: string;
-}) {
-  return (
-    <motion.div 
-      whileHover={{ y: -2 }}
-      transition={{ type: 'spring', bounce: 0.2 }}
-      className="rounded-[22px] border border-white/10 bg-[#0c0d0f] p-3.5 shadow-lg flex flex-col justify-between"
-    >
-      <div className="flex items-center gap-2">
-        <div className="p-1.5 rounded-xl border border-white/10 bg-white/[0.05] flex items-center justify-center shrink-0">
-          {icon}
-        </div>
-        <span className="text-[10px] uppercase font-semibold tracking-[0.18em] text-whisper-gray truncate font-roobert">
-          {label}
-        </span>
-      </div>
-      <div className="mt-2.5 font-roobert text-[18.5px] font-medium text-white tabular-nums tracking-tight leading-none">
-        {value}
-        {suffix && (
-          <span className="block mt-1 font-roobert text-[11px] font-normal text-whisper-gray/70 tabular-nums">
-            {suffix}
-          </span>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
 function BetRow({ row, index }: { row: BetRowData; index: number }) {
-  const dateLabel = row.date.toLocaleString('ru-RU', {
+  const { t, localeTag } = useT();
+  const dateLabel = row.date.toLocaleString(localeTag, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
+  const amount = row.stake.toLocaleString(localeTag, {
+    maximumFractionDigits: 2,
+  });
 
   const netLabel =
     row.outcome === 'pending'
       ? '…'
-      : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString('ru-RU', {
-          minimumFractionDigits: 0,
+      : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString(localeTag, {
           maximumFractionDigits: 2,
         })} zł`;
 
@@ -583,14 +535,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
           {row.gameLabel}
         </div>
         <div className="font-roobert text-[11.5px] text-whisper-gray/70 tabular-nums">
-          {dateLabel} · ставка{' '}
-          <span className="text-white/90">
-            {row.stake.toLocaleString('ru-RU', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 2,
-            })}{' '}
-            zł
-          </span>
+          {t('profile.stakeAt', { date: dateLabel, amount })}
         </div>
       </div>
 
