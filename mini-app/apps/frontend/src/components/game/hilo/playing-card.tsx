@@ -97,15 +97,15 @@ export function PlayingCard({
 
   const CardBody = (
     <div
-      className={`relative flex flex-col justify-between rounded-xl bg-white p-3 shadow-xl ring-1 ring-black/10 overflow-hidden ${
+      className={`relative w-full h-full flex flex-col justify-between rounded-2xl bg-white p-3 sm:p-3.5 shadow-2xl ring-1 ring-black/10 overflow-hidden ${
         faded ? 'opacity-50 blur-[0.5px] scale-90 grayscale-[0.2]' : 'scale-100'
-      } ${colorClass} ${className} transition-all duration-300`}
+      } ${colorClass} transition-all duration-300`}
     >
       <div className="flex flex-col items-center self-start leading-none">
-        <span className="text-2xl font-bold font-roobert tracking-tighter">
+        <span className="text-2xl sm:text-3xl font-bold font-roobert tracking-tighter">
           {rankName}
         </span>
-        <SuitIcon suit={card.suit} className="w-5 h-5 mt-1" />
+        <SuitIcon suit={card.suit} className="w-5 h-5 sm:w-6 sm:h-6 mt-1" />
       </div>
 
       <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
@@ -122,10 +122,10 @@ export function PlayingCard({
       </div>
 
       <div className="flex flex-col items-center self-end leading-none rotate-180">
-        <span className="text-2xl font-bold font-roobert tracking-tighter">
+        <span className="text-2xl sm:text-3xl font-bold font-roobert tracking-tighter">
           {rankName}
         </span>
-        <SuitIcon suit={card.suit} className="w-5 h-5 mt-1" />
+        <SuitIcon suit={card.suit} className="w-5 h-5 sm:w-6 sm:h-6 mt-1" />
       </div>
     </div>
   );
@@ -138,12 +138,12 @@ export function PlayingCard({
         initial="initial"
         animate="animate"
         exit="exit"
-        className="absolute"
+        className={className}
       >
         {CardBody}
       </motion.div>
     );
   }
 
-  return CardBody;
+  return <div className={className}>{CardBody}</div>;
 }

@@ -169,6 +169,21 @@ interface HeroContest {
   bannerUrl: string | null;
 }
 
+interface HeroTournament {
+  id: string;
+  title: string;
+  description?: string;
+  gameType: string;
+  prizePool: number;
+  winnersCount: number;
+  entryFee: number;
+  startsAt: number;
+  endsAt: number;
+  joined?: boolean;
+  live?: boolean;
+  bannerUrl?: string | null;
+}
+
 export function HomeScreen() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -180,6 +195,8 @@ export function HomeScreen() {
     hidden: Record<string, boolean>;
   } | null>(null);
   const [contests, setContests] = useState<HeroContest[] | null>(null);
+  const [tournaments, setTournaments] = useState<HeroTournament[] | null>(null);
+  const [eventTab, setEventTab] = useState<'all' | 'tournaments' | 'contests'>('all');
 
   // Dynamic live online state
   const [rawOnline, setRawOnline] = useState<number>(6);
@@ -256,6 +273,7 @@ export function HomeScreen() {
     };
   }, [isAuthenticated]);
 
+  // Fetch active contests
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
@@ -281,15 +299,45 @@ export function HomeScreen() {
     };
   }, [isAuthenticated]);
 
-  const heroContest = useMemo<HeroContest | null>(() => {
-    if (!contests || contests.length === 0) return null;
-    const eligible = contests.filter(
+  // Fetch active tournaments
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/tournaments', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (!cancelled) setTournaments([]);
+          return;
+        }
+        const json = await res.json();
+        if (cancelled) return;
+        setTournaments(Array.isArray(json.tournaments) ? json.tournaments : []);
+      } catch {
+        if (!cancelled) setTournaments([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  const activeTournaments = useMemo(() => {
+    if (!tournaments) return [];
+    return tournaments.filter((t) => t.live || t.endsAt > Date.now());
+  }, [tournaments]);
+
+  const activeContests = useMemo(() => {
+    if (!contests) return [];
+    return contests.filter(
       (c) =>
         (c.visibility === 'public' || c.visibility === 'global') &&
-        (c.state === 'live' || c.state === 'scheduled')
+        (c.state === 'live' || c.state === 'scheduled') &&
+        c.endsAt > Date.now()
     );
-    if (eligible.length === 0) return null;
-    return eligible[Math.floor(Math.random() * eligible.length)] ?? null;
   }, [contests]);
 
   const isGameVisible = (gameId: string) => {
@@ -345,17 +393,13 @@ export function HomeScreen() {
           </div>
         </div>
 
-        {/* Hero Section — Contest or MacvJet fallback */}
-        {heroContest ? (
-          <ContestHero
-            contest={heroContest}
-            onClick={() => router.push('/bonuses#contests')}
-          />
-        ) : (
-          isGameVisible('crash') && (
-            <MacvJetHero onClick={() => router.push('/game/crash')} />
-          )
-        )}
+        {/* Featured Events Showcase (Tournaments, Contests, or Hero Game) */}
+        <ActiveEventsShowcase
+          tournaments={activeTournaments}
+          contests={activeContests}
+          router={router}
+          showMacvJet={isGameVisible('crash')}
+        />
 
         {/* Search & Category Filter Section */}
         <div className="flex flex-col gap-3">
@@ -438,7 +482,7 @@ export function HomeScreen() {
           </span>
         </div>
 
-        {/* In-App Games Grid Only */}
+        {/* In-App Games Grid Only (Square, Square, Rectangle Repeating Pattern) */}
         {filteredGames.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
             <p className="font-roobert text-[14px] text-whisper-gray">
@@ -456,9 +500,18 @@ export function HomeScreen() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {filteredGames.map((g, i) => (
-              <GameTile key={g.id} game={g} index={i} router={router} />
-            ))}
+            {filteredGames.map((g, i) => {
+              const isRectangle = i % 3 === 2;
+              return (
+                <GameTile
+                  key={g.id}
+                  game={g}
+                  index={i}
+                  isRectangle={isRectangle}
+                  router={router}
+                />
+              );
+            })}
           </div>
         )}
 
@@ -490,10 +543,12 @@ export function HomeScreen() {
 function GameTile({
   game,
   index,
+  isRectangle,
   router,
 }: {
   game: InAppGame;
   index: number;
+  isRectangle: boolean;
   router: ReturnType<typeof useRouter>;
 }) {
   const BadgeIcon = game.badge?.Icon;
@@ -502,7 +557,7 @@ function GameTile({
     <button
       onClick={() => router.push(game.href)}
       className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas ${
-        game.wide ? 'col-span-2 aspect-[16/9]' : 'aspect-[5/6]'
+        isRectangle ? 'col-span-2 aspect-[16/7] sm:aspect-[16/6]' : 'aspect-square'
       } text-left active:scale-[0.97] hover:border-white/25 transition-all duration-200 shadow-lg`}
     >
       {game.bg && (
@@ -522,8 +577,9 @@ function GameTile({
         aria-hidden
         className="absolute inset-0"
         style={{
-          background:
-            'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 65%, rgba(0,0,0,0.85) 100%)',
+          background: isRectangle
+            ? 'linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.50) 50%, rgba(0,0,0,0.80) 100%)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.50) 60%, rgba(0,0,0,0.90) 100%)',
         }}
       />
 
@@ -538,15 +594,17 @@ function GameTile({
         }}
       />
 
-      <div className="relative h-full w-full p-4 flex flex-col justify-between z-10">
-        <div className="flex items-start justify-between gap-2">
-          <span className="w-10 h-10 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
-            <GameIcon game={game.id} size={20} strokeWidth={1.5} />
-          </span>
+      <div className={`relative h-full w-full ${isRectangle ? 'p-4 sm:p-5 flex items-center justify-between' : 'p-3.5 sm:p-4 flex flex-col justify-between'} z-10`}>
+        <div className={`flex ${isRectangle ? 'flex-col justify-center' : 'items-start justify-between w-full'} gap-2`}>
+          {!isRectangle && (
+            <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
+              <GameIcon game={game.id} size={18} strokeWidth={1.5} />
+            </span>
+          )}
 
           {game.badge && (
             <span
-              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 self-start ${
                 game.badge.color === 'red'
                   ? 'border-red-500/30 bg-red-500/20 text-red-300'
                   : game.badge.color === 'gold'
@@ -562,16 +620,33 @@ function GameTile({
               <span>{game.badge.label}</span>
             </span>
           )}
+
+          {isRectangle && (
+            <div className="mt-1">
+              <div className="font-roobert text-[22px] sm:text-[26px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
+                {game.name}
+              </div>
+              <div className="mt-0.5 font-roobert text-[10px] text-whisper-gray/90 tracking-wider uppercase">
+                Фирменная игра · Играть
+              </div>
+            </div>
+          )}
         </div>
 
-        <div>
-          <div className="font-roobert text-[19px] sm:text-[20px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
-            {game.name}
+        {!isRectangle ? (
+          <div>
+            <div className="font-roobert text-[16px] sm:text-[18px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors truncate">
+              {game.name}
+            </div>
+            <div className="mt-0.5 font-roobert text-[9px] sm:text-[10px] text-whisper-gray/90 tracking-wide uppercase">
+              Mini App
+            </div>
           </div>
-          <div className="mt-0.5 font-roobert text-[10px] text-whisper-gray/90 tracking-wide uppercase">
-            Mini App Game
-          </div>
-        </div>
+        ) : (
+          <span className="shrink-0 w-10 h-10 rounded-xl border border-white/20 bg-white/10 flex items-center justify-center text-frost-white group-hover:border-amber-400/40 group-hover:text-amber-300 transition-colors">
+            <ArrowRight size={18} strokeWidth={2} />
+          </span>
+        )}
       </div>
     </button>
   );
@@ -634,6 +709,145 @@ function QuickAction({
   );
 }
 
+function ActiveEventsShowcase({
+  tournaments,
+  contests,
+  router,
+  showMacvJet,
+}: {
+  tournaments: HeroTournament[];
+  contests: HeroContest[];
+  router: ReturnType<typeof useRouter>;
+  showMacvJet: boolean;
+}) {
+  const hasTournaments = tournaments.length > 0;
+  const hasContests = contests.length > 0;
+
+  if (!hasTournaments && !hasContests) {
+    if (!showMacvJet) return null;
+    return <MacvJetHero onClick={() => router.push('/game/crash')} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Event Header Strip */}
+      <div className="flex items-center justify-between px-1">
+        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-amber-300/90 flex items-center gap-1.5">
+          <Trophy size={13} className="text-[#ffac2e]" strokeWidth={2.2} />
+          Активные события
+        </span>
+        <button
+          onClick={() => router.push('/bonuses')}
+          className="font-roobert text-[11px] text-whisper-gray hover:text-frost-white flex items-center gap-1 transition-colors"
+        >
+          <span>Все события</span>
+          <ArrowRight size={12} />
+        </button>
+      </div>
+
+      {/* Events Carousel / Grid */}
+      <div className="flex flex-col gap-3">
+        {tournaments.slice(0, 2).map((t) => (
+          <TournamentHeroCard
+            key={t.id}
+            tournament={t}
+            onClick={() => router.push(`/tournaments/${t.id}`)}
+          />
+        ))}
+
+        {contests.slice(0, 2).map((c) => (
+          <ContestHero
+            key={c.id}
+            contest={c}
+            onClick={() => router.push('/bonuses#contests')}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TournamentHeroCard({
+  tournament,
+  onClick,
+}: {
+  tournament: HeroTournament;
+  onClick: () => void;
+}) {
+  const remainingMs = Math.max(0, tournament.endsAt - Date.now());
+  const remaining = formatRemainingShort(remainingMs);
+
+  return (
+    <button
+      onClick={onClick}
+      className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-midnight-canvas text-left active:scale-[0.98] hover:border-amber-500/50 transition-all shadow-xl"
+    >
+      {tournament.bannerUrl && (
+        <img
+          src={tournament.bannerUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-500"
+        />
+      )}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.92) 100%)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-60 mix-blend-screen pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(120% 100% at 100% 100%, rgba(255, 172, 46, 0.32) 0%, rgba(160, 224, 171, 0.14) 50%, transparent 80%)',
+        }}
+      />
+      <div className="relative px-5 py-4 sm:px-6 sm:py-5 flex flex-col gap-3 z-10">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/20 text-amber-300 text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md">
+            <Trophy size={11} className="text-amber-400" strokeWidth={2.2} />
+            Турнир {tournament.gameType ? `· ${tournament.gameType.toUpperCase()}` : ''}
+          </span>
+          <span className="font-roobert text-[11px] text-amber-200/90 font-medium tabular-nums flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            до конца {remaining}
+          </span>
+        </div>
+
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <div className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-semibold leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
+              {tournament.title}
+            </div>
+            <div className="mt-1 flex items-center gap-2.5 font-roobert text-[12px] text-whisper-gray tabular-nums">
+              <span>
+                Призовой фонд:{' '}
+                <span className="text-amber-300 font-bold">
+                  {tournament.prizePool.toLocaleString('ru-RU', {
+                    maximumFractionDigits: 0,
+                  })}{' '}
+                  zł
+                </span>
+              </span>
+              <span>·</span>
+              <span>
+                Взнос: {tournament.entryFee > 0 ? `${tournament.entryFee} zł` : 'Бесплатно'}
+              </span>
+            </div>
+          </div>
+          <span className="shrink-0 w-10 h-10 rounded-xl border border-amber-500/40 bg-amber-500/15 flex items-center justify-center backdrop-blur-md text-amber-300 group-hover:scale-105 transition-transform">
+            <ArrowRight size={18} strokeWidth={2.2} />
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function ContestHero({
   contest,
   onClick,
@@ -646,14 +860,14 @@ function ContestHero({
   return (
     <button
       onClick={onClick}
-      className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-midnight-canvas text-left active:scale-[0.98] hover:border-amber-500/40 transition-all shadow-xl"
+      className="group relative overflow-hidden rounded-2xl border border-purple-500/30 bg-midnight-canvas text-left active:scale-[0.98] hover:border-purple-500/50 transition-all shadow-xl"
     >
       {contest.bannerUrl ? (
         <img
           src={contest.bannerUrl}
           alt=""
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover opacity-55"
+          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-500"
         />
       ) : null}
       <div
@@ -661,7 +875,7 @@ function ContestHero({
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.85) 100%)',
+            'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.92) 100%)',
         }}
       />
       <div
@@ -669,36 +883,44 @@ function ContestHero({
         className="absolute inset-0 opacity-55 mix-blend-screen pointer-events-none"
         style={{
           background:
-            'radial-gradient(120% 100% at 100% 100%, rgba(255, 172, 46, 0.28) 0%, rgba(160, 224, 171, 0.12) 50%, transparent 80%)',
+            'radial-gradient(120% 100% at 100% 100%, rgba(168, 85, 247, 0.30) 0%, rgba(255, 172, 46, 0.16) 50%, transparent 80%)',
         }}
       />
-      <div className="relative px-5 py-5 sm:px-6 sm:py-6 flex flex-col gap-4">
-        <span className="inline-flex items-center gap-2 font-roobert text-[10px] uppercase tracking-[0.32em] text-amber-300/90">
-          <Trophy size={11} className="text-[#ffac2e]" strokeWidth={2} />
-          {contest.visibility === 'global'
-            ? 'Глобальный турнир'
-            : 'Активный конкурс'}
-        </span>
+      <div className="relative px-5 py-4 sm:px-6 sm:py-5 flex flex-col gap-3 z-10">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-purple-500/40 bg-purple-500/20 text-purple-300 text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md">
+            <Gift size={11} className="text-purple-300" strokeWidth={2.2} />
+            {contest.visibility === 'global'
+              ? 'Глобальный конкурс'
+              : 'Активный конкурс'}
+          </span>
+          <span className="font-roobert text-[11px] text-purple-200/90 font-medium tabular-nums flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            до конца {remaining}
+          </span>
+        </div>
+
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
-            <div className="font-roobert text-frost-white text-[26px] sm:text-[30px] font-normal leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+            <div className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-semibold leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-purple-200 transition-colors">
               {contest.title}
             </div>
-            <div className="mt-2 flex items-center gap-3 font-roobert text-[11px] text-whisper-gray tabular-nums">
+            <div className="mt-1 flex items-center gap-2.5 font-roobert text-[12px] text-whisper-gray tabular-nums">
               <span>
-                <span className="text-amber-300 font-semibold">
+                Призовой фонд:{' '}
+                <span className="text-purple-300 font-bold">
                   {contest.prizePool.toLocaleString('ru-RU', {
                     maximumFractionDigits: 0,
-                  })}
-                </span>{' '}
-                zł призовой фонд
+                  })}{' '}
+                  zł
+                </span>
               </span>
               <span>·</span>
-              <span>до конца {remaining}</span>
+              <span>Победителей: {contest.winnersCount}</span>
             </div>
           </div>
-          <span className="shrink-0 w-11 h-11 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-center backdrop-blur-md text-amber-300">
-            <ArrowRight size={18} strokeWidth={2} />
+          <span className="shrink-0 w-10 h-10 rounded-xl border border-purple-500/40 bg-purple-500/15 flex items-center justify-center backdrop-blur-md text-purple-300 group-hover:scale-105 transition-transform">
+            <ArrowRight size={18} strokeWidth={2.2} />
           </span>
         </div>
       </div>

@@ -45,9 +45,13 @@ export function HiloClient() {
   
   const refreshHistory = async () => {
     try {
-      const res: any = await apiClient.get('/api/games/hilo/history?limit=20');
-      if (res.history) {
-        setHistory(res.history);
+      const res = await fetch('/api/games/hilo/history?limit=20', {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.history) {
+        setHistory(data.history);
       }
     } catch (err) {
       console.error('Failed to fetch hilo history', err);
@@ -322,24 +326,40 @@ export function HiloClient() {
           </div>
 
           {/* History Strip */}
-          <div ref={scrollRef} className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4.5rem] px-2 hide-scrollbar scroll-smooth">
-            <AnimatePresence initial={false}>
-              {state?.history?.map((card, idx) => (
-                <motion.div
-                  key={`${idx}-${card.rank}-${card.suit}`}
-                  initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-                  className="shrink-0"
-                >
-                  <div className={`flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded bg-white shadow-sm ring-1 ring-black/5 ${getCardColor(card.suit)}`}>
-                    <span className="text-[12px] font-bold font-roobert leading-none tracking-tighter">{getRankName(card.rank)}</span>
-                    <span className="text-[12px] leading-none mt-[2px]">{card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠'}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            <div className="w-1 shrink-0" />
+          <div className="w-full flex flex-col gap-1.5 pt-1">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] uppercase tracking-wider text-white/50 font-roobert">
+                История раунда {state?.history && state.history.length > 0 ? `(${state.history.length})` : ''}
+              </span>
+            </div>
+            <div
+              ref={scrollRef}
+              className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4.5rem] px-2 rounded-xl bg-black/30 border border-white/5 no-scrollbar scroll-smooth"
+            >
+              {(!state?.history || state.history.length === 0) ? (
+                <div className="w-full text-center text-[11px] text-white/30 font-roobert py-2">
+                  Сыгранные карты раунда появятся здесь
+                </div>
+              ) : (
+                <AnimatePresence initial={false}>
+                  {state.history.map((card, idx) => (
+                    <motion.div
+                      key={`${idx}-${card.rank}-${card.suit}`}
+                      initial={{ opacity: 0, x: -20, scale: 0.8 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+                      className="shrink-0"
+                    >
+                      <div className={`flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-white shadow-md ring-1 ring-black/10 ${getCardColor(card.suit)}`}>
+                        <span className="text-[13px] font-bold font-roobert leading-none tracking-tighter">{getRankName(card.rank)}</span>
+                        <span className="text-[14px] leading-none mt-0.5">{card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠'}</span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+              <div className="w-1 shrink-0" />
+            </div>
           </div>
         </section>
 

@@ -65,8 +65,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Maintenance mode (public status + admin toggle)
   await app.register(maintenanceRoutes, { prefix: '/api' });
 
-  // WebSocket
+  // WebSocket (supports both /api/ws and /ws)
   await app.register(websocketRoutes, { prefix: '/api' });
+  await app.register(websocketRoutes);
 
   // Partner (RevShare)
   await app.register(partnerRoutes, { prefix: '/api/partner' });

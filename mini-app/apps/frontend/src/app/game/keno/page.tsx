@@ -43,6 +43,7 @@ export default function KenoGamePage() {
   
   // Game round data
   const [drawnNumbers, setDrawnNumbers] = useState<number[]>([]);
+  const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
   const [serverSeedHash, setServerSeedHash] = useState<string | null>(null);
   const [lastRoundId, setLastRoundId] = useState<string | null>(null);
   const [finalMultiplier, setFinalMultiplier] = useState<number | null>(null);
@@ -175,25 +176,30 @@ export default function KenoGamePage() {
 
   const revealNumbers = async (serverDraw: number[], multiplier: number) => {
     for (let i = 0; i < serverDraw.length; i++) {
-      // Small delay between each draw
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Step-by-step reveal animation delay
+      await new Promise((resolve) => setTimeout(resolve, 240));
       
       const num = serverDraw[i];
+      setLastDrawnNumber(num);
       setDrawnNumbers((prev) => [...prev, num]);
       
       if (picks.includes(num)) {
-        soundManager.play('win'); // Optional: special sound for hit
+        soundManager.play('win');
       } else {
         soundManager.play('tick');
       }
     }
 
+    // Clear active ball indicator after draw ends
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    setLastDrawnNumber(null);
+
     // Finalize
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
     setFinalMultiplier(multiplier);
     
     if (multiplier > 1) {
-      soundManager.play('win'); // Or a bigger jackpot sound
+      soundManager.play('win');
     } else {
       soundManager.play('lose');
     }
@@ -231,8 +237,8 @@ export default function KenoGamePage() {
                   key={idx} 
                   className={cn(
                     "flex-1 min-w-[3.5rem] max-w-[4.5rem] py-1.5 px-1 rounded-lg flex flex-col items-center justify-center border transition-all",
-                    phase !== 'idle' && hitsCount === idx && drawnNumbers.length === 7
-                      ? "bg-white/20 border-white text-white shadow-[0_0_15px_rgba(255,255,255,0.4)] scale-105" 
+                    phase !== 'idle' && hitsCount === idx && drawnNumbers.length >= 1
+                      ? "bg-emerald-500/30 border-emerald-400 text-white shadow-[0_0_15px_rgba(52,211,153,0.5)] scale-105" 
                       : "bg-black/40 border-white/5 text-white/60 hover:bg-white/5",
                     mult === 0 && "opacity-40"
                   )}
@@ -274,6 +280,7 @@ export default function KenoGamePage() {
             picks={picks}
             onTogglePick={handlePick}
             drawnNumbers={drawnNumbers}
+            lastDrawnNumber={lastDrawnNumber}
             phase={phase}
             maxPick={MAX_PICKS}
           />
