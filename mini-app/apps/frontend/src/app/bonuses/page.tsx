@@ -743,37 +743,26 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
       {/* Spin CTA */}
       <div className="relative px-6 pt-3 pb-6 flex flex-col gap-3">
-        <motion.button
-          whileHover={canSpin ? { scale: 1.01 } : undefined}
-          whileTap={canSpin ? { scale: 0.98 } : undefined}
-          onClick={spin}
+        <GamePrimaryButton
+          onClick={() => {
+            void spin();
+          }}
           disabled={!canSpin}
-          className={cn(
-            'w-full h-14 px-6 rounded-2xl font-roobert font-bold text-[15px] uppercase tracking-[0.18em] inline-flex items-center justify-center gap-2 transition-all shadow-xl',
-            canSpin
-              ? 'text-midnight-canvas shadow-amber-500/25'
-              : 'bg-white/[0.05] text-white/40 border border-white/10 cursor-not-allowed'
-          )}
-          style={
-            canSpin
-              ? {
-                  background:
-                    'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
-                }
-              : undefined
-          }
+          tone={canSpin ? 'solid' : 'muted'}
+          className="h-12"
         >
           {buttonLabel}
-          {canSpin && <ChevronRight size={18} strokeWidth={2.5} />}
-        </motion.button>
+        </GamePrimaryButton>
 
         <div className="flex items-center justify-between font-roobert text-[11px] text-whisper-gray">
           <span>
-            {state ? `${state.remaining} / ${state.dailyCap} осталось на сегодня` : '—'}
+            {state
+              ? t('bonuses.wheelLeft', { n: state.remaining, cap: state.dailyCap })
+              : '—'}
           </span>
           {onCooldown && (
-            <span className="text-amber-400 font-medium">
-              пауза {formatCooldownMs(cooldownLeftMs)}
+            <span className="text-white/50">
+              {t('bonuses.wheelPause', { time: formatCooldownMs(cooldownLeftMs) })}
             </span>
           )}
         </div>
@@ -782,33 +771,34 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       {/* Winners Ticker */}
       {state && state.ticker.length > 0 && (
         <div className="relative border-t border-white/10 px-4 py-2.5 bg-black/40 overflow-x-auto scrollbar-hide flex items-center gap-2.5">
-          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.22em] text-amber-400/80 font-bold pl-2 pr-1 flex items-center gap-1">
-            <Zap size={10} />
-            Победители
+          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray pl-2 pr-1">
+            {t('bonuses.wheelWinners')}
           </span>
-          {state.ticker.slice(0, 12).map((t, i) => (
+          {state.ticker.slice(0, 12).map((row, i) => (
             <div
               key={i}
               className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-md"
             >
-              {t.photoUrl ? (
+              {row.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={t.photoUrl}
+                  src={row.photoUrl}
                   alt=""
                   className="w-4 h-4 rounded-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
                 <span className="w-4 h-4 rounded-full bg-white/15 flex items-center justify-center font-roobert text-[8px] text-frost-white/90 font-bold">
-                  {t.name.charAt(0).toUpperCase()}
+                  {row.name.charAt(0).toUpperCase()}
                 </span>
               )}
               <span className="font-roobert text-[10px] text-frost-white/90 font-medium truncate max-w-[70px]">
-                {t.name}
+                {row.name}
               </span>
-              <span className="font-roobert text-[10px] font-bold text-amber-400">
-                {t.amount === 10.0 ? 'КЕЙС' : `+${t.amount.toFixed(2)} zł`}
+              <span className="font-roobert text-[10px] tabular-nums text-[#F4E8C8]">
+                {row.amount === 10.0
+                  ? t('bonuses.wheelCaseShort')
+                  : `+${row.amount.toFixed(2)} zł`}
               </span>
             </div>
           ))}
