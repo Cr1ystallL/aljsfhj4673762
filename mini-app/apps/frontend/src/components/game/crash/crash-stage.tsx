@@ -632,7 +632,7 @@ export const CrashStage = memo(function CrashStage({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-black/35 border border-white/10 backdrop-blur-md"
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-black/55 border border-white/10"
               >
                 <span className="text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
                   {t('crash.bettingOpen')}
@@ -722,7 +722,7 @@ export const CrashStage = memo(function CrashStage({
         </div>
 
         <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2 z-10">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-black/40 border border-white/10 backdrop-blur-md">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-black/55 border border-white/10">
             <Shield size={11} className="text-frost-white/60" strokeWidth={2} />
             <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
               {serverSeedHash
@@ -733,9 +733,9 @@ export const CrashStage = memo(function CrashStage({
 
           <div
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border backdrop-blur-md',
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border',
               connected
-                ? 'bg-black/40 border-white/10'
+                ? 'bg-black/55 border-white/10'
                 : 'bg-[rgba(165,45,37,0.22)] border-[rgba(165,45,37,0.4)]'
             )}
           >

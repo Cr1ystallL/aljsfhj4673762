@@ -111,7 +111,7 @@ export function GameTopBar({
         {/* Right Cluster: Combined Balance Pill & Avatar */}
         <div className="flex items-center gap-2 shrink-0">
           {showPillWrapper && (
-            <div className="flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-white/15 bg-gradient-to-r from-white/[0.06] via-white/[0.04] to-white/[0.06] shadow-inner backdrop-blur-md">
+            <div className="flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full border border-white/15 bg-[#14171c] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               {!hideBalance && (
                 <button
                   onClick={() => router.push('/balance')}
