@@ -123,14 +123,14 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * GET /api/balance/catch-up
-   * Personal return hooks for the home lobby: max win in the last 24h
-   * and unopened free cases. No invented numbers.
+   * Personal return hooks for the home lobby: max win in the last 24h,
+   * unopened free cases, and the live win streak. No invented numbers.
    */
   app.get('/catch-up', { preHandler: authenticate }, async (request, reply) => {
     const { userId } = (request as AuthenticatedRequest).user;
     try {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const [wins, balance] = await Promise.all([
+      const [wins, balance, user] = await Promise.all([
         app.prisma.transaction.findMany({
           where: {
             userId,
@@ -142,6 +142,10 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
           take: 250,
         }),
         balanceService.getBalance(userId),
+        app.prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWinStreak: true },
+        }),
       ]);
 
       let maxWin24h = 0;
@@ -180,6 +184,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
         maxMultiplier24h: Math.round(maxMultiplier24h * 100) / 100,
         maxWinGame,
         freeCases,
+        winStreak: Math.max(0, user?.currentWinStreak ?? 0),
       });
     } catch (error) {
       logger.error(error, 'Failed to load catch-up');

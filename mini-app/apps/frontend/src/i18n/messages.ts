@@ -117,6 +117,8 @@ export const ru = {
     noFavorite: 'Пока нет',
     shownOf: '{n} из {total}',
     stakeAt: '{date} · ставка {amount} zł',
+    streak: 'Серия побед',
+    streakN: '{n} подряд',
   },
   toast: {
     info: 'Информация',
@@ -174,6 +176,7 @@ export const ru = {
     missedCase: 'кейс ждёт',
     missedCases: 'кейсы ждут',
     missedContest: 'турнир',
+    missedStreak: 'серия',
     luckFeed: 'Только что выиграли',
     tag: {
       crash: 'До x10 000',
@@ -362,6 +365,10 @@ export const ru = {
     depositOn: 'Бонус «{title}» на следующий депозит',
     depositOff: 'Бонус снят',
     depositUpdateError: 'Не удалось обновить бонус',
+    wheelLeft: '{n} / {cap} сегодня',
+    wheelPause: 'пауза {time}',
+    wheelWinners: 'Победители',
+    wheelCaseShort: 'КЕЙС',
   },
   players: {
     noPlayers: 'Пока никого нет',
@@ -493,6 +500,8 @@ export const en: Messages = {
     noFavorite: 'None yet',
     shownOf: '{n} of {total}',
     stakeAt: '{date} · stake {amount} zł',
+    streak: 'Win streak',
+    streakN: '{n} in a row',
   },
   toast: {
     info: 'Info',
@@ -550,6 +559,7 @@ export const en: Messages = {
     missedCase: 'case waiting',
     missedCases: 'cases waiting',
     missedContest: 'tournament',
+    missedStreak: 'streak',
     luckFeed: 'Just won',
     tag: {
       crash: 'Up to x10 000',
@@ -738,6 +748,10 @@ export const en: Messages = {
     depositOn: 'Bonus “{title}” is on for the next deposit',
     depositOff: 'Bonus turned off',
     depositUpdateError: 'Could not update the bonus',
+    wheelLeft: '{n} / {cap} today',
+    wheelPause: 'pause {time}',
+    wheelWinners: 'Winners',
+    wheelCaseShort: 'CASE',
   },
   players: {
     noPlayers: 'No players yet',
@@ -867,6 +881,8 @@ export const pl: Messages = {
     noFavorite: 'Jeszcze brak',
     shownOf: '{n} z {total}',
     stakeAt: '{date} · stawka {amount} zł',
+    streak: 'Seria wygranych',
+    streakN: '{n} z rzędu',
   },
   toast: {
     info: 'Informacja',
@@ -924,6 +940,7 @@ export const pl: Messages = {
     missedCase: 'skrzynka czeka',
     missedCases: 'skrzynki czekają',
     missedContest: 'turniej',
+    missedStreak: 'seria',
     luckFeed: 'Właśnie wygrali',
     tag: {
       crash: 'Do x10 000',
@@ -1112,6 +1129,10 @@ export const pl: Messages = {
     depositOn: 'Bonus „{title}” na następny depozyt',
     depositOff: 'Bonus wyłączony',
     depositUpdateError: 'Nie udało się zaktualizować bonusu',
+    wheelLeft: '{n} / {cap} dziś',
+    wheelPause: 'pauza {time}',
+    wheelWinners: 'Zwycięzcy',
+    wheelCaseShort: 'SKRZYNKA',
   },
   players: {
     noPlayers: 'Na razie pusto',

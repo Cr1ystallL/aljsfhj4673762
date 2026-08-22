@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Box, Trophy, Timer } from "lucide-react";
+import { StreakPips } from "@/components/ui/streak-pips";
 import { Pressable } from "@/components/ui/pressable";
 import { useT } from "@/i18n/use-t";
 
@@ -15,6 +16,7 @@ interface CatchUpPayload {
   maxWin24h: number;
   maxMultiplier24h: number;
   freeCases: number;
+  winStreak: number;
 }
 
 function formatRemainingShort(ms: number): string {
@@ -55,6 +57,7 @@ export function HomeCatchUp({
           maxWin24h: Number(json.maxWin24h) || 0,
           maxMultiplier24h: Number(json.maxMultiplier24h) || 0,
           freeCases: Math.max(0, Math.floor(Number(json.freeCases) || 0)),
+          winStreak: Math.max(0, Math.floor(Number(json.winStreak) || 0)),
         });
       } catch {
         /* keep empty strip */
@@ -71,6 +74,7 @@ export function HomeCatchUp({
     label: string;
     value: string;
     Icon: typeof Trophy;
+    extra?: ReactNode;
   }> = [];
 
   if (data && (data.maxWin24h > 0 || data.maxMultiplier24h > 1)) {
@@ -88,6 +92,17 @@ export function HomeCatchUp({
       label,
       value,
       Icon: Trophy,
+    });
+  }
+
+  if (data && data.winStreak > 0) {
+    cards.push({
+      key: "streak",
+      href: "/profile",
+      label: t("home.missedStreak"),
+      value: String(data.winStreak),
+      Icon: Trophy,
+      extra: <StreakPips n={data.winStreak} />,
     });
   }
 
@@ -133,6 +148,7 @@ export function HomeCatchUp({
             <div className="mt-1.5 font-roobert text-[20px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-frost-white">
               {card.value}
             </div>
+            {card.extra ? <div className="mt-2">{card.extra}</div> : null}
           </Pressable>
         ))}
       </div>
