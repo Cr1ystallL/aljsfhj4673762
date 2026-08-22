@@ -3854,13 +3854,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             telegram_id: bigint;
             status: string;
             error: string | null;
-            attempted_at: Date;
           }>
         >(Prisma.sql`
-          SELECT telegram_id, status, error, attempted_at
+          SELECT telegram_id, status, error
           FROM broadcast_recipients
           WHERE broadcast_id = ${id}
-          ORDER BY attempted_at DESC
+          ORDER BY id DESC
           LIMIT 200
         `);
         return reply.send({
@@ -3869,7 +3868,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             telegramId: Number(r.telegram_id),
             status: r.status,
             error: r.error,
-            attemptedAt: r.attempted_at.getTime(),
+            attemptedAt: null,
           })),
         });
       } catch (error) {
@@ -3920,6 +3919,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             : {};
         const promoCode =
           typeof audience.promoCode === 'string' ? audience.promoCode : '';
+        const sendAt = bc.started_at ?? bc.created_at;
 
         const stats = await app.prisma.$queryRaw<
           Array<{
@@ -3930,16 +3930,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             returned: bigint;
             played: bigint;
             redeemed: bigint;
-            median_hours_to_play: number | null;
-            median_hours_to_redeem: number | null;
-            median_hours_to_return: number | null;
+            median_hours_to_play: unknown;
+            median_hours_to_redeem: unknown;
+            median_hours_to_return: unknown;
           }>
         >(Prisma.sql`
           WITH rec AS (
             SELECT
               br.telegram_id,
               br.status,
-              br.attempted_at,
               u.id AS user_id,
               u.updated_at
             FROM broadcast_recipients br
@@ -3955,7 +3954,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             FROM rec
           ),
           delivered_users AS (
-            SELECT * FROM rec
+            SELECT telegram_id, user_id, updated_at
+            FROM rec
             WHERE status = 'delivered' AND user_id IS NOT NULL
           ),
           first_bets AS (
@@ -3963,7 +3963,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             FROM delivered_users d
             JOIN bets b
               ON b.user_id = d.user_id
-             AND b.placed_at >= d.attempted_at
+             AND b.placed_at >= ${sendAt}::timestamp
             GROUP BY d.telegram_id
           ),
           session_back AS (
@@ -3979,7 +3979,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             JOIN promo_codes pc ON pc.id = pr.promo_code_id
             WHERE ${promoCode} <> ''
               AND pc.code = ${promoCode}
-              AND pr.created_at >= d.attempted_at
+              AND pr.created_at >= ${sendAt}::timestamp
             GROUP BY d.telegram_id
           ),
           returned_users AS (
@@ -3988,13 +3988,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               (
                 fb.first_bet_at IS NOT NULL
                 OR r.redeemed_at IS NOT NULL
-                OR COALESCE(sb.last_session_at, '-infinity'::timestamp) >= d.attempted_at
-                OR d.updated_at >= d.attempted_at
+                OR sb.last_session_at >= ${sendAt}::timestamp
+                OR d.updated_at >= ${sendAt}::timestamp
               ) AS did_return,
-              LEAST(
-                COALESCE(fb.first_bet_at, 'infinity'::timestamp),
-                COALESCE(r.redeemed_at, 'infinity'::timestamp)
-              ) AS precise_returned_at
+              CASE
+                WHEN fb.first_bet_at IS NULL THEN r.redeemed_at
+                WHEN r.redeemed_at IS NULL THEN fb.first_bet_at
+                WHEN fb.first_bet_at <= r.redeemed_at THEN fb.first_bet_at
+                ELSE r.redeemed_at
+              END AS precise_returned_at
             FROM delivered_users d
             LEFT JOIN first_bets fb ON fb.telegram_id = d.telegram_id
             LEFT JOIN session_back sb ON sb.telegram_id = d.telegram_id
@@ -4012,27 +4014,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             (SELECT COUNT(*)::bigint FROM redemptions) AS redeemed,
             (
               SELECT percentile_cont(0.5) WITHIN GROUP (
-                ORDER BY EXTRACT(EPOCH FROM (fb.first_bet_at - d.attempted_at)) / 3600.0
+                ORDER BY EXTRACT(EPOCH FROM (fb.first_bet_at - ${sendAt}::timestamp)) / 3600.0
               )
-              FROM delivered_users d
-              JOIN first_bets fb ON fb.telegram_id = d.telegram_id
+              FROM first_bets fb
             ) AS median_hours_to_play,
             (
               SELECT percentile_cont(0.5) WITHIN GROUP (
-                ORDER BY EXTRACT(EPOCH FROM (r.redeemed_at - d.attempted_at)) / 3600.0
+                ORDER BY EXTRACT(EPOCH FROM (r.redeemed_at - ${sendAt}::timestamp)) / 3600.0
               )
-              FROM delivered_users d
-              JOIN redemptions r ON r.telegram_id = d.telegram_id
+              FROM redemptions r
             ) AS median_hours_to_redeem,
             (
               SELECT percentile_cont(0.5) WITHIN GROUP (
-                ORDER BY EXTRACT(EPOCH FROM (ru.precise_returned_at - d.attempted_at)) / 3600.0
+                ORDER BY EXTRACT(EPOCH FROM (ru.precise_returned_at - ${sendAt}::timestamp)) / 3600.0
               )
-              FROM delivered_users d
-              JOIN returned_users ru ON ru.telegram_id = d.telegram_id
-              WHERE ru.precise_returned_at <> 'infinity'::timestamp
+              FROM returned_users ru
+              WHERE ru.precise_returned_at IS NOT NULL
             ) AS median_hours_to_return
         `);
+
+        const asNum = (v: unknown): number | null => {
+          if (v == null) return null;
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        };
 
         const row = stats[0];
         const delivered = Number(row?.delivered ?? bc.delivered ?? 0);
@@ -4071,8 +4076,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             returnRate: pct(returned),
             played,
             playRate: pct(played),
-            medianHoursToReturn: row?.median_hours_to_return ?? null,
-            medianHoursToPlay: row?.median_hours_to_play ?? null,
+            medianHoursToReturn: asNum(row?.median_hours_to_return),
+            medianHoursToPlay: asNum(row?.median_hours_to_play),
           },
           promo: promoCode
             ? {
@@ -4081,13 +4086,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                 wagerMultiplier: audience.wagerMultiplier ?? null,
                 redeemed,
                 redemptionRate: pct(redeemed),
-                medianHoursToRedeem: row?.median_hours_to_redeem ?? null,
+                medianHoursToRedeem: asNum(row?.median_hours_to_redeem),
               }
             : null,
         });
       } catch (error) {
         logger.error(error, 'Broadcast effectiveness fetch failed');
-        return reply.code(500).send({ error: 'Failed to fetch effectiveness' });
+        const detail = error instanceof Error ? error.message : String(error);
+        return reply.code(500).send({
+          error: 'Failed to fetch effectiveness',
+          detail,
+        });
       }
     }
   );
