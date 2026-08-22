@@ -10,7 +10,7 @@ import { maintenanceRoutes } from './maintenance.js';
 import { foluxpayRoutes } from './foluxpay.js';
 import { withdrawalRoutes } from './withdrawals.js';
 import { bonusesRoutes } from './bonuses.js';
-import { presenceRoutes } from './presence.js';
+import { presenceRoutes, countOnlinePresence } from './presence.js';
 import { tournamentRoutes } from './tournaments.js';
 import { partnerRoutes } from './partner.js';
 import { cryptoDepositRoutes } from './crypto-deposit.js';
@@ -23,8 +23,42 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Health check & stats
   await app.register(healthRoutes, { prefix: '/health' });
 
+  /**
+   * Public lobby stats for the home ticker.
+   * Online = live Redis presence keys (45s TTL), not a simulated walk.
+   * Payouts = sum of paid withdrawals in the last 24 hours.
+   */
   app.get('/api/stats', async () => {
-    return { ok: true, onlinePlayers: 42, totalBets: 18920 };
+    let online = 0;
+    let payouts24h = 0;
+    try {
+      online = await countOnlinePresence();
+    } catch {
+      online = 0;
+    }
+    try {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const agg = await app.prisma.withdrawalRequest.aggregate({
+        _sum: { amount: true },
+        where: {
+          status: 'paid',
+          updatedAt: { gte: since },
+        },
+      });
+      payouts24h = Number(agg._sum.amount ?? 0);
+      if (!Number.isFinite(payouts24h) || payouts24h < 0) payouts24h = 0;
+      payouts24h = Math.round(payouts24h * 100) / 100;
+    } catch {
+      payouts24h = 0;
+    }
+    return {
+      success: true,
+      ok: true,
+      online,
+      onlinePlayers: online,
+      payouts24h,
+      currency: 'zł',
+    };
   });
 
   // Authentication
