@@ -1,109 +1,177 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+'use client';
+
+import { memo } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { soundManager } from '@/lib/sound/sound-manager';
+import { Pressable } from '@/components/ui/pressable';
 import type { KenoPhase } from './keno-bet-panel';
+import { KENO_BOARD_SIZE, KENO_DRAW_COUNT } from './keno-multipliers';
 
 interface KenoBoardProps {
   picks: number[];
   onTogglePick: (num: number) => void;
   drawnNumbers: number[];
+  lastDrawn?: number | null;
   phase: KenoPhase;
   maxPick: number;
+  drawCount?: number;
+}
+
+const CELLS = Array.from({ length: KENO_BOARD_SIZE }, (_, i) => i + 1);
+
+type CellKind = 'idle' | 'picked' | 'house' | 'hit' | 'miss';
+
+function kindOf(
+  num: number,
+  picks: number[],
+  drawn: number[],
+  drawComplete: boolean
+): CellKind {
+  const picked = picks.includes(num);
+  const isDrawn = drawn.includes(num);
+  if (picked && isDrawn) return 'hit';
+  if (isDrawn) return 'house';
+  if (picked && drawComplete) return 'miss';
+  if (picked) return 'picked';
+  return 'idle';
 }
 
 export function KenoBoard({
   picks,
   onTogglePick,
   drawnNumbers,
+  lastDrawn = null,
   phase,
   maxPick,
+  drawCount = KENO_DRAW_COUNT,
 }: KenoBoardProps) {
-  // Grid is 5 rows x 8 columns = 40 numbers
-  const cells = Array.from({ length: 40 }, (_, i) => i + 1);
+  const drawComplete = drawnNumbers.length >= drawCount;
 
   const handleCellClick = (num: number) => {
     if (phase !== 'idle') return;
-    
-    // Prevent adding if max is reached, unless deselecting
-    if (!picks.includes(num) && picks.length >= maxPick) {
-      soundManager.play('error'); // optional
-      return;
-    }
-
-    soundManager.play('tick');
+    if (!picks.includes(num) && picks.length >= maxPick) return;
     onTogglePick(num);
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center py-2 px-4 lg:px-8">
-      <div className="grid grid-cols-8 gap-1.5 sm:gap-2 lg:gap-3 w-full max-w-[850px] aspect-[8/5]">
-        {cells.map((num) => {
-          const isPicked = picks.includes(num);
-          const isDrawn = drawnNumbers.includes(num);
-          const isHit = isPicked && isDrawn;
-          const isMiss = isPicked && !isDrawn && phase === 'revealing' && drawnNumbers.length === 7;
-          
-          return (
-            <motion.button
-              key={num}
-              onClick={() => handleCellClick(num)}
-              disabled={phase !== 'idle'}
-              layout
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              whileHover={{ scale: phase === 'idle' ? 1.05 : 1, y: phase === 'idle' ? -2 : 0 }}
-              whileTap={{ scale: 0.95, y: 2 }}
-              transition={{
-                type: 'spring',
-                stiffness: 400,
-                damping: 25,
-                delay: num * 0.005,
-              }}
-              className={cn(
-                'relative flex items-center justify-center rounded-md sm:rounded-lg text-sm sm:text-base font-bold transition-all duration-200',
-                'border overflow-hidden',
-                // Base styling (Unpicked, Undrawn) - 3D dark cube
-                !isPicked && !isDrawn && 'bg-gradient-to-b from-white/10 to-transparent border-white/5 border-t-white/20 text-white/40 shadow-[inset_0px_1px_1px_rgba(255,255,255,0.1),_0px_4px_6px_rgba(0,0,0,0.4)] hover:text-white/80 hover:from-white/15',
-                // Picked but not yet revealed - 3D blue/primary cube
-                isPicked && !isDrawn && 'bg-gradient-to-b from-primary/40 to-primary/10 border-primary/40 border-t-primary/70 text-primary-foreground shadow-[inset_0px_1px_2px_rgba(255,255,255,0.3),_0px_4px_10px_rgba(var(--primary),0.3)]',
-                // Drawn but not picked (House number) - Flat grayish
-                !isPicked && isDrawn && 'bg-white/15 border-white/20 text-white/90 shadow-inner opacity-80',
-                // Hit (Picked and Drawn) - 3D glowing neon green cube
-                isHit && 'bg-gradient-to-b from-emerald-400 to-emerald-600 border-emerald-300 text-white shadow-[inset_0px_2px_4px_rgba(255,255,255,0.5),_0px_0px_15px_rgba(52,211,153,0.8)] z-10',
-                // Missed (Picked but not Drawn) - Darkened red
-                isMiss && 'bg-gradient-to-b from-destructive/40 to-black/60 border-destructive/30 text-white/50 shadow-inner opacity-60'
-              )}
-            >
-              {/* Hit animation ripple */}
-              <AnimatePresence>
-                {isHit && (
-                  <motion.div
-                    className="absolute inset-0 bg-emerald-400/30 rounded-lg sm:rounded-xl"
-                    initial={{ scale: 0, opacity: 1 }}
-                    animate={{ scale: 1.5, opacity: 0 }}
-                    transition={{ duration: 0.6, ease: 'easeOut' }}
-                  />
-                )}
-              </AnimatePresence>
-              
-              {/* Drawn animation ring */}
-              <AnimatePresence>
-                {isDrawn && !isHit && (
-                  <motion.div
-                    className="absolute inset-0 border-2 border-white/30 rounded-lg sm:rounded-xl"
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                  />
-                )}
-              </AnimatePresence>
-
-              <span className="relative z-10">{num}</span>
-            </motion.button>
-          );
-        })}
+    <div className="relative w-full">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-3 rounded-[22px] opacity-70"
+        style={{
+          background:
+            'radial-gradient(80% 55% at 50% 0%, rgba(244,232,200,0.07) 0%, transparent 70%)',
+        }}
+      />
+      <div className="relative grid grid-cols-8 gap-1.5 sm:gap-2">
+        {CELLS.map((num) => (
+          <KenoCell
+            key={num}
+            num={num}
+            kind={kindOf(num, picks, drawnNumbers, drawComplete)}
+            fresh={lastDrawn === num}
+            clickable={phase === 'idle'}
+            onClick={handleCellClick}
+          />
+        ))}
       </div>
     </div>
   );
 }
+
+const KenoCell = memo(function KenoCell({
+  num,
+  kind,
+  fresh,
+  clickable,
+  onClick,
+}: {
+  num: number;
+  kind: CellKind;
+  fresh: boolean;
+  clickable: boolean;
+  onClick: (n: number) => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  const canPress = clickable;
+
+  const face =
+    kind === 'hit'
+      ? {
+          background:
+            'linear-gradient(160deg, rgba(160,224,171,0.22) 0%, rgba(12,18,14,0.94) 72%)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16)',
+          border: '1px solid rgba(160,224,171,0.38)',
+          color: '#E8F8EC',
+        }
+      : kind === 'house'
+        ? {
+            background:
+              'linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(14,14,16,0.94) 100%)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.16)',
+            color: 'rgba(255,255,255,0.82)',
+          }
+        : kind === 'picked'
+          ? {
+              background:
+                'linear-gradient(180deg, rgba(244,232,200,0.16) 0%, rgba(18,16,12,0.94) 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(244,232,200,0.22)',
+              border: '1px solid rgba(244,232,200,0.28)',
+              color: '#F4E8C8',
+            }
+          : kind === 'miss'
+            ? {
+                background: 'rgba(12,12,14,0.92)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: 'rgba(255,255,255,0.28)',
+              }
+            : {
+                background:
+                  'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(18,19,22,0.92) 48%, rgba(8,8,10,0.98) 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: 'rgba(255,255,255,0.40)',
+              };
+
+  const className = cn(
+    'relative aspect-square rounded-[12px] flex items-center justify-center font-roobert tabular-nums select-none text-[13px] sm:text-[14px]',
+    !canPress && 'cursor-default'
+  );
+
+  const inner = (
+    <span className="relative z-10 font-medium tracking-tight">{num}</span>
+  );
+
+  if (canPress) {
+    return (
+      <Pressable
+        type="button"
+        onClick={() => onClick(num)}
+        className={className}
+        style={face}
+        aria-label={`${num}`}
+        aria-pressed={kind === 'picked'}
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+
+  return (
+    <motion.div
+      aria-hidden={!clickable}
+      animate={
+        reduceMotion || !fresh
+          ? { scale: 1 }
+          : { scale: [1.08, 1] }
+      }
+      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+      style={face}
+    >
+      {inner}
+    </motion.div>
+  );
+});

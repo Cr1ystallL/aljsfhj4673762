@@ -1,5 +1,9 @@
 export type KenoRisk = 'low' | 'medium' | 'high';
 
+export const KENO_BOARD_SIZE = 40;
+export const KENO_DRAW_COUNT = 7;
+export const KENO_MAX_PICKS = 7;
+
 export const KENO_MULTIPLIERS: Record<KenoRisk, Record<number, number[]>> = {
   low: {
     1: [0, 5],

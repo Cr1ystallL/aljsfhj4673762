@@ -254,8 +254,13 @@ export const ru = {
   keno: {
     howTo: 'Как играть в Keno',
     rules:
-      'Выбери до 7 чисел и ставку. После ставки система тянет 10 чисел. Чем больше совпадений — тем выше множитель. Риск меняет таблицу выплат.',
+      'Выбери до 7 чисел и ставку. После ставки система тянет 7 чисел. Чем больше совпадений — тем выше множитель. Риск меняет таблицу выплат.',
     picked: 'Выбрано: {n} / {max}',
+    hits: '{n} попад.',
+    live: 'Live ставки',
+    waitingBets: 'Ожидание ставок',
+    draw: 'Жеребьёвка',
+    betError: 'Не удалось поставить',
   },
   wheel: {
     howTo: 'Как играть в Wheel',
@@ -597,8 +602,13 @@ export const en: Messages = {
   keno: {
     howTo: 'How to play Keno',
     rules:
-      'Pick up to 7 numbers and a stake. After you bet, the house draws 10 numbers. More hits mean a higher multiplier. Risk changes the payout table.',
+      'Pick up to 7 numbers and a stake. After you bet, the house draws 7 numbers. More hits mean a higher multiplier. Risk changes the payout table.',
     picked: 'Picked: {n} / {max}',
+    hits: '{n} hits',
+    live: 'Live bets',
+    waitingBets: 'Waiting for bets',
+    draw: 'Draw',
+    betError: 'Could not place bet',
   },
   wheel: {
     howTo: 'How to play Wheel',
@@ -938,8 +948,13 @@ export const pl: Messages = {
   keno: {
     howTo: 'Jak grać w Keno',
     rules:
-      'Wybierz do 7 liczb i stawkę. Po zakładzie system losuje 10 liczb. Im więcej trafień, tym wyższy mnożnik. Ryzyko zmienia tabelę wypłat.',
+      'Wybierz do 7 liczb i stawkę. Po zakładzie system losuje 7 liczb. Im więcej trafień, tym wyższy mnożnik. Ryzyko zmienia tabelę wypłat.',
     picked: 'Wybrano: {n} / {max}',
+    hits: '{n} traf.',
+    live: 'Zakłady na żywo',
+    waitingBets: 'Oczekiwanie na zakłady',
+    draw: 'Losowanie',
+    betError: 'Nie udało się postawić',
   },
   wheel: {
     howTo: 'Jak grać w Wheel',
