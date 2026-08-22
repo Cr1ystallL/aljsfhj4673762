@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { PlinkoIcon } from '@/components/ui/game-icon'; // Reuse or create a new icon
+import { Box } from 'lucide-react';
 import { CasesHistory } from '@/components/game/cases/cases-history';
 import { toast } from '@/store/toast-store';
 import { useBalance } from '@/hooks/use-balance';
@@ -52,7 +52,7 @@ export default function CasesPage() {
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
         <GameTopBar
           title={t('cases.title')}
-          Icon={PlinkoIcon}
+          Icon={Box}
           onHowToPlay={() => router.push('/info#faq')}
         />
 

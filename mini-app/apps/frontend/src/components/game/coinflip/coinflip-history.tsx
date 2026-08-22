@@ -12,7 +12,7 @@ import type { CoinflipHistoryEntry } from '@/lib/games/coinflip/types';
  *   - All bets        — every recent flip
  *   - Rare wins       — only multiplier ≥ 5x
  *
- * Same visual language as the Plinko history but reused so we don't
+ * Same visual language as the other game histories so we don't
  * fork another component.
  */
 

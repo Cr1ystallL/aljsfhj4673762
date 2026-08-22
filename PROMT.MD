@@ -207,7 +207,6 @@ Remaining games.
 
 Generate:
 
-* Plinko,
 * Mines,
 * Cookies,
 * Nuts,
@@ -418,7 +417,6 @@ Left-side animated drawer.
 Contains game list:
 
 * Crash
-* Plinko
 * Mines
 * Cookies
 * Nuts

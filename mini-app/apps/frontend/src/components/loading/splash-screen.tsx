@@ -51,7 +51,7 @@ export const TITLE_TAGLINES: ReadonlyArray<string> = [
   'MacvBet — казино в Telegram',
   'MacvBet — provably fair игры',
   'MacvBet — прозрачные шансы',
-  'MacvBet — Crash, Mines, Plinko',
+  'MacvBet — Crash, Mines, Wheel',
   'MacvBet — играй красиво',
 ];
 

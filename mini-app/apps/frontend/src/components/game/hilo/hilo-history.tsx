@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * Hilo History — Monopo Saigon Style
  *
  * Live ticker of recent completed Hilo bets across all players. Same
- * shape as the Plinko history component for consistency.
+ * shape as the shared history component for consistency.
  */
 
 export interface HiloHistoryEntry {
