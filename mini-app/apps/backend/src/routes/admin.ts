@@ -2982,7 +2982,40 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     'dormant',
   ];
   const DEFAULT_REENGAGE_TEMPLATE =
-    '<b>🎁 Мы соскучились по вам!</b>\n\nВам зачислен персональный бонус <b>{amount} PLN</b>!\n\nАктивируйте промокод <code>{code}</code> в профиле и возвращайтесь к победам! 🚀';
+    '<b>{jetLine}</b>\n\nПромо <b>{amount} PLN</b> — код <code>{code}</code> в профиле.';
+
+  function crashPointFromRound(
+    row: { result: unknown; metadata: unknown } | null
+  ): number | null {
+    if (!row) return null;
+    const fromResult = Number(
+      (row.result as { crashPoint?: unknown } | null)?.crashPoint
+    );
+    if (Number.isFinite(fromResult) && fromResult >= 1) return fromResult;
+    const fromMeta = Number(
+      (row.metadata as { crashPoint?: unknown } | null)?.crashPoint
+    );
+    if (Number.isFinite(fromMeta) && fromMeta >= 1) return fromMeta;
+    return null;
+  }
+
+  function formatCrashMult(n: number): string {
+    return n >= 10 ? n.toFixed(1) : n.toFixed(2);
+  }
+
+  function jetLineFromCrash(last: number | null): string {
+    if (last == null) return 'MacvJet живой на главной';
+    return `MacvJet живой · x${formatCrashMult(last)} только что`;
+  }
+
+  async function lastCompletedCrashPoint(): Promise<number | null> {
+    const row = await app.prisma.gameRound.findFirst({
+      where: { gameType: 'crash', state: 'completed' },
+      orderBy: { createdAt: 'desc' },
+      select: { result: true, metadata: true },
+    });
+    return crashPointFromRound(row);
+  }
 
   interface AudienceFilter {
     all?: boolean;
@@ -3313,14 +3346,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return rows.map((r) => r.telegram_id);
   }
 
-  function renderReengageText(
+  async function renderReengageText(
     template: string,
     amount: number,
     code: string
-  ): string {
+  ): Promise<string> {
+    const last = await lastCompletedCrashPoint();
     const filled = template
       .replaceAll('{amount}', String(amount))
-      .replaceAll('{code}', code);
+      .replaceAll('{code}', code)
+      .replaceAll('{lastCrash}', last != null ? formatCrashMult(last) : '—')
+      .replaceAll('{jetLine}', jetLineFromCrash(last));
     if (filled.includes(code)) return filled;
     return `${filled}\n\n<code>${code}</code>`;
   }
@@ -3460,6 +3496,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const reachable = reasonCounts.never_played + reasonCounts.dormant;
         const totalInactive =
           reachable + reasonCounts.bot_blocked + reasonCounts.deactivated;
+        const lastCrash = await lastCompletedCrashPoint();
         return reply.send({
           ok: true,
           inactiveDays,
@@ -3470,6 +3507,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           explicitIds: telegramIds.length,
           totalInactive,
           inactive3dCount: reachable,
+          lastCrash,
+          jetLine: jetLineFromCrash(lastCrash),
         });
       } catch (error) {
         logger.error(error, 'Reengage stats failed');
@@ -3554,7 +3593,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           )
         `;
 
-        const text = renderReengageText(template, amount, code);
+        const text = await renderReengageText(template, amount, code);
         const frozenIds = selectedIds.map((id) => Number(id));
         const audience: AudienceFilter = {
           kind: 'reengage',

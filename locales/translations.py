@@ -11,11 +11,11 @@ TRANSLATIONS = {
         'btn_profile': '👤 Профиль',
         'btn_info': '❔ Информация',
         'btn_back': '‹ Назад',
-        'miniapp_intro': '🎰 <b>MacvBet Mini-App</b>\n\nНажмите кнопку ниже, чтобы открыть казино внутри Telegram.',
-        'btn_open_miniapp': '🎮 Открыть Mini-App',
+        'miniapp_intro': '<b>MacvJet живой на главной.</b>\n\nКнопка ниже — сразу в Mini App.',
+        'btn_open_miniapp': 'Открыть главную',
         
         # Приветствие
-        'welcome': '👋 Добро пожаловать, {name}!',
+        'welcome': '{name}. MacvJet на главной — живой раунд, не постер.',
         'choose_language': '🌐 Выберите язык / Wybierz język:',
         'language_set': '✅ Язык установлен: Русский',
         
@@ -151,11 +151,11 @@ TRANSLATIONS = {
         'btn_profile': '👤 Profil',
         'btn_info': '❔ Informacje',
         'btn_back': '‹ Wstecz',
-        'miniapp_intro': '🎰 <b>MacvBet Mini-App</b>\n\nNaciśnij przycisk poniżej, aby otworzyć kasyno wewnątrz Telegrama.',
-        'btn_open_miniapp': '🎮 Otwórz Mini-App',
+        'miniapp_intro': '<b>MacvJet żywy na głównej.</b>\n\nPrzycisk poniżej otwiera Mini App.',
+        'btn_open_miniapp': 'Otwórz główną',
         
         # Powitanie
-        'welcome': '👋 Witaj, {name}!',
+        'welcome': '{name}. MacvJet na głównej — żywa runda, nie plakat.',
         'choose_language': '🌐 Выберите язык / Wybierz język:',
         'language_set': '✅ Język ustawiony: Polski',
         
