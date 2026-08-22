@@ -39,7 +39,7 @@ export function ProfileTrophyShelf({ stats }: { stats: TrophyStats }) {
   }, []);
 
   return (
-    <section className="rounded-[20px] border border-white/12 bg-white/[0.04] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
+    <section className="rounded-[20px] border border-white/12 bg-[#101216] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
       <div className="px-4 pt-3 pb-2">
         <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
           {t('profile.shelf')}

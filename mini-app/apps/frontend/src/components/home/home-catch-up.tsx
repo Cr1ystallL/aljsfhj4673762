@@ -139,7 +139,7 @@ export function HomeCatchUp({
           <Pressable
             key={card.key}
             onClick={() => onOpen(card.href)}
-            className="min-w-[148px] flex-1 rounded-2xl border border-white/12 bg-white/[0.04] px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl"
+            className="min-w-[148px] flex-1 rounded-2xl border border-white/12 bg-[#101216] px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
           >
             <div className="flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.16em] text-white/40">
               <card.Icon className="h-3 w-3" strokeWidth={2} />
