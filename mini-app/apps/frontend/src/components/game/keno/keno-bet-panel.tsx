@@ -4,6 +4,7 @@ import { Dice5, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { useT } from '@/i18n/use-t';
+import { Pressable } from '@/components/ui/pressable';
 import {
   BetPanelCtaRow,
   BetPanelShell,
@@ -79,19 +80,19 @@ export function KenoBetPanel({
           </span>
           <div className="mt-2 flex flex-col gap-1">
             {(['low', 'medium', 'high'] as KenoRisk[]).map((r) => (
-              <button
+              <Pressable
                 key={r}
                 type="button"
                 disabled={disabled}
                 onClick={() => {
                   onRiskChange(r);
-                  soundManager.play('click');
+                  soundManager.play('ui.click');
                 }}
                 className={cn(
-                  'h-7 rounded-pill border text-[10px] uppercase tracking-[0.16em] font-roobert transition-colors',
+                  'h-7 rounded-pill border text-[10px] uppercase tracking-[0.16em] font-roobert',
                   risk === r
                     ? 'bg-frost-white text-midnight-canvas border-frost-white'
-                    : 'bg-transparent text-frost-white/70 border-white/20 hover:border-white/35 disabled:opacity-40'
+                    : 'bg-transparent text-frost-white/70 border-white/20 disabled:opacity-40'
                 )}
               >
                 {r === 'low'
@@ -99,31 +100,31 @@ export function KenoBetPanel({
                   : r === 'medium'
                     ? t('risk.medium')
                     : t('risk.high')}
-              </button>
+              </Pressable>
             ))}
           </div>
         </div>
       </div>
 
       <div className="px-3 py-2 grid grid-cols-2 gap-2 border-t border-white/10">
-        <button
+        <Pressable
           type="button"
           disabled={disabled}
           onClick={onAutoPick}
-          className="h-9 rounded-pill border border-white/15 text-frost-white/80 font-roobert text-[11px] uppercase tracking-[0.16em] inline-flex items-center justify-center gap-1.5 hover:border-white/30 hover:text-frost-white disabled:opacity-40"
+          className="h-9 rounded-pill border border-white/15 text-frost-white/80 font-roobert text-[11px] uppercase tracking-[0.16em] inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
         >
           <Dice5 className="w-3.5 h-3.5" />
           {t('common.auto')}
-        </button>
-        <button
+        </Pressable>
+        <Pressable
           type="button"
           disabled={disabled || picks.length === 0}
           onClick={onClear}
-          className="h-9 rounded-pill border border-white/15 text-frost-white/80 font-roobert text-[11px] uppercase tracking-[0.16em] inline-flex items-center justify-center gap-1.5 hover:border-white/30 hover:text-frost-white disabled:opacity-40"
+          className="h-9 rounded-pill border border-white/15 text-frost-white/80 font-roobert text-[11px] uppercase tracking-[0.16em] inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
         >
           <Trash2 className="w-3.5 h-3.5" />
           {t('common.reset')}
-        </button>
+        </Pressable>
       </div>
 
       <BetPanelCtaRow>
