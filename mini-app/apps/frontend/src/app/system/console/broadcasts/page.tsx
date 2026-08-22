@@ -97,7 +97,7 @@ interface Effectiveness {
 }
 
 const DEFAULT_TEMPLATE =
-  '<b>🎁 Мы соскучились по вам!</b>\n\nВам зачислен персональный бонус <b>{amount} PLN</b>!\n\nАктивируйте промокод <code>{code}</code> в профиле и возвращайтесь к победам! 🚀';
+  '<b>{jetLine}</b>\n\nПромо <b>{amount} PLN</b> — код <code>{code}</code> в профиле.';
 
 const REASON_META: Record<
   InactiveReason,
@@ -184,6 +184,8 @@ export default function BroadcastsListPage() {
   const [messageTemplate, setMessageTemplate] = useState(DEFAULT_TEMPLATE);
   const [reasonCounts, setReasonCounts] = useState<ReasonCounts | null>(null);
   const [selectedCount, setSelectedCount] = useState<number | null>(null);
+  const [jetLine, setJetLine] = useState('MacvJet живой на главной');
+  const [lastCrashLabel, setLastCrashLabel] = useState('—');
   const [loadingInactive, setLoadingInactive] = useState(true);
   const [reengageBusy, setReengageBusy] = useState(false);
   const [reengageResult, setReengageResult] = useState<{
@@ -237,6 +239,19 @@ export default function BroadcastsListPage() {
         const j = await res.json();
         setReasonCounts(j.reasons ?? null);
         setSelectedCount(j.selectedCount ?? 0);
+        const crash = Number(j.lastCrash);
+        setLastCrashLabel(
+          Number.isFinite(crash) && crash >= 1
+            ? crash >= 10
+              ? crash.toFixed(1)
+              : crash.toFixed(2)
+            : '—'
+        );
+        setJetLine(
+          typeof j.jetLine === 'string' && j.jetLine.trim()
+            ? j.jetLine
+            : 'MacvJet живой на главной'
+        );
       } else {
         setReasonCounts({
           bot_blocked: 0,
@@ -418,7 +433,9 @@ export default function BroadcastsListPage() {
 
   const previewText = messageTemplate
     .replaceAll('{amount}', String(amount))
-    .replaceAll('{code}', 'GIFT…');
+    .replaceAll('{code}', 'GIFT…')
+    .replaceAll('{lastCrash}', lastCrashLabel)
+    .replaceAll('{jetLine}', jetLine);
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-10">
@@ -608,7 +625,7 @@ export default function BroadcastsListPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5">
               <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
-                Текст сообщения. Плейсхолдеры: {'{amount}'} и {'{code}'}
+                Текст. Плейсхолдеры: {'{jetLine}'}, {'{lastCrash}'}, {'{amount}'}, {'{code}'}
               </span>
               <textarea
                 value={messageTemplate}
