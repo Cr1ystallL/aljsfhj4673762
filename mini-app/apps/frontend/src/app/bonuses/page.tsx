@@ -22,8 +22,11 @@ import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { useT } from '@/i18n/use-t';
+import type { TxKey } from '@/i18n/use-t';
 import { Pressable } from '@/components/ui/pressable';
 import { BetPanelShell, GamePrimaryButton } from '@/components/game/kit';
+
+type TFn = (key: TxKey, vars?: Record<string, string | number>) => string;
 
 /**
  * Bonuses Page — Premium Redesign.
@@ -357,15 +360,15 @@ function DepositBonusesSection() {
 /* Promo Code Hero                                                            */
 /* -------------------------------------------------------------------------- */
 
-function formatCooldownMs(ms: number): string {
+function formatCooldownMs(ms: number, t: TFn): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
-  if (totalSec <= 0) return '0 с';
+  if (totalSec <= 0) return t('bonuses.sec', { n: 0 });
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   if (m > 0) {
-    return s > 0 ? `${m} м ${s} с` : `${m} м`;
+    return s > 0 ? t('bonuses.minSec', { n: m, s }) : t('bonuses.min', { n: m });
   }
-  return `${s} с`;
+  return t('bonuses.sec', { n: s });
 }
 
 function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
@@ -661,7 +664,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
   };
 
   const buttonLabel = onCooldown
-    ? t('bonuses.wheelWait', { time: formatCooldownMs(cooldownLeftMs) })
+    ? t('bonuses.wheelWait', { time: formatCooldownMs(cooldownLeftMs, t) })
     : noSpins
       ? t('bonuses.wheelTomorrow')
       : busy || spinRef.current
@@ -710,7 +713,14 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
       {/* Wheel Canvas */}
       <div className="relative px-4 pt-6 pb-2">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full bg-amber-500/15 blur-[45px] pointer-events-none" />
+        <div
+          aria-hidden
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(244,232,200,0.16) 0%, transparent 70%)',
+          }}
+        />
         
         <div
           className="relative w-full max-w-[320px] mx-auto transition-transform hover:scale-[1.01] duration-500"
@@ -719,6 +729,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           <FullWheelCanvas
             spinRef={spinRef}
             idleRotationRef={idleRotationRef}
+            caseLabel={t('bonuses.wheelCaseShort')}
           />
         </div>
       </div>
@@ -728,14 +739,14 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         {[0.05, 0.1, 0.25, 0.5, 10.0].map((tier) => (
           <span
             key={tier}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-md"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.06]"
           >
             <span
               className="w-2 h-2 rounded-full"
               style={{ background: SECTOR_TIER_COLOR[tier] }}
             />
             <span className="font-roobert text-[10px] font-semibold text-frost-white/90">
-              {tier === 10.0 ? 'КЕЙС' : `${tier.toFixed(2)} zł`}
+              {tier === 10.0 ? t('bonuses.wheelCaseShort') : `${tier.toFixed(2)} zł`}
             </span>
           </span>
         ))}
@@ -762,7 +773,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           </span>
           {onCooldown && (
             <span className="text-white/50">
-              {t('bonuses.wheelPause', { time: formatCooldownMs(cooldownLeftMs) })}
+              {t('bonuses.wheelPause', { time: formatCooldownMs(cooldownLeftMs, t) })}
             </span>
           )}
         </div>
@@ -777,7 +788,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           {state.ticker.slice(0, 12).map((row, i) => (
             <div
               key={i}
-              className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-md"
+              className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.06]"
             >
               {row.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -811,6 +822,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 function FullWheelCanvas({
   spinRef,
   idleRotationRef,
+  caseLabel,
 }: {
   spinRef: React.MutableRefObject<{
     startedAt: number;
@@ -819,6 +831,7 @@ function FullWheelCanvas({
     initialRotation: number;
   } | null>;
   idleRotationRef: React.MutableRefObject<number>;
+  caseLabel: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -978,7 +991,7 @@ function FullWheelCanvas({
         ctx.fillStyle = isDarkText
           ? 'rgba(255,255,255,0.35)'
           : 'rgba(0,0,0,0.55)';
-        const txt = SECTORS[i] === 10.0 ? 'КЕЙС' : `${SECTORS[i].toFixed(2)} zł`;
+        const txt = SECTORS[i] === 10.0 ? caseLabel : `${SECTORS[i].toFixed(2)} zł`;
         ctx.fillText(txt, 0, 1);
         ctx.fillStyle = textColor;
         ctx.fillText(txt, 0, 0);
@@ -1065,7 +1078,7 @@ function FullWheelCanvas({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
-  }, [spinRef, idleRotationRef]);
+  }, [spinRef, idleRotationRef, caseLabel]);
 
   return (
     <canvas
@@ -1092,6 +1105,7 @@ function shade(hex: string, percent: number): string {
 /* -------------------------------------------------------------------------- */
 
 function TournamentsList() {
+  const { t } = useT();
   const [list, setList] = useState<TournamentRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -1125,10 +1139,10 @@ function TournamentsList() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось зарегистрироваться');
+        reportApiError(res, json, t('bonuses.joinFail'));
         return;
       }
-      toast.success('Вы зарегистрированы в турнире');
+      toast.success(t('bonuses.joinOk'));
       void load();
     } finally {
       setBusyId(null);
@@ -1144,18 +1158,19 @@ function TournamentsList() {
     <section className="flex flex-col gap-4" id="tournaments">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[11px] uppercase tracking-[0.28em] text-whisper-gray font-bold">
-          Турниры ({list.length})
+          {t('bonuses.tournaments', { n: list.length })}
         </span>
       </div>
 
-      {list.map((t) => (
-        <TournamentCard key={t.id} tournament={t} onJoin={() => join(t.id)} busy={busyId === t.id} />
+      {list.map((row) => (
+        <TournamentCard key={row.id} tournament={row} onJoin={() => join(row.id)} busy={busyId === row.id} />
       ))}
     </section>
   );
 }
 
 function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
+  const { t, localeTag } = useT();
   const router = useRouter();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -1167,14 +1182,14 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
   const isEnded = now > tournament.endsAt;
   const targetTime = isBeforeStart ? tournament.startsAt : tournament.endsAt;
   const remainingMs = Math.max(0, targetTime - now);
-  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+  const remaining = useMemo(() => formatRemaining(remainingMs, t), [remainingMs, t]);
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       onClick={() => router.push(`/tournaments/${tournament.id}`)}
-      className="relative overflow-hidden rounded-3xl border border-white/10 hover:border-white/20 transition-all cursor-pointer bg-gradient-to-b from-white/[0.04] to-black/60 backdrop-blur-md"
+      className="relative overflow-hidden rounded-[20px] border border-white/10 hover:border-white/20 cursor-pointer bg-[#101216]"
     >
       {tournament.bannerUrl ? (
         <img
@@ -1196,7 +1211,8 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
         <div className="flex items-center gap-2">
           <Trophy size={13} className="text-amber-400" strokeWidth={2} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-amber-300/90 font-semibold">
-            Турнир · {tournament.gameType ? tournament.gameType.toUpperCase() : ''}
+            {t('bonuses.tournamentDot')}
+            {tournament.gameType ? ` · ${tournament.gameType.toUpperCase()}` : ''}
           </span>
         </div>
 
@@ -1213,23 +1229,31 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
           </div>
           <div className="text-right shrink-0">
             <div className="font-roobert text-amber-400 text-[20px] font-bold leading-none tabular-nums">
-              {tournament.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+              {tournament.prizePool.toLocaleString(localeTag, { maximumFractionDigits: 0 })}{' '}
               <span className="text-[12px] text-whisper-gray font-normal">zł</span>
             </div>
             <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums font-medium">
-              {tournament.winnersCount} призовых мест
+              {t('bonuses.prizePlaces', { n: tournament.winnersCount })}
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-[11px] text-whisper-gray tabular-nums bg-white/[0.04] p-2.5 rounded-2xl border border-white/5">
-          <span>Старт {tournament.startBalance.toFixed(0)} TM</span>
-          <span>Взнос {tournament.entryFee.toFixed(0)} zł</span>
-          <span className="text-amber-300/90">{isEnded ? 'Завершено' : isBeforeStart ? `Старт: ${remaining}` : `Конец: ${remaining}`}</span>
+          <span>{t('bonuses.startBank', { n: tournament.startBalance.toFixed(0) })}</span>
+          <span>{t('bonuses.entryFee', { n: tournament.entryFee.toFixed(0) })}</span>
+          <span className="text-white/70">
+            {isEnded
+              ? t('bonuses.ended')
+              : isBeforeStart
+                ? t('bonuses.startsIn', { time: remaining })
+                : t('bonuses.endsIn', { time: remaining })}
+          </span>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
-          <div className="font-roobert text-[11px] text-whisper-gray font-medium">Игра: {tournament.gameType}</div>
+          <div className="font-roobert text-[11px] text-whisper-gray font-medium">
+            {t('bonuses.gameName', { name: tournament.gameType })}
+          </div>
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -1244,7 +1268,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
             disabled={busy && !tournament.joined}
             className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-frost-white text-midnight-canvas font-roobert text-[11px] font-bold uppercase tracking-[0.18em] shadow-md transition-transform disabled:opacity-50"
           >
-            {tournament.joined || isBeforeStart ? 'К турниру' : 'Участвовать'}
+            {tournament.joined || isBeforeStart ? t('bonuses.toEvent') : t('bonuses.join')}
             <ArrowRight size={12} strokeWidth={2.2} />
           </motion.button>
         </div>
@@ -1258,6 +1282,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
 /* -------------------------------------------------------------------------- */
 
 function ContestsList({ currentUserId }: { currentUserId: string | null }) {
+  const { t } = useT();
   const [list, setList] = useState<ContestRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -1291,10 +1316,10 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось присоединиться');
+        reportApiError(res, json, t('bonuses.contestJoinFail'));
         return;
       }
-      toast.success('Вы присоединились');
+      toast.success(t('bonuses.contestJoinOk'));
       void load();
     } finally {
       setBusyId(null);
@@ -1312,7 +1337,7 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
     <section id="contests" className="flex flex-col gap-4 scroll-mt-4">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[11px] uppercase tracking-[0.28em] text-whisper-gray font-bold">
-          Конкурсы ({list.length})
+          {t('bonuses.contests', { n: list.length })}
         </span>
       </div>
 
@@ -1337,15 +1362,16 @@ function ContestCard({
   onJoin: () => void;
   busy: boolean;
 }) {
+  const { t, localeTag } = useT();
   const now = Date.now();
   const remainingMs = Math.max(0, contest.endsAt - now);
-  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+  const remaining = useMemo(() => formatRemaining(remainingMs, t), [remainingMs, t]);
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-3xl border border-white/10 hover:border-white/20 transition-all bg-gradient-to-b from-white/[0.04] to-black/60 backdrop-blur-md group"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="relative overflow-hidden rounded-[20px] border border-white/10 hover:border-white/20 bg-[#101216] group"
     >
       {contest.bannerUrl ? (
         <img
@@ -1368,10 +1394,10 @@ function ContestCard({
           <Trophy size={13} className="text-amber-400" strokeWidth={2} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-whisper-gray group-hover:text-frost-white transition-colors font-semibold">
             {contest.visibility === 'public'
-              ? 'Публичный конкурс'
+              ? t('bonuses.contestPublic')
               : contest.visibility === 'private'
-                ? 'Приватный конкурс'
-                : 'Глобальный конкурс'}
+                ? t('bonuses.contestPrivate')
+                : t('bonuses.contestGlobal')}
           </span>
         </div>
 
@@ -1388,34 +1414,36 @@ function ContestCard({
           </div>
           <div className="text-right shrink-0">
             <div className="font-roobert text-amber-400 text-[20px] font-bold leading-none tabular-nums">
-              {contest.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+              {contest.prizePool.toLocaleString(localeTag, { maximumFractionDigits: 0 })}{' '}
               <span className="text-[12px] text-whisper-gray font-normal">zł</span>
             </div>
             <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums font-medium">
-              {contest.winnersCount} призовых мест
+              {t('bonuses.prizePlaces', { n: contest.winnersCount })}
             </div>
           </div>
         </div>
 
-        <RulesPreview rules={contest.rules} />
+        <RulesPreview rules={contest.rules} t={t} />
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums font-medium">
               <Users size={12} strokeWidth={2} />
-              {contest.participantCount} участников
+              {t('bonuses.participants', { n: contest.participantCount })}
             </span>
-            <span className="font-roobert text-[11px] text-amber-300/90 tabular-nums font-medium">
-              {(contest as any).cycleState === 'ended' ? 'до начала' : 'до конца'} {remaining}
+            <span className="font-roobert text-[11px] text-white/70 tabular-nums font-medium">
+              {(contest as { cycleState?: string }).cycleState === 'ended'
+                ? t('bonuses.untilStart', { time: remaining })
+                : t('bonuses.untilEnd', { time: remaining })}
             </span>
           </div>
           {contest.visibility === 'global' ? (
             <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-white/15 bg-white/[0.05] font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-frost-white/90">
-              Автоучастие
+              {t('bonuses.autoJoin')}
             </span>
           ) : contest.joined ? (
-            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-300">
-              Участвую
+            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-white/15 bg-white/[0.06] font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-frost-white">
+              {t('bonuses.joining')}
             </span>
           ) : (
             <motion.button
@@ -1425,7 +1453,7 @@ function ContestCard({
               disabled={busy || contest.joined}
               className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-frost-white text-midnight-canvas font-roobert text-[11px] font-bold uppercase tracking-[0.18em] shadow-md transition-transform disabled:opacity-50"
             >
-              Участвовать
+              {t('bonuses.join')}
               <ArrowRight size={12} strokeWidth={2.2} />
             </motion.button>
           )}
@@ -1435,9 +1463,9 @@ function ContestCard({
   );
 }
 
-function RulesPreview({ rules }: { rules: unknown }) {
+function RulesPreview({ rules, t }: { rules: unknown; t: TFn }) {
   if (!Array.isArray(rules) || rules.length === 0) return null;
-  const formatted = rules.map((r) => describeRule(r)).filter((s): s is string => !!s);
+  const formatted = rules.map((r) => describeRule(r, t)).filter((s): s is string => !!s);
   if (formatted.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -1453,33 +1481,41 @@ function RulesPreview({ rules }: { rules: unknown }) {
   );
 }
 
-function describeRule(r: unknown): string | null {
+function describeRule(r: unknown, t: TFn): string | null {
   if (!r || typeof r !== 'object') return null;
   const o = r as Record<string, unknown>;
   switch (o.type) {
     case 'deposit_window':
-      return `Депозиты ≥ ${o.amount} zł за ${o.days} дн.`;
+      return t('bonuses.ruleDepositWindow', {
+        amount: String(o.amount ?? ''),
+        days: String(o.days ?? ''),
+      });
     case 'wagered_window':
-      return `Оборот ≥ ${o.amount} zł за ${o.days} дн.`;
+      return t('bonuses.ruleWagerWindow', {
+        amount: String(o.amount ?? ''),
+        days: String(o.days ?? ''),
+      });
     case 'deposit_total':
-      return `Депозитов всего ≥ ${o.amount} zł`;
+      return t('bonuses.ruleDepositTotal', { amount: String(o.amount ?? '') });
     case 'referrals':
-      return `${o.count}+ рефералов`;
+      return t('bonuses.ruleReferrals', { n: String(o.count ?? '') });
     case 'registered_after':
-      return `Регистрация после ${typeof o.date === 'string' ? o.date.slice(0, 10) : ''}`;
+      return t('bonuses.ruleRegisteredAfter', {
+        date: typeof o.date === 'string' ? o.date.slice(0, 10) : '',
+      });
     default:
       return null;
   }
 }
 
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return 'завершено';
+function formatRemaining(ms: number, t: TFn): string {
+  if (ms <= 0) return t('bonuses.done');
   const sec = Math.floor(ms / 1000);
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (d > 0) return `${d} д ${h} ч`;
-  if (h > 0) return `${h} ч ${m} м ${s} с`;
-  return `${m} м ${s} с`;
+  if (d > 0) return t('bonuses.dayHour', { d, h });
+  if (h > 0) return t('bonuses.hourMinSec', { h, m, s });
+  return t('bonuses.minSec', { n: m, s });
 }

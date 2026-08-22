@@ -92,34 +92,13 @@ export default function ProfilePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
-            className="relative overflow-hidden rounded-[20px] border border-white/12 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl"
+            className="relative overflow-hidden rounded-[20px] border border-white/12 bg-[#101216] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
           >
             <LanguageSwitcher className="absolute top-3 right-3 z-10" />
-            {/* Pure Black User Photo Backdrop (No Blue Tint) */}
-            {user?.photoUrl ? (
-              <>
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 opacity-20"
-                  style={{
-                    backgroundImage: `url(${user.photoUrl})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    filter: 'blur(50px) grayscale(0.6)',
-                    transform: 'scale(1.3)',
-                  }}
-                />
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-[#0c0d0f]/90 to-[#0c0d0f]"
-                />
-              </>
-            ) : (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_75%)]"
-              />
-            )}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_75%)]"
+            />
 
             <div className="relative px-5 pt-8 pb-6 flex flex-col items-center text-center">
 
@@ -129,7 +108,7 @@ export default function ProfilePage() {
                 transition={{ type: 'spring', bounce: 0.3 }}
                 className="relative group cursor-pointer"
               >
-                <div className="relative p-1 rounded-full border border-white/20 bg-gradient-to-b from-white/15 to-white/5 shadow-2xl backdrop-blur-xl">
+                <div className="relative p-1 rounded-full border border-white/20 bg-[#16181d] shadow-2xl">
                   {user?.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
