@@ -60,7 +60,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'crash',
     name: 'MacvJet',
     href: '/game/crash',
-    bg: '/MacvJet.png',
+    bg: '/tiles/macvjet.webp',
     badge: { label: 'TOP', color: 'red', Icon: Flame },
     isPopular: true,
     category: 'fast',
@@ -69,7 +69,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'mines',
     name: 'Mines',
     href: '/game/mines',
-    bg: '/Mines.png',
+    bg: '/tiles/mines.webp',
     isPopular: true,
     category: 'fast',
   },
@@ -77,7 +77,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'hilo',
     name: 'Hi-Lo',
     href: '/game/hilo',
-    bg: '/hilo.png',
+    bg: '/tiles/hilo.webp',
     wide: true,
     category: 'fast',
   },
@@ -85,14 +85,14 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'coinflip',
     name: 'Coinflip',
     href: '/game/coinflip',
-    bg: '/Coinflip.png',
+    bg: '/tiles/coinflip.webp',
     category: 'fast',
   },
   {
     id: 'macvpot',
     name: 'MacvPot',
     href: '/game/macvpot',
-    bg: '/MacvPot.png',
+    bg: '/tiles/macvpot.webp',
     badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
     isPopular: true,
     category: 'fast',
@@ -101,7 +101,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'blackjack',
     name: 'Blackjack',
     href: '/game/blackjack',
-    bg: '/bj.png',
+    bg: '/tiles/bj.webp',
     wide: true,
     category: 'table',
   },
@@ -109,7 +109,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'wheel',
     name: 'Wheel',
     href: '/game/wheel',
-    bg: '/Wheel.png',
+    bg: '/tiles/wheel.webp',
     badge: { label: 'x50', color: 'gold', Icon: Zap },
     isPopular: true,
     category: 'fast',
@@ -118,7 +118,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'cases',
     name: 'Case',
     href: '/game/cases',
-    bg: '/case.png',
+    bg: '/tiles/case.webp',
     wide: true,
     category: 'fast',
   },
@@ -126,7 +126,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'keno',
     name: 'Keno',
     href: '/game/keno',
-    bg: '/keno.png?v=2',
+    bg: '/tiles/keno.webp',
     category: 'table',
   },
 ];
@@ -364,12 +364,9 @@ export function HomeScreen() {
       >
         <EntranceBlock>
         {/* Presence ticker — real counts, glass chrome */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-midnight-canvas/70 px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-[0_8px_25px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
+        <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-[#0a0c10] px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-[0_8px_25px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400/70"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-            </span>
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             <span className="text-frost-white/90 font-medium tracking-tight">
               {(crashLobby?.playerCount ?? 0) > 0
                 ? t('home.jetPlaying', { n: crashLobby!.playerCount })
@@ -446,7 +443,7 @@ export function HomeScreen() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('home.searchPlaceholder')}
-              className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/12 bg-black/35 text-[13px] font-roobert text-frost-white placeholder:text-white/35 focus:outline-none focus:border-white/25 focus:bg-black/50 transition-all backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+              className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/12 bg-black/55 text-[13px] font-roobert text-frost-white placeholder:text-white/35 focus:outline-none focus:border-white/25 focus:bg-black/70 transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
             />
             {searchQuery && (
               <button
@@ -563,13 +560,10 @@ function EntranceBlock({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
       variants={{
-        hidden: { opacity: 0, y: reduceMotion ? 0 : 10 },
+        hidden: { opacity: 0 },
         show: {
           opacity: 1,
-          y: 0,
-          transition: reduceMotion
-            ? { duration: 0.2 }
-            : { type: 'spring', stiffness: 260, damping: 32, mass: 0.85 },
+          transition: { duration: reduceMotion ? 0.15 : 0.32, ease: [0.22, 1, 0.36, 1] },
         },
       }}
     >
@@ -663,13 +657,13 @@ function GameTile({
 
       <div className="relative h-full w-full p-4 flex flex-col justify-between z-10">
         <div className="flex items-start justify-between gap-2">
-          <span className="w-10 h-10 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
+          <span className="w-10 h-10 rounded-xl border border-white/15 bg-black/55 flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
             <GameIcon game={game.id} size={20} strokeWidth={1.5} />
           </span>
 
           {game.badge && (
             <span
-              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider border shadow-sm flex items-center gap-1 ${
                 game.badge.color === 'red'
                   ? 'border-red-500/30 bg-red-500/20 text-red-300'
                   : game.badge.color === 'gold'
@@ -740,7 +734,7 @@ function QuickAction({
   return (
     <Pressable
       onClick={onClick}
-      className="rounded-2xl border border-white/12 bg-white/[0.03] hover:border-white/20 px-4 py-4 text-left flex items-start gap-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl"
+      className="rounded-2xl border border-white/12 bg-white/[0.05] hover:border-white/20 px-4 py-4 text-left flex items-start gap-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
     >
       <span className="w-9 h-9 rounded-xl border border-white/15 bg-white/[0.05] flex items-center justify-center text-frost-white/90 shrink-0">
         {icon}
@@ -821,7 +815,7 @@ function ContestHero({
               <span>до конца {remaining}</span>
             </div>
           </div>
-          <span className="shrink-0 w-11 h-11 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-center backdrop-blur-md text-amber-300">
+          <span className="shrink-0 w-11 h-11 rounded-xl border border-amber-500/30 bg-amber-500/15 flex items-center justify-center text-amber-300">
             <ArrowRight size={18} strokeWidth={2} />
           </span>
         </div>

@@ -67,7 +67,7 @@ export function GameTopBar({
   const showPillWrapper = !hideBalance || !isProfilePage;
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-midnight-canvas/75 backdrop-blur-2xl border-b border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.07)] transition-all">
+    <header className="sticky top-0 z-50 w-full bg-midnight-canvas/95 border-b border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.07)]">
       <div
         className={`mx-auto w-full px-3.5 py-2.5 flex items-center justify-between gap-2 ${PAGE_WIDTH[width]}`}
       >

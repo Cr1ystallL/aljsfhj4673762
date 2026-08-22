@@ -52,15 +52,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * SplashGate — overlays the brand splash for the first ~1.5–2.5s of
- * the session. The hidden flag flips when:
- *   - the auth store has either confirmed the user OR returned an
- *     error (so we don't sit on the splash if the bridge is broken)
- *   - and we've been mounted for at least 1.2s
- *
- * The actual splash component adds an extra 2-second post-ready hold
- * inside its own state so the brand moment is always visible long
- * enough to read.
+ * SplashGate — overlays the brand splash until auth has settled
+ * (or 4s, so a broken Telegram bridge cannot pin the overlay).
+ * SplashScreen then holds a short brand beat and fades on opacity.
  */
 import { SplashScreen } from '@/components/loading/splash-screen';
 import { useEffect, useState as useReactState } from 'react';

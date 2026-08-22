@@ -22,7 +22,8 @@ interface BottomNavigationProps {
  * Bottom Navigation — Neutral Liquid Glass & Snappy Spring Physics (V10)
  *
  * Updates:
- *   - Center Logo Button: Slightly enlarged (w-[60px] h-[60px]), pure neutral liquid glass (bg-white/[0.08], backdrop-blur-2xl, border-white/20, top specular shine), with no color tints.
+ *   - Center logo: painted glass (opaque fill + specular), no backdrop-blur —
+ *     Telegram WebView taxes a full-width blur every frame.
  */
 
 const fastSpringTransition = {
@@ -67,7 +68,7 @@ export const BottomNavigation = memo(function BottomNavigation({
             <button
               onClick={() => setCollapsed(false)}
               aria-label={t('nav.expandDock')}
-              className="group px-4 py-2 rounded-full border border-white/20 bg-midnight-canvas/90 backdrop-blur-2xl shadow-[0_8px_25px_rgba(0,0,0,0.7)] flex items-center gap-2 text-frost-white active:scale-95 transition-all"
+              className="group px-4 py-2 rounded-full border border-white/20 bg-[#0c0e12] shadow-[0_8px_25px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] flex items-center gap-2 text-frost-white active:scale-95 transition-transform"
             >
               <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
                 <ChevronUp size={14} strokeWidth={2.5} />
@@ -85,7 +86,7 @@ export const BottomNavigation = memo(function BottomNavigation({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 50, opacity: 0 }}
             transition={fastSpringTransition}
-            className="pointer-events-auto w-full max-w-[460px] sm:max-w-[500px] rounded-full border border-white/15 bg-midnight-canvas/90 backdrop-blur-2xl px-4 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.7)] flex items-center justify-between gap-1 relative"
+            className="pointer-events-auto w-full max-w-[460px] sm:max-w-[500px] rounded-full border border-white/15 bg-[#0c0e12] px-4 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] flex items-center justify-between gap-1 relative"
           >
             {/* Collapse button on /game/ pages */}
             {hideable && (
@@ -123,8 +124,8 @@ export const BottomNavigation = memo(function BottomNavigation({
               {/* Pure Neutral Liquid Glass Container (No Color Tint) */}
               <div
                 className={cn(
-                  'relative w-[60px] h-[60px] sm:w-[64px] sm:h-[64px] rounded-full border border-white/25 bg-white/[0.08] backdrop-blur-2xl flex items-center justify-center overflow-hidden transition-all duration-150 shadow-lg',
-                  isHomeActive && 'border-white/50 bg-white/[0.15] ring-1 ring-white/30'
+                  'relative w-[60px] h-[60px] sm:w-[64px] sm:h-[64px] rounded-full border border-white/25 bg-[#16181d] flex items-center justify-center overflow-hidden transition-colors duration-150 shadow-lg',
+                  isHomeActive && 'border-white/50 bg-[#1c1f26] ring-1 ring-white/30'
                 )}
               >
                 {/* Top Specular Reflection Line */}

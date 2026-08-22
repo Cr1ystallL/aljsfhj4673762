@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 
 /**
- * Splash overlay visibility. Home uses this to play the 400–600 ms
- * lobby assemble once the brand moment lets go — content is already
- * mounted underneath.
+ * Splash overlay visibility. Home uses this to play a short opacity
+ * cascade once the brand beat lets go — content is already mounted
+ * underneath, so the splash must not outlast the first data load.
  */
 interface SplashState {
   visible: boolean;
