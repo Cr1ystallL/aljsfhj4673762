@@ -352,19 +352,6 @@ export function HomeScreen() {
     );
   }, [contests]);
 
-  const catchContest = useMemo(() => {
-    if (heroContest) {
-      return {
-        title: heroContest.title,
-        endsAt: heroContest.endsAt,
-        href: '/bonuses#contests',
-      };
-    }
-    const extra = contests?.find((c) => c.state === 'live' || c.state === 'scheduled');
-    if (!extra) return null;
-    return { title: extra.title, endsAt: extra.endsAt, href: '/bonuses#contests' };
-  }, [heroContest, contests]);
-
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
