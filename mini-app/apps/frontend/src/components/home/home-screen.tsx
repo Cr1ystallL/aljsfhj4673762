@@ -24,7 +24,6 @@ import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { Pressable } from '@/components/ui/pressable';
 import { MacvJetHero, useCrashLobby } from '@/components/home/macvjet-hero';
-import { HomeCatchUp } from '@/components/home/home-catch-up';
 import { HomeLuckFeed, type LuckFeedItem } from '@/components/home/home-luck-feed';
 import { useSplashStore } from '@/store/splash-store';
 import { useT } from '@/i18n/use-t';

@@ -25,6 +25,8 @@ import { useIsAdmin } from '@/lib/admin-probe';
 import { LanguageSwitcher } from '@/components/profile/language-switcher';
 import { ProfileTrophyShelf } from '@/components/profile/profile-trophy-shelf';
 import { Pressable } from '@/components/ui/pressable';
+import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
+import { useWinStreak } from '@/hooks/use-win-streak';
 import { useT } from '@/i18n/use-t';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 
@@ -40,6 +42,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const { t, localeTag } = useT();
   const { user } = useAuthStore();
+  const { streak } = useWinStreak();
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
   const [copied, setCopied] = useState(false);
@@ -127,11 +130,14 @@ export default function ProfilePage() {
                 </div>
               </motion.div>
 
-              {/* User Full Name */}
-              <h2 className="mt-3.5 font-roobert text-[25px] font-bold text-white tracking-tight leading-snug">
-                {user?.firstName || t('profile.player')}
-                {user?.lastName ? ` ${user.lastName}` : ''}
-              </h2>
+              {/* User Full Name & Streak Flame Badge */}
+              <div className="mt-3.5 flex items-center justify-center gap-2">
+                <h2 className="font-roobert text-[25px] font-bold text-white tracking-tight leading-snug">
+                  {user?.firstName || t('profile.player')}
+                  {user?.lastName ? ` ${user.lastName}` : ''}
+                </h2>
+                {streak > 0 && <StreakFlameBadge streak={streak} size="md" />}
+              </div>
 
               {/* Telegram ID Copy Button */}
               {user?.telegramId !== undefined && (

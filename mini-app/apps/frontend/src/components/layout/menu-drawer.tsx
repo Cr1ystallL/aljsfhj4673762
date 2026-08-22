@@ -24,6 +24,8 @@ import {
 import { useRouter } from 'next/navigation';
 import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
+import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
+import { useWinStreak } from '@/hooks/use-win-streak';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useT } from '@/i18n/use-t';
@@ -63,6 +65,7 @@ export function MenuDrawer({
   const router = useRouter();
   const { t, localeTag } = useT();
   const { user } = useAuthStore();
+  const { streak } = useWinStreak();
   const balanceStore = useBalanceStore((s) => s.balance);
 
   const [availability, setAvailability] = useState<{
@@ -180,8 +183,11 @@ export function MenuDrawer({
                     )}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-roobert font-medium text-[14px] text-frost-white truncate">
-                      {user?.firstName || t('profile.player')}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-roobert font-medium text-[14px] text-frost-white truncate">
+                        {user?.firstName || t('profile.player')}
+                      </span>
+                      {streak > 0 && <StreakFlameBadge streak={streak} size="sm" />}
                     </div>
                     <div className="font-roobert text-[11px] text-amber-300 font-bold tracking-tight">
                       {(balanceStore?.amount ?? 0).toLocaleString(localeTag)} zł

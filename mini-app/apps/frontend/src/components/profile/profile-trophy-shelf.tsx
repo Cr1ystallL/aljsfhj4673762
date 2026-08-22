@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
-import { StreakPips } from '@/components/ui/streak-pips';
 import { useT } from '@/i18n/use-t';
 
 export interface TrophyStats {
@@ -15,28 +13,6 @@ export interface TrophyStats {
 
 export function ProfileTrophyShelf({ stats }: { stats: TrophyStats }) {
   const { t, localeTag } = useT();
-  const [streak, setStreak] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/balance/catch-up', {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (cancelled || !json?.ok) return;
-        setStreak(Math.max(0, Math.floor(Number(json.winStreak) || 0)));
-      } catch {
-        /* keep 0 */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   return (
     <section className="rounded-[20px] border border-white/12 bg-[#101216] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
@@ -96,20 +72,6 @@ export function ProfileTrophyShelf({ stats }: { stats: TrophyStats }) {
           value={`${stats.maxWin.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł`}
         />
       </div>
-
-      {streak > 0 && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10">
-          <div>
-            <span className="block text-[9px] uppercase tracking-[0.14em] text-whisper-gray font-roobert">
-              {t('profile.streak')}
-            </span>
-            <span className="mt-1 block font-roobert text-[13px] text-[#F4E8C8] tabular-nums">
-              {t('profile.streakN', { n: streak })}
-            </span>
-          </div>
-          <StreakPips n={streak} />
-        </div>
-      )}
     </section>
   );
 }
