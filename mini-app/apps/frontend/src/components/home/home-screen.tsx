@@ -25,6 +25,7 @@ import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { Pressable } from '@/components/ui/pressable';
 import { MacvJetHero, useCrashLobby } from '@/components/home/macvjet-hero';
 import { HomeCatchUp } from '@/components/home/home-catch-up';
+import { HomeLuckFeed, type LuckFeedItem } from '@/components/home/home-luck-feed';
 import { useSplashStore } from '@/store/splash-store';
 import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
@@ -155,6 +156,7 @@ export function HomeScreen() {
   const [contests, setContests] = useState<HeroContest[] | null>(null);
   const [online, setOnline] = useState<number>(0);
   const [payouts24h, setPayouts24h] = useState<number>(0);
+  const [luckFeed, setLuckFeed] = useState<LuckFeedItem[]>([]);
   const crashLobby = useCrashLobby(true);
   const splashVisible = useSplashStore((s) => s.visible);
   const reduceMotion = useReducedMotion();
@@ -207,6 +209,21 @@ export function HomeScreen() {
           setOnline(Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
           const paid = Number(data.payouts24h ?? 0);
           setPayouts24h(Number.isFinite(paid) && paid > 0 ? paid : 0);
+          if (Array.isArray(data.feed)) {
+            setLuckFeed(
+              data.feed
+                .map((row: Partial<LuckFeedItem>) => ({
+                  id: String(row.id ?? ''),
+                  name: String(row.name ?? ''),
+                  photoUrl: row.photoUrl ?? null,
+                  gameType: String(row.gameType ?? ''),
+                  payout: Number(row.payout) || 0,
+                  multiplier: Number(row.multiplier) || 0,
+                  at: Number(row.at) || 0,
+                }))
+                .filter((row: LuckFeedItem) => row.id && row.payout > 0)
+            );
+          }
         }
       } catch {
         // keep last known — do not invent a lobby
@@ -395,6 +412,12 @@ export function HomeScreen() {
               hideContest={!!heroContest}
               onOpen={(href) => router.push(href)}
             />
+          </EntranceBlock>
+        )}
+
+        {luckFeed.length > 0 && (
+          <EntranceBlock>
+            <HomeLuckFeed items={luckFeed} />
           </EntranceBlock>
         )}
 

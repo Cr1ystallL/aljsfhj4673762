@@ -11,7 +11,7 @@ export function BetPanelShell({
   return (
     <div
       className={cn(
-        'rounded-card border border-white/10 bg-white/[0.04] overflow-hidden',
+        'rounded-[20px] border border-white/12 bg-white/[0.04] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl',
         className
       )}
     >

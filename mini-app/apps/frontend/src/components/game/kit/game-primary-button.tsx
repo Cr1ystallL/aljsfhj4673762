@@ -1,8 +1,8 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { Pressable } from '@/components/ui/pressable';
 
 export type GamePrimaryTone = 'solid' | 'muted' | 'gradient' | 'stop';
 
@@ -21,7 +21,7 @@ export function GamePrimaryButton({
   tone = 'solid',
   className,
 }: GamePrimaryButtonProps) {
-  const gradient =
+  const gradient: CSSProperties | undefined =
     tone === 'gradient'
       ? {
           background:
@@ -37,15 +37,13 @@ export function GamePrimaryButton({
         : undefined;
 
   return (
-    <motion.button
+    <Pressable
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileTap={!disabled ? { scale: 0.97 } : undefined}
-      transition={{ type: 'spring', bounce: 0, duration: 0.32 }}
       style={gradient}
       className={cn(
-        'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors inline-flex items-center justify-center gap-2',
+        'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] inline-flex items-center justify-center gap-2',
         tone === 'solid' &&
           'bg-frost-white text-midnight-canvas hover:bg-frost-white/90',
         tone === 'muted' &&
@@ -56,6 +54,6 @@ export function GamePrimaryButton({
       )}
     >
       {children}
-    </motion.button>
+    </Pressable>
   );
 }

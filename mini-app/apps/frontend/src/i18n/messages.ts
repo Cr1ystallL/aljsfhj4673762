@@ -169,6 +169,7 @@ export const ru = {
     missedCase: 'кейс ждёт',
     missedCases: 'кейсы ждут',
     missedContest: 'турнир',
+    luckFeed: 'Только что выиграли',
     tag: {
       crash: 'До x10 000',
       mines: 'Поле 5×5',
@@ -485,6 +486,7 @@ export const en: Messages = {
     missedCase: 'case waiting',
     missedCases: 'cases waiting',
     missedContest: 'tournament',
+    luckFeed: 'Just won',
     tag: {
       crash: 'Up to x10 000',
       mines: '5×5 field',
@@ -799,6 +801,7 @@ export const pl: Messages = {
     missedCase: 'skrzynka czeka',
     missedCases: 'skrzynki czekają',
     missedContest: 'turniej',
+    luckFeed: 'Właśnie wygrali',
     tag: {
       crash: 'Do x10 000',
       mines: 'Pole 5×5',
