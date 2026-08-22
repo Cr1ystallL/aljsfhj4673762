@@ -41,7 +41,8 @@ export function GamePrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileTap={!disabled ? { scale: 0.99 } : undefined}
+      whileTap={!disabled ? { scale: 0.97 } : undefined}
+      transition={{ type: 'spring', bounce: 0, duration: 0.32 }}
       style={gradient}
       className={cn(
         'w-full h-11 rounded-pill font-roobert text-[12px] uppercase tracking-[0.2em] transition-colors inline-flex items-center justify-center gap-2',
