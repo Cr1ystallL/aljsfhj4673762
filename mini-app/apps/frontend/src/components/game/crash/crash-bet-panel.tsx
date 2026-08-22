@@ -8,6 +8,7 @@ import {
   BetPanelCtaRow,
   BetPanelShell,
   GamePrimaryButton,
+  KitStepperButton,
   StakeField,
 } from '@/components/game/kit';
 
@@ -132,14 +133,13 @@ export const CrashBetPanel = memo(function CrashBetPanel({
             </button>
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
-            <button
+            <KitStepperButton
               onClick={decAuto}
               disabled={inputsLocked || !autoCashoutEnabled}
-              className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label={t('common.decreaseMult')}
+              ariaLabel={t('common.decreaseMult')}
             >
               <Minus size={12} strokeWidth={2.2} />
-            </button>
+            </KitStepperButton>
             <div
               className={cn(
                 'flex-1 text-center font-roobert text-[22px] font-light tabular-nums',
@@ -148,14 +148,13 @@ export const CrashBetPanel = memo(function CrashBetPanel({
             >
               x{autoCashoutMultiplier.toFixed(2)}
             </div>
-            <button
+            <KitStepperButton
               onClick={incAuto}
               disabled={inputsLocked || !autoCashoutEnabled}
-              className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
-              aria-label={t('common.increaseMult')}
+              ariaLabel={t('common.increaseMult')}
             >
               <Plus size={12} strokeWidth={2.2} />
-            </button>
+            </KitStepperButton>
           </div>
         </div>
       </div>

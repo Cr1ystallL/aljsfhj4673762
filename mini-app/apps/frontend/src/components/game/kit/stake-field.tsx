@@ -3,6 +3,7 @@
 import { Minus, Plus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { Pressable } from '@/components/ui/pressable';
 
 interface StakeFieldProps {
   amount: number;
@@ -13,7 +14,7 @@ interface StakeFieldProps {
   label?: string;
   decreaseLabel?: string;
   increaseLabel?: string;
-  /** ± buttons (Crash) vs ½ / ×2 pills (Mines). */
+  /** Default is ½ / ×2 — the shared kit. Steppers kept for count fields. */
   variant?: 'steppers' | 'halve-double';
   className?: string;
   inputClassName?: string;
@@ -28,7 +29,7 @@ export function StakeField({
   label,
   decreaseLabel,
   increaseLabel,
-  variant = 'steppers',
+  variant = 'halve-double',
   className,
   inputClassName,
 }: StakeFieldProps) {
@@ -143,14 +144,14 @@ function HalveDoubleButton({
   disabled?: boolean;
 }) {
   return (
-    <button
+    <Pressable
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="shrink-0 px-2.5 py-1 rounded-pill border border-white/15 text-frost-white/70 hover:text-frost-white hover:border-white/25 disabled:opacity-40 transition-colors text-[11px] font-roobert tabular-nums"
+      className="shrink-0 px-2.5 py-1 rounded-pill border border-white/15 text-frost-white/70 hover:text-frost-white hover:border-white/25 disabled:opacity-40 text-[11px] font-roobert tabular-nums"
     >
       {children}
-    </button>
+    </Pressable>
   );
 }
 
@@ -166,14 +167,14 @@ export function KitStepperButton({
   ariaLabel?: string;
 }) {
   return (
-    <button
+    <Pressable
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
-      className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white transition-colors disabled:opacity-40"
+      className="w-7 h-7 rounded-pill border border-white/15 text-frost-white/80 flex items-center justify-center hover:border-white/30 hover:text-frost-white disabled:opacity-40"
     >
       {children}
-    </button>
+    </Pressable>
   );
 }
