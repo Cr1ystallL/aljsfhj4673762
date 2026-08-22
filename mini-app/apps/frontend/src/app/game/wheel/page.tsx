@@ -15,6 +15,7 @@ import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n/use-t';
+import { Pressable } from '@/components/ui/pressable';
 import {
   BetPanelCtaRow,
   BetPanelShell,
@@ -104,6 +105,28 @@ const SEG_COLOR: Record<
 
 /** Bettable multipliers — x1 deliberately removed */
 const PICKS: number[] = [2, 3, 5, 30];
+
+const POINTER_ANGLE = -Math.PI / 2;
+
+function normalizeAngle(a: number) {
+  const t = Math.PI * 2;
+  return ((a % t) + t) % t;
+}
+
+/** Sector currently under the fixed top pointer. */
+function pointerSegmentIndex(rotation: number, segments: number) {
+  if (segments <= 0) return 0;
+  const span = (Math.PI * 2) / segments;
+  const local = normalizeAngle(POINTER_ANGLE - rotation);
+  return Math.floor(local / span) % segments;
+}
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
 
 /* ========================================================================== */
 /*  Page                                                                       */
@@ -356,13 +379,12 @@ export default function WheelPage() {
           {PICKS.map((p) => {
             const active = pick === p;
             return (
-              <button
+              <Pressable
                 key={p}
                 onClick={() => setPick(p)}
                 className={cn(
-                  'inline-flex items-center justify-center h-10 px-5 transition-all',
-                  'font-sans text-[13px] font-light tracking-[0.08em] uppercase tabular-nums',
-                  'active:scale-[0.97]'
+                  'inline-flex items-center justify-center h-10 px-5',
+                  'font-sans text-[13px] tracking-[0.08em] uppercase tabular-nums'
                 )}
                 style={{
                   borderRadius: 75,
@@ -373,7 +395,7 @@ export default function WheelPage() {
                 }}
               >
                 ×{p}
-              </button>
+              </Pressable>
             );
           })}
         </div>
@@ -502,6 +524,7 @@ function HistoryStrip({
 }: {
   history: Array<{ multiplier: number; roundId: string }>;
 }) {
+  const { t } = useT();
   const [expanded, setExpanded] = useState(false);
   const [pfModalOpen, setPfModalOpen] = useState(false);
   const [pfRoundId, setPfRoundId] = useState<string | null>(null);
@@ -524,7 +547,7 @@ function HistoryStrip({
               className="font-sans text-[#636363]"
               style={{ fontSize: 11 }}
             >
-              История появится после первого раунда
+              {t('wheel.historyEmpty')}
             </span>
           ) : (
             visible.map((h, i) => {
@@ -592,6 +615,7 @@ function BetsFeed({
   stats: Snapshot['stats'];
   phase: Phase;
 }) {
+  const { t, localeTag } = useT();
   const sorted = [...bets].sort((a, b) => b.amount - a.amount);
 
   return (
@@ -605,13 +629,13 @@ function BetsFeed({
           className="font-sans uppercase tracking-[0.2em] text-[#636363]"
           style={{ fontSize: 10 }}
         >
-          {stats.playerCount} игроков
+          {t('wheel.playersCount', { n: stats.playerCount })}
         </span>
         <span
           className="font-sans uppercase tracking-[0.2em] text-[#636363]"
           style={{ fontSize: 10 }}
         >
-          {stats.totalWagered.toLocaleString('ru-RU', {
+          {stats.totalWagered.toLocaleString(localeTag, {
             maximumFractionDigits: 0,
           })}{' '}
           zł
@@ -625,7 +649,7 @@ function BetsFeed({
             className="py-10 text-center font-sans text-[#636363]"
             style={{ fontSize: 12 }}
           >
-            Ожидание ставок
+            {t('wheel.waitingBets')}
           </div>
         )}
         {sorted.map((b) => {
@@ -676,7 +700,7 @@ function BetsFeed({
                   className="font-sans text-[#636363] flex items-center gap-1 tabular-nums"
                   style={{ fontSize: 10 }}
                 >
-                  {b.amount.toLocaleString('ru-RU', {
+                  {b.amount.toLocaleString(localeTag, {
                     maximumFractionDigits: 2,
                   })}{' '}
                   {b.isTournament ? <Trophy size={10} className="text-[#d4af37]" /> : 'zł'} · ×{b.pick}
@@ -743,6 +767,8 @@ function WheelCanvas({
       ? Math.max(0, Math.ceil((snap.waitingEndsAt - (now - clockSkew)) / 1000))
       : null;
 
+  const { t } = useT();
+
   /* ---- Draw function ---------------------------------------------------- */
 
   const draw = useCallback(
@@ -764,6 +790,17 @@ function WheelCanvas({
       const radius = Math.min(w, h) * 0.43;
       const segments = layout.length;
       const span = (2 * Math.PI) / segments;
+      const reduced = prefersReducedMotion();
+      const waitingPulse =
+        uiPhase === 'waiting' && !reduced
+          ? 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(performance.now() / 520))
+          : uiPhase === 'waiting'
+            ? 0.55
+            : 1;
+      const hotIndex =
+        uiPhase === 'completed' && snap.segmentIndex != null
+          ? snap.segmentIndex
+          : pointerSegmentIndex(rotation, segments);
 
       /* ---- Subtle floor shadow ---------------------------------------- */
       ctx.beginPath();
@@ -779,7 +816,7 @@ function WheelCanvas({
       ctx.arc(cx, cy, radius * 1.05, 0, Math.PI * 2);
       const rimGrad = ctx.createRadialGradient(cx, cy, radius * 0.98, cx, cy, radius * 1.06);
       rimGrad.addColorStop(0, 'rgba(255,255,255,0)');
-      rimGrad.addColorStop(0.5, 'rgba(255,255,255,0.04)');
+      rimGrad.addColorStop(0.5, `rgba(255,255,255,${0.03 + 0.05 * waitingPulse})`);
       rimGrad.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = rimGrad;
       ctx.fill();
@@ -816,6 +853,31 @@ function WheelCanvas({
         segGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
         ctx.fillStyle = segGrad;
         ctx.fill();
+      }
+
+      /* Light on the sector under the pointer (or the settled winner). */
+      if (hotIndex >= 0 && hotIndex < segments) {
+        const a0 = hotIndex * span;
+        const a1 = a0 + span;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, a0, a1);
+        ctx.closePath();
+        const glow = ctx.createRadialGradient(0, 0, radius * 0.22, 0, 0, radius);
+        glow.addColorStop(0, 'rgba(246, 200, 92, 0.05)');
+        glow.addColorStop(0.55, 'rgba(246, 200, 92, 0.14)');
+        glow.addColorStop(1, 'rgba(244, 232, 200, 0.26)');
+        ctx.fillStyle = glow;
+        ctx.globalAlpha = uiPhase === 'completed' ? 1 : 0.88;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius - 1.25, a0, a1);
+        ctx.strokeStyle = `rgba(244, 232, 200, ${uiPhase === 'completed' ? 0.55 : 0.32})`;
+        ctx.lineWidth = 2.25;
+        ctx.stroke();
+        ctx.restore();
       }
 
       /* Apply vignette to wheel */
@@ -869,8 +931,9 @@ function WheelCanvas({
         ctx.rotate(aMid + Math.PI / 2);
         
         // Premium typography
-        ctx.font = '600 16px "Inter", ui-sans-serif, system-ui, sans-serif';
-        ctx.fillStyle = c.label;
+        const hot = i === hotIndex;
+        ctx.font = `${hot ? 700 : 600} ${hot ? 17 : 16}px "Inter", ui-sans-serif, system-ui, sans-serif`;
+        ctx.fillStyle = hot ? '#F4E8C8' : c.label;
         ctx.shadowColor = 'rgba(0,0,0,0.5)';
         ctx.shadowBlur = 4;
         ctx.shadowOffsetY = 1;
@@ -924,6 +987,29 @@ function WheelCanvas({
         ctx.fill();
       }
 
+      /* Soft wash from the pointer onto the hot sector. */
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - radius * 1.02);
+      ctx.lineTo(cx + radius * 0.2, cy + radius * 0.08);
+      ctx.lineTo(cx - radius * 0.2, cy + radius * 0.08);
+      ctx.closePath();
+      const wash = ctx.createLinearGradient(cx, cy - radius, cx, cy + radius * 0.05);
+      wash.addColorStop(0, 'rgba(244, 232, 200, 0.18)');
+      wash.addColorStop(1, 'rgba(244, 232, 200, 0)');
+      ctx.fillStyle = wash;
+      ctx.globalAlpha = uiPhase === 'waiting' ? 0.4 + 0.35 * waitingPulse : 0.72;
+      ctx.fill();
+      ctx.restore();
+
+      if (uiPhase === 'waiting') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(246, 200, 92, ${0.05 + 0.16 * waitingPulse})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+
       /* ---- Top pointer (sleek modern diamond) -------------------------------- */
       const px = cx;
       const py = cy - radius * 1.05;
@@ -951,7 +1037,7 @@ function WheelCanvas({
       // Reset shadow for subsequent draws
       ctx.shadowBlur = 0;
     },
-    [layout, snap]
+    [layout, snap, uiPhase]
   );
 
   /* ---- Canvas setup + render loop -------------------------------------- */
@@ -999,7 +1085,9 @@ function WheelCanvas({
 
     if (snap.phase === 'waiting') {
       if (spinTweenRef.current) spinTweenRef.current.kill();
-      if (!idleTweenRef.current || !idleTweenRef.current.isActive()) {
+      if (prefersReducedMotion()) {
+        if (idleTweenRef.current) idleTweenRef.current.kill();
+      } else if (!idleTweenRef.current || !idleTweenRef.current.isActive()) {
         idleTweenRef.current = gsap.to(rotRef.current, {
           angle: rotRef.current.angle + Math.PI * 2,
           duration: 40,
@@ -1033,7 +1121,7 @@ function WheelCanvas({
         spinTweenRef.current = gsap.to(rotRef.current, {
           angle: rotRef.current.angle + diff,
           duration: (snap.spinDurationMs || 5000) / 1000,
-          ease: 'power3.out',
+          ease: 'power4.out',
         });
       } else {
         rotRef.current.angle = targetAngle;
@@ -1073,7 +1161,7 @@ function WheelCanvas({
             >
               {remaining > 0
                 ? `${String(remaining).padStart(2, '0')}`
-                : 'GO'}
+                : t('wheel.go')}
             </motion.span>
           )}
 
@@ -1093,7 +1181,7 @@ function WheelCanvas({
                 marginLeft: '0.5em', // offset tracking visually
               }}
             >
-              SPIN
+              {t('wheel.spin')}
             </motion.span>
           )}
 

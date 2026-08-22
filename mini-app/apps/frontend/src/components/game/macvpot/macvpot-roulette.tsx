@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { motion, useAnimation } from 'framer-motion';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { useT } from '@/i18n/use-t';
+import { cn } from '@/lib/utils';
 import type { MacvpotParticipant } from '@/app/game/macvpot/page';
 
 interface MacvpotRouletteProps {
@@ -79,6 +81,7 @@ export function MacvpotRoulette({
   spinDurationMs,
   onSpinComplete,
 }: MacvpotRouletteProps) {
+  const { t } = useT();
   const [track, setTrack] = useState<MacvpotParticipant[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
@@ -140,23 +143,31 @@ export function MacvpotRoulette({
   return (
     <div
       ref={containerRef}
-      className="w-full flex flex-col gap-2 relative bg-black/80 rounded-3xl py-5 border border-white/10 overflow-hidden shadow-[0_8px_32px_0_rgba(0,0,0,0.9)] backdrop-blur-2xl min-h-[160px] justify-center"
+      className="w-full relative min-h-[168px] justify-center rounded-[20px] border border-white/12 bg-white/[0.04] py-5 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl flex flex-col"
     >
-      {/* Central target liquid glass selector line */}
-      <div className="absolute top-0 bottom-0 left-1/2 w-[4px] bg-gradient-to-b from-amber-300 via-white to-amber-300 -translate-x-1/2 z-20 shadow-[0_0_15px_rgba(255,255,255,0.9)] pointer-events-none rounded-full" />
+      {/* Waiting / settle: a thin glass pointer, not a neon bar. */}
+      <div className="absolute top-0 bottom-0 left-1/2 z-20 -translate-x-1/2 pointer-events-none flex flex-col items-center">
+        <div
+          className={cn(
+            'w-px flex-1 bg-gradient-to-b from-[#F4E8C8]/70 via-white/35 to-[#F4E8C8]/70',
+            !isSpinning && bets.length > 0 && 'animate-pulse'
+          )}
+        />
+      </div>
+      <div className="absolute top-2 left-1/2 z-20 -translate-x-1/2 pointer-events-none">
+        <div className="h-2.5 w-2.5 rotate-45 rounded-[1px] bg-[#F4E8C8] shadow-[0_0_12px_rgba(244,232,200,0.28)]" />
+      </div>
 
-      {/* Side vignettes for edge fading */}
-      <div className="absolute top-0 bottom-0 left-0 w-20 sm:w-32 bg-gradient-to-r from-black to-transparent z-30 pointer-events-none" />
-      <div className="absolute top-0 bottom-0 right-0 w-20 sm:w-32 bg-gradient-to-l from-black to-transparent z-30 pointer-events-none" />
+      <div className="absolute top-0 bottom-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-[#050505] to-transparent z-30 pointer-events-none" />
+      <div className="absolute top-0 bottom-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-[#050505] to-transparent z-30 pointer-events-none" />
 
       {bets.length === 0 ? (
-        /* Empty Roulette State */
         <div className="w-full py-8 flex flex-col items-center justify-center text-center px-4 relative z-10">
-          <span className="text-xs font-semibold text-white/30 uppercase tracking-widest">
-            Рулетка пуста
+          <span className="text-[10px] uppercase tracking-[0.2em] text-white/35">
+            {t('macvpot.emptyTitle')}
           </span>
-          <span className="text-sm font-medium text-white/50 mt-1">
-            Ожидание ставок участников для запуска вращения
+          <span className="text-sm font-roobert text-white/55 mt-1.5">
+            {t('macvpot.emptyHint')}
           </span>
         </div>
       ) : (
@@ -179,7 +190,7 @@ export function MacvpotRoulette({
             }}
           >
             {track.map((item, idx) => {
-              const name = item.user?.firstName || item.user?.username || 'Игрок';
+              const name = item.user?.firstName || item.user?.username || t('macvpot.player');
               const initial = name.charAt(0).toUpperCase();
 
               return (
@@ -188,37 +199,33 @@ export function MacvpotRoulette({
                   className="flex-shrink-0 p-1.5"
                   style={{ width: `${ITEM_WIDTH}px`, height: '140px' }}
                 >
-                  <div className="w-full h-full rounded-2xl border border-white/20 bg-black relative overflow-hidden shadow-xl group">
-                    {/* Full-Cover Avatar Fill */}
+                  <div className="w-full h-full rounded-[16px] border border-white/12 bg-white/[0.04] relative overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                     {item.user?.photoUrl ? (
                       <Image
                         src={item.user.photoUrl}
                         alt={name}
                         width={120}
                         height={140}
-                        className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-300"
+                        className="absolute inset-0 w-full h-full object-cover opacity-90"
                         unoptimized
                       />
                     ) : (
-                      <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center text-white text-3xl font-black">
+                      <div className="absolute inset-0 w-full h-full bg-[#121214] flex items-center justify-center text-frost-white/80 text-2xl font-roobert font-light">
                         {initial}
                       </div>
                     )}
 
-                    {/* Dark Gradients for Text Legibility */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/80 pointer-events-none" />
 
-                    {/* Top: Player Name */}
                     <div className="absolute top-2 left-2 right-2 text-center z-10">
-                      <span className="text-[11px] font-bold text-white drop-shadow-md truncate block">
+                      <span className="text-[11px] font-roobert text-frost-white truncate block">
                         {name}
                       </span>
                     </div>
 
-                    {/* Bottom: Chance Badge */}
                     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
-                      <span className="text-[10px] font-extrabold text-amber-300 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-400/40 shadow-md">
-                        {item.chance > 0 ? `${item.chance}%` : 'Jackpot'}
+                      <span className="text-[10px] font-roobert tabular-nums text-[#F4E8C8] bg-black/55 px-2 py-0.5 rounded-pill border border-white/12">
+                        {item.chance > 0 ? `${item.chance}%` : t('macvpot.jackpot')}
                       </span>
                     </div>
                   </div>
