@@ -13,7 +13,7 @@ interface StakeFieldProps {
   label?: string;
   decreaseLabel?: string;
   increaseLabel?: string;
-  /** ± buttons (Crash) vs ½ / ×2 pills (Mines / Plinko). */
+  /** ± buttons (Crash) vs ½ / ×2 pills (Mines). */
   variant?: 'steppers' | 'halve-double';
   className?: string;
   inputClassName?: string;

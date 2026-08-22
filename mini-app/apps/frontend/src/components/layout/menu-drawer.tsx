@@ -47,11 +47,9 @@ const ALL_IN_APP_GAMES: InAppGame[] = [
   { id: 'crash', name: 'MacvJet', bg: '/MacvJet.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
   { id: 'mines', name: 'Mines', bg: '/Mines.png', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
   { id: 'hilo', name: 'Hi-Lo', bg: '/hilo.png', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
-  { id: 'plinko', name: 'Plinko', bg: '/Plinko.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
   { id: 'coinflip', name: 'Coinflip', bg: '/Coinflip.png', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
   { id: 'blackjack', name: 'Blackjack', bg: '/bj.png', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
   { id: 'wheel', name: 'Wheel', bg: '/Wheel.png', badge: { label: 'x50', color: 'gold', Icon: Zap } },
-  { id: 'bridges', name: 'Bridges', bg: '/Bridges.png' },
   { id: 'cases', name: 'Case', bg: '/case.png', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
   { id: 'keno', name: 'Keno', bg: '/keno.png?v=2', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
 ];

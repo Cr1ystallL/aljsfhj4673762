@@ -9,7 +9,7 @@ import { GameIcon, type GameKey } from '@/components/ui/game-icon';
  * Coming Soon — Monopo Saigon Style
  *
  * Placeholder shown for games whose mechanics are temporarily removed
- * (Mines, Plinko). The visual stays in keeping with the rest of the
+ * (Mines, Coinflip). The visual stays in keeping with the rest of the
  * app — frosted glass over deep ocean atmospherics, no harsh shadows,
  * Roobert typography, pill controls.
  */

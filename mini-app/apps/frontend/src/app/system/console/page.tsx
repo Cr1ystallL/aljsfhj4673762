@@ -969,10 +969,8 @@ function prettyPath(p: string): string {
     const slug = p.split('/')[2] ?? '';
     if (slug === 'crash') return 'Игра · MacvJet';
     if (slug === 'mines') return 'Игра · Mines';
-    if (slug === 'plinko') return 'Игра · Plinko';
     if (slug === 'coinflip') return 'Игра · Coinflip';
     if (slug === 'wheel') return 'Игра · Wheel';
-    if (slug === 'bridges') return 'Игра · Bridges';
     return `Игра · ${slug}`;
   }
   if (p === '/system/console') return 'Админка · Сводка';

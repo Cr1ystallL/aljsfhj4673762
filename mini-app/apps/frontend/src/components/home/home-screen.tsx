@@ -119,13 +119,6 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'bridges',
-    name: 'Bridges',
-    href: '/game/bridges',
-    bg: '/Bridges.png',
-    category: 'fast',
-  },
-  {
     id: 'cases',
     name: 'Case',
     href: '/game/cases',
@@ -141,15 +134,6 @@ const IN_APP_GAMES: InAppGame[] = [
     bg: '/keno.png?v=2',
     badge: { label: 'LOTTO', color: 'purple', Icon: Layers },
     category: 'table',
-  },
-  {
-    id: 'plinko',
-    name: 'Plinko',
-    href: '/game/plinko',
-    bg: '/Plinko.png',
-    badge: { label: 'TOP', color: 'red', Icon: Flame },
-    isPopular: true,
-    category: 'fast',
   },
 ];
 

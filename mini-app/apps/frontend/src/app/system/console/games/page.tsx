@@ -23,7 +23,7 @@ import { distributePercentages } from '@casino/shared';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'macvpot' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo' | 'cases';
+type GameType = 'crash' | 'macvpot' | 'mines' | 'coinflip' | 'wheel' | 'blackjack' | 'hilo' | 'cases';
 
 interface GameCfg {
   paused: boolean;
@@ -40,7 +40,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo', 'cases'];
+const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'coinflip', 'wheel', 'hilo', 'cases'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);
@@ -449,28 +449,6 @@ function GameCard({
             </div>
           )}
 
-          {gameType === 'plinko' && (
-            <Field
-              label="Лимит выплат"
-              help={{
-                title: 'Лимит выплат',
-                body: (
-                  <p>
-                    Верхний предел выплаты на один шар. Полезно при
-                    высоких мультипликаторах в режиме «Hard».
-                  </p>
-                ),
-              }}
-            >
-              <NumberInput
-                value={Number(form.extras?.maxPayout ?? 1_000_000)}
-                step={1000}
-                min={0}
-                onChange={(v) => updateExtra('maxPayout', v)}
-              />
-            </Field>
-          )}
-
           {gameType === 'coinflip' && (
             <div className="grid grid-cols-2 gap-3">
               <Field
@@ -588,52 +566,6 @@ function GameCard({
                   min={5}
                   max={30}
                   onChange={(v) => updateExtra('rollDuration', v)}
-                />
-              </Field>
-            </div>
-          )}
-
-          {gameType === 'bridges' && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Рядов"
-                help={{
-                  title: 'Количество рядов в мостах',
-                  body: (
-                    <p>
-                      Сколько рядов нужно пройти от старта до финиша.
-                      Стандарт — 5. Менять не рекомендуется, т.к.
-                      лестница множителей рассчитана под 5 рядов.
-                    </p>
-                  ),
-                }}
-              >
-                <NumberInput
-                  value={Number(form.extras?.rows ?? 5)}
-                  step={1}
-                  min={3}
-                  max={10}
-                  onChange={(v) => updateExtra('rows', v)}
-                />
-              </Field>
-              <Field
-                label="Ячеек в ряду"
-                help={{
-                  title: 'Количество ячеек в ряду',
-                  body: (
-                    <p>
-                      Сколько досок в каждом ряду. По умолчанию 4.
-                      Меняет вероятности: больше ячеек = легче пройти.
-                    </p>
-                  ),
-                }}
-              >
-                <NumberInput
-                  value={Number(form.extras?.cells ?? 4)}
-                  step={1}
-                  min={2}
-                  max={8}
-                  onChange={(v) => updateExtra('cells', v)}
                 />
               </Field>
             </div>

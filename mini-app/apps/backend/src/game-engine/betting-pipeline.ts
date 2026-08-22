@@ -167,7 +167,7 @@ export class BettingPipeline {
     // Honour admin-controlled limits and pause flag. The engine knows
     // its game-type from `bet.gameId` (e.g. "crash_main_..." → "crash").
     const gt = bet.gameId.split('_')[0];
-    const supported: GameType[] = ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack', 'macvpot'];
+    const supported: GameType[] = ['crash', 'mines', 'coinflip', 'wheel', 'blackjack', 'macvpot'];
     if (supported.includes(gt as GameType)) {
       const cfg = await gameConfig.get(gt as GameType);
       if (cfg.paused) {
@@ -313,8 +313,8 @@ export class BettingPipeline {
    *
    * The only adjustment applied here is the `give`-mode payout cap: in
    * give mode the controller may shrink a single huge win so that one
-   * player can't drain the entire give-budget on one ×1000 hit. Engines
-   * that need to display a downgraded multiplier (e.g. plinko) should
+   * player can't drain the entire give-budget on one huge hit. Engines
+   * that need to display a downgraded multiplier should
    * call `rtpEngine.capPayoutForGive` themselves and pass the capped
    * payout in here. This second call is a defensive belt-and-braces.
    */

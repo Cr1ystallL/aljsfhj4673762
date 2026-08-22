@@ -38,8 +38,6 @@ const TILT = {
   crashInstantBust: 0.06,
   /** Coinflip: ±0.20 shift on win threshold. */
   coinflip: 0.2,
-  /** Plinko: per-step push toward the centre column, ±0.18. */
-  plinkoStep: 0.18,
   /** Mines: how aggressively mine placement weights toward / away from
    *  the typical first-click cluster (cells 6..18). */
   minesShuffle: 0.5,
@@ -232,44 +230,6 @@ export class ProvablyFairSystem {
     }
 
     return cells.slice(0, safeMineCount).sort((a, b2) => a - b2);
-  }
-
-  /** ---------------------------------------------------------------- */
-  /** Plinko path — biased                                              */
-  /** ---------------------------------------------------------------- */
-  /**
-   * Per-row L/R decisions, biased toward the centre (low multiplier
-   * buckets) when bias > 0, toward the edges (high multiplier buckets)
-   * when bias < 0.
-   *
-   * Without bias each row is a coin flip (0=L, 1=R). With bias, each
-   * row's threshold is nudged: if the path is currently leaning right
-   * (more 1s than expected), we increase the probability of L; vice
-   * versa. The nudge amount is `bias * TILT.plinkoStep`, sign-flipped
-   * for the "centre attractor": positive bias → centre attractor on,
-   * negative bias → centre repulsor (path drifts toward edges).
-   */
-  generatePlinkoPins(hash: string, rows: number, bias: number = 0): number[] {
-    const b = clampBias(bias);
-    const path: number[] = [];
-
-    let leans = 0; // sum of (right=+1, left=-1)
-    for (let i = 0; i < rows; i++) {
-      const segment = hash.substring(i * 4, (i + 1) * 4);
-      // 16-bit slice → [0, 1)
-      const u = (parseInt(segment, 16) || 0) / 0xffff;
-
-      // Centre attractor: when path is right-leaning, prefer left next.
-      const correction = -Math.sign(leans) * b * TILT.plinkoStep;
-      // Threshold above which we go right; default 0.5.
-      const threshold = 0.5 - correction;
-
-      const dir = u < threshold ? 0 : 1;
-      path.push(dir);
-      leans += dir === 1 ? 1 : -1;
-    }
-
-    return path;
   }
 
   /** ---------------------------------------------------------------- */

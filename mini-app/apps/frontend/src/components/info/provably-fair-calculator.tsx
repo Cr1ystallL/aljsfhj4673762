@@ -35,7 +35,7 @@ export function ProvablyFairCalculator() {
   const [serverSeed, setServerSeed] = useState('');
   const [clientSeed, setClientSeed] = useState('');
   const [nonce, setNonce] = useState('1');
-  const [game, setGame] = useState<'crash' | 'mines' | 'coinflip' | 'wheel' | 'plinko' | 'bridges'>('crash');
+  const [game, setGame] = useState<'crash' | 'mines' | 'coinflip' | 'wheel' | 'macvpot'>('crash');
   
   const [isCalculating, setIsCalculating] = useState(false);
   const [result, setResult] = useState<{
@@ -88,8 +88,6 @@ export function ProvablyFairCalculator() {
           finalValue = `Выигрышный процент: ${winningTicketPercentage}%`;
           break;
         case 'mines':
-        case 'plinko':
-        case 'bridges':
           finalValue = 'Хэш сгенерирован (Логика в разработке)';
           break;
       }
@@ -131,8 +129,6 @@ export function ProvablyFairCalculator() {
               <option value="coinflip">Coinflip</option>
               <option value="wheel">Wheel</option>
               <option value="mines">Mines</option>
-              <option value="plinko">Plinko</option>
-              <option value="bridges">Bridges</option>
             </select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">

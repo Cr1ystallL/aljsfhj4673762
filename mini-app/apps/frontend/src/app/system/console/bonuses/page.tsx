@@ -58,7 +58,7 @@ interface DepositBonusAdminRow {
 }
 
 const GAME_OPTIONS: Array<{ value: GameKey; label: string }> = (
-  ['crash', 'mines', 'plinko', 'coinflip', 'wheel', 'bridges', 'blackjack'] as const
+  ['crash', 'mines', 'coinflip', 'wheel', 'blackjack'] as const
 ).map((key) => ({ value: key, label: gameLabel(key) }));
 
 interface PromoRow {

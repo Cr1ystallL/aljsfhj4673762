@@ -9,10 +9,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 const GAME_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'crash', label: 'Crash' },
   { value: 'mines', label: 'Mines' },
-  { value: 'plinko', label: 'Plinko' },
   { value: 'coinflip', label: 'Coinflip' },
   { value: 'wheel', label: 'Wheel' },
-  { value: 'bridges', label: 'Bridges' },
   { value: 'blackjack', label: 'Blackjack' },
 ];
 

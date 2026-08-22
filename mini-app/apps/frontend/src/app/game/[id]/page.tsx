@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation';
 
 const gameInfo: Record<string, { name: string; icon: string; description: string }> = {
   crash: { name: 'Crash', icon: '🚀', description: 'Multiplayer crash game' },
-  plinko: { name: 'Plinko', icon: '🎯', description: 'Classic plinko' },
   mines: { name: 'Mines', icon: '💣', description: 'Find the safe tiles' },
   cookies: { name: 'Cookies', icon: '🍪', description: 'Cookie game' },
   nuts: { name: 'Nuts', icon: '🥜', description: 'Nuts game' },

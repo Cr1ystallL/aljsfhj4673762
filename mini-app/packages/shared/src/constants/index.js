@@ -18,7 +18,6 @@ export const APP_CONFIG = {
 };
 export const GAME_TYPES = {
     CRASH: 'crash',
-    PLINKO: 'plinko',
     MINES: 'mines',
     COOKIES: 'cookies',
     NUTS: 'nuts',

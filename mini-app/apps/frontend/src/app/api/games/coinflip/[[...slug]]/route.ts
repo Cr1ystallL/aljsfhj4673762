@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Proxy Coinflip game API to the Fastify backend.
- * Mirrors the Crash / Mines / Plinko proxies — same-origin call from
+ * Mirrors the Crash / Mines proxies — same-origin call from
  * the browser → Next forwards to the Fastify host with cookies attached
  * so authentication works through the cookie session layer.
  */

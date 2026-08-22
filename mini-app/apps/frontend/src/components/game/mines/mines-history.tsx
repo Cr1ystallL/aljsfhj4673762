@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * Mines History — Monopo Saigon Style
  *
  * Live ticker of recent completed mines bets across all players. Same
- * shape as the Plinko history component for consistency.
+ * shape as the shared history component for consistency.
  */
 
 export interface MinesHistoryEntry {

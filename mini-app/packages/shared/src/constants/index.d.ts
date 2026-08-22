@@ -14,7 +14,6 @@ export declare const APP_CONFIG: {
 };
 export declare const GAME_TYPES: {
     readonly CRASH: "crash";
-    readonly PLINKO: "plinko";
     readonly MINES: "mines";
     readonly COOKIES: "cookies";
     readonly NUTS: "nuts";
