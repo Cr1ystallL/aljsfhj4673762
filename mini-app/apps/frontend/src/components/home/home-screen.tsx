@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Flame,
   Gamepad2,
+  Gift,
   Layers,
   Sparkles,
   TrendingUp,
