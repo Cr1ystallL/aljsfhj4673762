@@ -60,6 +60,16 @@
     background-color: transparent;
   }
   
+  html {
+    /* Smooth scroll causes visible jitter on iOS WebView when programmatic
+     * scrollIntoView fires alongside layout — keep it instant. */
+    scroll-behavior: auto;
+    /* Let the GPU composite scrolling content. */
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    height: 100%;
+  }
+
   body {
     @apply bg-midnight-canvas text-frost-white;
     font-family: var(--font-roobert);
@@ -74,14 +84,10 @@
     /* Use the GPU for any text we paint over moving content. */
     -webkit-font-smoothing: antialiased;
     -webkit-text-size-adjust: 100%;
-  }
-
-  html {
-    /* Smooth scroll causes visible jitter on iOS WebView when programmatic
-     * scrollIntoView fires alongside layout — keep it instant. */
-    scroll-behavior: auto;
-    /* Let the GPU composite scrolling content. */
-    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    min-height: 100%;
+    min-height: 100dvh;
+    margin: 0;
   }
   
   body, h1, h2, h3, h4, h5, h6, p {
@@ -317,4 +323,20 @@ option:checked,
 option:hover {
   background-color: #1a1a1a;
   color: #ffffff;
+}
+
+@keyframes luck-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.animate-luck-scroll {
+  animation: luck-scroll 36s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-luck-scroll {
+    animation: none;
+  }
 }

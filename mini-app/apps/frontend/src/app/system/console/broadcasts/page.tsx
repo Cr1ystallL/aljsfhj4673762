@@ -11,16 +11,29 @@ import {
   Users,
   Send,
   CheckCircle2,
-  AlertCircle,
   Clock,
   Search,
-  Filter,
-  Sparkles,
+  Ban,
+  UserX,
+  Moon,
   BarChart3,
   TrendingUp,
-  RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
+
+type InactiveReason = 'bot_blocked' | 'deactivated' | 'never_played' | 'dormant';
+
+interface BroadcastAudience {
+  kind?: string;
+  telegramIds?: number[];
+  inactiveDays?: number;
+  reasons?: InactiveReason[];
+  samplePercent?: number;
+  promoCode?: string;
+  promoAmount?: number;
+  wagerMultiplier?: number;
+}
 
 interface Broadcast {
   id: string;
@@ -28,7 +41,7 @@ interface Broadcast {
   text: string;
   parseMode: string;
   mediaUrl: string | null;
-  audience: unknown;
+  audience: BroadcastAudience | unknown;
   scheduledAt: number | null;
   totalTargets: number;
   delivered: number;
@@ -38,6 +51,79 @@ interface Broadcast {
   finishedAt: number | null;
   errorMessage: string | null;
 }
+
+interface ReasonCounts {
+  bot_blocked: number;
+  deactivated: number;
+  never_played: number;
+  dormant: number;
+}
+
+interface Effectiveness {
+  broadcastId: string;
+  status: string;
+  audience: {
+    kind: string | null;
+    inactiveDays: number | null;
+    reasons: InactiveReason[];
+    samplePercent: number | null;
+    promoCode: string | null;
+    promoAmount: number | null;
+    wagerMultiplier: number | null;
+  };
+  delivery: {
+    totalTargets: number;
+    delivered: number;
+    blocked: number;
+    errors: number;
+    failed: number;
+  };
+  activity: {
+    returned: number;
+    returnRate: number;
+    played: number;
+    playRate: number;
+    medianHoursToReturn: number | null;
+    medianHoursToPlay: number | null;
+  };
+  promo: {
+    code: string;
+    amount: number | null;
+    wagerMultiplier: number | null;
+    redeemed: number;
+    redemptionRate: number;
+    medianHoursToRedeem: number | null;
+  } | null;
+}
+
+const DEFAULT_TEMPLATE =
+  '<b>{jetLine}</b>\n\nПромо <b>{amount} PLN</b> — код <code>{code}</code> в профиле.';
+
+const REASON_META: Record<
+  InactiveReason,
+  { label: string; hint: string; icon: typeof Ban }
+> = {
+  bot_blocked: {
+    label: 'Заблокировали бота',
+    hint: 'Последняя рассылка этому пользователю упала с ошибкой блока бота',
+    icon: Ban,
+  },
+  deactivated: {
+    label: 'Аккаунт удалён',
+    hint: 'Telegram ответил, что пользователь деактивирован',
+    icon: UserX,
+  },
+  never_played: {
+    label: 'Никогда не играли',
+    hint: 'Нет ставок и игровых сессий, давно не заходили в бота',
+    icon: Users,
+  },
+  dormant: {
+    label: 'Давно не заходили',
+    hint: 'Последняя активность (бот, ставка или сессия) старше выбранного окна',
+    icon: Moon,
+  },
+};
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: 'Запланирована',
@@ -55,18 +141,66 @@ const STATUS_TINT: Record<string, string> = {
   failed: 'border-rose-500/40 bg-rose-500/10 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.15)]',
 };
 
+function asAudience(raw: unknown): BroadcastAudience {
+  if (raw && typeof raw === 'object') return raw as BroadcastAudience;
+  return {};
+}
+
+function formatHours(h: number | null | undefined): string {
+  if (h == null || !Number.isFinite(h)) return '—';
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} мин`;
+  if (h < 48) return `${h.toFixed(1)} ч`;
+  return `${(h / 24).toFixed(1)} д`;
+}
+
+function parseIdText(value: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const chunk of value.split(/[\s,;]+/)) {
+    const trimmed = chunk.trim();
+    if (!/^-?\d+$/.test(trimmed) || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 export default function BroadcastsListPage() {
   const router = useRouter();
   const [data, setData] = useState<Broadcast[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<'all' | 'scheduled' | 'sent' | 'failed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Quick Re-engagement states
-  const [inactive3dCount, setInactive3dCount] = useState<number | null>(null);
-  const [loadingInactive, setLoadingInactive] = useState<boolean>(true);
-  const [reengageBusy, setReengageBusy] = useState<boolean>(false);
-  const [reengageResult, setReengageResult] = useState<{ code: string; totalTargets: number } | null>(null);
+
+  const [inactiveDays, setInactiveDays] = useState(3);
+  const [samplePercent, setSamplePercent] = useState(100);
+  const [selectedReasons, setSelectedReasons] = useState<InactiveReason[]>([
+    'never_played',
+    'dormant',
+  ]);
+  const [idListText, setIdListText] = useState('');
+  const [amount, setAmount] = useState(10);
+  const [wagerMultiplier, setWagerMultiplier] = useState(15);
+  const [messageTemplate, setMessageTemplate] = useState(DEFAULT_TEMPLATE);
+  const [reasonCounts, setReasonCounts] = useState<ReasonCounts | null>(null);
+  const [selectedCount, setSelectedCount] = useState<number | null>(null);
+  const [jetLine, setJetLine] = useState('MacvJet живой на главной');
+  const [lastCrashLabel, setLastCrashLabel] = useState('—');
+  const [loadingInactive, setLoadingInactive] = useState(true);
+  const [reengageBusy, setReengageBusy] = useState(false);
+  const [reengageResult, setReengageResult] = useState<{
+    code: string;
+    totalTargets: number;
+    amount: number;
+  } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [effectiveness, setEffectiveness] = useState<Record<string, Effectiveness | 'error'>>(
+    {}
+  );
+  const [effectivenessLoading, setEffectivenessLoading] = useState<string | null>(null);
+
+  const explicitIds = useMemo(() => parseIdText(idListText), [idListText]);
+  const usingExplicitIds = explicitIds.length > 0;
 
   const reload = useCallback(async () => {
     try {
@@ -88,32 +222,96 @@ export default function BroadcastsListPage() {
   const loadReengageStats = useCallback(async () => {
     setLoadingInactive(true);
     try {
-      const res = await fetch('/api/_x/broadcasts/reengage-stats', { credentials: 'include' });
+      const body = {
+        inactiveDays,
+        samplePercent,
+        reasons: selectedReasons,
+        telegramIds: usingExplicitIds ? explicitIds : undefined,
+      };
+      const res = await fetch('/api/_x/broadcasts/reengage-stats', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       if (res.ok) {
         const j = await res.json();
-        setInactive3dCount(j.inactive3dCount ?? 0);
+        setReasonCounts(j.reasons ?? null);
+        setSelectedCount(j.selectedCount ?? 0);
+        const crash = Number(j.lastCrash);
+        setLastCrashLabel(
+          Number.isFinite(crash) && crash >= 1
+            ? crash >= 10
+              ? crash.toFixed(1)
+              : crash.toFixed(2)
+            : '—'
+        );
+        setJetLine(
+          typeof j.jetLine === 'string' && j.jetLine.trim()
+            ? j.jetLine
+            : 'MacvJet живой на главной'
+        );
+      } else {
+        setReasonCounts({
+          bot_blocked: 0,
+          deactivated: 0,
+          never_played: 0,
+          dormant: 0,
+        });
+        setSelectedCount(0);
       }
     } catch {
-      setInactive3dCount(0);
+      setReasonCounts({
+        bot_blocked: 0,
+        deactivated: 0,
+        never_played: 0,
+        dormant: 0,
+      });
+      setSelectedCount(0);
     } finally {
       setLoadingInactive(false);
     }
-  }, []);
+  }, [inactiveDays, samplePercent, selectedReasons, usingExplicitIds, explicitIds]);
 
   useEffect(() => {
     void reload();
-    void loadReengageStats();
     const id = setInterval(reload, 5_000);
     return () => clearInterval(id);
-  }, [reload, loadReengageStats]);
+  }, [reload]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void loadReengageStats();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [loadReengageStats]);
+
+  const toggleReason = (reason: InactiveReason) => {
+    setSelectedReasons((prev) => {
+      if (prev.includes(reason)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((r) => r !== reason);
+      }
+      return [...prev, reason];
+    });
+  };
 
   const handleQuickReengage = async () => {
-    if (!inactive3dCount || inactive3dCount === 0) {
-      alert('Нет неактивных пользователей (>3 дней)');
+    if (!selectedCount || selectedCount === 0) {
+      alert('Нет получателей по выбранным фильтрам');
       return;
     }
-
-    if (!confirm(`Отправить удерживающую рассылку с бонусом 10 PLN для ${inactive3dCount} пользователей (>3 дней неактивности)?`)) {
+    const audienceLabel = usingExplicitIds
+      ? `${selectedCount} указанным ID`
+      : `${selectedCount} пользователям (${selectedReasons
+          .map((r) => REASON_META[r].label)
+          .join(', ')}, ${samplePercent}% выборки, ${inactiveDays} дн.)`;
+    if (
+      !confirm(
+        `Запустить удерживающую рассылку на ${amount} PLN для ${audienceLabel}?`
+      )
+    ) {
       return;
     }
 
@@ -123,14 +321,27 @@ export default function BroadcastsListPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: 10, wagerMultiplier: 15 }),
+        body: JSON.stringify({
+          amount,
+          wagerMultiplier,
+          inactiveDays,
+          samplePercent,
+          reasons: selectedReasons,
+          telegramIds: usingExplicitIds ? explicitIds : undefined,
+          text: messageTemplate,
+        }),
       });
 
       if (!res.ok) {
-        alert('Не удалось запустить удержание');
+        const err = await res.json().catch(() => null);
+        alert(err?.error || 'Не удалось запустить удержание');
       } else {
         const j = await res.json();
-        setReengageResult({ code: j.code, totalTargets: j.totalTargets });
+        setReengageResult({
+          code: j.code,
+          totalTargets: j.totalTargets,
+          amount: j.amount ?? amount,
+        });
         await reload();
         await loadReengageStats();
       }
@@ -139,6 +350,34 @@ export default function BroadcastsListPage() {
     } finally {
       setReengageBusy(false);
     }
+  };
+
+  const loadEffectiveness = async (id: string) => {
+    setEffectivenessLoading(id);
+    try {
+      const res = await fetch(`/api/_x/broadcasts/${id}/effectiveness`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        setEffectiveness((prev) => ({ ...prev, [id]: 'error' }));
+        return;
+      }
+      const j = (await res.json()) as Effectiveness;
+      setEffectiveness((prev) => ({ ...prev, [id]: j }));
+    } catch {
+      setEffectiveness((prev) => ({ ...prev, [id]: 'error' }));
+    } finally {
+      setEffectivenessLoading(null);
+    }
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedId((prev) => {
+      const next = prev === id ? null : id;
+      if (next) void loadEffectiveness(next);
+      return next;
+    });
   };
 
   const cancel = async (id: string) => {
@@ -162,7 +401,6 @@ export default function BroadcastsListPage() {
     }
   };
 
-  // Summary Metrics
   const statsSummary = useMemo(() => {
     if (!data) return { total: 0, delivered: 0, failed: 0, successRate: 0, activeCount: 0 };
     const total = data.length;
@@ -174,7 +412,6 @@ export default function BroadcastsListPage() {
     return { total, delivered, failed, successRate, activeCount };
   }, [data]);
 
-  // Filtered List
   const filteredData = useMemo(() => {
     if (!data) return [];
     return data.filter((b) => {
@@ -183,15 +420,25 @@ export default function BroadcastsListPage() {
       if (filterTab === 'failed' && b.status !== 'failed') return false;
       if (searchQuery.trim().length > 0) {
         const q = searchQuery.toLowerCase();
-        return b.text.toLowerCase().includes(q) || b.id.toLowerCase().includes(q);
+        const audience = asAudience(b.audience);
+        return (
+          b.text.toLowerCase().includes(q) ||
+          b.id.toLowerCase().includes(q) ||
+          (audience.promoCode ?? '').toLowerCase().includes(q)
+        );
       }
       return true;
     });
   }, [data, filterTab, searchQuery]);
 
+  const previewText = messageTemplate
+    .replaceAll('{amount}', String(amount))
+    .replaceAll('{code}', 'GIFT…')
+    .replaceAll('{lastCrash}', lastCrashLabel)
+    .replaceAll('{jetLine}', jetLine);
+
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-10">
-      {/* Top Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
           <div className="font-roobert text-[11px] uppercase tracking-[0.2em] text-whisper-gray">
@@ -219,57 +466,197 @@ export default function BroadcastsListPage() {
               Рассылки отправляются со скоростью <strong>25 сообщений / сек</strong> (безопасно для лимитов Telegram Bot API).
             </p>
             <p>
-              Модуль <strong>быстрого удержания (Re-engagement)</strong> автоматически находит игроков, не заходивших более 3 дней, генерирует подарочный промокод на 10 PLN с вейджером 15х (который зашит в базе, но не пишется в сообщении) и запускает рассылку за 1 клик.
+              Модуль удержания показывает, почему пользователь неактивен: блок бота (по последней неудачной рассылке), удалённый аккаунт, никогда не играл или давно не заходил. Можно выбрать причины, долю аудитории, конкретные Telegram ID, текст и сумму промика. После отправки на карточке видна эффективность: доставка, возврат, активация промика и медиана времени.
             </p>
           </HelpButton>
         </div>
       </div>
 
-      {/* Hero Re-Engagement Module Card */}
       <section className="relative overflow-hidden rounded-[24px] border border-amber-400/30 bg-gradient-to-r from-amber-500/10 via-black/60 to-black/80 backdrop-blur-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)]">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400/10 blur-[100px] pointer-events-none rounded-full" />
 
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
-          <div className="flex items-start gap-4 max-w-2xl">
+        <div className="relative z-10 flex flex-col gap-5">
+          <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-2xl border border-amber-400/40 bg-amber-400/15 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_20px_rgba(255,172,46,0.2)]">
               <Gift size={24} strokeWidth={1.8} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-roobert text-[11px] uppercase tracking-[0.2em] text-amber-400 font-bold">
-                  Модуль быстрого удержания (Re-Engagement)
+                  Удерживающая рассылка
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400/20 text-amber-300 font-mono">
-                  1-Click Auto Bonus
+                  Настраиваемая аудитория + промо
                 </span>
               </div>
               <h2 className="font-roobert text-[18px] font-medium text-white mt-1">
-                Вернуть спящих игроков (Не заходили &gt; 3 дней)
+                Вернуть неактивных игроков с персональным промиком
               </h2>
-              <p className="font-roobert text-[12.5px] text-whisper-gray mt-1 leading-relaxed">
-                Автоматический отбор неактивных клиентов. Позволяет в один клик сгенерировать подарок <b>10 PLN</b> (с вейджером 15х) и сразу запустить рассылку в Telegram!
+              <p className="font-roobert text-[12.5px] text-whisper-gray mt-1 leading-relaxed max-w-3xl">
+                Причины считаются по последней рассылке (блок бота / удалён аккаунт) и по реальной активности: ставки, игровые сессии и заходы в бота. Заблокированных ботом по умолчанию не берём — они всё равно не получат сообщение.
               </p>
             </div>
           </div>
 
-          {/* Action Trigger Block */}
-          <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-xl">
-            <div className="text-right">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+            {(Object.keys(REASON_META) as InactiveReason[]).map((reason) => {
+              const meta = REASON_META[reason];
+              const Icon = meta.icon;
+              const count = reasonCounts?.[reason] ?? 0;
+              const on = selectedReasons.includes(reason);
+              return (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => toggleReason(reason)}
+                  disabled={usingExplicitIds}
+                  title={meta.hint}
+                  className={`text-left p-3.5 rounded-2xl border transition-all ${
+                    usingExplicitIds
+                      ? 'opacity-50 cursor-not-allowed border-white/10 bg-white/[0.02]'
+                      : on
+                        ? 'border-amber-400/40 bg-amber-400/10'
+                        : 'border-white/10 bg-white/[0.03] hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-amber-300">
+                      <Icon size={14} />
+                      <span className="font-roobert text-[11px] uppercase tracking-[0.08em] text-whisper-gray">
+                        {meta.label}
+                      </span>
+                    </div>
+                    {!usingExplicitIds && (
+                      <span
+                        className={`w-4 h-4 rounded-full border ${
+                          on ? 'bg-amber-400 border-amber-300' : 'border-white/30'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <div className="mt-2 font-roobert text-[20px] font-bold text-white tabular-nums">
+                    {loadingInactive ? '…' : count.toLocaleString('ru-RU')}
+                  </div>
+                  <div className="mt-1 font-roobert text-[10.5px] text-whisper-gray leading-snug">
+                    {meta.hint}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <label className="flex flex-col gap-1.5 p-3 rounded-2xl border border-white/10 bg-white/[0.03]">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+                Неактивны, дней
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={inactiveDays}
+                disabled={usingExplicitIds}
+                onChange={(e) => setInactiveDays(Math.max(1, Number(e.target.value) || 1))}
+                className="bg-transparent text-white font-roobert text-[16px] outline-none tabular-nums disabled:opacity-50"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 p-3 rounded-2xl border border-white/10 bg-white/[0.03]">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+                Доля аудитории, %
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={samplePercent}
+                disabled={usingExplicitIds}
+                onChange={(e) =>
+                  setSamplePercent(Math.min(100, Math.max(1, Number(e.target.value) || 1)))
+                }
+                className="bg-transparent text-white font-roobert text-[16px] outline-none tabular-nums disabled:opacity-50"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 p-3 rounded-2xl border border-white/10 bg-white/[0.03]">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+                Сумма промика, PLN
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={10000}
+                value={amount}
+                onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
+                className="bg-transparent text-white font-roobert text-[16px] outline-none tabular-nums"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 p-3 rounded-2xl border border-white/10 bg-white/[0.03]">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+                Вейджер, ×
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={wagerMultiplier}
+                onChange={(e) => setWagerMultiplier(Math.max(1, Number(e.target.value) || 1))}
+                className="bg-transparent text-white font-roobert text-[16px] outline-none tabular-nums"
+              />
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+              Telegram ID (необязательно — если указать, причины и % игнорируются)
+            </span>
+            <textarea
+              value={idListText}
+              onChange={(e) => setIdListText(e.target.value)}
+              rows={3}
+              placeholder="123456789, 987654321 …"
+              className="w-full rounded-2xl bg-black/30 border border-white/10 px-3.5 py-2.5 text-[12.5px] text-white placeholder-whisper-gray/70 font-mono outline-none focus:border-amber-400/40"
+            />
+            {usingExplicitIds && (
+              <span className="font-roobert text-[11px] text-amber-300">
+                В списке {explicitIds.length.toLocaleString('ru-RU')} ID. Отправим тем, кто есть в базе и не забанен админом.
+              </span>
+            )}
+          </label>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+                Текст. Плейсхолдеры: {'{jetLine}'}, {'{lastCrash}'}, {'{amount}'}, {'{code}'}
+              </span>
+              <textarea
+                value={messageTemplate}
+                onChange={(e) => setMessageTemplate(e.target.value)}
+                rows={7}
+                className="w-full rounded-2xl bg-black/30 border border-white/10 px-3.5 py-2.5 text-[12.5px] text-white font-mono outline-none focus:border-amber-400/40"
+              />
+            </label>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.08em] text-whisper-gray">
+                Предпросмотр
+              </span>
+              <div
+                className="flex-1 rounded-2xl bg-black/30 border border-white/5 p-3.5 font-roobert text-[13px] text-white/95 leading-relaxed whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{ __html: previewText }}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl">
+            <div>
               <div className="font-roobert text-[10.5px] uppercase tracking-[0.1em] text-whisper-gray">
-                Неактивны &gt; 3 дней
+                Будет отправлено
               </div>
-              <div className="font-roobert text-[22px] font-bold text-amber-400 tabular-nums flex items-center justify-end gap-1.5">
-                {loadingInactive ? (
-                  <span className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>{inactive3dCount?.toLocaleString('ru-RU') ?? 0} чел.</span>
-                )}
+              <div className="font-roobert text-[22px] font-bold text-amber-400 tabular-nums">
+                {loadingInactive ? '…' : `${(selectedCount ?? 0).toLocaleString('ru-RU')} чел.`}
               </div>
             </div>
-
             <button
-              onClick={handleQuickReengage}
-              disabled={reengageBusy || !inactive3dCount || inactive3dCount === 0}
+              onClick={() => void handleQuickReengage()}
+              disabled={reengageBusy || loadingInactive || !selectedCount}
               className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold text-[13px] shadow-[0_0_25px_rgba(255,172,46,0.3)] transition-all transform hover:scale-[1.03]"
             >
               {reengageBusy ? (
@@ -277,12 +664,13 @@ export default function BroadcastsListPage() {
               ) : (
                 <Zap size={16} fill="currentColor" />
               )}
-              <span>Отправить подарок 10 PLN</span>
+              <span>
+                Запустить рассылку {amount} PLN
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Quick Result Toast */}
         <AnimatePresence>
           {reengageResult && (
             <motion.div
@@ -294,7 +682,8 @@ export default function BroadcastsListPage() {
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={16} />
                 <span>
-                  Удерживающая рассылка запущена для <b>{reengageResult.totalTargets}</b> пользователей! Промокод: <code>{reengageResult.code}</code> (10 PLN, вейджер 15x зашит в базе).
+                  Рассылка запущена для <b>{reengageResult.totalTargets}</b> пользователей. Промокод:{' '}
+                  <code>{reengageResult.code}</code> ({reengageResult.amount} PLN).
                 </span>
               </div>
               <button onClick={() => setReengageResult(null)} className="text-emerald-300 hover:text-white">
@@ -305,7 +694,6 @@ export default function BroadcastsListPage() {
         </AnimatePresence>
       </section>
 
-      {/* Analytics KPI Tiles */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
           <div className="flex items-center justify-between text-whisper-gray mb-1">
@@ -348,7 +736,6 @@ export default function BroadcastsListPage() {
         </div>
       </section>
 
-      {/* Filter Tabs & Search Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
         <div className="flex items-center gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10">
           {(
@@ -379,13 +766,12 @@ export default function BroadcastsListPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по тексту или ID..."
+            placeholder="Поиск по тексту, ID или промокоду..."
             className="w-full pl-9 pr-4 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-[12px] text-white placeholder-whisper-gray focus:outline-none focus:border-amber-400/50 font-roobert"
           />
         </div>
       </div>
 
-      {/* Broadcast Cards Grid / List */}
       {data === null ? (
         <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
           <div className="w-6 h-6 rounded-full border border-white/20 border-t-amber-400 animate-spin" />
@@ -401,6 +787,10 @@ export default function BroadcastsListPage() {
               b.totalTargets > 0
                 ? Math.round(((b.delivered + b.failed) / b.totalTargets) * 100)
                 : 0;
+            const audience = asAudience(b.audience);
+            const isReengage = audience.kind === 'reengage' || Boolean(audience.promoCode);
+            const open = expandedId === b.id;
+            const eff = effectiveness[b.id];
 
             return (
               <motion.div
@@ -418,30 +808,46 @@ export default function BroadcastsListPage() {
                     >
                       {STATUS_LABEL[b.status] ?? b.status}
                     </span>
+                    {isReengage && (
+                      <span className="px-2.5 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300 font-roobert text-[10.5px] uppercase tracking-[0.12em]">
+                        Удержание {audience.promoAmount ? `${audience.promoAmount} PLN` : ''}
+                      </span>
+                    )}
                     <span className="font-roobert text-[11.5px] text-whisper-gray tabular-nums">
                       {new Date(b.createdAt).toLocaleString('ru-RU')}
                     </span>
                   </div>
 
-                  {(b.status === 'scheduled' || b.status === 'sending') && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => cancel(b.id)}
-                      disabled={busy === b.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition-colors font-roobert text-[11px]"
+                      onClick={() => toggleExpanded(b.id)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/15 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] font-roobert text-[11px]"
                     >
-                      <X size={12} />
-                      Отменить
+                      <BarChart3 size={12} />
+                      Эффективность
+                      <ChevronDown
+                        size={12}
+                        className={`transition-transform ${open ? 'rotate-180' : ''}`}
+                      />
                     </button>
-                  )}
+                    {(b.status === 'scheduled' || b.status === 'sending') && (
+                      <button
+                        onClick={() => cancel(b.id)}
+                        disabled={busy === b.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition-colors font-roobert text-[11px]"
+                      >
+                        <X size={12} />
+                        Отменить
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Broadcast Message Text with HTML parsing and line breaks */}
                 <div
                   className="mt-3 font-roobert text-[13.5px] text-white/95 leading-relaxed bg-black/30 p-3.5 rounded-xl border border-white/5 whitespace-pre-wrap"
                   dangerouslySetInnerHTML={{ __html: b.text }}
                 />
 
-                {/* Delivery Progress & Stats */}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[11px] font-roobert text-whisper-gray">
                   <div className="flex items-center gap-4">
                     <span>
@@ -455,12 +861,16 @@ export default function BroadcastsListPage() {
                         Ошибок: <b>{b.failed.toLocaleString('ru-RU')}</b>
                       </span>
                     )}
+                    {audience.promoCode && (
+                      <span>
+                        Промо: <b className="text-amber-300">{audience.promoCode}</b>
+                      </span>
+                    )}
                   </div>
 
                   <span className="font-mono text-amber-400 font-bold">{progress}% отправлено</span>
                 </div>
 
-                {/* Progress bar */}
                 {b.totalTargets > 0 && (
                   <div className="mt-2 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
                     <div
@@ -475,9 +885,105 @@ export default function BroadcastsListPage() {
                     <b>Ошибка:</b> {b.errorMessage}
                   </div>
                 )}
+
+                {open && (
+                  <div className="mt-3 p-3.5 rounded-xl border border-white/10 bg-black/25">
+                    {effectivenessLoading === b.id && !eff && (
+                      <div className="text-[12px] text-whisper-gray font-roobert">Считаем эффективность…</div>
+                    )}
+                    {eff === 'error' && (
+                      <div className="text-[12px] text-rose-300 font-roobert">
+                        Не удалось загрузить эффективность.
+                      </div>
+                    )}
+                    {eff && eff !== 'error' && (
+                      <EffectivenessPanel
+                        data={eff}
+                        onRefresh={() => {
+                          setEffectiveness((prev) => {
+                            const next = { ...prev };
+                            delete next[b.id];
+                            return next;
+                          });
+                          void loadEffectiveness(b.id);
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </motion.div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EffectivenessPanel({
+  data,
+  onRefresh,
+}: {
+  data: Effectiveness;
+  onRefresh: () => void;
+}) {
+  const tiles = [
+    {
+      label: 'Доставлено',
+      value: data.delivery.delivered.toLocaleString('ru-RU'),
+      hint: `блок бота ${data.delivery.blocked}, ошибки ${data.delivery.errors}`,
+    },
+    {
+      label: 'Вернулись',
+      value: `${data.activity.returned.toLocaleString('ru-RU')} (${data.activity.returnRate}%)`,
+      hint: `медиана ${formatHours(data.activity.medianHoursToReturn)}`,
+    },
+    {
+      label: 'Сыграли',
+      value: `${data.activity.played.toLocaleString('ru-RU')} (${data.activity.playRate}%)`,
+      hint: `медиана до ставки ${formatHours(data.activity.medianHoursToPlay)}`,
+    },
+    {
+      label: 'Активировали промо',
+      value: data.promo
+        ? `${data.promo.redeemed.toLocaleString('ru-RU')} (${data.promo.redemptionRate}%)`
+        : 'нет промика',
+      hint: data.promo
+        ? `медиана ${formatHours(data.promo.medianHoursToRedeem)}`
+        : 'обычная рассылка',
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-roobert text-[11px] uppercase tracking-[0.12em] text-amber-300">
+          Эффективность после доставки
+        </div>
+        <button
+          onClick={onRefresh}
+          className="font-roobert text-[11px] text-whisper-gray hover:text-white"
+        >
+          Обновить
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {tiles.map((tile) => (
+          <div key={tile.label} className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+            <div className="font-roobert text-[10px] uppercase tracking-[0.08em] text-whisper-gray">
+              {tile.label}
+            </div>
+            <div className="mt-1 font-roobert text-[15px] text-white">{tile.value}</div>
+            <div className="mt-0.5 font-roobert text-[10.5px] text-whisper-gray">{tile.hint}</div>
+          </div>
+        ))}
+      </div>
+      {data.audience.reasons.length > 0 && (
+        <div className="font-roobert text-[11px] text-whisper-gray">
+          Аудитория:{' '}
+          {data.audience.inactiveDays ? `${data.audience.inactiveDays} дн. · ` : ''}
+          {data.audience.reasons.map((r) => REASON_META[r]?.label ?? r).join(', ')}
+          {data.audience.samplePercent ? ` · ${data.audience.samplePercent}%` : ''}
         </div>
       )}
     </div>

@@ -5,18 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy,
   Check,
-  Coins,
   Dice5,
-  Trophy,
   ChevronRight,
   Wallet,
   HelpCircle,
   X,
   Shield,
   Clock,
-  CheckCircle2,
   ArrowUpRight,
-  Sparkles,
 } from 'lucide-react';
 import { PageTransition } from '@/components/ui/page-transition';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -26,6 +22,11 @@ import { useTransactions } from '@/hooks/use-transactions';
 import { useAuthStore } from '@/store/auth-store';
 import { useRouter } from 'next/navigation';
 import { useIsAdmin } from '@/lib/admin-probe';
+import { LanguageSwitcher } from '@/components/profile/language-switcher';
+import { ProfileTrophyShelf } from '@/components/profile/profile-trophy-shelf';
+import { Pressable } from '@/components/ui/pressable';
+import { useT } from '@/i18n/use-t';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
 
 /**
  * Profile Page — Pure Black Obsidian & Apple Design System
@@ -37,6 +38,7 @@ import { useIsAdmin } from '@/lib/admin-probe';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
@@ -79,9 +81,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Sticky Header */}
-        <GameTopBar title="Профиль" hideBalance={true} />
+        <GameTopBar title={t('profile.title')} hideBalance={true} width="wide" />
 
-        <div className="relative z-10 mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3.5 pt-4 flex flex-col gap-4">
+        <div className={`relative z-10 mx-auto w-full ${PAGE_WIDTH.wide} px-3.5 pt-4 flex flex-col gap-4`}>
 
           {/* ========================================================================= */}
           {/* HERO IDENTITY CARD — FULL REDESIGN (Pure Pitch Black & Obsidian Glass)    */}
@@ -90,33 +92,13 @@ export default function ProfilePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
-            className="relative overflow-hidden rounded-[32px] border border-white/12 bg-[#0c0d0f] shadow-[0_24px_60px_rgba(0,0,0,0.95)]"
+            className="relative overflow-hidden rounded-[20px] border border-white/12 bg-[#101216] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
           >
-            {/* Pure Black User Photo Backdrop (No Blue Tint) */}
-            {user?.photoUrl ? (
-              <>
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 opacity-20"
-                  style={{
-                    backgroundImage: `url(${user.photoUrl})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    filter: 'blur(50px) grayscale(0.6)',
-                    transform: 'scale(1.3)',
-                  }}
-                />
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-[#0c0d0f]/90 to-[#0c0d0f]"
-                />
-              </>
-            ) : (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_75%)]"
-              />
-            )}
+            <LanguageSwitcher className="absolute top-3 right-3 z-10" />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_75%)]"
+            />
 
             <div className="relative px-5 pt-8 pb-6 flex flex-col items-center text-center">
 
@@ -126,7 +108,7 @@ export default function ProfilePage() {
                 transition={{ type: 'spring', bounce: 0.3 }}
                 className="relative group cursor-pointer"
               >
-                <div className="relative p-1 rounded-full border border-white/20 bg-gradient-to-b from-white/15 to-white/5 shadow-2xl backdrop-blur-xl">
+                <div className="relative p-1 rounded-full border border-white/20 bg-[#16181d] shadow-2xl">
                   {user?.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -147,16 +129,15 @@ export default function ProfilePage() {
 
               {/* User Full Name */}
               <h2 className="mt-3.5 font-roobert text-[25px] font-bold text-white tracking-tight leading-snug">
-                {user?.firstName || 'Игрок'}
+                {user?.firstName || t('profile.player')}
                 {user?.lastName ? ` ${user.lastName}` : ''}
               </h2>
 
               {/* Telegram ID Copy Button */}
               {user?.telegramId !== undefined && (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
+                <Pressable
                   onClick={handleCopyId}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 active:scale-95 transition-all shadow-sm"
+                  className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04]"
                 >
                   <span className="font-roobert text-[12px] font-medium text-whisper-gray tabular-nums">
                     #{user.telegramId}
@@ -171,7 +152,7 @@ export default function ProfilePage() {
                         className="flex items-center gap-1 text-frost-white"
                       >
                         <Check size={12} strokeWidth={2.5} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-whisper-gray">Скопировано</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-whisper-gray">{t('profile.copied')}</span>
                       </motion.div>
                     ) : (
                       <motion.div key="copy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -179,15 +160,13 @@ export default function ProfilePage() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.button>
+                </Pressable>
               )}
 
               {/* Elevated Obsidian Balance Card */}
-              <motion.div
-                whileHover={{ scale: 1.01, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+              <Pressable
                 onClick={() => router.push('/balance')}
-                className="mt-5 w-full p-4 rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.06] via-white/[0.03] to-white/[0.01] backdrop-blur-xl flex items-center justify-between shadow-xl cursor-pointer hover:border-white/25 transition-all group"
+                className="mt-5 w-full p-4 rounded-[16px] border border-white/12 bg-white/[0.04] flex items-center justify-between shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-inner">
@@ -195,11 +174,11 @@ export default function ProfilePage() {
                   </div>
                   <div className="text-left">
                     <span className="block text-[10px] uppercase font-bold tracking-[0.16em] text-whisper-gray">
-                      Текущий баланс
+                      {t('profile.currentBalance')}
                     </span>
                     <div className="flex items-baseline gap-1.5 mt-0.5">
                       <span className="font-roobert text-[20px] font-bold text-white tabular-nums tracking-tight">
-                        {balanceAmount.toLocaleString('ru-RU', {
+                        {balanceAmount.toLocaleString(localeTag, {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}
@@ -211,28 +190,28 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray group-hover:text-white group-hover:bg-white/10 transition-all">
+                <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray">
                   <ChevronRight size={22} strokeWidth={2.2} />
                 </div>
-              </motion.div>
+              </Pressable>
 
               {/* Active Wager Progress Section */}
               {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
                 <div className="w-full mt-3 p-4 rounded-2xl border border-white/10 bg-white/[0.02] flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-roobert text-[12px] font-medium text-whisper-gray">Отыгрыш бонуса</span>
+                      <span className="font-roobert text-[12px] font-medium text-whisper-gray">{t('profile.wager')}</span>
                       <button 
                         onClick={() => setIsWagerModalOpen(true)}
                         className="text-whisper-gray/70 hover:text-white transition-colors p-0.5"
-                        aria-label="Что такое отыгрыш?"
+                        aria-label={t('profile.wagerHelp')}
                       >
                         <HelpCircle size={14} strokeWidth={2} />
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-roobert text-[12px] font-bold text-white tabular-nums">
-                        {balance.wagerProgress.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} zł
+                        {balance.wagerProgress.toLocaleString(localeTag, { maximumFractionDigits: 2 })} / {balance.wagerTarget.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł
                       </span>
                       <span className="text-[10px] font-bold text-white px-2 py-0.5 rounded-md bg-white/10 border border-white/15 tabular-nums">
                         {wagerProgressPercent.toFixed(0)}%
@@ -253,43 +232,15 @@ export default function ProfilePage() {
             </div>
           </motion.section>
 
-          {/* Key Gaming Stats (2x2 Grid) */}
-          <section className="grid grid-cols-2 gap-2.5">
-            <StatTile
-              icon={<Dice5 size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Всего ставок"
-              value={stats.totalBets.toLocaleString('ru-RU')}
-              suffix={`(${stats.totalWagered.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })} zł)`}
-            />
-            <StatTile
-              icon={<Coins size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Сумма выигрышей"
-              value={`${stats.totalWon.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })} zł`}
-            />
-            <StatTile
-              icon={<Trophy size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Макс выигрыш"
-              value={`${stats.maxWin.toLocaleString('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              })} zł`}
-            />
-            <StatTile
-              icon={<Sparkles size={16} className="text-white/80" strokeWidth={1.8} />}
-              label="Макс коэфф."
-              value={
-                stats.maxMultiplier > 0
-                  ? `x${stats.maxMultiplier.toFixed(2)}`
-                  : '—'
-              }
-            />
-          </section>
+          <ProfileTrophyShelf
+            stats={{
+              totalBets: stats.totalBets,
+              totalWon: stats.totalWon,
+              maxWin: stats.maxWin,
+              maxMultiplier: stats.maxMultiplier,
+              favorite: stats.favorite,
+            }}
+          />
 
           {/* Recent Bets Section */}
           <section className="mt-1">
@@ -297,18 +248,21 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2">
                 <Clock size={15} className="text-whisper-gray" strokeWidth={1.8} />
                 <span className="font-roobert font-medium text-white text-[15px]">
-                  Последние ставки
+                  {t('profile.recentBets')}
                 </span>
               </div>
               <span className="font-roobert text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tracking-wider">
-                {Math.min(transactions.length, 7)} из {transactions.length}
+                {t('profile.shownOf', {
+                  n: Math.min(transactions.length, 7),
+                  total: transactions.length,
+                })}
               </span>
             </div>
 
             {txLoading ? (
               <div className="rounded-[22px] border border-white/10 bg-[#0c0d0f] py-14 flex flex-col items-center justify-center gap-3">
                 <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                <span className="text-[12px] text-whisper-gray">Загрузка истории...</span>
+                <span className="text-[12px] text-whisper-gray">{t('profile.loadingHistory')}</span>
               </div>
             ) : stats.bets.length === 0 ? (
               <EmptyBets onPlay={() => router.push('/game/crash')} />
@@ -333,7 +287,7 @@ export default function ProfilePage() {
             >
               <Shield size={16} className="text-white/80" strokeWidth={1.8} />
               <span className="font-roobert text-[12px] font-medium uppercase tracking-[0.2em] text-white">
-                Панель администратора
+                {t('profile.adminPanel')}
               </span>
               <ArrowUpRight size={14} className="text-whisper-gray" strokeWidth={1.8} />
             </motion.button>
@@ -363,7 +317,7 @@ export default function ProfilePage() {
               <button
                 onClick={() => setIsWagerModalOpen(false)}
                 className="absolute right-4 top-4 p-1.5 rounded-full bg-white/5 border border-white/10 text-whisper-gray hover:text-white hover:bg-white/10 transition-colors"
-                aria-label="Закрыть"
+                aria-label={t('common.close')}
               >
                 <X size={16} strokeWidth={2} />
               </button>
@@ -372,27 +326,39 @@ export default function ProfilePage() {
                 <div className="p-2 rounded-xl bg-white/10 border border-white/15 text-white">
                   <HelpCircle size={18} strokeWidth={2} />
                 </div>
-                <h3 className="font-roobert text-[16.5px] font-medium">Как работает отыгрыш?</h3>
+                <h3 className="font-roobert text-[16.5px] font-medium">{t('profile.wagerHow')}</h3>
               </div>
               
               <div className="space-y-3 font-roobert text-[13px] text-whisper-gray/90 leading-relaxed">
                 <p className="p-3 rounded-xl border border-white/10 bg-white/[0.03]">
-                  <strong className="text-white font-medium">Отыгрыш (вейджер)</strong> — это сумма ставок, которую необходимо сделать в играх, чтобы перевести бонусные средства в реальный баланс.
+                  <strong className="text-white font-medium">{t('profile.wager')}</strong>
+                  {' — '}
+                  {t('profile.wagerBody')}
                 </p>
                 <div className="p-3 rounded-xl border border-white/10 bg-white/[0.04] text-whisper-gray text-[12.5px]">
-                  <strong className="text-white block mb-0.5">Пример:</strong>
-                  Бонус 100 zł с вейджером x5 требует суммарных ставок на 500 zł (100 × 5).
+                  <strong className="text-white block mb-0.5">{t('profile.wagerExampleTitle')}</strong>
+                  {t('profile.wagerExample')}
                 </div>
                 <p className="text-[12px] text-whisper-gray/80">
-                  Учитываются любые ставки. По достижении 100% средства мгновенно доступны к выводу.
+                  {t('profile.wagerGames')}
                 </p>
               </div>
-              
+
+              <button
+                onClick={() => {
+                  setIsWagerModalOpen(false);
+                  router.push('/info#faq');
+                }}
+                className="mt-4 w-full rounded-2xl border border-white/15 bg-white/[0.05] hover:bg-white/10 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all"
+              >
+                {t('profile.wagerTable')}
+              </button>
+
               <button
                 onClick={() => setIsWagerModalOpen(false)}
-                className="mt-5 w-full rounded-2xl bg-white/15 hover:bg-white/20 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all border border-white/15"
+                className="mt-2 w-full rounded-2xl bg-white/15 hover:bg-white/20 active:scale-[0.98] py-2.5 font-roobert font-medium text-[13.5px] text-white transition-all border border-white/15"
               >
-                Понятно
+                {t('common.gotIt')}
               </button>
             </motion.div>
           </div>
@@ -422,6 +388,7 @@ interface DerivedStats {
   totalWon: number;
   maxWin: number;
   maxMultiplier: number;
+  favorite: ReturnType<typeof resolveGameKey> | null;
   bets: BetRowData[];
 }
 
@@ -487,68 +454,49 @@ function deriveStats(transactions: Array<any>): DerivedStats {
     });
   }
 
+  const counts = new Map<BetRowData['game'], number>();
+  for (const b of bets) {
+    if (b.game === 'unknown') continue;
+    counts.set(b.game, (counts.get(b.game) ?? 0) + 1);
+  }
+  let favorite: BetRowData['game'] | null = null;
+  let favoriteN = 0;
+  for (const [game, n] of counts) {
+    if (n > favoriteN) {
+      favorite = game;
+      favoriteN = n;
+    }
+  }
+
   return {
     totalBets: bets.length,
     totalWagered: bets.reduce((acc, b) => acc + b.stake, 0),
     totalWon,
     maxWin,
     maxMultiplier,
+    favorite,
     bets,
   };
 }
 
 /* -------------------------------------------------------------- subcomponents */
 
-function StatTile({
-  icon,
-  label,
-  value,
-  suffix,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  suffix?: string;
-}) {
-  return (
-    <motion.div 
-      whileHover={{ y: -2 }}
-      transition={{ type: 'spring', bounce: 0.2 }}
-      className="rounded-[22px] border border-white/10 bg-[#0c0d0f] p-3.5 shadow-lg flex flex-col justify-between"
-    >
-      <div className="flex items-center gap-2">
-        <div className="p-1.5 rounded-xl border border-white/10 bg-white/[0.05] flex items-center justify-center shrink-0">
-          {icon}
-        </div>
-        <span className="text-[10px] uppercase font-semibold tracking-[0.18em] text-whisper-gray truncate font-roobert">
-          {label}
-        </span>
-      </div>
-      <div className="mt-2.5 font-roobert text-[18.5px] font-medium text-white tabular-nums tracking-tight leading-none">
-        {value}
-        {suffix && (
-          <span className="block mt-1 font-roobert text-[11px] font-normal text-whisper-gray/70 tabular-nums">
-            {suffix}
-          </span>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
 function BetRow({ row, index }: { row: BetRowData; index: number }) {
-  const dateLabel = row.date.toLocaleString('ru-RU', {
+  const { t, localeTag } = useT();
+  const dateLabel = row.date.toLocaleString(localeTag, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
+  const amount = row.stake.toLocaleString(localeTag, {
+    maximumFractionDigits: 2,
+  });
 
   const netLabel =
     row.outcome === 'pending'
       ? '…'
-      : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString('ru-RU', {
-          minimumFractionDigits: 0,
+      : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString(localeTag, {
           maximumFractionDigits: 2,
         })} zł`;
 
@@ -566,14 +514,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
           {row.gameLabel}
         </div>
         <div className="font-roobert text-[11.5px] text-whisper-gray/70 tabular-nums">
-          {dateLabel} · ставка{' '}
-          <span className="text-white/90">
-            {row.stake.toLocaleString('ru-RU', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 2,
-            })}{' '}
-            zł
-          </span>
+          {t('profile.stakeAt', { date: dateLabel, amount })}
         </div>
       </div>
 
@@ -600,6 +541,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
 }
 
 function EmptyBets({ onPlay }: { onPlay: () => void }) {
+  const { t } = useT();
   return (
     <div className="rounded-[24px] border border-white/10 bg-[#0c0d0f] py-12 px-6 flex flex-col items-center text-center shadow-lg">
       <motion.div 
@@ -610,10 +552,10 @@ function EmptyBets({ onPlay }: { onPlay: () => void }) {
         <Dice5 size={22} className="text-white/70" strokeWidth={1.8} />
       </motion.div>
       <p className="font-roobert font-medium text-white text-[15.5px]">
-        Ставки появятся здесь
+        {t('common.emptyHistory')}
       </p>
       <p className="mt-1 font-roobert text-[12px] text-whisper-gray max-w-[280px] leading-relaxed">
-        Самое время сыграть. Честный RTP от 97% и моментальные выплаты.
+        {t('profile.emptyBets')}
       </p>
       <motion.button
         whileHover={{ scale: 1.02 }}
@@ -621,7 +563,7 @@ function EmptyBets({ onPlay }: { onPlay: () => void }) {
         onClick={onPlay}
         className="mt-5 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white text-black font-roobert font-semibold text-[12px] uppercase tracking-[0.18em] shadow-lg hover:bg-white/90 transition-all"
       >
-        Играть
+        {t('common.play')}
         <ChevronRight size={14} strokeWidth={2.5} />
       </motion.button>
     </div>

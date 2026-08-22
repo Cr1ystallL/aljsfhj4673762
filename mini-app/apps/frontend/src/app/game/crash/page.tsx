@@ -15,8 +15,8 @@ import { CrashPlayerFeed } from '@/components/game/crash/crash-player-feed';
 import { CrashRulesModal } from '@/components/game/crash/crash-rules-modal';
 
 import { useBalance } from '@/hooks/use-balance';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { useCrashLive } from '@/hooks/use-crash-live';
-import { useBalanceStore } from '@/store/balance-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -54,10 +54,13 @@ const DEFAULT_SLOT: SlotConfig = {
 };
 
 export default function CrashGamePage() {
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'crash');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    isTournament,
+    currencyLabel,
+  } = useActiveBalance('crash');
   const { snapshot, stream, userId } = useCrashLive();
 
   const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
@@ -147,10 +150,14 @@ export default function CrashGamePage() {
     }
     // Pre-flight balance check — stops the round-trip when we already
     // know it'll fail. Server still rechecks atomically.
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     const have = activeBalance;
     if (cfg.amount > have) {
       toast.warn(
-        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`
+        `Недостаточно средств — у вас ${have.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currencyLabel}`
       );
       return;
     }
@@ -270,6 +277,14 @@ export default function CrashGamePage() {
 
   const bettingClosed = snapshot.phase === 'starting' || snapshot.phase === 'active' || snapshot.phase === 'completed' || snapshot.phase === 'resolving';
 
+  const cashouts = useMemo(
+    () =>
+      snapshot.players
+        .filter((p) => p.status === 'cashed' && typeof p.multiplier === 'number')
+        .map((p) => ({ key: p.key, multiplier: p.multiplier as number })),
+    [snapshot.players]
+  );
+
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
@@ -291,6 +306,7 @@ export default function CrashGamePage() {
           latencyMs={snapshot.latencyMs}
           connected={snapshot.connected}
           lastCrashPoint={snapshot.lastCrashPoint}
+          cashouts={cashouts}
         />
 
         <div className="flex flex-col gap-2.5">

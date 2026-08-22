@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuthStore } from '@/store/auth-store';
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { apiClient } from '@/lib/api/client';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
@@ -17,6 +17,13 @@ import { GameTopBar } from '@/components/game/game-top-bar';
 import { CardData, PlayingCard } from '@/components/game/hilo/playing-card';
 import { HiloHistory, type HiloHistoryEntry } from '@/components/game/hilo/hilo-history';
 import { getCardColor, getRankName } from '@/components/game/hilo/playing-card';
+import { useT } from '@/i18n/use-t';
+import {
+  BetPanelCtaRow,
+  BetPanelShell,
+  GamePrimaryButton,
+  StakeField,
+} from '@/components/game/kit';
 
 type HiloStatus = 'idle' | 'playing' | 'cashed_out' | 'busted';
 
@@ -31,11 +38,14 @@ interface HiloState {
 
 export function HiloClient() {
   const router = useRouter();
+  const { t, localeTag } = useT();
   const user = useAuthStore((s) => s.user);
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'hilo');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    currencyLabel,
+  } = useActiveBalance('hilo');
 
   const [state, setState] = useState<HiloState | null>(null);
   const [betAmount, setBetAmount] = useState<string>('10');
@@ -130,8 +140,17 @@ export function HiloClient() {
       toast.warn('Введите корректную сумму ставки');
       return;
     }
+    if (!isBalanceReady) {
+      toast.warn('Баланс ещё загружается');
+      return;
+    }
     if (amount > activeBalance) {
-      toast.warn(`Недостаточно средств — у вас ${activeBalance.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${tBal ? '🏆' : 'zł'}`);
+      toast.warn(
+        t('common.insufficientWithBalance', {
+          amount: activeBalance.toLocaleString(localeTag, { maximumFractionDigits: 2 }),
+          currency: currencyLabel,
+        })
+      );
       return;
     }
     try {
@@ -221,6 +240,13 @@ export function HiloClient() {
   const isBusted = state?.status === 'busted';
   const isCashed = state?.status === 'cashed_out';
 
+  const parsedBet = parseFloat(betAmount);
+  const isBetValid = Number.isFinite(parsedBet) && parsedBet > 0;
+  const canAfford = isBalanceReady && isBetValid && parsedBet <= activeBalance;
+  // Only the fresh-round button depends on funds; "Новая игра" just resets.
+  const isStartingRound = !isPlaying && !isBusted && !isCashed;
+  const isShortOnFunds = isStartingRound && isBalanceReady && isBetValid && !canAfford;
+
   const currentRank = state?.currentCard?.rank || 1;
   const higherProb = ((14 - currentRank) / 13) * 100;
   const lowerProb = (currentRank / 13) * 100;
@@ -241,13 +267,17 @@ export function HiloClient() {
         <GameTopBar title="Hi-Lo" Icon={ChevronUp} onHowToPlay={() => setRulesOpen(true)} />
 
         {/* Play Area */}
-        <section className="relative rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col items-center gap-6 overflow-hidden">
+        <section className="relative rounded-[20px] border border-white/12 bg-white/[0.03] p-4 flex flex-col items-center gap-6 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
           
           {/* Status Message */}
           {(isBusted || isCashed) && (
             <div className={`w-full text-center py-2 rounded-lg bg-black/30 backdrop-blur-md border ${isBusted ? 'border-[#ff4949]/30 text-[#ff4949]' : 'border-emerald-500/30 text-emerald-400'}`}>
               <span className="font-roobert font-medium text-sm tracking-wide uppercase">
-                {isBusted ? 'Ставка проиграна' : `Выиграно +${(currentBet * state!.currentMultiplier).toFixed(2)} zł`}
+                {isBusted
+                  ? t('hilo.lost')
+                  : t('hilo.wonPlus', {
+                      amount: (currentBet * state!.currentMultiplier).toFixed(2),
+                    })}
               </span>
             </div>
           )}
@@ -264,7 +294,7 @@ export function HiloClient() {
           />
 
           {/* Cards Display */}
-          <div className="relative flex items-center justify-center w-full h-52">
+          <div className="relative flex items-center justify-center w-full h-60">
             <AnimatePresence mode="popLayout">
               {/* Previous Card (Faded on Left) */}
               {prevCard && (
@@ -272,7 +302,7 @@ export function HiloClient() {
                   key={`prev-${prevCard.rank}-${prevCard.suit}-${state?.history?.length}`}
                   card={prevCard} 
                   faded 
-                  className="w-24 h-36 absolute left-4 sm:left-12" 
+                  className="w-24 h-36 absolute left-3 sm:left-10" 
                   direction="right-to-left"
                 />
               )}
@@ -282,7 +312,7 @@ export function HiloClient() {
                 key={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
                 card={state?.currentCard || null} 
                 animateKey={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
-                className="w-36 h-52 absolute z-10 shadow-2xl" 
+                className="w-40 h-56 absolute z-10" 
                 direction="right-to-left"
               />
               
@@ -292,14 +322,10 @@ export function HiloClient() {
                 <div className="absolute top-2 left-2 w-full h-full rounded-xl bg-[#0f1016]/80 border border-white/5" />
                 <div className="absolute top-1 left-1 w-full h-full rounded-xl bg-[#151720]/90 border border-white/10" />
                 {/* Top deck card */}
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#1a1c29] to-[#0f1016] border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] flex flex-col items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 opacity-15 flex items-center justify-center">
-                    <svg viewBox="0 0 1024 1024" className="w-16 h-16 text-white" fill="currentColor">
-                      <g transform="translate(0,1024) scale(0.1,-0.1)">
-                        <path d="M5050 8891 c-186 -60 -321 -200 -450 -465 -181 -372 -333 -968 -486 -1906 -20 -124 -38 -232 -41 -240 -3 -8 -22 35 -43 95 -129 377 -321 783 -495 1045 -195 294 -367 434 -585 477 -218 43 -440 -63 -585 -281 -268 -403 -405 -1125 -405 -2136 0 -955 176 -2298 335 -2549 93 -148 230 -221 389 -208 138 12 263 105 329 244 30 65 32 74 31 183 0 102 -7 144 -57 365 -125 557 -201 1068 -239 1615 -19 283 -16 1071 5 1340 39 478 93 772 144 788 31 9 115 -120 197 -305 236 -528 498 -1528 636 -2427 86 -566 99 -960 50 -1546 -26 -312 -20 -400 38 -515 35 -70 68 -110 136 -161 121 -92 292 -111 427 -46 122 58 216 182 245 324 13 62 13 102 -3 362 -24 399 -24 1277 0 1616 33 459 68 801 142 1392 112 891 214 1493 334 1971 60 234 86 309 109 305 42 -8 159 -453 256 -968 93 -495 211 -1393 271 -2055 94 -1040 92 -1452 -12 -2659 -14 -163 -15 -213 -5 -280 36 -247 222 -398 474 -384 69 4 100 12 153 36 85 41 175 129 214 212 50 106 56 167 41 449 -19 367 -6 665 51 1121 104 839 333 1741 594 2346 109 250 248 496 302 531 25 16 26 16 49 -10 72 -84 156 -523 196 -1017 17 -219 17 -987 0 -1220 -35 -467 -75 -835 -148 -1355 -43 -304 -46 -335 -35 -398 24 -142 112 -260 238 -320 62 -29 77 -32 163 -32 131 1 190 25 279 114 99 99 135 181 175 412 88 495 122 972 113 1569 -19 1153 -141 1925 -384 2416 -105 213 -230 350 -388 426 -224 107 -451 83 -681 -73 -221 -149 -470 -481 -674 -902 l-68 -139 -22 124 c-134 741 -300 1479 -410 1823 -172 536 -366 817 -618 895 -82 25 -205 26 -282 1z" />
-                      </g>
-                    </svg>
-                  </div>
+                <div className="absolute inset-0 rounded-[16px] border border-white/10 bg-gradient-to-br from-[#1c1e26] to-[#0c0d11] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] flex items-center justify-center">
+                  <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-white/30">
+                    {t('hilo.deck')}
+                  </span>
                 </div>
               </div>
             </AnimatePresence>
@@ -309,7 +335,7 @@ export function HiloClient() {
           <div className="grid grid-cols-2 gap-3 w-full relative z-10 mt-2">
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
               <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
-                Прибыль, если выше ({higherMult > 0 ? higherMult.toFixed(2) + '×' : '--'})
+                {t('hilo.profitHigher')} ({higherMult > 0 ? `${higherMult.toFixed(2)}×` : '—'})
               </div>
               <div className="text-sm font-roobert text-frost-white font-medium">
                 {higherMult > 0 ? profitHigher.toFixed(2) + ' zł' : '--'}
@@ -317,7 +343,7 @@ export function HiloClient() {
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
               <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
-                Прибыль, если ниже ({lowerMult > 0 ? lowerMult.toFixed(2) + '×' : '--'})
+                {t('hilo.profitLower')} ({lowerMult > 0 ? `${lowerMult.toFixed(2)}×` : '—'})
               </div>
               <div className="text-sm font-roobert text-frost-white font-medium">
                 {lowerMult > 0 ? profitLower.toFixed(2) + ' zł' : '--'}
@@ -365,82 +391,85 @@ export function HiloClient() {
 
         {/* Controls Area */}
         <section className="flex flex-col gap-3">
-          {/* Bet Amount Panel */}
-          <div className="rounded-card border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="font-roobert text-[12px] uppercase tracking-[0.2em] text-white/50">
-                Сумма ставки
-              </span>
-              <span className="font-roobert text-[12px] text-frost-white">
-                {isPlaying ? `${currentBet.toFixed(2)} zł` : `${activeBalance.toFixed(2)} zł`}
-              </span>
-            </div>
-            
-            <div className={`flex items-center justify-between rounded-pill border transition-colors ${isPlaying ? 'border-white/5 bg-white/[0.02] opacity-50' : 'border-white/15 bg-white/[0.04] focus-within:border-white/30'}`}>
-              <div className="flex items-center pl-4 w-1/2">
-                <span className="text-white/40 font-roobert mr-1">zł</span>
-                <input
-                  type="number"
-                  value={isPlaying ? currentBet : betAmount}
-                  onChange={(e) => setBetAmount(e.target.value)}
+          <BetPanelShell>
+            <div className="grid grid-cols-2 items-stretch">
+              <div className="px-4 py-3 border-r border-white/10">
+                <StakeField
+                  amount={isPlaying ? currentBet : parsedBet || 1}
+                  onAmountChange={(next) => setBetAmount(String(next))}
+                  minBet={1}
+                  maxBet={Math.max(1, Math.floor(activeBalance) || 1)}
                   disabled={!isStateLoaded || isPlaying || loading}
-                  className="w-full bg-transparent outline-none font-roobert text-[16px] text-frost-white tabular-nums placeholder:text-white/20"
-                  placeholder="0.00"
+                  label={t('common.bet')}
+                  decreaseLabel={t('common.decreaseBet')}
+                  increaseLabel={t('common.increaseBet')}
                 />
               </div>
-              <div className="flex items-center h-11">
-                <div className="w-[1px] h-6 bg-white/10 mx-1" />
-                <button
-                  type="button"
-                  disabled={!isStateLoaded || isPlaying || loading}
-                  onClick={() => setBetAmount((prev) => (Math.max(1, parseFloat(prev || '0') / 2)).toFixed(2))}
-                  className="h-full px-4 font-roobert text-[12px] font-medium text-white/70 hover:text-white transition-colors"
+              <div className="px-4 py-3">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
+                  {isPlaying ? t('crash.multiplier') : t('nav.wallet')}
+                </span>
+                <div
+                  className={`mt-2 font-roobert text-[22px] font-light tabular-nums ${
+                    isShortOnFunds ? 'text-[#ff8a76]' : 'text-frost-white'
+                  }`}
                 >
-                  ½
-                </button>
-                <div className="w-[1px] h-6 bg-white/10" />
-                <button
-                  type="button"
-                  disabled={!isStateLoaded || isPlaying || loading}
-                  onClick={() => setBetAmount((prev) => (parseFloat(prev || '0') * 2).toFixed(2))}
-                  className="h-full px-4 font-roobert text-[12px] font-medium text-white/70 hover:text-white transition-colors pr-5"
-                >
-                  2×
-                </button>
+                  {isPlaying
+                    ? `x${(state?.currentMultiplier ?? 1).toFixed(2)}`
+                    : !isBalanceReady
+                      ? t('common.loading')
+                      : `${activeBalance.toFixed(2)}`}
+                </div>
               </div>
             </div>
 
-            {/* Start / Cashout Button */}
-            {!isPlaying ? (
-              <button
-                onClick={isBusted || isCashed ? handleSwap : handleStart}
-                disabled={!isStateLoaded || loading}
-                className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-[#4f85e8] text-white font-roobert text-[14px] font-medium tracking-wide hover:bg-[#5c90f2] active:scale-[0.98] transition-all disabled:opacity-50"
-              >
-                {isBusted || isCashed ? 'Новая игра' : 'Ставка'}
-              </button>
-            ) : (
-              <button
-                onClick={handleCashout}
-                disabled={loading}
-                className="w-full shrink-0 min-h-[48px] h-12 rounded-pill bg-emerald-500 text-black font-roobert text-[14px] font-semibold tracking-wide hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50"
-              >
-                Забрать {(currentBet * state.currentMultiplier).toFixed(2)} zł
-              </button>
-            )}
+            <BetPanelCtaRow>
+              {!isPlaying ? (
+                <GamePrimaryButton
+                  onClick={isBusted || isCashed ? handleSwap : handleStart}
+                  disabled={
+                    !isStateLoaded ||
+                    loading ||
+                    (isStartingRound && (!isBalanceReady || !canAfford))
+                  }
+                  tone={
+                    isBusted || isCashed || (isBalanceReady && canAfford)
+                      ? 'solid'
+                      : 'muted'
+                  }
+                >
+                  {isBusted || isCashed
+                    ? t('common.newGame')
+                    : !isBalanceReady
+                      ? t('common.loadingBalance')
+                      : isShortOnFunds
+                        ? t('common.insufficientFunds')
+                        : t('common.bet')}
+                </GamePrimaryButton>
+              ) : (
+                <GamePrimaryButton
+                  onClick={handleCashout}
+                  disabled={loading}
+                  tone="solid"
+                >
+                  {t('common.cashOutWithAmount', {
+                    amount: (currentBet * (state?.currentMultiplier ?? 1)).toFixed(2),
+                  })}
+                </GamePrimaryButton>
+              )}
+            </BetPanelCtaRow>
+          </BetPanelShell>
 
-            {/* Skip Card */}
-            {!isPlaying && !isBusted && !isCashed && (
-              <button
-                onClick={handleSwap}
-                disabled={!isStateLoaded || loading}
-                className="w-full h-10 rounded-pill bg-white/[0.05] border border-white/5 text-white/70 font-roobert text-[12px] tracking-wide hover:bg-white/[0.1] hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                Пропустить карту
-                <ChevronsRight size={14} />
-              </button>
-            )}
-          </div>
+          {!isPlaying && !isBusted && !isCashed && (
+            <GamePrimaryButton
+              onClick={handleSwap}
+              disabled={!isStateLoaded || loading}
+              tone="muted"
+            >
+              {t('common.skipCard')}
+              <ChevronsRight size={14} />
+            </GamePrimaryButton>
+          )}
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-2">
@@ -451,7 +480,7 @@ export function HiloClient() {
             >
               <div className="absolute top-0 left-0 w-full h-[2px] bg-[#8596ff]/30 group-hover:bg-[#8596ff]/50 transition-colors" />
               <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
-                Выше или равная
+                {t('hilo.higher')}
                 <ChevronUp size={16} className="text-[#8596ff]" />
               </div>
               <div className="text-[11px] text-[#8596ff] font-roobert mt-0.5 tracking-wider">
@@ -466,7 +495,7 @@ export function HiloClient() {
             >
               <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff8a76]/30 group-hover:bg-[#ff8a76]/50 transition-colors" />
               <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
-                Ниже или равная
+                {t('hilo.lower')}
                 <ChevronDown size={16} className="text-[#ff8a76]" />
               </div>
               <div className="text-[11px] text-[#ff8a76] font-roobert mt-0.5 tracking-wider">
@@ -477,7 +506,7 @@ export function HiloClient() {
         </section>
 
         {/* Live History Ticker */}
-        <HiloHistory entries={history} currency={tBal ? '🏆' : 'zł'} />
+        <HiloHistory entries={history} currency={currencyLabel} />
       </div>
       
       {/* Hide scrollbar styles injected */}

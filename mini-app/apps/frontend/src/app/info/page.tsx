@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Shield, CheckCircle2, HelpCircle, Scale, ChevronDown } from 'lucide-react';
 import { ProvablyFairCalculator } from '@/components/info/provably-fair-calculator';
+import { useT } from '@/i18n/use-t';
 
 function Accordion({ question, answer }: { question: string, answer: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,14 +31,25 @@ function Accordion({ question, answer }: { question: string, answer: React.React
 
 export default function InfoPage() {
   const router = useRouter();
+  const { t } = useT();
   const [activeTab, setActiveTab] = useState<'rules' | 'privacy' | 'faq' | 'fairness'>('rules');
 
   const tabs = [
-    { id: 'rules', label: 'Соглашение', icon: Shield },
-    { id: 'privacy', label: 'Политика', icon: CheckCircle2 },
-    { id: 'faq', label: 'FAQ', icon: HelpCircle },
-    { id: 'fairness', label: 'Честная игра', icon: Scale },
+    { id: 'rules', label: t('info.rules'), icon: Shield },
+    { id: 'privacy', label: t('info.privacy'), icon: CheckCircle2 },
+    { id: 'faq', label: t('info.faq'), icon: HelpCircle },
+    { id: 'fairness', label: t('info.fairness'), icon: Scale },
   ] as const;
+
+  // Deep links such as /info#faq open the right tab. Read from the hash rather
+  // than useSearchParams so the route keeps rendering statically.
+  useEffect(() => {
+    const target = window.location.hash.replace('#', '');
+    if (tabs.some((t) => t.id === target)) {
+      setActiveTab(target as typeof activeTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <main className="min-h-screen bg-midnight-canvas text-frost-white flex flex-col pb-safe selection:bg-macvbet-red/30">
@@ -50,7 +62,7 @@ export default function InfoPage() {
             <ChevronLeft size={24} />
           </button>
           <h1 className="font-roobert font-bold text-xl tracking-wide uppercase bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-            Информация
+            {t('info.title')}
           </h1>
         </div>
         
@@ -382,7 +394,7 @@ export default function InfoPage() {
                 />
                 <Accordion 
                   question="Используется ли Provably Fair во всех играх?" 
-                  answer="Да, все наши фирменные (In-House) игры (MacvJet, Mines, Plinko и др.) работают на алгоритме Provably Fair." 
+                  answer="Да, все наши фирменные (In-House) игры (MacvJet, Mines, Coinflip и др.) работают на алгоритме Provably Fair." 
                 />
                 <Accordion 
                   question="Как работает ГСЧ (Генератор Случайных Чисел)?" 
@@ -394,7 +406,7 @@ export default function InfoPage() {
                 />
                 <Accordion 
                   question="Могут ли другие игроки повлиять на мой результат?" 
-                  answer="Нет, в одиночных играх (Mines, Plinko) ваш Client Seed влияет только на вас. В многопользовательских (MacvJet) Client Seed формируется из хэша первого сделавшего ставку игрока." 
+                  answer="Нет, в одиночных играх (Mines, Coinflip) ваш Client Seed влияет только на вас. В многопользовательских (MacvJet) Client Seed формируется из хэша первого сделавшего ставку игрока." 
                 />
                 <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Правила Игр (In-House)</h3>
                 <Accordion 
@@ -414,14 +426,6 @@ export default function InfoPage() {
                   answer="Вы получите максимальный джекпот для данного количества мин и раунд автоматически завершится победой." 
                 />
                 <Accordion 
-                  question="🔺 Как работает Plinko?" 
-                  answer="Вы запускаете шарик сверху пирамиды. Он падает сквозь колышки, отскакивая влево/вправо (50/50). Внизу ячейки с множителями (по краям — высокие, в центре — низкие). Вы можете менять уровень риска и количество рядов." 
-                />
-                <Accordion 
-                  question="🔺 Что означает уровень риска в Plinko?" 
-                  answer="Низкий риск дает частые мелкие выигрыши (редко < 0.5x, но макс. ~10x). Высокий риск дает много проигрышей (0.2x), но по краям стоят огромные множители (вплоть до 1000x)." 
-                />
-                <Accordion 
                   question="🪙 Правила игры Coinflip?" 
                   answer="Классический бросок монеты. Вы выбираете Орла (Heads) или Решку (Tails). Шанс выигрыша 50%. В случае победы ставка удваивается (с учетом минимальной комиссии платформы 1-4%)." 
                 />
@@ -430,13 +434,65 @@ export default function InfoPage() {
                   answer="Колесо фортуны, разделенное на цветные сектора с разными множителями. Вы выбираете уровень риска. Чем выше риск, тем выше потенциальные множители, но меньше шансов на их выпадение." 
                 />
                 <Accordion 
-                  question="🌉 Как проходить Bridges?" 
-                  answer="Вы должны перебраться на другую сторону моста. На каждом шаге вам предлагается несколько блоков. Часть из них безопасна, часть — рушится. Чем дальше пройдете, тем выше награда." 
-                />
-                <Accordion 
                   question="🃏 Как играть в Hi Lo?" 
                   answer="В Hi Lo вам предстоит угадать, будет ли следующая карта старше (Hi) или младше (Lo) текущей. Чем меньше вероятность события, тем выше множитель выигрыша. Вы можете забрать выигрыш после любого успешного шага!" 
                 />
+                <Accordion
+                  question="🎁 Как устроены Кейсы?"
+                  answer="Вы выбираете кейс и открываете его за фиксированную цену. Внутри девять призов — от 0.1x до 100x от цены кейса. Шанс каждого приза указан прямо на его карточке в списке «Содержимое кейса», и сумма всех шансов всегда равна ровно 100.00%. Можно открывать до трёх кейсов за раз. Бесплатные открытия, полученные в бонусах, тратятся раньше баланса."
+                />
+                <Accordion
+                  question="🎁 Почему в бесплатном кейсе не выпадают крупные призы?"
+                  answer="У бесплатных открытий действует ограничение максимального выигрыша — не выше 2.5x от цены кейса. Это касается только бесплатных прокрутов; при открытии за собственные средства доступны все призы, вплоть до 100x."
+                />
+                <Accordion
+                  question="🔢 Как играть в Keno?"
+                  answer="Вы отмечаете числа на поле, после чего система случайным образом вытягивает свою серию. Выигрыш зависит от того, сколько ваших чисел совпало, и от выбранного уровня риска: чем выше риск, тем больше совпадений нужно, но и множители выше."
+                />
+                <Accordion
+                  question="🏆 Что такое MacvPot?"
+                  answer="Многопользовательский джекпот-раунд. Игроки делают ставки в общий банк в течение фазы приёма ставок, затем разыгрывается победитель. Чем больше ваша доля в банке, тем выше шанс на победу. Раунд полностью серверный и проверяется через Provably Fair."
+                />
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Отыгрыш по играм</h3>
+                <div className="border border-white/5 rounded-2xl bg-white/[0.02] overflow-hidden mb-3">
+                  <div className="p-5 text-sm text-frost-white/70 leading-relaxed">
+                    <p className="mb-4">
+                      Не каждая игра засчитывается в отыгрыш полностью. Ставка в 100 zł
+                      с вкладом 30% добавит к прогрессу 30 zł. Актуальные значения:
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {[
+                        { game: 'MacvJet (Crash)', value: '100%' },
+                        { game: 'Coinflip', value: '100%' },
+                        { game: 'Wheel', value: '100%' },
+                        { game: 'Hi-Lo', value: '100%' },
+                        { game: 'Keno', value: '100%' },
+                        { game: 'Кейсы', value: '100%' },
+                        { game: 'MacvPot', value: '100%' },
+                        { game: 'Blackjack', value: '100%' },
+                        { game: 'Mines', value: '30%' },
+                      ].map((row) => (
+                        <div
+                          key={row.game}
+                          className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-b-0"
+                        >
+                          <span className="text-frost-white/85">{row.game}</span>
+                          <span
+                            className={`font-roobert font-semibold tabular-nums ${
+                              row.value === '100%' ? 'text-emerald-400/90' : 'text-amber-300'
+                            }`}
+                          >
+                            {row.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-frost-white/50 text-xs">
+                      Значения настраиваются администрацией и могут меняться. Текущий
+                      прогресс отыгрыша виден в профиле.
+                    </p>
+                  </div>
+                </div>
                 <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Технические Вопросы</h3>
                 <Accordion 
                   question="Почему игра тормозит?" 
@@ -444,7 +500,7 @@ export default function InfoPage() {
                 />
                 <Accordion 
                   question="Что произойдет, если оборвется связь во время ставки?" 
-                  answer="В одиночных играх (Mines, Plinko) результат генерируется сразу, деньги зачисляются на баланс автоматически при выигрыше. В MacvJet, если вы не успели нажать &quot;Кэшаут&quot; до обрыва связи и не настроили авто-вывод, ставка проиграет, если ракета взорвется до вашего переподключения." 
+                  answer="В одиночных играх (Mines, Coinflip) результат генерируется сразу, деньги зачисляются на баланс автоматически при выигрыше. В MacvJet, если вы не успели нажать &quot;Кэшаут&quot; до обрыва связи и не настроили авто-вывод, ставка проиграет, если ракета взорвется до вашего переподключения." 
                 />
                 <Accordion 
                   question="Бот не открывает приложение (Web App), что делать?" 

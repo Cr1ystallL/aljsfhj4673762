@@ -20,6 +20,13 @@ import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { useT } from '@/i18n/use-t';
+import type { TxKey } from '@/i18n/use-t';
+import { Pressable } from '@/components/ui/pressable';
+import { BetPanelShell, GamePrimaryButton } from '@/components/game/kit';
+
+type TFn = (key: TxKey, vars?: Record<string, string | number>) => string;
 
 /**
  * Bonuses Page — Premium Redesign.
@@ -83,14 +90,15 @@ interface ContestRow {
 }
 
 export default function BonusesPage() {
+  const { t } = useT();
   const { user } = useAuthStore();
   const { fetchBalance } = useBalance();
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white flex flex-col selection:bg-amber-500/30">
-      <GameTopBar title="Бонусы" Icon={Sparkles} />
+    <main className="min-h-screen w-full bg-black text-frost-white flex flex-col">
+      <GameTopBar title={t('bonuses.title')} Icon={Sparkles} width="wide" />
       
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-4 pb-32 flex flex-col gap-6">
+      <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-4 pb-32 flex flex-col gap-6`}>
         {/* Promo Code Hero */}
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
 
@@ -165,6 +173,7 @@ function getCardStyleTheme(title: string, index: number) {
 }
 
 function DepositBonusesSection() {
+  const { t } = useT();
   const router = useRouter();
   const [offers, setOffers] = useState<DepositOffer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,17 +212,17 @@ function DepositBonusesSection() {
 
       if (!res.ok) {
         const j = await res.json();
-        toast.error(j.error || 'Не удалось обновить статус бонуса');
+        toast.error(j.error || t('bonuses.depositUpdateError'));
       } else {
         if (action === 'activate') {
-          toast.success(`Бонус «${offer.title}» активирован для следующего депозита!`);
+          toast.success(t('bonuses.depositOn', { title: offer.title }));
         } else {
-          toast.info('Бонус деактивирован');
+          toast.info(t('bonuses.depositOff'));
         }
         await loadOffers();
       }
     } catch {
-      toast.error('Ошибка при обновлении бонуса');
+      toast.error(t('bonuses.depositUpdateError'));
     } finally {
       setBusyId(null);
     }
@@ -221,9 +230,9 @@ function DepositBonusesSection() {
 
   if (loading) {
     return (
-      <div className="p-6 rounded-card border border-white/10 bg-white/[0.03] flex items-center justify-center">
-        <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mr-2" />
-        <span className="text-xs text-whisper-gray font-roobert">Загрузка депозитных бонусов...</span>
+      <div className="p-6 rounded-[20px] border border-white/12 bg-white/[0.04] flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+        <span className="text-xs text-whisper-gray font-roobert">{t('bonuses.depositsLoading')}</span>
       </div>
     );
   }
@@ -234,11 +243,8 @@ function DepositBonusesSection() {
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
-            <Zap size={14} />
-          </div>
-          <span className="font-roobert text-[11px] uppercase tracking-[0.18em] text-whisper-gray font-bold">
-            Разовые Депозитные Бонусы
+          <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+            {t('bonuses.deposits')}
           </span>
         </div>
       </div>
@@ -251,12 +257,12 @@ function DepositBonusesSection() {
           return (
             <div
               key={offer.id}
-              className={`relative aspect-square overflow-hidden rounded-2xl transition-all duration-300 p-2.5 flex flex-col justify-between group ${
+              className={`relative aspect-square overflow-hidden rounded-[20px] border p-2.5 flex flex-col justify-between ${
                 isActive
-                  ? 'bg-emerald-950/30 ring-1 ring-emerald-400/40 shadow-[0_0_22px_rgba(16,185,129,0.25)]'
+                  ? 'border-[#F4E8C8]/30 bg-white/[0.06]'
                   : isUsed
-                  ? 'bg-white/[0.01] opacity-40'
-                  : 'bg-black/80 shadow-[0_0_18px_rgba(251,191,36,0.14)] hover:shadow-[0_0_26px_rgba(251,191,36,0.26)]'
+                  ? 'border-white/8 bg-white/[0.02] opacity-50'
+                  : 'border-white/12 bg-white/[0.04]'
               }`}
             >
               {/* Optional Banner Image Background or Clean Dark Fallback */}
@@ -275,18 +281,17 @@ function DepositBonusesSection() {
 
               {/* Top Badges */}
               <div className="relative z-10 flex items-center justify-between gap-1">
-                <span className="px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/20 text-amber-300 text-[10px] font-extrabold font-roobert backdrop-blur-md">
+                <span className="px-2 py-0.5 rounded-pill border border-white/12 bg-black/40 text-[#F4E8C8] text-[10px] font-roobert tabular-nums">
                   {offer.type === 'percent' ? `+${offer.bonusValue}%` : `+${offer.bonusValue} zł`}
                 </span>
 
                 {isActive ? (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 text-[9px] font-mono font-bold uppercase backdrop-blur-md flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span>Активен</span>
+                  <span className="px-2 py-0.5 rounded-pill bg-white/10 text-frost-white border border-white/15 text-[9px] uppercase tracking-[0.14em] font-roobert">
+                    {t('bonuses.depositActive')}
                   </span>
                 ) : isUsed ? (
-                  <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-whisper-gray text-[9px] font-mono uppercase backdrop-blur-md">
-                    Использован
+                  <span className="px-1.5 py-0.5 rounded-pill bg-white/5 text-whisper-gray text-[9px] uppercase tracking-[0.14em] font-roobert">
+                    {t('bonuses.depositUsed')}
                   </span>
                 ) : null}
               </div>
@@ -294,12 +299,12 @@ function DepositBonusesSection() {
               {/* Bottom Info & Action (Title placed right above the button, NOT in center) */}
               <div className="relative z-10 mt-auto flex flex-col gap-1 pt-1">
                 <div className="flex flex-col gap-0.5">
-                  <h3 className="font-roobert text-[11.5px] sm:text-[12.5px] font-extrabold text-white leading-snug line-clamp-2 drop-shadow-md">
+                  <h3 className="font-roobert text-[12px] text-frost-white leading-snug line-clamp-2">
                     {offer.title}
                   </h3>
-                  <div className="text-[9.5px] font-roobert text-whisper-gray flex items-center gap-1">
-                    <span>Депозит от:</span>
-                    <b className="text-amber-300 font-bold">{offer.minDeposit} zł</b>
+                  <div className="text-[10px] font-roobert text-whisper-gray flex items-center gap-1">
+                    <span>{t('bonuses.depositFrom')}</span>
+                    <span className="text-frost-white/80 tabular-nums">{offer.minDeposit} zł</span>
                   </div>
                 </div>
 
@@ -307,40 +312,39 @@ function DepositBonusesSection() {
                 <div className="pt-0.5">
                   {isActive ? (
                     <div className="flex items-center gap-1">
-                      <button
+                      <Pressable
                         onClick={() => router.push('/balance')}
-                        className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-[10.5px] transition-all text-center truncate active:scale-95"
+                        className="flex-1 py-1.5 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[10.5px] uppercase tracking-[0.12em] text-center"
                       >
-                        Депозит 🚀
-                      </button>
-                      <button
+                        {t('bonuses.depositGo')}
+                      </Pressable>
+                      <Pressable
                         onClick={() => toggleBonus(offer)}
                         disabled={busyId === offer.id}
-                        className="px-2 py-1.5 rounded-xl border border-white/20 bg-black/80 text-rose-300 text-[10px] hover:bg-rose-500/30 transition-all font-roobert active:scale-95"
+                        className="px-2 py-1.5 rounded-pill border border-white/15 bg-black/50 text-white/70 text-[10px] font-roobert disabled:opacity-40"
                       >
                         ✕
-                      </button>
+                      </Pressable>
                     </div>
                   ) : isUsed ? (
                     <button
                       disabled
-                      className="w-full py-1.5 rounded-xl bg-white/10 text-whisper-gray font-medium text-[10px] cursor-not-allowed text-center"
+                      className="w-full py-1.5 rounded-pill bg-white/8 text-whisper-gray font-roobert text-[10px] cursor-not-allowed text-center"
                     >
-                      Использован
+                      {t('bonuses.depositUsed')}
                     </button>
                   ) : (
-                    <button
+                    <Pressable
                       onClick={() => toggleBonus(offer)}
                       disabled={busyId === offer.id}
-                      className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-extrabold text-[11px] active:scale-95 transition-all flex items-center justify-center gap-1"
+                      className="w-full py-1.5 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.12em] inline-flex items-center justify-center disabled:opacity-40"
                     >
                       {busyId === offer.id ? (
                         <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <Zap size={12} fill="currentColor" />
+                        t('bonuses.depositActivate')
                       )}
-                      <span>Активировать</span>
-                    </button>
+                    </Pressable>
                   )}
                 </div>
               </div>
@@ -356,25 +360,26 @@ function DepositBonusesSection() {
 /* Promo Code Hero                                                            */
 /* -------------------------------------------------------------------------- */
 
-function formatCooldownMs(ms: number): string {
+function formatCooldownMs(ms: number, t: TFn): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
-  if (totalSec <= 0) return '0 с';
+  if (totalSec <= 0) return t('bonuses.sec', { n: 0 });
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   if (m > 0) {
-    return s > 0 ? `${m} м ${s} с` : `${m} м`;
+    return s > 0 ? t('bonuses.minSec', { n: m, s }) : t('bonuses.min', { n: m });
   }
-  return `${s} с`;
+  return t('bonuses.sec', { n: s });
 }
 
 function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
+  const { t, localeTag } = useT();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed || trimmed.length < 2) {
-      toast.warn('Введите промокод');
+      toast.warn(t('bonuses.promoEnter'));
       return;
     }
     setBusy(true);
@@ -387,103 +392,72 @@ function PromoCodeHero({ onRedeemed }: { onRedeemed: () => void }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось активировать промокод');
+        reportApiError(res, json, t('bonuses.promoEnter'));
         return;
       }
       if (json.isAffiliate) {
-        toast.success(
-          'Вы успешно привязаны к партнеру!',
-          { title: 'Промокод применён' }
-        );
+        toast.success(t('bonuses.promoAffiliate'), { title: t('bonuses.promoApplied') });
         setCode('');
         return;
       }
-      
+
       toast.success(
-        `+${Number(json.amount).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
-        { title: 'Промокод применён' }
+        `+${Number(json.amount).toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł`,
+        { title: t('bonuses.promoApplied') }
       );
       setCode('');
       const balance = useBalanceStore.getState().balance;
       if (balance) useBalanceStore.getState().updateBalance(Number(json.balance ?? balance.amount));
       onRedeemed();
     } catch {
-      toast.error('Ошибка сети, попробуйте снова');
+      toast.error(t('errors.network'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <motion.section 
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] backdrop-blur-xl shadow-2xl"
-    >
-      {/* Background ambient radial lighting */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(80% 60% at 90% 10%, rgba(255, 172, 46, 0.18) 0%, rgba(160, 224, 171, 0.08) 50%, transparent 100%)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute -top-16 -left-16 w-48 h-48 rounded-full pointer-events-none blur-[50px]"
-        style={{
-          background: 'radial-gradient(circle, rgba(255, 200, 100, 0.25) 0%, transparent 70%)',
-        }}
-      />
-
-      <div className="relative grid grid-cols-[1fr_auto] gap-3 px-6 pt-6 pb-4 items-center">
+    <BetPanelShell>
+      <div className="grid grid-cols-[1fr_auto] gap-3 px-5 pt-5 pb-3 items-center">
         <div className="flex flex-col gap-1.5">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 w-fit">
-            <Ticket size={12} className="text-amber-400" strokeWidth={2} />
-            <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-amber-300 font-semibold">
-              Промокод
+          <div className="inline-flex items-center gap-1.5 w-fit">
+            <Ticket size={12} className="text-white/45" strokeWidth={2} />
+            <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+              {t('bonuses.promo')}
             </span>
           </div>
-          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-medium leading-tight">
-            Активируйте код,
+          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight tracking-tight">
+            {t('bonuses.promoLead')}
             <br />
-            <span className="text-amber-300">получите бонус</span>
+            <span className="text-[#F4E8C8]">{t('bonuses.promoAccent')}</span>
           </h2>
         </div>
         <Gem />
       </div>
 
-      <div className="relative px-5 sm:px-6 pb-6 pt-2">
-        <div className="relative flex items-center w-full min-h-[52px] h-[52px] p-1.5 rounded-2xl border border-white/20 bg-black/60 backdrop-blur-md focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/30 transition-all">
+      <div className="px-4 pb-4">
+        <div className="flex items-center w-full min-h-[48px] h-[48px] p-1 rounded-[14px] border border-white/12 bg-black/40">
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="ВВЕДИТЕ КОД"
+            onKeyDown={(e) => e.key === 'Enter' && void submit()}
+            placeholder={t('bonuses.promoPlaceholder')}
             maxLength={32}
-            className="flex-1 min-w-0 h-full px-4 bg-transparent font-roobert text-[14px] sm:text-[15px] font-bold tracking-[0.18em] text-frost-white placeholder:text-white/35 focus:outline-none"
+            className="flex-1 min-w-0 h-full px-3 bg-transparent font-roobert text-[13px] tracking-[0.16em] text-frost-white placeholder:text-white/30 focus:outline-none"
           />
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={submit}
-            disabled={busy}
-            className={cn(
-              'h-full px-5 rounded-xl font-roobert font-bold text-[12px] sm:text-[13px] uppercase tracking-[0.12em] text-midnight-canvas transition-all inline-flex items-center justify-center gap-1.5 shrink-0 shadow-md shadow-amber-500/20',
-              busy && 'opacity-60 cursor-not-allowed'
-            )}
-            style={{
-              background: 'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
+          <GamePrimaryButton
+            onClick={() => {
+              void submit();
             }}
+            disabled={busy}
+            className="!w-auto h-full px-4 shrink-0"
           >
-            Применить
+            {t('bonuses.promoApply')}
             <ArrowRight size={14} strokeWidth={2.4} />
-          </motion.button>
+          </GamePrimaryButton>
         </div>
       </div>
-    </motion.section>
+    </BetPanelShell>
   );
 }
 
@@ -491,7 +465,7 @@ function Gem() {
   return (
     <motion.svg
       viewBox="0 0 80 80"
-      className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-[0_8px_24px_rgba(255,172,46,0.35)]"
+      className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-[0_6px_16px_rgba(244,232,200,0.16)]"
       animate={{ rotate: [-2, 2, -2], y: [-2, 2, -2] }}
       transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
     >
@@ -596,6 +570,7 @@ const SECTOR_TEXT_COLOR: Record<number, string> = {
 };
 
 function LuckyWheelHero({ onWin }: { onWin: () => void }) {
+  const { t, localeTag } = useT();
   const [state, setState] = useState<WheelStateResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -667,11 +642,11 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       forceTick((n) => n + 1);
       setTimeout(() => {
         if (sectorAmount === 10.0) {
-          toast.success('Вы выиграли вращение в Обычном кейсе!', { title: 'Колесо удачи' });
+          toast.success(t('bonuses.wheelCase'), { title: t('bonuses.wheel') });
         } else {
           toast.success(
-            `+${sectorAmount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} zł`,
-            { title: 'Колесо удачи' }
+            `+${sectorAmount.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł`,
+            { title: t('bonuses.wheel') }
           );
         }
         spinRef.current = null;
@@ -682,69 +657,70 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         void load();
       }, 6000);
     } catch {
-      toast.error('Ошибка сети, попробуйте снова');
+      toast.error(t('errors.network'));
     } finally {
       setBusy(false);
     }
   };
 
   const buttonLabel = onCooldown
-    ? `Ждите ${formatCooldownMs(cooldownLeftMs)}`
+    ? t('bonuses.wheelWait', { time: formatCooldownMs(cooldownLeftMs, t) })
     : noSpins
-      ? 'Возвращайтесь завтра'
+      ? t('bonuses.wheelTomorrow')
       : busy || spinRef.current
-        ? 'Крутится…'
-        : 'Крутить';
+        ? t('bonuses.wheelSpinning')
+        : t('bonuses.wheelSpin');
 
   return (
     <motion.section 
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#0e1017] to-[#07080b] shadow-2xl"
+      className="relative overflow-hidden rounded-[20px] border border-white/12 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
     >
-      {/* Accent Hairline */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent"
-      />
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(60% 50% at 50% 50%, rgba(255, 172, 46, 0.12) 0%, transparent 80%)',
+            'radial-gradient(60% 50% at 50% 50%, rgba(244, 232, 200, 0.06) 0%, transparent 80%)',
         }}
       />
 
-      {/* Header */}
-      <div className="relative flex items-start justify-between gap-3 px-6 pt-6">
+      <div className="relative flex items-start justify-between gap-3 px-5 pt-5">
         <div className="flex flex-col gap-1 min-w-0">
-          <div className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.25em] text-whisper-gray">
-            <Sparkles size={12} className="text-amber-400" />
-            <span>Колесо удачи</span>
+          <div className="inline-flex items-center gap-1.5 font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">
+            <Sparkles size={12} className="text-white/40" />
+            <span>{t('bonuses.wheel')}</span>
           </div>
-          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-medium leading-tight">
-            Бесплатный спин
+          <h2 className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-light leading-tight tracking-tight">
+            {t('bonuses.wheelFree')}
           </h2>
         </div>
 
         <div className="shrink-0 flex flex-col items-end gap-1">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10">
-            <Trophy size={11} className="text-amber-400" />
-            <span className="font-roobert text-[11px] font-semibold text-frost-white">
-              КЕЙС / 1.00 zł
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-white/12 bg-white/[0.04]">
+            <Trophy size={11} className="text-[#F4E8C8]" />
+            <span className="font-roobert text-[11px] text-frost-white">
+              {t('bonuses.wheelCase')}
             </span>
           </span>
-          <span className="font-roobert text-[10px] uppercase tracking-[0.18em] text-whisper-gray">
-            10 вращений/день
+          <span className="font-roobert text-[10px] uppercase tracking-[0.16em] text-whisper-gray">
+            {t('bonuses.wheelPerDay')}
           </span>
         </div>
       </div>
 
       {/* Wheel Canvas */}
       <div className="relative px-4 pt-6 pb-2">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full bg-amber-500/15 blur-[45px] pointer-events-none" />
+        <div
+          aria-hidden
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(244,232,200,0.16) 0%, transparent 70%)',
+          }}
+        />
         
         <div
           className="relative w-full max-w-[320px] mx-auto transition-transform hover:scale-[1.01] duration-500"
@@ -753,6 +729,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           <FullWheelCanvas
             spinRef={spinRef}
             idleRotationRef={idleRotationRef}
+            caseLabel={t('bonuses.wheelCaseShort')}
           />
         </div>
       </div>
@@ -762,14 +739,14 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         {[0.05, 0.1, 0.25, 0.5, 10.0].map((tier) => (
           <span
             key={tier}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-md"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.06]"
           >
             <span
               className="w-2 h-2 rounded-full"
               style={{ background: SECTOR_TIER_COLOR[tier] }}
             />
             <span className="font-roobert text-[10px] font-semibold text-frost-white/90">
-              {tier === 10.0 ? 'КЕЙС' : `${tier.toFixed(2)} zł`}
+              {tier === 10.0 ? t('bonuses.wheelCaseShort') : `${tier.toFixed(2)} zł`}
             </span>
           </span>
         ))}
@@ -777,37 +754,26 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
       {/* Spin CTA */}
       <div className="relative px-6 pt-3 pb-6 flex flex-col gap-3">
-        <motion.button
-          whileHover={canSpin ? { scale: 1.01 } : undefined}
-          whileTap={canSpin ? { scale: 0.98 } : undefined}
-          onClick={spin}
+        <GamePrimaryButton
+          onClick={() => {
+            void spin();
+          }}
           disabled={!canSpin}
-          className={cn(
-            'w-full h-14 px-6 rounded-2xl font-roobert font-bold text-[15px] uppercase tracking-[0.18em] inline-flex items-center justify-center gap-2 transition-all shadow-xl',
-            canSpin
-              ? 'text-midnight-canvas shadow-amber-500/25'
-              : 'bg-white/[0.05] text-white/40 border border-white/10 cursor-not-allowed'
-          )}
-          style={
-            canSpin
-              ? {
-                  background:
-                    'linear-gradient(90deg, #ffac2e 0%, #ffd07a 100%)',
-                }
-              : undefined
-          }
+          tone={canSpin ? 'solid' : 'muted'}
+          className="h-12"
         >
           {buttonLabel}
-          {canSpin && <ChevronRight size={18} strokeWidth={2.5} />}
-        </motion.button>
+        </GamePrimaryButton>
 
         <div className="flex items-center justify-between font-roobert text-[11px] text-whisper-gray">
           <span>
-            {state ? `${state.remaining} / ${state.dailyCap} осталось на сегодня` : '—'}
+            {state
+              ? t('bonuses.wheelLeft', { n: state.remaining, cap: state.dailyCap })
+              : '—'}
           </span>
           {onCooldown && (
-            <span className="text-amber-400 font-medium">
-              пауза {formatCooldownMs(cooldownLeftMs)}
+            <span className="text-white/50">
+              {t('bonuses.wheelPause', { time: formatCooldownMs(cooldownLeftMs, t) })}
             </span>
           )}
         </div>
@@ -816,33 +782,34 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       {/* Winners Ticker */}
       {state && state.ticker.length > 0 && (
         <div className="relative border-t border-white/10 px-4 py-2.5 bg-black/40 overflow-x-auto scrollbar-hide flex items-center gap-2.5">
-          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.22em] text-amber-400/80 font-bold pl-2 pr-1 flex items-center gap-1">
-            <Zap size={10} />
-            Победители
+          <span className="shrink-0 font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray pl-2 pr-1">
+            {t('bonuses.wheelWinners')}
           </span>
-          {state.ticker.slice(0, 12).map((t, i) => (
+          {state.ticker.slice(0, 12).map((row, i) => (
             <div
               key={i}
-              className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-md"
+              className="shrink-0 inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.06]"
             >
-              {t.photoUrl ? (
+              {row.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={t.photoUrl}
+                  src={row.photoUrl}
                   alt=""
                   className="w-4 h-4 rounded-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               ) : (
                 <span className="w-4 h-4 rounded-full bg-white/15 flex items-center justify-center font-roobert text-[8px] text-frost-white/90 font-bold">
-                  {t.name.charAt(0).toUpperCase()}
+                  {row.name.charAt(0).toUpperCase()}
                 </span>
               )}
               <span className="font-roobert text-[10px] text-frost-white/90 font-medium truncate max-w-[70px]">
-                {t.name}
+                {row.name}
               </span>
-              <span className="font-roobert text-[10px] font-bold text-amber-400">
-                {t.amount === 10.0 ? 'КЕЙС' : `+${t.amount.toFixed(2)} zł`}
+              <span className="font-roobert text-[10px] tabular-nums text-[#F4E8C8]">
+                {row.amount === 10.0
+                  ? t('bonuses.wheelCaseShort')
+                  : `+${row.amount.toFixed(2)} zł`}
               </span>
             </div>
           ))}
@@ -855,6 +822,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 function FullWheelCanvas({
   spinRef,
   idleRotationRef,
+  caseLabel,
 }: {
   spinRef: React.MutableRefObject<{
     startedAt: number;
@@ -863,6 +831,7 @@ function FullWheelCanvas({
     initialRotation: number;
   } | null>;
   idleRotationRef: React.MutableRefObject<number>;
+  caseLabel: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -1022,7 +991,7 @@ function FullWheelCanvas({
         ctx.fillStyle = isDarkText
           ? 'rgba(255,255,255,0.35)'
           : 'rgba(0,0,0,0.55)';
-        const txt = SECTORS[i] === 10.0 ? 'КЕЙС' : `${SECTORS[i].toFixed(2)} zł`;
+        const txt = SECTORS[i] === 10.0 ? caseLabel : `${SECTORS[i].toFixed(2)} zł`;
         ctx.fillText(txt, 0, 1);
         ctx.fillStyle = textColor;
         ctx.fillText(txt, 0, 0);
@@ -1109,7 +1078,7 @@ function FullWheelCanvas({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
-  }, [spinRef, idleRotationRef]);
+  }, [spinRef, idleRotationRef, caseLabel]);
 
   return (
     <canvas
@@ -1136,6 +1105,7 @@ function shade(hex: string, percent: number): string {
 /* -------------------------------------------------------------------------- */
 
 function TournamentsList() {
+  const { t } = useT();
   const [list, setList] = useState<TournamentRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -1169,10 +1139,10 @@ function TournamentsList() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось зарегистрироваться');
+        reportApiError(res, json, t('bonuses.joinFail'));
         return;
       }
-      toast.success('Вы зарегистрированы в турнире');
+      toast.success(t('bonuses.joinOk'));
       void load();
     } finally {
       setBusyId(null);
@@ -1188,18 +1158,19 @@ function TournamentsList() {
     <section className="flex flex-col gap-4" id="tournaments">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[11px] uppercase tracking-[0.28em] text-whisper-gray font-bold">
-          Турниры ({list.length})
+          {t('bonuses.tournaments', { n: list.length })}
         </span>
       </div>
 
-      {list.map((t) => (
-        <TournamentCard key={t.id} tournament={t} onJoin={() => join(t.id)} busy={busyId === t.id} />
+      {list.map((row) => (
+        <TournamentCard key={row.id} tournament={row} onJoin={() => join(row.id)} busy={busyId === row.id} />
       ))}
     </section>
   );
 }
 
 function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRow; onJoin: () => void; busy: boolean }) {
+  const { t, localeTag } = useT();
   const router = useRouter();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -1211,14 +1182,14 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
   const isEnded = now > tournament.endsAt;
   const targetTime = isBeforeStart ? tournament.startsAt : tournament.endsAt;
   const remainingMs = Math.max(0, targetTime - now);
-  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+  const remaining = useMemo(() => formatRemaining(remainingMs, t), [remainingMs, t]);
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       onClick={() => router.push(`/tournaments/${tournament.id}`)}
-      className="relative overflow-hidden rounded-3xl border border-white/10 hover:border-white/20 transition-all cursor-pointer bg-gradient-to-b from-white/[0.04] to-black/60 backdrop-blur-md"
+      className="relative overflow-hidden rounded-[20px] border border-white/10 hover:border-white/20 cursor-pointer bg-[#101216]"
     >
       {tournament.bannerUrl ? (
         <img
@@ -1240,7 +1211,8 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
         <div className="flex items-center gap-2">
           <Trophy size={13} className="text-amber-400" strokeWidth={2} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-amber-300/90 font-semibold">
-            Турнир · {tournament.gameType ? tournament.gameType.toUpperCase() : ''}
+            {t('bonuses.tournamentDot')}
+            {tournament.gameType ? ` · ${tournament.gameType.toUpperCase()}` : ''}
           </span>
         </div>
 
@@ -1257,23 +1229,31 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
           </div>
           <div className="text-right shrink-0">
             <div className="font-roobert text-amber-400 text-[20px] font-bold leading-none tabular-nums">
-              {tournament.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+              {tournament.prizePool.toLocaleString(localeTag, { maximumFractionDigits: 0 })}{' '}
               <span className="text-[12px] text-whisper-gray font-normal">zł</span>
             </div>
             <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums font-medium">
-              {tournament.winnersCount} призовых мест
+              {t('bonuses.prizePlaces', { n: tournament.winnersCount })}
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-[11px] text-whisper-gray tabular-nums bg-white/[0.04] p-2.5 rounded-2xl border border-white/5">
-          <span>Старт {tournament.startBalance.toFixed(0)} TM</span>
-          <span>Взнос {tournament.entryFee.toFixed(0)} zł</span>
-          <span className="text-amber-300/90">{isEnded ? 'Завершено' : isBeforeStart ? `Старт: ${remaining}` : `Конец: ${remaining}`}</span>
+          <span>{t('bonuses.startBank', { n: tournament.startBalance.toFixed(0) })}</span>
+          <span>{t('bonuses.entryFee', { n: tournament.entryFee.toFixed(0) })}</span>
+          <span className="text-white/70">
+            {isEnded
+              ? t('bonuses.ended')
+              : isBeforeStart
+                ? t('bonuses.startsIn', { time: remaining })
+                : t('bonuses.endsIn', { time: remaining })}
+          </span>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
-          <div className="font-roobert text-[11px] text-whisper-gray font-medium">Игра: {tournament.gameType}</div>
+          <div className="font-roobert text-[11px] text-whisper-gray font-medium">
+            {t('bonuses.gameName', { name: tournament.gameType })}
+          </div>
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -1288,7 +1268,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
             disabled={busy && !tournament.joined}
             className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-frost-white text-midnight-canvas font-roobert text-[11px] font-bold uppercase tracking-[0.18em] shadow-md transition-transform disabled:opacity-50"
           >
-            {tournament.joined || isBeforeStart ? 'К турниру' : 'Участвовать'}
+            {tournament.joined || isBeforeStart ? t('bonuses.toEvent') : t('bonuses.join')}
             <ArrowRight size={12} strokeWidth={2.2} />
           </motion.button>
         </div>
@@ -1302,6 +1282,7 @@ function TournamentCard({ tournament, onJoin, busy }: { tournament: TournamentRo
 /* -------------------------------------------------------------------------- */
 
 function ContestsList({ currentUserId }: { currentUserId: string | null }) {
+  const { t } = useT();
   const [list, setList] = useState<ContestRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -1335,10 +1316,10 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        reportApiError(res, json, 'Не удалось присоединиться');
+        reportApiError(res, json, t('bonuses.contestJoinFail'));
         return;
       }
-      toast.success('Вы присоединились');
+      toast.success(t('bonuses.contestJoinOk'));
       void load();
     } finally {
       setBusyId(null);
@@ -1356,7 +1337,7 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
     <section id="contests" className="flex flex-col gap-4 scroll-mt-4">
       <div className="flex items-baseline justify-between px-1">
         <span className="font-roobert text-[11px] uppercase tracking-[0.28em] text-whisper-gray font-bold">
-          Конкурсы ({list.length})
+          {t('bonuses.contests', { n: list.length })}
         </span>
       </div>
 
@@ -1381,15 +1362,16 @@ function ContestCard({
   onJoin: () => void;
   busy: boolean;
 }) {
+  const { t, localeTag } = useT();
   const now = Date.now();
   const remainingMs = Math.max(0, contest.endsAt - now);
-  const remaining = useMemo(() => formatRemaining(remainingMs), [remainingMs]);
+  const remaining = useMemo(() => formatRemaining(remainingMs, t), [remainingMs, t]);
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-3xl border border-white/10 hover:border-white/20 transition-all bg-gradient-to-b from-white/[0.04] to-black/60 backdrop-blur-md group"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="relative overflow-hidden rounded-[20px] border border-white/10 hover:border-white/20 bg-[#101216] group"
     >
       {contest.bannerUrl ? (
         <img
@@ -1412,10 +1394,10 @@ function ContestCard({
           <Trophy size={13} className="text-amber-400" strokeWidth={2} />
           <span className="font-roobert text-[10px] uppercase tracking-[0.25em] text-whisper-gray group-hover:text-frost-white transition-colors font-semibold">
             {contest.visibility === 'public'
-              ? 'Публичный конкурс'
+              ? t('bonuses.contestPublic')
               : contest.visibility === 'private'
-                ? 'Приватный конкурс'
-                : 'Глобальный конкурс'}
+                ? t('bonuses.contestPrivate')
+                : t('bonuses.contestGlobal')}
           </span>
         </div>
 
@@ -1432,34 +1414,36 @@ function ContestCard({
           </div>
           <div className="text-right shrink-0">
             <div className="font-roobert text-amber-400 text-[20px] font-bold leading-none tabular-nums">
-              {contest.prizePool.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+              {contest.prizePool.toLocaleString(localeTag, { maximumFractionDigits: 0 })}{' '}
               <span className="text-[12px] text-whisper-gray font-normal">zł</span>
             </div>
             <div className="mt-1 font-roobert text-[10px] text-whisper-gray tabular-nums font-medium">
-              {contest.winnersCount} призовых мест
+              {t('bonuses.prizePlaces', { n: contest.winnersCount })}
             </div>
           </div>
         </div>
 
-        <RulesPreview rules={contest.rules} />
+        <RulesPreview rules={contest.rules} t={t} />
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums font-medium">
               <Users size={12} strokeWidth={2} />
-              {contest.participantCount} участников
+              {t('bonuses.participants', { n: contest.participantCount })}
             </span>
-            <span className="font-roobert text-[11px] text-amber-300/90 tabular-nums font-medium">
-              {(contest as any).cycleState === 'ended' ? 'до начала' : 'до конца'} {remaining}
+            <span className="font-roobert text-[11px] text-white/70 tabular-nums font-medium">
+              {(contest as { cycleState?: string }).cycleState === 'ended'
+                ? t('bonuses.untilStart', { time: remaining })
+                : t('bonuses.untilEnd', { time: remaining })}
             </span>
           </div>
           {contest.visibility === 'global' ? (
             <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-white/15 bg-white/[0.05] font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-frost-white/90">
-              Автоучастие
+              {t('bonuses.autoJoin')}
             </span>
           ) : contest.joined ? (
-            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-300">
-              Участвую
+            <span className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-white/15 bg-white/[0.06] font-roobert text-[11px] font-bold uppercase tracking-[0.15em] text-frost-white">
+              {t('bonuses.joining')}
             </span>
           ) : (
             <motion.button
@@ -1469,7 +1453,7 @@ function ContestCard({
               disabled={busy || contest.joined}
               className="inline-flex items-center gap-1.5 px-4 h-9 rounded-xl bg-frost-white text-midnight-canvas font-roobert text-[11px] font-bold uppercase tracking-[0.18em] shadow-md transition-transform disabled:opacity-50"
             >
-              Участвовать
+              {t('bonuses.join')}
               <ArrowRight size={12} strokeWidth={2.2} />
             </motion.button>
           )}
@@ -1479,9 +1463,9 @@ function ContestCard({
   );
 }
 
-function RulesPreview({ rules }: { rules: unknown }) {
+function RulesPreview({ rules, t }: { rules: unknown; t: TFn }) {
   if (!Array.isArray(rules) || rules.length === 0) return null;
-  const formatted = rules.map((r) => describeRule(r)).filter((s): s is string => !!s);
+  const formatted = rules.map((r) => describeRule(r, t)).filter((s): s is string => !!s);
   if (formatted.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -1497,33 +1481,41 @@ function RulesPreview({ rules }: { rules: unknown }) {
   );
 }
 
-function describeRule(r: unknown): string | null {
+function describeRule(r: unknown, t: TFn): string | null {
   if (!r || typeof r !== 'object') return null;
   const o = r as Record<string, unknown>;
   switch (o.type) {
     case 'deposit_window':
-      return `Депозиты ≥ ${o.amount} zł за ${o.days} дн.`;
+      return t('bonuses.ruleDepositWindow', {
+        amount: String(o.amount ?? ''),
+        days: String(o.days ?? ''),
+      });
     case 'wagered_window':
-      return `Оборот ≥ ${o.amount} zł за ${o.days} дн.`;
+      return t('bonuses.ruleWagerWindow', {
+        amount: String(o.amount ?? ''),
+        days: String(o.days ?? ''),
+      });
     case 'deposit_total':
-      return `Депозитов всего ≥ ${o.amount} zł`;
+      return t('bonuses.ruleDepositTotal', { amount: String(o.amount ?? '') });
     case 'referrals':
-      return `${o.count}+ рефералов`;
+      return t('bonuses.ruleReferrals', { n: String(o.count ?? '') });
     case 'registered_after':
-      return `Регистрация после ${typeof o.date === 'string' ? o.date.slice(0, 10) : ''}`;
+      return t('bonuses.ruleRegisteredAfter', {
+        date: typeof o.date === 'string' ? o.date.slice(0, 10) : '',
+      });
     default:
       return null;
   }
 }
 
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return 'завершено';
+function formatRemaining(ms: number, t: TFn): string {
+  if (ms <= 0) return t('bonuses.done');
   const sec = Math.floor(ms / 1000);
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (d > 0) return `${d} д ${h} ч`;
-  if (h > 0) return `${h} ч ${m} м ${s} с`;
-  return `${m} м ${s} с`;
+  if (d > 0) return t('bonuses.dayHour', { d, h });
+  if (h > 0) return t('bonuses.hourMinSec', { h, m, s });
+  return t('bonuses.minSec', { n: m, s });
 }

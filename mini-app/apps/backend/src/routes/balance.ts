@@ -122,6 +122,81 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
+   * GET /api/balance/catch-up
+   * Personal return hooks for the home lobby: max win in the last 24h,
+   * unopened free cases, and the live win streak. No invented numbers.
+   */
+  app.get('/catch-up', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = (request as AuthenticatedRequest).user;
+    try {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const [wins, balance, user] = await Promise.all([
+        app.prisma.transaction.findMany({
+          where: {
+            userId,
+            type: { in: ['win', 'cashout'] },
+            createdAt: { gte: since },
+          },
+          select: { amount: true, metadata: true, gameType: true },
+          orderBy: { createdAt: 'desc' },
+          take: 250,
+        }),
+        balanceService.getBalance(userId),
+        app.prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentWinStreak: true },
+        }),
+      ]);
+
+      let maxWin24h = 0;
+      let maxMultiplier24h = 0;
+      let maxWinGame: string | null = null;
+      for (const row of wins) {
+        const amt = Math.abs(Number(row.amount));
+        if (Number.isFinite(amt) && amt > maxWin24h) {
+          maxWin24h = amt;
+          maxWinGame = row.gameType ?? null;
+        }
+        const meta = (row.metadata ?? {}) as { multiplier?: unknown; gameType?: unknown };
+        const mult = Number(meta.multiplier);
+        if (Number.isFinite(mult) && mult > maxMultiplier24h) {
+          maxMultiplier24h = mult;
+        }
+        if (!maxWinGame && typeof meta.gameType === 'string') {
+          maxWinGame = meta.gameType;
+        }
+      }
+
+      const json = ((balance as { freeCasesJson?: Record<string, { count?: number }> })
+        .freeCasesJson ?? {}) as Record<string, { count?: number }>;
+      const legacy = Number((balance as { freeCases?: number }).freeCases ?? 0);
+      const ids = new Set<string>(['case_1', ...Object.keys(json)]);
+      let freeCases = 0;
+      for (const id of ids) {
+        const n = Number(json[id]?.count ?? 0);
+        if (id === 'case_1') freeCases += Math.max(legacy, Number.isFinite(n) ? n : 0);
+        else if (Number.isFinite(n) && n > 0) freeCases += n;
+      }
+
+      return reply.send({
+        ok: true,
+        maxWin24h: Math.round(maxWin24h * 100) / 100,
+        maxMultiplier24h: Math.round(maxMultiplier24h * 100) / 100,
+        maxWinGame,
+        freeCases,
+        winStreak: Math.max(0, user?.currentWinStreak ?? 0),
+      });
+    } catch (error) {
+      logger.error(error, 'Failed to load catch-up');
+      return reply.code(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to load catch-up',
+        code: 'CATCH_UP_FAILED',
+      });
+    }
+  });
+
+  /**
    * GET /api/balance/payment-history
    *
    * Combined deposit + withdrawal history for the authenticated user.

@@ -19,11 +19,9 @@ import { logger } from '../utils/logger.js';
 export type GameType =
   | 'crash'
   | 'mines'
-  | 'plinko'
   | 'keno'
   | 'coinflip'
   | 'wheel'
-  | 'bridges'
   | 'blackjack'
   | 'hilo'
   | 'cases'
@@ -80,17 +78,6 @@ const DEFAULTS: Record<GameType, GameConfig> = {
       maxPayout: 1_000_000,
     },
   },
-  plinko: {
-    paused: false,
-    hidden: false,
-    minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.01,
-    wagerContribution: 0.5, // Plinko default to 50%
-    extras: {
-      maxPayout: 1_000_000,
-    },
-  },
   coinflip: {
     paused: false,
     hidden: false,
@@ -112,19 +99,6 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     wagerContribution: 1.0,
     extras: {
       waitingPhaseSeconds: 9,
-    },
-  },
-  bridges: {
-    paused: false,
-    hidden: false,
-    minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.01,
-    wagerContribution: 1.0,
-    extras: {
-      // 5 rows × 4 cells, broken cells per row by difficulty.
-      rows: 5,
-      cells: 4,
     },
   },
   blackjack: {

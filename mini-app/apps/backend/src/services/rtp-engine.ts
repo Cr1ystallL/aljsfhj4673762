@@ -30,7 +30,7 @@ import { logger } from '../utils/logger.js';
  *  give   — admin sets `target` PLN the casino should pay back over
  *           `windowMs`. Negative bias to make wins more frequent. Each
  *           winning round is also CAPPED so a single player can't burn
- *           the whole budget on one ×1000 plinko hit. Once paid out,
+ *           the whole budget on one huge hit. Once paid out,
  *           releases.
  *
  * ─────────────────────────────────────────────────────────────────────

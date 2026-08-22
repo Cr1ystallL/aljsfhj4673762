@@ -3,7 +3,7 @@ import { z } from 'zod';
  * Game types and enums
  * Core game logic will be implemented in later phases
  */
-export declare const GameTypeSchema: z.ZodEnum<["crash", "plinko", "mines", "cookies", "nuts", "keno", "coinflip"]>;
+export declare const GameTypeSchema: z.ZodEnum<["crash", "mines", "cookies", "nuts", "keno", "coinflip"]>;
 export type GameType = z.infer<typeof GameTypeSchema>;
 export declare const GameStatusSchema: z.ZodEnum<["waiting", "active", "completed", "cancelled"]>;
 export type GameStatus = z.infer<typeof GameStatusSchema>;
@@ -12,7 +12,7 @@ export type GameStatus = z.infer<typeof GameStatusSchema>;
  */
 export declare const GameRoundSchema: z.ZodObject<{
     id: z.ZodString;
-    gameType: z.ZodEnum<["crash", "plinko", "mines", "cookies", "nuts", "keno", "coinflip"]>;
+    gameType: z.ZodEnum<["crash", "mines", "cookies", "nuts", "keno", "coinflip"]>;
     status: z.ZodEnum<["waiting", "active", "completed", "cancelled"]>;
     startedAt: z.ZodOptional<z.ZodDate>;
     endedAt: z.ZodOptional<z.ZodDate>;
@@ -23,7 +23,7 @@ export declare const GameRoundSchema: z.ZodObject<{
     id: string;
     status: "waiting" | "active" | "completed" | "cancelled";
     createdAt: Date;
-    gameType: "crash" | "plinko" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
+    gameType: "crash" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
     serverSeedHash: string;
     startedAt?: Date | undefined;
     endedAt?: Date | undefined;
@@ -32,7 +32,7 @@ export declare const GameRoundSchema: z.ZodObject<{
     id: string;
     status: "waiting" | "active" | "completed" | "cancelled";
     createdAt: Date;
-    gameType: "crash" | "plinko" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
+    gameType: "crash" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
     serverSeedHash: string;
     startedAt?: Date | undefined;
     endedAt?: Date | undefined;
@@ -46,7 +46,7 @@ export declare const BetSchema: z.ZodObject<{
     id: z.ZodString;
     userId: z.ZodString;
     gameRoundId: z.ZodString;
-    gameType: z.ZodEnum<["crash", "plinko", "mines", "cookies", "nuts", "keno", "coinflip"]>;
+    gameType: z.ZodEnum<["crash", "mines", "cookies", "nuts", "keno", "coinflip"]>;
     amount: z.ZodNumber;
     clientSeed: z.ZodString;
     status: z.ZodEnum<["pending", "active", "won", "lost", "cancelled"]>;
@@ -61,7 +61,7 @@ export declare const BetSchema: z.ZodObject<{
     status: "active" | "cancelled" | "pending" | "won" | "lost";
     amount: number;
     createdAt: Date;
-    gameType: "crash" | "plinko" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
+    gameType: "crash" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
     gameRoundId: string;
     clientSeed: string;
     metadata?: Record<string, unknown> | undefined;
@@ -74,7 +74,7 @@ export declare const BetSchema: z.ZodObject<{
     status: "active" | "cancelled" | "pending" | "won" | "lost";
     amount: number;
     createdAt: Date;
-    gameType: "crash" | "plinko" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
+    gameType: "crash" | "mines" | "cookies" | "nuts" | "keno" | "coinflip";
     gameRoundId: string;
     clientSeed: string;
     metadata?: Record<string, unknown> | undefined;

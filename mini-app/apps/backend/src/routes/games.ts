@@ -3,11 +3,6 @@ import { authenticate, isAdminTelegramIdAsync, type AuthenticatedRequest } from 
 import { CrashGameEngine } from '../games/crash/crash-engine.js';
 import { minesEngine } from '../games/mines/mines-engine.js';
 import {
-  plinkoEngine,
-  PLINKO_MULTIPLIERS,
-  type PlinkoRisk,
-} from '../games/plinko/plinko-engine.js';
-import {
   coinflipEngine,
   type CoinSide,
 } from '../games/coinflip/coinflip-engine.js';
@@ -17,11 +12,6 @@ import {
   WHEEL_VALUES,
   type WheelMultiplier,
 } from '../games/wheel/wheel-engine.js';
-import {
-  bridgesEngine,
-  BRIDGES_LEVELS,
-  type BridgesLevel,
-} from '../games/bridges/bridges-engine.js';
 import { hiloEngine } from '../games/hilo/hilo-engine.js';
 import { casesEngine } from '../games/cases/cases-engine.js';
 import { macvpotManager } from '../games/macvpot/macvpot-singleton.js';
@@ -92,10 +82,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   const gameTypes: GameType[] = [
     'crash',
     'mines',
-    'plinko',
     'coinflip',
     'wheel',
-    'bridges',
     'blackjack',
     'hilo',
     'cases',
@@ -530,7 +518,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   /**
    * GET /api/games/mines/history
    * Recent mines bets across all players — sampled live ticker for the
-   * lobby strip. Mirrors `/plinko/history`.
+   * lobby strip.
    */
   app.get<{ Querystring: { limit?: string } }>(
     '/mines/history',
@@ -589,241 +577,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'history fetch failed',
-        });
-      }
-    }
-  );
-
-  /* ------------------------------------------------------------- plinko */
-
-  /**
-   * GET /api/games/plinko/config
-   * Public-facing constants the UI needs to lay out the board (rows,
-   * bucket count) and the multiplier table per risk tier.
-   */
-  app.get('/plinko/config', { preHandler: authenticate }, async (request, reply) => {
-    if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
-    return reply.send({
-      rows: 16,
-      buckets: 17,
-      risks: ['low', 'medium', 'high'],
-      multipliers: PLINKO_MULTIPLIERS,
-    });
-  });
-
-  /**
-   * POST /api/games/plinko/drop
-   * Resolve a single drop server-side and return the deterministic path
-   * + bucket + payout. The frontend uses the path to animate the ball
-   * along the same trajectory the server already committed to.
-   */
-  app.post<{
-    Body: { amount: number; risk: PlinkoRisk };
-  }>(
-    '/plinko/drop',
-    {
-      preHandler: authenticate,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['amount', 'risk'],
-          properties: {
-            amount: { type: 'number' },
-            risk: { type: 'string', enum: ['low', 'medium', 'high'] },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const { amount, risk } = request.body;
-
-      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
-
-      if (!checkRateLimit(userId, 'plinko:drop')) {
-        return reply.code(429).send({
-          error: 'Too Many Requests',
-          message: 'Rate limit exceeded',
-          code: 'RATE_LIMIT_EXCEEDED',
-        });
-      }
-
-      try {
-        const result = await plinkoEngine.drop(userId, amount, risk);
-        return reply.send({ success: true, result });
-      } catch (error) {
-        logger.error(error, 'Failed to drop plinko ball');
-        return reply.code(400).send({
-          error: 'Bad Request',
-          message: (error as Error).message,
-          code: 'PLINKO_DROP_FAILED',
-        });
-      }
-    }
-  );
-
-  /**
-   * POST /api/games/plinko/settle
-   * Phase 2 of the plinko flow — credits the payout once the client
-   * has finished animating the ball into its bucket. Idempotent: a
-   * client that has already settled a roundId gets `alreadySettled:
-   * true` and the previously-credited payout, no double-credit.
-   */
-  app.post<{ Body: { roundId: string } }>(
-    '/plinko/settle',
-    {
-      preHandler: authenticate,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['roundId'],
-          properties: { roundId: { type: 'string', minLength: 8 } },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const { roundId } = request.body;
-
-      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
-
-      try {
-        const result = await plinkoEngine.settle(userId, roundId);
-        return reply.send({ success: true, ...result });
-      } catch (error) {
-        logger.error(error, 'Failed to settle plinko round');
-        return reply.code(400).send({
-          error: 'Bad Request',
-          message: (error as Error).message,
-          code: 'PLINKO_SETTLE_FAILED',
-        });
-      }
-    }
-  );
-
-  /**
-   * GET /api/games/plinko/history
-   * Recent winning drops across all players (live ticker on the lobby).
-   */
-  app.get<{ Querystring: { limit?: string } }>(
-    '/plinko/history',
-    {
-      preHandler: authenticate,
-      schema: {
-        querystring: {
-          type: 'object',
-          properties: { limit: { type: 'string' } },
-        },
-      },
-    },
-    async (request, reply) => {
-      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
-      const limit = Math.min(parseInt(request.query.limit || '20', 10), 50);
-      try {
-        const bets = await app.prisma.bet.findMany({
-          where: {
-            gameType: 'plinko',
-            payout: { not: null },
-            multiplier: { not: null },
-          },
-          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
-          take: limit,
-          select: {
-            id: true,
-            amount: true,
-            payout: true,
-            multiplier: true,
-            placedAt: true,
-            resolvedAt: true,
-            user: {
-              select: {
-                firstName: true,
-                username: true,
-                photoUrl: true,
-                telegramId: true,
-              },
-            },
-          },
-        });
-
-        const history = bets.map((b) => ({
-          id: b.id,
-          name:
-            b.user.firstName ||
-            b.user.username ||
-            `id${b.user.telegramId.toString().slice(-4)}`,
-          photoUrl: b.user.photoUrl ?? null,
-          betAmount: Number(b.amount),
-          multiplier: Number(b.multiplier),
-          payout: Number(b.payout),
-          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
-        }));
-
-        return reply.send({ success: true, history });
-      } catch (error) {
-        logger.error(error, 'Failed to fetch plinko history');
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'history fetch failed',
-        });
-      }
-    }
-  );
-
-  /**
-   * GET /api/games/plinko/my-big-wins
-   * The current player's recent drops with multiplier ≥ 5x. Powers the
-   * "your highlight reel" strip the page renders above the live feed.
-   */
-  app.get<{ Querystring: { limit?: string } }>(
-    '/plinko/my-big-wins',
-    {
-      preHandler: authenticate,
-      schema: {
-        querystring: {
-          type: 'object',
-          properties: { limit: { type: 'string' } },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      if (!(await ensureVisible('plinko', request as AuthenticatedRequest, reply))) return;
-      const limit = Math.min(parseInt(request.query.limit || '10', 10), 30);
-      try {
-        const bets = await app.prisma.bet.findMany({
-          where: {
-            userId,
-            gameType: 'plinko',
-            payout: { not: null },
-            multiplier: { gte: 5 },
-          },
-          orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
-          take: limit,
-          select: {
-            id: true,
-            amount: true,
-            payout: true,
-            multiplier: true,
-            placedAt: true,
-            resolvedAt: true,
-          },
-        });
-
-        const history = bets.map((b) => ({
-          id: b.id,
-          betAmount: Number(b.amount),
-          multiplier: Number(b.multiplier),
-          payout: Number(b.payout),
-          timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
-        }));
-
-        return reply.send({ success: true, history });
-      } catch (error) {
-        logger.error(error, 'Failed to fetch player plinko big wins');
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'my-big-wins fetch failed',
         });
       }
     }
@@ -1183,129 +936,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  /* ============================================================== Bridges */
-
-  /**
-   * GET /api/games/bridges/state — current per-user round, if any.
-   */
-  app.get('/bridges/state', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
-    if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
-    return reply.send({ success: true, state: bridgesEngine.getState(userId) });
-  });
-
-  /**
-   * POST /api/games/bridges/start — begin a new round at the given level.
-   * Body: { amount: number; level: 'easy' | 'medium' | 'hard' }
-   */
-  app.post<{ Body: { amount: number; level: BridgesLevel } }>(
-    '/bridges/start',
-    {
-      preHandler: authenticate,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['amount', 'level'],
-          properties: {
-            amount: { type: 'number' },
-            level: { type: 'string', enum: BRIDGES_LEVELS },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const { amount, level } = request.body;
-
-      if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
-      if (!checkRateLimit(userId, 'bridges:start')) {
-        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
-      }
-      try {
-        const state = await bridgesEngine.start(userId, amount, level);
-        return reply.send({ success: true, state });
-      } catch (error) {
-        logger.error(error, 'bridges:start failed');
-        return reply.code(400).send({
-          error: 'Bad Request',
-          message: (error as Error).message,
-          code: 'BRIDGES_START_FAILED',
-        });
-      }
-    }
-  );
-
-  /**
-   * POST /api/games/bridges/step — pick a cell in the current row.
-   * Body: { col: 0..3 }
-   */
-  app.post<{ Body: { col: number } }>(
-    '/bridges/step',
-    {
-      preHandler: authenticate,
-      schema: {
-        body: {
-          type: 'object',
-          required: ['col'],
-          properties: { col: { type: 'integer', minimum: 0, maximum: 3 } },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
-      const { col } = request.body;
-      if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
-      if (!checkRateLimit(userId, 'bridges:step')) {
-        return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
-      }
-      try {
-        const state = await bridgesEngine.step(userId, col);
-        return reply.send({ success: true, state });
-      } catch (error) {
-        logger.error(error, 'bridges:step failed');
-        return reply.code(400).send({
-          error: 'Bad Request',
-          message: (error as Error).message,
-          code: 'BRIDGES_STEP_FAILED',
-        });
-      }
-    }
-  );
-
-  /**
-   * POST /api/games/bridges/cashout — bank the current multiplier.
-   * Disabled until at least one row has been crossed.
-   */
-  app.post('/bridges/cashout', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
-    if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
-    if (!checkRateLimit(userId, 'bridges:cashout')) {
-      return reply.code(429).send({ error: 'Too Many Requests', code: 'RATE_LIMIT_EXCEEDED' });
-    }
-    try {
-      const state = await bridgesEngine.cashout(userId);
-      return reply.send({ success: true, state });
-    } catch (error) {
-      logger.error(error, 'bridges:cashout failed');
-      return reply.code(400).send({
-        error: 'Bad Request',
-        message: (error as Error).message,
-        code: 'BRIDGES_CASHOUT_FAILED',
-      });
-    }
-  });
-
-  /**
-   * POST /api/games/bridges/dismiss — clear a finished round so the
-   * UI can start a fresh one.
-   */
-  app.post('/bridges/dismiss', { preHandler: authenticate }, async (request, reply) => {
-    const { userId } = (request as AuthenticatedRequest).user;
-    if (!(await ensureVisible('bridges', request as AuthenticatedRequest, reply))) return;
-    bridgesEngine.forget(userId);
-    return reply.send({ success: true });
-  });
-
   // ==========================================
   // HI-LO API
   // ==========================================
@@ -1627,11 +1257,19 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           },
         });
         
+        // Read the live tiers rather than the module-level defaults, otherwise
+        // renamed or repriced cases show stale names in the feed.
+        const cfg = await gameConfig.get('cases');
+        const cases = getCases(
+          cfg.extras?.casesWeights as Record<string, number[]> | undefined,
+          cfg.extras?.casesPrices as number[] | undefined
+        );
+
         const history = bets.map(b => {
           const meta = b.metadata as any;
-          const caseData = CASES.find(c => c.id === meta?.caseId);
+          const caseData = cases.find(c => c.id === meta?.caseId);
           const prizeData = caseData?.prizes.find(p => p.id === meta?.prizeId);
-          
+
           return {
             id: b.id,
             name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
@@ -1641,6 +1279,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
             caseId: meta?.caseId,
             caseName: caseData?.name,
+            casePrice: caseData?.price,
+            prizeId: meta?.prizeId,
             prizeColor: prizeData?.color
           };
         });

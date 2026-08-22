@@ -14,6 +14,7 @@ import {
 import { useEffect } from 'react';
 import { useToastStore, type ToastKind } from '@/store/toast-store';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/use-t';
 
 /**
  * ToastHost — Redesigned High-End Notification System.
@@ -43,7 +44,6 @@ interface KindConfig {
   titleColor: string;
   progressBg: string;
   icon: typeof Info;
-  defaultTitle: string;
 }
 
 const KIND_CONFIG: Record<ToastKind, KindConfig> = {
@@ -56,7 +56,6 @@ const KIND_CONFIG: Record<ToastKind, KindConfig> = {
     titleColor: 'text-sky-400',
     progressBg: 'bg-gradient-to-r from-sky-400 to-cyan-300',
     icon: Info,
-    defaultTitle: 'Информация',
   },
   success: {
     border: 'border-emerald-500/40',
@@ -67,7 +66,6 @@ const KIND_CONFIG: Record<ToastKind, KindConfig> = {
     titleColor: 'text-emerald-400',
     progressBg: 'bg-gradient-to-r from-emerald-400 to-teal-300',
     icon: CheckCircle2,
-    defaultTitle: 'Успешно',
   },
   warn: {
     border: 'border-amber-500/40',
@@ -78,7 +76,6 @@ const KIND_CONFIG: Record<ToastKind, KindConfig> = {
     titleColor: 'text-amber-400',
     progressBg: 'bg-gradient-to-r from-amber-400 to-yellow-300',
     icon: AlertTriangle,
-    defaultTitle: 'Внимание',
   },
   error: {
     border: 'border-rose-500/40',
@@ -89,7 +86,6 @@ const KIND_CONFIG: Record<ToastKind, KindConfig> = {
     titleColor: 'text-rose-400',
     progressBg: 'bg-gradient-to-r from-rose-500 to-pink-400',
     icon: XCircle,
-    defaultTitle: 'Ошибка',
   },
   bigwin: {
     border: 'border-amber-400/60',
@@ -100,13 +96,13 @@ const KIND_CONFIG: Record<ToastKind, KindConfig> = {
     titleColor: 'text-amber-300',
     progressBg: 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500',
     icon: Trophy,
-    defaultTitle: 'МаcvBetнулся',
   },
 };
 
 export function ToastHost() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
+  const { t: tr } = useT();
 
   useEffect(() => {
     const timers: NodeJS.Timeout[] = [];
@@ -197,7 +193,20 @@ export function ToastHost() {
                     cfg.titleColor
                   )}
                 >
-                  <span>{t.title ?? cfg.defaultTitle}</span>
+                  <span>
+                    {t.title ??
+                      tr(
+                        t.kind === 'info'
+                          ? 'toast.info'
+                          : t.kind === 'success'
+                            ? 'toast.success'
+                            : t.kind === 'warn'
+                              ? 'toast.warn'
+                              : t.kind === 'error'
+                                ? 'toast.error'
+                                : 'toast.bigwin'
+                      )}
+                  </span>
                   {isBig && <Zap size={11} className="text-amber-300 fill-amber-300 animate-bounce" />}
                 </div>
                 <div

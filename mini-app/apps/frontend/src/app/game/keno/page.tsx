@@ -1,63 +1,82 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Dice5 } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { KenoBoard } from '@/components/game/keno/keno-board';
 import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-panel';
+import { KenoDrawTray } from '@/components/game/keno/keno-draw-tray';
 import { KenoLiveBets, type KenoLiveBetEntry } from '@/components/game/keno/keno-live-bets';
+import { KenoPayoutStrip } from '@/components/game/keno/keno-payout-strip';
 import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { useBalance } from '@/hooks/use-balance';
-import { useBalanceStore } from '@/store/balance-store';
+import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
-import { KENO_MULTIPLIERS, type KenoRisk } from '@/components/game/keno/keno-multipliers';
+import { useT } from '@/i18n/use-t';
+import {
+  KENO_BOARD_SIZE,
+  KENO_DRAW_COUNT,
+  KENO_MAX_PICKS,
+  KENO_MULTIPLIERS,
+  type KenoRisk,
+} from '@/components/game/keno/keno-multipliers';
 
-import type { GameResultInfo } from '@/lib/game-engine/types';
-
-interface KenoServerResult extends GameResultInfo {
+interface KenoServerResult {
   drawnNumbers: number[];
   hits: number;
+  multiplier: number;
+  payout: number;
+  serverSeedHash?: string;
+  roundId?: string;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 export default function KenoGamePage() {
-  const { balance, fetchBalance } = useBalance();
-  const tBals = useBalanceStore((s) => s.tournamentBalances);
-  const tBal = tBals.find((t) => t.gameType === 'keno');
-  const activeBalance = tBal ? tBal.balance : balance?.amount ?? 10000;
+  const { t } = useT();
+  const { fetchBalance } = useBalance();
+  const {
+    amount: activeBalance,
+    isReady: isBalanceReady,
+    isTournament,
+  } = useActiveBalance('keno');
 
-  // Game configuration
-  const MAX_PICKS = 7;
-  
-  // State
   const [phase, setPhase] = useState<KenoPhase>('idle');
   const [busy, setBusy] = useState(false);
-  
-  // Bet parameters
+  const autoLock = useRef(false);
+
   const [amount, setAmount] = useState(10);
   const [risk, setRisk] = useState('low');
   const [picks, setPicks] = useState<number[]>([]);
-  
-  // Game round data
+
   const [drawnNumbers, setDrawnNumbers] = useState<number[]>([]);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
   const [serverSeedHash, setServerSeedHash] = useState<string | null>(null);
   const [lastRoundId, setLastRoundId] = useState<string | null>(null);
   const [finalMultiplier, setFinalMultiplier] = useState<number | null>(null);
 
-  // Freeze balance to prevent WS jumps spoiling the game
   const [frozenBalance, setFrozenBalance] = useState<number | null>(null);
   const displayBalance = frozenBalance !== null ? frozenBalance : activeBalance;
 
-  // Live bets
   const [history, setHistory] = useState<KenoLiveBetEntry[]>([]);
+  const [pfOpen, setPfOpen] = useState(false);
 
-  // Sound init
   useEffect(() => {
     soundManager.initialize();
+    soundManager.register('cases.tick', { src: '/audio/tick.mp3', category: 'sfx' });
   }, []);
 
   const refreshHistory = async () => {
@@ -80,74 +99,88 @@ export default function KenoGamePage() {
     return () => clearInterval(id);
   }, []);
 
-  const handlePick = (num: number) => {
-    if (phase !== 'idle' || busy) return;
-    
-    // If we're interacting after a round, clear the previous draw
-    if (drawnNumbers.length > 0) {
-      setDrawnNumbers([]);
-      setFinalMultiplier(null);
-    }
-    
-    let selected = [...picks];
-    if (selected.includes(num)) {
-      selected = selected.filter((p) => p !== num);
-    } else {
-      if (selected.length >= MAX_PICKS) return;
-      selected.push(num);
-    }
-    setPicks(selected);
-    soundManager.play('click');
+  const clearDraw = () => {
+    setDrawnNumbers([]);
+    setLastDrawn(null);
+    setFinalMultiplier(null);
   };
 
-  const handleAutoPick = () => {
-    if (phase !== 'idle' || busy) return;
-    
-    if (drawnNumbers.length > 0) {
-      setDrawnNumbers([]);
-      setFinalMultiplier(null);
-    }
+  const handlePick = (num: number) => {
+    if (phase !== 'idle' || busy || autoLock.current) return;
 
-    const newPicks: number[] = [];
-    const pool = Array.from({ length: 40 }, (_, i) => i + 1);
-    
-    for (let i = 0; i < MAX_PICKS; i++) {
+    if (drawnNumbers.length > 0) clearDraw();
+
+    setPicks((prev) => {
+      if (prev.includes(num)) return prev.filter((p) => p !== num);
+      if (prev.length >= KENO_MAX_PICKS) return prev;
+      return [...prev, num];
+    });
+    soundManager.play('ui.click');
+  };
+
+  const handleAutoPick = async () => {
+    if (phase !== 'idle' || busy || autoLock.current) return;
+
+    if (drawnNumbers.length > 0) clearDraw();
+
+    const pool = Array.from({ length: KENO_BOARD_SIZE }, (_, i) => i + 1);
+    const next: number[] = [];
+    for (let i = 0; i < KENO_MAX_PICKS; i++) {
       const idx = Math.floor(Math.random() * pool.length);
-      newPicks.push(pool[idx]);
+      next.push(pool[idx]);
       pool.splice(idx, 1);
     }
-    
-    setPicks(newPicks);
-    soundManager.play('click');
+
+    if (prefersReducedMotion()) {
+      setPicks(next);
+      soundManager.play('ui.click');
+      return;
+    }
+
+    autoLock.current = true;
+    setPicks([]);
+    try {
+      for (let i = 0; i < next.length; i++) {
+        await sleep(48);
+        setPicks(next.slice(0, i + 1));
+        soundManager.play('ui.click');
+      }
+    } finally {
+      autoLock.current = false;
+    }
   };
 
   const handleClear = () => {
     if (phase !== 'idle') return;
     setPicks([]);
-    setDrawnNumbers([]);
-    soundManager.play('click');
+    clearDraw();
+    soundManager.play('ui.click');
   };
 
   const handleBet = async () => {
     if (phase !== 'idle' || picks.length === 0 || busy) return;
-    
+
+    if (!isBalanceReady) {
+      toast.warn(t('common.loading'));
+      return;
+    }
     if (amount > activeBalance) {
-      toast.error('Недостаточно средств');
+      toast.error(t('errors.insufficientBalance'));
       return;
     }
 
     setBusy(true);
     setFrozenBalance(activeBalance - amount);
-    setDrawnNumbers([]);
-    setFinalMultiplier(null);
+    clearDraw();
     setServerSeedHash(null);
     setLastRoundId(null);
 
     try {
-      soundManager.play('bet');
+      soundManager.play('game.bet_placed');
       const res = await fetch('/api/games/keno/bet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           betAmount: amount,
           picks,
@@ -156,18 +189,21 @@ export default function KenoGamePage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Ошибка ставки');
+      if (!res.ok) {
+        reportApiError(res, data, t('keno.betError'));
+        throw new Error(data.error || t('keno.betError'));
+      }
 
       const result = data.result as KenoServerResult;
-      setServerSeedHash(result.serverSeedHash);
-      setLastRoundId(result.roundId);
-      
-      // Start reveal sequence
+      setServerSeedHash(result.serverSeedHash ?? null);
+      setLastRoundId(result.roundId ?? null);
+
       setPhase('revealing');
       await revealNumbers(result.drawnNumbers, result.multiplier);
-      
     } catch (err) {
-      reportApiError(err, 'keno');
+      if (err instanceof TypeError) {
+        reportApiError(null, null, t('keno.betError'));
+      }
       setPhase('idle');
     } finally {
       setBusy(false);
@@ -207,23 +243,30 @@ export default function KenoGamePage() {
     fetchBalance();
     void refreshHistory(); // Refresh history immediately after round
 
-    // 1.5s delay to show final dark overlay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setFinalMultiplier(null);
+    if (multiplier > 0) soundManager.play('game.win');
+    else soundManager.play('game.lose');
+
+    void fetchBalance();
+    void refreshHistory();
+
     setPhase('idle');
     setFrozenBalance(null);
   };
 
-  const hitsCount = picks.filter(p => drawnNumbers.includes(p)).length;
+  const hitsCount = picks.filter((p) => drawnNumbers.includes(p)).length;
+  const payoutTable = KENO_MULTIPLIERS[risk as KenoRisk]?.[picks.length] ?? [];
+  const drawComplete = drawnNumbers.length >= KENO_DRAW_COUNT;
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-64px)] overflow-y-auto">
-      <GameTopBar
-        title="Keno"
-        balance={displayBalance}
-        currency={tBal ? 'T-COIN' : 'zł'}
-        serverSeedHash={serverSeedHash ?? undefined}
-      />
+    <main className="min-h-screen w-full bg-[#000000] text-frost-white">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-5">
+        <GameTopBar
+          title="Keno"
+          Icon={Dice5}
+          balance={displayBalance}
+          currency={isTournament ? 'T-COIN' : 'zł'}
+          serverSeedHash={serverSeedHash ?? undefined}
+        />
 
       <div className="flex-1 flex flex-col lg:flex-row relative">
         {/* Main Game Area */}
@@ -249,32 +292,14 @@ export default function KenoGamePage() {
               ))}
             </div>
           )}
+        </AnimatePresence>
 
-          {/* Multiplier Display (Shown at end of round) */}
-          <AnimatePresence>
-            {finalMultiplier !== null && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl m-4 lg:m-8"
-              >
-                <motion.div
-                  initial={{ scale: 0.8, y: 20 }}
-                  animate={{ scale: 1, y: 0 }}
-                  exit={{ scale: 0.8, y: -20 }}
-                  className={cn(
-                    "px-10 py-8 rounded-3xl font-black text-6xl shadow-2xl border-4",
-                    finalMultiplier > 1 
-                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.3)]" 
-                      : "bg-black/60 text-white/40 border-white/10"
-                  )}
-                >
-                  x{finalMultiplier.toFixed(2)}
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <KenoDrawTray
+          drawn={drawnNumbers}
+          picks={picks}
+          drawCount={KENO_DRAW_COUNT}
+          lastDrawn={lastDrawn}
+        />
 
           <KenoBoard
             picks={picks}
@@ -286,36 +311,48 @@ export default function KenoGamePage() {
           />
         </div>
 
-        {/* Sidebar Controls */}
-        <div className="w-full lg:w-[350px] border-t lg:border-t-0 lg:border-l border-white/10 bg-black/20 p-4 flex flex-col gap-4">
-          <KenoBetPanel
-            amount={amount}
-            onAmountChange={setAmount}
-            risk={risk}
-            onRiskChange={setRisk}
-            picks={picks}
-            onAutoPick={handleAutoPick}
-            onClear={handleClear}
-            phase={phase}
-            onBet={handleBet}
-            busy={busy}
-            maxPick={MAX_PICKS}
-            activeBalance={displayBalance}
-            currency={tBal ? 'T-COIN' : 'zł'}
-          />
+        <KenoBetPanel
+          amount={amount}
+          onAmountChange={setAmount}
+          risk={risk}
+          onRiskChange={setRisk}
+          picks={picks}
+          onAutoPick={() => {
+            void handleAutoPick();
+          }}
+          onClear={handleClear}
+          phase={phase}
+          onBet={() => {
+            void handleBet();
+          }}
+          busy={busy}
+          maxPick={KENO_MAX_PICKS}
+          activeBalance={displayBalance}
+          currency={isTournament ? 'T-COIN' : 'zł'}
+        />
 
-          <div className="flex-1 w-full pt-2 min-h-[400px] lg:min-h-0">
-            <KenoLiveBets entries={history} currency={tBal ? 'T-COIN' : 'zł'} />
+        <KenoLiveBets
+          entries={history}
+          currency={isTournament ? 'T-COIN' : 'zł'}
+        />
+
+        {lastRoundId && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setPfOpen(true)}
+              className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert"
+            >
+              {t('info.fairness')}
+            </button>
+            <ProvablyFairModal
+              roundId={lastRoundId}
+              open={pfOpen}
+              onOpenChange={setPfOpen}
+            />
           </div>
-          
-          {/* Provably Fair Hook */}
-          {lastRoundId && phase === 'idle' && (
-            <div className="mt-2 flex justify-center">
-              <ProvablyFairModal roundId={lastRoundId} />
-            </div>
-          )}
-        </div>
+        )}
       </div>
-    </div>
+    </main>
   );
 }

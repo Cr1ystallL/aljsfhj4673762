@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
-  Crown,
   Flame,
   Gamepad2,
-  Gem,
-  Gift,
   Layers,
   Sparkles,
   TrendingUp,
@@ -20,18 +18,22 @@ import {
 } from 'lucide-react';
 import { BrandLockup } from '@/components/ui/brand-mark';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { GameIcon, gameLabel, type GameKey } from '@/components/ui/game-icon';
+import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 import { useAuthStore } from '@/store/auth-store';
-import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { Pressable } from '@/components/ui/pressable';
+import { MacvJetHero, useCrashLobby } from '@/components/home/macvjet-hero';
+import { HomeCatchUp } from '@/components/home/home-catch-up';
+import { HomeLuckFeed, type LuckFeedItem } from '@/components/home/home-luck-feed';
+import { useSplashStore } from '@/store/splash-store';
+import { useT } from '@/i18n/use-t';
+import type { TxKey } from '@/i18n/use-t';
 
 /**
- * Home Screen — Apple & Taste-Skill Premium Casino Menu (V3)
- *
- * Improvements in V3:
- *   - Search SVG: High-contrast stroke with amber accent (text-amber-400 stroke-[2.2]).
- *   - Live Dynamic Online: Fluctuates online count live every 3.5s with online multiplier rules.
- *   - Realistic Payouts: Realistic confirmed payouts base (~2,840 zł).
+ * Home Screen — cinematic Mini App lobby.
+ * Live MacvJet hero stays the door into the flagship; contest is a strip under it.
+ * Online/payouts come from real presence + paid withdrawals — no random walk.
  */
 
 type CategoryKey = 'all' | 'popular' | 'fast' | 'table';
@@ -58,7 +60,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'crash',
     name: 'MacvJet',
     href: '/game/crash',
-    bg: '/MacvJet.png',
+    bg: '/tiles/macvjet.webp',
     badge: { label: 'TOP', color: 'red', Icon: Flame },
     isPopular: true,
     category: 'fast',
@@ -67,8 +69,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'mines',
     name: 'Mines',
     href: '/game/mines',
-    bg: '/Mines.png',
-    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
+    bg: '/tiles/mines.webp',
     isPopular: true,
     category: 'fast',
   },
@@ -76,24 +77,22 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'hilo',
     name: 'Hi-Lo',
     href: '/game/hilo',
-    bg: '/hilo.png',
+    bg: '/tiles/hilo.webp',
     wide: true,
-    badge: { label: 'FAST', color: 'cyan', Icon: Zap },
     category: 'fast',
   },
   {
     id: 'coinflip',
     name: 'Coinflip',
     href: '/game/coinflip',
-    bg: '/Coinflip.png',
-    badge: { label: '50/50', color: 'cyan', Icon: Gem },
+    bg: '/tiles/coinflip.webp',
     category: 'fast',
   },
   {
     id: 'macvpot',
     name: 'MacvPot',
     href: '/game/macvpot',
-    bg: '/MacvPot.png',
+    bg: '/tiles/macvpot.webp',
     badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
     isPopular: true,
     category: 'fast',
@@ -102,61 +101,35 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'blackjack',
     name: 'Blackjack',
     href: '/game/blackjack',
-    bg: '/bj.png',
+    bg: '/tiles/bj.webp',
     wide: true,
-    badge: { label: 'PRO', color: 'gold', Icon: Crown },
     category: 'table',
   },
   {
     id: 'wheel',
     name: 'Wheel',
     href: '/game/wheel',
-    bg: '/Wheel.png',
+    bg: '/tiles/wheel.webp',
     badge: { label: 'x50', color: 'gold', Icon: Zap },
     isPopular: true,
-    category: 'fast',
-  },
-  {
-    id: 'bridges',
-    name: 'Bridges',
-    href: '/game/bridges',
-    bg: '/Bridges.png',
     category: 'fast',
   },
   {
     id: 'cases',
     name: 'Case',
     href: '/game/cases',
-    bg: '/case.png',
+    bg: '/tiles/case.webp',
     wide: true,
-    badge: { label: 'BONUS', color: 'green', Icon: Gift },
     category: 'fast',
   },
   {
     id: 'keno',
     name: 'Keno',
     href: '/game/keno',
-    bg: '/keno.png?v=2',
-    badge: { label: 'LOTTO', color: 'purple', Icon: Layers },
+    bg: '/tiles/keno.webp',
     category: 'table',
   },
-  {
-    id: 'plinko',
-    name: 'Plinko',
-    href: '/game/plinko',
-    bg: '/Plinko.png',
-    badge: { label: 'TOP', color: 'red', Icon: Flame },
-    isPopular: true,
-    category: 'fast',
-  },
 ];
-
-function calculateDisplayOnline(actual: number): number {
-  if (actual >= 1 && actual <= 5) return actual * 3;
-  if (actual >= 6 && actual <= 10) return actual * 2;
-  if (actual >= 11 && actual <= 30) return actual * 2;
-  return actual;
-}
 
 interface HeroContest {
   id: string;
@@ -185,6 +158,7 @@ interface HeroTournament {
 }
 
 export function HomeScreen() {
+  const { t, localeTag } = useT();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { fetchBalance } = useBalance();
@@ -207,42 +181,74 @@ export function HomeScreen() {
     void fetchBalance();
   }, [fetchBalance, isAuthenticated]);
 
-  // Initial stats fetch
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('macv.home.entered') === '1') {
+        setSkipEntrance(true);
+        setLobbyReady(true);
+        return;
+      }
+    } catch {
+      /* private mode */
+    }
+    if (!splashVisible) {
+      setLobbyReady(true);
+      try {
+        sessionStorage.setItem('macv.home.entered', '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [splashVisible]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setLobbyReady(true), 8000);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  // Real lobby stats (presence + paid withdrawals) — refresh quietly
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    const pull = async () => {
       try {
-        const res = await fetch('/api/stats', { cache: 'no-store' });
+        const res = await fetch('/api/stats', {
+          cache: 'no-store',
+          credentials: 'include',
+        });
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled && data.success) {
-          setRawOnline(data.rawOnline ?? 6);
-          setPayouts24h(data.payouts24h ?? 2840);
+        if (!cancelled && (data.success || data.ok)) {
+          const n = Number(data.online ?? data.onlinePlayers ?? 0);
+          setOnline(Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
+          const paid = Number(data.payouts24h ?? 0);
+          setPayouts24h(Number.isFinite(paid) && paid > 0 ? paid : 0);
+          if (Array.isArray(data.feed)) {
+            setLuckFeed(
+              data.feed
+                .map((row: Partial<LuckFeedItem>) => ({
+                  id: String(row.id ?? ''),
+                  name: String(row.name ?? ''),
+                  photoUrl: row.photoUrl ?? null,
+                  gameType: String(row.gameType ?? ''),
+                  payout: Number(row.payout) || 0,
+                  multiplier: Number(row.multiplier) || 0,
+                  at: Number(row.at) || 0,
+                }))
+                .filter((row: LuckFeedItem) => row.id && row.payout > 0)
+            );
+          }
         }
       } catch {
-        // fallback
+        // keep last known — do not invent a lobby
       }
-    })();
+    };
+    void pull();
+    const timer = window.setInterval(pull, 20_000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, []);
-
-  // Fluctuate raw online live every 3.5 seconds
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRawOnline((prev) => {
-        const delta = Math.floor(Math.random() * 3) - 1; // -1, 0, +1
-        const next = prev + delta;
-        return Math.max(3, Math.min(next, 18));
-      });
-    }, 3500);
-    return () => clearInterval(timer);
-  }, []);
-
-  const displayOnline = useMemo(() => {
-    return calculateDisplayOnline(rawOnline);
-  }, [rawOnline]);
 
   // Fetch availability
   useEffect(() => {
@@ -340,6 +346,19 @@ export function HomeScreen() {
     );
   }, [contests]);
 
+  const catchContest = useMemo(() => {
+    if (heroContest) {
+      return {
+        title: heroContest.title,
+        endsAt: heroContest.endsAt,
+        href: '/bonuses#contests',
+      };
+    }
+    const extra = contests?.find((c) => c.state === 'live' || c.state === 'scheduled');
+    if (!extra) return null;
+    return { title: extra.title, endsAt: extra.endsAt, href: '/bonuses#contests' };
+  }, [heroContest, contests]);
+
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
@@ -371,27 +390,47 @@ export function HomeScreen() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white selection:bg-white/20">
-      <GameTopBar title="Главная" />
+      <GameTopBar title={t('nav.home')} width="wide" />
 
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-4 pt-3 pb-32 flex flex-col gap-5">
-        {/* Live Casino Social Proof Ticker */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-lg">
+      <motion.div
+        className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-3 pb-32 flex flex-col gap-5`}
+        initial={skipEntrance ? false : 'hidden'}
+        animate={lobbyReady ? 'show' : 'hidden'}
+        variants={{
+          hidden: {},
+          show: {
+            transition: {
+              staggerChildren: reduceMotion || skipEntrance ? 0 : 0.07,
+              delayChildren: reduceMotion || skipEntrance ? 0 : 0.05,
+            },
+          },
+        }}
+      >
+        <EntranceBlock>
+        {/* Presence ticker — real counts, glass chrome */}
+        <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-[#0a0c10] px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-[0_8px_25px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
-            </span>
-            <span className="text-frost-white font-medium tracking-tight transition-all duration-300">
-              {displayOnline} онлайн
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-amber-300 font-semibold tracking-tight">
-            <TrendingUp size={14} strokeWidth={2.2} className="text-amber-400" />
-            <span>
-              Выплаты 24ч: {payouts24h.toLocaleString('ru-RU')} zł
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="text-frost-white/90 font-medium tracking-tight">
+              {(crashLobby?.playerCount ?? 0) > 0
+                ? t('home.jetPlaying', { n: crashLobby!.playerCount })
+                : online > 0
+                  ? t('home.online', { n: online })
+                  : t('home.livePulse')}
             </span>
           </div>
+          {payouts24h > 0 && (
+            <div className="flex items-center gap-1.5 text-white/55 font-medium tracking-tight">
+              <TrendingUp size={13} strokeWidth={2} className="text-white/40" />
+              <span>
+                {t('home.payouts24h', {
+                  amount: payouts24h.toLocaleString(localeTag),
+                })}
+              </span>
+            </div>
+          )}
         </div>
+        </EntranceBlock>
 
         {/* Featured Events Showcase (Tournaments, Contests, or Hero Game) */}
         <ActiveEventsShowcase
@@ -402,6 +441,7 @@ export function HomeScreen() {
         />
 
         {/* Search & Category Filter Section */}
+        <EntranceBlock>
         <div className="flex flex-col gap-3">
           {/* Search bar with HIGH-CONTRAST amber SVG icon */}
           <div className="relative w-full">
@@ -415,7 +455,7 @@ export function HomeScreen() {
               strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none drop-shadow-sm"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
             >
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
@@ -424,8 +464,8 @@ export function HomeScreen() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по играм..."
-              className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/15 bg-black/40 text-[13px] font-roobert text-frost-white placeholder:text-whisper-gray/70 focus:outline-none focus:border-amber-400/50 focus:bg-black/60 transition-all backdrop-blur-xl shadow-inner"
+              placeholder={t('home.searchPlaceholder')}
+              className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/12 bg-black/55 text-[13px] font-roobert text-frost-white placeholder:text-white/35 focus:outline-none focus:border-white/25 focus:bg-black/70 transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
             />
             {searchQuery && (
               <button
@@ -443,50 +483,53 @@ export function HomeScreen() {
               active={activeCategory === 'all'}
               onClick={() => setActiveCategory('all')}
               icon={<Gamepad2 size={14} />}
-              label="Все"
+              label={t('home.filterAll')}
             />
             <CategoryTab
               active={activeCategory === 'popular'}
               onClick={() => setActiveCategory('popular')}
               icon={<Flame size={14} className="text-amber-400" />}
-              label="TOP Игры"
+              label={t('home.filterTop')}
             />
             <CategoryTab
               active={activeCategory === 'fast'}
               onClick={() => setActiveCategory('fast')}
               icon={<Zap size={14} className="text-cyan-400" />}
-              label="Быстрые"
+              label={t('home.filterFast')}
             />
             <CategoryTab
               active={activeCategory === 'table'}
               onClick={() => setActiveCategory('table')}
               icon={<Layers size={14} className="text-purple-400" />}
-              label="Аркадные"
+              label={t('home.filterArcade')}
             />
           </div>
         </div>
+        </EntranceBlock>
 
         {/* Section Label */}
+        <EntranceBlock>
         <div className="flex items-baseline justify-between px-1">
-          <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-white/45">
             {activeCategory === 'all'
-              ? 'Все доступные игры'
+              ? t('home.sectionAll')
               : activeCategory === 'popular'
-              ? 'Популярные игры'
+              ? t('home.sectionPopular')
               : activeCategory === 'fast'
-              ? 'Быстрые раунды'
-              : 'Аркады и слоты'}
+              ? t('home.sectionFast')
+              : t('home.sectionArcade')}
           </span>
           <span className="font-roobert text-[11px] text-whisper-gray">
-            {filteredGames.length} {getGamesWord(filteredGames.length)}
+            {t('home.gamesCount', { n: filteredGames.length })}
           </span>
         </div>
+        </EntranceBlock>
 
         {/* In-App Games Grid Only (Square, Square, Rectangle Repeating Pattern) */}
         {filteredGames.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
             <p className="font-roobert text-[14px] text-whisper-gray">
-              Игры не найдены
+              {t('home.empty')}
             </p>
             <button
               onClick={() => {
@@ -495,7 +538,7 @@ export function HomeScreen() {
               }}
               className="mt-3 text-[12px] text-frost-white underline hover:opacity-80 font-roobert"
             >
-              Сбросить фильтры
+              {t('home.resetFilters')}
             </button>
           </div>
         ) : (
@@ -514,31 +557,84 @@ export function HomeScreen() {
             })}
           </div>
         )}
+        </EntranceBlock>
 
-        {/* Quick Actions */}
+        <EntranceBlock>
         <div className="grid grid-cols-2 gap-3 pt-2">
           <QuickAction
             icon={<Wallet size={18} strokeWidth={1.5} />}
-            label="Управление балансом"
-            sublabel="Пополнение и вывод"
+            label={t('home.wallet')}
+            sublabel={t('home.walletSub')}
             onClick={() => router.push('/balance')}
           />
           <QuickAction
             icon={<Sparkles size={18} strokeWidth={1.5} />}
-            label="Бонусы"
-            sublabel="Промокоды и колесо"
+            label={t('home.bonuses')}
+            sublabel={t('home.bonusesSub')}
             onClick={() => router.push('/bonuses')}
           />
         </div>
+        </EntranceBlock>
 
-        {/* Footer brand lockup */}
+        <EntranceBlock>
         <div className="pt-6 flex items-center justify-center">
           <BrandLockup size={64} />
         </div>
-      </div>
+        </EntranceBlock>
+      </motion.div>
     </main>
   );
 }
+
+function EntranceBlock({ children }: { children: React.ReactNode }) {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.div
+      variants={{
+        hidden: { opacity: 0 },
+        show: {
+          opacity: 1,
+          transition: { duration: reduceMotion ? 0.15 : 0.32, ease: [0.22, 1, 0.36, 1] },
+        },
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+const GAME_TAG: Record<string, TxKey> = {
+  crash: 'home.tag.crash',
+  mines: 'home.tag.mines',
+  hilo: 'home.tag.hilo',
+  coinflip: 'home.tag.coinflip',
+  macvpot: 'home.tag.macvpot',
+  blackjack: 'home.tag.blackjack',
+  wheel: 'home.tag.wheel',
+  cases: 'home.tag.cases',
+  keno: 'home.tag.keno',
+};
+
+const GAME_GLOW: Record<string, string> = {
+  crash:
+    'radial-gradient(120% 90% at 100% 100%, rgba(165, 45, 37, 0.40) 0%, transparent 70%)',
+  mines:
+    'radial-gradient(110% 90% at 0% 100%, rgba(148, 163, 184, 0.24) 0%, transparent 70%)',
+  hilo:
+    'radial-gradient(110% 90% at 100% 100%, rgba(56, 189, 248, 0.24) 0%, transparent 70%)',
+  coinflip:
+    'radial-gradient(110% 90% at 50% 100%, rgba(251, 191, 36, 0.24) 0%, transparent 70%)',
+  macvpot:
+    'radial-gradient(110% 90% at 100% 100%, rgba(168, 85, 247, 0.30) 0%, transparent 70%)',
+  blackjack:
+    'radial-gradient(110% 90% at 0% 100%, rgba(160, 224, 171, 0.20) 0%, transparent 70%)',
+  wheel:
+    'radial-gradient(110% 90% at 100% 100%, rgba(255, 172, 46, 0.34) 0%, transparent 70%)',
+  cases:
+    'radial-gradient(110% 90% at 100% 100%, rgba(52, 211, 153, 0.30) 0%, transparent 70%)',
+  keno:
+    'radial-gradient(110% 90% at 0% 100%, rgba(139, 92, 246, 0.26) 0%, transparent 70%)',
+};
 
 function GameTile({
   game,
@@ -551,10 +647,12 @@ function GameTile({
   isRectangle: boolean;
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useT();
   const BadgeIcon = game.badge?.Icon;
+  const tag = GAME_TAG[game.id];
 
   return (
-    <button
+    <Pressable
       onClick={() => router.push(game.href)}
       className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas ${
         isRectangle ? 'col-span-2 aspect-[16/7] sm:aspect-[16/6]' : 'aspect-square'
@@ -563,7 +661,7 @@ function GameTile({
       {game.bg && (
         <div
           aria-hidden
-          className="absolute inset-0 opacity-55 group-hover:opacity-75 transition-opacity duration-300"
+          className="absolute inset-0 opacity-80 group-hover:opacity-95 transition-opacity duration-300"
           style={{
             backgroundImage: `url(${game.bg})`,
             backgroundSize: 'cover',
@@ -588,9 +686,8 @@ function GameTile({
         className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity mix-blend-screen"
         style={{
           background:
-            index % 2 === 0
-              ? 'radial-gradient(110% 90% at 100% 100%, rgba(160, 224, 171, 0.22) 0%, transparent 70%)'
-              : 'radial-gradient(110% 90% at 0% 100%, rgba(255, 172, 46, 0.20) 0%, transparent 70%)',
+            GAME_GLOW[game.id] ??
+            'radial-gradient(110% 90% at 100% 100%, rgba(160, 224, 171, 0.18) 0%, transparent 70%)',
         }}
       />
 
@@ -648,7 +745,7 @@ function GameTile({
           </span>
         )}
       </div>
-    </button>
+    </Pressable>
   );
 }
 
@@ -664,9 +761,9 @@ function CategoryTab({
   label: string;
 }) {
   return (
-    <button
+    <Pressable
       onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-xl text-[12px] font-roobert flex items-center gap-1.5 shrink-0 transition-all active:scale-[0.96] ${
+      className={`px-3.5 py-1.5 rounded-xl text-[12px] font-roobert flex items-center gap-1.5 shrink-0 ${
         active
           ? 'bg-white text-black font-semibold shadow-md'
           : 'bg-white/[0.04] text-whisper-gray hover:bg-white/[0.08] hover:text-frost-white border border-white/10'
@@ -674,7 +771,7 @@ function CategoryTab({
     >
       {icon}
       <span>{label}</span>
-    </button>
+    </Pressable>
   );
 }
 
@@ -690,9 +787,9 @@ function QuickAction({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Pressable
       onClick={onClick}
-      className="rounded-2xl border border-white/10 bg-white/[0.03] hover:border-white/20 active:bg-white/[0.06] active:scale-[0.97] transition-all px-4 py-4 text-left flex items-start gap-3"
+      className="rounded-2xl border border-white/12 bg-white/[0.05] hover:border-white/20 px-4 py-4 text-left flex items-start gap-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
     >
       <span className="w-9 h-9 rounded-xl border border-white/15 bg-white/[0.05] flex items-center justify-center text-frost-white/90 shrink-0">
         {icon}
@@ -705,7 +802,7 @@ function QuickAction({
           {sublabel}
         </div>
       </div>
-    </button>
+    </Pressable>
   );
 }
 
@@ -855,10 +952,11 @@ function ContestHero({
   contest: HeroContest;
   onClick: () => void;
 }) {
+  const { t } = useT();
   const remainingMs = Math.max(0, contest.endsAt - Date.now());
   const remaining = formatRemainingShort(remainingMs);
   return (
-    <button
+    <Pressable
       onClick={onClick}
       className="group relative overflow-hidden rounded-2xl border border-purple-500/30 bg-midnight-canvas text-left active:scale-[0.98] hover:border-purple-500/50 transition-all shadow-xl"
     >
@@ -924,63 +1022,7 @@ function ContestHero({
           </span>
         </div>
       </div>
-    </button>
-  );
-}
-
-function MacvJetHero({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="relative overflow-hidden rounded-2xl border border-white/15 bg-midnight-canvas text-left active:scale-[0.98] hover:border-white/30 transition-all shadow-xl"
-    >
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-60"
-        style={{
-          backgroundImage: 'url(/MacvJet16-9.png)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          filter: 'saturate(1.05)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-80"
-        style={{
-          background:
-            'linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.20) 100%)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-65 mix-blend-screen"
-        style={{
-          background:
-            'radial-gradient(120% 110% at 80% 110%, rgba(165, 45, 37, 0.40) 0%, rgba(255, 172, 46, 0.22) 35%, rgba(160, 224, 171, 0.12) 65%, transparent 85%)',
-        }}
-      />
-      <div className="relative px-5 py-5 sm:px-6 sm:py-6 flex flex-col gap-4">
-        <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray flex items-center gap-1.5">
-          <Flame size={12} className="text-red-400" />
-          Рекомендуем · Фирменная игра
-        </span>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <div className="font-roobert text-frost-white text-[36px] sm:text-[44px] font-normal leading-none tracking-tight">
-              MacvJet
-            </div>
-            <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
-              Взлетай и забирай умножение до x10,000
-            </div>
-          </div>
-          <span className="shrink-0 w-11 h-11 rounded-xl border border-white/25 bg-white/[0.08] flex items-center justify-center backdrop-blur-md text-frost-white">
-            <ArrowRight size={18} strokeWidth={1.8} />
-          </span>
-        </div>
-      </div>
-    </button>
+    </Pressable>
   );
 }
 
@@ -993,13 +1035,4 @@ function formatRemainingShort(ms: number): string {
   if (days > 0) return `${days}д ${hours}ч`;
   if (hours > 0) return `${hours}ч ${minutes}м`;
   return `${minutes}м`;
-}
-
-function getGamesWord(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod100 >= 11 && mod100 <= 19) return 'игр';
-  if (mod10 === 1) return 'игра';
-  if (mod10 >= 2 && mod10 <= 4) return 'игры';
-  return 'игр';
 }

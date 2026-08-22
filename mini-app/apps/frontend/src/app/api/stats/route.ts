@@ -1,48 +1,37 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * GET /api/stats
- * Returns online player count and total 24h payouts formatted according to business logic.
- *
- * Rules:
- *   - Online multipliers:
- *       1..5 players   -> online * 3
- *       6..10 players  -> online * 2
- *       11..30 players -> online * 2
- *       31+ players    -> online as is
- *   - Confirmed 24h Payouts:
- *       Real confirmed withdrawals * 2 (Realistic base: ~1,420 zł * 2 = 2,840 zł)
+ * Proxy public lobby stats to Fastify.
+ * Online and 24h payouts are real (presence + paid withdrawals) —
+ * this route must not invent a second display multiplier.
  */
-
-function getDisplayOnline(actual: number): number {
-  if (actual >= 1 && actual <= 5) return actual * 3;
-  if (actual >= 6 && actual <= 10) return actual * 2;
-  if (actual >= 11 && actual <= 30) return actual * 2;
-  return actual;
+function backendBaseUrl(): string {
+  return process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
 }
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
   try {
-    // Simulated/actual active sessions count base
-    const baseHour = new Date().getHours();
-    const organicBase = 4 + (baseHour % 5); // 4..8 real online range
-    const displayOnline = getDisplayOnline(organicBase);
-
-    // Realistic payouts: 1,420 zł confirmed withdrawals * 2 = 2,840 zł
-    const baseConfirmedPayouts = 1420;
-    const displayPayouts = baseConfirmedPayouts * 2;
-
-    return NextResponse.json({
-      success: true,
-      online: displayOnline,
-      rawOnline: organicBase,
-      payouts24h: displayPayouts,
-      currency: 'zł',
+    const headers: Record<string, string> = {};
+    const cookie = request.headers.get('cookie');
+    if (cookie) headers['cookie'] = cookie;
+    const res = await fetch(`${backendBaseUrl()}/api/stats`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
     });
-  } catch (err) {
+    const text = await res.text();
+    return new NextResponse(text, {
+      status: res.status,
+      headers: {
+        'content-type': res.headers.get('content-type') || 'application/json',
+      },
+    });
+  } catch {
     return NextResponse.json(
-      { success: false, online: 12, payouts24h: 2840, currency: 'zł' },
-      { status: 500 }
+      { success: false, online: 0, payouts24h: 0, currency: 'zł' },
+      { status: 200 }
     );
   }
 }

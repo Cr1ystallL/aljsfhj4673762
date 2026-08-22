@@ -174,10 +174,12 @@ model BroadcastRecipient {
   telegramId    BigInt   @map("telegram_id")
   status        String
   error         String?  @db.Text
+  attemptedAt   DateTime @default(now()) @map("attempted_at")
 
   broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
   
   @@unique([broadcastId, telegramId])
+  @@index([telegramId, attemptedAt])
   @@map("broadcast_recipients")
 }
 

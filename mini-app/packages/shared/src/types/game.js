@@ -5,7 +5,6 @@ import { z } from 'zod';
  */
 export const GameTypeSchema = z.enum([
     'crash',
-    'plinko',
     'mines',
     'cookies',
     'nuts',

@@ -1,19 +1,24 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { PlinkoIcon } from '@/components/ui/game-icon'; // Reuse or create a new icon
+import { Box } from 'lucide-react';
 import { CasesHistory } from '@/components/game/cases/cases-history';
 import { toast } from '@/store/toast-store';
 import { useBalance } from '@/hooks/use-balance';
+import { useT } from '@/i18n/use-t';
 
 export interface CasePrize {
   id: string;
   amount: number;
   weight: number;
   color: string;
+  /** Served by the backend; prizes of a tier always add up to exactly 100. */
+  probabilityPercent?: number;
 }
 
 export interface CaseTier {
@@ -25,6 +30,8 @@ export interface CaseTier {
 }
 
 export default function CasesPage() {
+  const { t } = useT();
+  const router = useRouter();
   const [cases, setCases] = useState<CaseTier[]>([]);
   const { fetchBalance } = useBalance();
 
@@ -43,7 +50,11 @@ export default function CasesPage() {
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
       <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
-        <GameTopBar title="Кейсы" Icon={PlinkoIcon} />
+        <GameTopBar
+          title={t('cases.title')}
+          Icon={Box}
+          onHowToPlay={() => router.push('/info#faq')}
+        />
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {cases.map((c) => {

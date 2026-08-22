@@ -1,35 +1,19 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import type { CoinSide } from '@/lib/games/coinflip/types';
 import { cn } from '@/lib/utils';
 
 /**
- * Coin — Monopo Saigon Style
- *
- * The protagonist of the coinflip screen. Two states:
- *   - idle              → static coin showing the requested side.
- *   - flipping (flipKey changes) → 8-rotation Y-axis spin then settles
- *                          on the resolved side.
- *
- * Faces use the brand artwork shipped in `/public`:
- *   - HEADS → /CoinFlip_Desert.png
- *   - TAILS → /CoinFlip_Reshka.png
- *
- * The settled side is communicated via the `face` prop. When the parent
- * wants to play a flip animation, it bumps `flipKey` and updates `face`
- * to the final side; the component handles the spin internally.
- *
- * Note: we use plain `<img>` rather than `next/image` because the
- * production server is not running Sharp, and `next/image` with `fill`
- * inside a SSR-rendered component otherwise crashes the Next runtime.
+ * One coin in the middle of the table.
+ * Rotation is derived from flipKey so a new toss interrupts the last
+ * spring instead of remounting the mesh.
  */
 
 interface CoinflipCoinProps {
   face: CoinSide;
-  /** Bump this to trigger a fresh flip animation. */
+  /** Increments on every toss — drives accumulated spin. */
   flipKey: number;
-  /** True while the parent is awaiting a server round resolution. */
   flipping?: boolean;
   className?: string;
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
+import { distributePercentages } from '@casino/shared';
 
 /**
  * Admin → Games configuration.
@@ -22,7 +23,7 @@ import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'macvpot' | 'mines' | 'plinko' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo' | 'cases';
+type GameType = 'crash' | 'macvpot' | 'mines' | 'coinflip' | 'wheel' | 'blackjack' | 'hilo' | 'cases';
 
 interface GameCfg {
   paused: boolean;
@@ -39,7 +40,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'plinko', 'coinflip', 'wheel', 'bridges', 'hilo', 'cases'];
+const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'coinflip', 'wheel', 'hilo', 'cases'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);
@@ -448,28 +449,6 @@ function GameCard({
             </div>
           )}
 
-          {gameType === 'plinko' && (
-            <Field
-              label="Лимит выплат"
-              help={{
-                title: 'Лимит выплат',
-                body: (
-                  <p>
-                    Верхний предел выплаты на один шар. Полезно при
-                    высоких мультипликаторах в режиме «Hard».
-                  </p>
-                ),
-              }}
-            >
-              <NumberInput
-                value={Number(form.extras?.maxPayout ?? 1_000_000)}
-                step={1000}
-                min={0}
-                onChange={(v) => updateExtra('maxPayout', v)}
-              />
-            </Field>
-          )}
-
           {gameType === 'coinflip' && (
             <div className="grid grid-cols-2 gap-3">
               <Field
@@ -592,52 +571,6 @@ function GameCard({
             </div>
           )}
 
-          {gameType === 'bridges' && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Рядов"
-                help={{
-                  title: 'Количество рядов в мостах',
-                  body: (
-                    <p>
-                      Сколько рядов нужно пройти от старта до финиша.
-                      Стандарт — 5. Менять не рекомендуется, т.к.
-                      лестница множителей рассчитана под 5 рядов.
-                    </p>
-                  ),
-                }}
-              >
-                <NumberInput
-                  value={Number(form.extras?.rows ?? 5)}
-                  step={1}
-                  min={3}
-                  max={10}
-                  onChange={(v) => updateExtra('rows', v)}
-                />
-              </Field>
-              <Field
-                label="Ячеек в ряду"
-                help={{
-                  title: 'Количество ячеек в ряду',
-                  body: (
-                    <p>
-                      Сколько досок в каждом ряду. По умолчанию 4.
-                      Меняет вероятности: больше ячеек = легче пройти.
-                    </p>
-                  ),
-                }}
-              >
-                <NumberInput
-                  value={Number(form.extras?.cells ?? 4)}
-                  step={1}
-                  min={2}
-                  max={8}
-                  onChange={(v) => updateExtra('cells', v)}
-                />
-              </Field>
-            </div>
-          )}
-
           {gameType === 'cases' && (
             <div className="pt-2 border-t border-white/5">
               <CasesConfig
@@ -749,6 +682,11 @@ function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>;
   const currentPrice = casesPrices[activeCase - 1] || 10;
   
   const multipliers = [0.1, 0.2, 0.5, 1, 2.5, 5, 10, 25, 100];
+  // Same rounding the players are shown, so the console never disagrees with
+  // the prize list in the app.
+  const publishedChances = distributePercentages(
+    multipliers.map((_, i) => currentWeights[i] ?? 0)
+  );
   const caseNames = ['Обычный', 'Обычный', 'Необычный', 'Редкий', 'Эпический', 'Легендарный', 'Мифический'];
 
   const setWeight = (idx: number, w: number) => {
@@ -799,11 +737,30 @@ function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>;
         </Field>
       </div>
       
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
+        <span className="font-roobert text-[12px] text-frost-white/70">
+          Сумма весов: {totalWeight.toLocaleString('ru-RU', { maximumFractionDigits: 4 })}
+        </span>
+        {totalWeight <= 0 ? (
+          <span className="font-roobert text-[12px] text-red-300">
+            Ни один приз не может выпасть — задайте веса
+          </span>
+        ) : Math.abs(totalWeight - 100) > 0.0001 ? (
+          <span className="font-roobert text-[12px] text-amber-200">
+            Веса не равны 100, шансы пересчитываются пропорционально
+          </span>
+        ) : (
+          <span className="font-roobert text-[12px] text-emerald-300">
+            Игроки видят ровно 100.00%
+          </span>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {multipliers.map((m, i) => {
-          const percent = totalWeight > 0 ? ((currentWeights[i] / totalWeight) * 100).toFixed(4) : '0';
+          const percent = publishedChances[i].toFixed(2);
           return (
-            <Field key={i} label={`Множитель ${m}x`} help={{ title: `Шанс: ~${percent}%`, body: <p>Укажите процент выпадения (вероятность)</p> }}>
+            <Field key={i} label={`Множитель ${m}x`} help={{ title: `Шанс: ${percent}%`, body: <p>Укажите вес выпадения. Шанс считается как доля от суммы весов.</p> }}>
                <NumberInput
                   value={currentWeights[i]}
                   step={0.1}

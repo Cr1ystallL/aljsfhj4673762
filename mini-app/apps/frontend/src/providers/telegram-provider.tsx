@@ -21,6 +21,45 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+const DESKTOP_PLATFORMS = new Set([
+  'tdesktop',
+  'macos',
+  'weba',
+  'webk',
+  'web',
+  'unigram',
+]);
+
+/**
+ * Telegram Desktop opens a Mini App as a ~420px panel pinned to the
+ * right of the messenger window. `expand()` only grows the *height*.
+ * Fullscreen (Bot API 8.0+) is what actually fills the window. The
+ * first call during boot is often ignored, so we retry twice.
+ */
+function requestDesktopFullscreen(tg: NonNullable<Window['Telegram']>['WebApp']) {
+  const isDesktop =
+    DESKTOP_PLATFORMS.has(tg.platform) ||
+    (typeof window !== 'undefined' && window.innerWidth >= 768);
+  if (!isDesktop) return () => undefined;
+  if (typeof tg.requestFullscreen !== 'function') return () => undefined;
+
+  const tryEnter = () => {
+    try {
+      if (!tg.isFullscreen) tg.requestFullscreen();
+    } catch {
+      // Older clients throw; fullscreenFailed is also fired — ignore.
+    }
+  };
+
+  tryEnter();
+  const t1 = window.setTimeout(tryEnter, 350);
+  const t2 = window.setTimeout(tryEnter, 1400);
+  return () => {
+    window.clearTimeout(t1);
+    window.clearTimeout(t2);
+  };
+}
+
 function TelegramInitializer({ children }: { children: React.ReactNode }) {
   const [bootstrapped, setBootstrapped] = useState(false);
   const { isAuthenticating, error: authError } = useTelegramAuth();
@@ -28,18 +67,20 @@ function TelegramInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const tg = window.Telegram?.WebApp;
+    let cancelFullscreen: (() => void) | undefined;
     if (tg) {
       try {
+        tg.ready?.();
         tg.expand();
         tg.enableClosingConfirmation();
         tg.setHeaderColor('#000000');
         tg.setBackgroundColor('#000000');
-        tg.ready?.();
       } catch {
         // SDK methods occasionally throw on older clients — swallow
         // because failure to enable closing confirmation should not
         // gate the UI.
       }
+      cancelFullscreen = requestDesktopFullscreen(tg);
     } else if (process.env.NODE_ENV === 'development') {
       // Dev outside Telegram — keep going.
       console.warn(
@@ -47,6 +88,7 @@ function TelegramInitializer({ children }: { children: React.ReactNode }) {
       );
     }
     setBootstrapped(true);
+    return () => cancelFullscreen?.();
   }, []);
 
   if (!bootstrapped) {
@@ -77,6 +119,7 @@ declare global {
         colorScheme: 'light' | 'dark';
         themeParams: Record<string, string>;
         isExpanded: boolean;
+        isFullscreen?: boolean;
         viewportHeight: number;
         viewportStableHeight: number;
         headerColor: string;
@@ -88,6 +131,8 @@ declare global {
         expand: () => void;
         close: () => void;
         ready: () => void;
+        requestFullscreen?: () => void;
+        exitFullscreen?: () => void;
         enableClosingConfirmation: () => void;
         disableClosingConfirmation: () => void;
         setHeaderColor: (color: string) => void;

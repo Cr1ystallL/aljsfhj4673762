@@ -3,7 +3,7 @@
  * Mirrors backend types for type safety
  */
 
-export type GameType = 'crash' | 'mines' | 'plinko' | 'keno' | 'coinflip' | 'wheel' | 'bridges' | 'blackjack' | 'hilo';
+export type GameType = 'crash' | 'mines' | 'keno' | 'coinflip' | 'wheel' | 'blackjack' | 'hilo';
 
 export type GameState = 
   | 'idle'

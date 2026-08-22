@@ -50,7 +50,6 @@ pnpm run build
   - Home: 145 kB
   - Crash: 157 kB
   - Mines: 155 kB
-  - Plinko: 154 kB
 ```
 
 ### Prisma Generate ✅
@@ -75,7 +74,7 @@ pnpm prisma generate
 ### Completed Phases
 1. ✅ Phase 1-4: Foundation & Balance System
 2. ✅ Phase 5: Core Game Framework
-3. ✅ Phase 6: Production Game Implementations (Crash, Mines, Plinko)
+3. ✅ Phase 6: Production Game Implementations (Crash, Mines)
 4. ✅ Hardening Phase
 5. ✅ Stabilization Phase
 6. ✅ Final Pre-Production Fix Phase
@@ -86,7 +85,7 @@ pnpm prisma generate
 - **Frontend**: Next.js 15 + TypeScript + Zustand + Framer Motion
 - **Backend**: Fastify + Prisma + Redis + WebSocket
 - **Auth**: Telegram validation, httpOnly cookies, session management
-- **Games**: Crash, Mines, Plinko (all production-ready)
+- **Games**: Crash, Mines (production-ready; Plinko and Bridges removed)
 - **UI**: Monopo Saigon cinematic design system
 
 ### Design System

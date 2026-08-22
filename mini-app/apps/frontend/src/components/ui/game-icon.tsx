@@ -4,7 +4,6 @@ import {
   Bomb,
   Rocket,
   Disc3,
-  Footprints,
   Spade,
   Dice5,
   Box,
@@ -25,17 +24,15 @@ import { cn } from '@/lib/utils';
  * Icons are restrained — minimal outlined glyphs, frost-white on a
  * frosted glass tile. No emoji, no rainbow accents.
  *
- * Plinko and Coinflip have custom SVGs (the lucide stand-ins were too
- * generic — a circle and a circle-with-dot didn't read as the games).
+ * Coinflip has a custom SVG (the lucide stand-in was too
+ * generic — a circle-with-dot didn't read as the game).
  */
 
 export type GameKey =
   | 'crash'
   | 'mines'
-  | 'plinko'
   | 'coinflip'
   | 'wheel'
-  | 'bridges'
   | 'blackjack'
   | 'cards'
   | 'hilo'
@@ -44,48 +41,6 @@ export type GameKey =
   | 'cases'
   | 'macvpot'
   | 'unknown';
-
-/**
- * Plinko glyph — a peg pyramid with a ball about to drop. Three rows of
- * dots sit below a single ball above, evoking the 16-row pin board.
- */
-const PlinkoIcon: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
-  (
-    { color = 'currentColor', size = 24, strokeWidth = 1.6, className, ...rest },
-    ref
-  ) => (
-    <svg
-      ref={ref}
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      {...rest}
-    >
-      {/* Ball at top */}
-      <circle cx="12" cy="4" r="1.6" fill={color} />
-      {/* Row 1 — 1 peg */}
-      <circle cx="12" cy="9" r="1" />
-      {/* Row 2 — 2 pegs */}
-      <circle cx="9" cy="13" r="1" />
-      <circle cx="15" cy="13" r="1" />
-      {/* Row 3 — 3 pegs */}
-      <circle cx="6" cy="17" r="1" />
-      <circle cx="12" cy="17" r="1" />
-      <circle cx="18" cy="17" r="1" />
-      {/* Bucket floor */}
-      <path d="M3 21h18" />
-    </svg>
-  )
-);
-PlinkoIcon.displayName = 'PlinkoIcon';
-export { PlinkoIcon };
 
 /**
  * Coinflip glyph — a tilted coin in motion. Outer ellipse hints at the
@@ -159,10 +114,8 @@ export { ClownIcon };
 const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   crash: { label: 'MacvJet', Icon: Rocket },
   mines: { label: 'Mines', Icon: Bomb },
-  plinko: { label: 'Plinko', Icon: PlinkoIcon },
   coinflip: { label: 'Coinflip', Icon: CoinflipIcon },
   wheel: { label: 'Wheel', Icon: Disc3 },
-  bridges: { label: 'Bridges', Icon: Footprints },
   blackjack: { label: 'Blackjack', Icon: Spade },
   baccarat: { label: 'Baccarat', Icon: Spade },
   cards: { label: 'Card Games', Icon: Spade },
@@ -183,10 +136,8 @@ export function resolveGameKey(input: unknown): GameKey {
   const v = input.toLowerCase();
   if (v.startsWith('crash')) return 'crash';
   if (v.startsWith('mines')) return 'mines';
-  if (v.startsWith('plinko')) return 'plinko';
   if (v.startsWith('coinflip')) return 'coinflip';
   if (v.startsWith('wheel')) return 'wheel';
-  if (v.startsWith('bridges')) return 'bridges';
   if (v.startsWith('blackjack')) return 'blackjack';
   if (v.startsWith('baccarat')) return 'baccarat';
   if (v.startsWith('cards')) return 'cards';

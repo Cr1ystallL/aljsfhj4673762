@@ -26,6 +26,7 @@ import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
+import { useT } from '@/i18n/use-t';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -42,17 +43,15 @@ interface InAppGame {
 }
 
 const ALL_IN_APP_GAMES: InAppGame[] = [
-  { id: 'macvpot', name: 'MacvPot', bg: '/MacvPot.png', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
-  { id: 'crash', name: 'MacvJet', bg: '/MacvJet.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
-  { id: 'mines', name: 'Mines', bg: '/Mines.png', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
-  { id: 'hilo', name: 'Hi-Lo', bg: '/hilo.png', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
-  { id: 'plinko', name: 'Plinko', bg: '/Plinko.png', badge: { label: 'TOP', color: 'red', Icon: Flame } },
-  { id: 'coinflip', name: 'Coinflip', bg: '/Coinflip.png', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
-  { id: 'blackjack', name: 'Blackjack', bg: '/bj.png', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
-  { id: 'wheel', name: 'Wheel', bg: '/Wheel.png', badge: { label: 'x50', color: 'gold', Icon: Zap } },
-  { id: 'bridges', name: 'Bridges', bg: '/Bridges.png' },
-  { id: 'cases', name: 'Case', bg: '/case.png', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
-  { id: 'keno', name: 'Keno', bg: '/keno.png?v=2', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
+  { id: 'macvpot', name: 'MacvPot', bg: '/tiles/macvpot.webp', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
+  { id: 'crash', name: 'MacvJet', bg: '/tiles/macvjet.webp', badge: { label: 'TOP', color: 'red', Icon: Flame } },
+  { id: 'mines', name: 'Mines', bg: '/tiles/mines.webp', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
+  { id: 'hilo', name: 'Hi-Lo', bg: '/tiles/hilo.webp', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
+  { id: 'coinflip', name: 'Coinflip', bg: '/tiles/coinflip.webp', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
+  { id: 'blackjack', name: 'Blackjack', bg: '/tiles/bj.webp', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
+  { id: 'wheel', name: 'Wheel', bg: '/tiles/wheel.webp', badge: { label: 'x50', color: 'gold', Icon: Zap } },
+  { id: 'cases', name: 'Case', bg: '/tiles/case.webp', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
+  { id: 'keno', name: 'Keno', bg: '/tiles/keno.webp', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
 ];
 
 export function MenuDrawer({
@@ -62,6 +61,7 @@ export function MenuDrawer({
   isAuthenticated = false,
 }: MenuDrawerProps) {
   const router = useRouter();
+  const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const balanceStore = useBalanceStore((s) => s.balance);
 
@@ -139,7 +139,7 @@ export function MenuDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/80"
           />
 
           {/* Drawer panel */}
@@ -148,7 +148,7 @@ export function MenuDrawer({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas/95 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
+            className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
           >
             {/* Top Header */}
             <div className="p-4 border-b border-white/10 flex flex-col gap-3.5">
@@ -156,7 +156,7 @@ export function MenuDrawer({
                 <BrandWordmark size={32} />
                 <button
                   onClick={onClose}
-                  aria-label="Закрыть меню"
+                  aria-label={t('nav.closeMenu')}
                   className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white flex items-center justify-center active:scale-95 transition-all"
                 >
                   <X size={18} />
@@ -181,10 +181,10 @@ export function MenuDrawer({
                   </div>
                   <div className="min-w-0">
                     <div className="font-roobert font-medium text-[14px] text-frost-white truncate">
-                      {user?.firstName || 'Игрок'}
+                      {user?.firstName || t('profile.player')}
                     </div>
                     <div className="font-roobert text-[11px] text-amber-300 font-bold tracking-tight">
-                      {(balanceStore?.amount ?? 0).toLocaleString('ru-RU')} zł
+                      {(balanceStore?.amount ?? 0).toLocaleString(localeTag)} zł
                     </div>
                   </div>
                 </div>
@@ -206,7 +206,7 @@ export function MenuDrawer({
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-baseline justify-between">
                   <span className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                    Игры Mini App
+                    {t('nav.gamesMiniApp')}
                   </span>
                   <span className="font-roobert text-[10px] text-whisper-gray">
                     {visibleGames.length}
@@ -274,7 +274,7 @@ export function MenuDrawer({
                               {g.name}
                             </div>
                             <div className="text-[9px] font-roobert text-whisper-gray uppercase tracking-wider">
-                              Играть
+                              {t('common.play')}
                             </div>
                           </div>
                         </div>
@@ -287,14 +287,14 @@ export function MenuDrawer({
               {/* Completely Redesigned "Разделы" (Sections) Section */}
               <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
                 <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                  Разделы приложения
+                  {t('nav.sections')}
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <SectionCard
                     icon={<Wallet size={18} className="text-emerald-400" />}
-                    title="Кошелёк и баланс"
-                    description="Пополнение и вывод средств"
+                    title={t('nav.walletTitle')}
+                    description={t('nav.walletDesc')}
                     onClick={() => {
                       onClose();
                       router.push('/balance');
@@ -302,17 +302,26 @@ export function MenuDrawer({
                   />
                   <SectionCard
                     icon={<Sparkles size={18} className="text-amber-400" />}
-                    title="Бонусы и турниры"
-                    description="Промокоды, конкурсы, колесо"
+                    title={t('nav.bonusesTitle')}
+                    description={t('nav.bonusesDesc')}
                     onClick={() => {
                       onClose();
                       router.push('/bonuses');
                     }}
                   />
                   <SectionCard
+                    icon={<BookOpen size={18} className="text-sky-400" />}
+                    title={t('nav.faqTitle')}
+                    description={t('nav.faqDesc')}
+                    onClick={() => {
+                      onClose();
+                      router.push('/info');
+                    }}
+                  />
+                  <SectionCard
                     icon={<Headphones size={18} className="text-cyan-400" />}
-                    title="Служба поддержки"
-                    description="Помощь 24/7 в Telegram"
+                    title={t('nav.supportTitle')}
+                    description={t('nav.supportDesc')}
                     onClick={() => {
                       onClose();
                       window.open('https://t.me/MacvBetSupport', '_blank');

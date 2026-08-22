@@ -1,28 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Proxy Plinko game API to the Fastify backend.
- * Mirrors the Crash and Mines proxies — same-origin call from the
- * browser → Next forwards to the Fastify host with cookies attached so
- * authentication works through the cookie session layer.
+ * Proxy /api/balance/* to Fastify so same-origin cookie auth works
+ * for lobby hooks (catch-up) and any other balance GET/POST.
  */
 function backendBaseUrl(): string {
-  const b =
-    process.env.INTERNAL_API_URL ||
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL;
-  if (b) return b.replace(/\/$/, '');
-  return 'http://127.0.0.1:4000';
+  return process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
 }
+
+export const dynamic = 'force-dynamic';
 
 async function proxy(
   request: NextRequest,
   slug: string[] | undefined,
   method: 'GET' | 'POST'
 ) {
-  const cleanBase = backendBaseUrl();
   const pathSeg = slug?.length ? slug.join('/') : '';
-  const fullUrl = `${cleanBase}/api/games/plinko${
+  const fullUrl = `${backendBaseUrl()}/api/balance${
     pathSeg ? `/${pathSeg}` : ''
   }${request.nextUrl.search}`;
 
@@ -37,13 +31,13 @@ async function proxy(
     body = await request.text();
   }
 
-  const res = await fetch(fullUrl, { method, headers, body });
+  const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
   const text = await res.text();
-  const contentType = res.headers.get('content-type') || 'application/json';
-
   return new NextResponse(text, {
     status: res.status,
-    headers: { 'content-type': contentType },
+    headers: {
+      'content-type': res.headers.get('content-type') || 'application/json',
+    },
   });
 }
 

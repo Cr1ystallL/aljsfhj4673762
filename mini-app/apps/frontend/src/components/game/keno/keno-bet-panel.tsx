@@ -2,12 +2,20 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, Dice5, Trash2, ChevronDown, Check } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Dice5, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
-import type { KenoRisk } from '@/lib/game-engine/types';
+import { useT } from '@/i18n/use-t';
+import { Pressable } from '@/components/ui/pressable';
+import {
+  BetPanelCtaRow,
+  BetPanelShell,
+  GamePrimaryButton,
+  StakeField,
+} from '@/components/game/kit';
 
 export type KenoPhase = 'idle' | 'playing' | 'revealing';
+type KenoRisk = 'low' | 'medium' | 'high';
 
 interface KenoBetPanelProps {
   amount: number;
@@ -44,7 +52,6 @@ export function KenoBetPanel({
   busy,
   maxPick,
   activeBalance,
-  currency,
 }: KenoBetPanelProps) {
   const [amountStr, setAmountStr] = useState(amount.toString());
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -83,8 +90,17 @@ export function KenoBetPanel({
   };
 
   const disabled = phase !== 'idle' || busy;
+  const minBet = 1;
+  const maxBet = Math.max(1, Math.floor(activeBalance) || 1);
   const canBet = picks.length >= 1 && picks.length <= maxPick && !disabled;
   const currentRisk = RISK_OPTIONS.find((r) => r.value === risk) || RISK_OPTIONS[0];
+
+  const ctaLabel =
+    phase === 'revealing'
+      ? t('common.playing')
+      : busy
+        ? t('common.loading')
+        : t('common.bet');
 
   return (
     <div className="flex flex-col gap-2.5 p-3 rounded-2xl border border-white/10 bg-black/50 backdrop-blur-xl shadow-2xl">
