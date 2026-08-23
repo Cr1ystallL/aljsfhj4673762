@@ -356,6 +356,7 @@ export function HomeScreen() {
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
+    if (gameId === 'blackjack' && !isAdmin) return false;
     if (hidden[gameId] && !isAdmin) return false;
     return true;
   };
