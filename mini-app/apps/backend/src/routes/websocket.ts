@@ -253,13 +253,24 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
         // Handle Blackjack Table Chat
         if (validMessage.type === 'blackjack:chat') {
           const { roomId, text, emoji } = validMessage.payload;
-          const userId = socket.userId!;
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { firstName: true, username: true, photoUrl: true },
-          });
-          const name = user?.firstName || user?.username || 'Игрок';
-          const avatar = user?.photoUrl || undefined;
+          const userId = socket.userId || 'anon_' + connectionId.slice(0, 6);
+          let name = 'Игрок';
+          let avatar: string | undefined;
+
+          if (socket.userId) {
+            try {
+              const user = await prisma.user.findUnique({
+                where: { id: socket.userId },
+                select: { firstName: true, username: true, photoUrl: true },
+              });
+              if (user) {
+                name = user.firstName || user.username || 'Игрок';
+                avatar = user.photoUrl || undefined;
+              }
+            } catch (err) {
+              logger.warn({ err }, 'Failed to fetch user info for blackjack chat');
+            }
+          }
           const engine = blackjackSingleton.getTable(roomId);
           engine.addChatMessage(userId, name, avatar, text, emoji);
           return;
