@@ -311,16 +311,9 @@ class CoinflipEngine {
     };
     this.rooms.set(userId, state);
 
-    // Resolve the first toss right away.
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    let outcome = this.resolveRoundOutcome(state, firstChoice, bias);
+    // Resolve the first toss (Pure RNG on 1st toss)
+    let outcome = this.resolveRoundOutcome(state, firstChoice, 0);
     let won = outcome === firstChoice;
-
-    // --- Forced Loss / SmartDrain ---
-    if (await rtpEngine.shouldForceLoss(userId, amount, STEP_MULTIPLIER)) {
-      won = false;
-      outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
-    }
 
     const config = await gameConfig.get('coinflip').catch(() => null);
     if (config && config.houseEdge >= 1.0) {
