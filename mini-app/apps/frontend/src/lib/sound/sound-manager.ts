@@ -89,28 +89,42 @@ export class SoundManager {
       return;
     }
 
-    // Clone audio for overlapping sounds
-    const clone = audio.cloneNode() as HTMLAudioElement;
-    
-    if (options?.volume !== undefined) {
-      clone.volume = options.volume * this.masterVolume;
+    if (audio.paused || audio.ended) {
+      try {
+        audio.currentTime = 0;
+        if (options?.volume !== undefined) {
+          audio.volume = options.volume * this.masterVolume;
+        }
+        if (options?.loop !== undefined) {
+          audio.loop = options.loop;
+        }
+        audio.play().catch(() => {});
+      } catch {
+        // ignore playback issues on mobile
+      }
     } else {
-      clone.volume = audio.volume;
-    }
-
-    if (options?.loop !== undefined) {
-      clone.loop = options.loop;
-    }
-
-    clone.play().catch((error) => {
-      console.warn('Failed to play sound:', error);
-    });
-
-    // Clean up after playback
-    if (!clone.loop) {
-      clone.addEventListener('ended', () => {
-        clone.remove();
-      });
+      // Overlapping sound fallback
+      try {
+        const clone = audio.cloneNode() as HTMLAudioElement;
+        if (options?.volume !== undefined) {
+          clone.volume = options.volume * this.masterVolume;
+        } else {
+          clone.volume = audio.volume;
+        }
+        if (options?.loop !== undefined) {
+          clone.loop = options.loop;
+        }
+        clone.play().catch(() => {});
+        if (!clone.loop) {
+          clone.onended = () => {
+            try {
+              clone.remove();
+            } catch {}
+          };
+        }
+      } catch {
+        // ignore
+      }
     }
   }
 

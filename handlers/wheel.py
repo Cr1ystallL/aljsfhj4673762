@@ -78,7 +78,18 @@ async def cmd_mb_wheel(message: Message):
                 ])
                 
                 # Отправляем результат с картинкой
-                photo = FSInputFile("/var/www/MACVBET/images/luckywheel.png")
+                from pathlib import Path
+                root_dir = Path(__file__).resolve().parent.parent
+                photo_candidates = [
+                    root_dir / "images" / "luckywheel.png",
+                    root_dir / "mini-app" / "apps" / "frontend" / "public" / "Wheel.png",
+                    Path("/var/www/MACVBET/images/luckywheel.png"),
+                ]
+                photo_file = None
+                for p in photo_candidates:
+                    if p.exists():
+                        photo_file = FSInputFile(str(p))
+                        break
                 
                 amount_f = float(amount)
                 if amount_f == 10.0:
@@ -95,19 +106,28 @@ async def cmd_mb_wheel(message: Message):
                     )
                 
                 try:
-                    result_msg = await message.answer_photo(
-                        photo=photo,
-                        caption=text,
-                        reply_markup=keyboard
-                    )
+                    if photo_file:
+                        result_msg = await message.answer_photo(
+                            photo=photo_file,
+                            caption=text,
+                            reply_markup=keyboard,
+                            parse_mode="HTML"
+                        )
+                    else:
+                        result_msg = await message.answer(
+                            text=text,
+                            reply_markup=keyboard,
+                            parse_mode="HTML"
+                        )
                     
                     # Запускаем задачу на удаление через 2 минуты
                     asyncio.create_task(delete_message_later(result_msg, 120))
                 except Exception as e:
-                    # Если картинки нет, отправляем текстом
+                    # Если отправка с картинкой упала, отправляем текстом
                     result_msg = await message.answer(
                         text=text,
-                        reply_markup=keyboard
+                        reply_markup=keyboard,
+                        parse_mode="HTML"
                     )
                     asyncio.create_task(delete_message_later(result_msg, 120))
                     

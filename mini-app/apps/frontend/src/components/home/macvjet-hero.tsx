@@ -175,10 +175,18 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
   const [nowTick, setNowTick] = useState(0);
 
   useEffect(() => {
-    const ms = reduceMotion ? 400 : 80;
+    if (reduceMotion) return;
+    const isPlaying = snap?.phase === 'playing';
+    const isCountdown =
+      (snap?.phase === 'betting' || snap?.phase === 'starting') &&
+      Boolean(snap?.phaseEndsAt && snap.phaseEndsAt > Date.now());
+
+    if (!isPlaying && !isCountdown) return;
+
+    const ms = isPlaying ? 100 : 1000;
     const id = window.setInterval(() => setNowTick((n) => n + 1), ms);
     return () => window.clearInterval(id);
-  }, [reduceMotion]);
+  }, [reduceMotion, snap?.phase, snap?.phaseEndsAt]);
 
   const live = useMemo(() => {
     void nowTick;

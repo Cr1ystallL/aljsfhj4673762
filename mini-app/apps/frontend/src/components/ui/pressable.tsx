@@ -36,63 +36,27 @@ export function Pressable({
   className,
   disabled,
   onPointerDown,
-  onPointerUp,
-  onPointerCancel,
-  onPointerLeave,
   onClick,
   ...rest
 }: PressableProps) {
-  const [pressed, setPressed] = useState(false);
-  const armed = useRef(false);
-
-  const down = useCallback(
+  const handlePointerDown = useCallback(
     (e: PointerEvent<HTMLButtonElement>) => {
       if (disabled) return;
-      armed.current = true;
-      setPressed(true);
       hapticLight();
       onPointerDown?.(e);
     },
     [disabled, onPointerDown]
   );
 
-  const up = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
-      setPressed(false);
-      onPointerUp?.(e);
-    },
-    [onPointerUp]
-  );
-
-  const cancel = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
-      armed.current = false;
-      setPressed(false);
-      onPointerCancel?.(e);
-    },
-    [onPointerCancel]
-  );
-
-  const leave = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
-      setPressed(false);
-      onPointerLeave?.(e);
-    },
-    [onPointerLeave]
-  );
-
   return (
     <button
       type="button"
       disabled={disabled}
-      onPointerDown={down}
-      onPointerUp={up}
-      onPointerCancel={cancel}
-      onPointerLeave={leave}
+      onPointerDown={handlePointerDown}
       onClick={onClick}
       className={cn(
-        'transition-transform duration-150 ease-out [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
-        pressed && !disabled ? 'scale-[0.97]' : 'scale-100',
+        'transition-transform duration-100 ease-out active:scale-[0.97] touch-manipulation select-none [transform:translateZ(0)]',
+        disabled && 'pointer-events-none opacity-50',
         className
       )}
       {...rest}
