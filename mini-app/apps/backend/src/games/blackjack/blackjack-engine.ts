@@ -7,6 +7,18 @@ import { logger } from '../../utils/logger.js';
 import { wsManager } from '../../lib/websocket-manager.js';
 import type { Bet } from '../../game-engine/types.js';
 
+export interface BlackjackChatMessage {
+  id: string;
+  roomId: string;
+  userId: string;
+  name: string;
+  avatar?: string;
+  text: string;
+  emoji?: string;
+  seatId?: number | null;
+  timestamp: number;
+}
+
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
 
@@ -48,8 +60,8 @@ interface GameConfig {
 
 const DEFAULT_CONFIG: GameConfig = {
   minBet: 1,
-  maxBet: 100000,
-  countdownSeconds: 10,
+  maxBet: 500,
+  countdownSeconds: 12,
   dealerStandOn: 17,
 };
 
@@ -61,6 +73,7 @@ const DEFAULT_CONFIG: GameConfig = {
  * - Turn queue system (players act in seat order)
  * - RTP bias applied per-player for card outcomes
  * - Auto-dealer AI (hits until 17+)
+ * - Live table chat for seated players and spectators
  */
 export class BlackjackEngine extends EventEmitter {
   private roomId: string;
@@ -69,6 +82,7 @@ export class BlackjackEngine extends EventEmitter {
   private countdownTimer: NodeJS.Timeout | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
   private deck: Card[] = [];
+  private chatHistory: BlackjackChatMessage[] = [];
 
   constructor(roomId: string, config: Partial<GameConfig> = {}) {
     super();
@@ -673,12 +687,62 @@ export class BlackjackEngine extends EventEmitter {
       timestamp: Date.now(),
     };
 
-    // Broadcast to all connections in the room
+    // Broadcast to room subscribers (both seated players & spectators)
+    wsManager.broadcastToRoom(`bj_${this.roomId}`, broadcast);
+    wsManager.broadcastToRoom(this.roomId, broadcast);
     for (const player of this.state.players) {
       wsManager.sendToUser(player.userId, broadcast);
     }
 
     this.emit('state', this.state);
+  }
+
+  /* -----------------------------------------------------------------
+   * Table Chat
+   * ---------------------------------------------------------------- */
+
+  addChatMessage(
+    userId: string,
+    name: string,
+    avatar: string | undefined,
+    text: string,
+    emoji?: string
+  ): BlackjackChatMessage {
+    const player = this.state.players.find((p) => p.userId === userId);
+    const msg: BlackjackChatMessage = {
+      id: `bj_msg_${Date.now()}_${randomUUID().slice(0, 6)}`,
+      roomId: this.roomId,
+      userId,
+      name: name || 'Игрок',
+      avatar,
+      text: text.slice(0, 200),
+      emoji,
+      seatId: player ? player.seatId : null,
+      timestamp: Date.now(),
+    };
+
+    this.chatHistory.push(msg);
+    if (this.chatHistory.length > 50) {
+      this.chatHistory.shift();
+    }
+
+    const broadcast = {
+      type: 'blackjack:chat:message',
+      payload: msg,
+      timestamp: Date.now(),
+    };
+
+    wsManager.broadcastToRoom(`bj_${this.roomId}`, broadcast);
+    wsManager.broadcastToRoom(this.roomId, broadcast);
+    for (const p of this.state.players) {
+      wsManager.sendToUser(p.userId, broadcast);
+    }
+
+    return msg;
+  }
+
+  getChatHistory(): BlackjackChatMessage[] {
+    return [...this.chatHistory];
   }
 
   /* -----------------------------------------------------------------

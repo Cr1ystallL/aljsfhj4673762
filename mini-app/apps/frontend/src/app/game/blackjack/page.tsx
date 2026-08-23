@@ -1,10 +1,10 @@
 import { Metadata } from 'next';
-import { BlackjackClient } from '@/components/game/blackjack/blackjack-client';
+import { BlackjackMultiplayer } from '@/components/game/blackjack/blackjack-multiplayer';
 
 export const metadata: Metadata = {
-  title: 'Blackjack',
+  title: 'Blackjack Live',
 };
 
 export default function BlackjackPage() {
-  return <BlackjackClient />;
+  return <BlackjackMultiplayer />;
 }

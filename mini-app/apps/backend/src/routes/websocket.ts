@@ -14,6 +14,8 @@ import type {
 } from '@casino/shared';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { macvpotManager } from '../games/macvpot/macvpot-singleton.js';
+import { blackjackSingleton } from '../games/blackjack/blackjack-singleton.js';
+import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -157,6 +159,34 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
             socket.send(JSON.stringify(stateEvent));
           }
 
+          if (roomId === 'bj_table_1' || roomId.startsWith('bj_')) {
+            const engine = blackjackSingleton.getTable(roomId);
+            if (engine) {
+              const bjState = engine.getState();
+              socket.send(JSON.stringify({
+                type: 'bj:state',
+                payload: {
+                  roomId,
+                  phase: bjState.phase,
+                  countdown: bjState.countdown,
+                  dealerHand: bjState.dealerHand,
+                  players: bjState.players,
+                  currentTurnSeatId: bjState.currentTurnSeatId,
+                  roundId: bjState.roundId,
+                },
+                timestamp: Date.now(),
+              }));
+              socket.send(JSON.stringify({
+                type: 'blackjack:chat:history',
+                payload: {
+                  roomId,
+                  messages: engine.getChatHistory(),
+                },
+                timestamp: Date.now(),
+              }));
+            }
+          }
+
           return;
         }
 
@@ -167,6 +197,71 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           const leftEvent = createEvent<ServerGameLeftEvent>('game:left', { roomId });
           socket.send(JSON.stringify(leftEvent));
 
+          return;
+        }
+
+        // Handle Blackjack Seat Join
+        if (validMessage.type === 'blackjack:join_seat') {
+          const { roomId, seatId, bet } = validMessage.payload;
+          const userId = socket.userId!;
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { firstName: true, username: true, photoUrl: true },
+          });
+          const name = user?.firstName || user?.username || 'Игрок';
+          const avatar = user?.photoUrl || undefined;
+          const engine = blackjackSingleton.getTable(roomId);
+          const success = engine.join(userId, name, avatar, seatId, bet);
+          if (!success) {
+            socket.send(JSON.stringify(createEvent('error', {
+              code: 'JOIN_SEAT_FAILED',
+              message: 'Не удалось занять место (место занято или идет раунд)',
+            })));
+          }
+          return;
+        }
+
+        // Handle Blackjack Seat Leave
+        if (validMessage.type === 'blackjack:leave_seat') {
+          const { roomId } = validMessage.payload;
+          const userId = socket.userId!;
+          const engine = blackjackSingleton.getTable(roomId);
+          engine.leave(userId);
+          return;
+        }
+
+        // Handle Blackjack Bet Update
+        if (validMessage.type === 'blackjack:bet') {
+          const { roomId, bet } = validMessage.payload;
+          const userId = socket.userId!;
+          const engine = blackjackSingleton.getTable(roomId);
+          engine.updateBet(userId, bet);
+          return;
+        }
+
+        // Handle Blackjack Turn Action (Hit / Stand / Double)
+        if (validMessage.type === 'blackjack:action') {
+          const { roomId, action } = validMessage.payload;
+          const userId = socket.userId!;
+          const engine = blackjackSingleton.getTable(roomId);
+          if (action === 'hit') await engine.hit(userId);
+          else if (action === 'stand') await engine.stand(userId);
+          else if (action === 'double') await engine.double(userId);
+          return;
+        }
+
+        // Handle Blackjack Table Chat
+        if (validMessage.type === 'blackjack:chat') {
+          const { roomId, text, emoji } = validMessage.payload;
+          const userId = socket.userId!;
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { firstName: true, username: true, photoUrl: true },
+          });
+          const name = user?.firstName || user?.username || 'Игрок';
+          const avatar = user?.photoUrl || undefined;
+          const engine = blackjackSingleton.getTable(roomId);
+          engine.addChatMessage(userId, name, avatar, text, emoji);
           return;
         }
       } catch (error) {

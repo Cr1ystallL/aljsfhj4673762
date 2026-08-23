@@ -49,12 +49,63 @@ export const ClientGameLeaveEventSchema = z.object({
   timestamp: z.number(),
 });
 
-// Blackjack client seat selection (presence only)
+export const ClientBlackjackJoinSeatEventSchema = z.object({
+  type: z.literal('blackjack:join_seat'),
+  payload: z.object({
+    roomId: z.string(),
+    seatId: z.number().int().min(1).max(5),
+    bet: z.number().positive().default(10),
+  }),
+  timestamp: z.number(),
+});
+
+export const ClientBlackjackLeaveSeatEventSchema = z.object({
+  type: z.literal('blackjack:leave_seat'),
+  payload: z.object({
+    roomId: z.string(),
+  }),
+  timestamp: z.number(),
+});
+
+export const ClientBlackjackBetEventSchema = z.object({
+  type: z.literal('blackjack:bet'),
+  payload: z.object({
+    roomId: z.string(),
+    bet: z.number().positive(),
+  }),
+  timestamp: z.number(),
+});
+
+export const ClientBlackjackActionEventSchema = z.object({
+  type: z.literal('blackjack:action'),
+  payload: z.object({
+    roomId: z.string(),
+    action: z.enum(['hit', 'stand', 'double', 'split']),
+  }),
+  timestamp: z.number(),
+});
+
+export const ClientBlackjackChatEventSchema = z.object({
+  type: z.literal('blackjack:chat'),
+  payload: z.object({
+    roomId: z.string(),
+    text: z.string().max(300),
+    emoji: z.string().optional(),
+  }),
+  timestamp: z.number(),
+});
+
+// Full client events union
 export const ClientEventSchema = z.discriminatedUnion('type', [
   ClientAuthEventSchema,
   ClientPingEventSchema,
   ClientGameJoinEventSchema,
   ClientGameLeaveEventSchema,
+  ClientBlackjackJoinSeatEventSchema,
+  ClientBlackjackLeaveSeatEventSchema,
+  ClientBlackjackBetEventSchema,
+  ClientBlackjackActionEventSchema,
+  ClientBlackjackChatEventSchema,
 ]);
 
 // Server → Client Events
