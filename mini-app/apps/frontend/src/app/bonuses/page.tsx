@@ -760,7 +760,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           }}
           disabled={!canSpin}
           tone={canSpin ? 'solid' : 'muted'}
-          className="h-12"
+          className="h-14 sm:h-16 text-[14px] sm:text-[15px] font-bold tracking-[0.22em] shadow-xl"
         >
           {buttonLabel}
         </GamePrimaryButton>
