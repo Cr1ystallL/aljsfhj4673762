@@ -70,6 +70,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Hi-Lo',
     href: '/game/hilo',
     bg: '/tiles/hilo.webp',
+    wide: true,
     category: 'fast',
   },
   {
@@ -77,7 +78,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Mines',
     href: '/game/mines',
     bg: '/tiles/mines.webp',
-    wide: true,
     isPopular: true,
     category: 'fast',
   },
@@ -93,6 +93,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Blackjack',
     href: '/game/blackjack',
     bg: '/tiles/bj.webp',
+    wide: true,
     category: 'table',
   },
   {
@@ -100,7 +101,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'MacvPot',
     href: '/game/macvpot',
     bg: '/tiles/macvpot.webp',
-    wide: true,
     badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
     isPopular: true,
     category: 'fast',
@@ -119,6 +119,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Case',
     href: '/game/cases',
     bg: '/tiles/case.webp',
+    wide: true,
     category: 'fast',
   },
   {
@@ -126,7 +127,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Keno',
     href: '/game/keno',
     bg: '/tiles/keno.webp',
-    wide: true,
     category: 'table',
   },
 ];
@@ -537,9 +537,9 @@ export function HomeScreen() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 [grid-auto-flow:dense]">
             {filteredGames.map((g, i) => {
-              const isRectangle = i % 3 === 2;
+              const isRectangle = !!g.wide;
               return (
                 <GameTile
                   key={g.id}
