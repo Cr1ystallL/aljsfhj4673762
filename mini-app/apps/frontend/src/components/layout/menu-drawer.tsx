@@ -187,7 +187,7 @@ export function MenuDrawer({
                       <span className="font-roobert font-medium text-[14px] text-frost-white truncate">
                         {user?.firstName || t('profile.player')}
                       </span>
-                      {streak > 0 && <StreakFlameBadge streak={streak} size="sm" />}
+                      {streak >= 2 && <StreakFlameBadge streak={streak} size="sm" />}
                     </div>
                     <div className="font-roobert text-[11px] text-amber-300 font-bold tracking-tight">
                       {(balanceStore?.amount ?? 0).toLocaleString(localeTag)} zł

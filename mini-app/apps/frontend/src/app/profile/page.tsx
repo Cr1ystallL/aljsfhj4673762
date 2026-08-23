@@ -136,7 +136,7 @@ export default function ProfilePage() {
                   {user?.firstName || t('profile.player')}
                   {user?.lastName ? ` ${user.lastName}` : ''}
                 </h2>
-                {streak > 0 && <StreakFlameBadge streak={streak} size="md" />}
+                {streak >= 2 && <StreakFlameBadge streak={streak} size="md" />}
               </div>
 
               {/* Telegram ID Copy Button */}

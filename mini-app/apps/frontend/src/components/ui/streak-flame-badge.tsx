@@ -13,7 +13,7 @@ export function StreakFlameBadge({
   size = 'md',
   className = '',
 }: StreakFlameBadgeProps) {
-  if (!streak || streak <= 0) return null;
+  if (!streak || streak < 2) return null;
 
   return (
     <span
