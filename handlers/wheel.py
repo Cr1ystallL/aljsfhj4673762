@@ -81,8 +81,10 @@ async def cmd_mb_wheel(message: Message):
                 from pathlib import Path
                 root_dir = Path(__file__).resolve().parent.parent
                 photo_candidates = [
+                    root_dir / "images" / "photo_2026-07-28_04-23-37.jpg",
                     root_dir / "images" / "luckywheel.png",
-                    root_dir / "mini-app" / "apps" / "frontend" / "public" / "Wheel.png",
+                    root_dir / "images" / "luckywheel.jpg",
+                    Path("/var/www/MACVBET/images/photo_2026-07-28_04-23-37.jpg"),
                     Path("/var/www/MACVBET/images/luckywheel.png"),
                 ]
                 photo_file = None
