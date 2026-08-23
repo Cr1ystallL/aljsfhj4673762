@@ -107,42 +107,20 @@ export class ProvablyFairSystem {
    *     the high-end; casino tilt spends it on early busts.
    */
   generateCrashMultiplier(hash: string, bias: number = 0): number {
-    /*
-    // Old implementation with instant bust and bias:
     const b = clampBias(bias);
-    const baseHouseEdge = 0.01;
-    const instantBust = Math.min(
-      0.5,
-      Math.max(0, baseHouseEdge + b * TILT.crashInstantBust)
-    );
+    const u = this.hashToFloat(hash); // [0, 1)
 
-    const edgeSlice = hash.substring(13, 21); // 32-bit chunk
-    const edgeInt = parseInt(edgeSlice, 16);
-    const edgeBucket = (edgeInt >>> 0) / 0xffffffff;
-    if (edgeBucket < instantBust) {
-      return 1.0;
+    // Baseline RTP is 95% (5% House Edge)
+    let shiftedU = u;
+    if (b > 0) {
+      // Shift distribution down towards early crash (1.00x - 1.35x)
+      shiftedU = Math.max(0, u - b * 0.35);
+    } else if (b < 0) {
+      shiftedU = Math.min(1 - 1e-6, u - b * 0.15);
     }
 
-    const u = this.hashToFloat(hash); // [0, 1)
-    
-    // Hard Auto RTP mode
-    let shifted = u - b * TILT.crashU;
-    if (b >= 1.0) {
-      shifted = u - 0.5; // Massive shift for 1.0 bias
-    }
-    
-    const safeU = Math.max(0, Math.min(1 - 1e-12, shifted));
-    const raw = 1 / (1 - safeU);
+    const raw = (0.95 * (1 - Math.max(0, b * 0.15))) / (1 - shiftedU);
     const result = Math.floor(raw * 100) / 100;
-    return Math.max(1.01, Math.min(10000, result));
-    */
-
-    // New 95.6% RTP (4.4% House Edge) Implementation
-    const u = this.hashToFloat(hash); // [0, 1)
-    const raw = 0.956 / (1 - u);
-    const result = Math.floor(raw * 100) / 100;
-    
-    // Fallback if raw is somehow less than 1.00 (which it shouldn't be often unless u is very small)
     return Math.max(1.00, Math.min(10000, result));
   }
 
@@ -151,18 +129,6 @@ export class ProvablyFairSystem {
   /** ---------------------------------------------------------------- */
   /**
    * Fisher-Yates shuffle with biased index sampling.
-   *
-   * Players overwhelmingly click middle / centre cells first. We model
-   * this as a soft attractor at the centre of the grid (cells 6..18 on
-   * the 5×5 board). When bias > 0 we push mines TOWARD that cluster so
-   * the average user busts faster. When bias < 0 we push mines TOWARD
-   * the corners and edges so the user sees more safe early reveals.
-   *
-   * Implementation: for each Fisher-Yates step we sample `j` from a
-   * stream and conditionally re-sample if the chosen cell falls outside
-   * the desired region. Re-sample probability is `|bias| * TILT.minesShuffle`.
-   * This is rejection-sampling with a soft target, not an absolute cap,
-   * so even at bias=±1 a single mine can still land anywhere.
    */
   generateMinesPositions(
     hash: string,
@@ -201,9 +167,8 @@ export class ProvablyFairSystem {
 
     const cells: number[] = Array.from({ length: totalCells }, (_, i) => i);
     
-    // Bias for mines is completely disabled as per user request to ensure 
-    // a 100% fair board. The mine positions will be perfectly random.
-    let rejectionProb = 0;
+    // Bias for mines pushes mines to center cells when b > 0
+    let rejectionProb = Math.abs(b) * 0.75;
 
     for (let i = 0; i < safeMineCount; i++) {
       const remaining = totalCells - i;

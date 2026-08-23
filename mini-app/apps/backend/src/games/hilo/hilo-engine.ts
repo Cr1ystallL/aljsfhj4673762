@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { prisma } from '../../lib/prisma.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { gameConfig } from '../../services/game-config.js';
-// import { rtpEngine } from '../../services/rtp-engine.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import type { Bet } from '../../game-engine/types.js';
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
@@ -144,11 +144,10 @@ export const hiloEngine = {
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (!state.currentCard) throw new Error('No current card');
 
-    const bias = 0; // await rtpEngine.getBiasFor(userId);
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
     const cfg = await gameConfig.get('hilo');
     
     // Hilo-specific RTP forced loss mechanic based on house edge setting
-    // If house edge is 100 (which is RTP 0%), localBias is 1.0 (100% loss)
     const localBias = cfg.houseEdge >= 1 ? cfg.houseEdge / 100 : cfg.houseEdge;
     
     // Total bias towards casino winning
@@ -173,11 +172,11 @@ export const hiloEngine = {
       case 'lower': stepMultiplier = mults.lower; break;
     }
 
-    // --- Forced Loss (Hidden Debt) ---
-    // const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
-    // if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier)) {
-    //   shouldWin = false;
-    // }
+    // --- Forced Loss / SmartDrain ---
+    const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
+    if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier)) {
+      shouldWin = false;
+    }
 
     // Regenerate up to 50 times if we need to force an outcome
     for (let loop = 0; loop < 50; loop++) {
@@ -219,6 +218,7 @@ export const hiloEngine = {
         state.bet.metadata = { ...state.bet.metadata, cards: state.history };
         await bettingPipeline.processLoss(state.bet, false);
       }
+      void rtpEngine.recordRoundForDrain(userId, state.betAmount, 0, false);
       this.forget(userId);
     }
 
@@ -236,6 +236,8 @@ export const hiloEngine = {
       state.bet.metadata = { ...state.bet.metadata, cards: state.history };
       await bettingPipeline.processPayout(state.bet, winAmount, false);
     }
+
+    void rtpEngine.recordRoundForDrain(userId, state.betAmount, winAmount, true);
 
     state.status = 'cashed_out';
     state.nextMultipliers = null;

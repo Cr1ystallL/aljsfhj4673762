@@ -57,8 +57,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.01,
+    maxBet: 500,
+    houseEdge: 0.05,
     wagerContribution: 1.0,
     extras: {
       waitingPhaseSeconds: 15,
@@ -69,24 +69,24 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.01,
+    maxBet: 500,
+    houseEdge: 0.05,
     wagerContribution: 0.3, // Mines default to 30% contribution
     extras: {
       minMines: 1,
       maxMines: 24,
-      maxPayout: 1_000_000,
+      maxPayout: 50_000,
     },
   },
   coinflip: {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.03,
+    maxBet: 500,
+    houseEdge: 0.05,
     wagerContribution: 1.0,
     extras: {
-      stepMultiplier: 1.94,
+      stepMultiplier: 1.90,
       maxRounds: 20,
     },
   },
@@ -94,8 +94,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.0, // baked into the slot distribution
+    maxBet: 500,
+    houseEdge: 0.05,
     wagerContribution: 1.0,
     extras: {
       waitingPhaseSeconds: 9,
@@ -105,8 +105,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: true,
     hidden: false,
     minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.01,
+    maxBet: 500,
+    houseEdge: 0.04,
     wagerContribution: 1.0,
     extras: {},
   },
@@ -114,8 +114,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 50000,
-    houseEdge: 0.04,
+    maxBet: 500,
+    houseEdge: 0.05,
     wagerContribution: 1.0,
     extras: {},
   },
@@ -123,8 +123,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 100000,
-    houseEdge: 0.04, // baked into the probabilities (96% RTP)
+    maxBet: 1000,
+    houseEdge: 0.05, // 95% RTP
     wagerContribution: 1.0,
     extras: {
       casesWeights: {}
@@ -134,8 +134,8 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: false,
     minBet: 1,
-    maxBet: 10000,
-    houseEdge: 0.01,
+    maxBet: 500,
+    houseEdge: 0.05,
     wagerContribution: 1.0,
     extras: {},
   },
@@ -143,14 +143,14 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: true, // Visible ONLY to admins by default
     minBet: 10,
-    maxBet: 100000,
-    houseEdge: 0.04, // 96% RTP
+    maxBet: 1000,
+    houseEdge: 0.05, // 95% RTP
     wagerContribution: 1.0,
     extras: {
       bettingDuration: 25,
       rollDelay: 3,
       rollDuration: 12,
-      rtp: 96,
+      rtp: 95,
     },
   },
 };
