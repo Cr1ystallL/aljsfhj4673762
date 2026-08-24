@@ -469,24 +469,19 @@ export function BlackjackMultiplayer() {
       <div className="relative flex-1 flex flex-col items-center justify-center p-2 sm:p-4 w-full max-w-[1360px] mx-auto">
         
         {/* =========================================================================
-            THE GAME TABLE: Dark Velvet Green Felt, Solid Brown Rim, Wide on PC
+            THE GAME TABLE: Responsive Background (TableMobile.png & TablePC.png)
            ========================================================================= */}
-        <section className="relative w-full rounded-[36px] sm:rounded-[54px] border-[5px] sm:border-[7px] border-[#5c3a21] bg-[#032511] p-3 sm:p-5 pb-8 sm:pb-12 shadow-[0_24px_70px_rgba(0,0,0,0.95),inset_0_0_100px_rgba(0,0,0,0.6)] flex flex-col justify-between min-h-[500px] sm:min-h-[580px] flex-1 overflow-hidden">
+        <section className="relative w-full rounded-[24px] sm:rounded-[44px] p-3 sm:p-6 pb-8 sm:pb-12 shadow-[0_24px_70px_rgba(0,0,0,0.95)] flex flex-col justify-between min-h-[580px] sm:min-h-[620px] flex-1 overflow-hidden">
           
-          {/* Subtle Radial Felt Texture */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-40"
-            style={{
-              background: 'radial-gradient(ellipse at center, rgba(5, 59, 27, 0.6) 0%, rgba(3, 37, 17, 0.95) 75%, rgba(2, 26, 12, 1) 100%)',
-            }}
-          />
-
-          {/* Center SVG Crown Logo */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-            <img
-              src="/ButtonLogo.svg"
-              alt="MacvBet"
-              className="w-36 h-36 sm:w-56 sm:h-56 object-contain opacity-20 filter brightness-0 select-none"
+          {/* Responsive Casino Table Background: Mobile / Desktop */}
+          <div className="absolute inset-0 pointer-events-none z-0">
+            <div
+              className="block sm:hidden absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: 'url(/BlackJack/TableMobile.png)' }}
+            />
+            <div
+              className="hidden sm:block absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: 'url(/BlackJack/TablePC.png)' }}
             />
           </div>
 
