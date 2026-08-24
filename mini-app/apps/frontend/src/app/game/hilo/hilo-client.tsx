@@ -14,10 +14,10 @@ import { toast } from '@/store/toast-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { CardData, PlayingCard } from '@/components/game/hilo/playing-card';
+import { CardData, PlayingCard, SuitMark, getRankName } from '@/components/game/hilo/playing-card';
 import { HiloHistory, type HiloHistoryEntry } from '@/components/game/hilo/hilo-history';
-import { getCardColor, getRankName } from '@/components/game/hilo/playing-card';
 import { useT } from '@/i18n/use-t';
+import { cn } from '@/lib/utils';
 import {
   BetPanelCtaRow,
   BetPanelShell,
@@ -376,9 +376,18 @@ export function HiloClient() {
                       exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
                       className="shrink-0"
                     >
-                      <div className={`flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-white shadow-md ring-1 ring-black/10 ${getCardColor(card.suit)}`}>
-                        <span className="text-[13px] font-bold font-roobert leading-none tracking-tighter">{getRankName(card.rank)}</span>
-                        <span className="text-[14px] leading-none mt-0.5">{card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠'}</span>
+                      <div
+                        className={cn(
+                          'flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-white shadow-md border border-slate-200/90 select-none',
+                          card.suit === 'hearts' || card.suit === 'diamonds'
+                            ? 'text-[#e11d48]'
+                            : 'text-[#1e293b]'
+                        )}
+                      >
+                        <span className="text-[13px] font-black font-roobert leading-none tracking-tighter">
+                          {getRankName(card.rank)}
+                        </span>
+                        <SuitMark suit={card.suit} className="w-3.5 h-3.5 mt-0.5" />
                       </div>
                     </motion.div>
                   ))}

@@ -17,6 +17,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { useT } from '@/i18n/use-t';
+import { cn } from '@/lib/utils';
 import {
   KENO_BOARD_SIZE,
   KENO_DRAW_COUNT,
