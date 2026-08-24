@@ -233,21 +233,22 @@ export default function KenoGamePage() {
 
     // Finalize
     await new Promise((resolve) => setTimeout(resolve, 300));
-    setFinalMultiplier(multiplier);
     
-    if (multiplier > 1) {
+    const actualHits = picks.filter((p) => serverDraw.includes(p)).length;
+    const tableMult = KENO_MULTIPLIERS[risk as KenoRisk]?.[picks.length]?.[actualHits];
+    const resolvedMult = tableMult !== undefined ? tableMult : Number(multiplier || 0);
+
+    setFinalMultiplier(resolvedMult);
+    
+    if (resolvedMult > 0) {
       soundManager.play('win');
+      soundManager.play('game.win');
     } else {
       soundManager.play('lose');
+      soundManager.play('game.lose');
     }
     
     fetchBalance();
-    void refreshHistory(); // Refresh history immediately after round
-
-    if (multiplier > 0) soundManager.play('game.win');
-    else soundManager.play('game.lose');
-
-    void fetchBalance();
     void refreshHistory();
 
     setPhase('idle');
@@ -256,6 +257,7 @@ export default function KenoGamePage() {
 
   const hitsCount = picks.filter((p) => drawnNumbers.includes(p)).length;
   const payoutTable = KENO_MULTIPLIERS[risk as KenoRisk]?.[picks.length] ?? [];
+  const liveMultiplier = payoutTable[hitsCount] ?? 0;
   const drawComplete = drawnNumbers.length >= KENO_DRAW_COUNT;
 
   return (
@@ -292,10 +294,10 @@ export default function KenoGamePage() {
 
         {/* Multiplier Big Display */}
         <AnimatePresence>
-          {finalMultiplier !== null && (
+          {(phase === 'revealing' || finalMultiplier !== null) && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               className="relative z-30 flex items-center justify-center"
             >
@@ -304,13 +306,13 @@ export default function KenoGamePage() {
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.8, y: -10 }}
                 className={cn(
-                  "px-8 py-3 rounded-2xl font-black text-3xl shadow-2xl border-2",
-                  finalMultiplier > 1 
+                  "px-8 py-2.5 rounded-2xl font-black text-3xl shadow-2xl border-2 transition-all duration-300",
+                  (finalMultiplier !== null ? finalMultiplier : liveMultiplier) > 0 
                     ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]" 
                     : "bg-black/60 text-white/40 border-white/10"
                 )}
               >
-                x{finalMultiplier.toFixed(2)}
+                x{(finalMultiplier !== null ? finalMultiplier : liveMultiplier).toFixed(2)}
               </motion.div>
             </motion.div>
           )}

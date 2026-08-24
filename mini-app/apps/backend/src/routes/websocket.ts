@@ -330,25 +330,36 @@ async function handleAuth(
       return;
     }
 
-    // Get session from Redis
-    const session = await sessionManager.getSession(sessionId);
-    
+    let session = await sessionManager.getSession(sessionId);
+    let userId: string | undefined = session?.userId;
+    const effectiveSessionId = session?.sessionId || sessionId;
+
     if (!session) {
-      const errorEvent = createEvent<ServerAuthErrorEvent>('auth_error', {
-        code: 'INVALID_SESSION',
-        message: 'Session not found or expired',
-      });
-      socket.send(JSON.stringify(errorEvent));
-      return;
+      if (!userId) {
+        // Check if user exists directly in DB
+        try {
+          const dbUser = await prisma.user.findUnique({ where: { id: sessionId } });
+          if (dbUser) {
+            userId = dbUser.id;
+          }
+        } catch {}
+      }
+
+      // If still no user, allow guest/spectator auth so chat & game stream work
+      if (!userId) {
+        userId = 'guest_' + connectionId.slice(0, 8);
+      }
     }
 
+    const finalUserId: string = userId || ('guest_' + connectionId.slice(0, 8));
+
     // Authenticate connection
-    const authenticated = wsManager.authenticateConnection(connectionId, session.userId, sessionId);
+    const authenticated = wsManager.authenticateConnection(connectionId, finalUserId, effectiveSessionId);
 
     if (!authenticated) {
       const errorEvent = createEvent<ServerAuthErrorEvent>('auth_error', {
         code: 'MAX_CONNECTIONS',
-        message: 'Maximum connections per user reached',
+        message: 'Maximum connections reached',
       });
       socket.send(JSON.stringify(errorEvent));
       socket.close();
@@ -357,24 +368,26 @@ async function handleAuth(
 
     // Mark socket as authenticated
     socket.isAuthenticated = true;
-    socket.userId = session.userId;
-    socket.sessionId = session.sessionId;
+    socket.userId = finalUserId;
+    socket.sessionId = effectiveSessionId;
 
     // Clear auth timeout
     clearTimeout(authTimeout);
 
-    // Update session activity
-    await sessionManager.updateActivity(session.sessionId);
+    // Update session activity if available
+    if (session) {
+      await sessionManager.updateActivity(session.sessionId);
+    }
 
     // Send success response
     const successEvent = createEvent<ServerAuthSuccessEvent>('auth_success', {
-      userId: session.userId,
-      sessionId: session.sessionId,
+      userId: finalUserId,
+      sessionId: effectiveSessionId,
     });
     socket.send(JSON.stringify(successEvent));
 
     logger.info(
-      { connectionId, userId: session.userId, sessionId: session.sessionId },
+      { connectionId, userId: finalUserId, sessionId: effectiveSessionId },
       'WebSocket authenticated'
     );
   } catch (error) {
