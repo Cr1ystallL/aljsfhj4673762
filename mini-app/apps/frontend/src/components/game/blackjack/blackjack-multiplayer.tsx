@@ -188,14 +188,6 @@ export function BlackjackMultiplayer() {
     soundManager.play('game.click');
   }, [roomId, sendWs]);
 
-  // Auto-kick from seat if balance is 0 or less than minimum bet (10 zł)
-  useEffect(() => {
-    if (isBalanceReady && activeBalance < 10 && myPlayer) {
-      handleLeaveSeat();
-      toast.error('Недостаточно средств для игры (баланс < 10 zł). Место освобождено.');
-    }
-  }, [isBalanceReady, activeBalance, myPlayer, handleLeaveSeat]);
-
   // REST state fallback loader
   const loadStateSnapshot = useCallback(async () => {
     try {
@@ -288,8 +280,10 @@ export function BlackjackMultiplayer() {
             if (data.type === 'bj:state' && data.payload) {
               setState(data.payload);
               setIsActionPending(false);
-              if (data.payload.phase === 'settling') {
+              if (data.payload.phase === 'settling' || data.payload.phase === 'finished') {
                 void fetchBalance();
+                setTimeout(() => void fetchBalance(), 1000);
+                setTimeout(() => void fetchBalance(), 2500);
               }
             }
 

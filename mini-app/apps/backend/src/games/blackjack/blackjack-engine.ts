@@ -212,34 +212,33 @@ export class BlackjackEngine extends EventEmitter {
 
     // Process bets first
     for (const player of [...this.state.players]) {
-      let balance = 0;
+      let currentBalance = 0;
       try {
-        const user = await prisma.user.findUnique({
-          where: { id: player.userId },
-          select: { balance: true },
-        });
-        balance = Number(user?.balance || 0);
+        const { balanceService } = await import('../../services/balance-service.js');
+        const balData = await balanceService.getBalance(player.userId);
+        currentBalance = Number(balData.amount || 0);
       } catch (err) {
         logger.warn({ err, userId: player.userId }, 'Failed to check balance before round');
       }
 
-      // If user balance is 0 or less than minimum bet (10), kick from seat to free up space
-      if (balance < 10) {
-        logger.info({ userId: player.userId, balance }, 'Player balance is 0 or < 10, removing from seat');
-        this.leave(player.userId);
+      // If user balance is 0 or less than minimum bet (10), player sits out without placing a bet
+      if (currentBalance < 10) {
+        logger.info({ userId: player.userId, currentBalance }, 'Player balance is < 10, sitting out as waiting');
+        player.status = 'waiting';
+        player.hand = [];
         continue;
       }
 
       // If player bet is greater than their available balance, they sit AFK without participating
-      if (player.bet > balance) {
-        logger.info({ userId: player.userId, bet: player.bet, balance }, 'Player bet exceeds balance, sitting out round');
+      if (player.bet > currentBalance) {
+        logger.info({ userId: player.userId, bet: player.bet, currentBalance }, 'Player bet exceeds balance, sitting out round');
         player.status = 'waiting';
         player.hand = [];
         continue;
       }
 
       const bet: Bet = {
-        id: `bj_bet_${player.userId}_${Date.now()}`,
+        id: `bj_bet_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
         gameId: this.state.roundId,
         roundId: this.state.roundId,
@@ -562,21 +561,6 @@ export class BlackjackEngine extends EventEmitter {
 
     // Reset for next round
     await this.delay(3500);
-
-    // Auto-kick any players who now have 0 balance or < 10 zł
-    for (const player of [...this.state.players]) {
-      try {
-        const user = await prisma.user.findUnique({
-          where: { id: player.userId },
-          select: { balance: true },
-        });
-        if (!user || Number(user.balance || 0) < 10) {
-          logger.info({ userId: player.userId }, 'Post-round auto-kick: player balance is 0 or < 10');
-          this.leave(player.userId);
-        }
-      } catch {}
-    }
-
     this.resetForNextRound();
   }
 
