@@ -211,7 +211,33 @@ export class BlackjackEngine extends EventEmitter {
     this.deck = this.createDeck();
 
     // Process bets first
-    for (const player of this.state.players) {
+    for (const player of [...this.state.players]) {
+      let balance = 0;
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: player.userId },
+          select: { balance: true },
+        });
+        balance = Number(user?.balance || 0);
+      } catch (err) {
+        logger.warn({ err, userId: player.userId }, 'Failed to check balance before round');
+      }
+
+      // If user balance is 0 or less than minimum bet (10), kick from seat to free up space
+      if (balance < 10) {
+        logger.info({ userId: player.userId, balance }, 'Player balance is 0 or < 10, removing from seat');
+        this.leave(player.userId);
+        continue;
+      }
+
+      // If player bet is greater than their available balance, they sit AFK without participating
+      if (player.bet > balance) {
+        logger.info({ userId: player.userId, bet: player.bet, balance }, 'Player bet exceeds balance, sitting out round');
+        player.status = 'waiting';
+        player.hand = [];
+        continue;
+      }
+
       const bet: Bet = {
         id: `bj_bet_${player.userId}_${Date.now()}`,
         userId: player.userId,
@@ -229,6 +255,7 @@ export class BlackjackEngine extends EventEmitter {
       } catch (err) {
         logger.warn({ err, userId: player.userId }, 'Failed to process blackjack bet');
         player.status = 'waiting';
+        player.hand = [];
       }
     }
 
@@ -451,6 +478,11 @@ export class BlackjackEngine extends EventEmitter {
     const dealerBlackjack = this.isBlackjack(this.state.dealerHand);
 
     for (const player of this.state.players) {
+      // If player did not participate in this round (AFK or bet exceeded balance), skip
+      if (player.status === 'waiting' || player.hand.length === 0) {
+        continue;
+      }
+
       const playerValue = this.calculateHandValue(player.hand).total;
       const playerBust = player.status === 'bust';
       const playerBlackjack = player.status === 'blackjack';
@@ -523,16 +555,28 @@ export class BlackjackEngine extends EventEmitter {
           },
         }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
 
-        // Record outcome for RTP
-        // await rtpEngine.recordOutcome(player.userId, player.bet, payout);
-
       } catch (err) {
         logger.error({ err, userId: player.userId }, 'Failed to settle blackjack bet');
       }
     }
 
     // Reset for next round
-    await this.delay(3000);
+    await this.delay(3500);
+
+    // Auto-kick any players who now have 0 balance or < 10 zł
+    for (const player of [...this.state.players]) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: player.userId },
+          select: { balance: true },
+        });
+        if (!user || Number(user.balance || 0) < 10) {
+          logger.info({ userId: player.userId }, 'Post-round auto-kick: player balance is 0 or < 10');
+          this.leave(player.userId);
+        }
+      } catch {}
+    }
+
     this.resetForNextRound();
   }
 
