@@ -535,7 +535,7 @@ export function HomeScreen() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
             {filteredGames.map((g, i) => {
               const isRectangle = !!g.wide;
               return (
@@ -635,7 +635,7 @@ function GameTile({
   isRectangle,
   router,
 }: {
-  game: InAppGame;
+  game: GameItem;
   index: number;
   isRectangle: boolean;
   router: ReturnType<typeof useRouter>;
@@ -670,8 +670,8 @@ function GameTile({
         className="absolute inset-0 pointer-events-none"
         style={{
           background: isRectangle
-            ? 'linear-gradient(90deg, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0.30) 100%)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0.90) 100%)',
+            ? 'linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.20) 50%, rgba(0,0,0,0.35) 100%)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.92) 100%)',
         }}
       />
 
@@ -685,17 +685,17 @@ function GameTile({
         }}
       />
 
-      <div className={`relative h-full w-full ${isRectangle ? 'p-3 sm:p-4 flex items-center justify-between' : 'p-2 sm:p-3 flex flex-col justify-between'} z-10`}>
-        <div className={`flex ${isRectangle ? 'flex-col justify-center' : 'items-start justify-between w-full'} gap-1`}>
+      <div className={`relative h-full w-full ${isRectangle ? 'p-3.5 sm:p-5 flex items-center justify-between' : 'p-3 sm:p-3.5 flex flex-col justify-between'} z-10`}>
+        <div className={`flex ${isRectangle ? 'flex-col justify-center' : 'items-start justify-between w-full'} gap-1.5`}>
           {!isRectangle && (
-            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
-              <GameIcon game={game.id} size={15} strokeWidth={1.5} />
+            <span className="w-8 h-8 sm:w-8 sm:h-8 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
+              <GameIcon game={game.id} size={17} strokeWidth={1.5} />
             </span>
           )}
 
           {game.badge && (
             <span
-              className={`px-1.5 py-0.5 rounded-full text-[8px] sm:text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-0.5 self-start ${
+              className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 self-start ${
                 game.badge.color === 'red'
                   ? 'border-red-500/30 bg-red-500/20 text-red-300'
                   : game.badge.color === 'gold'
@@ -707,17 +707,17 @@ function GameTile({
                   : 'border-emerald-500/30 bg-emerald-500/20 text-emerald-300'
               }`}
             >
-              {BadgeIcon && <BadgeIcon size={9} className="shrink-0 stroke-[2]" />}
+              {BadgeIcon && <BadgeIcon size={10} className="shrink-0 stroke-[2]" />}
               <span>{game.badge.label}</span>
             </span>
           )}
 
           {isRectangle && (
             <div className="mt-0.5">
-              <div className="font-roobert text-[17px] sm:text-[22px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
+              <div className="font-roobert text-[19px] sm:text-[23px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
                 {game.name}
               </div>
-              <div className="mt-0.5 font-roobert text-[9px] sm:text-[10px] text-whisper-gray/90 tracking-wider uppercase">
+              <div className="mt-1 font-roobert text-[10px] sm:text-[11px] text-whisper-gray/90 tracking-wider uppercase">
                 Фирменная игра · Играть
               </div>
             </div>
@@ -726,16 +726,16 @@ function GameTile({
 
         {!isRectangle ? (
           <div>
-            <div className="font-roobert text-[12px] sm:text-[14px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors truncate">
+            <div className="font-roobert text-[14px] sm:text-[14px] font-semibold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors truncate">
               {game.name}
             </div>
-            <div className="mt-0.5 font-roobert text-[8px] sm:text-[9px] text-whisper-gray/90 tracking-wide uppercase">
+            <div className="mt-0.5 font-roobert text-[9px] sm:text-[9px] text-whisper-gray/90 tracking-wide uppercase">
               Mini App
             </div>
           </div>
         ) : (
-          <span className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white group-hover:border-amber-400/40 group-hover:text-amber-300 transition-colors shadow-lg">
-            <ArrowRight size={15} strokeWidth={2} />
+          <span className="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white group-hover:border-amber-400/40 group-hover:text-amber-300 transition-colors shadow-lg">
+            <ArrowRight size={17} strokeWidth={2} />
           </span>
         )}
       </div>

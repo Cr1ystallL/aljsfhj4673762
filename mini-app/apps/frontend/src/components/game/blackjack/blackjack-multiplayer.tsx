@@ -86,11 +86,11 @@ function getChipImage(amount: number): string {
 }
 
 const SEATS_CONFIG = [
-  { id: 1, label: 'Игрок 1', arcOffset: 'translate-y-0' },
-  { id: 2, label: 'Игрок 2', arcOffset: 'translate-y-1 sm:translate-y-2' },
+  { id: 1, label: 'Игрок 1', arcOffset: 'translate-y-0 sm:-translate-y-3' },
+  { id: 2, label: 'Игрок 2', arcOffset: 'translate-y-1 sm:translate-y-0' },
   { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-3' },
-  { id: 4, label: 'Игрок 4', arcOffset: 'translate-y-1 sm:translate-y-2' },
-  { id: 5, label: 'Игрок 5', arcOffset: 'translate-y-0' },
+  { id: 4, label: 'Игрок 4', arcOffset: 'translate-y-1 sm:translate-y-0' },
+  { id: 5, label: 'Игрок 5', arcOffset: 'translate-y-0 sm:-translate-y-3' },
 ];
 
 function convertCard(c: BJCard): CardData {
@@ -471,16 +471,16 @@ export function BlackjackMultiplayer() {
         {/* =========================================================================
             THE GAME TABLE: Responsive Background (TableMobile.png & TablePC.png)
            ========================================================================= */}
-        <section className="relative w-full rounded-[24px] sm:rounded-[44px] p-3 sm:p-6 pb-8 sm:pb-12 shadow-[0_24px_70px_rgba(0,0,0,0.95)] flex flex-col justify-between min-h-[580px] sm:min-h-[620px] flex-1 overflow-hidden">
+        <section className="relative w-full rounded-[20px] sm:rounded-[36px] flex flex-col justify-between overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,0.95)] aspect-[1/1.9] sm:aspect-[2/1] min-h-[580px] sm:min-h-[500px] max-h-[85vh] sm:max-h-[720px] p-3 sm:p-5">
           
           {/* Responsive Casino Table Background: Mobile / Desktop */}
           <div className="absolute inset-0 pointer-events-none z-0">
             <div
-              className="block sm:hidden absolute inset-0 bg-cover bg-center bg-no-repeat"
+              className="block sm:hidden absolute inset-0 bg-contain bg-center bg-no-repeat"
               style={{ backgroundImage: 'url(/BlackJack/TableMobile.png)' }}
             />
             <div
-              className="hidden sm:block absolute inset-0 bg-cover bg-center bg-no-repeat"
+              className="hidden sm:block absolute inset-0 bg-contain bg-center bg-no-repeat"
               style={{ backgroundImage: 'url(/BlackJack/TablePC.png)' }}
             />
           </div>
@@ -488,7 +488,7 @@ export function BlackjackMultiplayer() {
           {/* =========================================================================
               TOP RIGHT: Deck Spread Out Horizontally Without Border
              ========================================================================= */}
-          <div className="absolute top-4 sm:top-6 right-4 sm:right-8 z-20 flex flex-col items-center">
+          <div className="absolute top-4 sm:top-6 right-4 sm:right-10 z-20 flex flex-col items-center">
             <div className="flex items-center -space-x-8 sm:-space-x-12">
               {[0, 1, 2, 3, 4, 5].map((idx) => (
                 <div
@@ -508,7 +508,7 @@ export function BlackjackMultiplayer() {
           {/* =========================================================================
               1. TOP CENTER: Large Black Dealer Circle, Text "Диллер", Animated Dealt Cards
              ========================================================================= */}
-          <div className="relative z-10 flex flex-col items-center pt-1 sm:pt-2">
+          <div className="relative z-10 flex flex-col items-center pt-3 sm:pt-6">
             {/* Dealer Avatar */}
             <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center">
               <div className="h-full w-full rounded-full bg-black border-[3px] border-black text-white shadow-2xl overflow-hidden flex items-center justify-center">
@@ -778,7 +778,7 @@ export function BlackjackMultiplayer() {
           {/* =========================================================================
               3. 5 PLAYER SPOTS (LIFTED SAFELY, LARGER AVATARS, DYNAMIC WIN/LOSE BORDERS):
              ========================================================================= */}
-          <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-3 w-full items-end pb-1 sm:pb-3">
+          <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-3 w-full items-end pb-5 sm:pb-8 px-1 sm:px-6">
             {SEATS_CONFIG.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
