@@ -657,10 +657,10 @@ function GameTile({
           className="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
           style={{
             backgroundImage: `url(${game.bg})`,
-            backgroundSize: isRectangle ? 'contain' : 'cover',
-            backgroundPosition: isRectangle ? 'right center' : 'center',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
-            opacity: 0.95,
+            opacity: 1,
           }}
         />
       )}
@@ -670,14 +670,14 @@ function GameTile({
         className="absolute inset-0 pointer-events-none"
         style={{
           background: isRectangle
-            ? 'linear-gradient(90deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.15) 100%)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.92) 100%)',
+            ? 'linear-gradient(90deg, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0.30) 100%)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0.90) 100%)',
         }}
       />
 
       <div
         aria-hidden
-        className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity mix-blend-screen"
+        className="absolute inset-0 opacity-35 group-hover:opacity-55 transition-opacity mix-blend-screen"
         style={{
           background:
             GAME_GLOW[game.id] ??
@@ -734,7 +734,7 @@ function GameTile({
             </div>
           </div>
         ) : (
-          <span className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl border border-white/20 bg-white/10 flex items-center justify-center text-frost-white group-hover:border-amber-400/40 group-hover:text-amber-300 transition-colors">
+          <span className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white group-hover:border-amber-400/40 group-hover:text-amber-300 transition-colors shadow-lg">
             <ArrowRight size={15} strokeWidth={2} />
           </span>
         )}

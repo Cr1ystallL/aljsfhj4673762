@@ -204,7 +204,7 @@ export class BlackjackEngine extends EventEmitter {
     }
 
     this.state.phase = 'dealing';
-    this.state.roundId = `bj_${Date.now()}_${randomUUID()}`;
+    this.state.roundId = `blackjack_${Date.now()}_${randomUUID()}`;
     this.state.dealerHand = [];
     
     // Create and shuffle deck
@@ -391,6 +391,25 @@ export class BlackjackEngine extends EventEmitter {
       return false;
     }
 
+    // Debit additional bet for the double
+    const extraBet: Bet = {
+      id: `bj_double_${player.userId}_${this.state.roundId}`,
+      userId: player.userId,
+      gameId: this.state.roundId,
+      roundId: this.state.roundId,
+      amount: player.bet,
+      state: 'pending',
+      placedAt: Date.now(),
+      metadata: { gameType: 'blackjack', mode: 'multi', roomId: this.roomId, action: 'double' },
+    };
+
+    try {
+      await bettingPipeline.processBet(extraBet, false);
+    } catch (err) {
+      logger.warn({ err, userId: player.userId }, 'Failed to process double bet');
+      return false;
+    }
+
     this.clearTurnTimer();
 
     // Double the bet
@@ -519,6 +538,7 @@ export class BlackjackEngine extends EventEmitter {
         gameId: this.state.roundId,
         roundId: this.state.roundId,
         amount: player.bet,
+        multiplier: player.bet > 0 ? payout / player.bet : 0,
         state: 'active',
         placedAt: Date.now(),
         metadata: { gameType: 'blackjack', mode: 'multi', result },
@@ -532,6 +552,12 @@ export class BlackjackEngine extends EventEmitter {
         } else {
           await bettingPipeline.processLoss(bet);
         }
+
+        // Force balance broadcast to all user clients
+        try {
+          const { balanceService } = await import('../../services/balance-service.js');
+          await balanceService.syncBalance(player.userId);
+        } catch {}
 
         // Save game round
         await prisma.gameRound.create({

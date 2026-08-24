@@ -102,7 +102,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     },
   },
   blackjack: {
-    paused: true,
+    paused: false,
     hidden: false,
     minBet: 1,
     maxBet: 500,
