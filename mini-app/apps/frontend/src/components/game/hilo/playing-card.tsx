@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { motion } from 'framer-motion';
 import { useT } from '@/i18n/use-t';
 
@@ -11,7 +12,7 @@ export interface CardData {
   rank: Rank;
 }
 
-export function getRankName(rank: number) {
+export function getRankName(rank: number): string {
   if (rank === 1) return 'A';
   if (rank === 11) return 'J';
   if (rank === 12) return 'Q';
@@ -19,51 +20,48 @@ export function getRankName(rank: number) {
   return rank.toString();
 }
 
-export function getCardColor(suit: Suit) {
-  return suit === 'hearts' || suit === 'diamonds' ? '#c23b3b' : '#1a1c22';
+export function isRedSuit(suit: Suit): boolean {
+  return suit === 'hearts' || suit === 'diamonds';
 }
 
-function SuitMark({
+export function getCardColor(suit: Suit): string {
+  return isRedSuit(suit) ? '#dc2626' : '#0f172a';
+}
+
+export function SuitMark({
   suit,
   className,
 }: {
   suit: Suit;
   className?: string;
 }) {
-  const color = getCardColor(suit);
+  const isRed = isRedSuit(suit);
+  const color = isRed ? '#dc2626' : '#0f172a';
+
   if (suit === 'hearts') {
     return (
-      <svg viewBox="0 0 24 24" className={className} aria-hidden>
-        <path
-          fill={color}
-          d="M12 20.4 3.8 12.6C1.6 10.4 1.8 6.8 4.4 4.9c2.1-1.5 5-.9 6.4 1.2L12 7.6l1.2-1.5c1.4-2.1 4.3-2.7 6.4-1.2 2.6 1.9 2.8 5.5.6 7.7Z"
-        />
+      <svg viewBox="0 0 24 24" className={className} fill={color} aria-hidden>
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
       </svg>
     );
   }
   if (suit === 'diamonds') {
     return (
-      <svg viewBox="0 0 24 24" className={className} aria-hidden>
-        <path fill={color} d="M12 2.6 20.2 12 12 21.4 3.8 12Z" />
+      <svg viewBox="0 0 24 24" className={className} fill={color} aria-hidden>
+        <path d="M12 2L2 12l10 10 10-10L12 2z" />
       </svg>
     );
   }
   if (suit === 'clubs') {
     return (
-      <svg viewBox="0 0 24 24" className={className} aria-hidden>
-        <path
-          fill={color}
-          d="M12 3.2a4.1 4.1 0 0 1 1.6 7.9 4.2 4.2 0 1 1-3.2 0A4.1 4.1 0 0 1 12 3.2Zm-.8 10.6h1.6l.6 6.6h-2.8Z"
-        />
+      <svg viewBox="0 0 24 24" className={className} fill={color} aria-hidden>
+        <path d="M19.5 9.5c0-1.93-1.57-3.5-3.5-3.5-.34 0-.66.05-.97.14C14.53 4.88 13.36 4 12 4s-2.53.88-3.03 2.14c-.31-.09-.63-.14-.97-.14-1.93 0-3.5 1.57-3.5 3.5 0 1.55 1.01 2.86 2.42 3.32-.08.38-.17.81-.22 1.18h10.6c-.05-.37-.14-.8-.22-1.18 1.41-.46 2.42-1.77 2.42-3.32zM13 15v5h-2v-5h2z" />
       </svg>
     );
   }
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path
-        fill={color}
-        d="M12 2.8c3.8 4.4 7.6 7.4 7.6 11.1 0 2.6-1.8 4.3-4.2 4.3-1.3 0-2.4-.5-3.4-1.6v4.6H11V16.6c-1 1.1-2.1 1.6-3.4 1.6-2.4 0-4.2-1.7-4.2-4.3 0-3.7 3.8-6.7 7.6-11.1Z"
-      />
+    <svg viewBox="0 0 24 24" className={className} fill={color} aria-hidden>
+      <path d="M12 2C9.5 6 4 10 4 14c0 3.31 2.69 6 6 6 .74 0 1.44-.13 2-.39.56.26 1.26.39 2 .39 3.31 0 6-2.69 6-6 0-4-5.5-8-8-12zM13 18v2h-2v-2h2z" />
     </svg>
   );
 }
@@ -73,9 +71,14 @@ interface PlayingCardProps {
   faded?: boolean;
   className?: string;
   animateKey?: string | number;
-  initialOffset?: number;
   direction?: 'right-to-left' | 'none';
 }
+
+const cardSlideVariants = {
+  initial: { opacity: 0, x: 40, scale: 0.9 },
+  animate: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.25, ease: 'easeOut' } },
+  exit: { opacity: 0, x: -40, scale: 0.9, transition: { duration: 0.2 } },
+};
 
 export function PlayingCard({
   card,
@@ -89,49 +92,47 @@ export function PlayingCard({
   if (!card) {
     return (
       <div
-        className={`flex items-center justify-center rounded-[16px] border border-dashed border-white/12 bg-[#0c0d11] ${className}`}
+        className={`flex items-center justify-center rounded-2xl border-2 border-dashed border-white/20 bg-[#0c0e14] shadow-xl aspect-[5/7] ${className}`}
       >
-        <span className="font-roobert text-[10px] uppercase tracking-[0.2em] text-white/30">
+        <span className="font-roobert text-[11px] uppercase tracking-[0.2em] text-white/30 font-bold">
           {t('hilo.deck')}
         </span>
       </div>
     );
   }
 
-  const color = getCardColor(card.suit);
+  const isRed = isRedSuit(card.suit);
   const rankName = getRankName(card.rank);
+  const textColor = isRed ? 'text-[#dc2626]' : 'text-[#0f172a]';
 
   const CardBody = (
     <div
-      className={`relative w-full h-full flex flex-col justify-between rounded-2xl bg-white p-3 sm:p-3.5 shadow-2xl ring-1 ring-black/10 overflow-hidden ${
-        faded ? 'opacity-50 blur-[0.5px] scale-90 grayscale-[0.2]' : 'scale-100'
-      } ${colorClass} transition-all duration-300`}
+      className={`relative w-full h-full flex flex-col justify-between rounded-xl sm:rounded-2xl bg-gradient-to-b from-white via-[#fafafa] to-[#f0f0f0] p-2 sm:p-3 shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,1)] border border-black/10 select-none overflow-hidden ${
+        faded ? 'opacity-40 blur-[0.5px] scale-90 grayscale-[0.2]' : 'scale-100'
+      } ${textColor} transition-all duration-300`}
     >
+      {/* Top Left Corner */}
       <div className="flex flex-col items-center self-start leading-none">
-        <span className="text-2xl sm:text-3xl font-bold font-roobert tracking-tighter">
+        <span className="text-xl sm:text-2xl font-black font-roobert tracking-tighter">
           {rankName}
         </span>
-        <SuitIcon suit={card.suit} className="w-5 h-5 sm:w-6 sm:h-6 mt-1" />
+        <SuitMark suit={card.suit} className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5" />
       </div>
 
-      <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 1024 1024"
-          className="w-24 h-24"
-          fill="currentColor"
-        >
-          <g transform="translate(0,1024) scale(0.1,-0.1)">
-            <path d="M5050 8891 c-186 -60 -321 -200 -450 -465 -181 -372 -333 -968 -486 -1906 -20 -124 -38 -232 -41 -240 -3 -8 -22 35 -43 95 -129 377 -321 783 -495 1045 -195 294 -367 434 -585 477 -218 43 -440 -63 -585 -281 -268 -403 -405 -1125 -405 -2136 0 -955 176 -2298 335 -2549 93 -148 230 -221 389 -208 138 12 263 105 329 244 30 65 32 74 31 183 0 102 -7 144 -57 365 -125 557 -201 1068 -239 1615 -19 283 -16 1071 5 1340 39 478 93 772 144 788 31 9 115 -120 197 -305 236 -528 498 -1528 636 -2427 86 -566 99 -960 50 -1546 -26 -312 -20 -400 38 -515 35 -70 68 -110 136 -161 121 -92 292 -111 427 -46 122 58 216 182 245 324 13 62 13 102 -3 362 -24 399 -24 1277 0 1616 33 459 68 801 142 1392 112 891 214 1493 334 1971 60 234 86 309 109 305 42 -8 159 -453 256 -968 93 -495 211 -1393 271 -2055 94 -1040 92 -1452 -12 -2659 -14 -163 -15 -213 -5 -280 36 -247 222 -398 474 -384 69 4 100 12 153 36 85 41 175 129 214 212 50 106 56 167 41 449 -19 367 -6 665 51 1121 104 839 333 1741 594 2346 109 250 248 496 302 531 25 16 26 16 49 -10 72 -84 156 -523 196 -1017 17 -219 17 -987 0 -1220 -35 -467 -75 -835 -148 -1355 -43 -304 -46 -335 -35 -398 24 -142 112 -260 238 -320 62 -29 77 -32 163 -32 131 1 190 25 279 114 99 99 135 181 175 412 88 495 122 972 113 1569 -19 1153 -141 1925 -384 2416 -105 213 -230 350 -388 426 -224 107 -451 83 -681 -73 -221 -149 -470 -481 -674 -902 l-68 -139 -22 124 c-134 741 -300 1479 -410 1823 -172 536 -366 817 -618 895 -82 25 -205 26 -282 1z" />
-          </g>
-        </svg>
+      {/* Large Center Suit Watermark & Symbol */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <SuitMark
+          suit={card.suit}
+          className="w-12 h-12 sm:w-16 sm:h-16 opacity-90 drop-shadow-sm"
+        />
       </div>
 
+      {/* Bottom Right Corner (Inverted) */}
       <div className="flex flex-col items-center self-end leading-none rotate-180">
-        <span className="text-2xl sm:text-3xl font-bold font-roobert tracking-tighter">
+        <span className="text-xl sm:text-2xl font-black font-roobert tracking-tighter">
           {rankName}
         </span>
-        <SuitIcon suit={card.suit} className="w-5 h-5 sm:w-6 sm:h-6 mt-1" />
+        <SuitMark suit={card.suit} className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5" />
       </div>
     </div>
   );
@@ -140,7 +141,7 @@ export function PlayingCard({
     return (
       <motion.div
         key={animateKey}
-        variants={variants}
+        variants={cardSlideVariants}
         initial="initial"
         animate="animate"
         exit="exit"
@@ -152,23 +153,4 @@ export function PlayingCard({
   }
 
   return <div className={className}>{CardBody}</div>;
-}
-
-function Corner({
-  rank,
-  suit,
-  color,
-}: {
-  rank: string;
-  suit: Suit;
-  color: string;
-}) {
-  return (
-    <div className="flex flex-col items-center leading-none" style={{ color }}>
-      <span className="font-roobert text-[18px] font-semibold tracking-[-0.04em]">
-        {rank}
-      </span>
-      <SuitMark suit={suit} className="mt-0.5 h-3.5 w-3.5" />
-    </div>
-  );
 }

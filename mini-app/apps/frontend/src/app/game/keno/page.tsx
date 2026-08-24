@@ -101,7 +101,7 @@ export default function KenoGamePage() {
 
   const clearDraw = () => {
     setDrawnNumbers([]);
-    setLastDrawn(null);
+    setLastDrawnNumber(null);
     setFinalMultiplier(null);
   };
 

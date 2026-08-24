@@ -1,9 +1,10 @@
 'use client';
 
 import { memo } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Pressable } from '@/components/ui/pressable';
+import { soundManager } from '@/lib/sound/sound-manager';
 import type { KenoPhase } from './keno-bet-panel';
 import { KENO_BOARD_SIZE, KENO_DRAW_COUNT } from './keno-multipliers';
 
@@ -63,7 +64,7 @@ export function KenoBoard({
   return (
     <div className="w-full h-full flex flex-col items-center justify-center py-2 px-2 sm:px-4 lg:px-8">
       <div className="grid grid-cols-8 gap-1.5 sm:gap-2.5 w-full max-w-[850px] aspect-[8/5]">
-        {cells.map((num) => {
+        {CELLS.map((num) => {
           const isPicked = picks.includes(num);
           const isDrawn = drawnNumbers.includes(num);
           const isHit = isPicked && isDrawn;
