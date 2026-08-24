@@ -109,7 +109,7 @@ export function PlayingCard({
   const CardBody = (
     <div
       className={cn(
-        'relative w-full h-full flex flex-col justify-between rounded-xl sm:rounded-2xl bg-white p-2 sm:p-3 shadow-[0_10px_25px_rgba(0,0,0,0.45),0_2px_6px_rgba(0,0,0,0.15)] border border-slate-200/90 select-none overflow-hidden',
+        'relative w-full h-full flex flex-col justify-between rounded-xl sm:rounded-2xl bg-white p-2.5 sm:p-3.5 shadow-[0_12px_28px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.2)] border border-slate-200/90 select-none overflow-hidden',
         faded && 'opacity-40 blur-[0.5px] scale-90 grayscale-[0.2]',
         textColor,
         'transition-all duration-300'
@@ -117,26 +117,26 @@ export function PlayingCard({
     >
       {/* Top Left Corner */}
       <div className="flex flex-col items-center self-start leading-none pointer-events-none z-10">
-        <span className="text-sm sm:text-base font-black font-roobert tracking-tighter leading-none">
+        <span className="text-base sm:text-lg font-black font-roobert tracking-tighter leading-none">
           {rankName}
         </span>
-        <SuitMark suit={card.suit} className="w-3 h-3 sm:w-3.5 sm:h-3.5 mt-0.5" />
+        <SuitMark suit={card.suit} className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5" />
       </div>
 
       {/* Center Large Suit Symbol */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
         <SuitMark
           suit={card.suit}
-          className="w-10 h-10 sm:w-14 sm:h-14 opacity-90 drop-shadow-sm"
+          className="w-14 h-14 sm:w-20 sm:h-20 opacity-90 drop-shadow-sm"
         />
       </div>
 
       {/* Bottom Right Corner (Inverted) */}
       <div className="flex flex-col items-center self-end leading-none rotate-180 pointer-events-none z-10">
-        <span className="text-sm sm:text-base font-black font-roobert tracking-tighter leading-none">
+        <span className="text-base sm:text-lg font-black font-roobert tracking-tighter leading-none">
           {rankName}
         </span>
-        <SuitMark suit={card.suit} className="w-3 h-3 sm:w-3.5 sm:h-3.5 mt-0.5" />
+        <SuitMark suit={card.suit} className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5" />
       </div>
     </div>
   );
@@ -149,12 +149,12 @@ export function PlayingCard({
         initial="initial"
         animate="animate"
         exit="exit"
-        className={className}
+        className={cn('inline-block', className)}
       >
         {CardBody}
       </motion.div>
     );
   }
 
-  return <div className={className}>{CardBody}</div>;
+  return <div className={cn('inline-block', className)}>{CardBody}</div>;
 }

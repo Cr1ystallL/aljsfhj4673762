@@ -27,28 +27,29 @@ export function KenoDrawTray({
       <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
         {t('keno.draw')}
       </span>
-      <div className="flex items-center justify-center gap-1.5">
+      <div className="flex items-center justify-center gap-1.5 sm:gap-2">
         {slots.map((n, i) => {
           const hit = n != null && picks.includes(n);
           const fresh = n != null && n === lastDrawn;
           return (
             <motion.div
-              key={i}
+              key={`${i}-${n}`}
+              initial={n != null ? { scale: 0.5, y: -10, opacity: 0 } : false}
               animate={
                 reduceMotion || !fresh
-                  ? { scale: 1 }
-                  : { scale: [1.12, 1] }
+                  ? { scale: 1, y: 0, opacity: 1 }
+                  : { scale: [1.25, 1], y: 0, opacity: 1 }
               }
-              transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
-                'w-9 h-9 rounded-full border flex items-center justify-center font-roobert tabular-nums text-[13px]',
+                'w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center font-roobert tabular-nums text-xs sm:text-[13px] font-bold select-none transition-colors duration-300',
                 n == null
                   ? 'border-white/10 bg-white/[0.03] text-transparent'
                   : hit
-                    ? 'border-[rgba(160,224,171,0.45)] bg-[rgba(160,224,171,0.12)] text-[#E8F8EC]'
-                    : 'border-white/16 bg-white/[0.06] text-frost-white'
+                    ? 'border-emerald-400/80 bg-gradient-to-b from-emerald-500/30 to-emerald-800/50 text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
+                    : 'border-amber-400/50 bg-gradient-to-b from-white/10 to-black/60 text-frost-white shadow-[0_0_8px_rgba(245,158,11,0.3)]'
               )}
-              style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)' }}
+              style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)' }}
             >
               {n}
             </motion.div>

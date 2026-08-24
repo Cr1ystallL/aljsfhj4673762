@@ -12,7 +12,6 @@ import {
   Users,
   Shield,
   Zap,
-  RotateCcw,
   Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
@@ -20,6 +19,7 @@ import { useBalanceStore } from '@/store/balance-store';
 import { PlayingCard, CardData, Suit } from '@/components/game/hilo/playing-card';
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
+import { cn } from '@/lib/utils';
 
 export interface BJCard {
   suit: Suit;
@@ -50,6 +50,14 @@ export interface BJState {
 }
 
 const CHIP_VALUES = [1, 5, 10, 25, 100, 250, 500];
+
+const SEATS_CONFIG = [
+  { id: 1, label: 'Игрок 1', color: '#9b111e', arcOffset: 'translate-y-0' },
+  { id: 2, label: 'Игрок 2', color: '#f37920', arcOffset: 'translate-y-3 sm:translate-y-6' },
+  { id: 3, label: 'Игрок 3', color: '#22b14c', arcOffset: 'translate-y-6 sm:translate-y-12' },
+  { id: 4, label: 'Игрок 4', color: '#00a2e8', arcOffset: 'translate-y-3 sm:translate-y-6' },
+  { id: 5, label: 'Игрок 5', color: '#4f46e5', arcOffset: 'translate-y-0' },
+];
 
 function convertCard(c: BJCard): CardData {
   let rankNum = 10;
@@ -118,7 +126,6 @@ export function BlackjackMultiplayer() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // Authenticate with Zustand session
         const currentSessionId = sessionId || useAuthStore.getState().sessionId;
 
         if (currentSessionId) {
@@ -131,7 +138,6 @@ export function BlackjackMultiplayer() {
           );
         }
 
-        // Join room
         ws?.send(
           JSON.stringify({
             type: 'game:join',
@@ -140,7 +146,6 @@ export function BlackjackMultiplayer() {
           })
         );
 
-        // Ping loop
         pingInterval = setInterval(() => {
           if (ws?.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping', payload: {}, timestamp: Date.now() }));
@@ -153,7 +158,6 @@ export function BlackjackMultiplayer() {
           const data = JSON.parse(event.data);
 
           if (data.type === 'auth_success') {
-            // Re-join room on auth confirmation
             ws?.send(
               JSON.stringify({
                 type: 'game:join',
@@ -243,7 +247,7 @@ export function BlackjackMultiplayer() {
     sendWs('blackjack:chat', { roomId, text: text.trim() });
   };
 
-  // Convert cards for value calculate
+  // Dealer score
   const dealerCardsData = useMemo(() => {
     return state.dealerHand.filter((c) => !c.hidden).map(convertCard);
   }, [state.dealerHand]);
@@ -254,9 +258,9 @@ export function BlackjackMultiplayer() {
   }, [dealerCardsData]);
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-[#06080d] text-frost-white select-none overflow-x-hidden">
-      {/* Top Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-[#0c0e14]/90 px-3 py-2.5 sm:px-5 sm:py-3 backdrop-blur-md">
+    <div className="relative flex min-h-screen flex-col bg-[#05070a] text-frost-white select-none overflow-x-hidden">
+      {/* Top Header Navigation */}
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-[#0c0e14]/90 px-3 py-2 sm:px-5 sm:py-2.5 backdrop-blur-md">
         <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             onClick={() => router.push('/')}
@@ -314,108 +318,147 @@ export function BlackjackMultiplayer() {
         </div>
       </header>
 
-      {/* Main Table Felt Container: Horizontal on PC, Vertical on Mobile */}
-      <main className="relative flex flex-1 flex-col items-center justify-between p-2 sm:p-4 max-w-4xl w-full mx-auto">
-        {/* Table Felt Board */}
-        <div className="relative w-full rounded-2xl sm:rounded-[36px] border-2 sm:border-4 border-emerald-600/30 bg-gradient-to-b from-[#0a2e1f] via-[#071d14] to-[#040e0a] p-3 sm:p-5 shadow-[inset_0_0_60px_rgba(0,0,0,0.85)] flex flex-col justify-between min-h-[460px] sm:min-h-[540px] flex-1">
-          {/* Radial grid texture */}
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none rounded-2xl sm:rounded-[36px]" />
+      {/* Main Table Layout */}
+      <main className="relative flex flex-1 flex-col items-center justify-between p-2 sm:p-4 max-w-5xl w-full mx-auto">
+        {/* =========================================================================
+            TABLE FELT: Big horizontal rectangle with rounded corners & beige border
+           ========================================================================= */}
+        <div className="relative w-full rounded-[28px] sm:rounded-[44px] border-[3px] sm:border-[4px] border-[#c09e79] bg-[#073d1c] p-3 sm:p-6 shadow-[0_16px_50px_rgba(0,0,0,0.85),inset_0_0_80px_rgba(0,0,0,0.45)] flex flex-col justify-between min-h-[440px] sm:min-h-[500px] flex-1 overflow-hidden">
           
-          {/* Table Felt Inner Oval Marking */}
-          <div className="absolute inset-x-4 sm:inset-x-12 top-16 sm:top-24 bottom-24 sm:bottom-28 rounded-[24px] sm:rounded-full border border-dashed border-emerald-400/20 pointer-events-none" />
+          {/* Felt Texture Pattern */}
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none rounded-[28px] sm:rounded-[44px]" />
 
-          {/* 1. DEALER AREA (STRICTLY TOP) */}
-          <div className="relative z-10 flex flex-col items-center pt-1 sm:pt-2">
-            <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-              <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-black/70 border border-emerald-500/50 text-emerald-300 text-[11px] sm:text-xs font-bold shadow-md">
-                D
+          {/* Table Deck Zone (Top Right) */}
+          <div className="absolute top-3 sm:top-5 right-3 sm:right-6 z-20">
+            <div className="relative w-20 sm:w-28 h-14 sm:h-18 rounded-xl sm:rounded-2xl border-2 sm:border-[2.5px] border-black bg-black/20 flex flex-col items-center justify-center p-1 shadow-md">
+              {/* Stacked Face-Down Cards (Rubashka k verkhu) */}
+              <div className="relative w-12 sm:w-14 h-8 sm:h-10 flex items-center justify-center mb-0.5">
+                {/* Layer 3 */}
+                <div className="absolute top-1 left-2.5 w-9 sm:w-11 h-6 sm:h-7 rounded-sm sm:rounded border border-black bg-gradient-to-br from-red-950 via-slate-900 to-red-950 shadow-sm" />
+                {/* Layer 2 */}
+                <div className="absolute top-0.5 left-1.5 w-9 sm:w-11 h-6 sm:h-7 rounded-sm sm:rounded border border-black bg-gradient-to-br from-red-900 via-slate-800 to-red-900 shadow-sm" />
+                {/* Layer 1 (Top card back) */}
+                <div className="absolute top-0 left-0.5 w-9 sm:w-11 h-6 sm:h-7 rounded-sm sm:rounded border-2 border-black bg-gradient-to-br from-[#800c14] to-[#40060a] flex items-center justify-center shadow-md">
+                  <div className="w-6 h-4 border border-white/20 rounded-xs bg-[radial-gradient(#ffffff_0.5px,transparent_0.5px)] [background-size:3px_3px] opacity-40" />
+                </div>
               </div>
-              <span className="text-[11px] sm:text-xs font-bold tracking-wider text-emerald-200 uppercase">Дилер</span>
+              <span className="font-extrabold text-[9px] sm:text-[11px] text-black uppercase tracking-wider drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]">
+                Колода
+              </span>
+            </div>
+          </div>
+
+          {/* =========================================================================
+              1. TOP CENTER: Large black dealer circle, text "Диллер", 3 card slots
+             ========================================================================= */}
+          <div className="relative z-10 flex flex-col items-center pt-1 sm:pt-2">
+            {/* Large Black Dealer Circle */}
+            <div className="relative flex h-14 w-14 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-black border-2 sm:border-[3px] border-black text-white shadow-xl">
+              <span className="text-sm sm:text-xl font-extrabold tracking-widest text-white/90">D</span>
               {dealerScore > 0 && (
-                <span className="rounded-full bg-black/80 px-2 py-0.5 text-[10px] sm:text-xs font-bold text-white border border-white/15 shadow-md">
+                <span className="absolute -bottom-2 sm:-bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-black/90 px-2 py-0.5 text-[9px] sm:text-xs font-bold text-white border border-white/20 shadow-md whitespace-nowrap z-20">
                   {dealerScore}
                 </span>
               )}
             </div>
 
-            {/* Dealer Cards */}
-            <div className="flex items-center justify-center min-h-[85px] sm:min-h-[96px] gap-1.5 sm:gap-2">
+            {/* Label "Диллер" */}
+            <span className="font-extrabold text-xs sm:text-sm text-black uppercase tracking-wider mt-1.5 mb-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]">
+              Диллер
+            </span>
+
+            {/* Dealer 3 Card Slots / Dynamic Card Row (Dealer takes cards up to 17) */}
+            <div className="relative flex items-center justify-center min-h-[64px] sm:min-h-[82px] gap-1.5 sm:gap-2 mt-0.5">
               {state.dealerHand.length === 0 ? (
-                <div className="h-20 w-14 sm:h-24 sm:w-16 rounded-xl border border-dashed border-emerald-500/30 flex items-center justify-center bg-black/20">
-                  <span className="text-[9px] sm:text-[10px] text-emerald-500/50 font-bold uppercase tracking-wider">Шуз</span>
-                </div>
+                // 3 Default Card Slots
+                <>
+                  <div className="h-14 w-9 sm:h-20 sm:w-13 rounded-md sm:rounded-lg border-2 sm:border-[2.5px] border-black bg-black/15 shadow-inner" />
+                  <div className="h-14 w-9 sm:h-20 sm:w-13 rounded-md sm:rounded-lg border-2 sm:border-[2.5px] border-black bg-black/15 shadow-inner" />
+                  <div className="h-14 w-9 sm:h-20 sm:w-13 rounded-md sm:rounded-lg border-2 sm:border-[2.5px] border-black bg-black/15 shadow-inner" />
+                </>
               ) : (
-                state.dealerHand.map((c, idx) => (
-                  <motion.div
-                    key={`dealer_${idx}_${c.rank}_${c.suit}`}
-                    initial={{ opacity: 0, y: -30, scale: 0.8 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ delay: idx * 0.15 }}
-                  >
-                    {c.hidden ? (
-                      <div className="h-20 w-14 sm:h-24 sm:w-16 rounded-xl border border-amber-500/40 bg-gradient-to-br from-amber-900 to-amber-950 flex items-center justify-center shadow-xl">
-                        <Shield size={18} className="text-amber-400/60" />
-                      </div>
-                    ) : (
-                      <PlayingCard card={convertCard(c)} className="h-20 w-14 sm:h-24 sm:w-16 shadow-2xl" />
-                    )}
-                  </motion.div>
-                ))
+                // Render dealt cards (can be 1, 2, 3, 4, 5+ cards)
+                <div className="flex items-center justify-center">
+                  {state.dealerHand.map((c, idx) => (
+                    <motion.div
+                      key={`dealer_${idx}_${c.rank}_${c.suit}`}
+                      initial={{ opacity: 0, y: -20, scale: 0.8 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ delay: idx * 0.15 }}
+                      className="relative"
+                      style={{
+                        marginLeft: idx > 0 ? (state.dealerHand.length > 3 ? '-14px' : '6px') : '0px',
+                        zIndex: idx + 1,
+                      }}
+                    >
+                      {c.hidden ? (
+                        <div className="h-14 w-9 sm:h-20 sm:w-13 rounded-md sm:rounded-lg border-2 sm:border-[2.5px] border-black bg-gradient-to-br from-red-950 via-slate-900 to-red-950 flex items-center justify-center shadow-xl">
+                          <Shield size={14} className="text-amber-400/70" />
+                        </div>
+                      ) : (
+                        <PlayingCard card={convertCard(c)} className="h-14 w-9 sm:h-20 sm:w-13 shadow-2xl border-2 border-black rounded-md sm:rounded-lg" />
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
-          {/* 2. TABLE CENTER INSIGNIA & PHASE STATUS */}
-          <div className="relative z-10 my-auto py-2 text-center flex flex-col items-center justify-center gap-1.5">
-            <div className="opacity-25 pointer-events-none">
-              <span className="text-xs sm:text-lg font-bold tracking-[0.25em] uppercase text-emerald-300">MACVBET BLACKJACK</span>
-              <p className="text-[8px] sm:text-[10px] tracking-widest text-emerald-400 uppercase">3 TO 2 PAYOUT · DEALER STANDS ON 17</p>
-            </div>
-
-            {/* Dynamic Phase Badge */}
+          {/* =========================================================================
+              2. CENTER NOTIFICATIONS & ROUND PHASE BADGES
+             ========================================================================= */}
+          <div className="relative z-10 my-auto py-1 text-center flex flex-col items-center justify-center gap-1">
             {state.phase === 'countdown' && (
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/20 px-3.5 py-1 shadow-lg backdrop-blur-md"
+                className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-amber-400 text-black px-3.5 py-1 shadow-lg font-extrabold"
               >
-                <Zap size={13} className="text-amber-400 animate-bounce" />
-                <span className="text-[11px] sm:text-xs font-bold text-amber-300">
-                  Ставки: <span className="text-white font-extrabold">{state.countdown}с</span>
+                <Zap size={13} className="text-black animate-bounce" />
+                <span className="text-[11px] sm:text-xs">
+                  Ставки: <span className="underline">{state.countdown}с</span>
                 </span>
               </motion.div>
             )}
 
             {state.phase === 'dealing' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-3 py-1 text-[11px] font-bold text-emerald-300 shadow-lg">
-                <Sparkles size={13} className="text-emerald-400 animate-spin" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-emerald-300 text-black px-3 py-0.5 text-[11px] font-extrabold shadow-lg">
+                <Sparkles size={13} className="text-black animate-spin" />
                 Раздача карт...
               </div>
             )}
 
             {state.phase === 'player_turn' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/20 px-3 py-1 text-[11px] font-bold text-cyan-300 shadow-lg">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-cyan-300 text-black px-3 py-0.5 text-[11px] font-extrabold shadow-lg">
+                <span className="h-2 w-2 rounded-full bg-black animate-ping" />
                 Ход: Место #{state.currentTurnSeatId}
               </div>
             )}
 
             {state.phase === 'dealer_turn' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-500/20 px-3 py-1 text-[11px] font-bold text-purple-300 shadow-lg">
+              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-purple-300 text-black px-3 py-0.5 text-[11px] font-extrabold shadow-lg">
                 Ход дилера...
               </div>
             )}
 
             {state.phase === 'settling' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/30 px-3 py-1 text-[11px] font-bold text-emerald-200 shadow-lg">
+              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-emerald-400 text-black px-3 py-0.5 text-[11px] font-extrabold shadow-lg">
                 Итоги раунда & выплаты!
               </div>
             )}
           </div>
 
-          {/* 3. 5 PLAYER SEATS (STRICTLY BOTTOM) */}
+          {/* =========================================================================
+              3. 5 PLAYER SPOTS (ARC AT BOTTOM):
+                 - 2 Card Slots on top
+                 - Text "Игрок N" in the middle
+                 - Large avatar circle with custom color
+                 - Betting chip & status around/under avatar
+             ========================================================================= */}
           <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-2.5 w-full items-end pb-1 sm:pb-2">
-            {[1, 2, 3, 4, 5].map((seatId) => {
+            {SEATS_CONFIG.map((seat) => {
+              const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
               const isTurn = state.phase === 'player_turn' && state.currentTurnSeatId === seatId;
               const isMe = user?.id && player?.userId === user.id;
@@ -424,100 +467,124 @@ export function BlackjackMultiplayer() {
               const playerHandScore = playerCardsData.length > 0 ? calculateHandValue(playerCardsData).total : 0;
 
               return (
-                <div key={seatId} className="flex flex-col items-center min-w-0">
-                  {/* Hand Cards Area */}
-                  <div className="relative flex min-h-[70px] sm:min-h-[85px] w-full items-center justify-center mb-1">
-                    {player && player.hand.length > 0 && (
+                <div
+                  key={seatId}
+                  className={cn(
+                    'flex flex-col items-center min-w-0 transition-transform duration-300',
+                    seat.arcOffset
+                  )}
+                >
+                  {/* (A) 2 CARD SLOTS (OR ACTIVE HAND CARDS) */}
+                  <div className="relative flex min-h-[58px] sm:min-h-[76px] w-full items-center justify-center mb-1">
+                    {player && player.hand.length > 0 ? (
                       <div className="relative flex justify-center items-center">
                         {player.hand.map((c, cardIdx) => (
                           <div
                             key={`card_${seatId}_${cardIdx}`}
                             className="relative"
                             style={{
-                              marginLeft: cardIdx > 0 ? '-18px' : '0px',
+                              marginLeft: cardIdx > 0 ? '-14px' : '0px',
                               zIndex: cardIdx + 1,
                             }}
                           >
-                            <PlayingCard card={convertCard(c)} className="h-16 w-11 sm:h-20 sm:w-14 shadow-2xl" />
+                            <PlayingCard
+                              card={convertCard(c)}
+                              className="h-13 w-8 sm:h-18 sm:w-12 shadow-2xl border-2 border-black rounded-md sm:rounded-lg"
+                            />
                           </div>
                         ))}
                         {/* Score Indicator */}
-                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/85 px-1.5 py-0.2 text-[8px] sm:text-[10px] font-bold text-white border border-white/20 shadow-md whitespace-nowrap">
+                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black px-1.5 py-0.2 text-[8px] sm:text-[10px] font-bold text-white border border-white/30 shadow-md whitespace-nowrap">
                           {playerHandScore}
                         </span>
+                      </div>
+                    ) : (
+                      // 2 Empty Card Slots with Black Border
+                      <div className="flex items-center gap-1">
+                        <div className="h-12 w-7 sm:h-16 sm:w-10 rounded-md sm:rounded-lg border-2 sm:border-[2.5px] border-black bg-black/15 shadow-inner" />
+                        <div className="h-12 w-7 sm:h-16 sm:w-10 rounded-md sm:rounded-lg border-2 sm:border-[2.5px] border-black bg-black/15 shadow-inner" />
                       </div>
                     )}
                   </div>
 
-                  {/* Seat Box */}
-                  {player ? (
-                    <div
-                      className={`relative flex flex-col items-center justify-center rounded-xl sm:rounded-2xl p-1 sm:p-2 w-full transition-all ${
-                        isTurn
-                          ? 'ring-2 ring-amber-400 bg-amber-500/20 shadow-[0_0_20px_rgba(251,191,36,0.5)] scale-105'
-                          : isMe
-                          ? 'border border-emerald-500/50 bg-emerald-950/50'
-                          : 'border border-white/10 bg-black/50'
-                      }`}
-                    >
-                      {/* Status Pill */}
-                      {player.status !== 'waiting' && player.status !== 'playing' && (
-                        <span
-                          className={`absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 py-0.2 text-[8px] font-bold shadow-md ${
-                            player.status === 'blackjack'
-                              ? 'bg-amber-500 text-black'
-                              : player.status === 'bust'
-                              ? 'bg-red-500 text-white'
-                              : player.status === 'stand'
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-white/20 text-white'
-                          }`}
-                        >
-                          {player.status === 'blackjack'
-                            ? 'BJ!'
-                            : player.status === 'bust'
-                            ? 'Перебор'
-                            : player.status === 'stand'
-                            ? 'Хватит'
-                            : player.status}
-                        </span>
-                      )}
+                  {/* (B) PLAYER LABEL (Игрок N / Имя игрока) */}
+                  <span className="font-extrabold text-[9px] sm:text-[11px] text-black uppercase tracking-wide mb-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)] truncate max-w-[70px] sm:max-w-[100px] text-center">
+                    {player ? (isMe ? 'Вы' : player.name) : seat.label}
+                  </span>
 
-                      <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white/10 text-white font-bold text-[10px] sm:text-xs mb-0.5 border border-white/10 overflow-hidden">
-                        {player.avatar ? (
+                  {/* (C) LARGE AVATAR CIRCLE WITH SEAT COLOR & BET ELEMENT UNDER */}
+                  <div className="relative flex flex-col items-center">
+                    {/* Status Pill floating above Avatar */}
+                    {player && player.status !== 'waiting' && player.status !== 'playing' && (
+                      <span
+                        className={cn(
+                          'absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 py-0.2 text-[7px] sm:text-[9px] font-extrabold border border-black shadow-md z-30',
+                          player.status === 'blackjack'
+                            ? 'bg-amber-400 text-black animate-bounce'
+                            : player.status === 'bust'
+                            ? 'bg-red-600 text-white'
+                            : player.status === 'stand'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-black'
+                        )}
+                      >
+                        {player.status === 'blackjack'
+                          ? 'BJ!'
+                          : player.status === 'bust'
+                          ? 'Перебор'
+                          : player.status === 'stand'
+                          ? 'Хватит'
+                          : player.status}
+                      </span>
+                    )}
+
+                    {/* The Avatar Circle */}
+                    <div
+                      style={{ backgroundColor: seat.color }}
+                      className={cn(
+                        'relative flex h-11 w-11 sm:h-16 sm:w-16 items-center justify-center rounded-full border-2 sm:border-[3px] border-black text-white font-black text-xs sm:text-base shadow-lg transition-all overflow-hidden',
+                        isTurn && 'ring-4 ring-yellow-300 ring-offset-2 ring-offset-black scale-105 shadow-[0_0_20px_rgba(253,224,71,0.8)]'
+                      )}
+                    >
+                      {player ? (
+                        player.avatar ? (
                           <img src={player.avatar} alt={player.name} className="h-full w-full object-cover" />
                         ) : (
-                          player.name.slice(0, 1).toUpperCase()
-                        )}
-                      </div>
-
-                      <span className="text-[9px] sm:text-[10px] font-medium text-white truncate max-w-full block">
-                        {isMe ? 'Вы' : player.name}
-                      </span>
-
-                      <span className="text-[8px] sm:text-[9px] font-bold text-amber-300">
-                        {Number(player.bet || 0).toFixed(0)} zł
-                      </span>
+                          <span className="drop-shadow-md">{player.name.slice(0, 1).toUpperCase()}</span>
+                        )
+                      ) : (
+                        // Empty seat button
+                        <button
+                          disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
+                          onClick={() => handleJoinSeat(seatId)}
+                          className="h-full w-full flex items-center justify-center text-white/80 hover:text-white hover:scale-110 active:scale-90 transition-transform font-bold text-sm sm:text-xl"
+                          title="Занять место"
+                        >
+                          +
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
-                      onClick={() => handleJoinSeat(seatId)}
-                      className="flex flex-col items-center justify-center rounded-xl sm:rounded-2xl border border-dashed border-white/20 bg-white/[0.02] p-1.5 sm:p-2.5 w-full hover:border-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-40"
-                    >
-                      <span className="text-[11px] sm:text-xs font-bold text-emerald-400 leading-tight">+</span>
-                      <span className="text-[8px] sm:text-[9px] font-semibold text-white/60">Место {seatId}</span>
-                    </button>
-                  )}
+
+                    {/* (D) BET CHIP ELEMENT DIRECTLY UNDER AVATAR */}
+                    {player && (player.bet > 0 || player.status === 'playing') && (
+                      <div className="absolute -bottom-2 sm:-bottom-2.5 left-1/2 -translate-x-1/2 z-20">
+                        <span className="rounded-full bg-[#ffac2e] text-black font-extrabold text-[8px] sm:text-[10px] px-1.5 py-0.2 border-2 border-black shadow-md whitespace-nowrap block">
+                          {Number(player.bet || 0).toFixed(0)} zł
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* 4. BOTTOM CONTROLS & ACTION HUD */}
+        {/* =========================================================================
+            4. BOTTOM CONTROLS / BETTING HUD
+           ========================================================================= */}
         <div className="relative z-20 w-full mt-2 sm:mt-3">
-          {/* If it's my turn to act */}
+          {/* Turn Action Controls */}
           {isMyTurn ? (
             <motion.div
               initial={{ y: 20, opacity: 0 }}
@@ -527,14 +594,14 @@ export function BlackjackMultiplayer() {
               <button
                 onClick={() => handleAction('hit')}
                 disabled={isActionPending}
-                className="flex-1 py-3 rounded-xl bg-emerald-500 font-bold text-black text-xs sm:text-sm uppercase tracking-wider hover:bg-emerald-400 active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-xl bg-emerald-500 font-extrabold text-black text-xs sm:text-sm uppercase tracking-wider hover:bg-emerald-400 active:scale-95 transition-transform"
               >
                 Еще (Hit)
               </button>
               <button
                 onClick={() => handleAction('stand')}
                 disabled={isActionPending}
-                className="flex-1 py-3 rounded-xl bg-red-600 font-bold text-white text-xs sm:text-sm uppercase tracking-wider hover:bg-red-500 active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-xl bg-red-600 font-extrabold text-white text-xs sm:text-sm uppercase tracking-wider hover:bg-red-500 active:scale-95 transition-transform"
               >
                 Хватит (Stand)
               </button>
@@ -542,9 +609,9 @@ export function BlackjackMultiplayer() {
                 <button
                   onClick={() => handleAction('double')}
                   disabled={isActionPending}
-                  className="py-3 px-4 rounded-xl bg-amber-500 font-bold text-black text-xs sm:text-sm uppercase tracking-wider hover:bg-amber-400 active:scale-95 transition-transform"
+                  className="py-3 px-4 rounded-xl bg-amber-400 font-extrabold text-black text-xs sm:text-sm uppercase tracking-wider hover:bg-amber-300 active:scale-95 transition-transform"
                 >
-                  2×
+                  2× Удвоить
                 </button>
               )}
             </motion.div>
@@ -569,11 +636,12 @@ export function BlackjackMultiplayer() {
                   <button
                     key={val}
                     onClick={() => handleUpdateBet(val)}
-                    className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-[11px] sm:text-xs font-bold border-2 transition-all ${
+                    className={cn(
+                      'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-[11px] sm:text-xs font-bold border-2 transition-all',
                       selectedBet === val
                         ? 'border-amber-400 bg-amber-500/30 text-amber-300 scale-105 shadow-lg'
                         : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
-                    }`}
+                    )}
                   >
                     {val}
                   </button>
@@ -586,7 +654,7 @@ export function BlackjackMultiplayer() {
               <div className="flex items-center gap-2">
                 <Users size={15} className="text-white/40" />
                 <span className="text-[11px] sm:text-xs text-white/60">
-                  Режим зрителя. Займите место за столом.
+                  Режим зрителя. Нажмите «+» на свободном месте, чтобы сесть за стол.
                 </span>
               </div>
               <button
@@ -600,7 +668,7 @@ export function BlackjackMultiplayer() {
         </div>
       </main>
 
-      {/* Table Chat Slide-up Sheet (Minimalist & Non-blocking) */}
+      {/* Table Chat Slide-up Sheet */}
       <BlackjackTableChat
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
@@ -630,7 +698,7 @@ export function BlackjackMultiplayer() {
                 <p>• Цель игры — набрать сумму очков ближе к 21, чем у дилера, не превышая 21.</p>
                 <p>• Карты 2–10 считаются по номиналу, картинки (J, Q, K) — по 10 очков, Туз — 1 или 11.</p>
                 <p>• Blackjack (Туз + 10 с раздачи) оплачивается 3 к 2 (2.5×).</p>
-                <p>• Дилер обязан добирать карты до 16 очков и останавливаться на 17+.</p>
+                <p>• Дилер обязан добирать карты до 16 очков и останавливаться на 17 (Dealer stands on 17).</p>
                 <p>• Доступны действия: Еще (Hit), Хватит (Stand), Удвоить (Double).</p>
               </div>
               <button

@@ -76,58 +76,78 @@ export function KenoBoard({
               key={num}
               onClick={() => handleCellClick(num)}
               disabled={phase !== 'idle'}
-              initial={{ scale: 0.8, opacity: 0 }}
               animate={
                 isJustDrawn
-                  ? { scale: [1, 1.22, 1], filter: ['brightness(2)', 'brightness(1)'] }
+                  ? {
+                      scale: isHit ? [1, 1.32, 0.95, 1] : [1, 1.2, 0.98, 1],
+                      rotate: isHit ? [0, -3, 3, 0] : 0,
+                      filter: isHit ? ['brightness(2.2)', 'brightness(1)'] : ['brightness(1.6)', 'brightness(1)'],
+                    }
                   : { scale: 1, opacity: 1, filter: 'brightness(1)' }
               }
               whileHover={{ scale: phase === 'idle' ? 1.06 : 1, y: phase === 'idle' ? -2 : 0 }}
-              whileTap={{ scale: 0.95, y: 1 }}
+              whileTap={{ scale: 0.94, y: 1 }}
               transition={{
-                type: 'spring',
-                stiffness: 400,
-                damping: 25,
-                delay: isJustDrawn ? 0 : num * 0.005,
+                duration: isJustDrawn ? 0.45 : 0.2,
+                ease: [0.22, 1, 0.36, 1],
               }}
               className={cn(
-                'relative flex items-center justify-center rounded-lg sm:rounded-xl text-xs sm:text-base font-bold transition-all duration-300',
+                'relative flex items-center justify-center rounded-lg sm:rounded-xl text-xs sm:text-base font-bold transition-all duration-250',
                 'border overflow-hidden select-none',
-                // Base styling (Unpicked, Undrawn) - 3D dark glass cube
+                // Base styling (Unpicked, Undrawn)
                 !isPicked && !isDrawn && 'bg-white/[0.04] border-white/10 text-white/40 shadow-inner hover:text-white/90 hover:bg-white/[0.08] hover:border-white/20',
-                // Picked but not yet revealed - 3D blue/primary cube
-                isPicked && !isDrawn && 'bg-gradient-to-b from-primary/50 to-primary/20 border-primary/60 border-t-primary/90 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]',
-                // Drawn but not picked (House ball) - Warm amber glow
-                !isPicked && isDrawn && 'bg-gradient-to-b from-amber-500/30 to-amber-900/40 border-amber-400/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)]',
-                // Hit (Picked and Drawn) - Spectacular Glowing Emerald Cube
-                isHit && 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 border-emerald-300 text-white shadow-[inset_0px_2px_4px_rgba(255,255,255,0.6),_0_0_25px_rgba(52,211,153,0.9)] z-10',
-                // Missed (Picked but not Drawn)
-                isMiss && 'bg-destructive/20 border-destructive/30 text-white/30 opacity-50'
+                // Picked but not yet revealed
+                isPicked && !isDrawn && !isMiss && 'bg-gradient-to-b from-blue-500/60 to-blue-700/30 border-blue-400/80 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]',
+                // Drawn but not picked (House ball)
+                !isPicked && isDrawn && 'bg-gradient-to-b from-amber-500/35 to-amber-900/50 border-amber-400/70 text-amber-200 shadow-[0_0_16px_rgba(245,158,11,0.5)]',
+                // Hit (Picked and Drawn) - Glowing Emerald Gem
+                isHit && 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 border-emerald-300 text-white shadow-[inset_0px_2px_6px_rgba(255,255,255,0.7),0_0_30px_rgba(52,211,153,0.95)] z-20',
+                // Missed (Picked but not Drawn after round finishes)
+                isMiss && 'bg-red-950/30 border-red-500/30 text-white/30 opacity-45'
               )}
             >
-              {/* Hit animation ripple & particle ring */}
+              {/* Hit explosive ripple & burst ring */}
               <AnimatePresence>
-                {isHit && (
-                  <motion.div
-                    className="absolute inset-0 bg-emerald-400/40 rounded-lg sm:rounded-xl pointer-events-none"
-                    initial={{ scale: 0.6, opacity: 1 }}
-                    animate={{ scale: 1.6, opacity: 0 }}
-                    transition={{ duration: 0.6, ease: 'easeOut' }}
-                  />
+                {isHit && isJustDrawn && (
+                  <>
+                    <motion.div
+                      key={`hit-burst-${num}`}
+                      className="absolute inset-0 bg-emerald-300/60 rounded-lg sm:rounded-xl pointer-events-none"
+                      initial={{ scale: 0.8, opacity: 1 }}
+                      animate={{ scale: 2.2, opacity: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.65, ease: 'easeOut' }}
+                    />
+                    <motion.div
+                      key={`hit-ring-${num}`}
+                      className="absolute inset-0 border-2 border-white rounded-lg sm:rounded-xl pointer-events-none"
+                      initial={{ scale: 0.6, opacity: 1 }}
+                      animate={{ scale: 1.8, opacity: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                    />
+                  </>
                 )}
               </AnimatePresence>
               
-              {/* Drawn animation ring */}
+              {/* House drawn ring */}
               <AnimatePresence>
-                {isDrawn && !isHit && (
+                {isDrawn && !isHit && isJustDrawn && (
                   <motion.div
-                    className="absolute inset-0 border-2 border-amber-400/60 rounded-lg sm:rounded-xl pointer-events-none"
-                    initial={{ scale: 0.5, opacity: 1 }}
-                    animate={{ scale: 1.2, opacity: 0 }}
-                    transition={{ duration: 0.4 }}
+                    key={`house-burst-${num}`}
+                    className="absolute inset-0 border-2 border-amber-300/80 rounded-lg sm:rounded-xl pointer-events-none"
+                    initial={{ scale: 0.6, opacity: 1 }}
+                    animate={{ scale: 1.5, opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
                   />
                 )}
               </AnimatePresence>
+
+              {/* Top highlight glare */}
+              {(isHit || (isPicked && !isDrawn)) && (
+                <div className="absolute top-0 inset-x-0 h-1/3 bg-gradient-to-b from-white/25 to-transparent pointer-events-none" />
+              )}
 
               <span className="relative z-10 font-mono tracking-tight">{num}</span>
             </motion.button>

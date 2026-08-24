@@ -294,7 +294,7 @@ export function HiloClient() {
           />
 
           {/* Cards Display */}
-          <div className="relative flex items-center justify-center w-full h-64 sm:h-72">
+          <div className="relative flex items-center justify-center w-full h-[220px] sm:h-[260px]">
             <AnimatePresence mode="popLayout">
               {/* Previous Card (Faded on Left) */}
               {prevCard && (
@@ -302,7 +302,7 @@ export function HiloClient() {
                   key={`prev-${prevCard.rank}-${prevCard.suit}-${state?.history?.length}`}
                   card={prevCard} 
                   faded 
-                  className="w-28 h-40 sm:w-32 sm:h-44 absolute left-2 sm:left-8 z-0" 
+                  className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute left-2 sm:left-6 z-0" 
                   direction="right-to-left"
                 />
               )}
@@ -312,12 +312,12 @@ export function HiloClient() {
                 key={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
                 card={state?.currentCard || null} 
                 animateKey={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
-                className="w-44 h-60 sm:w-48 sm:h-64 absolute z-10" 
+                className="w-[145px] h-[210px] sm:w-[170px] sm:h-[245px] absolute z-10" 
                 direction="right-to-left"
               />
               
               {/* Next Card Deck Placeholder (Right) */}
-              <div className="w-28 h-40 sm:w-32 sm:h-44 absolute right-2 sm:right-8 z-0">
+              <div className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute right-2 sm:right-6 z-0">
                 {/* Stack effect layers */}
                 <div className="absolute top-2 left-2 w-full h-full rounded-2xl bg-[#0f1016]/80 border border-white/5" />
                 <div className="absolute top-1 left-1 w-full h-full rounded-2xl bg-[#151720]/90 border border-white/10" />
