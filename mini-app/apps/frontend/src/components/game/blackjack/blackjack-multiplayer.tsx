@@ -515,18 +515,20 @@ export function BlackjackMultiplayer() {
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-1 sm:pt-2">
             {/* Dealer Avatar */}
-            <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-black border-[3px] border-black text-white shadow-2xl overflow-hidden">
-              <img
-                src="/BlackJack/diller.png"
-                alt="Диллер"
-                className="w-full h-full object-cover rounded-full"
-                draggable={false}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = '/diller.png';
-                }}
-              />
+            <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center">
+              <div className="h-full w-full rounded-full bg-black border-[3px] border-black text-white shadow-2xl overflow-hidden flex items-center justify-center">
+                <img
+                  src="/BlackJack/diller.png"
+                  alt="Диллер"
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/diller.png';
+                  }}
+                />
+              </div>
               {dealerScore > 0 && (
-                <span className="absolute -bottom-2 sm:-bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-2 py-0.5 text-[9px] sm:text-xs font-black text-white border border-white/20 shadow-md whitespace-nowrap z-20">
+                <span className="absolute -bottom-2.5 sm:-bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-2.5 py-0.5 text-[10px] sm:text-xs font-black text-white border border-white/30 shadow-2xl whitespace-nowrap z-30">
                   {dealerScore}
                 </span>
               )}
