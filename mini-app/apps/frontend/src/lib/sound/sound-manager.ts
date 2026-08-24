@@ -129,6 +129,47 @@ export class SoundManager {
   }
 
   /**
+   * Play sound with smooth fade-out towards end
+   */
+  playWithFadeOut(id: string, options?: { volume?: number; fadeOutDurationMs?: number }): void {
+    if (!this.initialized || this.muted) {
+      return;
+    }
+
+    const audio = this.sounds.get(id);
+    if (!audio) return;
+
+    try {
+      const clone = audio.cloneNode() as HTMLAudioElement;
+      const baseVol = this.calculateVolume(
+        'sfx',
+        options?.volume !== undefined ? options.volume : audio.volume
+      );
+      const initialVol = baseVol * this.masterVolume;
+      clone.volume = initialVol;
+      clone.currentTime = 0;
+
+      const fadeDurationSec = (options?.fadeOutDurationMs ?? 1500) / 1000;
+
+      clone.ontimeupdate = () => {
+        if (clone.duration && clone.duration > fadeDurationSec) {
+          const timeLeft = clone.duration - clone.currentTime;
+          if (timeLeft <= fadeDurationSec) {
+            clone.volume = Math.max(0, initialVol * (timeLeft / fadeDurationSec));
+          }
+        }
+      };
+
+      clone.play().catch(() => {});
+      clone.onended = () => {
+        try {
+          clone.remove();
+        } catch {}
+      };
+    } catch {}
+  }
+
+  /**
    * Stop sound
    */
   stop(id: string): void {

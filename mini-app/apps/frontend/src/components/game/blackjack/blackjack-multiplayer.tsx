@@ -14,6 +14,7 @@ import {
   Plus,
   LogOut,
   Trophy,
+  Clock,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -47,6 +48,7 @@ export interface BJState {
   roomId: string;
   phase: BJPhase;
   countdown: number;
+  turnCountdown?: number;
   dealerHand: BJCard[];
   players: BJPlayer[];
   currentTurnSeatId: number | null;
@@ -84,12 +86,13 @@ function getChipImage(amount: number): string {
   return '/BlackJack/10.png';
 }
 
+// True arc curve for 5 seats following the casino table ellipse
 const SEATS_CONFIG = [
-  { id: 1, label: 'Игрок 1', arcOffset: 'translate-y-0 sm:-translate-y-2' },
-  { id: 2, label: 'Игрок 2', arcOffset: 'translate-y-1 sm:translate-y-0' },
-  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-3' },
-  { id: 4, label: 'Игрок 4', arcOffset: 'translate-y-1 sm:translate-y-0' },
-  { id: 5, label: 'Игрок 5', arcOffset: 'translate-y-0 sm:-translate-y-2' },
+  { id: 1, label: 'Игрок 1', arcOffset: '-translate-y-8 sm:-translate-y-12' },
+  { id: 2, label: 'Игрок 2', arcOffset: '-translate-y-3 sm:-translate-y-5' },
+  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-4' },
+  { id: 4, label: 'Игрок 4', arcOffset: '-translate-y-3 sm:-translate-y-5' },
+  { id: 5, label: 'Игрок 5', arcOffset: '-translate-y-8 sm:-translate-y-12' },
 ];
 
 function convertCard(c: BJCard) {
@@ -229,8 +232,8 @@ export function BlackjackMultiplayer() {
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [showRules, setShowRules] = useState(false);
 
-  // User's selected bet for their seat (min 10)
-  const [selectedBet, setSelectedBet] = useState(10);
+  // User's selected bet for their seat (defaults to 0 until placed)
+  const [selectedBet, setSelectedBet] = useState(0);
   const [isActionPending, setIsActionPending] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -240,6 +243,13 @@ export function BlackjackMultiplayer() {
     if (!user?.id) return null;
     return state.players.find((p) => p.userId === user.id) || null;
   }, [state.players, user?.id]);
+
+  // Keep selectedBet synchronized if player already has a bet on server
+  useEffect(() => {
+    if (myPlayer && myPlayer.bet > 0 && selectedBet === 0) {
+      setSelectedBet(myPlayer.bet);
+    }
+  }, [myPlayer, selectedBet]);
 
   const isMyTurn = useMemo(() => {
     if (!myPlayer || state.phase !== 'player_turn') return false;
@@ -300,6 +310,7 @@ export function BlackjackMultiplayer() {
 
   const handleLeaveSeat = useCallback(() => {
     sendWs('blackjack:leave_seat', { roomId });
+    setSelectedBet(0);
     soundManager.play('bj.chip_click');
   }, [roomId, sendWs]);
 
@@ -342,7 +353,7 @@ export function BlackjackMultiplayer() {
     });
   }, []);
 
-  // Card slide & Win sound tracking
+  // Card slide & Win sound tracking with fade-out
   const prevCardsCountRef = useRef<number>(0);
   const prevPhaseRef = useRef<string>('waiting');
 
@@ -362,7 +373,7 @@ export function BlackjackMultiplayer() {
       prevPhaseRef.current !== 'finished'
     ) {
       if (myOutcome === 'win' || myOutcome === 'blackjack') {
-        soundManager.play('bj.win');
+        soundManager.playWithFadeOut('bj.win', { volume: 0.85, fadeOutDurationMs: 1500 });
       }
     }
     prevPhaseRef.current = state.phase;
@@ -517,16 +528,18 @@ export function BlackjackMultiplayer() {
   }, [roomId, sessionId, token, user?.id, fetchBalance, isChatOpen]);
 
   const handleJoinSeat = (seatId: number) => {
-    if (isBalanceReady && activeBalance < selectedBet) {
-      toast.error('Недостаточно средств на балансе!');
-      return;
-    }
-    sendWs('blackjack:join_seat', { roomId, seatId, bet: selectedBet });
+    // Join with bet = 0; player chooses their bet after sitting down
+    sendWs('blackjack:join_seat', { roomId, seatId, bet: 0 });
+    setSelectedBet(0);
     soundManager.play('bj.chip_click');
   };
 
   const handleUpdateBet = (bet: number) => {
     const validBet = Math.max(10, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
+    if (isBalanceReady && activeBalance < validBet) {
+      toast.error('Недостаточно средств на балансе!');
+      return;
+    }
     setSelectedBet(validBet);
     soundManager.play('bj.chip_click');
     if (myPlayer) {
@@ -588,26 +601,25 @@ export function BlackjackMultiplayer() {
           </div>
 
           {/* =========================================================================
-              TOP RIGHT: Deck Stacked Neatly in Rectangle with Gold Label
+              TOP RIGHT: Deck Stacked in Crisp Rectangular Fanned Layout Close to Dealer
              ========================================================================= */}
-          <div className="absolute top-4 sm:top-5 right-6 sm:right-16 md:right-24 z-20 flex flex-col items-center">
-            <div className="relative flex items-center justify-center w-14 h-16 sm:w-20 sm:h-22">
+          <div className="absolute top-3 sm:top-5 right-[16%] sm:right-[20%] md:right-[24%] z-20 flex flex-col items-center pointer-events-none">
+            <div className="relative flex items-center justify-center w-14 h-20 sm:w-18 sm:h-24">
               {[0, 1, 2, 3].map((idx) => (
                 <div
                   key={idx}
-                  className="absolute rounded-[7px] border border-black/40 shadow-lg overflow-hidden flex items-center justify-center"
+                  className="absolute rounded-[7px] sm:rounded-[9px] border border-black/45 shadow-xl overflow-hidden flex items-center justify-center"
                   style={{
-                    width: 48 + idx * 2,
-                    height: 64,
-                    top: idx * 2,
-                    left: idx * 4,
-                    transform: `rotate(${idx * 2 - 3}deg)`,
+                    width: 52 + idx * 2,
+                    height: 74,
+                    top: idx * 2.5,
+                    left: idx * 3.5,
                     background: 'linear-gradient(155deg, #7c1a1a 0%, #550f10 60%, #3a0709 100%)',
                     zIndex: idx + 1,
                   }}
                 >
                   <div
-                    className="absolute inset-[3px] rounded-[4px] border border-[rgba(230,196,130,0.3)] pointer-events-none"
+                    className="absolute inset-[3px] rounded-[5px] border border-[rgba(230,196,130,0.35)] pointer-events-none"
                     style={{
                       backgroundImage:
                         'repeating-linear-gradient(45deg, rgba(230,196,130,0.06) 0 2px, transparent 2px 7px)',
@@ -617,24 +629,24 @@ export function BlackjackMultiplayer() {
                     <img
                       src="/ButtonLogo.svg"
                       alt="MacvBet"
-                      className="relative z-10 w-5 h-5 object-contain filter brightness-125 drop-shadow-[0_0_4px_rgba(227,193,126,0.6)]"
+                      className="relative z-10 w-6 h-6 sm:w-7 sm:h-7 object-contain filter brightness-125 drop-shadow-[0_0_6px_rgba(227,193,126,0.7)]"
                     />
                   )}
                 </div>
               ))}
             </div>
-            <span className="font-bold text-[10px] sm:text-[11px] text-amber-300/80 uppercase tracking-widest mt-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+            <span className="font-black text-[10px] sm:text-[11px] text-amber-300/90 uppercase tracking-widest mt-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
               Колода
             </span>
           </div>
 
           {/* =========================================================================
-              1. TOP CENTER: Dealer Avatar with Golden Ring, Name & Hand Cards
+              1. TOP CENTER: Large Dealer Avatar, Name & Hand Cards
              ========================================================================= */}
-          <div className="relative z-10 flex flex-col items-center pt-3 sm:pt-6">
-            {/* Dealer Avatar */}
-            <div className="relative flex h-14 w-14 sm:h-18 sm:w-18 items-center justify-center">
-              <div className="h-full w-full rounded-full bg-black border-2 border-amber-400/80 text-white shadow-[0_0_20px_rgba(251,191,36,0.5),0_10px_25px_rgba(0,0,0,0.8)] overflow-hidden flex items-center justify-center">
+          <div className="relative z-10 flex flex-col items-center pt-2 sm:pt-4">
+            {/* Prominent Large Dealer Avatar */}
+            <div className="relative flex h-18 w-18 sm:h-22 sm:w-22 md:h-26 md:w-26 items-center justify-center">
+              <div className="h-full w-full rounded-full bg-black border-2 sm:border-[3px] border-amber-400 text-white shadow-[0_0_25px_rgba(251,191,36,0.6),0_12px_30px_rgba(0,0,0,0.85)] overflow-hidden flex items-center justify-center">
                 <img
                   src="/BlackJack/diller.png"
                   alt="Диллер"
@@ -646,14 +658,14 @@ export function BlackjackMultiplayer() {
                 />
               </div>
               {dealerScore > 0 && (
-                <span className="absolute -bottom-2.5 sm:-bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-2.5 py-0.5 text-[10px] sm:text-xs font-black text-amber-300 border border-amber-400/40 shadow-2xl whitespace-nowrap z-30">
+                <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-3 py-0.5 text-[11px] sm:text-xs font-black text-amber-300 border border-amber-400/50 shadow-2xl whitespace-nowrap z-30">
                   {dealerScore}
                 </span>
               )}
             </div>
 
             {/* Label "Диллер" */}
-            <span className="font-bold text-xs sm:text-sm text-amber-300/90 uppercase tracking-wider mt-1.5 mb-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            <span className="font-bold text-xs sm:text-sm text-amber-300/90 uppercase tracking-wider mt-1 mb-0.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
               Диллер
             </span>
 
@@ -695,10 +707,10 @@ export function BlackjackMultiplayer() {
           </div>
 
           {/* =========================================================================
-              2. CENTER: Liquid Glass Betting Controls, Outcome Banners & Action HUD
+              2. CENTER: Liquid Glass 3D Betting Controls, Outcome Banners & Action HUD
              ========================================================================= */}
           <div className="relative z-20 my-auto py-1 text-center flex flex-col items-center justify-center gap-2">
-            {/* LUXURY OUTCOME BANNER AT ROUND END */}
+            {/* LUXURY 3D LIQUID GLASS OUTCOME BANNER */}
             {(state.phase === 'settling' || state.phase === 'finished') && (
               <motion.div
                 initial={{ scale: 0.7, opacity: 0, y: -15 }}
@@ -707,7 +719,7 @@ export function BlackjackMultiplayer() {
                 className="relative z-30"
               >
                 {myOutcome === 'blackjack' ? (
-                  <div className="relative flex flex-col items-center px-7 py-3 rounded-2xl bg-gradient-to-b from-[#2a1d07]/95 via-[#181308]/95 to-[#0a0803]/95 border-2 border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.6)] backdrop-blur-xl">
+                  <div className="relative flex flex-col items-center px-8 py-3.5 rounded-2xl bg-gradient-to-b from-amber-950/80 via-black/85 to-black/95 border border-amber-400/80 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
                     <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs uppercase tracking-widest">
                       <Sparkles size={15} className="text-amber-300 animate-spin" />
                       <span>БЛЭКДЖЕК 3:2</span>
@@ -718,7 +730,7 @@ export function BlackjackMultiplayer() {
                     </span>
                   </div>
                 ) : myOutcome === 'win' ? (
-                  <div className="relative flex flex-col items-center px-7 py-3 rounded-2xl bg-gradient-to-b from-[#062c18]/95 via-[#031c0e]/95 to-[#021008]/95 border-2 border-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.6)] backdrop-blur-xl">
+                  <div className="relative flex flex-col items-center px-8 py-3.5 rounded-2xl bg-gradient-to-b from-emerald-950/80 via-black/85 to-black/95 border border-emerald-400/80 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
                     <div className="flex items-center gap-1.5 text-emerald-400 font-black text-xs uppercase tracking-widest">
                       <Trophy size={15} className="text-emerald-300" />
                       <span>ПОБЕДА НАД ДИЛЕРОМ</span>
@@ -728,17 +740,17 @@ export function BlackjackMultiplayer() {
                     </span>
                   </div>
                 ) : myOutcome === 'push' ? (
-                  <div className="relative flex flex-col items-center px-6 py-2.5 rounded-2xl bg-[#141720]/95 border-2 border-amber-400/60 shadow-[0_0_30px_rgba(251,191,36,0.3)] backdrop-blur-xl">
+                  <div className="relative flex flex-col items-center px-7 py-3 rounded-2xl bg-gradient-to-b from-slate-900/80 via-black/85 to-black/95 border border-amber-400/50 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.2),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
                     <span className="text-xs font-black text-amber-300 uppercase tracking-wider">НИЧЬЯ С ДИЛЕРОМ</span>
                     <span className="text-base sm:text-lg font-black text-white">Возврат {myPlayer!.bet} zł</span>
                   </div>
                 ) : myOutcome === 'lose' ? (
-                  <div className="relative flex flex-col items-center px-6 py-2.5 rounded-2xl bg-gradient-to-b from-[#2e090b]/90 via-[#180405]/95 to-[#0a0203]/95 border-2 border-red-500/70 shadow-[0_0_30px_rgba(239,68,68,0.4)] backdrop-blur-xl">
+                  <div className="relative flex flex-col items-center px-7 py-3 rounded-2xl bg-gradient-to-b from-red-950/80 via-black/85 to-black/95 border border-red-500/70 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.2),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
                     <span className="text-xs font-black text-red-400 uppercase tracking-wider">ДИЛЕР ВЫИГРАЛ</span>
                     <span className="text-sm sm:text-base font-black text-white/80">-{myPlayer!.bet} zł</span>
                   </div>
                 ) : (
-                  <div className="relative flex items-center gap-2 px-5 py-2 rounded-full bg-black/80 border border-amber-400/30 shadow-xl backdrop-blur-md">
+                  <div className="relative flex items-center gap-2 px-6 py-2.5 rounded-full bg-black/85 border border-amber-400/40 shadow-xl backdrop-blur-2xl">
                     <span className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wider">
                       РАУНД ЗАВЕРШЕН · ДИЛЕР {dealerScore > 21 ? 'ПЕРЕБОР' : dealerScore}
                     </span>
@@ -747,18 +759,18 @@ export function BlackjackMultiplayer() {
               </motion.div>
             )}
 
-            {/* COMPACT LIQUID GLASS BETTING CONTROLS (WHEN WAITING / COUNTDOWN) */}
-            {(state.phase === 'waiting' || state.phase === 'countdown') && (
+            {/* 3D LIQUID GLASS BETTING PANEL (ONLY FOR SEATED PLAYER) */}
+            {myPlayer && (state.phase === 'waiting' || state.phase === 'countdown') && (
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="flex flex-col items-center gap-2 rounded-2xl border border-amber-500/35 bg-[#080c08]/85 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_1px_2px_rgba(255,255,255,0.15)] p-3 sm:p-4 min-w-[300px] sm:min-w-[420px] max-w-[94vw]"
+                className="flex flex-col items-center gap-2.5 rounded-2xl border border-amber-500/40 bg-gradient-to-b from-[#141a14]/90 via-[#0a0f0a]/92 to-[#040604]/96 backdrop-blur-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95),inset_0_2px_4px_rgba(255,255,255,0.22),inset_0_-3px_6px_rgba(0,0,0,0.85)] p-3.5 sm:p-4.5 min-w-[310px] sm:min-w-[430px] max-w-[94vw]"
               >
                 {/* Top Header Row: ⚡ СТАВКА & ВСТАТЬ */}
                 <div className="flex items-center justify-between w-full px-1">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs sm:text-sm tracking-wider uppercase">
                     <Zap size={14} className="text-amber-400" />
-                    <span>Ставка: {selectedBet} zł</span>
+                    <span>Ставка: {selectedBet > 0 ? `${selectedBet} zł` : 'Не выбрана'}</span>
                     {state.phase === 'countdown' && (
                       <span className="text-xs font-normal text-amber-300/80 lowercase">
                         ({state.countdown}с)
@@ -766,24 +778,22 @@ export function BlackjackMultiplayer() {
                     )}
                   </div>
 
-                  {myPlayer && (
-                    <button
-                      type="button"
-                      onClick={handleLeaveSeat}
-                      className="flex items-center gap-1 text-red-400/90 hover:text-red-300 text-xs font-bold transition-colors"
-                      title="Покинуть место"
-                    >
-                      <LogOut size={13} />
-                      <span>ВСТАТЬ</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleLeaveSeat}
+                    className="flex items-center gap-1 text-red-400/90 hover:text-red-300 text-xs font-bold transition-colors"
+                    title="Покинуть место"
+                  >
+                    <LogOut size={13} />
+                    <span>ВСТАТЬ</span>
+                  </button>
                 </div>
 
                 {/* Middle Row: Stepper Buttons (- / +) and Center Chip + Amount */}
-                <div className="flex items-center justify-between w-full bg-black/40 rounded-xl p-1.5 border border-white/5">
+                <div className="flex items-center justify-between w-full bg-black/50 rounded-xl p-1.5 border border-white/10 shadow-inner">
                   <button
                     type="button"
-                    onClick={() => handleUpdateBet(selectedBet - 10)}
+                    onClick={() => handleUpdateBet(Math.max(10, selectedBet - 10))}
                     disabled={selectedBet <= 10}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 text-white font-bold transition-all"
                   >
@@ -792,12 +802,12 @@ export function BlackjackMultiplayer() {
 
                   <div className="flex items-center gap-2">
                     <img
-                      src={getChipImage(selectedBet)}
+                      src={getChipImage(selectedBet > 0 ? selectedBet : 10)}
                       alt={`${selectedBet} zł`}
                       className="w-6 h-6 sm:w-7 sm:h-7 object-contain drop-shadow-md"
                     />
                     <span className="text-sm sm:text-base font-black text-white tracking-wide">
-                      {selectedBet} zł
+                      {selectedBet > 0 ? `${selectedBet} zł` : '0 zł'}
                     </span>
                   </div>
 
@@ -810,8 +820,8 @@ export function BlackjackMultiplayer() {
                   </button>
                 </div>
 
-                {/* Bottom Row: Realistic Casino Chips Selector with Halo Glow */}
-                <div className="flex items-center justify-center gap-2 sm:gap-3 w-full py-1 overflow-x-auto scrollbar-none">
+                {/* Bottom Row: Realistic Casino Chips Selector (No clipping) */}
+                <div className="flex items-center justify-center gap-2.5 sm:gap-3.5 w-full py-2 px-1 overflow-visible">
                   {CHIP_VALUES.map((val) => (
                     <button
                       key={val}
@@ -819,7 +829,7 @@ export function BlackjackMultiplayer() {
                       onClick={() => handleUpdateBet(val)}
                       className={cn(
                         'relative flex flex-col items-center shrink-0 transition-all active:scale-95 group',
-                        selectedBet === val ? 'scale-110 -translate-y-0.5' : 'opacity-70 hover:opacity-100 hover:scale-105'
+                        selectedBet === val ? 'scale-110' : 'opacity-70 hover:opacity-100 hover:scale-105'
                       )}
                     >
                       <img
@@ -828,7 +838,7 @@ export function BlackjackMultiplayer() {
                         className={cn(
                           'w-9 h-9 sm:w-11 sm:h-11 object-contain drop-shadow-xl rounded-full transition-all',
                           selectedBet === val &&
-                            'ring-2 ring-amber-400 ring-offset-2 ring-offset-black shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+                            'ring-2 ring-amber-400 ring-offset-2 ring-offset-black shadow-[0_0_16px_rgba(251,191,36,0.8)]'
                         )}
                       />
                     </button>
@@ -837,40 +847,55 @@ export function BlackjackMultiplayer() {
               </motion.div>
             )}
 
-            {/* ACTIVE TURN ACTION HUD (MATCHING REFERENCE BUTTONS) */}
+            {/* ACTIVE TURN ACTION HUD WITH 30s COUNTDOWN */}
             {isMyTurn && (
               <motion.div
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="flex items-center justify-center gap-2.5 sm:gap-4 bg-[#080c08]/90 backdrop-blur-2xl border border-amber-500/35 p-2.5 sm:p-3.5 rounded-2xl shadow-2xl"
+                className="flex flex-col items-center gap-2 bg-[#080c08]/92 backdrop-blur-2xl border border-amber-500/40 p-3 sm:p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.95)]"
               >
-                <button
-                  type="button"
-                  onClick={() => handleAction('hit')}
-                  disabled={isActionPending}
-                  className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
-                >
-                  ЕЩЁ (HIT)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAction('stand')}
-                  disabled={isActionPending}
-                  className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
-                >
-                  ХВАТИТ (STAND)
-                </button>
-                {myPlayer && myPlayer.hand.length === 2 && (
+                <div className="flex items-center gap-1.5 text-xs font-black text-amber-300 uppercase tracking-wider">
+                  <Clock size={14} className="text-amber-400 animate-spin" />
+                  <span>ВАШ ХОД: {state.turnCountdown !== undefined ? `${state.turnCountdown}с` : '30с'}</span>
+                </div>
+
+                <div className="flex items-center justify-center gap-2.5 sm:gap-4">
                   <button
                     type="button"
-                    onClick={() => handleAction('double')}
+                    onClick={() => handleAction('hit')}
                     disabled={isActionPending}
-                    className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
+                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
                   >
-                    2× УДВОИТЬ
+                    ЕЩЁ (HIT)
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => handleAction('stand')}
+                    disabled={isActionPending}
+                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
+                  >
+                    ХВАТИТ (STAND)
+                  </button>
+                  {myPlayer && myPlayer.hand.length === 2 && (
+                    <button
+                      type="button"
+                      onClick={() => handleAction('double')}
+                      disabled={isActionPending}
+                      className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
+                    >
+                      2× УДВОИТЬ
+                    </button>
+                  )}
+                </div>
               </motion.div>
+            )}
+
+            {/* SPECTATOR / WAITING BADGE */}
+            {!myPlayer && state.phase === 'countdown' && (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-black/85 text-amber-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
+                <Zap size={14} className="text-amber-400 animate-bounce" />
+                Ставки: {state.countdown}с (Займите место)
+              </div>
             )}
 
             {/* DEALING PHASE BADGE */}
@@ -881,26 +906,27 @@ export function BlackjackMultiplayer() {
               </div>
             )}
 
-            {/* OTHER PLAYER'S TURN BADGE */}
+            {/* OTHER PLAYER'S TURN BADGE WITH COUNTDOWN */}
             {state.phase === 'player_turn' && !isMyTurn && (
               <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-black/80 text-cyan-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
                 <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-                Ход: Место #{state.currentTurnSeatId}
+                Ход: Место #{state.currentTurnSeatId} ({state.turnCountdown ?? 30}с)
               </div>
             )}
 
-            {/* DEALER TURN BADGE */}
+            {/* DARK PROMINENT DEALER TURN BADGE */}
             {state.phase === 'dealer_turn' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/40 bg-black/80 text-purple-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
-                Ход дилера...
+              <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/50 bg-black/90 text-white/95 px-6 py-2 text-sm sm:text-base font-black shadow-[0_10px_30px_rgba(0,0,0,0.85)] backdrop-blur-xl">
+                <span className="h-2.5 w-2.5 rounded-full bg-purple-400 animate-ping" />
+                ХОД ДИЛЕРА...
               </div>
             )}
           </div>
 
           {/* =========================================================================
-              3. 5 PLAYER SPOTS (3D LIQUID GLASS DISKS, PERFECT FIXED ROW ALIGNMENT):
+              3. 5 PLAYER SPOTS (TRUE CASINO ARC, 3D GLASS DISKS, PERFECT ALIGNMENT):
              ========================================================================= */}
-          <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-4 w-full items-end pb-5 sm:pb-8 px-1 sm:px-6">
+          <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-4 w-full items-end pb-8 sm:pb-14 px-1 sm:px-6">
             {SEATS_CONFIG.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
@@ -967,7 +993,7 @@ export function BlackjackMultiplayer() {
                     )}
                   </div>
 
-                  {/* (B) PLAYER LABEL (Visible only for seated players: "ВЫ" or Player Name, empty seats show nothing) */}
+                  {/* (B) PLAYER LABEL (Visible only for seated players: "ВЫ" or Player Name) */}
                   <div className="h-4 sm:h-5 flex items-center justify-center mb-1 w-full">
                     {player ? (
                       <span className="font-bold text-[10px] sm:text-xs text-amber-300/90 tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate max-w-[80px] sm:max-w-[120px] text-center">
@@ -1025,16 +1051,18 @@ export function BlackjackMultiplayer() {
                         )}
                       </div>
                     ) : (
-                      /* Empty Seat: 3D Liquid Glass Disc with Centered Golden Plus */
+                      /* Empty Seat: 3D Liquid Glass Disc with Perfectly Centered SVG Plus */
                       <button
                         disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
                         onClick={() => handleJoinSeat(seatId)}
-                        className="relative flex h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 items-center justify-center rounded-full border-[1.5px] border-amber-500/30 bg-gradient-to-b from-black/40 to-black/75 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.12),inset_0_-2px_4px_rgba(0,0,0,0.6)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group"
+                        className="relative flex h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 items-center justify-center rounded-full border-[1.5px] border-amber-500/35 bg-gradient-to-b from-black/50 to-black/85 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.7)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group"
                         title="Занять место"
                       >
-                        <span className="text-amber-400/80 group-hover:text-amber-300 font-light text-2xl sm:text-3xl leading-none flex items-center justify-center select-none transition-transform group-hover:scale-110">
-                          +
-                        </span>
+                        <Plus
+                          className="text-amber-400/80 group-hover:text-amber-300 transition-transform group-hover:scale-110"
+                          size={24}
+                          strokeWidth={2.5}
+                        />
                       </button>
                     )}
 
@@ -1105,6 +1133,7 @@ export function BlackjackMultiplayer() {
         messages={chatMessages}
         onSendMessage={handleSendMessage}
         currentUserId={user?.id}
+        players={state.players}
       />
     </main>
   );

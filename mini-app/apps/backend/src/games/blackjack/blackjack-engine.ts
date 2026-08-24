@@ -45,6 +45,7 @@ export interface BlackjackState {
   roomId: string;
   phase: GamePhase;
   countdown: number;
+  turnCountdown?: number;
   dealerHand: Card[];
   players: Player[];
   currentTurnSeatId: number | null;
@@ -81,6 +82,7 @@ export class BlackjackEngine extends EventEmitter {
   private state: BlackjackState;
   private countdownTimer: NodeJS.Timeout | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
+  private soloAfkTimer: NodeJS.Timeout | null = null;
   private deck: Card[] = [];
   private chatHistory: BlackjackChatMessage[] = [];
 
@@ -103,7 +105,7 @@ export class BlackjackEngine extends EventEmitter {
    * Player management
    * ---------------------------------------------------------------- */
 
-  join(userId: string, name: string, avatar: string | undefined, seatId: number, bet: number): boolean {
+  join(userId: string, name: string, avatar: string | undefined, seatId: number, bet: number = 0): boolean {
     if (this.state.phase !== 'waiting' && this.state.phase !== 'countdown') {
       return false; // Can't join during active round
     }
@@ -123,17 +125,20 @@ export class BlackjackEngine extends EventEmitter {
       avatar,
       seatId,
       hand: [],
-      bet,
+      bet: bet >= 10 ? Math.min(this.config.maxBet, bet) : 0,
       status: 'waiting',
       isReady: true,
     };
+    (player as any).consecutiveAfkRounds = 0;
 
     this.state.players.push(player);
     this.broadcastState();
 
-    // Start countdown if first player joined
-    if (this.state.players.length === 1 && this.state.phase === 'waiting') {
+    // Start countdown if at least one player has placed a valid bet >= 10
+    if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
       this.startCountdown();
+    } else {
+      this.checkSoloAfkTimer();
     }
 
     return true;
@@ -153,6 +158,8 @@ export class BlackjackEngine extends EventEmitter {
     // Reset if no players
     if (this.state.players.length === 0) {
       this.resetGame();
+    } else {
+      this.checkSoloAfkTimer();
     }
 
     this.broadcastState();
@@ -160,12 +167,44 @@ export class BlackjackEngine extends EventEmitter {
 
   updateBet(userId: string, bet: number): boolean {
     const player = this.state.players.find((p) => p.userId === userId);
-    if (!player || this.state.phase !== 'waiting' && this.state.phase !== 'countdown') {
+    if (!player || (this.state.phase !== 'waiting' && this.state.phase !== 'countdown')) {
       return false;
     }
-    player.bet = Math.max(this.config.minBet, Math.min(this.config.maxBet, bet));
+    player.bet = bet >= 10 ? Math.min(this.config.maxBet, bet) : 0;
+    if (player.bet > 0) {
+      (player as any).consecutiveAfkRounds = 0;
+      this.clearSoloAfkTimer();
+    }
     this.broadcastState();
+
+    // Start countdown if at least one player has bet >= 10
+    if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
+      this.startCountdown();
+    }
+
     return true;
+  }
+
+  private checkSoloAfkTimer(): void {
+    this.clearSoloAfkTimer();
+    if (this.state.players.length === 1 && this.state.phase === 'waiting') {
+      const soloPlayer = this.state.players[0];
+      if (soloPlayer.bet === 0) {
+        this.soloAfkTimer = setTimeout(() => {
+          if (this.state.players.length === 1 && this.state.players[0]?.bet === 0 && this.state.phase === 'waiting') {
+            logger.info({ userId: soloPlayer.userId }, 'Kicking solo inactive player after 30s with 0 bet');
+            this.leave(soloPlayer.userId);
+          }
+        }, 30000);
+      }
+    }
+  }
+
+  private clearSoloAfkTimer(): void {
+    if (this.soloAfkTimer) {
+      clearTimeout(this.soloAfkTimer);
+      this.soloAfkTimer = null;
+    }
   }
 
   /* -----------------------------------------------------------------
@@ -174,7 +213,8 @@ export class BlackjackEngine extends EventEmitter {
 
   private startCountdown(): void {
     if (this.state.phase !== 'waiting') return;
-    
+    this.clearSoloAfkTimer();
+
     this.state.phase = 'countdown';
     this.state.countdown = this.config.countdownSeconds;
     this.broadcastState();
@@ -203,6 +243,24 @@ export class BlackjackEngine extends EventEmitter {
       return;
     }
 
+    // Check which players placed a valid bet >= 10
+    const bettingPlayers = this.state.players.filter((p) => p.bet >= 10);
+    if (bettingPlayers.length === 0) {
+      // No one placed a bet — kick any 2-round AFK players and reset to waiting
+      for (const p of [...this.state.players]) {
+        (p as any).consecutiveAfkRounds = ((p as any).consecutiveAfkRounds || 0) + 1;
+        if ((p as any).consecutiveAfkRounds >= 2) {
+          logger.info({ userId: p.userId }, 'Kicking player for 2 consecutive 0-bet rounds');
+          this.leave(p.userId);
+        }
+      }
+      this.state.phase = 'waiting';
+      this.state.countdown = this.config.countdownSeconds;
+      this.checkSoloAfkTimer();
+      this.broadcastState();
+      return;
+    }
+
     this.state.phase = 'dealing';
     this.state.roundId = `blackjack_${Date.now()}_${randomUUID()}`;
     this.state.dealerHand = [];
@@ -212,6 +270,16 @@ export class BlackjackEngine extends EventEmitter {
 
     // Process bets first
     for (const player of [...this.state.players]) {
+      if (player.bet < 10) {
+        player.status = 'waiting';
+        player.hand = [];
+        (player as any).consecutiveAfkRounds = ((player as any).consecutiveAfkRounds || 0) + 1;
+        if ((player as any).consecutiveAfkRounds >= 2) {
+          this.leave(player.userId);
+        }
+        continue;
+      }
+
       let currentBalance = 0;
       try {
         const { balanceService } = await import('../../services/balance-service.js');
@@ -221,21 +289,18 @@ export class BlackjackEngine extends EventEmitter {
         logger.warn({ err, userId: player.userId }, 'Failed to check balance before round');
       }
 
-      // If user balance is 0 or less than minimum bet (10), player sits out without placing a bet
-      if (currentBalance < 10) {
-        logger.info({ userId: player.userId, currentBalance }, 'Player balance is < 10, sitting out as waiting');
-        player.status = 'waiting';
-        player.hand = [];
-        continue;
-      }
-
-      // If player bet is greater than their available balance, they sit AFK without participating
-      if (player.bet > currentBalance) {
+      if (currentBalance < player.bet) {
         logger.info({ userId: player.userId, bet: player.bet, currentBalance }, 'Player bet exceeds balance, sitting out round');
         player.status = 'waiting';
         player.hand = [];
+        (player as any).consecutiveAfkRounds = ((player as any).consecutiveAfkRounds || 0) + 1;
+        if ((player as any).consecutiveAfkRounds >= 2) {
+          this.leave(player.userId);
+        }
         continue;
       }
+
+      (player as any).consecutiveAfkRounds = 0;
 
       const bet: Bet = {
         id: `bj_bet_${player.userId}_${this.state.roundId}`,
@@ -251,52 +316,56 @@ export class BlackjackEngine extends EventEmitter {
       try {
         await bettingPipeline.processBet(bet, false);
         player.status = 'playing';
-      } catch (err) {
-        logger.warn({ err, userId: player.userId }, 'Failed to process blackjack bet');
+      } catch (error) {
+        logger.error({ error, userId: player.userId }, 'Failed to process blackjack bet');
         player.status = 'waiting';
-        player.hand = [];
       }
     }
 
-    // Deal cards with animation delays
-    await this.dealInitialCards();
-  }
-
-  private async dealInitialCards(): Promise<void> {
-    // Deal first card to each player
-    for (const player of this.state.players) {
-      if (player.status === 'playing') {
-        player.hand = [this.drawCard(player.userId)];
-      }
+    const activePlayers = this.state.players.filter((p) => p.status === 'playing');
+    if (activePlayers.length === 0) {
+      this.state.phase = 'waiting';
+      this.state.countdown = this.config.countdownSeconds;
+      this.broadcastState();
+      return;
     }
-    this.broadcastState();
-    await this.delay(500);
 
-    // Deal first card to dealer
-    this.state.dealerHand = [this.drawCard('dealer')];
     this.broadcastState();
-    await this.delay(500);
 
-    // Deal second card to each player
-    for (const player of this.state.players) {
-      if (player.status === 'playing') {
-        player.hand.push(this.drawCard(player.userId));
-        
-        // Check for blackjack
-        if (this.calculateHandValue(player.hand).total === 21) {
-          player.status = 'blackjack';
-        }
-      }
+    // Deal first round of cards (1 to each player, 1 to dealer)
+    await this.delay(600);
+    for (const player of activePlayers) {
+      player.hand.push(this.drawCard(player.userId));
+      this.broadcastState();
+      await this.delay(300);
     }
+
+    // Dealer first card (visible)
+    this.state.dealerHand.push(this.drawCard('dealer'));
+    this.broadcastState();
+    await this.delay(400);
+
+    // Deal second round of cards (1 to each player, 1 hidden to dealer)
+    for (const player of activePlayers) {
+      player.hand.push(this.drawCard(player.userId));
+      
+      // Check for natural blackjack
+      if (this.isBlackjack(player.hand)) {
+        player.status = 'blackjack';
+      }
+      
+      this.broadcastState();
+      await this.delay(300);
+    }
+
+    // Dealer second card (hidden)
+    const hiddenDealerCard = this.drawCard('dealer');
+    hiddenDealerCard.hidden = true;
+    this.state.dealerHand.push(hiddenDealerCard);
     this.broadcastState();
     await this.delay(500);
 
-    // Deal second card to dealer (hidden)
-    this.state.dealerHand.push({ ...this.drawCard('dealer'), hidden: true });
-    this.broadcastState();
-    await this.delay(500);
-
-    // Start player turns
+    // Move to player turns
     this.startPlayerTurns();
   }
 
@@ -320,19 +389,39 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   private startTurnTimer(): void {
-    // Auto-stand after 30 seconds if no action
-    this.turnTimer = setTimeout(() => {
-      if (this.state.phase === 'player_turn' && this.state.currentTurnSeatId) {
-        this.stand(this.getPlayerBySeat(this.state.currentTurnSeatId)?.userId || '');
+    this.clearTurnTimer();
+    this.state.turnCountdown = 30;
+    this.broadcastState();
+
+    this.turnTimer = setInterval(() => {
+      if (this.state.phase !== 'player_turn' || !this.state.currentTurnSeatId) {
+        this.clearTurnTimer();
+        return;
       }
-    }, 30000);
+
+      if (this.state.turnCountdown !== undefined && this.state.turnCountdown > 0) {
+        this.state.turnCountdown--;
+        this.broadcastState();
+
+        if (this.state.turnCountdown <= 0) {
+          this.clearTurnTimer();
+          if (this.state.currentTurnSeatId) {
+            const player = this.getPlayerBySeat(this.state.currentTurnSeatId);
+            if (player) {
+              void this.stand(player.userId);
+            }
+          }
+        }
+      }
+    }, 1000);
   }
 
   private clearTurnTimer(): void {
     if (this.turnTimer) {
-      clearTimeout(this.turnTimer);
+      clearInterval(this.turnTimer);
       this.turnTimer = null;
     }
+    this.state.turnCountdown = undefined;
   }
 
   /* -----------------------------------------------------------------
@@ -430,6 +519,7 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   private async nextTurn(): Promise<void> {
+    this.clearTurnTimer();
     const currentSeat = this.state.currentTurnSeatId;
     if (!currentSeat) return;
 
@@ -448,73 +538,69 @@ export class BlackjackEngine extends EventEmitter {
       // No more players, dealer's turn
       this.startDealerTurn();
     }
+
+    this.broadcastState();
   }
 
   /* -----------------------------------------------------------------
-   * Dealer turn
+   * Dealer AI
    * ---------------------------------------------------------------- */
 
   private async startDealerTurn(): Promise<void> {
     this.clearTurnTimer();
     this.state.phase = 'dealer_turn';
     this.state.currentTurnSeatId = null;
-
+    
     // Reveal hidden card
-    this.state.dealerHand = this.state.dealerHand.map((c) => ({ ...c, hidden: false }));
-    this.broadcastState();
-
-    await this.delay(1000);
-    await this.playDealerHand();
-  }
-
-  private async playDealerHand(): Promise<void> {
-    const { total } = this.calculateHandValue(this.state.dealerHand, true);
-    logger.info({ total, handSize: this.state.dealerHand.length, standOn: this.config.dealerStandOn }, 'Dealer hand calculation');
-
-    if (total < this.config.dealerStandOn) {
-      // Dealer hits
-      this.state.dealerHand.push(this.drawCard('dealer'));
+    if (this.state.dealerHand.length > 1 && this.state.dealerHand[1].hidden) {
+      this.state.dealerHand[1].hidden = false;
       this.broadcastState();
-      await this.delay(1000);
-      await this.playDealerHand();
-    } else {
-      // Dealer stands
-      await this.settleRound();
+      await this.delay(800);
     }
+
+    // Dealer hits until standOn (17)
+    let { total } = this.calculateHandValue(this.state.dealerHand);
+    
+    while (total < this.config.dealerStandOn) {
+      await this.delay(800);
+      this.state.dealerHand.push(this.drawCard('dealer'));
+      total = this.calculateHandValue(this.state.dealerHand).total;
+      this.broadcastState();
+    }
+
+    await this.delay(800);
+    this.settleRound();
   }
 
   /* -----------------------------------------------------------------
-   * Settlement
+   * Settlement & Payouts
    * ---------------------------------------------------------------- */
 
   private async settleRound(): Promise<void> {
     this.state.phase = 'settling';
     this.broadcastState();
 
-    const dealerValue = this.calculateHandValue(this.state.dealerHand, true).total;
+    const dealerValue = this.calculateHandValue(this.state.dealerHand).total;
     const dealerBust = dealerValue > 21;
-    const dealerBlackjack = this.isBlackjack(this.state.dealerHand);
+    const dealerBJ = this.isBlackjack(this.state.dealerHand);
 
     for (const player of this.state.players) {
-      // If player did not participate in this round (AFK or bet exceeded balance), skip
-      if (player.status === 'waiting' || player.hand.length === 0) {
-        continue;
-      }
+      if (player.status === 'waiting' || player.hand.length === 0) continue;
 
       const playerValue = this.calculateHandValue(player.hand).total;
-      const playerBust = player.status === 'bust';
-      const playerBlackjack = player.status === 'blackjack';
+      const playerBust = player.status === 'bust' || playerValue > 21;
+      const playerBJ = player.status === 'blackjack' || this.isBlackjack(player.hand);
 
-      let result: 'win' | 'lose' | 'push' | 'blackjack' = 'lose';
+      let result: 'win' | 'lose' | 'push' | 'blackjack';
       let payout = 0;
 
       if (playerBust) {
         result = 'lose';
         payout = 0;
-      } else if (playerBlackjack && !dealerBlackjack) {
+      } else if (playerBJ && !dealerBJ) {
         result = 'blackjack';
         payout = player.bet * 2.5; // 3:2 payout
-      } else if (dealerBlackjack && !playerBlackjack) {
+      } else if (dealerBJ && !playerBJ) {
         result = 'lose';
         payout = 0;
       } else if (dealerBust) {
@@ -565,7 +651,7 @@ export class BlackjackEngine extends EventEmitter {
             id: `${this.state.roundId}_${player.userId}`,
             gameType: 'blackjack',
             state: 'completed',
-            serverSeedHash: 'card_game_no_seed', // Blackjack doesn't use provably-fair seed system
+            serverSeedHash: 'card_game_no_seed',
             startedAt: new Date(),
             endedAt: new Date(),
             metadata: { mode: 'multi', betAmount: player.bet, roomId: this.roomId },
@@ -591,6 +677,7 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   private resetForNextRound(): void {
+    this.clearTurnTimer();
     this.state.phase = 'waiting';
     this.state.countdown = this.config.countdownSeconds;
     this.state.dealerHand = [];
@@ -600,19 +687,17 @@ export class BlackjackEngine extends EventEmitter {
     for (const player of this.state.players) {
       player.hand = [];
       player.status = 'waiting';
-    }
-
-    // Auto-start if players still present
-    if (this.state.players.length > 0) {
-      this.startCountdown();
+      player.bet = 0; // Point #12: bet resets to 0 for next round
     }
 
     this.broadcastState();
+    this.checkSoloAfkTimer();
   }
 
   private resetGame(): void {
     this.stopCountdown();
     this.clearTurnTimer();
+    this.clearSoloAfkTimer();
     this.state = {
       roomId: this.roomId,
       phase: 'waiting',
