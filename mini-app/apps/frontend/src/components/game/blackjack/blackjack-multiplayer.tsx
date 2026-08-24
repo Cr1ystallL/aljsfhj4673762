@@ -156,89 +156,141 @@ export function BlackjackMultiplayer() {
     return getPlayerOutcome(myPlayer);
   }, [myPlayer, getPlayerOutcome]);
 
+  // REST state fallback loader
+  const loadStateSnapshot = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/games/blackjack/state?roomId=${roomId}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.state) {
+          setState(data.state);
+        }
+        if (data.chat) {
+          setChatMessages(data.chat);
+        }
+      }
+    } catch {}
+  }, [roomId]);
+
+  // Initial load & fallback sync
+  useEffect(() => {
+    void loadStateSnapshot();
+    const pollInterval = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        void loadStateSnapshot();
+      }
+    }, 3000);
+    return () => clearInterval(pollInterval);
+  }, [loadStateSnapshot]);
+
   // WebSocket connection & messaging
   useEffect(() => {
     let ws: WebSocket | null = null;
     let pingInterval: NodeJS.Timeout | null = null;
+    let isDisposed = false;
 
     const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/ws`;
-      ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      if (isDisposed || typeof window === 'undefined') return;
 
-      ws.onopen = () => {
-        const effectiveAuth = sessionId || token || user?.id || 'guest_user';
+      const baseRaw =
+        process.env.NEXT_PUBLIC_WS_URL ||
+        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+      let base = baseRaw.replace(/\/$/, '');
+      if (!base.endsWith('/api')) {
+        base = base.replace(/\/ws$/, '');
+      }
+      const wsUrl = base.endsWith('/api/ws') ? base : `${base.replace(/\/api$/, '')}/api/ws`;
 
-        ws?.send(
-          JSON.stringify({
-            type: 'auth',
-            payload: { sessionId: effectiveAuth },
-            timestamp: Date.now(),
-          })
-        );
+      try {
+        ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-        ws?.send(
-          JSON.stringify({
-            type: 'game:join',
-            payload: { roomId },
-            timestamp: Date.now(),
-          })
-        );
+        ws.onopen = () => {
+          const effectiveAuth = sessionId || token || user?.id || 'guest_user';
 
-        pingInterval = setInterval(() => {
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping', payload: {}, timestamp: Date.now() }));
-          }
-        }, 15000);
-      };
+          ws?.send(
+            JSON.stringify({
+              type: 'auth',
+              payload: { sessionId: effectiveAuth },
+              timestamp: Date.now(),
+            })
+          );
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+          ws?.send(
+            JSON.stringify({
+              type: 'game:join',
+              payload: { roomId },
+              timestamp: Date.now(),
+            })
+          );
 
-          if (data.type === 'auth_success') {
-            ws?.send(
-              JSON.stringify({
-                type: 'game:join',
-                payload: { roomId },
-                timestamp: Date.now(),
-              })
-            );
-          }
-
-          if (data.type === 'bj:state' && data.payload) {
-            setState(data.payload);
-            setIsActionPending(false);
-            if (data.payload.phase === 'settling') {
-              void fetchBalance();
+          pingInterval = setInterval(() => {
+            if (ws?.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'ping', payload: {}, timestamp: Date.now() }));
             }
-          }
+          }, 15000);
+        };
 
-          if (data.type === 'blackjack:chat:history' && data.payload?.messages) {
-            setChatMessages(data.payload.messages);
-          }
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-          if (data.type === 'blackjack:chat:message' && data.payload) {
-            setChatMessages((prev) => [...prev, data.payload]);
-            if (!isChatOpen) {
-              setUnreadChatCount((c) => c + 1);
+            if (data.type === 'auth_success') {
+              ws?.send(
+                JSON.stringify({
+                  type: 'game:join',
+                  payload: { roomId },
+                  timestamp: Date.now(),
+                })
+              );
             }
+
+            if (data.type === 'bj:state' && data.payload) {
+              setState(data.payload);
+              setIsActionPending(false);
+              if (data.payload.phase === 'settling') {
+                void fetchBalance();
+              }
+            }
+
+            if (data.type === 'blackjack:chat:history' && data.payload?.messages) {
+              setChatMessages(data.payload.messages);
+            }
+
+            if (data.type === 'blackjack:chat:message' && data.payload) {
+              setChatMessages((prev) => [...prev, data.payload]);
+              if (!isChatOpen) {
+                setUnreadChatCount((c) => c + 1);
+              }
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
+        };
+
+        ws.onclose = () => {
+          if (pingInterval) clearInterval(pingInterval);
+          if (!isDisposed) {
+            setTimeout(connect, 3000);
+          }
+        };
+
+        ws.onerror = () => {
+          try {
+            ws?.close();
+          } catch {}
+        };
+      } catch {
+        if (!isDisposed) {
+          setTimeout(connect, 4000);
         }
-      };
-
-      ws.onclose = () => {
-        if (pingInterval) clearInterval(pingInterval);
-        setTimeout(connect, 3000);
-      };
+      }
     };
 
     connect();
 
     return () => {
+      isDisposed = true;
       if (pingInterval) clearInterval(pingInterval);
       ws?.close();
     };

@@ -1334,6 +1334,20 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({ success: true });
   });
+
+  /* -------------------------------------------------------------------------- */
+  /* Blackjack state snapshot endpoint                                          */
+  /* -------------------------------------------------------------------------- */
+
+  app.get('/blackjack/state', async (request, reply) => {
+    const { roomId = 'bj_table_1' } = (request.query as { roomId?: string }) || {};
+    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+    const table = blackjackSingleton.getTable(roomId);
+    if (!table) {
+      return reply.code(404).send({ error: 'Table not found' });
+    }
+    return reply.send({ success: true, state: table.getState(), chat: table.getChatHistory() });
+  });
 }
 
 
