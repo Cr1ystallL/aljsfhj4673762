@@ -290,10 +290,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
       wsManager.removeConnection(connectionId);
       if (socket.userId) {
         try {
-          const table = blackjackSingleton.getTable('bj_room_1');
-          if (table) {
-            table.leave(socket.userId);
-          }
+          blackjackSingleton.leaveAllTables(socket.userId);
         } catch (err) {
           logger.warn({ err, userId: socket.userId }, 'Failed to remove user from blackjack table on disconnect');
         }
@@ -307,10 +304,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
       wsManager.removeConnection(connectionId);
       if (socket.userId) {
         try {
-          const table = blackjackSingleton.getTable('bj_room_1');
-          if (table) {
-            table.leave(socket.userId);
-          }
+          blackjackSingleton.leaveAllTables(socket.userId);
         } catch {}
       }
     });

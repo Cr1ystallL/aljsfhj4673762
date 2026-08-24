@@ -13,6 +13,10 @@ class BlackjackSingletonManager {
   getTable(roomId: string): BlackjackEngine {
     return blackjackRoomManager.getOrCreateRoom(roomId || MAIN_BJ_ROOM_ID);
   }
+
+  leaveAllTables(userId: string): void {
+    blackjackRoomManager.leaveAllRooms(userId);
+  }
 }
 
 export const blackjackSingleton = new BlackjackSingletonManager();

@@ -846,6 +846,16 @@ export class BlackjackRoomManager {
     return this.rooms.get(roomId);
   }
 
+  getAllRooms(): BlackjackEngine[] {
+    return Array.from(this.rooms.values());
+  }
+
+  leaveAllRooms(userId: string): void {
+    for (const engine of this.rooms.values()) {
+      engine.leave(userId);
+    }
+  }
+
   removeRoom(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (room) {

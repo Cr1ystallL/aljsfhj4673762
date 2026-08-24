@@ -8,7 +8,6 @@ import {
   HelpCircle,
   MessageSquare,
   Users,
-  Shield,
   Zap,
   Sparkles,
   Minus,
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
-import { PlayingCard, CardData, Suit } from '@/components/game/hilo/playing-card';
+import { Suit } from '@/components/game/hilo/playing-card';
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
 import { GameTopBar } from '@/components/game/game-top-bar';
@@ -86,14 +85,14 @@ function getChipImage(amount: number): string {
 }
 
 const SEATS_CONFIG = [
-  { id: 1, label: 'Игрок 1', arcOffset: 'translate-y-0 sm:-translate-y-3' },
+  { id: 1, label: 'Игрок 1', arcOffset: 'translate-y-0 sm:-translate-y-2' },
   { id: 2, label: 'Игрок 2', arcOffset: 'translate-y-1 sm:translate-y-0' },
   { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-3' },
   { id: 4, label: 'Игрок 4', arcOffset: 'translate-y-1 sm:translate-y-0' },
-  { id: 5, label: 'Игрок 5', arcOffset: 'translate-y-0 sm:-translate-y-3' },
+  { id: 5, label: 'Игрок 5', arcOffset: 'translate-y-0 sm:-translate-y-2' },
 ];
 
-function convertCard(c: BJCard): CardData {
+function convertCard(c: BJCard) {
   let rankNum = 10;
   if (c.rank === 'A') rankNum = 1;
   else if (c.rank === 'K') rankNum = 13;
@@ -105,6 +104,100 @@ function convertCard(c: BJCard): CardData {
     suit: c.suit,
     rank: rankNum,
   };
+}
+
+/**
+ * High-End Casino Playing Card Component
+ * Matches design specification: cream gradient face-up & crimson gold-framed back with MacvBet logo.
+ */
+function CasinoBlackjackCard({
+  card,
+  isFaceDown = false,
+  className,
+}: {
+  card?: BJCard | null;
+  isFaceDown?: boolean;
+  className?: string;
+}) {
+  if (isFaceDown || !card || card.hidden) {
+    return (
+      <div
+        className={cn(
+          'relative flex items-center justify-center rounded-[8px] sm:rounded-[9px] select-none flex-shrink-0 overflow-hidden',
+          'w-[54px] h-[78px] sm:w-[68px] sm:h-[96px] md:w-[76px] md:h-[106px]',
+          'border border-black/35 shadow-[0_8px_18px_rgba(0,0,0,0.65),0_0_22px_rgba(150,20,20,0.25)]',
+          className
+        )}
+        style={{
+          background: 'linear-gradient(155deg, #7c1a1a 0%, #550f10 60%, #3a0709 100%)',
+        }}
+      >
+        {/* Inner gold frame with subtle diagonal pattern */}
+        <div
+          className="absolute inset-[3px] sm:inset-[5px] rounded-[5px] sm:rounded-[6px] border border-[rgba(230,196,130,0.35)] pointer-events-none"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(45deg, rgba(230,196,130,0.06) 0 2px, transparent 2px 7px)',
+          }}
+        />
+
+        {/* MacvBet Crown Logo in center */}
+        <img
+          src="/ButtonLogo.svg"
+          alt="MacvBet"
+          className="relative z-10 w-6 h-6 sm:w-8 sm:h-8 object-contain filter brightness-125 drop-shadow-[0_0_8px_rgba(227,193,126,0.6)]"
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+  const suitSymbol =
+    card.suit === 'spades'
+      ? '♠'
+      : card.suit === 'hearts'
+      ? '♥'
+      : card.suit === 'diamonds'
+      ? '♦'
+      : '♣';
+  const rankStr = card.rank;
+
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col justify-between p-1.5 sm:p-2 rounded-[8px] sm:rounded-[9px] select-none flex-shrink-0 overflow-hidden',
+        'w-[54px] h-[78px] sm:w-[68px] sm:h-[96px] md:w-[76px] md:h-[106px]',
+        'border border-black/25 shadow-[0_8px_18px_rgba(0,0,0,0.55)]',
+        isRed ? 'text-[#9c1f24]' : 'text-[#161512]',
+        className
+      )}
+      style={{
+        background: 'linear-gradient(160deg, #fbf7ee 0%, #efe7d3 100%)',
+      }}
+    >
+      {/* Top Left Corner */}
+      <div className="flex flex-col items-center self-start leading-none pointer-events-none z-10">
+        <span className="text-xs sm:text-base font-black leading-none font-serif">
+          {rankStr}
+        </span>
+        <span className="text-[10px] sm:text-xs leading-none mt-0.5">{suitSymbol}</span>
+      </div>
+
+      {/* Large Center Suit */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span className="text-2xl sm:text-3xl md:text-4xl leading-none">{suitSymbol}</span>
+      </div>
+
+      {/* Bottom Right Corner (Rotated 180) */}
+      <div className="flex flex-col items-center self-end leading-none pointer-events-none rotate-180 z-10">
+        <span className="text-xs sm:text-base font-black leading-none font-serif">
+          {rankStr}
+        </span>
+        <span className="text-[10px] sm:text-xs leading-none mt-0.5">{suitSymbol}</span>
+      </div>
+    </div>
+  );
 }
 
 export function BlackjackMultiplayer() {
@@ -164,26 +257,28 @@ export function BlackjackMultiplayer() {
   }, [dealerCardsData]);
 
   // Compute outcome for each seated player during settlement
-  const getPlayerOutcome = useCallback((player: BJPlayer) => {
-    if (state.phase !== 'settling' && state.phase !== 'finished') return null;
-    // If player did not participate in the dealt round (e.g. AFK or bet exceeded balance)
-    if (player.status === 'waiting' || !player.hand || player.hand.length === 0) {
-      return null;
-    }
-    const pValue = calculateHandValue(player.hand.map(convertCard)).total;
-    const isDealerBust = dealerScore > 21;
-    const isPlayerBust = player.status === 'bust' || pValue > 21;
-    const isPlayerBJ = player.status === 'blackjack' || (player.hand.length === 2 && pValue === 21);
-    const isDealerBJ = state.dealerHand.length === 2 && dealerScore === 21;
+  const getPlayerOutcome = useCallback(
+    (player: BJPlayer) => {
+      if (state.phase !== 'settling' && state.phase !== 'finished') return null;
+      if (player.status === 'waiting' || !player.hand || player.hand.length === 0) {
+        return null;
+      }
+      const pValue = calculateHandValue(player.hand.map(convertCard)).total;
+      const isDealerBust = dealerScore > 21;
+      const isPlayerBust = player.status === 'bust' || pValue > 21;
+      const isPlayerBJ = player.status === 'blackjack' || (player.hand.length === 2 && pValue === 21);
+      const isDealerBJ = state.dealerHand.length === 2 && dealerScore === 21;
 
-    if (isPlayerBust) return 'lose';
-    if (isPlayerBJ && !isDealerBJ) return 'blackjack';
-    if (isDealerBJ && !isPlayerBJ) return 'lose';
-    if (isDealerBust) return 'win';
-    if (pValue > dealerScore) return 'win';
-    if (pValue === dealerScore) return 'push';
-    return 'lose';
-  }, [state.phase, dealerScore, state.dealerHand.length]);
+      if (isPlayerBust) return 'lose';
+      if (isPlayerBJ && !isDealerBJ) return 'blackjack';
+      if (isDealerBJ && !isPlayerBJ) return 'lose';
+      if (isDealerBust) return 'win';
+      if (pValue > dealerScore) return 'win';
+      if (pValue === dealerScore) return 'push';
+      return 'lose';
+    },
+    [state.phase, dealerScore, state.dealerHand.length]
+  );
 
   const myOutcome = useMemo(() => {
     if (!myPlayer) return null;
@@ -205,7 +300,7 @@ export function BlackjackMultiplayer() {
 
   const handleLeaveSeat = useCallback(() => {
     sendWs('blackjack:leave_seat', { roomId });
-    soundManager.play('game.click');
+    soundManager.play('bj.chip_click');
   }, [roomId, sendWs]);
 
   // REST state fallback loader
@@ -284,9 +379,9 @@ export function BlackjackMultiplayer() {
     return () => clearInterval(pollInterval);
   }, [loadStateSnapshot]);
 
-  // Cleanup on unmount (leave seat so player does not bet AFK when navigating away)
+  // Comprehensive exit / unmount / beforeunload seat release cleanup
   useEffect(() => {
-    return () => {
+    const handleLeave = () => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(
           JSON.stringify({
@@ -296,6 +391,15 @@ export function BlackjackMultiplayer() {
           })
         );
       }
+    };
+
+    window.addEventListener('beforeunload', handleLeave);
+    window.addEventListener('pagehide', handleLeave);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleLeave);
+      window.removeEventListener('pagehide', handleLeave);
+      handleLeave();
     };
   }, [roomId]);
 
@@ -381,9 +485,7 @@ export function BlackjackMultiplayer() {
                 setUnreadChatCount((c) => c + 1);
               }
             }
-          } catch {
-            // ignore
-          }
+          } catch {}
         };
 
         ws.onclose = () => {
@@ -486,32 +588,53 @@ export function BlackjackMultiplayer() {
           </div>
 
           {/* =========================================================================
-              TOP RIGHT: Deck Spread Out Horizontally Without Border
+              TOP RIGHT: Deck Stacked Neatly in Rectangle with Gold Label
              ========================================================================= */}
-          <div className="absolute top-4 sm:top-6 right-4 sm:right-10 z-20 flex flex-col items-center">
-            <div className="flex items-center -space-x-8 sm:-space-x-12">
-              {[0, 1, 2, 3, 4, 5].map((idx) => (
+          <div className="absolute top-4 sm:top-5 right-6 sm:right-16 md:right-24 z-20 flex flex-col items-center">
+            <div className="relative flex items-center justify-center w-14 h-16 sm:w-20 sm:h-22">
+              {[0, 1, 2, 3].map((idx) => (
                 <div
                   key={idx}
-                  className="w-10 h-14 sm:w-14 sm:h-20 rounded-md sm:rounded-lg border-2 border-black bg-gradient-to-br from-[#800c14] to-[#3a060a] shadow-lg flex items-center justify-center transition-transform hover:-translate-y-1"
-                  style={{ transform: `rotate(${idx * 2 - 5}deg)` }}
+                  className="absolute rounded-[7px] border border-black/40 shadow-lg overflow-hidden flex items-center justify-center"
+                  style={{
+                    width: 48 + idx * 2,
+                    height: 64,
+                    top: idx * 2,
+                    left: idx * 4,
+                    transform: `rotate(${idx * 2 - 3}deg)`,
+                    background: 'linear-gradient(155deg, #7c1a1a 0%, #550f10 60%, #3a0709 100%)',
+                    zIndex: idx + 1,
+                  }}
                 >
-                  <div className="w-6 h-10 sm:w-9 sm:h-14 border border-white/20 rounded-xs bg-[radial-gradient(#ffffff_0.5px,transparent_0.5px)] [background-size:3px_3px] opacity-35" />
+                  <div
+                    className="absolute inset-[3px] rounded-[4px] border border-[rgba(230,196,130,0.3)] pointer-events-none"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(45deg, rgba(230,196,130,0.06) 0 2px, transparent 2px 7px)',
+                    }}
+                  />
+                  {idx === 3 && (
+                    <img
+                      src="/ButtonLogo.svg"
+                      alt="MacvBet"
+                      className="relative z-10 w-5 h-5 object-contain filter brightness-125 drop-shadow-[0_0_4px_rgba(227,193,126,0.6)]"
+                    />
+                  )}
                 </div>
               ))}
             </div>
-            <span className="font-extrabold text-[10px] sm:text-xs text-black/80 uppercase tracking-widest mt-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]">
+            <span className="font-bold text-[10px] sm:text-[11px] text-amber-300/80 uppercase tracking-widest mt-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
               Колода
             </span>
           </div>
 
           {/* =========================================================================
-              1. TOP CENTER: Large Black Dealer Circle, Text "Диллер", Animated Dealt Cards
+              1. TOP CENTER: Dealer Avatar with Golden Ring, Name & Hand Cards
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-3 sm:pt-6">
             {/* Dealer Avatar */}
-            <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center">
-              <div className="h-full w-full rounded-full bg-black border-[3px] border-black text-white shadow-2xl overflow-hidden flex items-center justify-center">
+            <div className="relative flex h-14 w-14 sm:h-18 sm:w-18 items-center justify-center">
+              <div className="h-full w-full rounded-full bg-black border-2 border-amber-400/80 text-white shadow-[0_0_20px_rgba(251,191,36,0.5),0_10px_25px_rgba(0,0,0,0.8)] overflow-hidden flex items-center justify-center">
                 <img
                   src="/BlackJack/diller.png"
                   alt="Диллер"
@@ -523,18 +646,18 @@ export function BlackjackMultiplayer() {
                 />
               </div>
               {dealerScore > 0 && (
-                <span className="absolute -bottom-2.5 sm:-bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-2.5 py-0.5 text-[10px] sm:text-xs font-black text-white border border-white/30 shadow-2xl whitespace-nowrap z-30">
+                <span className="absolute -bottom-2.5 sm:-bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-2.5 py-0.5 text-[10px] sm:text-xs font-black text-amber-300 border border-amber-400/40 shadow-2xl whitespace-nowrap z-30">
                   {dealerScore}
                 </span>
               )}
             </div>
 
             {/* Label "Диллер" */}
-            <span className="font-extrabold text-xs sm:text-sm text-black uppercase tracking-wider mt-1.5 mb-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]">
+            <span className="font-bold text-xs sm:text-sm text-amber-300/90 uppercase tracking-wider mt-1.5 mb-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
               Диллер
             </span>
 
-            {/* Dealer Hand Cards (Normal Size, animated dealing & flip) */}
+            {/* Dealer Hand Cards */}
             <div className="relative flex items-center justify-center min-h-[84px] sm:min-h-[104px] mt-0.5">
               {state.dealerHand.length > 0 && (
                 <div className="flex items-center justify-center">
@@ -555,20 +678,15 @@ export function BlackjackMultiplayer() {
                       }}
                       className="relative"
                       style={{
-                        marginLeft: idx > 0 ? (state.dealerHand.length > 3 ? '-24px' : '-12px') : '0px',
+                        marginLeft: idx > 0 ? (state.dealerHand.length > 3 ? '-28px' : '-14px') : '0px',
                         zIndex: idx + 1,
                       }}
                     >
-                      {c.hidden ? (
-                        <div className="w-[58px] h-[82px] sm:w-[72px] sm:h-[102px] rounded-lg sm:rounded-xl border-2 border-black bg-gradient-to-br from-[#800c14] to-[#3a060a] flex items-center justify-center shadow-2xl">
-                          <Shield size={20} className="text-amber-400/70" />
-                        </div>
-                      ) : (
-                        <PlayingCard
-                          card={convertCard(c)}
-                          className="w-[58px] h-[82px] sm:w-[72px] sm:h-[102px] shadow-2xl border-2 border-black rounded-lg sm:rounded-xl"
-                        />
-                      )}
+                      <CasinoBlackjackCard
+                        card={c}
+                        isFaceDown={c.hidden}
+                        className="w-[56px] h-[80px] sm:w-[72px] sm:h-[100px]"
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -577,9 +695,9 @@ export function BlackjackMultiplayer() {
           </div>
 
           {/* =========================================================================
-              2. CENTER: Dynamic Phase Badges, Outcome Banners & Minimalist In-Table Betting
+              2. CENTER: Liquid Glass Betting Controls, Outcome Banners & Action HUD
              ========================================================================= */}
-          <div className="relative z-20 my-auto py-2 text-center flex flex-col items-center justify-center gap-2">
+          <div className="relative z-20 my-auto py-1 text-center flex flex-col items-center justify-center gap-2">
             {/* LUXURY OUTCOME BANNER AT ROUND END */}
             {(state.phase === 'settling' || state.phase === 'finished') && (
               <motion.div
@@ -620,8 +738,8 @@ export function BlackjackMultiplayer() {
                     <span className="text-sm sm:text-base font-black text-white/80">-{myPlayer!.bet} zł</span>
                   </div>
                 ) : (
-                  <div className="relative flex items-center gap-2 px-5 py-2 rounded-full bg-black/80 border border-white/20 shadow-xl backdrop-blur-md">
-                    <span className="text-xs sm:text-sm font-black text-white/90 uppercase tracking-wider">
+                  <div className="relative flex items-center gap-2 px-5 py-2 rounded-full bg-black/80 border border-amber-400/30 shadow-xl backdrop-blur-md">
+                    <span className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wider">
                       РАУНД ЗАВЕРШЕН · ДИЛЕР {dealerScore > 21 ? 'ПЕРЕБОР' : dealerScore}
                     </span>
                   </div>
@@ -629,62 +747,70 @@ export function BlackjackMultiplayer() {
               </motion.div>
             )}
 
-            {/* COUNTDOWN / WAITING PHASE: MINIMALIST CENTER BETTING HUD WITH REAL CHIPS */}
-            {myPlayer && (state.phase === 'waiting' || state.phase === 'countdown') && (
+            {/* COMPACT LIQUID GLASS BETTING CONTROLS (WHEN WAITING / COUNTDOWN) */}
+            {(state.phase === 'waiting' || state.phase === 'countdown') && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center gap-2.5 bg-[#070a0f]/95 backdrop-blur-2xl border border-white/15 p-2.5 sm:p-3.5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] max-w-sm sm:max-w-md w-full"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-amber-500/35 bg-[#080c08]/85 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_1px_2px_rgba(255,255,255,0.15)] p-3 sm:p-4 min-w-[300px] sm:min-w-[420px] max-w-[94vw]"
               >
+                {/* Top Header Row: ⚡ СТАВКА & ВСТАТЬ */}
                 <div className="flex items-center justify-between w-full px-1">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-400">
-                    <Zap size={14} className="animate-bounce" />
-                    <span>Ставки: {state.countdown}с</span>
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs sm:text-sm tracking-wider uppercase">
+                    <Zap size={14} className="text-amber-400" />
+                    <span>Ставка: {selectedBet} zł</span>
+                    {state.phase === 'countdown' && (
+                      <span className="text-xs font-normal text-amber-300/80 lowercase">
+                        ({state.countdown}с)
+                      </span>
+                    )}
                   </div>
-                  {myPlayer.bet > activeBalance && (
-                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-400/30 px-2 py-0.5 rounded-md">
-                      АФК (Ставка &gt; Баланса)
-                    </span>
+
+                  {myPlayer && (
+                    <button
+                      type="button"
+                      onClick={handleLeaveSeat}
+                      className="flex items-center gap-1 text-red-400/90 hover:text-red-300 text-xs font-bold transition-colors"
+                      title="Покинуть место"
+                    >
+                      <LogOut size={13} />
+                      <span>ВСТАТЬ</span>
+                    </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleLeaveSeat}
-                    className="flex items-center gap-1 text-[11px] font-bold text-red-400 hover:text-red-300 transition-colors"
-                  >
-                    <LogOut size={13} />
-                    Встать
-                  </button>
                 </div>
 
-                {/* Minimalist Stepper */}
-                <div className="flex items-center justify-between gap-3 w-full bg-black/70 border border-white/10 rounded-2xl p-1.5 px-3">
+                {/* Middle Row: Stepper Buttons (- / +) and Center Chip + Amount */}
+                <div className="flex items-center justify-between w-full bg-black/40 rounded-xl p-1.5 border border-white/5">
                   <button
                     type="button"
-                    onClick={() => handleUpdateBet(Math.max(10, selectedBet - 10))}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-black transition-all"
+                    onClick={() => handleUpdateBet(selectedBet - 10)}
+                    disabled={selectedBet <= 10}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 text-white font-bold transition-all"
                   >
-                    <Minus size={15} />
+                    <Minus size={14} />
                   </button>
+
                   <div className="flex items-center gap-2">
                     <img
                       src={getChipImage(selectedBet)}
                       alt={`${selectedBet} zł`}
-                      className="w-7 h-7 sm:w-8 sm:h-8 object-contain drop-shadow-md"
+                      className="w-6 h-6 sm:w-7 sm:h-7 object-contain drop-shadow-md"
                     />
-                    <span className="text-base sm:text-lg font-black text-white tracking-wide">
-                      {selectedBet} <span className="text-amber-400 font-bold">zł</span>
+                    <span className="text-sm sm:text-base font-black text-white tracking-wide">
+                      {selectedBet} zł
                     </span>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => handleUpdateBet(selectedBet + 10)}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-black transition-all"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold transition-all"
                   >
-                    <Plus size={15} />
+                    <Plus size={14} />
                   </button>
                 </div>
 
-                {/* Realistic Casino Chip Selector from public/BlackJack */}
+                {/* Bottom Row: Realistic Casino Chips Selector with Halo Glow */}
                 <div className="flex items-center justify-center gap-2 sm:gap-3 w-full py-1 overflow-x-auto scrollbar-none">
                   {CHIP_VALUES.map((val) => (
                     <button
@@ -693,15 +819,16 @@ export function BlackjackMultiplayer() {
                       onClick={() => handleUpdateBet(val)}
                       className={cn(
                         'relative flex flex-col items-center shrink-0 transition-all active:scale-95 group',
-                        selectedBet === val ? 'scale-110 -translate-y-1' : 'opacity-70 hover:opacity-100 hover:scale-105'
+                        selectedBet === val ? 'scale-110 -translate-y-0.5' : 'opacity-70 hover:opacity-100 hover:scale-105'
                       )}
                     >
                       <img
                         src={`/BlackJack/${val}.png`}
                         alt={`${val} zł`}
                         className={cn(
-                          'w-10 h-10 sm:w-12 sm:h-12 object-contain drop-shadow-xl rounded-full transition-all',
-                          selectedBet === val && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+                          'w-9 h-9 sm:w-11 sm:h-11 object-contain drop-shadow-xl rounded-full transition-all',
+                          selectedBet === val &&
+                            'ring-2 ring-amber-400 ring-offset-2 ring-offset-black shadow-[0_0_15px_rgba(251,191,36,0.6)]'
                         )}
                       />
                     </button>
@@ -710,35 +837,35 @@ export function BlackjackMultiplayer() {
               </motion.div>
             )}
 
-            {/* ACTIVE TURN ACTION HUD (CENTER TABLE) */}
+            {/* ACTIVE TURN ACTION HUD (MATCHING REFERENCE BUTTONS) */}
             {isMyTurn && (
               <motion.div
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="flex items-center justify-center gap-2 sm:gap-3 bg-black/85 backdrop-blur-xl border border-white/20 p-2 sm:p-3 rounded-2xl shadow-2xl"
+                className="flex items-center justify-center gap-2.5 sm:gap-4 bg-[#080c08]/90 backdrop-blur-2xl border border-amber-500/35 p-2.5 sm:p-3.5 rounded-2xl shadow-2xl"
               >
                 <button
                   type="button"
                   onClick={() => handleAction('hit')}
                   disabled={isActionPending}
-                  className="py-2.5 px-4 sm:px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
+                  className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
                 >
-                  ЕЩЁ (Hit)
+                  ЕЩЁ (HIT)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleAction('stand')}
                   disabled={isActionPending}
-                  className="py-2.5 px-4 sm:px-6 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
+                  className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
                 >
-                  ХВАТИТ (Stand)
+                  ХВАТИТ (STAND)
                 </button>
                 {myPlayer && myPlayer.hand.length === 2 && (
                   <button
                     type="button"
                     onClick={() => handleAction('double')}
                     disabled={isActionPending}
-                    className="py-2.5 px-4 sm:px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
+                    className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
                   >
                     2× УДВОИТЬ
                   </button>
@@ -746,39 +873,34 @@ export function BlackjackMultiplayer() {
               </motion.div>
             )}
 
-            {/* SPECTATOR / OTHER PHASES BADGES */}
-            {!myPlayer && state.phase === 'countdown' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-amber-400 text-black px-4 py-1 shadow-lg font-black text-xs sm:text-sm">
-                <Zap size={14} className="text-black animate-bounce" />
-                Ставки: <span className="underline">{state.countdown}с</span>
-              </div>
-            )}
-
+            {/* DEALING PHASE BADGE */}
             {state.phase === 'dealing' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-emerald-300 text-black px-3.5 py-0.5 text-xs font-black shadow-lg">
-                <Sparkles size={14} className="text-black animate-spin" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-black/80 text-amber-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
+                <Sparkles size={14} className="text-amber-400 animate-spin" />
                 Раздача карт...
               </div>
             )}
 
+            {/* OTHER PLAYER'S TURN BADGE */}
             {state.phase === 'player_turn' && !isMyTurn && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-cyan-300 text-black px-3.5 py-0.5 text-xs font-black shadow-lg">
-                <span className="h-2.5 w-2.5 rounded-full bg-black animate-ping" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-black/80 text-cyan-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
+                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
                 Ход: Место #{state.currentTurnSeatId}
               </div>
             )}
 
+            {/* DEALER TURN BADGE */}
             {state.phase === 'dealer_turn' && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-purple-300 text-black px-3.5 py-0.5 text-xs font-black shadow-lg">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/40 bg-black/80 text-purple-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
                 Ход дилера...
               </div>
             )}
           </div>
 
           {/* =========================================================================
-              3. 5 PLAYER SPOTS (LIFTED SAFELY, LARGER AVATARS, DYNAMIC WIN/LOSE BORDERS):
+              3. 5 PLAYER SPOTS (3D LIQUID GLASS DISKS, PERFECT FIXED ROW ALIGNMENT):
              ========================================================================= */}
-          <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-3 w-full items-end pb-5 sm:pb-8 px-1 sm:px-6">
+          <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-4 w-full items-end pb-5 sm:pb-8 px-1 sm:px-6">
             {SEATS_CONFIG.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
@@ -793,12 +915,12 @@ export function BlackjackMultiplayer() {
                 <div
                   key={seatId}
                   className={cn(
-                    'flex flex-col items-center min-w-0 transition-transform duration-300',
+                    'flex flex-col items-center justify-end min-w-0 transition-transform duration-300 h-[190px] sm:h-[220px]',
                     seat.arcOffset
                   )}
                 >
-                  {/* (A) DEALT HAND CARDS (with flight animation from deck) */}
-                  <div className="relative flex min-h-[82px] sm:min-h-[102px] w-full items-center justify-center mb-1">
+                  {/* (A) FIXED-HEIGHT CARDS AREA (Prevents entire row from sinking when a player joins) */}
+                  <div className="relative h-[88px] sm:h-[108px] w-full flex items-end justify-center mb-1.5 pointer-events-none">
                     {player && player.hand.length > 0 && (
                       <div className="relative flex justify-center items-center">
                         {player.hand.map((c, cardIdx) => (
@@ -826,36 +948,41 @@ export function BlackjackMultiplayer() {
                             }}
                             className="relative"
                             style={{
-                              marginLeft: cardIdx > 0 ? '-26px' : '0px',
+                              marginLeft: cardIdx > 0 ? '-28px' : '0px',
                               zIndex: cardIdx + 1,
                             }}
                           >
-                            <PlayingCard
-                              card={convertCard(c)}
-                              className="w-[58px] h-[82px] sm:w-[72px] sm:h-[102px] shadow-2xl border-2 border-black rounded-lg sm:rounded-xl"
+                            <CasinoBlackjackCard
+                              card={c}
+                              isFaceDown={c.hidden}
+                              className="w-[56px] h-[80px] sm:w-[72px] sm:h-[100px]"
                             />
                           </motion.div>
                         ))}
                         {/* Score Indicator */}
-                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black px-2 py-0.5 text-[9px] sm:text-xs font-black text-white border border-white/30 shadow-md whitespace-nowrap">
+                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-2 py-0.5 text-[9px] sm:text-xs font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
                           {playerHandScore}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* (B) PLAYER LABEL */}
-                  <span className="font-black text-[10px] sm:text-xs text-black uppercase tracking-wide mb-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)] truncate max-w-[80px] sm:max-w-[120px] text-center">
-                    {player ? (isMe ? 'Вы' : player.name) : seat.label}
-                  </span>
+                  {/* (B) PLAYER LABEL (Visible only for seated players: "ВЫ" or Player Name, empty seats show nothing) */}
+                  <div className="h-4 sm:h-5 flex items-center justify-center mb-1 w-full">
+                    {player ? (
+                      <span className="font-bold text-[10px] sm:text-xs text-amber-300/90 tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate max-w-[80px] sm:max-w-[120px] text-center">
+                        {isMe ? 'ВЫ' : player.name}
+                      </span>
+                    ) : null}
+                  </div>
 
-                  {/* (C) LARGE AVATAR CIRCLE (WITH WIN/LOSE DYNAMIC BORDER) */}
+                  {/* (C) 3D LIQUID GLASS DISK / AVATAR SLOT */}
                   <div className="relative flex flex-col items-center">
                     {/* Status Pill floating above Avatar */}
                     {player && player.status !== 'waiting' && player.status !== 'playing' && (
                       <span
                         className={cn(
-                          'absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.2 text-[8px] sm:text-[10px] font-black border border-black shadow-md z-30',
+                          'absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.2 text-[8px] sm:text-[10px] font-black border border-black shadow-md z-30',
                           player.status === 'blackjack'
                             ? 'bg-amber-400 text-black animate-bounce'
                             : player.status === 'bust'
@@ -875,52 +1002,51 @@ export function BlackjackMultiplayer() {
                       </span>
                     )}
 
-                    {/* Prominent Avatar Circle with Win/Lose highlight border */}
-                    <div
-                      className={cn(
-                        'relative flex h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 items-center justify-center rounded-full border-[3.5px] bg-[#101318] text-white font-black text-base sm:text-xl shadow-2xl transition-all overflow-hidden',
-                        // Outcome highlight border at round end:
-                        outcome === 'win' || outcome === 'blackjack'
-                          ? 'border-emerald-400 ring-4 ring-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.9)] scale-105'
-                          : outcome === 'lose'
-                          ? 'border-red-500 ring-4 ring-red-500 shadow-[0_0_25px_rgba(239,68,68,0.9)]'
-                          : outcome === 'push'
-                          ? 'border-amber-400 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)]'
-                          : isTurn
-                          ? 'border-yellow-400 ring-4 ring-yellow-400 ring-offset-2 ring-offset-black scale-105 shadow-[0_0_25px_rgba(250,204,21,0.9)]'
-                          : isMe
-                          ? 'border-emerald-400'
-                          : 'border-black'
-                      )}
-                    >
-                      {player ? (
-                        player.avatar ? (
+                    {player ? (
+                      /* Occupied Seat Avatar with Golden Glow Ring */
+                      <div
+                        className={cn(
+                          'relative flex h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 items-center justify-center rounded-full border-2 bg-black/80 text-white font-black text-sm sm:text-lg shadow-2xl transition-all overflow-hidden',
+                          outcome === 'win' || outcome === 'blackjack'
+                            ? 'border-emerald-400 ring-4 ring-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.9)] scale-105'
+                            : outcome === 'lose'
+                            ? 'border-red-500 ring-4 ring-red-500 shadow-[0_0_25px_rgba(239,68,68,0.9)]'
+                            : outcome === 'push'
+                            ? 'border-amber-400 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)]'
+                            : isTurn
+                            ? 'border-yellow-400 ring-4 ring-yellow-400 ring-offset-2 ring-offset-black scale-105 shadow-[0_0_25px_rgba(250,204,21,0.9)]'
+                            : 'border-amber-400/90 ring-2 ring-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.5),0_10px_25px_rgba(0,0,0,0.8)]'
+                        )}
+                      >
+                        {player.avatar ? (
                           <img src={player.avatar} alt={player.name} className="h-full w-full object-cover" />
                         ) : (
-                          <span className="drop-shadow-md">{player.name.slice(0, 1).toUpperCase()}</span>
-                        )
-                      ) : (
-                        // Empty seat button
-                        <button
-                          disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
-                          onClick={() => handleJoinSeat(seatId)}
-                          className="h-full w-full flex items-center justify-center text-amber-400/80 hover:text-amber-300 hover:scale-110 active:scale-90 transition-transform font-black text-2xl sm:text-3xl"
-                          title="Занять место"
-                        >
+                          <span className="drop-shadow-md text-amber-300">{player.name.slice(0, 1).toUpperCase()}</span>
+                        )}
+                      </div>
+                    ) : (
+                      /* Empty Seat: 3D Liquid Glass Disc with Centered Golden Plus */
+                      <button
+                        disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
+                        onClick={() => handleJoinSeat(seatId)}
+                        className="relative flex h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 items-center justify-center rounded-full border-[1.5px] border-amber-500/30 bg-gradient-to-b from-black/40 to-black/75 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.12),inset_0_-2px_4px_rgba(0,0,0,0.6)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group"
+                        title="Занять место"
+                      >
+                        <span className="text-amber-400/80 group-hover:text-amber-300 font-light text-2xl sm:text-3xl leading-none flex items-center justify-center select-none transition-transform group-hover:scale-110">
                           +
-                        </button>
-                      )}
-                    </div>
+                        </span>
+                      </button>
+                    )}
 
-                    {/* (D) REAL CASINO CHIP STACK UNDER AVATAR */}
+                    {/* (D) REAL CASINO CHIP STACK UNDER AVATAR (Absolute positioned so no layout shift) */}
                     {player && (player.bet > 0 || player.status === 'playing') && (
-                      <div className="absolute -bottom-6 sm:-bottom-7 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
+                      <div className="absolute -bottom-5 sm:-bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
                         {/* 3D Stack of casino chips */}
                         <div
                           className="relative flex items-center justify-center"
                           style={{
-                            width: 32,
-                            height: 22 + (getChipStack(player.bet).length - 1) * 4,
+                            width: 28,
+                            height: 18 + (getChipStack(player.bet).length - 1) * 3,
                           }}
                         >
                           {getChipStack(player.bet).map((chipVal, idx) => (
@@ -928,11 +1054,11 @@ export function BlackjackMultiplayer() {
                               key={idx}
                               src={`/BlackJack/${chipVal}.png`}
                               alt={`${chipVal} zł`}
-                              className="absolute object-contain drop-shadow-[0_4px_6px_rgba(0,0,0,0.85)]"
+                              className="absolute object-contain drop-shadow-[0_4px_6px_rgba(0,0,0,0.9)]"
                               style={{
-                                width: 26,
-                                height: 26,
-                                bottom: idx * 4,
+                                width: 22,
+                                height: 22,
+                                bottom: idx * 3,
                                 zIndex: idx + 1,
                               }}
                               draggable={false}
@@ -941,7 +1067,7 @@ export function BlackjackMultiplayer() {
                         </div>
 
                         {/* Bet Amount Pill */}
-                        <span className="mt-0.5 font-black text-[9px] sm:text-[11px] text-amber-300 bg-black/95 px-2 py-0.2 rounded-full border border-white/20 shadow-xl whitespace-nowrap">
+                        <span className="mt-0.5 font-bold text-[8px] sm:text-[10px] text-amber-300 bg-black/95 px-2 py-0.2 rounded-full border border-amber-400/30 shadow-xl whitespace-nowrap">
                           {Number(player.bet || 0).toFixed(0)} zł
                         </span>
                       </div>
@@ -956,65 +1082,30 @@ export function BlackjackMultiplayer() {
 
       {/* Floating Chat Open Button */}
       <button
-        type="button"
         onClick={() => {
           setIsChatOpen(true);
           setUnreadChatCount(0);
+          soundManager.play('ui.click');
         }}
-        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#151922] border border-white/15 text-white shadow-2xl hover:scale-105 transition-transform"
+        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-400/30 bg-black/85 text-amber-300 shadow-2xl backdrop-blur-xl hover:bg-black hover:scale-105 active:scale-95 transition-transform"
+        title="Чат стола"
       >
-        <MessageSquare size={18} />
+        <MessageSquare size={20} />
         {unreadChatCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-black animate-bounce">
+          <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white border-2 border-black animate-pulse">
             {unreadChatCount}
           </span>
         )}
       </button>
 
-      {/* Table Chat Slide-up Sheet */}
+      {/* Slide-over Multiplayer Table Chat Drawer */}
       <BlackjackTableChat
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         messages={chatMessages}
         onSendMessage={handleSendMessage}
         currentUserId={user?.id}
-        userSeatId={myPlayer?.seatId}
       />
-
-      {/* Rules Modal */}
-      <AnimatePresence>
-        {showRules && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="max-w-md w-full rounded-2xl border border-white/10 bg-[#0e1118] p-5 shadow-2xl text-xs space-y-3"
-            >
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <h3 className="text-sm font-bold text-white">Правила Blackjack</h3>
-                <button onClick={() => setShowRules(false)} className="text-white/50 hover:text-white">
-                  ✕
-                </button>
-              </div>
-              <div className="space-y-2 text-white/70 leading-relaxed">
-                <p>• Наберите сумму очков ближе к 21, чем у дилера, не превышая 21.</p>
-                <p>• Карты 2–10 считаются по номиналу, картинки (J, Q, K) — по 10 очков, Туз — 1 или 11.</p>
-                <p>• Blackjack (Туз + 10 с раздачи) оплачивается 3 к 2 (2.5×).</p>
-                <p>• Дилер обязан добирать карты до 16 очков и останавливаться на 17 (Dealer stands on 17).</p>
-                <p>• Доступны действия: Еще (Hit), Хватит (Stand), Удвоить (Double).</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRules(false)}
-                className="w-full py-2.5 rounded-xl bg-emerald-500 text-black font-bold"
-              >
-                Понятно
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </main>
   );
 }
