@@ -60,7 +60,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'crash',
     name: 'MacvJet',
     href: '/game/crash',
-    bg: '/tiles/macvjet.webp',
+    bg: '/MacvJet.png',
     badge: { label: 'TOP', color: 'red', Icon: Flame },
     isPopular: true,
     category: 'fast',
@@ -69,7 +69,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'hilo',
     name: 'Hi-Lo',
     href: '/game/hilo',
-    bg: '/tiles/hilo.webp',
+    bg: '/hilo.png',
     wide: true,
     category: 'fast',
   },
@@ -77,7 +77,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'mines',
     name: 'Mines',
     href: '/game/mines',
-    bg: '/tiles/mines.webp',
+    bg: '/Mines.png',
     isPopular: true,
     category: 'fast',
   },
@@ -85,14 +85,14 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'coinflip',
     name: 'Coinflip',
     href: '/game/coinflip',
-    bg: '/tiles/coinflip.webp',
+    bg: '/Coinflip.png',
     category: 'fast',
   },
   {
     id: 'blackjack',
     name: 'Blackjack',
     href: '/game/blackjack',
-    bg: '/tiles/bj.webp',
+    bg: '/bj.png',
     wide: true,
     category: 'table',
   },
@@ -100,7 +100,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'macvpot',
     name: 'MacvPot',
     href: '/game/macvpot',
-    bg: '/tiles/macvpot.webp',
+    bg: '/MacvPot.png',
     badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
     isPopular: true,
     category: 'fast',
@@ -109,7 +109,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'wheel',
     name: 'Wheel',
     href: '/game/wheel',
-    bg: '/tiles/wheel.webp',
+    bg: '/Wheel.png',
     badge: { label: 'x50', color: 'gold', Icon: Zap },
     isPopular: true,
     category: 'fast',
@@ -118,7 +118,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'cases',
     name: 'Case',
     href: '/game/cases',
-    bg: '/tiles/case.webp',
+    bg: '/case.png',
     wide: true,
     category: 'fast',
   },
@@ -126,7 +126,7 @@ const IN_APP_GAMES: InAppGame[] = [
     id: 'keno',
     name: 'Keno',
     href: '/game/keno',
-    bg: '/tiles/keno.webp',
+    bg: '/keno.png',
     category: 'table',
   },
 ];
@@ -654,23 +654,24 @@ function GameTile({
       {game.bg && (
         <div
           aria-hidden
-          className="absolute inset-0 opacity-80 group-hover:opacity-95 transition-opacity duration-300"
+          className="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
           style={{
             backgroundImage: `url(${game.bg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundSize: isRectangle ? 'contain' : 'cover',
+            backgroundPosition: isRectangle ? 'right center' : 'center',
             backgroundRepeat: 'no-repeat',
+            opacity: 0.95,
           }}
         />
       )}
 
       <div
         aria-hidden
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background: isRectangle
-            ? 'linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.50) 50%, rgba(0,0,0,0.80) 100%)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.50) 60%, rgba(0,0,0,0.90) 100%)',
+            ? 'linear-gradient(90deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.15) 100%)'
+            : 'linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.92) 100%)',
         }}
       />
 

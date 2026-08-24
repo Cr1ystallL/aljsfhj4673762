@@ -55,8 +55,10 @@ export class APIClient {
       ...(fetchOptions.headers as Record<string, string>),
     };
 
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    const tokenToUse = token || (typeof window !== 'undefined' ? localStorage.getItem('macvbet_token') || sessionStorage.getItem('macvbet_token') : undefined);
+
+    if (tokenToUse) {
+      headers['Authorization'] = `Bearer ${tokenToUse}`;
     }
 
     if (typeof window !== 'undefined') {
@@ -73,6 +75,7 @@ export class APIClient {
 
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
+        credentials: 'include',
         ...fetchOptions,
         headers,
         signal: controller.signal,

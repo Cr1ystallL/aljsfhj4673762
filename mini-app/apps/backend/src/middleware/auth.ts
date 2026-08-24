@@ -71,8 +71,16 @@ export async function authenticate(
   reply: FastifyReply
 ): Promise<void> {
   try {
-    // Get access token from cookie
-    const token = request.cookies.access_token;
+    // Get access token from cookie OR Authorization header
+    let token = request.cookies.access_token;
+    if (!token && request.headers.authorization) {
+      const authHeader = request.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.slice(7);
+      } else {
+        token = authHeader;
+      }
+    }
 
     if (!token) {
       return reply.code(401).send({
@@ -98,8 +106,33 @@ export async function authenticate(
       });
     }
 
-    // Verify session exists in Redis
-    const session = await sessionManager.getSession(decoded.sessionId);
+    // Verify session exists in Redis or fallback to Prisma
+    let session = await sessionManager.getSession(decoded.sessionId);
+
+    if (!session && decoded.userId) {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const dbUser = await prisma.user.findUnique({ where: { id: decoded.userId } });
+        if (dbUser) {
+          session = {
+            userId: dbUser.id,
+            telegramId: Number(dbUser.telegramId),
+            sessionId: decoded.sessionId,
+            refreshToken: '',
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            lastActivity: Date.now(),
+          };
+          const { redisClient } = await import('../lib/redis.js');
+          await redisClient.getClient().set(
+            `session:${decoded.sessionId}`,
+            JSON.stringify(session),
+            'EX',
+            7 * 24 * 60 * 60
+          ).catch(() => {});
+        }
+      } catch {}
+    }
 
     if (!session) {
       return reply.code(401).send({
