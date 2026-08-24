@@ -11,8 +11,9 @@ import {
   Shield,
   Zap,
   Sparkles,
-  Volume2,
-  VolumeX,
+  Minus,
+  Plus,
+  LogOut,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -20,12 +21,6 @@ import { PlayingCard, CardData, Suit } from '@/components/game/hilo/playing-card
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import {
-  BetPanelShell,
-  StakeField,
-  GamePrimaryButton,
-  BetPanelCtaRow,
-} from '@/components/game/kit';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { toast } from '@/store/toast-store';
@@ -62,9 +57,9 @@ const CHIP_VALUES = [1, 5, 10, 25, 50, 100, 250, 500];
 
 const SEATS_CONFIG = [
   { id: 1, label: 'Игрок 1', arcOffset: 'translate-y-0' },
-  { id: 2, label: 'Игрок 2', arcOffset: 'translate-y-4 sm:translate-y-8' },
-  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-8 sm:translate-y-16' },
-  { id: 4, label: 'Игрок 4', arcOffset: 'translate-y-4 sm:translate-y-8' },
+  { id: 2, label: 'Игрок 2', arcOffset: 'translate-y-1 sm:translate-y-2' },
+  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-4' },
+  { id: 4, label: 'Игрок 4', arcOffset: 'translate-y-1 sm:translate-y-2' },
   { id: 5, label: 'Игрок 5', arcOffset: 'translate-y-0' },
 ];
 
@@ -244,9 +239,10 @@ export function BlackjackMultiplayer() {
   };
 
   const handleUpdateBet = (bet: number) => {
-    setSelectedBet(bet);
+    const validBet = Math.max(1, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
+    setSelectedBet(validBet);
     if (myPlayer) {
-      sendWs('blackjack:bet', { roomId, bet });
+      sendWs('blackjack:bet', { roomId, bet: validBet });
       soundManager.play('game.click');
     }
   };
@@ -287,13 +283,13 @@ export function BlackjackMultiplayer() {
         />
       </div>
 
-      {/* Main Wide Table Area */}
+      {/* Main Table Area */}
       <div className="relative flex-1 flex flex-col items-center justify-center p-2 sm:p-4 w-full max-w-[1360px] mx-auto">
         
         {/* =========================================================================
             THE GAME TABLE: Dark Velvet Green Felt, Solid Brown Rim, Wide on PC
            ========================================================================= */}
-        <section className="relative w-full rounded-[36px] sm:rounded-[54px] border-[5px] sm:border-[7px] border-[#5c3a21] bg-[#032511] p-3 sm:p-6 shadow-[0_24px_70px_rgba(0,0,0,0.95),inset_0_0_100px_rgba(0,0,0,0.6)] flex flex-col justify-between min-h-[460px] sm:min-h-[560px] flex-1 overflow-hidden">
+        <section className="relative w-full rounded-[36px] sm:rounded-[54px] border-[5px] sm:border-[7px] border-[#5c3a21] bg-[#032511] p-3 sm:p-5 pb-6 sm:pb-8 shadow-[0_24px_70px_rgba(0,0,0,0.95),inset_0_0_100px_rgba(0,0,0,0.6)] flex flex-col justify-between min-h-[460px] sm:min-h-[540px] flex-1 overflow-hidden">
           
           {/* Subtle Radial Felt Texture */}
           <div
@@ -303,17 +299,13 @@ export function BlackjackMultiplayer() {
             }}
           />
 
-          {/* Center Hollow Outline Logo */}
+          {/* Center SVG Crown Logo */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-            <span
-              className="font-black text-4xl sm:text-7xl uppercase tracking-[0.25em] select-none text-transparent opacity-25"
-              style={{
-                WebkitTextStroke: '2px #000000',
-                letterSpacing: '0.25em',
-              }}
-            >
-              MACVBET
-            </span>
+            <img
+              src="/ButtonLogo.svg"
+              alt="MacvBet"
+              className="w-32 h-32 sm:w-48 sm:h-48 object-contain opacity-20 filter brightness-0 select-none"
+            />
           </div>
 
           {/* =========================================================================
@@ -337,7 +329,7 @@ export function BlackjackMultiplayer() {
           </div>
 
           {/* =========================================================================
-              1. TOP CENTER: Large Black Dealer Circle, Text "Диллер", Dealt Cards (NO wireframe slots)
+              1. TOP CENTER: Large Black Dealer Circle, Text "Диллер", Animated Dealt Cards
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-1 sm:pt-2">
             {/* Dealer Avatar */}
@@ -351,34 +343,43 @@ export function BlackjackMultiplayer() {
             </div>
 
             {/* Label "Диллер" */}
-            <span className="font-extrabold text-xs sm:text-sm text-black uppercase tracking-wider mt-1.5 mb-1.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]">
+            <span className="font-extrabold text-xs sm:text-sm text-black uppercase tracking-wider mt-1.5 mb-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.3)]">
               Диллер
             </span>
 
-            {/* Dealer Hand Cards (Normal Size, dynamically rendered, NO empty slots) */}
-            <div className="relative flex items-center justify-center min-h-[68px] sm:min-h-[96px] mt-0.5">
+            {/* Dealer Hand Cards (Normal Size, animated dealing & flip) */}
+            <div className="relative flex items-center justify-center min-h-[84px] sm:min-h-[104px] mt-0.5">
               {state.dealerHand.length > 0 && (
                 <div className="flex items-center justify-center">
                   {state.dealerHand.map((c, idx) => (
                     <motion.div
-                      key={`dealer_${idx}_${c.rank}_${c.suit}`}
-                      initial={{ opacity: 0, y: -25, scale: 0.8 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: idx * 0.15 }}
+                      key={`dealer_${idx}_${c.rank}_${c.suit}_${c.hidden ? 'h' : 'v'}`}
+                      initial={
+                        c.hidden
+                          ? { opacity: 0, x: 160, y: -160, scale: 0.3, rotate: 20 }
+                          : { rotateY: 90, scale: 0.9 }
+                      }
+                      animate={{ opacity: 1, x: 0, y: 0, rotateY: 0, scale: 1, rotate: 0 }}
+                      transition={{
+                        type: 'spring',
+                        damping: 20,
+                        stiffness: 220,
+                        delay: idx * 0.12,
+                      }}
                       className="relative"
                       style={{
-                        marginLeft: idx > 0 ? (state.dealerHand.length > 3 ? '-20px' : '-10px') : '0px',
+                        marginLeft: idx > 0 ? (state.dealerHand.length > 3 ? '-24px' : '-12px') : '0px',
                         zIndex: idx + 1,
                       }}
                     >
                       {c.hidden ? (
-                        <div className="w-14 h-20 sm:w-18 sm:h-26 rounded-lg sm:rounded-xl border-2 border-black bg-gradient-to-br from-[#800c14] to-[#3a060a] flex items-center justify-center shadow-2xl">
-                          <Shield size={18} className="text-amber-400/70" />
+                        <div className="w-[58px] h-[82px] sm:w-[72px] sm:h-[102px] rounded-lg sm:rounded-xl border-2 border-black bg-gradient-to-br from-[#800c14] to-[#3a060a] flex items-center justify-center shadow-2xl">
+                          <Shield size={20} className="text-amber-400/70" />
                         </div>
                       ) : (
                         <PlayingCard
                           card={convertCard(c)}
-                          className="w-14 h-20 sm:w-18 sm:h-26 shadow-2xl border-2 border-black rounded-lg sm:rounded-xl"
+                          className="w-[58px] h-[82px] sm:w-[72px] sm:h-[102px] shadow-2xl border-2 border-black rounded-lg sm:rounded-xl"
                         />
                       )}
                     </motion.div>
@@ -433,10 +434,10 @@ export function BlackjackMultiplayer() {
           </div>
 
           {/* =========================================================================
-              3. 5 PLAYER SPOTS (ARC AT BOTTOM):
-                 - Hand cards directly on table (normal size, NO empty wireframe slots)
+              3. 5 PLAYER SPOTS (LIFTED SAFELY WITHIN FELT BOUNDARIES):
+                 - Hand cards with deal flight animation
                  - Label "Игрок N"
-                 - Dark Neutral Avatar Circles (NOT rainbow)
+                 - Dark Neutral Avatar Circles
                  - Bet element and chip around & under avatar
              ========================================================================= */}
           <div className="relative z-10 grid grid-cols-5 gap-1.5 sm:gap-4 w-full items-end pb-1 sm:pb-2">
@@ -457,24 +458,44 @@ export function BlackjackMultiplayer() {
                     seat.arcOffset
                   )}
                 >
-                  {/* (A) DEALT HAND CARDS (NO empty placeholder slots) */}
-                  <div className="relative flex min-h-[64px] sm:min-h-[92px] w-full items-center justify-center mb-1">
+                  {/* (A) DEALT HAND CARDS (with deal animation from deck) */}
+                  <div className="relative flex min-h-[82px] sm:min-h-[102px] w-full items-center justify-center mb-1">
                     {player && player.hand.length > 0 && (
                       <div className="relative flex justify-center items-center">
                         {player.hand.map((c, cardIdx) => (
-                          <div
-                            key={`card_${seatId}_${cardIdx}`}
+                          <motion.div
+                            key={`card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
+                            initial={{
+                              opacity: 0,
+                              x: 180,
+                              y: -180,
+                              scale: 0.25,
+                              rotate: -25,
+                            }}
+                            animate={{
+                              opacity: 1,
+                              x: 0,
+                              y: 0,
+                              scale: 1,
+                              rotate: 0,
+                            }}
+                            transition={{
+                              type: 'spring',
+                              damping: 20,
+                              stiffness: 220,
+                              delay: cardIdx * 0.1,
+                            }}
                             className="relative"
                             style={{
-                              marginLeft: cardIdx > 0 ? '-22px' : '0px',
+                              marginLeft: cardIdx > 0 ? '-26px' : '0px',
                               zIndex: cardIdx + 1,
                             }}
                           >
                             <PlayingCard
                               card={convertCard(c)}
-                              className="w-13 h-18 sm:w-17 sm:h-24 shadow-2xl border-2 border-black rounded-lg sm:rounded-xl"
+                              className="w-[58px] h-[82px] sm:w-[72px] sm:h-[102px] shadow-2xl border-2 border-black rounded-lg sm:rounded-xl"
                             />
-                          </div>
+                          </motion.div>
                         ))}
                         {/* Score Indicator */}
                         <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black px-2 py-0.5 text-[9px] sm:text-xs font-black text-white border border-white/30 shadow-md whitespace-nowrap">
@@ -518,7 +539,7 @@ export function BlackjackMultiplayer() {
                     {/* Neutral Dark Avatar Circle */}
                     <div
                       className={cn(
-                        'relative flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full border-[3px] border-black bg-[#101318] text-white font-black text-xs sm:text-base shadow-xl transition-all overflow-hidden',
+                        'relative flex h-12 w-12 sm:h-15 sm:w-15 items-center justify-center rounded-full border-[3px] border-black bg-[#101318] text-white font-black text-xs sm:text-base shadow-xl transition-all overflow-hidden',
                         isTurn && 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-black scale-105 shadow-[0_0_25px_rgba(250,204,21,0.9)]',
                         isMe && 'border-emerald-400'
                       )}
@@ -544,7 +565,7 @@ export function BlackjackMultiplayer() {
 
                     {/* (D) BET CHIP DIRECTLY UNDER AVATAR */}
                     {player && (player.bet > 0 || player.status === 'playing') && (
-                      <div className="absolute -bottom-2.5 sm:-bottom-3 left-1/2 -translate-x-1/2 z-20">
+                      <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-20">
                         <span className="rounded-full bg-[#ffac2e] text-black font-black text-[9px] sm:text-[11px] px-2 py-0.5 border-2 border-black shadow-md whitespace-nowrap block">
                           {Number(player.bet || 0).toFixed(0)} zł
                         </span>
@@ -558,98 +579,107 @@ export function BlackjackMultiplayer() {
         </section>
 
         {/* =========================================================================
-            4. CONTROLS HUD (COMPLIANT WITH PROJECT KIT)
+            4. ULTRA-COMPACT & SLEEK BOTTOM CONTROLS
            ========================================================================= */}
-        <section className="w-full mt-3 sm:mt-4">
+        <section className="w-full mt-2 sm:mt-3">
           {/* Active Turn Actions */}
           {isMyTurn ? (
-            <div className="flex items-center gap-3">
-              <GamePrimaryButton
+            <div className="flex items-center gap-2 max-w-xl mx-auto">
+              <button
+                type="button"
                 onClick={() => handleAction('hit')}
                 disabled={isActionPending}
-                tone="solid"
-                className="flex-1 py-3 text-sm font-black"
+                className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
               >
                 ЕЩЁ (Hit)
-              </GamePrimaryButton>
-              <GamePrimaryButton
+              </button>
+              <button
+                type="button"
                 onClick={() => handleAction('stand')}
                 disabled={isActionPending}
-                tone="muted"
-                className="flex-1 py-3 text-sm font-black bg-red-600/30 border-red-500/50 hover:bg-red-600/40 text-red-200"
+                className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
               >
                 ХВАТИТ (Stand)
-              </GamePrimaryButton>
+              </button>
               {myPlayer && myPlayer.hand.length === 2 && (
-                <GamePrimaryButton
+                <button
+                  type="button"
                   onClick={() => handleAction('double')}
                   disabled={isActionPending}
-                  tone="solid"
-                  className="py-3 px-6 text-sm font-black bg-amber-400 text-black hover:bg-amber-300"
+                  className="py-3 px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95"
                 >
                   2× УДВОИТЬ
-                </GamePrimaryButton>
+                </button>
               )}
             </div>
           ) : myPlayer && (state.phase === 'waiting' || state.phase === 'countdown') ? (
-            /* Seated Player Betting Panel */
-            <BetPanelShell>
-              <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-2 p-3">
-                <StakeField
-                  amount={selectedBet}
-                  onAmountChange={(val) => handleUpdateBet(Number(val))}
-                  minBet={1}
-                  maxBet={Math.max(1, Math.floor(activeBalance) || 1)}
-                  label={`Ставка (Место #${myPlayer.seatId})`}
-                  decreaseLabel="Уменьшить"
-                  increaseLabel="Увеличить"
-                />
-
-                {/* Quick Chips row */}
-                <div className="flex items-center justify-between gap-1 overflow-x-auto py-1 scrollbar-none">
-                  {CHIP_VALUES.map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => handleUpdateBet(val)}
-                      className={cn(
-                        'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold border transition-all',
-                        selectedBet === val
-                          ? 'border-amber-400 bg-amber-500/30 text-amber-300 scale-105 shadow-md'
-                          : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
-                      )}
-                    >
-                      {val}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <BetPanelCtaRow>
+            /* Seated Player Sleek Compact Single-Line Bet Bar */
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-[#0e1117]/95 p-2 px-3 shadow-xl backdrop-blur-md">
+              {/* Stepper */}
+              <div className="flex items-center gap-1.5 bg-black/50 border border-white/10 rounded-xl px-2 py-1">
                 <button
                   type="button"
-                  onClick={handleLeaveSeat}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors font-semibold"
+                  onClick={() => handleUpdateBet(Math.max(1, selectedBet - 5))}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/70"
                 >
-                  Встать из-за стола
+                  <Minus size={14} />
                 </button>
-              </BetPanelCtaRow>
-            </BetPanelShell>
+                <div className="px-2 text-center min-w-[70px]">
+                  <span className="text-xs font-black text-amber-400">{selectedBet} zł</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateBet(selectedBet + 5)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/70"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+
+              {/* Chips row */}
+              <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
+                {CHIP_VALUES.map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => handleUpdateBet(val)}
+                    className={cn(
+                      'flex h-8 w-8 sm:h-8.5 sm:w-8.5 shrink-0 items-center justify-center rounded-full text-[11px] font-black border transition-all',
+                      selectedBet === val
+                        ? 'border-amber-400 bg-amber-500/30 text-amber-300 scale-105 shadow-md'
+                        : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
+                    )}
+                  >
+                    {val}
+                  </button>
+                ))}
+              </div>
+
+              {/* Stand up button */}
+              <button
+                type="button"
+                onClick={handleLeaveSeat}
+                className="flex items-center gap-1 text-[11px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+              >
+                <LogOut size={13} />
+                Встать
+              </button>
+            </div>
           ) : !myPlayer ? (
             /* Spectator Panel */
-            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0c0e14]/90 p-3 shadow-lg">
+            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0c0e14]/90 p-2 px-3 shadow-lg">
               <div className="flex items-center gap-2">
-                <Users size={16} className="text-white/40" />
+                <Users size={15} className="text-white/40" />
                 <span className="text-xs text-white/70">
-                  Режим зрителя. Нажмите «+» на свободном месте за столом, чтобы сыграть.
+                  Режим зрителя · Нажмите «+» на свободном месте за столом
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsChatOpen(true)}
-                className="relative rounded-xl bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                className="relative rounded-xl bg-white/10 px-3 py-1 text-xs font-bold text-white hover:bg-white/20 transition-colors flex items-center gap-1.5"
               >
-                <MessageSquare size={14} />
+                <MessageSquare size={13} />
                 Чат
                 {unreadChatCount > 0 && (
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-black animate-bounce">
