@@ -224,6 +224,55 @@ export function BlackjackMultiplayer() {
     } catch {}
   }, [roomId]);
 
+  // Audio system initialization and registration
+  useEffect(() => {
+    void soundManager.initialize();
+    soundManager.register('bj.card_slide', {
+      src: '/BlackJack/audio/card_slide.mp3',
+      category: 'sfx',
+      volume: 0.75,
+      preload: true,
+    });
+    soundManager.register('bj.chip_click', {
+      src: '/BlackJack/audio/chip_click.mp3',
+      category: 'sfx',
+      volume: 0.7,
+      preload: true,
+    });
+    soundManager.register('bj.win', {
+      src: '/BlackJack/audio/win.mp3',
+      category: 'sfx',
+      volume: 0.85,
+      preload: true,
+    });
+  }, []);
+
+  // Card slide & Win sound tracking
+  const prevCardsCountRef = useRef<number>(0);
+  const prevPhaseRef = useRef<string>('waiting');
+
+  useEffect(() => {
+    const totalCards =
+      state.dealerHand.length +
+      state.players.reduce((sum, p) => sum + (p.hand?.length || 0), 0);
+
+    if (totalCards > prevCardsCountRef.current && totalCards > 0) {
+      soundManager.play('bj.card_slide');
+    }
+    prevCardsCountRef.current = totalCards;
+
+    if (
+      (state.phase === 'settling' || state.phase === 'finished') &&
+      prevPhaseRef.current !== 'settling' &&
+      prevPhaseRef.current !== 'finished'
+    ) {
+      if (myOutcome === 'win' || myOutcome === 'blackjack') {
+        soundManager.play('bj.win');
+      }
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state.dealerHand.length, state.players, state.phase, myOutcome]);
+
   // Initial load & fallback sync
   useEffect(() => {
     void loadStateSnapshot();
@@ -371,15 +420,15 @@ export function BlackjackMultiplayer() {
       return;
     }
     sendWs('blackjack:join_seat', { roomId, seatId, bet: selectedBet });
-    soundManager.play('game.click');
+    soundManager.play('bj.chip_click');
   };
 
   const handleUpdateBet = (bet: number) => {
     const validBet = Math.max(10, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
     setSelectedBet(validBet);
+    soundManager.play('bj.chip_click');
     if (myPlayer) {
       sendWs('blackjack:bet', { roomId, bet: validBet });
-      soundManager.play('game.click');
     }
   };
 
@@ -387,7 +436,14 @@ export function BlackjackMultiplayer() {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
     sendWs('blackjack:action', { roomId, action });
-    soundManager.play('game.click');
+    if (action === 'hit') {
+      soundManager.play('bj.card_slide');
+    } else if (action === 'double') {
+      soundManager.play('bj.chip_click');
+      soundManager.play('bj.card_slide');
+    } else {
+      soundManager.play('ui.click');
+    }
   };
 
   const handleSendMessage = (text: string) => {

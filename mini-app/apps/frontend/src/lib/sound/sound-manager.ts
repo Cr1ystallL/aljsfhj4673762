@@ -302,6 +302,26 @@ export const COMMON_SOUNDS: Record<string, SoundConfig> = {
     preload: true,
   },
   
+  // Blackjack Specific Sounds
+  'bj.card_slide': {
+    src: '/BlackJack/audio/card_slide.mp3',
+    category: 'sfx',
+    volume: 0.75,
+    preload: true,
+  },
+  'bj.chip_click': {
+    src: '/BlackJack/audio/chip_click.mp3',
+    category: 'sfx',
+    volume: 0.7,
+    preload: true,
+  },
+  'bj.win': {
+    src: '/BlackJack/audio/win.mp3',
+    category: 'sfx',
+    volume: 0.85,
+    preload: true,
+  },
+
   // Ambient
   'ambient.background': {
     src: '/sounds/ambient/background.mp3',
