@@ -55,6 +55,26 @@ export interface BJState {
 }
 
 const CHIP_VALUES = [10, 25, 50, 100, 250, 500];
+const CHIP_DENOMINATIONS = [500, 250, 100, 50, 25, 10] as const;
+
+function getChipStack(totalBet: number): number[] {
+  if (!totalBet || totalBet <= 0) return [];
+  let remaining = Math.round(totalBet);
+  const stack: number[] = [];
+
+  for (const denom of CHIP_DENOMINATIONS) {
+    while (remaining >= denom && stack.length < 5) {
+      stack.push(denom);
+      remaining -= denom;
+    }
+  }
+
+  if (remaining > 0 && stack.length < 5) {
+    stack.push(10);
+  }
+
+  return stack;
+}
 
 function getChipImage(amount: number): string {
   if (amount >= 500) return '/BlackJack/500.png';
@@ -214,6 +234,21 @@ export function BlackjackMultiplayer() {
     }, 3000);
     return () => clearInterval(pollInterval);
   }, [loadStateSnapshot]);
+
+  // Cleanup on unmount (leave seat so player does not bet AFK when navigating away)
+  useEffect(() => {
+    return () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'blackjack:leave_seat',
+            payload: { roomId },
+            timestamp: Date.now(),
+          })
+        );
+      }
+    };
+  }, [roomId]);
 
   // WebSocket connection & messaging
   useEffect(() => {
@@ -424,8 +459,16 @@ export function BlackjackMultiplayer() {
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-1 sm:pt-2">
             {/* Dealer Avatar */}
-            <div className="relative flex h-14 w-14 sm:h-18 sm:w-18 items-center justify-center rounded-full bg-black border-[3px] border-black text-white shadow-2xl">
-              <span className="text-sm sm:text-lg font-black tracking-widest text-white/90">D</span>
+            <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-black border-[3px] border-black text-white shadow-2xl overflow-hidden">
+              <img
+                src="/BlackJack/diller.png"
+                alt="Диллер"
+                className="w-full h-full object-cover rounded-full"
+                draggable={false}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/diller.png';
+                }}
+              />
               {dealerScore > 0 && (
                 <span className="absolute -bottom-2 sm:-bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-black/95 px-2 py-0.5 text-[9px] sm:text-xs font-black text-white border border-white/20 shadow-md whitespace-nowrap z-20">
                   {dealerScore}
@@ -782,7 +825,7 @@ export function BlackjackMultiplayer() {
                     {/* Prominent Avatar Circle with Win/Lose highlight border */}
                     <div
                       className={cn(
-                        'relative flex h-14 w-14 sm:h-18 sm:w-18 items-center justify-center rounded-full border-[3.5px] bg-[#101318] text-white font-black text-sm sm:text-lg shadow-2xl transition-all overflow-hidden',
+                        'relative flex h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 items-center justify-center rounded-full border-[3.5px] bg-[#101318] text-white font-black text-base sm:text-xl shadow-2xl transition-all overflow-hidden',
                         // Outcome highlight border at round end:
                         outcome === 'win' || outcome === 'blackjack'
                           ? 'border-emerald-400 ring-4 ring-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.9)] scale-105'
@@ -808,7 +851,7 @@ export function BlackjackMultiplayer() {
                         <button
                           disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
                           onClick={() => handleJoinSeat(seatId)}
-                          className="h-full w-full flex items-center justify-center text-white/60 hover:text-white hover:scale-110 active:scale-90 transition-transform font-black text-lg sm:text-2xl"
+                          className="h-full w-full flex items-center justify-center text-amber-400/80 hover:text-amber-300 hover:scale-110 active:scale-90 transition-transform font-black text-2xl sm:text-3xl"
                           title="Занять место"
                         >
                           +
@@ -816,15 +859,36 @@ export function BlackjackMultiplayer() {
                       )}
                     </div>
 
-                    {/* (D) REAL BET CHIP DIRECTLY UNDER AVATAR */}
+                    {/* (D) REAL CASINO CHIP STACK UNDER AVATAR */}
                     {player && (player.bet > 0 || player.status === 'playing') && (
-                      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-black/90 px-2 py-0.5 rounded-full border border-white/20 shadow-xl whitespace-nowrap">
-                        <img
-                          src={getChipImage(player.bet)}
-                          alt={`${player.bet}`}
-                          className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
-                        />
-                        <span className="font-black text-[9px] sm:text-[11px] text-amber-300">
+                      <div className="absolute -bottom-6 sm:-bottom-7 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
+                        {/* 3D Stack of casino chips */}
+                        <div
+                          className="relative flex items-center justify-center"
+                          style={{
+                            width: 32,
+                            height: 22 + (getChipStack(player.bet).length - 1) * 4,
+                          }}
+                        >
+                          {getChipStack(player.bet).map((chipVal, idx) => (
+                            <img
+                              key={idx}
+                              src={`/BlackJack/${chipVal}.png`}
+                              alt={`${chipVal} zł`}
+                              className="absolute object-contain drop-shadow-[0_4px_6px_rgba(0,0,0,0.85)]"
+                              style={{
+                                width: 26,
+                                height: 26,
+                                bottom: idx * 4,
+                                zIndex: idx + 1,
+                              }}
+                              draggable={false}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Bet Amount Pill */}
+                        <span className="mt-0.5 font-black text-[9px] sm:text-[11px] text-amber-300 bg-black/95 px-2 py-0.2 rounded-full border border-white/20 shadow-xl whitespace-nowrap">
                           {Number(player.bet || 0).toFixed(0)} zł
                         </span>
                       </div>

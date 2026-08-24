@@ -288,6 +288,16 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
     socket.on('close', async () => {
       clearTimeout(authTimeout);
       wsManager.removeConnection(connectionId);
+      if (socket.userId) {
+        try {
+          const table = blackjackSingleton.getTable('bj_room_1');
+          if (table) {
+            table.leave(socket.userId);
+          }
+        } catch (err) {
+          logger.warn({ err, userId: socket.userId }, 'Failed to remove user from blackjack table on disconnect');
+        }
+      }
       logger.info({ connectionId, userId: socket.userId }, 'WebSocket client disconnected');
     });
 
@@ -295,6 +305,14 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
       clearTimeout(authTimeout);
       logger.error({ connectionId, error }, 'WebSocket error');
       wsManager.removeConnection(connectionId);
+      if (socket.userId) {
+        try {
+          const table = blackjackSingleton.getTable('bj_room_1');
+          if (table) {
+            table.leave(socket.userId);
+          }
+        } catch {}
+      }
     });
   });
 
