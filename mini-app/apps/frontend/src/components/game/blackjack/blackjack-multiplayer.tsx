@@ -600,45 +600,6 @@ export function BlackjackMultiplayer() {
             />
           </div>
 
-          {/* =========================================================================
-              TOP RIGHT: Deck Stacked in Crisp Rectangular Fanned Layout Close to Dealer
-             ========================================================================= */}
-          <div className="absolute top-3 sm:top-5 right-[16%] sm:right-[20%] md:right-[24%] z-20 flex flex-col items-center pointer-events-none">
-            <div className="relative flex items-center justify-center w-14 h-20 sm:w-18 sm:h-24">
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  className="absolute rounded-[7px] sm:rounded-[9px] border border-black/45 shadow-xl overflow-hidden flex items-center justify-center"
-                  style={{
-                    width: 52 + idx * 2,
-                    height: 74,
-                    top: idx * 2.5,
-                    left: idx * 3.5,
-                    background: 'linear-gradient(155deg, #7c1a1a 0%, #550f10 60%, #3a0709 100%)',
-                    zIndex: idx + 1,
-                  }}
-                >
-                  <div
-                    className="absolute inset-[3px] rounded-[5px] border border-[rgba(230,196,130,0.35)] pointer-events-none"
-                    style={{
-                      backgroundImage:
-                        'repeating-linear-gradient(45deg, rgba(230,196,130,0.06) 0 2px, transparent 2px 7px)',
-                    }}
-                  />
-                  {idx === 3 && (
-                    <img
-                      src="/ButtonLogo.svg"
-                      alt="MacvBet"
-                      className="relative z-10 w-6 h-6 sm:w-7 sm:h-7 object-contain filter brightness-125 drop-shadow-[0_0_6px_rgba(227,193,126,0.7)]"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            <span className="font-black text-[10px] sm:text-[11px] text-amber-300/90 uppercase tracking-widest mt-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-              Колода
-            </span>
-          </div>
 
           {/* =========================================================================
               1. TOP CENTER: Large Dealer Avatar, Name & Hand Cards
