@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 async function proxy(
   request: NextRequest,
   slug: string[] | undefined,
-  method: 'GET' | 'POST'
+  method: string
 ) {
   const cleanBase = backendBaseUrl();
   const pathSeg = slug?.length ? slug.join('/') : '';
@@ -28,19 +28,26 @@ async function proxy(
   const headers: Record<string, string> = {};
   const cookie = request.headers.get('cookie');
   if (cookie) headers['cookie'] = cookie;
+  const authHeader = request.headers.get('authorization');
+  if (authHeader) headers['authorization'] = authHeader;
 
-  let body: string | undefined;
-  if (method === 'POST') {
-    headers['content-type'] =
-      request.headers.get('content-type') || 'application/json';
-    body = await request.text();
+  let body: BodyInit | undefined;
+  if (method !== 'GET' && method !== 'HEAD') {
+    const contentType = request.headers.get('content-type');
+    if (contentType) {
+      headers['content-type'] = contentType;
+    }
+    const buffer = await request.arrayBuffer();
+    if (buffer.byteLength > 0) {
+      body = Buffer.from(buffer);
+    }
   }
 
   const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
-  const text = await res.text();
+  const arrayBuf = await res.arrayBuffer();
   const contentType = res.headers.get('content-type') || 'application/json';
 
-  return new NextResponse(text, {
+  return new NextResponse(arrayBuf, {
     status: res.status,
     headers: { 'content-type': contentType },
   });
@@ -60,4 +67,28 @@ export async function POST(
 ) {
   const { slug } = await ctx.params;
   return proxy(request, slug, 'POST');
+}
+
+export async function PATCH(
+  request: NextRequest,
+  ctx: { params: Promise<{ slug?: string[] }> }
+) {
+  const { slug } = await ctx.params;
+  return proxy(request, slug, 'PATCH');
+}
+
+export async function PUT(
+  request: NextRequest,
+  ctx: { params: Promise<{ slug?: string[] }> }
+) {
+  const { slug } = await ctx.params;
+  return proxy(request, slug, 'PUT');
+}
+
+export async function DELETE(
+  request: NextRequest,
+  ctx: { params: Promise<{ slug?: string[] }> }
+) {
+  const { slug } = await ctx.params;
+  return proxy(request, slug, 'DELETE');
 }
