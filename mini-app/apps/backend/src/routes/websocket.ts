@@ -186,7 +186,6 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
               }));
             }
           }
-
           return;
         }
 
@@ -196,21 +195,20 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           wsManager.leaveRoom(connectionId, roomId);
           const leftEvent = createEvent<ServerGameLeftEvent>('game:left', { roomId });
           socket.send(JSON.stringify(leftEvent));
-
           return;
         }
 
         // Handle Blackjack Seat Join
         if (validMessage.type === 'blackjack:join_seat') {
-          const { roomId, seatId, bet } = validMessage.payload;
-          const userId = socket.userId || 'anon_' + connectionId.slice(0, 8);
+          const { roomId, seatId, bet, userId: payloadUserId } = validMessage.payload as any;
+          const userId = payloadUserId || socket.userId || 'anon_' + connectionId.slice(0, 8);
           let name = 'Игрок';
           let avatar: string | undefined;
 
-          if (socket.userId && !socket.userId.startsWith('guest_') && !socket.userId.startsWith('anon_')) {
+          if (userId && !userId.startsWith('guest_') && !userId.startsWith('anon_')) {
             try {
               const user = await prisma.user.findUnique({
-                where: { id: socket.userId },
+                where: { id: userId },
                 select: { firstName: true, username: true, photoUrl: true },
               });
               if (user) {
@@ -235,44 +233,50 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
         // Handle Blackjack Seat Leave
         if (validMessage.type === 'blackjack:leave_seat') {
-          const { roomId } = validMessage.payload;
-          const userId = socket.userId!;
-          const engine = blackjackSingleton.getTable(roomId);
-          engine.leave(userId);
+          const { roomId, userId: payloadUserId } = validMessage.payload as any;
+          const userId = payloadUserId || socket.userId;
+          if (userId) {
+            const engine = blackjackSingleton.getTable(roomId);
+            engine.leave(userId);
+          }
           return;
         }
 
         // Handle Blackjack Bet Update
         if (validMessage.type === 'blackjack:bet') {
-          const { roomId, bet } = validMessage.payload;
-          const userId = socket.userId!;
-          const engine = blackjackSingleton.getTable(roomId);
-          engine.updateBet(userId, bet);
+          const { roomId, bet, userId: payloadUserId } = validMessage.payload as any;
+          const userId = payloadUserId || socket.userId;
+          if (userId) {
+            const engine = blackjackSingleton.getTable(roomId);
+            engine.updateBet(userId, bet);
+          }
           return;
         }
 
         // Handle Blackjack Turn Action (Hit / Stand / Double)
         if (validMessage.type === 'blackjack:action') {
-          const { roomId, action } = validMessage.payload;
-          const userId = socket.userId!;
-          const engine = blackjackSingleton.getTable(roomId);
-          if (action === 'hit') await engine.hit(userId);
-          else if (action === 'stand') await engine.stand(userId);
-          else if (action === 'double') await engine.double(userId);
+          const { roomId, action, userId: payloadUserId } = validMessage.payload as any;
+          const userId = payloadUserId || socket.userId;
+          if (userId) {
+            const engine = blackjackSingleton.getTable(roomId);
+            if (action === 'hit') await engine.hit(userId);
+            else if (action === 'stand') await engine.stand(userId);
+            else if (action === 'double') await engine.double(userId);
+          }
           return;
         }
 
         // Handle Blackjack Table Chat
         if (validMessage.type === 'blackjack:chat') {
-          const { roomId, text, emoji } = validMessage.payload;
-          const userId = socket.userId || 'anon_' + connectionId.slice(0, 6);
+          const { roomId, text, emoji, userId: payloadUserId } = validMessage.payload as any;
+          const userId = payloadUserId || socket.userId || 'anon_' + connectionId.slice(0, 6);
           let name = 'Игрок';
           let avatar: string | undefined;
 
-          if (socket.userId && !socket.userId.startsWith('guest_') && !socket.userId.startsWith('anon_')) {
+          if (userId && !userId.startsWith('guest_') && !userId.startsWith('anon_')) {
             try {
               const user = await prisma.user.findUnique({
-                where: { id: socket.userId },
+                where: { id: userId },
                 select: { firstName: true, username: true, photoUrl: true },
               });
               if (user) {

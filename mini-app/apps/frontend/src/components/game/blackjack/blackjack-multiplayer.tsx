@@ -278,11 +278,32 @@ export function BlackjackMultiplayer() {
 
   const wsRef = useRef<WebSocket | null>(null);
 
+  const [wsUserId, setWsUserId] = useState<string | null>(null);
+
   // Determine user's seat
   const myPlayer = useMemo(() => {
-    if (!user?.id) return null;
-    return state.players.find((p) => p.userId === user.id) || null;
-  }, [state.players, user?.id]);
+    const targetUserId = user?.id || wsUserId;
+    if (!targetUserId) {
+      if (user?.username || user?.firstName) {
+        const found = state.players.find(
+          (p) =>
+            p.name === (user.firstName || user.username) ||
+            p.name === 'ВЫ'
+        );
+        if (found) return found;
+      }
+      return null;
+    }
+    return (
+      state.players.find(
+        (p) =>
+          p.userId === targetUserId ||
+          (user?.id && p.userId === user.id) ||
+          (wsUserId && p.userId === wsUserId) ||
+          (user?.username && p.name === (user.firstName || user.username))
+      ) || null
+    );
+  }, [state.players, user?.id, user?.username, user?.firstName, wsUserId]);
 
   // Reset selectedBet when entering waiting phase
   useEffect(() => {
@@ -651,21 +672,26 @@ return () => {
     setSelectedBet(validBet);
     soundManager.play('bj.chip_click');
 
-    if (myPlayer) {
-      const payload = { roomId, bet: validBet, userId: user?.id || wsUserId || undefined };
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        sendWs('blackjack:bet', payload);
-      }
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+    const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;
+    const payload = { roomId, bet: validBet, userId: effectiveUserId || undefined };
 
-      fetch('/api/games/blackjack/bet', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      }).catch(() => {});
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendWs('blackjack:bet', payload);
     }
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch('/api/games/blackjack/bet', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+      })
+      .catch(() => {});
   };
 
   const handleAction = (action: 'hit' | 'stand' | 'double') => {
