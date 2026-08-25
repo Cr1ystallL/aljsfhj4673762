@@ -316,17 +316,13 @@ export function HiloClient() {
                 direction="right-to-left"
               />
               
-              {/* Next Card Deck Placeholder (Right) */}
+              {/* Next Card Deck Placeholder (Right - Crimson Gold BlackJack Style) */}
               <div className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute right-2 sm:right-6 z-0">
                 {/* Stack effect layers */}
-                <div className="absolute top-2 left-2 w-full h-full rounded-2xl bg-[#0f1016]/80 border border-white/5" />
-                <div className="absolute top-1 left-1 w-full h-full rounded-2xl bg-[#151720]/90 border border-white/10" />
+                <div className="absolute top-2.5 left-2.5 w-full h-full rounded-[10px] sm:rounded-[14px] bg-[#3a0709]/80 border border-black/40 shadow-md" />
+                <div className="absolute top-1.5 left-1.5 w-full h-full rounded-[10px] sm:rounded-[14px] bg-[#550f10]/90 border border-[rgba(230,196,130,0.2)] shadow-md" />
                 {/* Top deck card */}
-                <div className="absolute inset-0 rounded-2xl border-2 border-white/15 bg-gradient-to-br from-[#1c1e26] to-[#0c0d11] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
-                  <span className="font-roobert text-[11px] uppercase tracking-[0.2em] text-white/40 font-bold">
-                    {t('hilo.deck')}
-                  </span>
-                </div>
+                <PlayingCard card={null} isFaceDown className="w-full h-full" />
               </div>
             </AnimatePresence>
           </div>
@@ -378,16 +374,19 @@ export function HiloClient() {
                     >
                       <div
                         className={cn(
-                          'flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-white shadow-md border border-slate-200/90 select-none',
+                          'flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-[8px] border border-black/25 shadow-md select-none',
                           card.suit === 'hearts' || card.suit === 'diamonds'
-                            ? 'text-[#e11d48]'
-                            : 'text-[#1e293b]'
+                            ? 'text-[#9c1f24]'
+                            : 'text-[#161512]'
                         )}
+                        style={{
+                          background: 'linear-gradient(160deg, #fbf7ee 0%, #efe7d3 100%)',
+                        }}
                       >
-                        <span className="text-[13px] font-black font-roobert leading-none tracking-tighter">
+                        <span className="text-[13px] font-black font-serif leading-none tracking-tighter">
                           {getRankName(card.rank)}
                         </span>
-                        <SuitMark suit={card.suit} className="w-3.5 h-3.5 mt-0.5" />
+                        <SuitMark suit={card.suit} className="text-xs mt-0.5" />
                       </div>
                     </motion.div>
                   ))}
