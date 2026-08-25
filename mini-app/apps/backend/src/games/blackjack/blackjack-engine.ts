@@ -1020,53 +1020,77 @@ export class BlackjackRoomManager {
    * 3. If all active tables are full (5/5), create a new dynamic table (bj_table_2, bj_table_3, etc.).
    */
   findAvailableTable(userId?: string): BlackjackEngine {
-    this.getOrCreateRoom('bj_table_1');
+    try {
+      const mainRoom = this.getOrCreateRoom('bj_table_1');
 
-    if (userId) {
+      if (userId) {
+        for (const engine of this.rooms.values()) {
+          const state = engine.getState();
+          if (state && Array.isArray(state.players) && state.players.some((p) => p.userId === userId)) {
+            return engine;
+          }
+        }
+      }
+
+      // Find first room with free seats (< 5)
       for (const engine of this.rooms.values()) {
         const state = engine.getState();
-        if (state.players.some((p) => p.userId === userId)) {
+        if (state && Array.isArray(state.players) && state.players.length < 5) {
           return engine;
         }
       }
-    }
 
-    // Find first room with free seats (< 5)
-    for (const engine of this.rooms.values()) {
-      const state = engine.getState();
-      if (state.players.length < 5) {
-        return engine;
+      // All existing tables are full -> spawn next table
+      let tableIndex = 1;
+      while (this.rooms.has(`bj_table_${tableIndex}`)) {
+        tableIndex++;
       }
+      const newRoomId = `bj_table_${tableIndex}`;
+      logger.info({ newRoomId, previousFullCount: this.rooms.size }, 'Spawned new blackjack table for matchmaking');
+      return this.getOrCreateRoom(newRoomId);
+    } catch (err) {
+      logger.error({ err }, 'Error finding available table, falling back to main table');
+      return this.getOrCreateRoom('bj_table_1');
     }
-
-    // All existing tables are full -> spawn next table
-    let tableIndex = 1;
-    while (this.rooms.has(`bj_table_${tableIndex}`)) {
-      tableIndex++;
-    }
-    const newRoomId = `bj_table_${tableIndex}`;
-    logger.info({ newRoomId, previousFullCount: this.rooms.size }, 'Spawned new blackjack table for matchmaking');
-    return this.getOrCreateRoom(newRoomId);
   }
 
   getAllTablesSummary(): BlackjackTableSummary[] {
-    this.getOrCreateRoom('bj_table_1');
-    return Array.from(this.rooms.values()).map((engine) => {
-      const state = engine.getState();
-      const dealerScore = state.dealerHand.length > 0 ? engine.calculateHandValue(state.dealerHand).total : 0;
-      return {
-        roomId: engine.getRoomId(),
-        phase: state.phase,
-        playersCount: state.players.length,
-        maxSeats: 5,
-        countdown: state.countdown,
-        turnCountdown: state.turnCountdown,
-        dealerHand: state.dealerHand,
-        dealerScore,
-        players: state.players,
-        chatCount: engine.getChatHistory().length,
-      };
-    });
+    try {
+      this.getOrCreateRoom('bj_table_1');
+      return Array.from(this.rooms.values()).map((engine) => {
+        const state = engine.getState() || {
+          phase: 'waiting',
+          players: [],
+          dealerHand: [],
+          countdown: 12,
+          roundId: '',
+          currentTurnSeatId: null,
+          roomId: engine.getRoomId(),
+        };
+        const dealerHand = Array.isArray(state.dealerHand) ? state.dealerHand : [];
+        let dealerScore = 0;
+        try {
+          if (dealerHand.length > 0) {
+            dealerScore = engine.calculateHandValue(dealerHand).total;
+          }
+        } catch {}
+        return {
+          roomId: engine.getRoomId() || 'bj_table_1',
+          phase: state.phase || 'waiting',
+          playersCount: Array.isArray(state.players) ? state.players.length : 0,
+          maxSeats: 5,
+          countdown: state.countdown ?? 12,
+          turnCountdown: state.turnCountdown ?? 30,
+          dealerHand,
+          dealerScore,
+          players: Array.isArray(state.players) ? state.players : [],
+          chatCount: Array.isArray(engine.getChatHistory()) ? engine.getChatHistory().length : 0,
+        };
+      });
+    } catch (err) {
+      logger.error({ err }, 'Error in getAllTablesSummary');
+      return [];
+    }
   }
 
   leaveAllRooms(userId: string): void {

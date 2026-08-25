@@ -16,6 +16,7 @@ import {
   Trophy,
   Clock,
   RotateCcw,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -260,6 +261,33 @@ export function BlackjackMultiplayer() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [showRules, setShowRules] = useState(false);
+
+  // Minimalist table list popover state
+  const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
+  const [availableTables, setAvailableTables] = useState<
+    Array<{
+      roomId: string;
+      phase: string;
+      playersCount: number;
+      countdown: number;
+    }>
+  >([{ roomId: 'bj_table_1', phase: 'waiting', playersCount: 0, countdown: 12 }]);
+
+  const fetchAvailableTables = useCallback(async () => {
+    try {
+      const res = await fetch('/api/games/blackjack/tables', { credentials: 'include' });
+      if (res.ok) {
+        const j = await res.json();
+        if (Array.isArray(j.tables) && j.tables.length > 0) {
+          setAvailableTables(j.tables);
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void fetchAvailableTables();
+  }, [fetchAvailableTables]);
 
   // User's selected bet for their seat (defaults to 0 until placed)
   const [selectedBet, setSelectedBet] = useState(0);
@@ -772,7 +800,7 @@ return () => {
   return (
     <main className="relative min-h-screen w-full bg-[#000000] text-frost-white flex flex-col justify-between select-none overflow-x-hidden pb-12 sm:pb-6">
       {/* Top Bar Header */}
-      <div className="w-full max-w-[1360px] mx-auto px-3 pt-3 flex flex-col gap-2">
+      <div className="w-full max-w-[1360px] mx-auto px-3 pt-3">
         <GameTopBar
           title="Blackjack"
           Icon={Gamepad2}
@@ -780,45 +808,6 @@ return () => {
           currency={currencyLabel}
           onHowToPlay={() => setShowRules(true)}
         />
-
-        {/* Room & Matchmaking Bar */}
-        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#0c120c] border border-white/10 text-xs shadow-inner">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-bold text-amber-300 uppercase tracking-wide">
-              {roomId === 'bj_table_1' ? 'Стол #1 (Главный)' : `Стол #${roomId.replace('bj_table_', '')}`}
-            </span>
-            <span className="text-[10px] text-white/50 font-mono">
-              ({state.players.length}/5 мест)
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const headers: Record<string, string> = {};
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-                const res = await fetch('/api/games/blackjack/matchmake', {
-                  credentials: 'include',
-                  headers,
-                });
-                if (res.ok) {
-                  const j = await res.json();
-                  if (j.roomId && j.roomId !== roomId) {
-                    setRoomId(j.roomId);
-                    toast.success(`Переход на ${j.roomId}`);
-                  } else {
-                    toast.info('Вы находитесь на лучшем доступном столе');
-                  }
-                }
-              } catch {}
-            }}
-            className="px-2.5 py-1 rounded-pill bg-white/5 hover:bg-white/10 border border-white/15 text-[10px] font-bold text-amber-200 uppercase tracking-wider transition-colors cursor-pointer"
-          >
-            Сменить стол
-          </button>
-        </div>
       </div>
 
       {/* Main Table Area */}
@@ -1330,23 +1319,154 @@ return () => {
         </section>
       </div>
 
-      {/* Floating Chat Open Button */}
-      <button
-        onClick={() => {
-          setIsChatOpen(true);
-          setUnreadChatCount(0);
-          soundManager.play('ui.click');
-        }}
-        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-400/30 bg-black/85 text-amber-300 shadow-2xl backdrop-blur-xl hover:bg-black hover:scale-105 active:scale-95 transition-transform"
-        title="Чат стола"
-      >
-        <MessageSquare size={20} />
-        {unreadChatCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white border-2 border-black animate-pulse">
-            {unreadChatCount}
-          </span>
-        )}
-      </button>
+      {/* Floating Action Bar (Minimalist Table Switcher + Chat Button) */}
+      <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2">
+        {/* Minimalist Table Switcher Button */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setIsTableMenuOpen((v) => !v);
+              void fetchAvailableTables();
+              soundManager.play('ui.click');
+            }}
+            className="flex h-12 items-center gap-2 px-3 rounded-2xl border border-white/20 bg-black/85 text-frost-white shadow-2xl backdrop-blur-xl hover:border-amber-400/40 hover:text-amber-300 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            title="Выбор стола"
+          >
+            <Users size={16} className="text-amber-400 shrink-0" />
+            <div className="flex flex-col items-start leading-none text-left">
+              <span className="text-[11px] font-bold text-amber-300">
+                {roomId === 'bj_table_1' ? 'Стол #1' : `Стол #${roomId.replace('bj_table_', '')}`}
+              </span>
+              <span className="text-[9px] text-white/50 font-mono mt-0.5">
+                {state.players.length}/5 мест
+              </span>
+            </div>
+            <ChevronDown size={13} className={cn("text-white/40 transition-transform duration-200", isTableMenuOpen && "rotate-180")} />
+          </button>
+
+          {/* Minimalist Table List Popover */}
+          <AnimatePresence>
+            {isTableMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-14 right-0 w-64 rounded-2xl border border-white/15 bg-[#0a0f0a]/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.95)] p-2.5 flex flex-col gap-2 z-50 overflow-hidden"
+              >
+                <div className="flex items-center justify-between border-b border-white/10 pb-1.5 px-1">
+                  <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                    Столы Blackjack
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const headers: Record<string, string> = {};
+                        if (token) headers['Authorization'] = `Bearer ${token}`;
+                        const res = await fetch('/api/games/blackjack/matchmake', {
+                          credentials: 'include',
+                          headers,
+                        });
+                        if (res.ok) {
+                          const j = await res.json();
+                          if (j.roomId && j.roomId !== roomId) {
+                            setRoomId(j.roomId);
+                            toast.success(`Переход на ${j.roomId}`);
+                            setIsTableMenuOpen(false);
+                          } else {
+                            toast.info('Вы уже на лучшем столе');
+                          }
+                        }
+                      } catch {}
+                    }}
+                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 uppercase font-mono tracking-tight cursor-pointer"
+                  >
+                    Авто-поиск
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1 max-h-52 overflow-y-auto pr-0.5">
+                  {availableTables.map((tbl) => {
+                    const isCurrent = tbl.roomId === roomId;
+                    const isCountdown = tbl.phase === 'countdown';
+                    const isPlayerTurn = tbl.phase === 'player_turn';
+                    const isDealerTurn = tbl.phase === 'dealer_turn';
+
+                    return (
+                      <button
+                        key={tbl.roomId}
+                        type="button"
+                        onClick={() => {
+                          if (!isCurrent) {
+                            setRoomId(tbl.roomId);
+                            toast.success(`Переход на ${tbl.roomId}`);
+                          }
+                          setIsTableMenuOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2 rounded-xl text-left border transition-all cursor-pointer",
+                          isCurrent
+                            ? "border-amber-400/60 bg-amber-400/15 shadow-sm"
+                            : "border-white/10 bg-black/40 hover:bg-white/10 hover:border-white/20"
+                        )}
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              "h-1.5 w-1.5 rounded-full shrink-0",
+                              isCurrent ? "bg-emerald-400 animate-pulse" : "bg-white/40"
+                            )} />
+                            <span className={cn(
+                              "text-xs font-bold truncate",
+                              isCurrent ? "text-amber-200" : "text-frost-white"
+                            )}>
+                              {tbl.roomId === 'bj_table_1' ? 'Стол #1 (Главный)' : `Стол #${tbl.roomId.replace('bj_table_', '')}`}
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-white/50 mt-0.5">
+                            {isCountdown
+                              ? `Ставки (${tbl.countdown}с)`
+                              : isPlayerTurn
+                              ? 'Ход игроков'
+                              : isDealerTurn
+                              ? 'Ход дилера'
+                              : 'Ожидание ставок'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <span className="px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-[9px] font-mono font-bold text-white/80">
+                            {tbl.playersCount}/5
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Floating Chat Open Button */}
+        <button
+          onClick={() => {
+            setIsChatOpen(true);
+            setUnreadChatCount(0);
+            soundManager.play('ui.click');
+          }}
+          className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-400/30 bg-black/85 text-amber-300 shadow-2xl backdrop-blur-xl hover:bg-black hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+          title="Чат стола"
+        >
+          <MessageSquare size={20} />
+          {unreadChatCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white border-2 border-black animate-pulse">
+              {unreadChatCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* Slide-over Multiplayer Table Chat Drawer */}
       <BlackjackTableChat

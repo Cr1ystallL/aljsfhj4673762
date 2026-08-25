@@ -1352,51 +1352,90 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   // Blackjack automatic room matchmaking (routes to free table or creates new one if full)
   app.get('/blackjack/matchmake', async (request, reply) => {
-    const { userId } = await resolveBjUser(request);
-    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-    const table = blackjackSingleton.findAvailableTable(userId);
-    return reply.send({
-      success: true,
-      roomId: table.getRoomId(),
-      state: table.getState(),
-      chat: table.getChatHistory(),
-    });
+    try {
+      const { userId } = await resolveBjUser(request);
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      const table = blackjackSingleton.findAvailableTable(userId);
+      return reply.send({
+        success: true,
+        roomId: table.getRoomId(),
+        state: table.getState(),
+        chat: table.getChatHistory(),
+      });
+    } catch (err: any) {
+      logger.error({ err }, 'Blackjack matchmake error, fallback to main table');
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      const main = blackjackSingleton.getMainTable();
+      return reply.send({
+        success: true,
+        roomId: 'bj_table_1',
+        state: main.getState(),
+        chat: main.getChatHistory(),
+      });
+    }
+  });
+
+  // Blackjack Public / Admin Tables List
+  app.get('/blackjack/tables', async (_request, reply) => {
+    try {
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      const tables = blackjackSingleton.getAllTablesSummary();
+      return reply.send({ ok: true, tables });
+    } catch (err: any) {
+      logger.error({ err }, 'Blackjack tables list failed');
+      return reply.send({ ok: true, tables: [] });
+    }
   });
 
   // Blackjack Admin Live Tables Monitor
   app.get('/blackjack/admin/tables', async (_request, reply) => {
-    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-    const tables = blackjackSingleton.getAllTablesSummary();
-    return reply.send({ ok: true, tables });
+    try {
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      const tables = blackjackSingleton.getAllTablesSummary();
+      return reply.send({ ok: true, tables });
+    } catch (err: any) {
+      logger.error({ err }, 'Blackjack admin tables failed');
+      return reply.send({ ok: true, tables: [] });
+    }
   });
 
   // Blackjack Admin Create New Table
   app.post('/blackjack/admin/create-table', async (request, reply) => {
-    const { roomId } = (request.body as { roomId?: string }) || {};
-    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-    let targetRoomId = roomId;
-    if (!targetRoomId) {
-      let idx = 1;
-      const all = blackjackSingleton.getAllRooms();
-      while (all.some((r) => r.getRoomId() === `bj_table_${idx}`)) {
-        idx++;
+    try {
+      const { roomId } = (request.body as { roomId?: string }) || {};
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      let targetRoomId = roomId;
+      if (!targetRoomId) {
+        let idx = 1;
+        const all = blackjackSingleton.getAllRooms();
+        while (all.some((r) => r.getRoomId() === `bj_table_${idx}`)) {
+          idx++;
+        }
+        targetRoomId = `bj_table_${idx}`;
       }
-      targetRoomId = `bj_table_${idx}`;
+      const table = blackjackSingleton.getTable(targetRoomId);
+      return reply.send({ ok: true, roomId: table.getRoomId(), state: table.getState() });
+    } catch (err: any) {
+      logger.error({ err }, 'Blackjack create table failed');
+      return reply.code(500).send({ ok: false, error: err.message || 'Failed to create table' });
     }
-    const table = blackjackSingleton.getTable(targetRoomId);
-    return reply.send({ ok: true, roomId: table.getRoomId(), state: table.getState() });
   });
 
   // Blackjack Admin Reset Table
   app.post('/blackjack/admin/reset-table', async (request, reply) => {
-    const { roomId = 'bj_table_1' } = (request.body as { roomId?: string }) || {};
-    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-    const table = blackjackSingleton.getTable(roomId);
-    if (table) {
-      table.destroy();
+    try {
+      const { roomId = 'bj_table_1' } = (request.body as { roomId?: string }) || {};
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      const table = blackjackSingleton.getTable(roomId);
+      if (table) {
+        table.destroy();
+      }
+      const freshTable = blackjackSingleton.getTable(roomId);
+      return reply.send({ ok: true, roomId: freshTable.getRoomId(), state: freshTable.getState() });
+    } catch (err: any) {
+      logger.error({ err }, 'Blackjack reset table failed');
+      return reply.code(500).send({ ok: false, error: err.message || 'Failed to reset table' });
     }
-    const freshTable = blackjackSingleton.getTable(roomId);
-    return reply.send({ ok: true, roomId: freshTable.getRoomId(), state: freshTable.getState() });
   });
 
   // Helper to resolve user in blackjack routes
