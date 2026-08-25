@@ -79,7 +79,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
         // Handle authentication
         if (validMessage.type === 'auth') {
-          await handleAuth(socket, connectionId, validMessage.payload, authTimeout);
+          await handleAuth(app, socket, connectionId, validMessage.payload as any, authTimeout);
           return;
         }
 
@@ -128,10 +128,10 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
                   userId: string;
                   slot: number;
                   multiplier: number;
-                  payout: number;
-                  timestamp: number;
+                  profit: number;
+                  user: { userId: string; username?: string | null; firstName?: string | null; photoUrl?: string | null } | null;
                 }>;
-                history: Array<{ crashPoint: number; roundId?: string }>;
+                history: Array<{ roundId: string; crashPoint: number; timestamp: number }>;
                 stats: { playerCount: number; totalWagered: number; betsCount: number };
                 crashPointPreview?: number | null;
               };
@@ -207,7 +207,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           let name = 'Игрок';
           let avatar: string | undefined;
 
-          if (socket.userId) {
+          if (socket.userId && !socket.userId.startsWith('guest_') && !socket.userId.startsWith('anon_')) {
             try {
               const user = await prisma.user.findUnique({
                 where: { id: socket.userId },
@@ -269,7 +269,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           let name = 'Игрок';
           let avatar: string | undefined;
 
-          if (socket.userId) {
+          if (socket.userId && !socket.userId.startsWith('guest_') && !socket.userId.startsWith('anon_')) {
             try {
               const user = await prisma.user.findUnique({
                 where: { id: socket.userId },
@@ -300,13 +300,6 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
     socket.on('close', async () => {
       clearTimeout(authTimeout);
       wsManager.removeConnection(connectionId);
-      if (socket.userId) {
-        try {
-          blackjackSingleton.leaveAllTables(socket.userId);
-        } catch (err) {
-          logger.warn({ err, userId: socket.userId }, 'Failed to remove user from blackjack table on disconnect');
-        }
-      }
       logger.info({ connectionId, userId: socket.userId }, 'WebSocket client disconnected');
     });
 
@@ -314,11 +307,6 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
       clearTimeout(authTimeout);
       logger.error({ connectionId, error }, 'WebSocket error');
       wsManager.removeConnection(connectionId);
-      if (socket.userId) {
-        try {
-          blackjackSingleton.leaveAllTables(socket.userId);
-        } catch {}
-      }
     });
   });
 
@@ -330,52 +318,60 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
 /**
  * Handle WebSocket authentication
- * 
- * SECURITY:
- * - Validates session token from Redis
- * - Associates connection with user
- * - Supports reconnection with existing session
  */
 async function handleAuth(
+  app: FastifyInstance,
   socket: AuthenticatedWebSocket,
   connectionId: string,
-  payload: { sessionId: string },
+  payload: { sessionId?: string; token?: string; userId?: string },
   authTimeout: NodeJS.Timeout
 ): Promise<void> {
   try {
-    const { sessionId } = payload;
+    let effectiveSessionId = payload?.sessionId;
+    let userId: string | undefined = payload?.userId;
 
-    if (!sessionId) {
-      const errorEvent = createEvent<ServerAuthErrorEvent>('auth_error', {
-        code: 'MISSING_CREDENTIALS',
-        message: 'sessionId required',
-      });
-      socket.send(JSON.stringify(errorEvent));
-      return;
+    // 1. Try decoding token if provided
+    if (payload?.token) {
+      try {
+        const decoded = (app.jwt as any)?.decode(payload.token) as any;
+        if (decoded?.userId) {
+          userId = decoded.userId;
+        }
+        if (decoded?.sessionId && !effectiveSessionId) {
+          effectiveSessionId = decoded.sessionId;
+        }
+      } catch {}
     }
 
-    let session = await sessionManager.getSession(sessionId);
-    let userId: string | undefined = session?.userId;
-    const effectiveSessionId = session?.sessionId || sessionId;
-
-    if (!session) {
-      if (!userId) {
-        // Check if user exists directly in DB
-        try {
-          const dbUser = await prisma.user.findUnique({ where: { id: sessionId } });
-          if (dbUser) {
-            userId = dbUser.id;
-          }
-        } catch {}
-      }
-
-      // If still no user, allow guest/spectator auth so chat & game stream work
-      if (!userId) {
-        userId = 'guest_' + connectionId.slice(0, 8);
-      }
+    // 2. If sessionId provided, check sessionManager
+    if (effectiveSessionId && !userId) {
+      try {
+        const session = await sessionManager.getSession(effectiveSessionId);
+        if (session?.userId) {
+          userId = session.userId;
+        }
+      } catch {}
     }
 
-    const finalUserId: string = userId || ('guest_' + connectionId.slice(0, 8));
+    // 3. Fallback check user in DB if userId is present
+    if (userId && !userId.startsWith('guest_') && !userId.startsWith('anon_')) {
+      try {
+        const dbUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (dbUser) {
+          userId = dbUser.id;
+        }
+      } catch {}
+    }
+
+    // 4. If still no user, assign guest/anon ID
+    if (!userId) {
+      userId = 'guest_' + connectionId.slice(0, 8);
+    }
+    if (!effectiveSessionId) {
+      effectiveSessionId = 'sess_' + connectionId.slice(0, 8);
+    }
+
+    const finalUserId: string = userId;
 
     // Authenticate connection
     const authenticated = wsManager.authenticateConnection(connectionId, finalUserId, effectiveSessionId);
@@ -397,11 +393,6 @@ async function handleAuth(
 
     // Clear auth timeout
     clearTimeout(authTimeout);
-
-    // Update session activity if available
-    if (session) {
-      await sessionManager.updateActivity(session.sessionId);
-    }
 
     // Send success response
     const successEvent = createEvent<ServerAuthSuccessEvent>('auth_success', {

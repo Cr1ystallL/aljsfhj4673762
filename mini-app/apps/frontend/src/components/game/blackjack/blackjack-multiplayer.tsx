@@ -456,12 +456,14 @@ export function BlackjackMultiplayer() {
     let isDisposed = false;
 
     const connect = () => {
-      if (isDisposed || typeof window === 'undefined') return;
+      if (isDisposed) return;
 
-      const baseRaw =
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let base =
         process.env.NEXT_PUBLIC_WS_URL ||
-        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
-      let base = baseRaw.replace(/\/$/, '');
+        process.env.NEXT_PUBLIC_API_URL?.replace(/^http/, 'ws') ||
+        `${wsProtocol}//${window.location.host}`;
+
       if (!base.endsWith('/api')) {
         base = base.replace(/\/ws$/, '');
       }
@@ -472,12 +474,14 @@ export function BlackjackMultiplayer() {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          const effectiveAuth = sessionId || token || user?.id || 'guest_user';
-
           ws?.send(
             JSON.stringify({
               type: 'auth',
-              payload: { sessionId: effectiveAuth },
+              payload: {
+                sessionId: sessionId || undefined,
+                token: token || undefined,
+                userId: user?.id || undefined,
+              },
               timestamp: Date.now(),
             })
           );
@@ -502,6 +506,9 @@ export function BlackjackMultiplayer() {
             const data = JSON.parse(event.data);
 
             if (data.type === 'auth_success') {
+              if (data.payload?.userId) {
+                setWsUserId(data.payload.userId);
+              }
               ws?.send(
                 JSON.stringify({
                   type: 'game:join',
@@ -579,21 +586,23 @@ export function BlackjackMultiplayer() {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
+    // 1. Send WebSocket message
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:join_seat', { roomId, seatId, bet: 0 });
-    } else {
-      fetch('/api/games/blackjack/join', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ roomId, seatId, bet: 0 }),
-        credentials: 'include',
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.state) setState(data.state);
-        })
-        .catch(() => {});
     }
+
+    // 2. Also call REST endpoint to guarantee instant seat occupation
+    fetch('/api/games/blackjack/join', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ roomId, seatId, bet: 0 }),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+      })
+      .catch(() => {});
   };
 
   const handleLeaveSeat = () => {
@@ -602,19 +611,18 @@ export function BlackjackMultiplayer() {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:leave_seat', { roomId });
-    } else {
-      fetch('/api/games/blackjack/leave', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ roomId }),
-        credentials: 'include',
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.state) setState(data.state);
-        })
-        .catch(() => {});
     }
+    fetch('/api/games/blackjack/leave', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ roomId }),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+      })
+      .catch(() => {});
   };
 
   const handleUpdateBet = (bet: number) => {
