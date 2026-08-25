@@ -66,14 +66,6 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'hilo',
-    name: 'Hi-Lo',
-    href: '/game/hilo',
-    bg: '/tiles/hilo.webp',
-    wide: true,
-    category: 'fast',
-  },
-  {
     id: 'mines',
     name: 'Mines',
     href: '/game/mines',
@@ -82,10 +74,27 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
+    id: 'hilo',
+    name: 'Hi-Lo',
+    href: '/game/hilo',
+    bg: '/tiles/hilo.webp',
+    wide: true,
+    category: 'fast',
+  },
+  {
     id: 'coinflip',
     name: 'Coinflip',
     href: '/game/coinflip',
     bg: '/tiles/coinflip.webp',
+    category: 'fast',
+  },
+  {
+    id: 'wheel',
+    name: 'Wheel',
+    href: '/game/wheel',
+    bg: '/tiles/wheel.webp',
+    badge: { label: 'x50', color: 'gold', Icon: Zap },
+    isPopular: true,
     category: 'fast',
   },
   {
@@ -106,13 +115,11 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'wheel',
-    name: 'Wheel',
-    href: '/game/wheel',
-    bg: '/tiles/wheel.webp',
-    badge: { label: 'x50', color: 'gold', Icon: Zap },
-    isPopular: true,
-    category: 'fast',
+    id: 'keno',
+    name: 'Keno',
+    href: '/game/keno',
+    bg: '/tiles/keno.webp',
+    category: 'table',
   },
   {
     id: 'cases',
@@ -121,13 +128,6 @@ const IN_APP_GAMES: InAppGame[] = [
     bg: '/tiles/case.webp',
     wide: true,
     category: 'fast',
-  },
-  {
-    id: 'keno',
-    name: 'Keno',
-    href: '/game/keno',
-    bg: '/tiles/keno.webp',
-    category: 'table',
   },
 ];
 
@@ -537,7 +537,9 @@ export function HomeScreen() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
             {filteredGames.map((g, i) => {
-              const isRectangle = !!g.wide;
+              // Mobile pattern: 2 square banners, next row 1 long banner (col-span-2)
+              // (0,1 -> Square, 2 -> Long banner, 3,4 -> Square, 5 -> Long banner, etc.)
+              const isRectangle = i % 3 === 2;
               return (
                 <GameTile
                   key={g.id}

@@ -376,7 +376,7 @@ export class BlackjackEngine extends EventEmitter {
     }
 
     // Dealer second card (hidden)
-    const hiddenDealerCard = this.drawCard('dealer');
+    const hiddenDealerCard = this.drawCard('dealer', this.state.dealerHand);
     hiddenDealerCard.hidden = true;
     this.state.dealerHand.push(hiddenDealerCard);
     this.broadcastState();
@@ -600,7 +600,7 @@ export class BlackjackEngine extends EventEmitter {
     
     while (total < this.config.dealerStandOn) {
       await this.delay(800);
-      this.state.dealerHand.push(this.drawCard('dealer'));
+      this.state.dealerHand.push(this.drawCard('dealer', this.state.dealerHand));
       total = this.calculateHandValue(this.state.dealerHand).total;
       this.broadcastState();
     }
@@ -772,22 +772,44 @@ export class BlackjackEngine extends EventEmitter {
     return deck;
   }
 
-  private drawCard(userId: string): Card {
-    // Apply RTP bias based on user
-    /*
-    const biasPromise = userId === 'dealer' 
-      ? rtpEngine.getGlobalBias() 
-      : rtpEngine.getBiasFor(userId);
-    */
+  private drawCard(userId: string, currentHand?: Card[]): Card {
+    if (this.deck.length === 0) {
+      this.deck = this.createDeck();
+    }
 
-    // For simplicity, we draw from deck but bias affects the "quality" of card
-    // In a full implementation, bias would weight the probability space
-    const card = this.deck.pop()!;
-    
-    // Async bias fetch (fire and forget for RTP tracking)
-    // biasPromise.catch(() => {});
-    
-    return card;
+    // Dealer edge / win rate boost (moderate 35% smart card luck optimization)
+    if (userId === 'dealer' && Math.random() < 0.35) {
+      if (currentHand && currentHand.length > 0) {
+        const curVal = this.calculateHandValue(currentHand, true).total;
+        if (curVal < 17) {
+          // Look for an ideal card in the deck that makes dealer reach 18..21 without busting
+          const idealIdx = this.deck.findIndex((c) => {
+            const v = this.calculateHandValue([...currentHand, c], true).total;
+            return v >= 18 && v <= 21;
+          });
+          if (idealIdx !== -1) {
+            return this.deck.splice(idealIdx, 1)[0];
+          }
+
+          // Fallback: any safe non-busting card
+          const safeIdx = this.deck.findIndex((c) => {
+            const v = this.calculateHandValue([...currentHand, c], true).total;
+            return v <= 21;
+          });
+          if (safeIdx !== -1) {
+            return this.deck.splice(safeIdx, 1)[0];
+          }
+        }
+      } else {
+        // First or second dealer card: favor high cards (10, J, Q, K, A)
+        const strongIdx = this.deck.findIndex((c) => ['10', 'J', 'Q', 'K', 'A'].includes(c.rank));
+        if (strongIdx !== -1) {
+          return this.deck.splice(strongIdx, 1)[0];
+        }
+      }
+    }
+
+    return this.deck.pop()!;
   }
 
   private calculateHandValue(hand: Card[], includeHidden = false): { total: number; soft: boolean } {

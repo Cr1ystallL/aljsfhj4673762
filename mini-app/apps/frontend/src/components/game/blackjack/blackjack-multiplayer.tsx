@@ -561,23 +561,24 @@ export function BlackjackMultiplayer() {
             }
 
             if (data.type === 'blackjack:chat:message' && data.payload) {
+              const msg = data.payload;
+              const isMine = msg.userId === user?.id || (wsUserId && msg.userId === wsUserId);
               setChatMessages((prev) => {
-                if (
-                  prev.some(
-                    (m) =>
-                      m.id === data.payload.id ||
-                      (m.timestamp === data.payload.timestamp &&
-                        m.userId === data.payload.userId &&
-                        m.text === data.payload.text)
-                  )
-                ) {
+                const isDuplicate = prev.some(
+                  (m) =>
+                    m.id === msg.id ||
+                    (m.timestamp === msg.timestamp &&
+                      m.userId === msg.userId &&
+                      m.text === msg.text)
+                );
+                if (isDuplicate) {
                   return prev;
                 }
-                return [...prev, data.payload];
+                if (!isChatOpen && !isMine) {
+                  setUnreadChatCount((c) => c + 1);
+                }
+                return [...prev, msg];
               });
-              if (!isChatOpen) {
-                setUnreadChatCount((c) => c + 1);
-              }
             }
           } catch {}
         };
