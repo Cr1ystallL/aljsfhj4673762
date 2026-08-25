@@ -203,19 +203,31 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
         // Handle Blackjack Seat Join
         if (validMessage.type === 'blackjack:join_seat') {
           const { roomId, seatId, bet } = validMessage.payload;
-          const userId = socket.userId!;
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { firstName: true, username: true, photoUrl: true },
-          });
-          const name = user?.firstName || user?.username || 'Игрок';
-          const avatar = user?.photoUrl || undefined;
+          const userId = socket.userId || 'anon_' + connectionId.slice(0, 8);
+          let name = 'Игрок';
+          let avatar: string | undefined;
+
+          if (socket.userId) {
+            try {
+              const user = await prisma.user.findUnique({
+                where: { id: socket.userId },
+                select: { firstName: true, username: true, photoUrl: true },
+              });
+              if (user) {
+                name = user.firstName || user.username || 'Игрок';
+                avatar = user.photoUrl || undefined;
+              }
+            } catch (err) {
+              logger.warn({ err }, 'Failed to fetch user info for join_seat');
+            }
+          }
+
           const engine = blackjackSingleton.getTable(roomId);
           const success = engine.join(userId, name, avatar, seatId, bet);
           if (!success) {
             socket.send(JSON.stringify(createEvent('error', {
               code: 'JOIN_SEAT_FAILED',
-              message: 'Не удалось занять место (место занято или идет раунд)',
+              message: 'Место уже занято',
             })));
           }
           return;

@@ -126,9 +126,9 @@ function CasinoBlackjackCard({
     return (
       <div
         className={cn(
-          'relative flex items-center justify-center rounded-[8px] sm:rounded-[9px] select-none flex-shrink-0 overflow-hidden',
-          'w-[54px] h-[78px] sm:w-[68px] sm:h-[96px] md:w-[76px] md:h-[106px]',
-          'border border-black/35 shadow-[0_8px_18px_rgba(0,0,0,0.65),0_0_22px_rgba(150,20,20,0.25)]',
+          'relative flex items-center justify-center rounded-[6px] sm:rounded-[8px] select-none flex-shrink-0 overflow-hidden',
+          'w-[40px] h-[58px] sm:w-[50px] sm:h-[72px] md:w-[58px] md:h-[82px]',
+          'border border-black/35 shadow-[0_6px_14px_rgba(0,0,0,0.65),0_0_18px_rgba(150,20,20,0.25)]',
           className
         )}
         style={{
@@ -137,7 +137,7 @@ function CasinoBlackjackCard({
       >
         {/* Inner gold frame with subtle diagonal pattern */}
         <div
-          className="absolute inset-[3px] sm:inset-[5px] rounded-[5px] sm:rounded-[6px] border border-[rgba(230,196,130,0.35)] pointer-events-none"
+          className="absolute inset-[2.5px] sm:inset-[4px] rounded-[4px] sm:rounded-[5px] border border-[rgba(230,196,130,0.35)] pointer-events-none"
           style={{
             backgroundImage:
               'repeating-linear-gradient(45deg, rgba(230,196,130,0.06) 0 2px, transparent 2px 7px)',
@@ -148,7 +148,7 @@ function CasinoBlackjackCard({
         <img
           src="/ButtonLogo.svg"
           alt="MacvBet"
-          className="relative z-10 w-6 h-6 sm:w-8 sm:h-8 object-contain filter brightness-125 drop-shadow-[0_0_8px_rgba(227,193,126,0.6)]"
+          className="relative z-10 w-4 h-4 sm:w-6 sm:h-6 object-contain filter brightness-125 drop-shadow-[0_0_6px_rgba(227,193,126,0.6)]"
           draggable={false}
         />
       </div>
@@ -169,9 +169,9 @@ function CasinoBlackjackCard({
   return (
     <div
       className={cn(
-        'relative flex flex-col justify-between p-1.5 sm:p-2 rounded-[8px] sm:rounded-[9px] select-none flex-shrink-0 overflow-hidden',
-        'w-[54px] h-[78px] sm:w-[68px] sm:h-[96px] md:w-[76px] md:h-[106px]',
-        'border border-black/25 shadow-[0_8px_18px_rgba(0,0,0,0.55)]',
+        'relative flex flex-col justify-between p-1 sm:p-1.5 rounded-[6px] sm:rounded-[8px] select-none flex-shrink-0 overflow-hidden',
+        'w-[40px] h-[58px] sm:w-[50px] sm:h-[72px] md:w-[58px] md:h-[82px]',
+        'border border-black/25 shadow-[0_6px_14px_rgba(0,0,0,0.55)]',
         isRed ? 'text-[#9c1f24]' : 'text-[#161512]',
         className
       )}
@@ -181,23 +181,23 @@ function CasinoBlackjackCard({
     >
       {/* Top Left Corner */}
       <div className="flex flex-col items-center self-start leading-none pointer-events-none z-10">
-        <span className="text-xs sm:text-base font-black leading-none font-serif">
+        <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none font-serif">
           {rankStr}
         </span>
-        <span className="text-[10px] sm:text-xs leading-none mt-0.5">{suitSymbol}</span>
+        <span className="text-[8px] sm:text-[10px] leading-none mt-0.5">{suitSymbol}</span>
       </div>
 
       {/* Large Center Suit */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className="text-2xl sm:text-3xl md:text-4xl leading-none">{suitSymbol}</span>
+        <span className="text-lg sm:text-2xl md:text-3xl leading-none">{suitSymbol}</span>
       </div>
 
       {/* Bottom Right Corner (Rotated 180) */}
       <div className="flex flex-col items-center self-end leading-none pointer-events-none rotate-180 z-10">
-        <span className="text-xs sm:text-base font-black leading-none font-serif">
+        <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none font-serif">
           {rankStr}
         </span>
-        <span className="text-[10px] sm:text-xs leading-none mt-0.5">{suitSymbol}</span>
+        <span className="text-[8px] sm:text-[10px] leading-none mt-0.5">{suitSymbol}</span>
       </div>
     </div>
   );
@@ -935,14 +935,14 @@ export function BlackjackMultiplayer() {
                             }}
                             className="relative"
                             style={{
-                              marginLeft: cardIdx > 0 ? '-28px' : '0px',
+                              marginLeft: cardIdx > 0 ? '-18px' : '0px',
                               zIndex: cardIdx + 1,
                             }}
                           >
                             <CasinoBlackjackCard
                               card={c}
                               isFaceDown={c.hidden}
-                              className="w-[56px] h-[80px] sm:w-[72px] sm:h-[100px]"
+                              className="w-[38px] h-[56px] sm:w-[48px] sm:h-[70px]"
                             />
                           </motion.div>
                         ))}
@@ -1014,9 +1014,8 @@ export function BlackjackMultiplayer() {
                     ) : (
                       /* Empty Seat: 3D Liquid Glass Disc with Perfectly Centered SVG Plus */
                       <button
-                        disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
                         onClick={() => handleJoinSeat(seatId)}
-                        className="relative flex w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 items-center justify-center rounded-full border-[1.5px] border-amber-500/35 bg-gradient-to-b from-black/50 to-black/85 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.7)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group"
+                        className="relative flex w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 items-center justify-center rounded-full border-[1.5px] border-amber-500/35 bg-gradient-to-b from-black/50 to-black/85 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.7)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group cursor-pointer"
                         title="Занять место"
                       >
                         <Plus

@@ -106,14 +106,13 @@ export class BlackjackEngine extends EventEmitter {
    * ---------------------------------------------------------------- */
 
   join(userId: string, name: string, avatar: string | undefined, seatId: number, bet: number = 0): boolean {
-    if (this.state.phase !== 'waiting' && this.state.phase !== 'countdown') {
-      return false; // Can't join during active round
-    }
-
-    // Check if seat is taken
+    // Check if seat is already taken
     const existingPlayer = this.state.players.find((p) => p.seatId === seatId);
     if (existingPlayer) {
-      return false;
+      if (existingPlayer.userId === userId) {
+        return true; // Already in this seat
+      }
+      return false; // Taken by someone else
     }
 
     // Remove from old seat if switching
@@ -134,7 +133,7 @@ export class BlackjackEngine extends EventEmitter {
     this.state.players.push(player);
     this.broadcastState();
 
-    // Start countdown if at least one player has placed a valid bet >= 10
+    // Start countdown if at least one player has placed a valid bet >= 10 in waiting phase
     if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
       this.startCountdown();
     } else {
