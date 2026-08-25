@@ -103,6 +103,7 @@ const IN_APP_GAMES: InAppGame[] = [
     href: '/game/blackjack',
     bg: '/tiles/bj.webp',
     wide: true,
+    badge: { label: 'NEW', color: 'gold', Icon: Sparkles },
     category: 'table',
   },
   {
@@ -649,10 +650,24 @@ function GameTile({
   return (
     <Pressable
       onClick={() => router.push(game.href)}
-      className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas ${
-        isRectangle ? 'col-span-2 aspect-[2/1]' : 'col-span-1 aspect-square'
-      } text-left active:scale-[0.97] hover:border-white/25 transition-all duration-200 shadow-lg`}
+      className={`group relative overflow-hidden rounded-2xl ${
+        game.id === 'blackjack'
+          ? 'border-2 border-amber-400/80 shadow-[0_0_30px_rgba(251,191,36,0.35)] ring-1 ring-amber-400/60'
+          : 'border border-white/10'
+      } bg-midnight-canvas ${
+        isRectangle ? 'col-span-2 aspect-[2.1/1]' : 'col-span-1 aspect-square'
+      } text-left active:scale-[0.97] hover:border-amber-400/90 transition-all duration-200 shadow-lg`}
     >
+      {game.id === 'blackjack' && (
+        <div
+          aria-hidden
+          className="absolute -inset-[100%] animate-[spin_5s_linear_infinite] opacity-40 pointer-events-none z-0"
+          style={{
+            background:
+              'conic-gradient(from 0deg, transparent 0deg, rgba(251,191,36,0.8) 60deg, transparent 120deg, rgba(16,185,129,0.8) 240deg, transparent 300deg)',
+          }}
+        />
+      )}
       {game.bg && (
         <div
           aria-hidden

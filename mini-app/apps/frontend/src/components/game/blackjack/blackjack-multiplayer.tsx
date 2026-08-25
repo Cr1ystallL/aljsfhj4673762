@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2,
@@ -236,9 +236,18 @@ export function BlackjackMultiplayer() {
     fetchBalance,
   } = useActiveBalance('blackjack');
 
-  const [roomId] = useState('bj_table_1');
+  const searchParams = useSearchParams();
+  const explicitRoom = searchParams.get('roomId');
+  const [roomId, setRoomId] = useState(explicitRoom || 'bj_table_1');
+
+  useEffect(() => {
+    if (explicitRoom && explicitRoom !== roomId) {
+      setRoomId(explicitRoom);
+    }
+  }, [explicitRoom, roomId]);
+
   const [state, setState] = useState<BJState>({
-    roomId: 'bj_table_1',
+    roomId: explicitRoom || 'bj_table_1',
     phase: 'waiting',
     countdown: 12,
     dealerHand: [],
@@ -377,21 +386,31 @@ export function BlackjackMultiplayer() {
   }, []);
 
 
-  // REST state fallback loader
+  // REST state fallback loader with automatic matchmaking
   const loadStateSnapshot = useCallback(async () => {
     try {
-      const res = await fetch(`/api/games/blackjack/state?roomId=${roomId}`, { credentials: 'include' });
+      const targetUrl = explicitRoom
+        ? `/api/games/blackjack/state?roomId=${roomId}`
+        : `/api/games/blackjack/matchmake`;
+
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(targetUrl, { credentials: 'include', headers });
       if (res.ok) {
         const data = await res.json();
+        if (data.roomId && data.roomId !== roomId) {
+          setRoomId(data.roomId);
+        }
         if (data.state) {
           setState(data.state);
         }
-        if (data.chat) {
+        if (Array.isArray(data.chat)) {
           setChatMessages(data.chat);
         }
       }
     } catch {}
-  }, [roomId]);
+  }, [roomId, explicitRoom, token]);
 
   // Audio system initialization and registration
   useEffect(() => {
@@ -635,6 +654,18 @@ return () => {
       .then((res) => res.json())
       .then((data) => {
         if (data?.state) setState(data.state);
+        if (data?.success === false) {
+          // If table is full or seat is blocked, matchmake to available table
+          fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
+            .then((r) => r.json())
+            .then((m) => {
+              if (m?.roomId && m.roomId !== roomId) {
+                setRoomId(m.roomId);
+                toast.info(`Перенаправляем на свободный ${m.roomId}`);
+              }
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {});
   };
@@ -741,7 +772,7 @@ return () => {
   return (
     <main className="relative min-h-screen w-full bg-[#000000] text-frost-white flex flex-col justify-between select-none overflow-x-hidden pb-12 sm:pb-6">
       {/* Top Bar Header */}
-      <div className="w-full max-w-[1360px] mx-auto px-3 pt-3">
+      <div className="w-full max-w-[1360px] mx-auto px-3 pt-3 flex flex-col gap-2">
         <GameTopBar
           title="Blackjack"
           Icon={Gamepad2}
@@ -749,6 +780,45 @@ return () => {
           currency={currencyLabel}
           onHowToPlay={() => setShowRules(true)}
         />
+
+        {/* Room & Matchmaking Bar */}
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#0c120c] border border-white/10 text-xs shadow-inner">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-bold text-amber-300 uppercase tracking-wide">
+              {roomId === 'bj_table_1' ? 'Стол #1 (Главный)' : `Стол #${roomId.replace('bj_table_', '')}`}
+            </span>
+            <span className="text-[10px] text-white/50 font-mono">
+              ({state.players.length}/5 мест)
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const headers: Record<string, string> = {};
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const res = await fetch('/api/games/blackjack/matchmake', {
+                  credentials: 'include',
+                  headers,
+                });
+                if (res.ok) {
+                  const j = await res.json();
+                  if (j.roomId && j.roomId !== roomId) {
+                    setRoomId(j.roomId);
+                    toast.success(`Переход на ${j.roomId}`);
+                  } else {
+                    toast.info('Вы находитесь на лучшем доступном столе');
+                  }
+                }
+              } catch {}
+            }}
+            className="px-2.5 py-1 rounded-pill bg-white/5 hover:bg-white/10 border border-white/15 text-[10px] font-bold text-amber-200 uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            Сменить стол
+          </button>
+        </div>
       </div>
 
       {/* Main Table Area */}

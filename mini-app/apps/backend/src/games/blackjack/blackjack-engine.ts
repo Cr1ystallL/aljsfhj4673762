@@ -812,7 +812,7 @@ export class BlackjackEngine extends EventEmitter {
     return this.deck.pop()!;
   }
 
-  private calculateHandValue(hand: Card[], includeHidden = false): { total: number; soft: boolean } {
+  calculateHandValue(hand: Card[], includeHidden = false): { total: number; soft: boolean } {
     let total = 0;
     let aces = 0;
 
@@ -947,6 +947,10 @@ export class BlackjackEngine extends EventEmitter {
    * Public getters
    * ---------------------------------------------------------------- */
 
+  getRoomId(): string {
+    return this.roomId;
+  }
+
   getState(): BlackjackState {
     return { ...this.state };
   }
@@ -962,28 +966,42 @@ export class BlackjackEngine extends EventEmitter {
   }
 }
 
+export interface BlackjackTableSummary {
+  roomId: string;
+  phase: GamePhase;
+  playersCount: number;
+  maxSeats: number;
+  countdown: number;
+  turnCountdown?: number;
+  dealerHand: Card[];
+  dealerScore: number;
+  players: Player[];
+  chatCount: number;
+}
+
 // Room manager for multiplayer blackjack
 export class BlackjackRoomManager {
   private rooms = new Map<string, BlackjackEngine>();
 
   getOrCreateRoom(roomId: string): BlackjackEngine {
-    if (!this.rooms.has(roomId)) {
-      const engine = new BlackjackEngine(roomId);
-      this.rooms.set(roomId, engine);
+    const cleanId = roomId || 'bj_table_1';
+    if (!this.rooms.has(cleanId)) {
+      const engine = new BlackjackEngine(cleanId);
+      this.rooms.set(cleanId, engine);
       
       engine.on('state', () => {
-        // Cleanup empty rooms
-        if (engine.getState().players.length === 0 && engine.getState().phase === 'waiting') {
+        // Keep primary table bj_table_1 always active; cleanup extra empty dynamic rooms after 5 minutes of inactivity
+        if (cleanId !== 'bj_table_1' && engine.getState().players.length === 0 && engine.getState().phase === 'waiting') {
           setTimeout(() => {
-            if (engine.getState().players.length === 0) {
+            if (engine.getState().players.length === 0 && cleanId !== 'bj_table_1') {
               engine.destroy();
-              this.rooms.delete(roomId);
+              this.rooms.delete(cleanId);
             }
-          }, 60000); // Cleanup after 1 minute of inactivity
+          }, 300000);
         }
       });
     }
-    return this.rooms.get(roomId)!;
+    return this.rooms.get(cleanId)!;
   }
 
   getRoom(roomId: string): BlackjackEngine | undefined {
@@ -991,7 +1009,64 @@ export class BlackjackRoomManager {
   }
 
   getAllRooms(): BlackjackEngine[] {
+    this.getOrCreateRoom('bj_table_1');
     return Array.from(this.rooms.values());
+  }
+
+  /**
+   * Automatic table matchmaking:
+   * 1. If user is already seated at a table, return that table.
+   * 2. Otherwise find the first table with free seats (< 5 players).
+   * 3. If all active tables are full (5/5), create a new dynamic table (bj_table_2, bj_table_3, etc.).
+   */
+  findAvailableTable(userId?: string): BlackjackEngine {
+    this.getOrCreateRoom('bj_table_1');
+
+    if (userId) {
+      for (const engine of this.rooms.values()) {
+        const state = engine.getState();
+        if (state.players.some((p) => p.userId === userId)) {
+          return engine;
+        }
+      }
+    }
+
+    // Find first room with free seats (< 5)
+    for (const engine of this.rooms.values()) {
+      const state = engine.getState();
+      if (state.players.length < 5) {
+        return engine;
+      }
+    }
+
+    // All existing tables are full -> spawn next table
+    let tableIndex = 1;
+    while (this.rooms.has(`bj_table_${tableIndex}`)) {
+      tableIndex++;
+    }
+    const newRoomId = `bj_table_${tableIndex}`;
+    logger.info({ newRoomId, previousFullCount: this.rooms.size }, 'Spawned new blackjack table for matchmaking');
+    return this.getOrCreateRoom(newRoomId);
+  }
+
+  getAllTablesSummary(): BlackjackTableSummary[] {
+    this.getOrCreateRoom('bj_table_1');
+    return Array.from(this.rooms.values()).map((engine) => {
+      const state = engine.getState();
+      const dealerScore = state.dealerHand.length > 0 ? engine.calculateHandValue(state.dealerHand).total : 0;
+      return {
+        roomId: engine.getRoomId(),
+        phase: state.phase,
+        playersCount: state.players.length,
+        maxSeats: 5,
+        countdown: state.countdown,
+        turnCountdown: state.turnCountdown,
+        dealerHand: state.dealerHand,
+        dealerScore,
+        players: state.players,
+        chatCount: engine.getChatHistory().length,
+      };
+    });
   }
 
   leaveAllRooms(userId: string): void {

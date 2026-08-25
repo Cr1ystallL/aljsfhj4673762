@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronDown, ChevronUp, Eye, Plus, RefreshCw, Save, Users } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 import { distributePercentages } from '@casino/shared';
@@ -571,6 +572,62 @@ function GameCard({
             </div>
           )}
 
+          {gameType === 'blackjack' && (
+            <div className="flex flex-col gap-3 pt-2 border-t border-white/5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field
+                  label="Окно ставок (с)"
+                  help={{
+                    title: 'Время обратного отсчёта ставок',
+                    body: <p>Сколько секунд длится отсчёт до раздачи карт после первой ставки за столом (по умолчанию 12с).</p>,
+                  }}
+                >
+                  <NumberInput
+                    value={Number(form.extras?.countdownSeconds ?? 12)}
+                    step={1}
+                    min={5}
+                    max={60}
+                    onChange={(v) => updateExtra('countdownSeconds', v)}
+                  />
+                </Field>
+
+                <Field
+                  label="Время на ход (с)"
+                  help={{
+                    title: 'Таймер хода игрока',
+                    body: <p>Сколько секунд даётся игроку на решение (Ещё / Хватит / Удвоить) перед авто-пасом (по умолчанию 30с).</p>,
+                  }}
+                >
+                  <NumberInput
+                    value={Number(form.extras?.turnCountdownSeconds ?? 30)}
+                    step={1}
+                    min={10}
+                    max={90}
+                    onChange={(v) => updateExtra('turnCountdownSeconds', v)}
+                  />
+                </Field>
+
+                <Field
+                  label="Удача дилера (%)"
+                  help={{
+                    title: 'House Edge & Card Luck',
+                    body: <p>Вероятность выпадения удачной карты дилеру во избежание перебора (по умолчанию 35%).</p>,
+                  }}
+                >
+                  <NumberInput
+                    value={Number(form.extras?.dealerEdgeBoost ?? 35)}
+                    step={1}
+                    min={0}
+                    max={100}
+                    onChange={(v) => updateExtra('dealerEdgeBoost', v)}
+                  />
+                </Field>
+              </div>
+
+              <BlackjackLiveTablesMonitor />
+            </div>
+          )}
+
           {gameType === 'cases' && (
             <div className="pt-2 border-t border-white/5">
               <CasesConfig
@@ -768,6 +825,225 @@ function CasesConfig({ extras, updateExtra }: { extras: Record<string, unknown>;
                   onChange={(v) => setWeight(i, v)}
                 />
             </Field>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface BJTableSummary {
+  roomId: string;
+  phase: string;
+  playersCount: number;
+  maxSeats: number;
+  countdown: number;
+  turnCountdown?: number;
+  dealerHand: Array<{ rank: string; suit: string; hidden?: boolean }>;
+  dealerScore: number;
+  players: Array<{
+    userId: string;
+    name: string;
+    avatar?: string;
+    seatId: number;
+    bet: number;
+    status: string;
+    hand: Array<{ rank: string; suit: string; hidden?: boolean }>;
+  }>;
+  chatCount: number;
+}
+
+function BlackjackLiveTablesMonitor() {
+  const router = useRouter();
+  const [tables, setTables] = useState<BJTableSummary[]>([]);
+  const [creating, setCreating] = useState(false);
+
+  const fetchTables = useCallback(async () => {
+    try {
+      const res = await fetch('/api/games/blackjack/admin/tables', { credentials: 'include' });
+      if (res.ok) {
+        const j = await res.json();
+        if (Array.isArray(j.tables)) {
+          setTables(j.tables);
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void fetchTables();
+    const interval = setInterval(fetchTables, 3000);
+    return () => clearInterval(interval);
+  }, [fetchTables]);
+
+  const handleCreateTable = async () => {
+    setCreating(true);
+    try {
+      const res = await fetch('/api/games/blackjack/admin/create-table', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        await fetchTables();
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleResetTable = async (roomId: string) => {
+    if (!confirm(`Сбросить состояние стола ${roomId}?`)) return;
+    try {
+      await fetch('/api/games/blackjack/admin/reset-table', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId }),
+      });
+      await fetchTables();
+    } catch {}
+  };
+
+  return (
+    <div className="flex flex-col gap-3 pt-3 border-t border-white/10">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-roobert text-[12px] font-bold text-frost-white tracking-wider uppercase">
+            Живые столы Блэкджек ({tables.length})
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCreateTable}
+          disabled={creating}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-roobert text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+        >
+          <Plus size={13} />
+          <span>{creating ? 'Создание…' : 'Создать стол'}</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {tables.map((tbl) => {
+          const isCountdown = tbl.phase === 'countdown';
+          const isPlayerTurn = tbl.phase === 'player_turn';
+          const isDealerTurn = tbl.phase === 'dealer_turn';
+          const isSettling = tbl.phase === 'settling' || tbl.phase === 'finished';
+
+          return (
+            <div
+              key={tbl.roomId}
+              className="rounded-2xl border border-white/10 bg-[#0c120c] p-3.5 flex flex-col justify-between gap-3 shadow-lg relative overflow-hidden"
+            >
+              {/* Header: Title + Phase Badge */}
+              <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-roobert font-bold text-amber-300 text-sm">
+                    {tbl.roomId === 'bj_table_1' ? 'Стол #1 (Главный)' : `Стол #${tbl.roomId.replace('bj_table_', '')}`}
+                  </span>
+                  <span className="text-[10px] text-whisper-gray font-mono">({tbl.roomId})</span>
+                </div>
+
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                    isCountdown
+                      ? 'border-amber-400/50 bg-amber-400/20 text-amber-300 animate-pulse'
+                      : isPlayerTurn
+                      ? 'border-cyan-400/50 bg-cyan-400/20 text-cyan-300'
+                      : isDealerTurn
+                      ? 'border-purple-400/50 bg-purple-400/20 text-purple-300'
+                      : isSettling
+                      ? 'border-emerald-400/50 bg-emerald-400/20 text-emerald-300'
+                      : 'border-white/10 bg-white/5 text-white/70'
+                  }`}
+                >
+                  {isCountdown
+                    ? `Ставки (${tbl.countdown}с)`
+                    : isPlayerTurn
+                    ? `Ход игрока (${tbl.turnCountdown ?? 30}с)`
+                    : isDealerTurn
+                    ? 'Ход дилера'
+                    : isSettling
+                    ? 'Расчет'
+                    : 'Ожидание'}
+                </span>
+              </div>
+
+              {/* Middle: Dealer & Seats Overview */}
+              <div className="flex flex-col gap-2 text-xs">
+                {/* Dealer Row */}
+                <div className="flex items-center justify-between bg-black/40 rounded-xl px-2.5 py-1.5 border border-white/5">
+                  <span className="text-amber-400 font-bold">Дилер: {tbl.dealerScore > 0 ? `${tbl.dealerScore} очков` : '—'}</span>
+                  <div className="flex items-center gap-1">
+                    {tbl.dealerHand && tbl.dealerHand.length > 0 ? (
+                      tbl.dealerHand.map((c, i) => (
+                        <span key={i} className="px-1.5 py-0.5 rounded bg-black border border-white/20 text-[10px] font-mono text-white">
+                          {c.hidden ? '🂠 Скрыта' : `${c.rank}${c.suit === 'hearts' ? '♥' : c.suit === 'diamonds' ? '♦' : c.suit === 'clubs' ? '♣' : '♠'}`}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[10px] text-white/40">Без карт</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seated Players Grid (5 spots) */}
+                <div className="grid grid-cols-5 gap-1 pt-1">
+                  {[0, 1, 2, 3, 4].map((seatId) => {
+                    const p = tbl.players.find((pl) => pl.seatId === seatId);
+                    return (
+                      <div
+                        key={seatId}
+                        className={`flex flex-col items-center justify-center p-1 rounded-xl border text-center min-h-[52px] ${
+                          p
+                            ? 'border-amber-400/40 bg-amber-400/10'
+                            : 'border-dashed border-white/10 bg-black/20 text-white/30'
+                        }`}
+                      >
+                        <span className="text-[9px] font-mono text-white/50">#{seatId + 1}</span>
+                        {p ? (
+                          <>
+                            <span className="text-[10px] font-bold text-amber-200 truncate w-full">{p.name}</span>
+                            <span className="text-[9px] font-black text-emerald-400">{p.bet > 0 ? `${p.bet} zł` : '—'}</span>
+                          </>
+                        ) : (
+                          <span className="text-[9px] text-white/30">Свободно</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Footer Actions: Enter Room & Reset Room */}
+              <div className="flex items-center justify-between gap-2 border-t border-white/5 pt-2">
+                <span className="text-[11px] text-white/60">Игроков: {tbl.playersCount}/5</span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/game/blackjack?roomId=${tbl.roomId}`)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    <Eye size={13} />
+                    <span>Смотреть / Войти</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleResetTable(tbl.roomId)}
+                    className="px-2 py-1.5 rounded-pill bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-bold text-[11px] transition-colors cursor-pointer"
+                    title="Сбросить стол"
+                  >
+                    <RefreshCw size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
           );
         })}
       </div>
