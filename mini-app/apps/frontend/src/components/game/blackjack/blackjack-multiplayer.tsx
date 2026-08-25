@@ -64,14 +64,32 @@ function getChipStack(totalBet: number): number[] {
   let remaining = Math.round(totalBet);
   const chips: number[] = [];
 
-  const denoms = [500, 250, 100, 50, 25, 10];
-  for (const d of denoms) {
-    while (remaining >= d && chips.length < 5) {
-      chips.push(d);
-      remaining -= d;
-    }
+  // Denominations available: 500, 250, 100, 50, 25, 10
+  while (remaining >= 500) {
+    chips.push(500);
+    remaining -= 500;
   }
-  if (remaining > 0 && chips.length < 5) {
+  while (remaining >= 250) {
+    chips.push(250);
+    remaining -= 250;
+  }
+  while (remaining >= 100) {
+    chips.push(100);
+    remaining -= 100;
+  }
+  while (remaining >= 50) {
+    chips.push(50);
+    remaining -= 50;
+  }
+  while (remaining >= 25 && (remaining % 10 !== 0 || remaining === 25)) {
+    chips.push(25);
+    remaining -= 25;
+  }
+  while (remaining >= 10) {
+    chips.push(10);
+    remaining -= 10;
+  }
+  if (remaining > 0) {
     chips.push(10);
   }
 
