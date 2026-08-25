@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'crypto';
 import { authenticate, isAdminTelegramIdAsync, type AuthenticatedRequest } from '../middleware/auth.js';
 import { CrashGameEngine } from '../games/crash/crash-engine.js';
 import { minesEngine } from '../games/mines/mines-engine.js';
@@ -1349,64 +1350,97 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ success: true, state: table.getState(), chat: table.getChatHistory() });
   });
 
+  // Helper to resolve user in blackjack routes
+  async function resolveBjUser(request: any): Promise<{ userId: string; name: string; avatar?: string }> {
+    let userId: string | undefined = request.user?.userId;
+    const body = request.body || {};
+
+    if (!userId && body.userId) {
+      userId = body.userId;
+    }
+
+    if (!userId) {
+      try {
+        const authHeader = request.headers.authorization;
+        if (authHeader) {
+          const token = authHeader.replace(/^Bearer\s+/i, '');
+          const decoded = (request.server.jwt as any)?.verify(token) as any;
+          if (decoded?.userId) userId = decoded.userId;
+        }
+      } catch {}
+    }
+
+    const finalUserId = userId || 'anon_' + randomUUID().slice(0, 8);
+    let name = 'Игрок';
+    let avatar: string | undefined;
+
+    if (userId && !userId.startsWith('guest_') && !userId.startsWith('anon_')) {
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { firstName: true, username: true, photoUrl: true },
+        });
+        if (dbUser) {
+          name = dbUser.firstName || dbUser.username || 'Игрок';
+          avatar = dbUser.photoUrl || undefined;
+        }
+      } catch {}
+    }
+
+    return { userId: finalUserId, name, avatar };
+  }
+
   // Blackjack REST Join Seat
-  app.post('/blackjack/join', { preHandler: authenticate }, async (request, reply) => {
-    const { user } = request as AuthenticatedRequest;
+  app.post('/blackjack/join', async (request, reply) => {
+    const { userId, name, avatar } = await resolveBjUser(request);
     const { roomId = 'bj_table_1', seatId, bet = 0 } = (request.body as {
       roomId?: string;
       seatId: number;
       bet?: number;
     }) || {};
 
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.userId },
-      select: { firstName: true, username: true, photoUrl: true },
-    });
-    const name = dbUser?.firstName || dbUser?.username || 'Игрок';
-    const avatar = dbUser?.photoUrl || undefined;
-
     const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
     const table = blackjackSingleton.getTable(roomId);
-    const success = table.join(user.userId, name, avatar, seatId, bet);
+    const success = table.join(userId, name, avatar, seatId, bet);
 
     return reply.send({ success, state: table.getState() });
   });
 
   // Blackjack REST Leave Seat
-  app.post('/blackjack/leave', { preHandler: authenticate }, async (request, reply) => {
-    const { user } = request as AuthenticatedRequest;
+  app.post('/blackjack/leave', async (request, reply) => {
+    const { userId } = await resolveBjUser(request);
     const { roomId = 'bj_table_1' } = (request.body as { roomId?: string }) || {};
 
     const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
     const table = blackjackSingleton.getTable(roomId);
-    table.leave(user.userId);
+    table.leave(userId);
 
     return reply.send({ success: true, state: table.getState() });
   });
 
   // Blackjack REST Update Bet
-  app.post('/blackjack/bet', { preHandler: authenticate }, async (request, reply) => {
-    const { user } = request as AuthenticatedRequest;
+  app.post('/blackjack/bet', async (request, reply) => {
+    const { userId } = await resolveBjUser(request);
     const { roomId = 'bj_table_1', bet = 0 } = (request.body as { roomId?: string; bet: number }) || {};
 
     const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
     const table = blackjackSingleton.getTable(roomId);
-    const success = table.updateBet(user.userId, bet);
+    const success = table.updateBet(userId, bet);
 
     return reply.send({ success, state: table.getState() });
   });
 
   // Blackjack REST Action
-  app.post('/blackjack/action', { preHandler: authenticate }, async (request, reply) => {
-    const { user } = request as AuthenticatedRequest;
+  app.post('/blackjack/action', async (request, reply) => {
+    const { userId } = await resolveBjUser(request);
     const { roomId = 'bj_table_1', action } = (request.body as { roomId?: string; action: 'hit' | 'stand' | 'double' }) || {};
 
     const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
     const table = blackjackSingleton.getTable(roomId);
     let success = false;
-    if (action === 'hit') success = await table.hit(user.userId);
-    else if (action === 'stand') success = await table.stand(user.userId);
-    else if (action === 'double') success = await table.double(user.userId);
+    if (action === 'hit') success = await table.hit(userId);
+    else if (action === 'stand') success = await table.stand(userId);
+    else if (action === 'double') success = await table.double(userId);
 
     return reply.send({ success, state: table.getState() });
   });

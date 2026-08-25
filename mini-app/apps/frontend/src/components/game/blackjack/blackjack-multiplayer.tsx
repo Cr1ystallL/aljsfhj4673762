@@ -575,7 +575,7 @@ export function BlackjackMultiplayer() {
 
     connect();
 
-    return () => {
+return () => {
       isDisposed = true;
       if (pingInterval) clearInterval(pingInterval);
       ws?.close();
@@ -586,16 +586,21 @@ export function BlackjackMultiplayer() {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
+    const payload = { roomId, seatId, bet: 0, userId: user?.id || wsUserId || undefined };
+
     // 1. Send WebSocket message
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      sendWs('blackjack:join_seat', { roomId, seatId, bet: 0 });
+      sendWs('blackjack:join_seat', payload);
     }
 
     // 2. Also call REST endpoint to guarantee instant seat occupation
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     fetch('/api/games/blackjack/join', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ roomId, seatId, bet: 0 }),
+      headers,
+      body: JSON.stringify(payload),
       credentials: 'include',
     })
       .then((res) => res.json())
@@ -609,13 +614,18 @@ export function BlackjackMultiplayer() {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
+    const payload = { roomId, userId: user?.id || wsUserId || undefined };
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      sendWs('blackjack:leave_seat', { roomId });
+      sendWs('blackjack:leave_seat', payload);
     }
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     fetch('/api/games/blackjack/leave', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ roomId }),
+      headers,
+      body: JSON.stringify(payload),
       credentials: 'include',
     })
       .then((res) => res.json())
@@ -635,16 +645,19 @@ export function BlackjackMultiplayer() {
     soundManager.play('bj.chip_click');
 
     if (myPlayer) {
+      const payload = { roomId, bet: validBet, userId: user?.id || wsUserId || undefined };
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        sendWs('blackjack:bet', { roomId, bet: validBet });
-      } else {
-        fetch('/api/games/blackjack/bet', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ roomId, bet: validBet }),
-          credentials: 'include',
-        }).catch(() => {});
+        sendWs('blackjack:bet', payload);
       }
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      fetch('/api/games/blackjack/bet', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      }).catch(() => {});
     }
   };
 
@@ -663,13 +676,18 @@ export function BlackjackMultiplayer() {
       soundManager.play('ui.click');
     }
 
+    const payload = { roomId, action, userId: user?.id || wsUserId || undefined };
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      sendWs('blackjack:action', { roomId, action });
+      sendWs('blackjack:action', payload);
     } else {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       fetch('/api/games/blackjack/action', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ roomId, action }),
+        headers,
+        body: JSON.stringify(payload),
         credentials: 'include',
       })
         .then((res) => res.json())
@@ -683,7 +701,7 @@ export function BlackjackMultiplayer() {
   const handleSendMessage = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    sendWs('blackjack:chat', { roomId, text: trimmed });
+    sendWs('blackjack:chat', { roomId, text: trimmed, userId: user?.id || wsUserId || undefined });
   };
 
   return (

@@ -112,7 +112,17 @@ export class BlackjackEngine extends EventEmitter {
       if (existingPlayer.userId === userId) {
         return true; // Already in this seat
       }
-      return false; // Taken by someone else
+      // If the occupant is a guest/anonymous or inactive with 0 bet in waiting phase, allow real user to claim the seat
+      if (
+        existingPlayer.userId.startsWith('guest_') ||
+        existingPlayer.userId.startsWith('anon_') ||
+        (existingPlayer.status === 'waiting' && existingPlayer.bet === 0 && this.state.phase === 'waiting')
+      ) {
+        logger.info({ seatId, oldUser: existingPlayer.userId, newUser: userId }, 'Replacing inactive/guest player in seat');
+        this.state.players = this.state.players.filter((p) => p.seatId !== seatId);
+      } else {
+        return false; // Taken by an active player
+      }
     }
 
     // Remove from old seat if switching
