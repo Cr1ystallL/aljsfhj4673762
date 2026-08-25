@@ -62,20 +62,21 @@ const CHIP_DENOMINATIONS = [500, 250, 100, 50, 25, 10] as const;
 function getChipStack(totalBet: number): number[] {
   if (!totalBet || totalBet <= 0) return [];
   let remaining = Math.round(totalBet);
-  const stack: number[] = [];
+  const chips: number[] = [];
 
-  for (const denom of CHIP_DENOMINATIONS) {
-    while (remaining >= denom && stack.length < 5) {
-      stack.push(denom);
-      remaining -= denom;
+  const denoms = [500, 250, 100, 50, 25, 10];
+  for (const d of denoms) {
+    while (remaining >= d && chips.length < 5) {
+      chips.push(d);
+      remaining -= d;
     }
   }
-
-  if (remaining > 0 && stack.length < 5) {
-    stack.push(10);
+  if (remaining > 0 && chips.length < 5) {
+    chips.push(10);
   }
 
-  return stack;
+  // Reverse so the highest denomination chip is rendered at the top of the stack
+  return chips.reverse();
 }
 
 function getChipImage(amount: number): string {
@@ -502,12 +503,25 @@ export function BlackjackMultiplayer() {
               }
             }
 
-            if (data.type === 'blackjack:chat:history' && data.payload?.messages) {
+            if (data.type === 'blackjack:chat:history' && Array.isArray(data.payload?.messages)) {
               setChatMessages(data.payload.messages);
             }
 
             if (data.type === 'blackjack:chat:message' && data.payload) {
-              setChatMessages((prev) => [...prev, data.payload]);
+              setChatMessages((prev) => {
+                if (
+                  prev.some(
+                    (m) =>
+                      m.id === data.payload.id ||
+                      (m.timestamp === data.payload.timestamp &&
+                        m.userId === data.payload.userId &&
+                        m.text === data.payload.text)
+                  )
+                ) {
+                  return prev;
+                }
+                return [...prev, data.payload];
+              });
               if (!isChatOpen) {
                 setUnreadChatCount((c) => c + 1);
               }
@@ -543,75 +557,77 @@ export function BlackjackMultiplayer() {
     };
   }, [roomId, sessionId, token, user?.id, fetchBalance, isChatOpen]);
 
-  const handleJoinSeat = async (seatId: number) => {
-    // 1. Send via WebSocket
-    sendWs('blackjack:join_seat', { roomId, seatId, bet: 0 });
+  const handleJoinSeat = (seatId: number) => {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
-    // 2. Dual redundancy: REST fallback call
-    try {
-      const res = await fetch('/api/games/blackjack/join', {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendWs('blackjack:join_seat', { roomId, seatId, bet: 0 });
+    } else {
+      fetch('/api/games/blackjack/join', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ roomId, seatId, bet: 0 }),
         credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.state) {
-          setState(data.state);
-        }
-      }
-    } catch {}
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
-  const handleLeaveSeat = async () => {
-    sendWs('blackjack:leave_seat', { roomId });
+  const handleLeaveSeat = () => {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
-    try {
-      const res = await fetch('/api/games/blackjack/leave', {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendWs('blackjack:leave_seat', { roomId });
+    } else {
+      fetch('/api/games/blackjack/leave', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ roomId }),
         credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.state) {
-          setState(data.state);
-        }
-      }
-    } catch {}
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
-  const handleUpdateBet = async (bet: number) => {
-    const validBet = Math.max(10, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
-    if (isBalanceReady && activeBalance < validBet) {
+  const handleUpdateBet = (bet: number) => {
+    const validBet = bet === 0 ? 0 : Math.max(10, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
+    if (bet > 0 && isBalanceReady && activeBalance < validBet) {
       toast.error('Недостаточно средств на балансе!');
       return;
     }
     setSelectedBet(validBet);
     soundManager.play('bj.chip_click');
+
     if (myPlayer) {
-      sendWs('blackjack:bet', { roomId, bet: validBet });
-      try {
-        await fetch('/api/games/blackjack/bet', {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        sendWs('blackjack:bet', { roomId, bet: validBet });
+      } else {
+        fetch('/api/games/blackjack/bet', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ roomId, bet: validBet }),
           credentials: 'include',
-        });
-      } catch {}
+        }).catch(() => {});
+      }
     }
   };
 
-  const handleAction = async (action: 'hit' | 'stand' | 'double') => {
+  const handleAction = (action: 'hit' | 'stand' | 'double') => {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
-    sendWs('blackjack:action', { roomId, action });
+    // Auto unfreeze button after 400ms
+    setTimeout(() => setIsActionPending(false), 400);
+
     if (action === 'hit') {
       soundManager.play('bj.card_slide');
     } else if (action === 'double') {
@@ -621,20 +637,21 @@ export function BlackjackMultiplayer() {
       soundManager.play('ui.click');
     }
 
-    try {
-      const res = await fetch('/api/games/blackjack/action', {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendWs('blackjack:action', { roomId, action });
+    } else {
+      fetch('/api/games/blackjack/action', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ roomId, action }),
         credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.state) {
-          setState(data.state);
-        }
-      }
-    } catch {}
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
   const handleSendMessage = (text: string) => {
@@ -802,10 +819,14 @@ export function BlackjackMultiplayer() {
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="flex flex-col items-center gap-2 rounded-2xl border border-amber-500/40 bg-gradient-to-b from-[#141a14]/92 via-[#0a0f0a]/95 to-[#040604]/98 backdrop-blur-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95),inset_0_2px_4px_rgba(255,255,255,0.22),inset_0_-3px_6px_rgba(0,0,0,0.85)] p-3 sm:p-4 w-full max-w-[340px] sm:max-w-[440px]"
+                className="relative flex flex-col items-center gap-2.5 rounded-2xl border-2 border-amber-500/60 bg-[#0c120c] shadow-[0_20px_50px_rgba(0,0,0,0.98),0_0_20px_rgba(0,0,0,0.85)] p-3 sm:p-4 w-full max-w-[340px] sm:max-w-[440px] overflow-hidden"
               >
+                {/* 3D Liquid Glass Glare / Bevel highlight */}
+                <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.14] to-transparent pointer-events-none rounded-t-2xl" />
+                <div className="absolute inset-[1px] rounded-[14px] border border-amber-400/20 pointer-events-none" />
+
                 {/* Top Header Row: ⚡ СТАВКА & ВСТАТЬ */}
-                <div className="flex items-center justify-between w-full px-1">
+                <div className="relative z-10 flex items-center justify-between w-full px-1">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs sm:text-sm tracking-wider uppercase">
                     <Zap size={14} className="text-amber-400" />
                     <span>Ставка: {selectedBet > 0 ? `${selectedBet} zł` : 'Не выбрана'}</span>
@@ -819,7 +840,7 @@ export function BlackjackMultiplayer() {
                   <button
                     type="button"
                     onClick={handleLeaveSeat}
-                    className="flex items-center gap-1 text-red-400/90 hover:text-red-300 text-xs font-bold transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-red-400 hover:text-red-300 text-xs font-bold transition-colors cursor-pointer"
                     title="Покинуть место"
                   >
                     <LogOut size={13} />
@@ -828,7 +849,7 @@ export function BlackjackMultiplayer() {
                 </div>
 
                 {/* Middle Row: Stepper Buttons (- / +) and Center Chip + Amount */}
-                <div className="flex items-center justify-between w-full bg-black/50 rounded-xl p-1.5 border border-white/10 shadow-inner">
+                <div className="relative z-10 flex items-center justify-between w-full bg-black/70 rounded-xl p-1.5 border border-amber-500/20 shadow-inner">
                   <button
                     type="button"
                     onClick={() => handleUpdateBet(Math.max(0, selectedBet - 10))}
@@ -859,7 +880,7 @@ export function BlackjackMultiplayer() {
                 </div>
 
                 {/* Bottom Row: Realistic Casino Chips Selector (Cumulative Additions) + Reset Button */}
-                <div className="flex items-center justify-center gap-2 sm:gap-3 w-full py-1 px-1 overflow-visible">
+                <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 w-full py-1 px-1 overflow-visible">
                   {CHIP_VALUES.map((val) => (
                     <button
                       key={val}
@@ -899,19 +920,21 @@ export function BlackjackMultiplayer() {
               <motion.div
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="flex flex-col items-center gap-2 bg-[#080c08]/95 backdrop-blur-2xl border border-amber-500/40 p-3 sm:p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.95)]"
+                className="relative flex flex-col items-center gap-2 bg-[#0c120c] border-2 border-amber-500/60 p-3 sm:p-4 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.98),0_0_30px_rgba(0,0,0,0.9)] overflow-hidden"
               >
-                <div className="flex items-center gap-1.5 text-xs font-black text-amber-300 uppercase tracking-wider">
+                {/* Glass top reflection */}
+                <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.14] to-transparent pointer-events-none rounded-t-2xl" />
+                <div className="relative z-10 flex items-center gap-1.5 text-xs font-black text-amber-300 uppercase tracking-wider">
                   <Clock size={14} className="text-amber-400 animate-spin" />
                   <span>ВАШ ХОД: {clientTurnCountdown}с</span>
                 </div>
 
-                <div className="flex items-center justify-center gap-2.5 sm:gap-4">
+                <div className="relative z-10 flex items-center justify-center gap-2.5 sm:gap-4">
                   <button
                     type="button"
                     onClick={() => handleAction('hit')}
                     disabled={isActionPending}
-                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer"
+                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
                   >
                     ЕЩЁ (HIT)
                   </button>
@@ -919,7 +942,7 @@ export function BlackjackMultiplayer() {
                     type="button"
                     onClick={() => handleAction('stand')}
                     disabled={isActionPending}
-                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer"
+                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
                   >
                     ХВАТИТ (STAND)
                   </button>
@@ -928,7 +951,7 @@ export function BlackjackMultiplayer() {
                       type="button"
                       onClick={() => handleAction('double')}
                       disabled={isActionPending}
-                      className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer"
+                      className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
                     >
                       2× УДВОИТЬ
                     </button>

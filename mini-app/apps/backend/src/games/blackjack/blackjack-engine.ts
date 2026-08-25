@@ -427,48 +427,63 @@ export class BlackjackEngine extends EventEmitter {
    * Player actions
    * ---------------------------------------------------------------- */
 
+  private isProcessingTurnAction = false;
+
   async hit(userId: string): Promise<boolean> {
+    if (this.isProcessingTurnAction) return false;
     const player = this.state.players.find((p) => p.userId === userId);
     if (!player || player.seatId !== this.state.currentTurnSeatId || this.state.phase !== 'player_turn') {
       return false;
     }
 
-    this.clearTurnTimer();
+    this.isProcessingTurnAction = true;
+    try {
+      this.clearTurnTimer();
 
-    // Draw card with RTP bias
-    player.hand.push(this.drawCard(userId));
-    
-    const { total } = this.calculateHandValue(player.hand);
-    
-    if (total > 21) {
-      player.status = 'bust';
-      await this.nextTurn();
-    } else if (total === 21) {
-      // Auto-stand on 21
-      await this.nextTurn();
-    } else {
-      // Continue turn (restart timer)
-      this.startTurnTimer();
+      // Draw card with RTP bias
+      player.hand.push(this.drawCard(userId));
+      
+      const { total } = this.calculateHandValue(player.hand);
+      
+      if (total > 21) {
+        player.status = 'bust';
+        await this.nextTurn();
+      } else if (total === 21) {
+        // Auto-stand on 21
+        await this.nextTurn();
+      } else {
+        // Continue turn (restart timer)
+        this.startTurnTimer();
+      }
+
+      this.broadcastState();
+      return true;
+    } finally {
+      this.isProcessingTurnAction = false;
     }
-
-    this.broadcastState();
-    return true;
   }
 
   async stand(userId: string): Promise<boolean> {
+    if (this.isProcessingTurnAction) return false;
     const player = this.state.players.find((p) => p.userId === userId);
     if (!player || player.seatId !== this.state.currentTurnSeatId || this.state.phase !== 'player_turn') {
       return false;
     }
 
-    this.clearTurnTimer();
-    player.status = 'stand';
-    await this.nextTurn();
-    this.broadcastState();
-    return true;
+    this.isProcessingTurnAction = true;
+    try {
+      this.clearTurnTimer();
+      player.status = 'stand';
+      await this.nextTurn();
+      this.broadcastState();
+      return true;
+    } finally {
+      this.isProcessingTurnAction = false;
+    }
   }
 
   async double(userId: string): Promise<boolean> {
+    if (this.isProcessingTurnAction) return false;
     const player = this.state.players.find((p) => p.userId === userId);
     if (!player || player.seatId !== this.state.currentTurnSeatId || this.state.phase !== 'player_turn') {
       return false;
@@ -479,42 +494,47 @@ export class BlackjackEngine extends EventEmitter {
       return false;
     }
 
-    // Debit additional bet for the double
-    const extraBet: Bet = {
-      id: `bj_double_${player.userId}_${this.state.roundId}`,
-      userId: player.userId,
-      gameId: this.state.roundId,
-      roundId: this.state.roundId,
-      amount: player.bet,
-      state: 'pending',
-      placedAt: Date.now(),
-      metadata: { gameType: 'blackjack', mode: 'multi', roomId: this.roomId, action: 'double' },
-    };
-
+    this.isProcessingTurnAction = true;
     try {
-      await bettingPipeline.processBet(extraBet, false);
-    } catch (err) {
-      logger.warn({ err, userId: player.userId }, 'Failed to process double bet');
-      return false;
+      // Debit additional bet for the double
+      const extraBet: Bet = {
+        id: `bj_double_${player.userId}_${this.state.roundId}`,
+        userId: player.userId,
+        gameId: this.state.roundId,
+        roundId: this.state.roundId,
+        amount: player.bet,
+        state: 'pending',
+        placedAt: Date.now(),
+        metadata: { gameType: 'blackjack', mode: 'multi', roomId: this.roomId, action: 'double' },
+      };
+
+      try {
+        await bettingPipeline.processBet(extraBet, false);
+      } catch (err) {
+        logger.warn({ err, userId: player.userId }, 'Failed to process double bet');
+        return false;
+      }
+
+      this.clearTurnTimer();
+
+      // Double the bet
+      player.bet *= 2;
+      player.status = 'doubled';
+
+      // Draw one card
+      player.hand.push(this.drawCard(userId));
+      
+      const { total } = this.calculateHandValue(player.hand);
+      if (total > 21) {
+        player.status = 'bust';
+      }
+
+      await this.nextTurn();
+      this.broadcastState();
+      return true;
+    } finally {
+      this.isProcessingTurnAction = false;
     }
-
-    this.clearTurnTimer();
-
-    // Double the bet
-    player.bet *= 2;
-    player.status = 'doubled';
-
-    // Draw one card
-    player.hand.push(this.drawCard(userId));
-    
-    const { total } = this.calculateHandValue(player.hand);
-    if (total > 21) {
-      player.status = 'bust';
-    }
-
-    await this.nextTurn();
-    this.broadcastState();
-    return true;
   }
 
   private async nextTurn(): Promise<void> {
