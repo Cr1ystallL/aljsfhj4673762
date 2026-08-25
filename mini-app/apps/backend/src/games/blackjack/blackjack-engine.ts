@@ -184,11 +184,18 @@ export class BlackjackEngine extends EventEmitter {
       (player as any).consecutiveAfkRounds = 0;
       this.clearSoloAfkTimer();
     }
-    this.broadcastState();
 
-    // Start countdown if at least one player has bet >= 10
+    // Start countdown if at least one player has bet >= 10 in waiting phase
     if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
       this.startCountdown();
+    } else if (this.state.phase === 'countdown' && !this.state.players.some((p) => p.bet >= 10)) {
+      // If all players reset bet to 0 during countdown, cancel countdown
+      this.stopCountdown();
+      this.state.phase = 'waiting';
+      this.state.countdown = this.config.countdownSeconds;
+      this.broadcastState();
+    } else {
+      this.broadcastState();
     }
 
     return true;
@@ -222,6 +229,7 @@ export class BlackjackEngine extends EventEmitter {
 
   private startCountdown(): void {
     if (this.state.phase !== 'waiting') return;
+    this.stopCountdown();
     this.clearSoloAfkTimer();
 
     this.state.phase = 'countdown';

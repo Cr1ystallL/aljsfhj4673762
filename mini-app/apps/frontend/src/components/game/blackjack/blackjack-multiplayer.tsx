@@ -284,12 +284,19 @@ export function BlackjackMultiplayer() {
     return state.players.find((p) => p.userId === user.id) || null;
   }, [state.players, user?.id]);
 
-  // Keep selectedBet synchronized if player already has a bet on server
+  // Reset selectedBet when entering waiting phase
   useEffect(() => {
-    if (myPlayer && myPlayer.bet > 0 && selectedBet === 0) {
+    if (state.phase === 'waiting') {
+      setSelectedBet(0);
+    }
+  }, [state.phase]);
+
+  // Keep selectedBet synchronized if player already has a bet on server in countdown phase
+  useEffect(() => {
+    if (state.phase === 'countdown' && myPlayer && myPlayer.bet > 0 && selectedBet === 0) {
       setSelectedBet(myPlayer.bet);
     }
-  }, [myPlayer, selectedBet]);
+  }, [myPlayer?.bet, state.phase, selectedBet]);
 
   const isMyTurn = useMemo(() => {
     if (!myPlayer || state.phase !== 'player_turn') return false;
