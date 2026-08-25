@@ -1348,6 +1348,68 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
     return reply.send({ success: true, state: table.getState(), chat: table.getChatHistory() });
   });
+
+  // Blackjack REST Join Seat
+  app.post('/blackjack/join', { preHandler: authenticate }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const { roomId = 'bj_table_1', seatId, bet = 0 } = (request.body as {
+      roomId?: string;
+      seatId: number;
+      bet?: number;
+    }) || {};
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { firstName: true, username: true, photoUrl: true },
+    });
+    const name = dbUser?.firstName || dbUser?.username || 'Игрок';
+    const avatar = dbUser?.photoUrl || undefined;
+
+    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+    const table = blackjackSingleton.getTable(roomId);
+    const success = table.join(user.userId, name, avatar, seatId, bet);
+
+    return reply.send({ success, state: table.getState() });
+  });
+
+  // Blackjack REST Leave Seat
+  app.post('/blackjack/leave', { preHandler: authenticate }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const { roomId = 'bj_table_1' } = (request.body as { roomId?: string }) || {};
+
+    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+    const table = blackjackSingleton.getTable(roomId);
+    table.leave(user.userId);
+
+    return reply.send({ success: true, state: table.getState() });
+  });
+
+  // Blackjack REST Update Bet
+  app.post('/blackjack/bet', { preHandler: authenticate }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const { roomId = 'bj_table_1', bet = 0 } = (request.body as { roomId?: string; bet: number }) || {};
+
+    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+    const table = blackjackSingleton.getTable(roomId);
+    const success = table.updateBet(user.userId, bet);
+
+    return reply.send({ success, state: table.getState() });
+  });
+
+  // Blackjack REST Action
+  app.post('/blackjack/action', { preHandler: authenticate }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const { roomId = 'bj_table_1', action } = (request.body as { roomId?: string; action: 'hit' | 'stand' | 'double' }) || {};
+
+    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+    const table = blackjackSingleton.getTable(roomId);
+    let success = false;
+    if (action === 'hit') success = await table.hit(user.userId);
+    else if (action === 'stand') success = await table.stand(user.userId);
+    else if (action === 'double') success = await table.double(user.userId);
+
+    return reply.send({ success, state: table.getState() });
+  });
 }
 
 

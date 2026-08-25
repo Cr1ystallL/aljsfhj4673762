@@ -308,11 +308,6 @@ export function BlackjackMultiplayer() {
     }
   }, []);
 
-  const handleLeaveSeat = useCallback(() => {
-    sendWs('blackjack:leave_seat', { roomId });
-    setSelectedBet(0);
-    soundManager.play('bj.chip_click');
-  }, [roomId, sendWs]);
 
   // REST state fallback loader
   const loadStateSnapshot = useCallback(async () => {
@@ -527,14 +522,51 @@ export function BlackjackMultiplayer() {
     };
   }, [roomId, sessionId, token, user?.id, fetchBalance, isChatOpen]);
 
-  const handleJoinSeat = (seatId: number) => {
-    // Join with bet = 0; player chooses their bet after sitting down
+  const handleJoinSeat = async (seatId: number) => {
+    // 1. Send via WebSocket
     sendWs('blackjack:join_seat', { roomId, seatId, bet: 0 });
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
+
+    // 2. Dual redundancy: REST fallback call
+    try {
+      const res = await fetch('/api/games/blackjack/join', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ roomId, seatId, bet: 0 }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.state) {
+          setState(data.state);
+        }
+      }
+    } catch {}
   };
 
-  const handleUpdateBet = (bet: number) => {
+  const handleLeaveSeat = async () => {
+    sendWs('blackjack:leave_seat', { roomId });
+    setSelectedBet(0);
+    soundManager.play('bj.chip_click');
+
+    try {
+      const res = await fetch('/api/games/blackjack/leave', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ roomId }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.state) {
+          setState(data.state);
+        }
+      }
+    } catch {}
+  };
+
+  const handleUpdateBet = async (bet: number) => {
     const validBet = Math.max(10, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
     if (isBalanceReady && activeBalance < validBet) {
       toast.error('Недостаточно средств на балансе!');
@@ -544,10 +576,18 @@ export function BlackjackMultiplayer() {
     soundManager.play('bj.chip_click');
     if (myPlayer) {
       sendWs('blackjack:bet', { roomId, bet: validBet });
+      try {
+        await fetch('/api/games/blackjack/bet', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ roomId, bet: validBet }),
+          credentials: 'include',
+        });
+      } catch {}
     }
   };
 
-  const handleAction = (action: 'hit' | 'stand' | 'double') => {
+  const handleAction = async (action: 'hit' | 'stand' | 'double') => {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
     sendWs('blackjack:action', { roomId, action });
@@ -559,6 +599,21 @@ export function BlackjackMultiplayer() {
     } else {
       soundManager.play('ui.click');
     }
+
+    try {
+      const res = await fetch('/api/games/blackjack/action', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ roomId, action }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.state) {
+          setState(data.state);
+        }
+      }
+    } catch {}
   };
 
   const handleSendMessage = (text: string) => {
