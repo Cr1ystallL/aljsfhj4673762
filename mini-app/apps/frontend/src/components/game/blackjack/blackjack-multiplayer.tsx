@@ -605,8 +605,8 @@ export function BlackjackMultiplayer() {
               1. TOP CENTER: Large Dealer Avatar, Name & Hand Cards
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-2 sm:pt-4">
-            {/* Prominent Large Dealer Avatar */}
-            <div className="relative flex h-18 w-18 sm:h-22 sm:w-22 md:h-26 md:w-26 items-center justify-center">
+            {/* Prominent Large Dealer Avatar with locked pixel dimensions */}
+            <div className="relative flex w-[72px] h-[72px] sm:w-[88px] sm:h-[88px] md:w-[96px] md:h-[96px] shrink-0 items-center justify-center">
               <div className="h-full w-full rounded-full bg-black border-2 sm:border-[3px] border-amber-400 text-white shadow-[0_0_25px_rgba(251,191,36,0.6),0_12px_30px_rgba(0,0,0,0.85)] overflow-hidden flex items-center justify-center">
                 <img
                   src="/BlackJack/diller.png"
@@ -993,7 +993,7 @@ export function BlackjackMultiplayer() {
                       /* Occupied Seat Avatar with Golden Glow Ring */
                       <div
                         className={cn(
-                          'relative flex h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 items-center justify-center rounded-full border-2 bg-black/80 text-white font-black text-sm sm:text-lg shadow-2xl transition-all overflow-hidden',
+                          'relative flex w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 items-center justify-center rounded-full border-2 bg-black/80 text-white font-black text-sm sm:text-lg shadow-2xl transition-all overflow-hidden',
                           outcome === 'win' || outcome === 'blackjack'
                             ? 'border-emerald-400 ring-4 ring-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.9)] scale-105'
                             : outcome === 'lose'
@@ -1016,7 +1016,7 @@ export function BlackjackMultiplayer() {
                       <button
                         disabled={state.phase !== 'waiting' && state.phase !== 'countdown'}
                         onClick={() => handleJoinSeat(seatId)}
-                        className="relative flex h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 items-center justify-center rounded-full border-[1.5px] border-amber-500/35 bg-gradient-to-b from-black/50 to-black/85 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.7)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group"
+                        className="relative flex w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 items-center justify-center rounded-full border-[1.5px] border-amber-500/35 bg-gradient-to-b from-black/50 to-black/85 backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.7)] hover:border-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all active:scale-95 group"
                         title="Занять место"
                       >
                         <Plus
