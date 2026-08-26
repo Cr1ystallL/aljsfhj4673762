@@ -765,14 +765,16 @@ export class BlackjackEngine extends EventEmitter {
    * Card utilities with RTP bias
    * ---------------------------------------------------------------- */
 
-  private createDeck(): Card[] {
+  private createDeck(decksCount = 6): Card[] {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     const deck: Card[] = [];
     
-    for (const suit of suits) {
-      for (const rank of ranks) {
-        deck.push({ suit, rank });
+    for (let d = 0; d < decksCount; d++) {
+      for (const suit of suits) {
+        for (const rank of ranks) {
+          deck.push({ suit, rank });
+        }
       }
     }
     
@@ -788,8 +790,8 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   private drawCard(userId: string, currentHand?: Card[]): Card {
-    if (this.deck.length === 0) {
-      this.deck = this.createDeck();
+    if (this.deck.length < 20) {
+      this.deck = this.createDeck(6);
     }
 
     // Dealer edge / win rate boost (moderate 35% smart card luck optimization)
