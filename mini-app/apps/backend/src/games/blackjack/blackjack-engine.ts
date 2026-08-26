@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes, createHash } from 'crypto';
 // import { rtpEngine } from '../../services/rtp-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { prisma } from '../../lib/prisma.js';
@@ -41,6 +41,29 @@ export interface Player {
   extraBetId?: string;
 }
 
+export interface BlackjackRoundHistoryItem {
+  roundId: string;
+  endedAt: number;
+  serverSeedHash: string;
+  serverSeed?: string;
+  clientSeed: string;
+  nonce: number;
+  dealerHand: Card[];
+  dealerValue: number;
+  dealerBust: boolean;
+  players: Array<{
+    userId: string;
+    name: string;
+    avatar?: string;
+    seatId: number;
+    bet: number;
+    payout: number;
+    result: 'win' | 'lose' | 'push' | 'blackjack';
+    playerValue: number;
+    hand: Card[];
+  }>;
+}
+
 export type GamePhase = 'waiting' | 'countdown' | 'dealing' | 'player_turn' | 'dealer_turn' | 'settling' | 'finished';
 
 export interface BlackjackState {
@@ -52,6 +75,8 @@ export interface BlackjackState {
   players: Player[];
   currentTurnSeatId: number | null;
   roundId: string;
+  serverSeedHash?: string;
+  history?: BlackjackRoundHistoryItem[];
 }
 
 interface GameConfig {
@@ -87,6 +112,14 @@ export class BlackjackEngine extends EventEmitter {
   private soloAfkTimer: NodeJS.Timeout | null = null;
   private deck: Card[] = [];
   private chatHistory: BlackjackChatMessage[] = [];
+  private history: BlackjackRoundHistoryItem[] = [];
+  private currentSeeds = {
+    serverSeed: '',
+    serverSeedHash: '',
+    clientSeed: '',
+    nonce: 1,
+    startedAt: 0,
+  };
 
   constructor(roomId: string, config: Partial<GameConfig> = {}) {
     super();
@@ -100,6 +133,7 @@ export class BlackjackEngine extends EventEmitter {
       players: [],
       currentTurnSeatId: null,
       roundId: '',
+      history: [],
     };
   }
 
@@ -280,8 +314,20 @@ export class BlackjackEngine extends EventEmitter {
       return;
     }
 
+    const serverSeed = randomBytes(32).toString('hex');
+    const serverSeedHash = createHash('sha256').update(serverSeed).digest('hex');
+    const clientSeed = `${this.roomId}_${Date.now()}`;
+    this.currentSeeds = {
+      serverSeed,
+      serverSeedHash,
+      clientSeed,
+      nonce: 1,
+      startedAt: Date.now(),
+    };
+
     this.state.phase = 'dealing';
     this.state.roundId = `blackjack_${Date.now()}_${randomUUID()}`;
+    this.state.serverSeedHash = serverSeedHash;
     this.state.dealerHand = [];
     
     // Create and shuffle deck
@@ -613,6 +659,7 @@ export class BlackjackEngine extends EventEmitter {
     this.state.phase = 'settling';
     this.broadcastState();
 
+    const activePlayers = this.state.players.filter((p) => p.status !== 'waiting' && p.hand.length > 0);
     const dealerValue = this.calculateHandValue(this.state.dealerHand).total;
     const dealerBust = dealerValue > 21;
     const dealerBJ = this.isBlackjack(this.state.dealerHand);
@@ -703,8 +750,11 @@ export class BlackjackEngine extends EventEmitter {
             id: `${this.state.roundId}_${player.userId}`,
             gameType: 'blackjack',
             state: 'completed',
-            serverSeedHash: 'card_game_no_seed',
-            startedAt: new Date(),
+            serverSeedHash: this.currentSeeds.serverSeedHash,
+            serverSeed: this.currentSeeds.serverSeed,
+            clientSeed: this.currentSeeds.clientSeed,
+            nonce: 1,
+            startedAt: new Date(this.currentSeeds.startedAt || Date.now()),
             endedAt: new Date(),
             metadata: { mode: 'multi', betAmount: player.bet, roomId: this.roomId },
             result: {
@@ -714,6 +764,9 @@ export class BlackjackEngine extends EventEmitter {
               dealerHand: JSON.parse(JSON.stringify(this.state.dealerHand)),
               playerValue,
               dealerValue,
+              serverSeed: this.currentSeeds.serverSeed,
+              serverSeedHash: this.currentSeeds.serverSeedHash,
+              clientSeed: this.currentSeeds.clientSeed,
             } as any,
           },
         }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
@@ -723,9 +776,73 @@ export class BlackjackEngine extends EventEmitter {
       }
     }
 
+    // Record round in memory history
+    const historyItem: BlackjackRoundHistoryItem = {
+      roundId: this.state.roundId,
+      endedAt: Date.now(),
+      serverSeedHash: this.currentSeeds.serverSeedHash,
+      serverSeed: this.currentSeeds.serverSeed,
+      clientSeed: this.currentSeeds.clientSeed,
+      nonce: 1,
+      dealerHand: JSON.parse(JSON.stringify(this.state.dealerHand)),
+      dealerValue,
+      dealerBust,
+      players: activePlayers.map((p) => {
+        const pVal = this.calculateHandValue(p.hand).total;
+        const pBJ = this.isBlackjack(p.hand);
+        const pBust = pVal > 21;
+        let res: 'win' | 'lose' | 'push' | 'blackjack' = 'lose';
+        let pay = 0;
+        if (pBJ && !dealerBJ) {
+          res = 'blackjack';
+          pay = p.bet * 2.5;
+        } else if (pBJ && dealerBJ) {
+          res = 'push';
+          pay = p.bet;
+        } else if (pBust) {
+          res = 'lose';
+          pay = 0;
+        } else if (dealerBJ && !pBJ) {
+          res = 'lose';
+          pay = 0;
+        } else if (dealerBust) {
+          res = 'win';
+          pay = p.bet * 2;
+        } else if (pVal > dealerValue) {
+          res = 'win';
+          pay = p.bet * 2;
+        } else if (pVal === dealerValue) {
+          res = 'push';
+          pay = p.bet;
+        }
+        return {
+          userId: p.userId,
+          name: p.name,
+          avatar: p.avatar,
+          seatId: p.seatId,
+          bet: p.bet,
+          payout: pay,
+          result: res,
+          playerValue: pVal,
+          hand: JSON.parse(JSON.stringify(p.hand)),
+        };
+      }),
+    };
+
+    this.history.unshift(historyItem);
+    if (this.history.length > 25) {
+      this.history.pop();
+    }
+    this.state.history = this.history;
+    this.broadcastState();
+
     // Reset for next round
     await this.delay(3500);
     this.resetForNextRound();
+  }
+
+  public getHistory(): BlackjackRoundHistoryItem[] {
+    return this.history;
   }
 
   private resetForNextRound(): void {

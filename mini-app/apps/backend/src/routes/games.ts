@@ -1375,6 +1375,22 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  // Blackjack Table History (Provably Fair recent rounds)
+  app.get('/blackjack/history', async (request, reply) => {
+    try {
+      const { roomId = 'bj_table_1' } = (request.query as { roomId?: string }) || {};
+      const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+      const table = blackjackSingleton.getTable(roomId);
+      if (!table) {
+        return reply.code(404).send({ ok: false, error: 'Table not found' });
+      }
+      return reply.send({ ok: true, roomId, history: table.getHistory() });
+    } catch (err: any) {
+      logger.error({ err }, 'Failed to fetch blackjack history');
+      return reply.send({ ok: true, history: [] });
+    }
+  });
+
   // Blackjack Public / Admin Tables List
   app.get('/blackjack/tables', async (_request, reply) => {
     try {

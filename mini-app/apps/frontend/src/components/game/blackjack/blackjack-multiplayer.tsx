@@ -17,11 +17,13 @@ import {
   Clock,
   RotateCcw,
   ChevronDown,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
 import { Suit } from '@/components/game/hilo/playing-card';
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
+import { BlackjackHistoryModal } from './blackjack-history-modal';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { cn } from '@/lib/utils';
@@ -264,6 +266,8 @@ export function BlackjackMultiplayer() {
 
   // Minimalist table list popover state
   const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [tableHistory, setTableHistory] = useState<any[]>([]);
   const [availableTables, setAvailableTables] = useState<
     Array<{
       roomId: string;
@@ -285,9 +289,24 @@ export function BlackjackMultiplayer() {
     } catch {}
   }, []);
 
+  const fetchTableHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/games/blackjack/history?roomId=${roomId}`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const j = await res.json();
+        if (Array.isArray(j.history)) {
+          setTableHistory(j.history);
+        }
+      }
+    } catch {}
+  }, [roomId]);
+
   useEffect(() => {
     void fetchAvailableTables();
-  }, [fetchAvailableTables]);
+    void fetchTableHistory();
+  }, [fetchAvailableTables, fetchTableHistory]);
 
   // User's selected bet for their seat (defaults to 0 until placed)
   const [selectedBet, setSelectedBet] = useState(0);
@@ -432,6 +451,9 @@ export function BlackjackMultiplayer() {
         }
         if (data.state) {
           setState(data.state);
+          if (Array.isArray(data.state.history)) {
+            setTableHistory(data.state.history);
+          }
         }
         if (Array.isArray(data.chat)) {
           setChatMessages(data.chat);
@@ -596,8 +618,12 @@ export function BlackjackMultiplayer() {
             if (data.type === 'bj:state' && data.payload) {
               setState(data.payload);
               setIsActionPending(false);
+              if (Array.isArray(data.payload.history)) {
+                setTableHistory(data.payload.history);
+              }
               if (data.payload.phase === 'settling' || data.payload.phase === 'finished') {
                 void fetchBalance();
+                void fetchTableHistory();
                 setTimeout(() => void fetchBalance(), 1000);
                 setTimeout(() => void fetchBalance(), 2500);
               }
@@ -1465,6 +1491,27 @@ return () => {
           </AnimatePresence>
         </div>
 
+        {/* Provably Fair & Round History Button */}
+        <button
+          onClick={() => {
+            setIsHistoryOpen(true);
+            void fetchTableHistory();
+            soundManager.play('ui.click');
+          }}
+          className="flex h-12 items-center gap-2 px-3 rounded-2xl border border-emerald-500/30 bg-black/85 text-frost-white shadow-2xl backdrop-blur-xl hover:border-emerald-400/50 hover:text-emerald-300 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          title="История раундов и Честность (Provably Fair)"
+        >
+          <ShieldCheck size={18} className="text-emerald-400 shrink-0" />
+          <div className="flex flex-col items-start leading-none text-left hidden sm:flex">
+            <span className="text-[11px] font-bold text-emerald-300">
+              Честность
+            </span>
+            <span className="text-[9px] text-white/50 font-mono mt-0.5">
+              Provably Fair
+            </span>
+          </div>
+        </button>
+
         {/* Floating Chat Open Button */}
         <button
           onClick={() => {
@@ -1492,6 +1539,17 @@ return () => {
         onSendMessage={handleSendMessage}
         currentUserId={user?.id}
         players={state.players}
+      />
+
+      {/* Provably Fair & Table Rounds History Modal */}
+      <BlackjackHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        roomId={roomId}
+        currentRoundId={state.roundId}
+        currentServerSeedHash={(state as any).serverSeedHash}
+        history={tableHistory}
+        currentUserId={user?.id}
       />
     </main>
   );

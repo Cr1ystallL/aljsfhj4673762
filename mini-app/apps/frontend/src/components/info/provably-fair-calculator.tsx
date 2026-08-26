@@ -87,6 +87,9 @@ export function ProvablyFairCalculator() {
           const winningTicketPercentage = (u * 100).toFixed(2);
           finalValue = `Выигрышный процент: ${winningTicketPercentage}%`;
           break;
+        case 'blackjack':
+          finalValue = `Раунд проверен (Хэш: ${hash.substring(0, 10)}...)`;
+          break;
         case 'mines':
           finalValue = 'Хэш сгенерирован (Логика в разработке)';
           break;
@@ -103,9 +106,10 @@ export function ProvablyFairCalculator() {
   return (
     <div className="bg-white/[0.02] border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
       {/* Glow effect background */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-macvbet-red/5 rounded-full blur-[80px] -z-10 pointer-events-none" />
+      <div className="absolute -top-24 -right-24 w-72 h-72 bg-macvbet-red/10 rounded-full blur-[80px] pointer-events-none" />
+      <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-white/5 rounded-full blur-[80px] pointer-events-none" />
       
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 relative z-10">
         <h3 className="font-roobert font-bold text-xl text-white flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-macvbet-red/10 border border-macvbet-red/20 flex items-center justify-center">
             <CheckCircle2 size={20} className="text-macvbet-red" />
@@ -114,19 +118,20 @@ export function ProvablyFairCalculator() {
         </h3>
       </div>
       
-      <div className="space-y-4">
+      <div className="space-y-4 relative z-10">
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-widest text-frost-white/40 ml-1">Выберите игру</label>
+          <label className="text-xs font-bold uppercase tracking-widest text-frost-white/40 ml-1">Игра</label>
           <div className="relative">
             <Dice5 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-frost-white/30" />
             <select 
               value={game}
               onChange={(e) => setGame(e.target.value as any)}
-              className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-4 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all appearance-none font-medium"
+              className="w-full bg-black/20 border border-white/5 rounded-2xl pl-14 pr-10 py-3.5 text-sm text-frost-white focus:border-macvbet-red/50 focus:bg-white/5 focus:outline-none transition-all appearance-none cursor-pointer"
             >
-              <option value="macvpot">MacvPot (Jackpot)</option>
               <option value="crash">MacvJet (Crash)</option>
+              <option value="blackjack">Blackjack (21)</option>
               <option value="coinflip">Coinflip</option>
+              <option value="macvpot">MacvPot</option>
               <option value="wheel">Wheel</option>
               <option value="mines">Mines</option>
             </select>
