@@ -723,8 +723,17 @@ return () => {
       .catch(() => {});
   };
 
+  const MIN_BET = 10;
+  const MAX_BET = 500;
+
   const handleUpdateBet = (bet: number) => {
-    const validBet = bet === 0 ? 0 : Math.max(10, Math.min(bet, activeBalance > 0 ? activeBalance : 10000));
+    if (bet > MAX_BET) {
+      toast.info(`Максимальная ставка ${MAX_BET} ${currencyLabel}`);
+      bet = MAX_BET;
+    }
+    const maxAllowed = Math.min(MAX_BET, activeBalance > 0 ? activeBalance : MAX_BET);
+    const validBet = bet === 0 ? 0 : Math.max(MIN_BET, Math.min(bet, maxAllowed));
+
     if (bet > 0 && isBalanceReady && activeBalance < validBet) {
       toast.error('Недостаточно средств на балансе!');
       return;
@@ -966,7 +975,7 @@ return () => {
                 <div className="relative z-10 flex items-center justify-between w-full px-1">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs sm:text-sm tracking-wider uppercase">
                     <Zap size={14} className="text-amber-400" />
-                    <span>Ставка: {selectedBet > 0 ? `${selectedBet} zł` : 'Не выбрана'}</span>
+                    <span>Ставка: {selectedBet > 0 ? `${selectedBet} ${currencyLabel}` : 'Не выбрана'}</span>
                     {state.phase === 'countdown' && (
                       <span className="text-xs font-normal text-amber-300/90 lowercase font-mono">
                         ({clientCountdown}с)
@@ -999,18 +1008,19 @@ return () => {
                   <div className="flex items-center gap-2">
                     <img
                       src={getChipImage(selectedBet > 0 ? selectedBet : 10)}
-                      alt={`${selectedBet} zł`}
+                      alt={`${selectedBet} ${currencyLabel}`}
                       className="w-6 h-6 sm:w-7 sm:h-7 object-contain drop-shadow-md"
                     />
                     <span className="text-sm sm:text-base font-black text-white tracking-wide">
-                      {selectedBet > 0 ? `${selectedBet} zł` : '0 zł'}
+                      {selectedBet > 0 ? `${selectedBet} ${currencyLabel}` : `0 ${currencyLabel}`}
                     </span>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => handleUpdateBet(selectedBet + 10)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold transition-all cursor-pointer"
+                    onClick={() => handleUpdateBet(Math.min(MAX_BET, selectedBet + 10))}
+                    disabled={selectedBet >= MAX_BET}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 text-white font-bold transition-all cursor-pointer"
                   >
                     <Plus size={14} />
                   </button>
@@ -1018,24 +1028,30 @@ return () => {
 
                 {/* Bottom Row: Realistic Casino Chips Selector (Cumulative Additions) + Reset Button */}
                 <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 w-full py-1 px-1 overflow-visible">
-                  {CHIP_VALUES.map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => handleUpdateBet(selectedBet + val)}
-                      className="relative flex flex-col items-center shrink-0 transition-all active:scale-90 hover:scale-110 group cursor-pointer"
-                      title={`Добавить +${val} zł`}
-                    >
-                      <img
-                        src={`/BlackJack/${val}.png`}
-                        alt={`+${val} zł`}
-                        className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-xl rounded-full transition-all hover:drop-shadow-[0_0_12px_rgba(251,191,36,0.9)]"
-                      />
-                      <span className="text-[9px] sm:text-[10px] font-black text-amber-300/90 mt-0.5 drop-shadow">
-                        +{val}
-                      </span>
-                    </button>
-                  ))}
+                  {CHIP_VALUES.map((val) => {
+                    const isMax = selectedBet >= MAX_BET;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => handleUpdateBet(Math.min(MAX_BET, selectedBet + val))}
+                        disabled={isMax}
+                        className={`relative flex flex-col items-center shrink-0 transition-all active:scale-90 hover:scale-110 group cursor-pointer ${
+                          isMax ? 'opacity-30 pointer-events-none' : ''
+                        }`}
+                        title={`Добавить +${val} ${currencyLabel}`}
+                      >
+                        <img
+                          src={`/BlackJack/${val}.png`}
+                          alt={`+${val} ${currencyLabel}`}
+                          className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-xl rounded-full transition-all hover:drop-shadow-[0_0_12px_rgba(251,191,36,0.9)]"
+                        />
+                        <span className="text-[9px] sm:text-[10px] font-black text-amber-300/90 mt-0.5 drop-shadow">
+                          +{val}
+                        </span>
+                      </button>
+                    );
+                  })}
 
                   {/* Reset / Clear Bet Button */}
                   <button

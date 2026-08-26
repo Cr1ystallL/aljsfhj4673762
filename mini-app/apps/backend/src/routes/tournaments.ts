@@ -35,22 +35,31 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
   let cycle = await (prisma as any).tournamentCycle.findFirst({
     where: { tournamentId: t.id, startsAt: new Date(startsAt) },
   });
+  const now = Date.now();
   if (!cycle) {
-    const now = Date.now();
     cycle = await (prisma as any).tournamentCycle.create({
       data: {
         tournamentId: t.id,
         startsAt: new Date(startsAt),
         endsAt: new Date(endsAt),
         prizePool: t.prizePool,
-        state: now < startsAt ? 'waiting' : 'live',
+        state: now < startsAt ? 'waiting' : (now > endsAt ? 'ended' : 'live'),
       },
     });
-  } else if (Number(cycle.prizePool) !== Number(t.prizePool)) {
-    cycle = await (prisma as any).tournamentCycle.update({
-      where: { id: cycle.id },
-      data: { prizePool: t.prizePool },
-    });
+  } else {
+    const updates: Record<string, any> = {};
+    if (Number(cycle.prizePool) !== Number(t.prizePool)) {
+      updates.prizePool = t.prizePool;
+    }
+    if (cycle.state === 'waiting' && now >= cycle.startsAt.getTime() && now <= cycle.endsAt.getTime()) {
+      updates.state = 'live';
+    }
+    if (Object.keys(updates).length > 0) {
+      cycle = await (prisma as any).tournamentCycle.update({
+        where: { id: cycle.id },
+        data: updates,
+      });
+    }
   }
   return cycle;
 }

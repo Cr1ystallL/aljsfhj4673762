@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trophy, ArrowLeft, ArrowRight, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from '@/store/toast-store';
 
 interface LeaderboardUser {
   place: number;
@@ -75,9 +76,15 @@ export default function TournamentPage() {
     setBusy(true);
     try {
       const res = await fetch(`/api/tournaments/${id}/join`, { method: 'POST', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toast.success('Вы успешно присоединились к турниру!');
         await load();
+      } else {
+        toast.error(data?.error || 'Не удалось присоединиться к турниру');
       }
+    } catch {
+      toast.error('Ошибка сети при входе в турнир');
     } finally {
       setBusy(false);
     }
@@ -88,9 +95,15 @@ export default function TournamentPage() {
     setBusy(true);
     try {
       const res = await fetch(`/api/tournaments/${id}/leave`, { method: 'POST', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toast.success('Вы вышли из турнира');
         await load();
+      } else {
+        toast.error(data?.error || 'Не удалось покинуть турнир');
       }
+    } catch {
+      toast.error('Ошибка сети при выходе из турнира');
     } finally {
       setBusy(false);
     }

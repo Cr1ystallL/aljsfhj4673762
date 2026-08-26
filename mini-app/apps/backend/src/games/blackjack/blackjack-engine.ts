@@ -37,6 +37,8 @@ export interface Player {
   bet: number;
   status: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
   isReady: boolean;
+  betMetadata?: Record<string, any>;
+  extraBetId?: string;
 }
 
 export type GamePhase = 'waiting' | 'countdown' | 'dealing' | 'player_turn' | 'dealer_turn' | 'settling' | 'finished';
@@ -333,9 +335,11 @@ export class BlackjackEngine extends EventEmitter {
       try {
         await bettingPipeline.processBet(bet, false);
         player.status = 'playing';
+        player.betMetadata = { ...(bet.metadata || {}) };
       } catch (error) {
         logger.error({ error, userId: player.userId }, 'Failed to process blackjack bet');
         player.status = 'waiting';
+        player.bet = 0;
       }
     }
 
@@ -515,19 +519,27 @@ export class BlackjackEngine extends EventEmitter {
     this.isProcessingTurnAction = true;
     try {
       // Debit additional bet for the double
+      const originalBet = player.bet;
       const extraBet: Bet = {
         id: `bj_double_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
         gameId: this.state.roundId,
         roundId: this.state.roundId,
-        amount: player.bet,
+        amount: originalBet,
         state: 'pending',
         placedAt: Date.now(),
-        metadata: { gameType: 'blackjack', mode: 'multi', roomId: this.roomId, action: 'double' },
+        metadata: {
+          ...(player.betMetadata || {}),
+          gameType: 'blackjack',
+          mode: 'multi',
+          roomId: this.roomId,
+          action: 'double',
+        },
       };
 
       try {
         await bettingPipeline.processBet(extraBet, false);
+        player.extraBetId = extraBet.id;
       } catch (err) {
         logger.warn({ err, userId: player.userId }, 'Failed to process double bet');
         return false;
@@ -655,6 +667,13 @@ export class BlackjackEngine extends EventEmitter {
       }
 
       // Process payout
+      const betMetadata = {
+        ...(player.betMetadata || {}),
+        gameType: 'blackjack',
+        mode: 'multi',
+        result,
+      };
+
       const bet: Bet = {
         id: `bj_bet_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
@@ -664,7 +683,7 @@ export class BlackjackEngine extends EventEmitter {
         multiplier: player.bet > 0 ? payout / player.bet : 0,
         state: 'active',
         placedAt: Date.now(),
-        metadata: { gameType: 'blackjack', mode: 'multi', result },
+        metadata: betMetadata,
       };
 
       try {
@@ -674,6 +693,18 @@ export class BlackjackEngine extends EventEmitter {
           await bettingPipeline.processPayout(bet, player.bet, false);
         } else {
           await bettingPipeline.processLoss(bet);
+        }
+
+        if (player.extraBetId) {
+          try {
+            await prisma.bet.update({
+              where: { id: player.extraBetId },
+              data: {
+                state: payout > 0 ? 'won' : (result === 'push' ? 'push' : 'lost'),
+                resolvedAt: new Date(),
+              },
+            });
+          } catch {}
         }
 
         // Force balance broadcast to all user clients

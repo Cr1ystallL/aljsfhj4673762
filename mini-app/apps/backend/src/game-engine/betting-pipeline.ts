@@ -56,16 +56,21 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
   let cycle = await (prisma as any).tournamentCycle.findFirst({
     where: { tournamentId: t.id, startsAt: new Date(startsAt) },
   });
+  const now = Date.now();
   if (!cycle) {
-    const now = Date.now();
     cycle = await (prisma as any).tournamentCycle.create({
       data: {
         tournamentId: t.id,
         startsAt: new Date(startsAt),
         endsAt: new Date(endsAt),
         prizePool: t.prizePool,
-        state: now < startsAt ? 'waiting' : 'live',
+        state: now < startsAt ? 'waiting' : (now > endsAt ? 'ended' : 'live'),
       },
+    });
+  } else if (cycle.state === 'waiting' && now >= cycle.startsAt.getTime() && now <= cycle.endsAt.getTime()) {
+    cycle = await (prisma as any).tournamentCycle.update({
+      where: { id: cycle.id },
+      data: { state: 'live' },
     });
   }
   return cycle as { id: string; startsAt: Date; endsAt: Date; prizePool: Prisma.Decimal; state: string };
@@ -323,7 +328,21 @@ export class BettingPipeline {
     const stake = TWO_DP(bet.amount);
 
     const meta = (bet.metadata || {}) as Record<string, any>;
-    const tournamentCycleId = meta.tournamentCycleId as string | undefined;
+    let tournamentCycleId = meta.tournamentCycleId as string | undefined;
+
+    if (!tournamentCycleId) {
+      try {
+        const dbBet = await prisma.bet.findUnique({
+          where: { id: bet.id },
+          select: { metadata: true },
+        });
+        const dbMeta = (dbBet?.metadata || {}) as Record<string, any>;
+        if (dbMeta.tournamentCycleId) {
+          tournamentCycleId = dbMeta.tournamentCycleId;
+          bet.metadata = { ...(bet.metadata || {}), ...dbMeta };
+        }
+      } catch {}
+    }
 
     // Tournaments use virtual balance and do not affect the casino's P&L
     // or give/earn budget. Skip RTP capping entirely.
@@ -545,7 +564,21 @@ export class BettingPipeline {
       });
 
       const meta = (bet.metadata || {}) as Record<string, any>;
-      const tournamentCycleId = meta.tournamentCycleId as string | undefined;
+      let tournamentCycleId = meta.tournamentCycleId as string | undefined;
+
+      if (!tournamentCycleId) {
+        try {
+          const dbBet = await prisma.bet.findUnique({
+            where: { id: bet.id },
+            select: { metadata: true },
+          });
+          const dbMeta = (dbBet?.metadata || {}) as Record<string, any>;
+          if (dbMeta.tournamentCycleId) {
+            tournamentCycleId = dbMeta.tournamentCycleId;
+            bet.metadata = { ...(bet.metadata || {}), ...dbMeta };
+          }
+        } catch {}
+      }
 
       // Casino kept the full stake — record it for the controller,
       // but only if it's real money.
