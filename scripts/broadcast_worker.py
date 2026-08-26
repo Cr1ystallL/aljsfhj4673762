@@ -42,7 +42,9 @@ def _conn():
     url = os.getenv("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
-    return psycopg2.connect(url)
+    conn = psycopg2.connect(url)
+    conn.set_client_encoding('UTF8')
+    return conn
 
 
 def _audience_sql_where(audience: dict[str, Any]) -> tuple[str, list[Any]]:

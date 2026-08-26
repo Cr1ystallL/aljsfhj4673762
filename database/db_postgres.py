@@ -33,7 +33,9 @@ class DatabasePostgres:
     
     def _get_connection(self):
         """Получить соединение с базой данных"""
-        return psycopg2.connect(self.database_url)
+        conn = psycopg2.connect(self.database_url)
+        conn.set_client_encoding('UTF8')
+        return conn
 
     def _ensure_user_uuid(self, telegram_id: int) -> Optional[str]:
         """Вернуть UUID пользователя, создавая запись при отсутствии."""
