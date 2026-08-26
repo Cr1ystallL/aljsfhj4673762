@@ -74,12 +74,13 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'hilo',
-    name: 'Hi-Lo',
-    href: '/game/hilo',
-    bg: '/tiles/hilo.webp',
+    id: 'blackjack',
+    name: 'Blackjack',
+    href: '/game/blackjack',
+    bg: '/tiles/bj.webp',
     wide: true,
-    category: 'fast',
+    badge: { label: 'NEW', color: 'gold', Icon: Sparkles },
+    category: 'table',
   },
   {
     id: 'coinflip',
@@ -98,12 +99,18 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'blackjack',
-    name: 'Blackjack',
-    href: '/game/blackjack',
-    bg: '/tiles/bj.webp',
+    id: 'cases',
+    name: 'Case',
+    href: '/game/cases',
+    bg: '/tiles/case.webp',
     wide: true,
-    badge: { label: 'NEW', color: 'gold', Icon: Sparkles },
+    category: 'fast',
+  },
+  {
+    id: 'keno',
+    name: 'Keno',
+    href: '/game/keno',
+    bg: '/tiles/keno.webp',
     category: 'table',
   },
   {
@@ -116,17 +123,10 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'keno',
-    name: 'Keno',
-    href: '/game/keno',
-    bg: '/tiles/keno.webp',
-    category: 'table',
-  },
-  {
-    id: 'cases',
-    name: 'Case',
-    href: '/game/cases',
-    bg: '/tiles/case.webp',
+    id: 'hilo',
+    name: 'Hi-Lo',
+    href: '/game/hilo',
+    bg: '/tiles/hilo.webp',
     wide: true,
     category: 'fast',
   },
@@ -357,7 +357,6 @@ export function HomeScreen() {
   const isGameVisible = (gameId: string) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
-    if (gameId === 'blackjack' && !isAdmin) return false;
     if (hidden[gameId] && !isAdmin) return false;
     return true;
   };
@@ -538,9 +537,7 @@ export function HomeScreen() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
             {filteredGames.map((g, i) => {
-              // Mobile pattern: 2 square banners, next row 1 long banner (col-span-2)
-              // (0,1 -> Square, 2 -> Long banner, 3,4 -> Square, 5 -> Long banner, etc.)
-              const isRectangle = i % 3 === 2;
+              const isRectangle = !!g.wide;
               return (
                 <GameTile
                   key={g.id}
