@@ -299,28 +299,6 @@ export class BlackjackEngine extends EventEmitter {
         continue;
       }
 
-      let currentBalance = 0;
-      try {
-        const { balanceService } = await import('../../services/balance-service.js');
-        const balData = await balanceService.getBalance(player.userId);
-        currentBalance = Number(balData.amount || 0);
-      } catch (err) {
-        logger.warn({ err, userId: player.userId }, 'Failed to check balance before round');
-      }
-
-      if (currentBalance < player.bet) {
-        logger.info({ userId: player.userId, bet: player.bet, currentBalance }, 'Player bet exceeds balance, sitting out round');
-        player.status = 'waiting';
-        player.hand = [];
-        (player as any).consecutiveAfkRounds = ((player as any).consecutiveAfkRounds || 0) + 1;
-        if ((player as any).consecutiveAfkRounds >= 2) {
-          this.leave(player.userId);
-        }
-        continue;
-      }
-
-      (player as any).consecutiveAfkRounds = 0;
-
       const bet: Bet = {
         id: `bj_bet_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
@@ -336,10 +314,16 @@ export class BlackjackEngine extends EventEmitter {
         await bettingPipeline.processBet(bet, false);
         player.status = 'playing';
         player.betMetadata = { ...(bet.metadata || {}) };
+        (player as any).consecutiveAfkRounds = 0;
       } catch (error) {
         logger.error({ error, userId: player.userId }, 'Failed to process blackjack bet');
         player.status = 'waiting';
+        player.hand = [];
         player.bet = 0;
+        (player as any).consecutiveAfkRounds = ((player as any).consecutiveAfkRounds || 0) + 1;
+        if ((player as any).consecutiveAfkRounds >= 2) {
+          this.leave(player.userId);
+        }
       }
     }
 
