@@ -87,6 +87,24 @@ def _audience_sql_where(audience: dict[str, Any]) -> tuple[str, list[Any]]:
     return " WHERE " + " AND ".join(parts), params
 
 
+import re
+
+def _clean_html_text(text: str) -> str:
+    """Fix common typos in HTML markup for Telegram."""
+    if not text:
+        return ""
+    # Fix typos like <\blockquote> -> </blockquote>
+    text = re.sub(r'<\\([a-zA-Z0-9_-]+)>', r'</\1>', text)
+    # Fix typos like </ blockquote> -> </blockquote>
+    text = re.sub(r'</\s+([a-zA-Z0-9_-]+)>', r'</\1>', text)
+    return text
+
+
+def _strip_html(text: str) -> str:
+    """Strip all HTML tags as plain text fallback."""
+    return re.sub(r'<[^>]*>', '', text)
+
+
 async def _send_one(
     bot: Bot,
     bc: dict[str, Any],
@@ -97,24 +115,21 @@ async def _send_one(
     parse_mode_raw = bc.get("parse_mode") or "HTML"
     parse_mode = None if parse_mode_raw == "none" else parse_mode_raw
     media_url = bc.get("media_url")
-    text = bc["text"]
-    try:
+    text = _clean_html_text(bc.get("text") or "")
+
+    async def _try_send(p_mode: str | None, payload_text: str) -> None:
         if media_url:
-            if media_url.startswith("/"):
-                media_url = f"https://macvbet.nl{media_url}"
+            url = f"https://macvbet.nl{media_url}" if media_url.startswith("/") else media_url
             try:
                 await bot.send_photo(
                     chat_id=chat_id,
-                    photo=media_url,
-                    caption=text[:1024],
-                    parse_mode=parse_mode,
+                    photo=url,
+                    caption=payload_text[:1024],
+                    parse_mode=p_mode,
                     reply_markup=keyboard,
                 )
+                return
             except TelegramAPIError as photo_err:
-                # Telegram couldn't fetch the URL as an image (broken
-                # link, non-image content type, HTML page, etc). Rather
-                # than dropping the whole message, fall back to a plain
-                # text send so the broadcast still reaches the user.
                 msg = str(photo_err).lower()
                 if (
                     "wrong type of the web page content" in msg
@@ -122,23 +137,32 @@ async def _send_one(
                     or "failed to get http url content" in msg
                     or "image_process_failed" in msg
                 ):
-                    await bot.send_message(
-                        chat_id=chat_id,
-                        text=text,
-                        parse_mode=parse_mode,
-                        reply_markup=keyboard,
-                        disable_web_page_preview=True,
-                    )
+                    pass
                 else:
                     raise
-        else:
-            await bot.send_message(
-                chat_id=chat_id,
-                text=text,
-                parse_mode=parse_mode,
-                reply_markup=keyboard,
-                disable_web_page_preview=True,
-            )
+        await bot.send_message(
+            chat_id=chat_id,
+            text=payload_text,
+            parse_mode=p_mode,
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
+        )
+
+    try:
+        try:
+            await _try_send(parse_mode, text)
+        except TelegramAPIError as api_err:
+            msg = str(api_err).lower()
+            if "can't parse entities" in msg or "entity" in msg or "tag" in msg or "parse" in msg:
+                logger.warning(
+                    "HTML parse error for chat %s (%s). Retrying with plain text fallback.",
+                    chat_id,
+                    api_err,
+                )
+                plain = _strip_html(text)
+                await _try_send(None, plain)
+            else:
+                raise
         return "delivered", None
     except TelegramForbiddenError as e:
         msg = str(e).lower()

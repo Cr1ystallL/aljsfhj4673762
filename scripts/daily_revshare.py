@@ -8,12 +8,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger('daily_revshare')
 
 async def calculate_daily_revshare():
-    if not config.USE_POSTGRES:
+    if not getattr(config, 'USE_POSTGRES', True):
         logger.warning("Postgres is disabled, skipping RevShare calculation.")
         return
 
     try:
         conn = psycopg2.connect(config.DATABASE_URL)
+        conn.set_client_encoding('UTF8')
         cursor = conn.cursor()
         
         # Calculate for yesterday
