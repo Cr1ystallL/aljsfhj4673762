@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { GameIcon, type GameKey } from '@/components/ui/game-icon';
+import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
 import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
 import { useWinStreak } from '@/hooks/use-win-streak';
@@ -295,6 +296,17 @@ export function MenuDrawer({
                 </div>
 
                 <div className="flex flex-col gap-2">
+                  {availability?.isAdmin && (
+                    <SectionCard
+                      icon={<SoccerBallIcon size={18} className="text-amber-400" />}
+                      title={t('nav.sportsTitle')}
+                      description={t('nav.sportsDesc')}
+                      onClick={() => {
+                        onClose();
+                        router.push('/sport');
+                      }}
+                    />
+                  )}
                   <SectionCard
                     icon={<Wallet size={18} className="text-emerald-400" />}
                     title={t('nav.walletTitle')}

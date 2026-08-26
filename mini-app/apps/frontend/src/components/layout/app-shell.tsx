@@ -69,6 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onProfileClick={handleProfileClick}
         onBonusesClick={() => router.push('/bonuses')}
         onPartnerClick={() => router.push('/partner')}
+        onSportClick={() => router.push('/sport')}
         forceHidden={isMenuOpen || isConsole}
       />
 
