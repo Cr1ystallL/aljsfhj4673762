@@ -57,6 +57,7 @@ export interface BJState {
   players: BJPlayer[];
   currentTurnSeatId: number | null;
   roundId: string;
+  serverSeedHash?: string;
 }
 
 const CHIP_VALUES = [10, 25, 50, 100, 250, 500];
@@ -237,6 +238,7 @@ export function BlackjackMultiplayer() {
     isReady: isBalanceReady,
     currencyLabel,
     fetchBalance,
+    syncBalance,
   } = useActiveBalance('blackjack');
 
   const searchParams = useSearchParams();
@@ -615,6 +617,20 @@ export function BlackjackMultiplayer() {
               );
             }
 
+            if (data.type === 'balance_update' && data.payload) {
+              const payload = data.payload;
+              const curBal = useBalanceStore.getState().balance;
+              useBalanceStore.getState().setBalance({
+                userId: user?.id || '',
+                amount: payload.amount,
+                currency: payload.currency,
+                freeCases: payload.freeCases ?? (curBal as any)?.freeCases ?? 0,
+                freeCasesJson: payload.freeCasesJson ?? (curBal as any)?.freeCasesJson ?? {},
+                demoMode: payload.demoMode ?? false,
+                lastSyncedAt: new Date(payload.timestamp || Date.now()),
+              }, payload.tournamentBalances || useBalanceStore.getState().tournamentBalances);
+            }
+
             if (data.type === 'bj:state' && data.payload) {
               setState(data.payload);
               setIsActionPending(false);
@@ -623,9 +639,13 @@ export function BlackjackMultiplayer() {
               }
               if (data.payload.phase === 'settling' || data.payload.phase === 'finished') {
                 void fetchBalance();
+                void syncBalance();
                 void fetchTableHistory();
-                setTimeout(() => void fetchBalance(), 1000);
-                setTimeout(() => void fetchBalance(), 2500);
+                setTimeout(() => {
+                  void fetchBalance();
+                  void syncBalance();
+                }, 800);
+                setTimeout(() => void fetchBalance(), 2000);
               }
             }
 
@@ -870,12 +890,32 @@ return () => {
               1. TOP CENTER: Large Dealer Avatar, Name & Hand Cards
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-2 sm:pt-4">
+            {/* Live Provably Fair Round Hash Badge */}
+            {(state as any).serverSeedHash && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHistoryOpen(true);
+                  void fetchTableHistory();
+                  soundManager.play('ui.click');
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-1.5 rounded-full bg-black/80 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono hover:bg-black hover:border-emerald-400 transition-all cursor-pointer shadow-lg"
+                title="Нажмите для проверки Provably Fair"
+              >
+                <ShieldCheck size={12} className="text-emerald-400" />
+                <span className="text-white/50">SHA-256:</span>
+                <span className="font-bold truncate max-w-[100px] sm:max-w-[160px]">
+                  {(state as any).serverSeedHash}
+                </span>
+              </button>
+            )}
+
             {/* Prominent Large Dealer Avatar with locked pixel dimensions */}
             <div className="relative flex w-[72px] h-[72px] sm:w-[88px] sm:h-[88px] md:w-[96px] md:h-[96px] shrink-0 items-center justify-center">
               <div className="h-full w-full rounded-full bg-black border-2 sm:border-[3px] border-amber-400 text-white shadow-[0_0_25px_rgba(251,191,36,0.6),0_12px_30px_rgba(0,0,0,0.85)] overflow-hidden flex items-center justify-center">
                 <img
                   src="/BlackJack/diller.png"
-                  alt="Диллер"
+                  alt="Дилер"
                   className="w-full h-full object-cover"
                   draggable={false}
                   onError={(e) => {
@@ -890,9 +930,9 @@ return () => {
               )}
             </div>
 
-            {/* Label "Диллер" */}
+            {/* Label "Дилер" */}
             <span className="font-bold text-xs sm:text-sm text-amber-300/90 uppercase tracking-wider mt-1 mb-0.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-              Диллер
+              Дилер
             </span>
 
             {/* Dealer Hand Cards */}

@@ -42,6 +42,25 @@ export class BalanceService {
         });
       }
 
+      let tournamentBalances: Array<{ gameType: string; balance: number }> = [];
+      try {
+        const activeParticipants = await (prisma as any).tournamentParticipant.findMany({
+          where: {
+            userId,
+            cycle: {
+              startsAt: { lte: new Date() },
+              endsAt: { gte: new Date() },
+              tournament: { active: true },
+            },
+          },
+          include: { cycle: { include: { tournament: true } } },
+        });
+        tournamentBalances = activeParticipants.map((p: any) => ({
+          gameType: p.cycle.tournament.gameType,
+          balance: Number(p.balance),
+        }));
+      } catch {}
+
       const result = {
         amount: Number(balance.amount),
         currency: balance.currency,
@@ -51,6 +70,7 @@ export class BalanceService {
         wagerProgress: Number(balance.wagerProgress),
         autoRtpTarget: Number(balance.autoRtpTarget),
         autoRtpProgress: Number(balance.autoRtpProgress),
+        tournamentBalances,
       };
 
       await this.cacheBalance(userId, result);
@@ -214,6 +234,7 @@ export class BalanceService {
       wagerTarget?: number; wagerProgress?: number;
       autoRtpTarget?: number; autoRtpProgress?: number;
       freeCases?: number;
+      tournamentBalances?: Array<{ gameType: string; balance: number }>;
     }
   ) {
     await wsManager.publishBroadcast({

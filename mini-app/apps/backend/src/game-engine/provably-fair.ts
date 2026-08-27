@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, createHmac, randomBytes } from 'crypto';
 import type { ProvablyFairData } from './types.js';
 
 /**
@@ -221,6 +221,56 @@ export class ProvablyFairSystem {
     const playerWins = u < winChance;
     if (playerWins) return choice;
     return choice === 'heads' ? 'tails' : 'heads';
+  }
+
+  /** ---------------------------------------------------------------- */
+  /** Blackjack shoe — deterministic cryptographic shuffle             */
+  /** ---------------------------------------------------------------- */
+  generateBlackjackDeck(
+    serverSeed: string,
+    clientSeed: string,
+    nonce: number,
+    decksCount = 6
+  ): Array<{ suit: 'hearts' | 'diamonds' | 'clubs' | 'spades'; rank: '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A' }> {
+    const suits: Array<'hearts' | 'diamonds' | 'clubs' | 'spades'> = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const ranks: Array<'2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A'> = [
+      '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'
+    ];
+    const deck: Array<{ suit: 'hearts' | 'diamonds' | 'clubs' | 'spades'; rank: '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A' }> = [];
+    
+    for (let d = 0; d < decksCount; d++) {
+      for (const suit of suits) {
+        for (const rank of ranks) {
+          deck.push({ suit, rank });
+        }
+      }
+    }
+
+    const message = `${clientSeed}:${nonce}`;
+    let counter = 0;
+    let buffer = Buffer.alloc(0);
+    const refill = () => {
+      const hmac = createHmac('sha256', serverSeed)
+        .update(`${message}:${counter++}`)
+        .digest();
+      buffer = Buffer.concat([buffer, hmac]);
+    };
+    const getUint32 = () => {
+      if (buffer.length < 4) refill();
+      const val = buffer.readUInt32BE(0);
+      buffer = buffer.subarray(4);
+      return val;
+    };
+
+    // Fisher-Yates deterministic shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = getUint32() % (i + 1);
+      const tmp = deck[i];
+      deck[i] = deck[j];
+      deck[j] = tmp;
+    }
+
+    return deck;
   }
 
   /** ---------------------------------------------------------------- */

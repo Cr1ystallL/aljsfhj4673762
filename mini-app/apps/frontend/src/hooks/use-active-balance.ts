@@ -1,4 +1,5 @@
 import { useBalanceStore } from '@/store/balance-store';
+import { useBalance } from '@/hooks/use-balance';
 
 export interface ActiveBalance {
   /** Funds available for this game. Zero until the balance has loaded. */
@@ -9,6 +10,10 @@ export interface ActiveBalance {
   isTournament: boolean;
   /** Currency marker to render next to `amount`. */
   currencyLabel: string;
+  /** Refreshes balance from server via GET /api/balance */
+  fetchBalance: () => Promise<void>;
+  /** Forces balance sync from server via POST /api/balance/sync */
+  syncBalance: () => Promise<void>;
 }
 
 /**
@@ -23,6 +28,7 @@ export interface ActiveBalance {
 export function useActiveBalance(gameType: string): ActiveBalance {
   const balance = useBalanceStore((s) => s.balance);
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
+  const { fetchBalance, syncBalance } = useBalance();
 
   const tournament = tournamentBalances.find((t) => t.gameType === gameType);
   const isTournament = tournament !== undefined;
@@ -32,5 +38,7 @@ export function useActiveBalance(gameType: string): ActiveBalance {
     isReady: isTournament || balance !== null,
     isTournament,
     currencyLabel: isTournament ? '🏆' : 'zł',
+    fetchBalance,
+    syncBalance,
   };
 }

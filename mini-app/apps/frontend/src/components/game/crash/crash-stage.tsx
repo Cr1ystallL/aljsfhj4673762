@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Wifi } from 'lucide-react';
+import { Shield, Wifi, Check } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CrashLiveStream } from '@/lib/games/crash/crash-live-stream';
@@ -261,6 +261,7 @@ export const CrashStage = memo(function CrashStage({
   const cashoutsRef = useRef(cashouts);
   cashoutsRef.current = cashouts;
 
+  const [copiedHash, setCopiedHash] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if ((phase !== 'waiting' && phase !== 'starting') || !waitingEndsAt) return;
@@ -722,14 +723,33 @@ export const CrashStage = memo(function CrashStage({
         </div>
 
         <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2 z-10">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-black/55 border border-white/10">
-            <Shield size={11} className="text-frost-white/60" strokeWidth={2} />
-            <span className="text-[10px] font-roobert text-frost-white/70 tracking-wider">
-              {serverSeedHash
-                ? `${serverSeedHash.slice(0, 10)}…`
-                : t('crash.loadingHash')}
+          <button
+            type="button"
+            onClick={() => {
+              if (serverSeedHash) {
+                navigator.clipboard.writeText(serverSeedHash);
+                setCopiedHash(true);
+                setTimeout(() => setCopiedHash(false), 2000);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-black/65 border border-white/15 hover:border-emerald-400/50 hover:bg-black transition-all cursor-pointer"
+            title={serverSeedHash ? 'Нажмите, чтобы скопировать полный SHA-256 хэш' : undefined}
+          >
+            {copiedHash ? (
+              <Check size={11} className="text-emerald-400" strokeWidth={2.5} />
+            ) : (
+              <Shield size={11} className="text-frost-white/60" strokeWidth={2} />
+            )}
+            <span className="text-[10px] font-roobert text-frost-white/80 tracking-wider">
+              {copiedHash ? (
+                <span className="text-emerald-400 font-bold">Скопировано!</span>
+              ) : serverSeedHash ? (
+                `${serverSeedHash.slice(0, 10)}…`
+              ) : (
+                t('crash.loadingHash')
+              )}
             </span>
-          </div>
+          </button>
 
           <div
             className={cn(

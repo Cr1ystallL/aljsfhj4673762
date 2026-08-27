@@ -237,6 +237,7 @@ export class BettingPipeline {
         });
 
         logger.info({ betId: bet.id, userId: bet.userId, amount, tournament: tournamentCtx.tournament.id }, 'Tournament bet processed');
+        await balanceService.syncBalance(bet.userId);
         return true;
       }
 
@@ -373,6 +374,7 @@ export class BettingPipeline {
         });
 
         logger.info({ betId: bet.id, userId: bet.userId, payout: credit, tournamentCycleId }, 'Tournament payout processed');
+        await balanceService.syncBalance(bet.userId);
         return;
       } catch (error) {
         logger.error(error, 'Failed to process tournament payout');
@@ -657,6 +659,7 @@ export class BettingPipeline {
         });
 
         logger.info({ betId: bet.id, userId: bet.userId, payout: credit, tournamentCycleId }, 'Tournament cashout processed');
+        await balanceService.syncBalance(bet.userId);
         return;
       } catch (error) {
         logger.error(error, 'Failed to process tournament cashout');

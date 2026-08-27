@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import { randomUUID, randomBytes, createHash } from 'crypto';
-// import { rtpEngine } from '../../services/rtp-engine.js';
+import { randomUUID } from 'crypto';
+import { provablyFair } from '../../game-engine/provably-fair.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
@@ -314,8 +314,8 @@ export class BlackjackEngine extends EventEmitter {
       return;
     }
 
-    const serverSeed = randomBytes(32).toString('hex');
-    const serverSeedHash = createHash('sha256').update(serverSeed).digest('hex');
+    const serverSeed = provablyFair.generateServerSeed();
+    const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
     const clientSeed = `${this.roomId}_${Date.now()}`;
     this.currentSeeds = {
       serverSeed,
@@ -330,8 +330,8 @@ export class BlackjackEngine extends EventEmitter {
     this.state.serverSeedHash = serverSeedHash;
     this.state.dealerHand = [];
     
-    // Create and shuffle deck
-    this.deck = this.createDeck();
+    // Create deterministic cryptographically shuffled deck
+    this.deck = provablyFair.generateBlackjackDeck(serverSeed, clientSeed, 1, 6);
 
     // Process bets first
     for (const player of [...this.state.players]) {
@@ -879,68 +879,18 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   /* -----------------------------------------------------------------
-   * Card utilities with RTP bias
+   * Card utilities (Provably Fair deterministic dealing)
    * ---------------------------------------------------------------- */
 
-  private createDeck(decksCount = 6): Card[] {
-    const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
-    const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-    const deck: Card[] = [];
-    
-    for (let d = 0; d < decksCount; d++) {
-      for (const suit of suits) {
-        for (const rank of ranks) {
-          deck.push({ suit, rank });
-        }
-      }
-    }
-    
-    return this.shuffle(deck);
-  }
-
-  private shuffle(deck: Card[]): Card[] {
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-    return deck;
-  }
-
   private drawCard(userId: string, currentHand?: Card[]): Card {
-    if (this.deck.length < 20) {
-      this.deck = this.createDeck(6);
-    }
-
-    // Dealer edge / win rate boost (moderate 35% smart card luck optimization)
-    if (userId === 'dealer' && Math.random() < 0.35) {
-      if (currentHand && currentHand.length > 0) {
-        const curVal = this.calculateHandValue(currentHand, true).total;
-        if (curVal < 17) {
-          // Look for an ideal card in the deck that makes dealer reach 18..21 without busting
-          const idealIdx = this.deck.findIndex((c) => {
-            const v = this.calculateHandValue([...currentHand, c], true).total;
-            return v >= 18 && v <= 21;
-          });
-          if (idealIdx !== -1) {
-            return this.deck.splice(idealIdx, 1)[0];
-          }
-
-          // Fallback: any safe non-busting card
-          const safeIdx = this.deck.findIndex((c) => {
-            const v = this.calculateHandValue([...currentHand, c], true).total;
-            return v <= 21;
-          });
-          if (safeIdx !== -1) {
-            return this.deck.splice(safeIdx, 1)[0];
-          }
-        }
-      } else {
-        // First or second dealer card: favor high cards (10, J, Q, K, A)
-        const strongIdx = this.deck.findIndex((c) => ['10', 'J', 'Q', 'K', 'A'].includes(c.rank));
-        if (strongIdx !== -1) {
-          return this.deck.splice(strongIdx, 1)[0];
-        }
-      }
+    if (this.deck.length === 0) {
+      this.currentSeeds.nonce++;
+      this.deck = provablyFair.generateBlackjackDeck(
+        this.currentSeeds.serverSeed,
+        this.currentSeeds.clientSeed,
+        this.currentSeeds.nonce,
+        6
+      );
     }
 
     return this.deck.pop()!;
@@ -1015,6 +965,7 @@ export class BlackjackEngine extends EventEmitter {
         players: sanitizedPlayers,
         currentTurnSeatId: this.state.currentTurnSeatId,
         roundId: this.state.roundId,
+        serverSeedHash: this.state.serverSeedHash,
       },
       timestamp: Date.now(),
     };

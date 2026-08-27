@@ -108,7 +108,6 @@ export function MenuDrawer({
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
     return ALL_IN_APP_GAMES.filter((g) => {
-      if (g.id === 'blackjack' && !isAdmin) return false;
       if (hidden[g.id] && !isAdmin) return false;
       return true;
     });
