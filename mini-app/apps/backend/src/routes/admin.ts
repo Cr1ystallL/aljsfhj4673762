@@ -837,6 +837,66 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ------------------------------------------------ user Drain (SmartDrain controls) */
+
+  app.get<{ Params: { id: string } }>(
+    '/_x/users/:id/drain',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const drain = await rtpEngine.getDrainInfo(id);
+        return reply.send({ ok: true, drain });
+      } catch (error) {
+        logger.error(error, 'Admin user drain get failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: { rounds?: number; durationMs?: number; reason: string };
+  }>(
+    '/_x/users/:id/drain',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? '').trim();
+      if (!reason || reason.length < 3) {
+        return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
+      }
+      try {
+        await rtpEngine.setDrain(id, {
+          rounds: request.body?.rounds ?? 25,
+          durationMs: request.body?.durationMs ?? 3600 * 1000,
+          reason,
+        });
+        const drain = await rtpEngine.getDrainInfo(id);
+        return reply.send({ ok: true, drain });
+      } catch (error) {
+        logger.error(error, 'Admin user drain set failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/_x/users/:id/drain',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        await rtpEngine.removeDrain(id);
+        const drain = await rtpEngine.getDrainInfo(id);
+        return reply.send({ ok: true, drain });
+      } catch (error) {
+        logger.error(error, 'Admin user drain remove failed');
+        return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
   app.get<{
     Params: { id: string };
     Querystring?: { betLimit?: string; txLimit?: string };
@@ -862,7 +922,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog, securityAlerts] = await Promise.all([
+        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog, securityAlerts, drain] = await Promise.all([
           app.prisma.balance.findUnique({
             where: { userId: id },
             select: { amount: true, currency: true, lastSyncedAt: true, wagerTarget: true, wagerProgress: true },
@@ -919,6 +979,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             orderBy: { createdAt: 'desc' },
             take: 30,
           }),
+          rtpEngine.getDrainInfo(id).catch(() => ({ active: false, roundsLeft: 0, expiresAt: 0, reason: null })),
         ]);
 
         const betsAggRaw = (betsAgg as any)[0] || {};
@@ -964,6 +1025,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             wagerTarget: balance ? Number(balance.wagerTarget) : 0,
             wagerProgress: balance ? Number(balance.wagerProgress) : 0,
           },
+          drain,
           stats: {
             totalBets: betsAggObj._count._all,
             wagered,
@@ -981,20 +1043,46 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             ipAddress: (s as any).ipAddress ?? null,
             userAgent: (s as any).userAgent ?? null,
           })),
-          bets: bets.map((b) => ({
-            id: b.id,
-            gameType: b.gameType,
-            amount: Number(b.amount),
-            payout: b.payout !== null ? Number(b.payout) : null,
-            multiplier: b.multiplier !== null ? Number(b.multiplier) : null,
-            state: b.state,
-            placedAt: b.placedAt.getTime(),
-            resolvedAt: b.resolvedAt?.getTime() ?? null,
-            source:
-              b.metadata && typeof b.metadata === 'object'
-                ? String((b.metadata as Record<string, unknown>).source ?? 'miniapp')
-                : 'miniapp',
-          })),
+          bets: bets.map((b) => {
+            const meta = (b.metadata && typeof b.metadata === 'object' ? b.metadata : {}) as Record<string, unknown>;
+            const isTournament = Boolean(
+              meta.tournamentId ||
+              meta.tournamentCycleId ||
+              meta.balanceType === 'tournament' ||
+              meta.mode === 'tournament'
+            );
+            const isScriptIntervened = Boolean(
+              meta.isScriptIntervened ||
+              meta.isForcedLoss ||
+              meta.forceBust ||
+              meta.scriptDrain ||
+              meta.drain ||
+              (typeof meta.bias === 'number' && meta.bias > 0)
+            );
+            return {
+              id: b.id,
+              gameType: b.gameType,
+              amount: Number(b.amount),
+              payout: b.payout !== null ? Number(b.payout) : null,
+              multiplier: b.multiplier !== null ? Number(b.multiplier) : null,
+              state: b.state,
+              placedAt: b.placedAt.getTime(),
+              resolvedAt: b.resolvedAt?.getTime() ?? null,
+              isTournament,
+              balanceType: isTournament ? 'tournament' : 'real',
+              tournamentId: meta.tournamentId ? String(meta.tournamentId) : null,
+              isScriptIntervened,
+              scriptReason: meta.drainReason
+                ? String(meta.drainReason)
+                : meta.forceBust
+                ? 'SmartDrain (Слив)'
+                : isScriptIntervened
+                ? 'Вмешательство RTP'
+                : null,
+              metadata: b.metadata,
+              source: String(meta.source ?? 'miniapp'),
+            };
+          }),
           transactions: txs.map((t) => ({
             id: t.id,
             type: t.type,

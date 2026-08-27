@@ -724,6 +724,41 @@ class RtpEngine {
   }
 
   /**
+   * Gets full SmartDrain info for admin inspection.
+   */
+  async getDrainInfo(userId: string): Promise<{ active: boolean; roundsLeft: number; expiresAt: number; reason: string | null }> {
+    try {
+      const r = redisClient.getClient();
+      const data = await r.hgetall(`rtp:drain:${userId}`);
+      if (!data || data.active !== '1') {
+        return { active: false, roundsLeft: 0, expiresAt: 0, reason: null };
+      }
+      const expiresAt = Number(data.expiresAt || 0);
+      const roundsLeft = Number(data.roundsLeft || 0);
+      if (Date.now() > expiresAt || roundsLeft <= 0) {
+        await r.del(`rtp:drain:${userId}`);
+        return { active: false, roundsLeft: 0, expiresAt: 0, reason: null };
+      }
+      return { active: true, roundsLeft, expiresAt, reason: data.reason || null };
+    } catch {
+      return { active: false, roundsLeft: 0, expiresAt: 0, reason: null };
+    }
+  }
+
+  /**
+   * Manually removes SmartDrain from user.
+   */
+  async removeDrain(userId: string): Promise<void> {
+    try {
+      const r = redisClient.getClient();
+      await r.del(`rtp:drain:${userId}`);
+      logger.info({ userId }, 'SmartDrain manually cleared');
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to remove drain');
+    }
+  }
+
+  /**
    * Checks if SmartDrain is currently active for user.
    */
   async isDrainActive(userId: string): Promise<boolean> {
