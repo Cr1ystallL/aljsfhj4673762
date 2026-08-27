@@ -1548,6 +1548,18 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({ success, state: table.getState() });
   });
+
+  // Blackjack REST Ready To Deal
+  app.post('/blackjack/ready', async (request, reply) => {
+    const { userId } = await resolveBjUser(request);
+    const { roomId = 'bj_table_1', isReady } = (request.body as { roomId?: string; isReady?: boolean }) || {};
+
+    const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
+    const table = blackjackSingleton.getTable(roomId);
+    const success = table.readyToDeal(userId, isReady);
+
+    return reply.send({ success, state: table.getState() });
+  });
 }
 
 

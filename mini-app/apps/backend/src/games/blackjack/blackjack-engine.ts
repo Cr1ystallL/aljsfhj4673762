@@ -254,10 +254,12 @@ export class BlackjackEngine extends EventEmitter {
       this.startCountdown();
     }
 
-    // Check if ALL seated players with valid bet >= 10 are ready
-    const bettingPlayers = this.state.players.filter((p) => p.bet >= 10);
-    if (bettingPlayers.length > 0 && bettingPlayers.every((p) => p.isReady)) {
-      logger.info({ roomId: this.roomId, bettingCount: bettingPlayers.length }, 'All active players ready! Skipping countdown to deal immediately');
+    // Check if ALL seated players at the table have voted ready
+    const totalSeated = this.state.players.length;
+    const allReady = totalSeated > 0 && this.state.players.every((p) => p.isReady);
+
+    if (allReady) {
+      logger.info({ roomId: this.roomId, totalSeated }, 'ALL seated players voted ready! Skipping countdown to deal immediately');
       this.stopCountdown();
       this.startRound();
       return true;

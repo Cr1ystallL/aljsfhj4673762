@@ -55,6 +55,7 @@ export const ClientBlackjackJoinSeatEventSchema = z.object({
     roomId: z.string(),
     seatId: z.number().int().min(1).max(5),
     bet: z.number().positive().default(10),
+    userId: z.string().optional(),
   }),
   timestamp: z.number(),
 });
@@ -63,6 +64,7 @@ export const ClientBlackjackLeaveSeatEventSchema = z.object({
   type: z.literal('blackjack:leave_seat'),
   payload: z.object({
     roomId: z.string(),
+    userId: z.string().optional(),
   }),
   timestamp: z.number(),
 });
@@ -71,7 +73,8 @@ export const ClientBlackjackBetEventSchema = z.object({
   type: z.literal('blackjack:bet'),
   payload: z.object({
     roomId: z.string(),
-    bet: z.number().positive(),
+    bet: z.number().min(0),
+    userId: z.string().optional(),
   }),
   timestamp: z.number(),
 });
@@ -81,6 +84,7 @@ export const ClientBlackjackActionEventSchema = z.object({
   payload: z.object({
     roomId: z.string(),
     action: z.enum(['hit', 'stand', 'double', 'split']),
+    userId: z.string().optional(),
   }),
   timestamp: z.number(),
 });
@@ -91,6 +95,7 @@ export const ClientBlackjackChatEventSchema = z.object({
     roomId: z.string(),
     text: z.string().max(300),
     emoji: z.string().optional(),
+    userId: z.string().optional(),
   }),
   timestamp: z.number(),
 });
@@ -100,6 +105,7 @@ export const ClientBlackjackReadyToDealEventSchema = z.object({
   payload: z.object({
     roomId: z.string(),
     isReady: z.boolean().optional(),
+    userId: z.string().optional(),
   }),
   timestamp: z.number(),
 });

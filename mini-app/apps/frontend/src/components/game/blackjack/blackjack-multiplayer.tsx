@@ -386,17 +386,13 @@ export function BlackjackMultiplayer() {
     return state.currentTurnSeatId === myPlayer.seatId;
   }, [myPlayer, state.currentTurnSeatId, state.phase]);
 
-  const bettingPlayers = useMemo(() => {
-    return state.players.filter((p) => p.bet >= 10);
+  const totalSeatedCount = useMemo(() => {
+    return state.players.length;
   }, [state.players]);
 
   const readyPlayersCount = useMemo(() => {
-    return bettingPlayers.filter((p) => p.isReady).length;
-  }, [bettingPlayers]);
-
-  const totalBettingCount = useMemo(() => {
-    return bettingPlayers.length;
-  }, [bettingPlayers]);
+    return state.players.filter((p) => p.isReady).length;
+  }, [state.players]);
 
   // Dealer score
   const dealerCardsData = useMemo(() => {
@@ -826,19 +822,42 @@ return () => {
   };
 
   const handleToggleReady = (ready?: boolean) => {
-    if (selectedBet < MIN_BET) {
-      toast.warning(`Сделайте ставку от ${MIN_BET} ${currencyLabel}, чтобы начать раздачу!`);
-      return;
-    }
     const nextReady = ready !== undefined ? ready : !myPlayer?.isReady;
     soundManager.play('ui.click');
 
     const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;
-    const payload = { roomId, isReady: nextReady, userId: effectiveUserId || undefined };
+    if (!effectiveUserId) return;
 
+    // Optimistic local state update
+    setState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) =>
+        p.userId === effectiveUserId ? { ...p, isReady: nextReady } : p
+      ),
+    }));
+
+    const payload = { roomId, isReady: nextReady, userId: effectiveUserId };
+
+    // 1. WebSocket dispatch
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:ready_to_deal', payload);
     }
+
+    // 2. HTTP REST dispatch fallback
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch('/api/games/blackjack/ready', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+      })
+      .catch(() => {});
   };
 
   const handleAction = (action: 'hit' | 'stand' | 'double') => {
@@ -1165,37 +1184,34 @@ return () => {
                 </div>
 
                 {/* Voting Deal Button ("РАЗДАТЬ") */}
-                <div className="relative z-10 w-full pt-1.5 border-t border-amber-500/20 flex flex-col items-center gap-1">
+                <div className="relative z-10 w-full pt-2 border-t border-white/10 flex flex-col items-center gap-1">
                   <button
                     type="button"
                     onClick={() => handleToggleReady(!myPlayer?.isReady)}
-                    disabled={selectedBet < MIN_BET}
                     className={cn(
-                      "relative w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl font-roobert font-black text-xs sm:text-sm tracking-wider uppercase border shadow-xl active:scale-95 transition-all cursor-pointer touch-manipulation select-none overflow-hidden",
+                      "relative w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl font-roobert font-bold text-xs sm:text-sm tracking-wide border transition-all duration-150 cursor-pointer touch-manipulation select-none",
                       myPlayer?.isReady
-                        ? "bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white border-emerald-400/70 shadow-[0_0_25px_rgba(16,185,129,0.5)] ring-2 ring-emerald-400/40"
-                        : selectedBet >= MIN_BET
-                        ? "bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-black border-amber-300 shadow-[0_0_25px_rgba(251,191,36,0.6)] hover:brightness-110 animate-pulse"
-                        : "bg-white/10 text-white/40 border-white/10 cursor-not-allowed opacity-60"
+                        ? "bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/80 shadow-md"
+                        : "bg-white/[0.07] hover:bg-white/[0.13] border-white/20 text-white/90 active:scale-[0.98] shadow-sm"
                     )}
                   >
                     {myPlayer?.isReady ? (
-                      <CheckCircle2 size={17} className="text-white shrink-0" />
+                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                     ) : (
-                      <Play size={15} className="fill-current shrink-0" />
+                      <Play size={14} className="text-amber-400 shrink-0 fill-amber-400" />
                     )}
 
                     <span>
                       {myPlayer?.isReady
-                        ? `ВЫ ГОТОВЫ (${readyPlayersCount}/${totalBettingCount || 1}) · ЖДЕМ СТОЛ`
-                        : `РАЗДАТЬ (${readyPlayersCount}/${totalBettingCount || 1})`}
+                        ? `Готов (${readyPlayersCount}/${totalSeatedCount || 1}) · Ожидание остальных`
+                        : `Раздать (${readyPlayersCount}/${totalSeatedCount || 1})`}
                     </span>
                   </button>
 
-                  <span className="text-[10px] text-center text-white/50 font-roobert">
-                    {totalBettingCount > 1
-                      ? `Когда все сидящие игроки (${readyPlayersCount}/${totalBettingCount}) нажмут «Раздать», раунд начнется сразу`
-                      : 'Нажмите «Раздать», чтобы пропустить таймер и раздать карты моментально'}
+                  <span className="text-[10px] text-center text-whisper-gray/70 font-roobert">
+                    {totalSeatedCount > 1
+                      ? `Раздача начнется сразу, когда все ${totalSeatedCount} сидящих нажмут «Раздать»`
+                      : 'Нажмите «Раздать», чтобы сразу начать раздачу'}
                   </span>
                 </div>
               </motion.div>

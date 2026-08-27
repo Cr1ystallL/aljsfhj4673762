@@ -269,7 +269,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
         // Handle Blackjack Ready to Deal / Vote Deal
         if (validMessage.type === 'blackjack:ready_to_deal') {
           const { roomId, isReady } = validMessage.payload;
-          const userId = (validMessage.payload as any).userId || socket.userId;
+          const userId = validMessage.payload.userId || (data?.payload?.userId) || socket.userId;
           if (userId) {
             const engine = blackjackSingleton.getTable(roomId);
             engine.readyToDeal(userId, isReady);
