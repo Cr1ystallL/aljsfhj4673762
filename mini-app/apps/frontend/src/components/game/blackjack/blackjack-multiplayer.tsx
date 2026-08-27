@@ -126,6 +126,7 @@ const SEATS_CONFIG = [
   { id: 4, label: 'Игрок 4', arcOffset: '-translate-y-3 sm:-translate-y-5' },
   { id: 5, label: 'Игрок 5', arcOffset: '-translate-y-8 sm:-translate-y-12' },
 ];
+const SEATS_LAYOUT = SEATS_CONFIG;
 
 function convertCard(c: BJCard) {
   let rankNum = 10;
@@ -1341,7 +1342,7 @@ return () => {
 
           {/* TABLE SEATS ROW (BOTTOM ARC) */}
           <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 max-w-4xl mx-auto px-1 sm:px-2">
-            {SEATS_LAYOUT.map((seat) => {
+            {SEATS_CONFIG.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
               const isMe = myPlayer?.seatId === seatId;
