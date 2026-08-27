@@ -120,11 +120,11 @@ function getChipImage(amount: number): string {
 
 // True arc curve for 5 seats following the casino table ellipse
 const SEATS_CONFIG = [
-  { id: 1, label: 'Игрок 1', arcOffset: '-translate-y-5 sm:-translate-y-7' },
-  { id: 2, label: 'Игрок 2', arcOffset: '-translate-y-2 sm:-translate-y-3' },
-  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-1 sm:translate-y-2' },
-  { id: 4, label: 'Игрок 4', arcOffset: '-translate-y-2 sm:-translate-y-3' },
-  { id: 5, label: 'Игрок 5', arcOffset: '-translate-y-5 sm:-translate-y-7' },
+  { id: 1, label: 'Игрок 1', arcOffset: '-translate-y-3 sm:-translate-y-5' },
+  { id: 2, label: 'Игрок 2', arcOffset: '-translate-y-0.5 sm:-translate-y-1' },
+  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-3' },
+  { id: 4, label: 'Игрок 4', arcOffset: '-translate-y-0.5 sm:-translate-y-1' },
+  { id: 5, label: 'Игрок 5', arcOffset: '-translate-y-3 sm:-translate-y-5' },
 ];
 const SEATS_LAYOUT = SEATS_CONFIG;
 
@@ -1341,7 +1341,7 @@ return () => {
           </div>
 
           {/* TABLE SEATS ROW (BOTTOM ARC) */}
-          <div className="absolute bottom-2 sm:bottom-4 inset-x-0 z-20 grid grid-cols-5 gap-1 sm:gap-4 w-full items-end px-1 sm:px-6 pointer-events-auto max-w-5xl mx-auto">
+          <div className="absolute bottom-5 sm:bottom-8 inset-x-0 z-20 grid grid-cols-5 gap-1.5 sm:gap-6 md:gap-8 w-full items-end px-2 sm:px-6 pointer-events-auto max-w-[1100px] mx-auto">
             {SEATS_CONFIG.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
