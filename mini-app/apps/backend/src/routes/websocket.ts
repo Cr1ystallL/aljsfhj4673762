@@ -266,6 +266,17 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           return;
         }
 
+        // Handle Blackjack Ready to Deal / Vote Deal
+        if (validMessage.type === 'blackjack:ready_to_deal') {
+          const { roomId, isReady } = validMessage.payload;
+          const userId = (validMessage.payload as any).userId || socket.userId;
+          if (userId) {
+            const engine = blackjackSingleton.getTable(roomId);
+            engine.readyToDeal(userId, isReady);
+          }
+          return;
+        }
+
         // Handle Blackjack Table Chat
         if (validMessage.type === 'blackjack:chat') {
           const { roomId, text, emoji, userId: payloadUserId } = validMessage.payload as any;

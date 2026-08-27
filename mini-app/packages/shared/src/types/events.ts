@@ -95,6 +95,15 @@ export const ClientBlackjackChatEventSchema = z.object({
   timestamp: z.number(),
 });
 
+export const ClientBlackjackReadyToDealEventSchema = z.object({
+  type: z.literal('blackjack:ready_to_deal'),
+  payload: z.object({
+    roomId: z.string(),
+    isReady: z.boolean().optional(),
+  }),
+  timestamp: z.number(),
+});
+
 // Full client events union
 export const ClientEventSchema = z.discriminatedUnion('type', [
   ClientAuthEventSchema,
@@ -106,6 +115,7 @@ export const ClientEventSchema = z.discriminatedUnion('type', [
   ClientBlackjackBetEventSchema,
   ClientBlackjackActionEventSchema,
   ClientBlackjackChatEventSchema,
+  ClientBlackjackReadyToDealEventSchema,
 ]);
 
 // Server → Client Events

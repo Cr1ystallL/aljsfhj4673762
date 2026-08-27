@@ -18,6 +18,8 @@ import {
   RotateCcw,
   ChevronDown,
   ShieldCheck,
+  CheckCircle2,
+  Play,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -45,6 +47,7 @@ export interface BJPlayer {
   hand: BJCard[];
   bet: number;
   status: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
+  isReady?: boolean;
 }
 
 export type BJPhase = 'waiting' | 'countdown' | 'dealing' | 'player_turn' | 'dealer_turn' | 'settling' | 'finished';
@@ -382,6 +385,18 @@ export function BlackjackMultiplayer() {
     if (!myPlayer || state.phase !== 'player_turn') return false;
     return state.currentTurnSeatId === myPlayer.seatId;
   }, [myPlayer, state.currentTurnSeatId, state.phase]);
+
+  const bettingPlayers = useMemo(() => {
+    return state.players.filter((p) => p.bet >= 10);
+  }, [state.players]);
+
+  const readyPlayersCount = useMemo(() => {
+    return bettingPlayers.filter((p) => p.isReady).length;
+  }, [bettingPlayers]);
+
+  const totalBettingCount = useMemo(() => {
+    return bettingPlayers.length;
+  }, [bettingPlayers]);
 
   // Dealer score
   const dealerCardsData = useMemo(() => {
@@ -810,6 +825,22 @@ return () => {
       .catch(() => {});
   };
 
+  const handleToggleReady = (ready?: boolean) => {
+    if (selectedBet < MIN_BET) {
+      toast.warning(`Сделайте ставку от ${MIN_BET} ${currencyLabel}, чтобы начать раздачу!`);
+      return;
+    }
+    const nextReady = ready !== undefined ? ready : !myPlayer?.isReady;
+    soundManager.play('ui.click');
+
+    const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;
+    const payload = { roomId, isReady: nextReady, userId: effectiveUserId || undefined };
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendWs('blackjack:ready_to_deal', payload);
+    }
+  };
+
   const handleAction = (action: 'hit' | 'stand' | 'double') => {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
@@ -1132,6 +1163,41 @@ return () => {
                     <span>Сброс</span>
                   </button>
                 </div>
+
+                {/* Voting Deal Button ("РАЗДАТЬ") */}
+                <div className="relative z-10 w-full pt-1.5 border-t border-amber-500/20 flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleReady(!myPlayer?.isReady)}
+                    disabled={selectedBet < MIN_BET}
+                    className={cn(
+                      "relative w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl font-roobert font-black text-xs sm:text-sm tracking-wider uppercase border shadow-xl active:scale-95 transition-all cursor-pointer touch-manipulation select-none overflow-hidden",
+                      myPlayer?.isReady
+                        ? "bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white border-emerald-400/70 shadow-[0_0_25px_rgba(16,185,129,0.5)] ring-2 ring-emerald-400/40"
+                        : selectedBet >= MIN_BET
+                        ? "bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-black border-amber-300 shadow-[0_0_25px_rgba(251,191,36,0.6)] hover:brightness-110 animate-pulse"
+                        : "bg-white/10 text-white/40 border-white/10 cursor-not-allowed opacity-60"
+                    )}
+                  >
+                    {myPlayer?.isReady ? (
+                      <CheckCircle2 size={17} className="text-white shrink-0" />
+                    ) : (
+                      <Play size={15} className="fill-current shrink-0" />
+                    )}
+
+                    <span>
+                      {myPlayer?.isReady
+                        ? `ВЫ ГОТОВЫ (${readyPlayersCount}/${totalBettingCount || 1}) · ЖДЕМ СТОЛ`
+                        : `РАЗДАТЬ (${readyPlayersCount}/${totalBettingCount || 1})`}
+                    </span>
+                  </button>
+
+                  <span className="text-[10px] text-center text-white/50 font-roobert">
+                    {totalBettingCount > 1
+                      ? `Когда все сидящие игроки (${readyPlayersCount}/${totalBettingCount}) нажмут «Раздать», раунд начнется сразу`
+                      : 'Нажмите «Раздать», чтобы пропустить таймер и раздать карты моментально'}
+                  </span>
+                </div>
               </motion.div>
             )}
 
@@ -1300,6 +1366,21 @@ return () => {
                   {/* (C) 3D LIQUID GLASS DISK / AVATAR SLOT */}
                   <div className="relative flex flex-col items-center">
                     {/* Status Pill floating above Avatar */}
+                    {player && (state.phase === 'waiting' || state.phase === 'countdown') && (
+                      <span
+                        className={cn(
+                          'absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[8px] sm:text-[9px] font-black border border-black shadow-md z-30 flex items-center gap-1',
+                          player.isReady
+                            ? 'bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.8)] animate-pulse'
+                            : player.bet >= MIN_BET
+                            ? 'bg-amber-400 text-black'
+                            : 'bg-white/20 text-white/70'
+                        )}
+                      >
+                        {player.isReady ? '✓ ГОТОВ' : player.bet >= MIN_BET ? 'СТАВКА' : 'ВЫБОР'}
+                      </span>
+                    )}
+
                     {player && player.status !== 'waiting' && player.status !== 'playing' && (
                       <span
                         className={cn(

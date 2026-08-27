@@ -172,7 +172,7 @@ export class BlackjackEngine extends EventEmitter {
       hand: [],
       bet: bet >= 10 ? Math.min(this.config.maxBet, bet) : 0,
       status: 'waiting',
-      isReady: true,
+      isReady: false,
     };
     (player as any).consecutiveAfkRounds = 0;
 
@@ -234,6 +234,36 @@ export class BlackjackEngine extends EventEmitter {
       this.broadcastState();
     }
 
+    return true;
+  }
+
+  readyToDeal(userId: string, isReady?: boolean): boolean {
+    if (this.state.phase !== 'waiting' && this.state.phase !== 'countdown') {
+      return false;
+    }
+
+    const player = this.state.players.find((p) => p.userId === userId);
+    if (!player) return false;
+
+    // Toggle or set ready state
+    player.isReady = isReady !== undefined ? isReady : !player.isReady;
+    logger.info({ userId, isReady: player.isReady, roomId: this.roomId }, 'Player voted ready to deal');
+
+    // If player has bet >= 10 and table was waiting, start countdown
+    if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
+      this.startCountdown();
+    }
+
+    // Check if ALL seated players with valid bet >= 10 are ready
+    const bettingPlayers = this.state.players.filter((p) => p.bet >= 10);
+    if (bettingPlayers.length > 0 && bettingPlayers.every((p) => p.isReady)) {
+      logger.info({ roomId: this.roomId, bettingCount: bettingPlayers.length }, 'All active players ready! Skipping countdown to deal immediately');
+      this.stopCountdown();
+      this.startRound();
+      return true;
+    }
+
+    this.broadcastState();
     return true;
   }
 
@@ -857,6 +887,7 @@ export class BlackjackEngine extends EventEmitter {
       player.hand = [];
       player.status = 'waiting';
       player.bet = 0; // Point #12: bet resets to 0 for next round
+      player.isReady = false;
     }
 
     this.broadcastState();
