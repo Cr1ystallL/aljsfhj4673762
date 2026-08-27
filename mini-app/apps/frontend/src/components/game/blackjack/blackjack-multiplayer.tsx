@@ -48,6 +48,10 @@ export interface BJPlayer {
   bet: number;
   status: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
   isReady?: boolean;
+  splitHand?: BJCard[];
+  splitBet?: number;
+  splitStatus?: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
+  activeHandIndex?: 0 | 1;
 }
 
 export type BJPhase = 'waiting' | 'countdown' | 'dealing' | 'player_turn' | 'dealer_turn' | 'settling' | 'finished';
@@ -393,6 +397,21 @@ export function BlackjackMultiplayer() {
   const readyPlayersCount = useMemo(() => {
     return state.players.filter((p) => p.isReady).length;
   }, [state.players]);
+
+  const isSplitEligible = useMemo(() => {
+    if (!myPlayer || myPlayer.splitHand || myPlayer.hand.length !== 2) return false;
+    const r0 = myPlayer.hand[0]?.rank;
+    const r1 = myPlayer.hand[1]?.rank;
+    if (!r0 || !r1) return false;
+    const tens = ['10', 'J', 'Q', 'K'];
+    return r0 === r1 || (tens.includes(r0) && tens.includes(r1));
+  }, [myPlayer]);
+
+  const isDoubleEligible = useMemo(() => {
+    if (!myPlayer) return false;
+    const targetHand = myPlayer.splitHand && myPlayer.activeHandIndex === 1 ? myPlayer.splitHand : myPlayer.hand;
+    return targetHand?.length === 2;
+  }, [myPlayer]);
 
   // Dealer score
   const dealerCardsData = useMemo(() => {
@@ -860,7 +879,7 @@ return () => {
       .catch(() => {});
   };
 
-  const handleAction = (action: 'hit' | 'stand' | 'double') => {
+  const handleAction = (action: 'hit' | 'stand' | 'double' | 'split') => {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
     // Auto unfreeze button after 400ms
@@ -868,33 +887,35 @@ return () => {
 
     if (action === 'hit') {
       soundManager.play('bj.card_slide');
-    } else if (action === 'double') {
+    } else if (action === 'double' || action === 'split') {
       soundManager.play('bj.chip_click');
       soundManager.play('bj.card_slide');
     } else {
       soundManager.play('ui.click');
     }
 
-    const payload = { roomId, action, userId: user?.id || wsUserId || undefined };
+    const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;
+    const payload = { roomId, action, userId: effectiveUserId };
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:action', payload);
-    } else {
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      fetch('/api/games/blackjack/action', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.state) setState(data.state);
-        })
-        .catch(() => {});
     }
+
+    // Always provide REST fallback
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch('/api/games/blackjack/action', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+      })
+      .catch(() => {});
   };
 
   const handleSendMessage = (text: string) => {
@@ -1183,36 +1204,40 @@ return () => {
                   </button>
                 </div>
 
-                {/* Voting Deal Button ("РАЗДАТЬ") */}
-                <div className="relative z-10 w-full pt-2 border-t border-white/10 flex flex-col items-center gap-1">
+                {/* Minimalist Deal Button ("РАЗДАТЬ") */}
+                <div className="relative z-10 w-full pt-1.5 border-t border-white/10 flex items-center justify-between gap-2 px-0.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full shrink-0",
+                      myPlayer?.isReady ? "bg-emerald-400 animate-pulse" : "bg-white/30"
+                    )} />
+                    <span className="text-[11px] font-roobert text-white/70 truncate">
+                      {readyPlayersCount}/{totalSeatedCount || 1} готовы
+                    </span>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => handleToggleReady(!myPlayer?.isReady)}
                     className={cn(
-                      "relative w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl font-roobert font-bold text-xs sm:text-sm tracking-wide border transition-all duration-150 cursor-pointer touch-manipulation select-none",
+                      "px-3 py-1 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer touch-manipulation select-none flex items-center gap-1 shrink-0 border shadow-sm active:scale-95",
                       myPlayer?.isReady
-                        ? "bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/80 shadow-md"
-                        : "bg-white/[0.07] hover:bg-white/[0.13] border-white/20 text-white/90 active:scale-[0.98] shadow-sm"
+                        ? "bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/80"
+                        : "bg-white/10 hover:bg-white/20 border-white/20 text-white/90"
                     )}
                   >
                     {myPlayer?.isReady ? (
-                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                      <>
+                        <CheckCircle2 size={12} className="text-emerald-400" />
+                        <span>Готов</span>
+                      </>
                     ) : (
-                      <Play size={14} className="text-amber-400 shrink-0 fill-amber-400" />
+                      <>
+                        <Play size={11} className="text-amber-400 fill-amber-400" />
+                        <span>Раздать</span>
+                      </>
                     )}
-
-                    <span>
-                      {myPlayer?.isReady
-                        ? `Готов (${readyPlayersCount}/${totalSeatedCount || 1}) · Ожидание остальных`
-                        : `Раздать (${readyPlayersCount}/${totalSeatedCount || 1})`}
-                    </span>
                   </button>
-
-                  <span className="text-[10px] text-center text-whisper-gray/70 font-roobert">
-                    {totalSeatedCount > 1
-                      ? `Раздача начнется сразу, когда все ${totalSeatedCount} сидящих нажмут «Раздать»`
-                      : 'Нажмите «Раздать», чтобы сразу начать раздачу'}
-                  </span>
                 </div>
               </motion.div>
             )}
@@ -1222,21 +1247,21 @@ return () => {
               <motion.div
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="relative flex flex-col items-center gap-2 bg-[#0c120c] border-2 border-amber-500/60 p-3 sm:p-4 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.98),0_0_30px_rgba(0,0,0,0.9)] overflow-hidden"
+                className="relative flex flex-col items-center gap-2 bg-[#0c120c] border-2 border-amber-500/60 p-2.5 sm:p-4 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.98),0_0_30px_rgba(0,0,0,0.9)] overflow-hidden"
               >
                 {/* Glass top reflection */}
                 <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.14] to-transparent pointer-events-none rounded-t-2xl" />
                 <div className="relative z-10 flex items-center gap-1.5 text-xs font-black text-amber-300 uppercase tracking-wider">
                   <Clock size={14} className="text-amber-400 animate-spin" />
-                  <span>ВАШ ХОД: {clientTurnCountdown}с</span>
+                  <span>ВАШ ХОД: {clientTurnCountdown}с {myPlayer?.splitHand ? `(РУКА ${((myPlayer?.activeHandIndex ?? 0) + 1)}/2)` : ''}</span>
                 </div>
 
-                <div className="relative z-10 flex items-center justify-center gap-2.5 sm:gap-4">
+                <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => handleAction('hit')}
                     disabled={isActionPending}
-                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                    className="py-2 px-3.5 sm:px-5 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
                   >
                     ЕЩЁ (HIT)
                   </button>
@@ -1244,18 +1269,28 @@ return () => {
                     type="button"
                     onClick={() => handleAction('stand')}
                     disabled={isActionPending}
-                    className="py-2.5 px-4 sm:px-6 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                    className="py-2 px-3.5 sm:px-5 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
                   >
                     ХВАТИТ (STAND)
                   </button>
-                  {myPlayer && myPlayer.hand.length === 2 && (
+                  {isDoubleEligible && (
                     <button
                       type="button"
                       onClick={() => handleAction('double')}
                       disabled={isActionPending}
-                      className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
                     >
                       2× УДВОИТЬ
+                    </button>
+                  )}
+                  {isSplitEligible && (
+                    <button
+                      type="button"
+                      onClick={() => handleAction('split')}
+                      disabled={isActionPending}
+                      className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#1d4ed8] to-[#172554] border border-blue-500/50 hover:brightness-110 text-blue-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                    >
+                      ✂️ СПЛИТ
                     </button>
                   )}
                 </div>
@@ -1278,37 +1313,43 @@ return () => {
               </div>
             )}
 
-            {/* OTHER PLAYER'S TURN BADGE WITH COUNTDOWN */}
-            {state.phase === 'player_turn' && !isMyTurn && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-black/80 text-cyan-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-                Ход: Место #{state.currentTurnSeatId} ({clientTurnCountdown}с)
-              </div>
-            )}
-
-            {/* DARK PROMINENT DEALER TURN BADGE */}
-            {state.phase === 'dealer_turn' && (
-              <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/50 bg-black/90 text-white/95 px-6 py-2 text-sm sm:text-base font-black shadow-[0_10px_30px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-                <span className="h-2.5 w-2.5 rounded-full bg-purple-400 animate-ping" />
-                ХОД ДИЛЕРА...
-              </div>
+            {/* SETTLING / RESULT BADGE */}
+            {(state.phase === 'settling' || state.phase === 'finished') && myOutcome && (
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-2xl px-5 py-2 text-sm sm:text-base font-black shadow-2xl backdrop-blur-md border-2',
+                  myOutcome.type === 'win' || myOutcome.type === 'blackjack'
+                    ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200'
+                    : myOutcome.type === 'push'
+                    ? 'bg-amber-950/90 border-amber-400 text-amber-200'
+                    : 'bg-red-950/90 border-red-500 text-red-200'
+                )}
+              >
+                {myOutcome.type === 'win' && <Trophy className="text-amber-300 shrink-0" size={20} />}
+                {myOutcome.type === 'blackjack' && <Sparkles className="text-amber-300 shrink-0" size={20} />}
+                <span>{myOutcome.label}</span>
+                {myOutcome.payout > 0 && (
+                  <span className="text-amber-300 font-bold ml-1">
+                    +{myOutcome.payout.toFixed(2)} {currencyLabel}
+                  </span>
+                )}
+              </motion.div>
             )}
           </div>
 
-          {/* =========================================================================
-              3. 5 PLAYER SPOTS (TRUE CASINO ARC, 3D GLASS DISKS, PERFECT ALIGNMENT):
-                 (Positioned absolute bottom so it NEVER moves when betting box appears)
-             ========================================================================= */}
-          <div className="absolute bottom-3 sm:bottom-6 inset-x-0 z-20 grid grid-cols-5 gap-1 sm:gap-4 w-full items-end px-1 sm:px-6 pointer-events-auto">
-            {SEATS_CONFIG.map((seat) => {
+          {/* TABLE SEATS ROW (BOTTOM ARC) */}
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 max-w-4xl mx-auto px-1 sm:px-2">
+            {SEATS_LAYOUT.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
-              const isTurn = state.phase === 'player_turn' && state.currentTurnSeatId === seatId;
-              const isMe = user?.id && player?.userId === user.id;
-              const outcome = player ? getPlayerOutcome(player) : null;
-
-              const playerCardsData = player?.hand.map(convertCard) || [];
-              const playerHandScore = playerCardsData.length > 0 ? calculateHandValue(playerCardsData).total : 0;
+              const isMe = myPlayer?.seatId === seatId;
+              const isCurrentTurn = state.phase === 'player_turn' && state.currentTurnSeatId === seatId;
+              const playerHandScore = player && player.hand.length > 0
+                ? calculateHandValue(player.hand.map(convertCard)).total
+                : 0;
+              const playerOutcome = player ? getPlayerOutcome(player) : null;
 
               return (
                 <div
@@ -1318,54 +1359,67 @@ return () => {
                     seat.arcOffset
                   )}
                 >
-                  {/* (A) FIXED-HEIGHT CARDS AREA (Prevents entire row from sinking when a player joins) */}
+                  {/* (A) FIXED-HEIGHT CARDS AREA */}
                   <div className="relative h-[88px] sm:h-[108px] w-full flex items-end justify-center mb-1.5 pointer-events-none">
                     {player && player.hand.length > 0 && (
-                      <div className="relative flex justify-center items-center">
-                        {player.hand.map((c, cardIdx) => (
-                          <motion.div
-                            key={`card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
-                            initial={{
-                              opacity: 0,
-                              x: 180,
-                              y: -180,
-                              scale: 0.25,
-                              rotate: -25,
-                            }}
-                            animate={{
-                              opacity: 1,
-                              x: 0,
-                              y: 0,
-                              scale: 1,
-                              rotate: 0,
-                            }}
-                            transition={{
-                              type: 'spring',
-                              damping: 20,
-                              stiffness: 220,
-                              delay: cardIdx * 0.1,
-                            }}
-                            className="relative"
-                            style={{
-                              marginLeft: cardIdx > 0 ? (isMe ? '-22px' : '-16px') : '0px',
-                              zIndex: cardIdx + 1,
-                            }}
-                          >
-                            <CasinoBlackjackCard
-                              card={c}
-                              isFaceDown={c.hidden}
-                              className={
-                                isMe
-                                  ? 'w-[52px] h-[76px] sm:w-[66px] sm:h-[94px]'
-                                  : 'w-[36px] h-[52px] sm:w-[44px] sm:h-[64px]'
-                              }
-                            />
-                          </motion.div>
-                        ))}
-                        {/* Score Indicator */}
-                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-2 py-0.5 text-[9px] sm:text-xs font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
-                          {playerHandScore}
-                        </span>
+                      <div className="relative flex justify-center items-center gap-1">
+                        {/* Main Hand */}
+                        <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.splitHand && (player.activeHandIndex === 0 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80"))}>
+                          {player.hand.map((c, cardIdx) => (
+                            <motion.div
+                              key={`card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
+                              initial={{ opacity: 0, scale: 0.5 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="relative"
+                              style={{
+                                marginLeft: cardIdx > 0 ? (player.splitHand ? '-18px' : (isMe ? '-22px' : '-16px')) : '0px',
+                                zIndex: cardIdx + 1,
+                              }}
+                            >
+                              <CasinoBlackjackCard
+                                card={c}
+                                isFaceDown={c.hidden}
+                                className={
+                                  player.splitHand
+                                    ? 'w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]'
+                                    : isMe
+                                    ? 'w-[52px] h-[76px] sm:w-[66px] sm:h-[94px]'
+                                    : 'w-[36px] h-[52px] sm:w-[44px] sm:h-[64px]'
+                                }
+                              />
+                            </motion.div>
+                          ))}
+                          <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
+                            {calculateHandValue(player.hand.map(convertCard)).total}
+                          </span>
+                        </div>
+
+                        {/* Split Hand */}
+                        {player.splitHand && player.splitHand.length > 0 && (
+                          <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.activeHandIndex === 1 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80")}>
+                            {player.splitHand.map((c, cardIdx) => (
+                              <motion.div
+                                key={`split_card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
+                                initial={{ opacity: 0, scale: 0.5 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="relative"
+                                style={{
+                                  marginLeft: cardIdx > 0 ? '-18px' : '0px',
+                                  zIndex: cardIdx + 1,
+                                }}
+                              >
+                                <CasinoBlackjackCard
+                                  card={c}
+                                  isFaceDown={c.hidden}
+                                  className="w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]"
+                                />
+                              </motion.div>
+                            ))}
+                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
+                              {calculateHandValue(player.splitHand.map(convertCard)).total}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

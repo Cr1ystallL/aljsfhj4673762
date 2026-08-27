@@ -253,7 +253,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           return;
         }
 
-        // Handle Blackjack Turn Action (Hit / Stand / Double)
+        // Handle Blackjack Turn Action (Hit / Stand / Double / Split)
         if (validMessage.type === 'blackjack:action') {
           const { roomId, action, userId: payloadUserId } = validMessage.payload as any;
           const userId = payloadUserId || socket.userId;
@@ -262,6 +262,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
             if (action === 'hit') await engine.hit(userId);
             else if (action === 'stand') await engine.stand(userId);
             else if (action === 'double') await engine.double(userId);
+            else if (action === 'split') await engine.split(userId);
           }
           return;
         }
