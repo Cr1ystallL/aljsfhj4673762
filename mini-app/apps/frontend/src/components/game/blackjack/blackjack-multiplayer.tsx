@@ -1341,16 +1341,18 @@ return () => {
           </div>
 
           {/* TABLE SEATS ROW (BOTTOM ARC) */}
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 max-w-4xl mx-auto px-1 sm:px-2">
+          <div className="absolute bottom-2 sm:bottom-4 inset-x-0 z-20 grid grid-cols-5 gap-1 sm:gap-4 w-full items-end px-1 sm:px-6 pointer-events-auto max-w-5xl mx-auto">
             {SEATS_CONFIG.map((seat) => {
               const seatId = seat.id;
               const player = state.players.find((p) => p.seatId === seatId);
               const isMe = myPlayer?.seatId === seatId;
               const isCurrentTurn = state.phase === 'player_turn' && state.currentTurnSeatId === seatId;
+              const isTurn = isCurrentTurn;
               const playerHandScore = player && player.hand.length > 0
                 ? calculateHandValue(player.hand.map(convertCard)).total
                 : 0;
               const playerOutcome = player ? getPlayerOutcome(player) : null;
+              const outcome = playerOutcome?.type;
 
               return (
                 <div
