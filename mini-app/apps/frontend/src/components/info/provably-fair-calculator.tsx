@@ -40,67 +40,87 @@ function hashToFloat(hash: string): number {
   return int / Math.pow(2, 52);
 }
 
-// Deterministic mines position generator matching backend
-async function generateMinesPositions(serverSeed: string, clientSeed: string, nonce: number, mineCount = 3): Promise<number[]> {
-  const hash = await hmacSha256(serverSeed, `${clientSeed}:${nonce}`);
-  const totalCells = 25;
-  const cells: number[] = Array.from({ length: totalCells }, (_, i) => i);
-  
-  // Stretch byte stream
-  let streamHex = hash;
-  let counter = 0;
-  
-  for (let i = 0; i < mineCount; i++) {
-    if (streamHex.length < 8) {
-      streamHex += await sha256Hex(`${hash}:${counter++}`);
-    }
-    const chunk = parseInt(streamHex.slice(0, 8), 16);
-    streamHex = streamHex.slice(8);
-    const remaining = totalCells - i;
-    const j = i + (chunk % remaining);
-    const tmp = cells[i];
-    cells[i] = cells[j];
-    cells[j] = tmp;
-  }
-  return cells.slice(0, mineCount).sort((a, b) => a - b);
+interface BJCardResult {
+  rank: string;
+  suit: 'hearts' | 'diamonds' | 'clubs' | 'spades';
+  symbol: string;
+  isRed: boolean;
 }
 
-// Deterministic blackjack top cards generator matching backend 6-deck shoe
-async function generateBlackjackTopCards(serverSeed: string, clientSeed: string, nonce: number, count = 8): Promise<string[]> {
-  const suits = [
-    { name: 'hearts', symbol: '♥' },
-    { name: 'diamonds', symbol: '♦' },
-    { name: 'clubs', symbol: '♣' },
-    { name: 'spades', symbol: '♠' },
-  ];
+// Deterministic blackjack shoe generator 100% matching backend 6-deck shoe
+async function generateBlackjackShoe(
+  serverSeed: string,
+  clientSeed: string,
+  nonce: number,
+  decksCount = 6
+): Promise<BJCardResult[]> {
+  const suits: Array<'hearts' | 'diamonds' | 'clubs' | 'spades'> = ['hearts', 'diamonds', 'clubs', 'spades'];
   const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-  const deck: Array<{ rank: string; symbol: string }> = [];
+  const deck: Array<{ rank: string; suit: 'hearts' | 'diamonds' | 'clubs' | 'spades' }> = [];
 
-  for (let d = 0; d < 6; d++) {
+  for (let d = 0; d < decksCount; d++) {
     for (const suit of suits) {
       for (const rank of ranks) {
-        deck.push({ rank, symbol: suit.symbol });
+        deck.push({ rank, suit });
       }
     }
   }
 
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(serverSeed);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
   const message = `${clientSeed}:${nonce}`;
-  let streamHex = await hmacSha256(serverSeed, message);
   let counter = 0;
+  let byteBuffer = new Uint8Array(0);
+
+  const refill = async () => {
+    const msgData = encoder.encode(`${message}:${counter++}`);
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+    const newBytes = new Uint8Array(signature);
+    const merged = new Uint8Array(byteBuffer.length + newBytes.length);
+    merged.set(byteBuffer, 0);
+    merged.set(newBytes, byteBuffer.length);
+    byteBuffer = merged;
+  };
+
+  const getUint32 = async () => {
+    if (byteBuffer.length < 4) {
+      await refill();
+    }
+    const view = new DataView(byteBuffer.buffer, byteBuffer.byteOffset, 4);
+    const val = view.getUint32(0, false);
+    byteBuffer = byteBuffer.subarray(4);
+    return val;
+  };
 
   for (let i = deck.length - 1; i > 0; i--) {
-    if (streamHex.length < 8) {
-      streamHex += await hmacSha256(serverSeed, `${message}:${counter++}`);
-    }
-    const chunk = parseInt(streamHex.slice(0, 8), 16);
-    streamHex = streamHex.slice(8);
-    const j = chunk % (i + 1);
+    const rand = await getUint32();
+    const j = rand % (i + 1);
     const tmp = deck[i];
     deck[i] = deck[j];
     deck[j] = tmp;
   }
 
-  return deck.slice(deck.length - count).reverse().map((c, i) => `${i + 1}. [${c.rank}${c.symbol}]`);
+  // Cards are popped from the deck in the game
+  const drawnInOrder: BJCardResult[] = [];
+  while (deck.length > 0) {
+    const c = deck.pop()!;
+    drawnInOrder.push({
+      rank: c.rank,
+      suit: c.suit,
+      symbol: c.suit === 'hearts' ? '♥' : c.suit === 'diamonds' ? '♦' : c.suit === 'clubs' ? '♣' : '♠',
+      isRed: c.suit === 'hearts' || c.suit === 'diamonds',
+    });
+  }
+
+  return drawnInOrder;
 }
 
 export function ProvablyFairCalculator() {
@@ -188,22 +208,31 @@ export function ProvablyFairCalculator() {
           break;
         }
         case 'blackjack': {
-          const topCards = await generateBlackjackTopCards(cleanServerSeed, cleanClientSeed, cleanNonce, 8);
+          const drawnCards = await generateBlackjackShoe(cleanServerSeed, cleanClientSeed, cleanNonce, 6);
+          const preview = drawnCards.slice(0, 16);
           finalValue = (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <span className="text-xs text-amber-300 font-semibold block">
-                Первые 8 карт в колоде раунда:
+                Последовательность раздачи карт из башмака (первые 16 карт):
               </span>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {topCards.map((card, idx) => (
-                  <span
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 pt-1">
+                {preview.map((card, idx) => (
+                  <div
                     key={idx}
-                    className="px-2 py-0.5 rounded-lg bg-black/60 border border-white/10 text-white font-mono text-xs font-bold"
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl bg-black/70 border ${
+                      card.isRed ? 'text-red-400 border-red-500/30' : 'text-slate-200 border-white/20'
+                    }`}
                   >
-                    {card}
-                  </span>
+                    <span className="text-[9px] text-white/40 font-mono">#{idx + 1}</span>
+                    <span className="text-sm font-black font-mono mt-0.5">
+                      {card.rank}{card.symbol}
+                    </span>
+                  </div>
                 ))}
               </div>
+              <p className="text-[10px] text-white/50 pt-1 leading-normal">
+                Карты сдаются строго по очереди: #1 игроку 1, #2 игроку 2, далее дилеру, 2-й круг и все доборы.
+              </p>
             </div>
           );
           break;
