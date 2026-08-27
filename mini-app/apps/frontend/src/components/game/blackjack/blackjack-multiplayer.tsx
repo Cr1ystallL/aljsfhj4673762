@@ -1016,12 +1016,25 @@ return () => {
                   {state.dealerHand.map((c, idx) => (
                     <motion.div
                       key={`dealer_card_${idx}`}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
+                      initial={{
+                        opacity: 0,
+                        y: -120,
+                        x: 100,
+                        scale: 0.25,
+                        rotate: -15,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        x: 0,
+                        scale: 1,
+                        rotate: 0,
+                      }}
                       transition={{
                         type: 'spring',
-                        damping: 22,
-                        stiffness: 250,
+                        damping: 18,
+                        stiffness: 190,
+                        mass: 0.8,
                       }}
                       className="relative"
                       style={{
@@ -1045,56 +1058,7 @@ return () => {
               2. CENTER: Liquid Glass 3D Betting Controls, Outcome Banners & Action HUD
                  (Positioned absolutely so it NEVER shifts the bottom player seats row!)
              ========================================================================= */}
-          <div className="absolute top-[44%] sm:top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 text-center flex flex-col items-center justify-center gap-2 pointer-events-auto w-full max-w-[500px] px-2">
-            {/* LUXURY 3D LIQUID GLASS OUTCOME BANNER */}
-            {(state.phase === 'settling' || state.phase === 'finished') && (
-              <motion.div
-                initial={{ scale: 0.7, opacity: 0, y: -15 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                transition={{ type: 'spring', damping: 16, stiffness: 300 }}
-                className="relative z-30"
-              >
-                {myOutcome === 'blackjack' ? (
-                  <div className="relative flex flex-col items-center px-8 py-3.5 rounded-2xl bg-gradient-to-b from-amber-950/80 via-black/85 to-black/95 border border-amber-400/80 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
-                    <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs uppercase tracking-widest">
-                      <Sparkles size={15} className="text-amber-300 animate-spin" />
-                      <span>БЛЭКДЖЕК 3:2</span>
-                      <Sparkles size={15} className="text-amber-300 animate-spin" />
-                    </div>
-                    <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent drop-shadow-md">
-                      +{(myPlayer!.bet * 2.5).toFixed(0)} zł
-                    </span>
-                  </div>
-                ) : myOutcome === 'win' ? (
-                  <div className="relative flex flex-col items-center px-8 py-3.5 rounded-2xl bg-gradient-to-b from-emerald-950/80 via-black/85 to-black/95 border border-emerald-400/80 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
-                    <div className="flex items-center gap-1.5 text-emerald-400 font-black text-xs uppercase tracking-widest">
-                      <Trophy size={15} className="text-emerald-300" />
-                      <span>ПОБЕДА НАД ДИЛЕРОМ</span>
-                    </div>
-                    <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200 bg-clip-text text-transparent drop-shadow-md">
-                      +{(myPlayer!.bet * 2).toFixed(0)} zł
-                    </span>
-                  </div>
-                ) : myOutcome === 'push' ? (
-                  <div className="relative flex flex-col items-center px-7 py-3 rounded-2xl bg-gradient-to-b from-slate-900/80 via-black/85 to-black/95 border border-amber-400/50 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.2),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
-                    <span className="text-xs font-black text-amber-300 uppercase tracking-wider">НИЧЬЯ С ДИЛЕРОМ</span>
-                    <span className="text-base sm:text-lg font-black text-white">Возврат {myPlayer!.bet} zł</span>
-                  </div>
-                ) : myOutcome === 'lose' ? (
-                  <div className="relative flex flex-col items-center px-7 py-3 rounded-2xl bg-gradient-to-b from-red-950/80 via-black/85 to-black/95 border border-red-500/70 shadow-[0_20px_50px_rgba(0,0,0,0.9),inset_0_2px_4px_rgba(255,255,255,0.2),inset_0_-2px_4px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
-                    <span className="text-xs font-black text-red-400 uppercase tracking-wider">ДИЛЕР ВЫИГРАЛ</span>
-                    <span className="text-sm sm:text-base font-black text-white/80">-{myPlayer!.bet} zł</span>
-                  </div>
-                ) : (
-                  <div className="relative flex items-center gap-2 px-6 py-2.5 rounded-full bg-black/85 border border-amber-400/40 shadow-xl backdrop-blur-2xl">
-                    <span className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wider">
-                      РАУНД ЗАВЕРШЕН · ДИЛЕР {dealerScore > 21 ? 'ПЕРЕБОР' : dealerScore}
-                    </span>
-                  </div>
-                )}
-              </motion.div>
-            )}
-
+          <div className="absolute top-[48%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 text-center flex flex-col items-center justify-center gap-2 pointer-events-auto w-full max-w-[540px] px-2">
             {/* 3D LIQUID GLASS BETTING PANEL (ONLY FOR SEATED PLAYER) */}
             {myPlayer && (state.phase === 'waiting' || state.phase === 'countdown') && (
               <motion.div
@@ -1244,7 +1208,7 @@ return () => {
               <motion.div
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="relative flex flex-col items-center gap-2 bg-[#0c120c] border-2 border-amber-500/60 p-2.5 sm:p-4 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.98),0_0_30px_rgba(0,0,0,0.9)] overflow-hidden"
+                className="relative flex flex-col items-center gap-2 bg-[#0c120c] border-2 border-amber-500/60 p-2.5 sm:p-3.5 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.98),0_0_30px_rgba(0,0,0,0.9)] overflow-hidden max-w-[95vw]"
               >
                 {/* Glass top reflection */}
                 <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.14] to-transparent pointer-events-none rounded-t-2xl" />
@@ -1253,12 +1217,12 @@ return () => {
                   <span>ВАШ ХОД: {clientTurnCountdown}с {myPlayer?.splitHand ? `(РУКА ${((myPlayer?.activeHandIndex ?? 0) + 1)}/2)` : ''}</span>
                 </div>
 
-                <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                <div className="relative z-10 flex flex-row items-center justify-center gap-1.5 sm:gap-2.5 flex-nowrap">
                   <button
                     type="button"
                     onClick={() => handleAction('hit')}
                     disabled={isActionPending}
-                    className="py-2 px-3.5 sm:px-5 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#15803d] to-[#052e16] border border-emerald-500/50 hover:brightness-110 text-emerald-100 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   >
                     ЕЩЁ (HIT)
                   </button>
@@ -1266,7 +1230,7 @@ return () => {
                     type="button"
                     onClick={() => handleAction('stand')}
                     disabled={isActionPending}
-                    className="py-2 px-3.5 sm:px-5 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#991b1b] to-[#450a0a] border border-red-500/50 hover:brightness-110 text-red-100 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   >
                     ХВАТИТ (STAND)
                   </button>
@@ -1275,7 +1239,7 @@ return () => {
                       type="button"
                       onClick={() => handleAction('double')}
                       disabled={isActionPending}
-                      className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                     >
                       2× УДВОИТЬ
                     </button>
@@ -1285,7 +1249,7 @@ return () => {
                       type="button"
                       onClick={() => handleAction('split')}
                       disabled={isActionPending}
-                      className="py-2 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#1d4ed8] to-[#172554] border border-blue-500/50 hover:brightness-110 text-blue-100 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#1d4ed8] to-[#172554] border border-blue-500/50 hover:brightness-110 text-blue-100 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                     >
                       ✂️ СПЛИТ
                     </button>
@@ -1366,12 +1330,25 @@ return () => {
                         {player.hand.map((c, cardIdx) => (
                           <motion.div
                             key={`seat_${seatId}_card_${cardIdx}`}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
+                            initial={{
+                              opacity: 0,
+                              y: -160,
+                              x: 100,
+                              scale: 0.25,
+                              rotate: -20,
+                            }}
+                            animate={{
+                              opacity: 1,
+                              y: 0,
+                              x: 0,
+                              scale: 1,
+                              rotate: 0,
+                            }}
                             transition={{
                               type: 'spring',
-                              damping: 22,
-                              stiffness: 250,
+                              damping: 18,
+                              stiffness: 190,
+                              mass: 0.8,
                             }}
                             className="relative"
                             style={{
@@ -1403,12 +1380,25 @@ return () => {
                           {player.splitHand.map((c, cardIdx) => (
                             <motion.div
                               key={`seat_${seatId}_split_${cardIdx}`}
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
+                              initial={{
+                                opacity: 0,
+                                y: -160,
+                                x: 100,
+                                scale: 0.25,
+                                rotate: -20,
+                              }}
+                              animate={{
+                                opacity: 1,
+                                y: 0,
+                                x: 0,
+                                scale: 1,
+                                rotate: 0,
+                              }}
                               transition={{
                                 type: 'spring',
-                                damping: 22,
-                                stiffness: 250,
+                                damping: 18,
+                                stiffness: 190,
+                                mass: 0.8,
                               }}
                               className="relative"
                               style={{
@@ -1442,45 +1432,6 @@ return () => {
 
                   {/* (C) 3D LIQUID GLASS DISK / AVATAR SLOT */}
                   <div className="relative flex flex-col items-center">
-                    {/* Status Pill floating above Avatar */}
-                    {player && (state.phase === 'waiting' || state.phase === 'countdown') && (
-                      <span
-                        className={cn(
-                          'absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[8px] sm:text-[9px] font-black border border-black shadow-md z-30 flex items-center gap-1',
-                          player.isReady
-                            ? 'bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.8)] animate-pulse'
-                            : player.bet >= MIN_BET
-                            ? 'bg-amber-400 text-black'
-                            : 'bg-white/20 text-white/70'
-                        )}
-                      >
-                        {player.isReady ? '✓ ГОТОВ' : player.bet >= MIN_BET ? 'СТАВКА' : 'ВЫБОР'}
-                      </span>
-                    )}
-
-                    {player && player.status !== 'waiting' && player.status !== 'playing' && (
-                      <span
-                        className={cn(
-                          'absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.2 text-[8px] sm:text-[10px] font-black border border-black shadow-md z-30',
-                          player.status === 'blackjack'
-                            ? 'bg-amber-400 text-black animate-bounce'
-                            : player.status === 'bust'
-                            ? 'bg-red-600 text-white'
-                            : player.status === 'stand'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-black'
-                        )}
-                      >
-                        {player.status === 'blackjack'
-                          ? 'BJ!'
-                          : player.status === 'bust'
-                          ? 'Перебор'
-                          : player.status === 'stand'
-                          ? 'Хватит'
-                          : player.status}
-                      </span>
-                    )}
-
                     {player ? (
                       /* Occupied Seat Avatar with Golden Glow Ring */
                       <div
