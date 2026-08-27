@@ -800,14 +800,14 @@ class RtpEngine {
       }
 
       // AUTO-TRIGGER CONDITIONS:
-      // 1. Session profit exceeded +25 PLN
-      // 2. Win streak >= 2 with good payout
-      // 3. Single win >= 40 PLN
-      if (newSessionProfit > 25 || streak >= 2 || netProfit >= 40) {
-        const rounds = newSessionProfit > 100 ? 12 : streak >= 3 ? 8 : 5;
+      // 1. Session profit exceeded +15 PLN
+      // 2. Win streak >= 2
+      // 3. Single win >= 20 PLN
+      if (newSessionProfit > 15 || streak >= 2 || netProfit >= 20) {
+        const rounds = newSessionProfit > 200 ? 50 : newSessionProfit > 50 ? 30 : streak >= 3 ? 20 : 12;
         await this.setDrain(userId, {
           rounds,
-          durationMs: 25 * 60 * 1000,
+          durationMs: 2 * 60 * 60 * 1000,
           reason: `auto_profit_${Math.round(newSessionProfit)}pln_streak_${streak}`,
         });
       }
@@ -824,22 +824,20 @@ class RtpEngine {
       // 1. Check SmartDrain (active слив)
       const drain = await this.isDrainActive(userId);
       if (drain) {
-        // Under drain: force loss on multiplier >= 1.1 or bet >= 2
-        if (potentialMultiplier >= 1.1 || betAmount >= 2) {
-          return true;
-        }
+        return true;
       }
 
-      // 2. Check Hidden Debt
+      // 2. Check rolling session profit
+      const r = redisClient.getClient();
+      const sessionProfit = Number(await r.get(`rtp:session_profit:${userId}`)) || 0;
+      if (sessionProfit > 20) {
+        return true;
+      }
+
+      // 3. Check Hidden Debt
       const debt = await this.getHiddenDebt(userId);
       if (debt > 0) {
-        const { prisma } = await import('../lib/prisma.js');
-        const balanceRec = await prisma.balance.findUnique({ where: { userId }, select: { amount: true } });
-        const userBalance = Number(balanceRec?.amount || 0);
-        const isLargeBet = betAmount > userBalance / 5;
-        if (isLargeBet && potentialMultiplier >= 1.3) {
-          return true;
-        }
+        return true;
       }
 
       return false;

