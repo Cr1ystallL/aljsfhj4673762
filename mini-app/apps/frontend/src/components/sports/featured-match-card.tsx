@@ -1,8 +1,9 @@
 'use client';
 
-import { Tv, Sparkles, Flame, Trophy } from 'lucide-react';
+import { Tv, Flame, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SportEvent, SelectedBet } from '@/types/sports';
+import type { SportEvent, SelectedBet, OddsTrend } from '@/types/sports';
+import { TeamLogo } from '@/components/ui/team-logo';
 import { useT } from '@/i18n/use-t';
 
 interface FeaturedMatchCardProps {
@@ -82,14 +83,17 @@ export function FeaturedMatchCard({
 
       {/* Match Visual: Team 1 Logo | Time / Status | Team 2 Logo */}
       <div className="relative z-10 grid grid-cols-3 items-center justify-items-center mb-5">
-        {/* Team 1 Crest */}
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-white/20 bg-gradient-to-br from-white/[0.12] to-white/[0.04] p-2 flex items-center justify-center shadow-lg backdrop-blur-md">
-            <div className="w-10 h-10 rounded-xl bg-red-600/30 border border-red-500/40 flex items-center justify-center text-frost-white font-roobert font-extrabold text-[15px] shadow-inner">
-              {event.team1.initials}
-            </div>
-          </div>
-          <span className="font-roobert text-[12px] font-medium text-frost-white text-center line-clamp-1 max-w-[90px]">
+        {/* Team 1 Real Logo & Name */}
+        <div className="flex flex-col items-center gap-2">
+          <TeamLogo
+            src={event.team1.logo}
+            name={event.team1.name}
+            initials={event.team1.initials}
+            color={event.team1.color}
+            size={56}
+            className="border-white/25 bg-black/40 shadow-xl"
+          />
+          <span className="font-roobert text-[12px] font-medium text-frost-white text-center line-clamp-1 max-w-[100px]">
             {event.team1.shortName || event.team1.name}
           </span>
         </div>
@@ -101,7 +105,7 @@ export function FeaturedMatchCard({
               <div className="font-roobert text-[26px] sm:text-[30px] font-black text-frost-white tracking-tight tabular-nums drop-shadow-lg">
                 {event.team1.score ?? 0} : {event.team2.score ?? 0}
               </div>
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-roobert font-bold uppercase bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse">
+              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-roobert font-bold uppercase bg-red-500/20 text-red-300 border border-red-500/30 tabular-nums">
                 {event.liveTime || 'LIVE'}
               </span>
             </div>
@@ -118,53 +122,42 @@ export function FeaturedMatchCard({
           )}
         </div>
 
-        {/* Team 2 Crest */}
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-white/20 bg-gradient-to-br from-white/[0.12] to-white/[0.04] p-2 flex items-center justify-center shadow-lg backdrop-blur-md">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/30 flex items-center justify-center text-frost-white font-roobert font-extrabold text-[15px] shadow-inner">
-              {event.team2.initials}
-            </div>
-          </div>
-          <span className="font-roobert text-[12px] font-medium text-frost-white text-center line-clamp-1 max-w-[90px]">
+        {/* Team 2 Real Logo & Name */}
+        <div className="flex flex-col items-center gap-2">
+          <TeamLogo
+            src={event.team2.logo}
+            name={event.team2.name}
+            initials={event.team2.initials}
+            color={event.team2.color}
+            size={56}
+            className="border-white/25 bg-black/40 shadow-xl"
+          />
+          <span className="font-roobert text-[12px] font-medium text-frost-white text-center line-clamp-1 max-w-[100px]">
             {event.team2.shortName || event.team2.name}
           </span>
         </div>
       </div>
 
-      {/* Bottom Odds Row (1 - X - 2 buttons) */}
+      {/* Bottom Odds Row (1 - X - 2 buttons with live trend indicators) */}
       <div className="relative z-10 grid grid-cols-3 gap-2">
         {/* Outcome 1 */}
-        <button
+        <OddsButton
+          label="1"
+          odds={event.odds.p1}
+          trend={event.odds.p1Trend}
+          isSelected={isP1Selected}
           onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
-          className={cn(
-            'flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:scale-[0.95]',
-            isP1Selected
-              ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_15px_rgba(251,191,36,0.5)]'
-              : 'bg-black/40 hover:bg-black/60 border-white/15 text-frost-white shadow-inner'
-          )}
-        >
-          <span className="font-roobert text-[12px] opacity-75 font-semibold">1</span>
-          <span className="font-roobert text-[14px] font-bold tabular-nums">
-            {event.odds.p1.toFixed(2)}
-          </span>
-        </button>
+        />
 
         {/* Outcome X (Draw) */}
         {event.odds.x !== undefined ? (
-          <button
+          <OddsButton
+            label="X"
+            odds={event.odds.x!}
+            trend={event.odds.xTrend}
+            isSelected={isXSelected}
             onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
-            className={cn(
-              'flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:scale-[0.95]',
-              isXSelected
-                ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_15px_rgba(251,191,36,0.5)]'
-                : 'bg-black/40 hover:bg-black/60 border-white/15 text-frost-white shadow-inner'
-            )}
-          >
-            <span className="font-roobert text-[12px] opacity-75 font-semibold">X</span>
-            <span className="font-roobert text-[14px] font-bold tabular-nums">
-              {event.odds.x.toFixed(2)}
-            </span>
-          </button>
+          />
         ) : (
           <div className="flex items-center justify-center text-whisper-gray/50 text-[12px]">
             —
@@ -172,21 +165,53 @@ export function FeaturedMatchCard({
         )}
 
         {/* Outcome 2 */}
-        <button
+        <OddsButton
+          label="2"
+          odds={event.odds.p2}
+          trend={event.odds.p2Trend}
+          isSelected={isP2Selected}
           onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
-          className={cn(
-            'flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:scale-[0.95]',
-            isP2Selected
-              ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_15px_rgba(251,191,36,0.5)]'
-              : 'bg-black/40 hover:bg-black/60 border-white/15 text-frost-white shadow-inner'
-          )}
-        >
-          <span className="font-roobert text-[12px] opacity-75 font-semibold">2</span>
-          <span className="font-roobert text-[14px] font-bold tabular-nums">
-            {event.odds.p2.toFixed(2)}
-          </span>
-        </button>
+        />
       </div>
     </div>
+  );
+}
+
+function OddsButton({
+  label,
+  odds,
+  trend,
+  isSelected,
+  onClick,
+}: {
+  label: string;
+  odds: number;
+  trend?: OddsTrend;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'relative flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:scale-[0.95] overflow-hidden',
+        isSelected
+          ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_15px_rgba(251,191,36,0.5)]'
+          : trend === 'up'
+          ? 'bg-emerald-950/40 border-emerald-400/40 text-frost-white shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+          : trend === 'down'
+          ? 'bg-red-950/40 border-red-400/40 text-frost-white shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+          : 'bg-black/40 hover:bg-black/60 border-white/15 text-frost-white shadow-inner'
+      )}
+    >
+      <span className="font-roobert text-[12px] opacity-75 font-semibold">{label}</span>
+      <div className="flex items-center gap-1">
+        {trend === 'up' && <ArrowUp size={11} className="text-emerald-400 animate-bounce" />}
+        {trend === 'down' && <ArrowDown size={11} className="text-red-400 animate-bounce" />}
+        <span className="font-roobert text-[14px] font-bold tabular-nums">
+          {odds.toFixed(2)}
+        </span>
+      </div>
+    </button>
   );
 }

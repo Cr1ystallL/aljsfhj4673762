@@ -11,7 +11,7 @@ import { SportsCategoryNav } from '@/components/sports/sports-category-nav';
 import { FeaturedMatchCard } from '@/components/sports/featured-match-card';
 import { SportEventRow } from '@/components/sports/sport-event-row';
 import { SportsBetslipDrawer } from '@/components/sports/sports-betslip-drawer';
-import { sportsService } from '@/services/sports.service';
+import { useLiveSports } from '@/hooks/use-live-sports';
 import type { SportCategoryKey, SportEvent, SelectedBet } from '@/types/sports';
 import { useT } from '@/i18n/use-t';
 import { cn } from '@/lib/utils';
@@ -33,18 +33,22 @@ export default function SportPage() {
     }
   }, [isAdmin, router]);
 
-  const categoryCounts = useMemo(() => sportsService.getCategoryCounts(), []);
-  const liveCount = useMemo(() => sportsService.getLiveCount(), []);
-  const featuredMatch = useMemo(() => sportsService.getFeaturedMatch(), []);
+  // Real-time live sports engine hook
+  const {
+    getFilteredEvents,
+    featuredMatch,
+    liveCount,
+    categoryCounts,
+  } = useLiveSports();
 
   // Filtered events list
   const events = useMemo(() => {
-    return sportsService.getEvents({
+    return getFilteredEvents({
       category: selectedCategory,
       mode,
       searchQuery,
     });
-  }, [selectedCategory, mode, searchQuery]);
+  }, [getFilteredEvents, selectedCategory, mode, searchQuery]);
 
   // Group events by league
   const groupedByLeague = useMemo(() => {

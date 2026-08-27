@@ -1,7 +1,7 @@
-import type { SportCategoryKey, SportEvent, SelectedBet } from '@/types/sports';
+import type { SportCategoryKey, SportEvent } from '@/types/sports';
 
-const MOCK_EVENTS: SportEvent[] = [
-  // FEATURED: Match of the day (Winline Style)
+export const INITIAL_SPORTS_EVENTS: SportEvent[] = [
+  // FEATURED: Match of the day (River Plate vs Santa Fe)
   {
     id: 'river-santafe',
     sport: 'football',
@@ -12,14 +12,18 @@ const MOCK_EVENTS: SportEvent[] = [
       shortName: 'Ривер Плейт',
       initials: 'РП',
       color: '#DC2626',
-      logo: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=80&auto=format&fit=crop&q=80',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_C_A_River_Plate.svg/200px-Escudo_del_C_A_River_Plate.svg.png',
+      attackStrength: 1.9,
+      defenseStrength: 0.85,
     },
     team2: {
       name: 'Индепендьенте Санта-Фе',
       shortName: 'Санта-Фе',
       initials: 'СФ',
       color: '#EF4444',
-      logo: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=80&auto=format&fit=crop&q=80',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Escudo_de_Independiente_Santa_Fe.svg/200px-Escudo_de_Independiente_Santa_Fe.svg.png',
+      attackStrength: 0.9,
+      defenseStrength: 1.35,
     },
     startTime: '2026-08-27T00:30:00.000Z',
     displayTime: 'Сегодня 03:30',
@@ -37,7 +41,7 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // LIVE Football (from screenshots)
+  // LIVE Football: Aldosivi vs Independiente Rivadavia (at 71st min live!)
   {
     id: 'aldosivi-independiente',
     sport: 'football',
@@ -45,32 +49,90 @@ const MOCK_EVENTS: SportEvent[] = [
     leagueCountry: 'Аргентина',
     team1: {
       name: 'Альдосиви',
+      shortName: 'Альдосиви',
       initials: 'АЛД',
+      color: '#15803D',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png',
       score: 0,
       yellowCards: 2,
+      attackStrength: 0.9,
+      defenseStrength: 1.2,
     },
     team2: {
       name: 'Индепендьенте Ривадавия',
+      shortName: 'Индепендьенте',
       initials: 'ИНД',
+      color: '#1D4ED8',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Escudo_de_Independiente_Rivadavia.svg/200px-Escudo_de_Independiente_Rivadavia.svg.png',
       score: 1,
       yellowCards: 1,
+      attackStrength: 1.2,
+      defenseStrength: 0.95,
     },
     startTime: '2026-08-27T01:00:00.000Z',
-    displayTime: '2T 51\'',
+    displayTime: '2T 71:15',
     status: 'live',
     isLive: true,
-    liveTime: '2T 51\'',
+    liveMinute: 71,
+    liveSecond: 15,
+    livePeriod: '2T',
+    liveTime: '2T 71:15',
     odds: {
-      p1: 14.0,
+      p1: 15.0,
       x: 4.80,
-      p2: 1.27,
+      p2: 1.23,
       total: { threshold: 1.5, over: 2.10, under: 1.65 },
     },
     marketsCount: 50,
     hasStream: true,
   },
 
-  // LIVE Tennis
+  // LIVE Football: America de Cali vs Junior Barranquilla (Live 4:33 from Fonbet screen)
+  {
+    id: 'america-junior',
+    sport: 'football',
+    league: 'Колумбия. Серия А',
+    leagueCountry: 'Колумбия',
+    team1: {
+      name: 'Америка де Кали',
+      shortName: 'Америка Кали',
+      initials: 'АМК',
+      color: '#DC2626',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Escudo_de_Am%C3%A9rica_de_Cali.svg/200px-Escudo_de_Am%C3%A9rica_de_Cali.svg.png',
+      score: 0,
+      yellowCards: 0,
+      attackStrength: 1.3,
+      defenseStrength: 1.0,
+    },
+    team2: {
+      name: 'Хуниор Барранкилья',
+      shortName: 'Хуниор',
+      initials: 'ХУН',
+      color: '#B91C1C',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Escudo_del_Club_Deportivo_Popular_Junior_F.C..svg/200px-Escudo_del_Club_Deportivo_Popular_Junior_F.C..svg.png',
+      score: 1,
+      yellowCards: 0,
+      attackStrength: 1.25,
+      defenseStrength: 1.05,
+    },
+    startTime: '2026-08-27T01:50:00.000Z',
+    displayTime: '1T 04:33',
+    status: 'live',
+    isLive: true,
+    liveMinute: 4,
+    liveSecond: 33,
+    livePeriod: '1T',
+    liveTime: '1T 04:33',
+    odds: {
+      p1: 2.50,
+      x: 3.45,
+      p2: 2.65,
+    },
+    marketsCount: 78,
+    hasStream: true,
+  },
+
+  // LIVE Tennis: Djokovic vs Alcaraz
   {
     id: 'djokovic-alcaraz',
     sport: 'tennis',
@@ -79,6 +141,8 @@ const MOCK_EVENTS: SportEvent[] = [
       name: 'Новак Джокович',
       shortName: 'Джокович Н.',
       initials: 'НД',
+      color: '#2563EB',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Novak_Djokovic_Queen%27s_Club_2018.jpg/200px-Novak_Djokovic_Queen%27s_Club_2018.jpg',
       score: 1,
       subScores: [6, 4, 3],
     },
@@ -86,6 +150,8 @@ const MOCK_EVENTS: SportEvent[] = [
       name: 'Карлос Алькарас',
       shortName: 'Алькарас К.',
       initials: 'КА',
+      color: '#EA580C',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Carlos_Alcaraz_%28ESP%29_2023.jpg/200px-Carlos_Alcaraz_%28ESP%29_2023.jpg',
       score: 1,
       subScores: [4, 6, 2],
     },
@@ -93,6 +159,8 @@ const MOCK_EVENTS: SportEvent[] = [
     displayTime: '3-й сет 3:2',
     status: 'live',
     isLive: true,
+    liveMinute: 114,
+    livePeriod: '3-й сет',
     liveTime: '3-й сет 3:2',
     odds: {
       p1: 1.92,
@@ -102,26 +170,34 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // LIVE Basketball (from Winline screenshot)
+  // LIVE Basketball: Connecticut Sun vs Golden State
   {
     id: 'connecticut-goldenstate',
     sport: 'basketball',
     league: 'WNBA. Регулярный чемпионат',
     team1: {
-      name: 'Коннектикут (ж)',
+      name: 'Коннектикут Сан (ж)',
+      shortName: 'Коннектикут',
       initials: 'КОН',
-      score: 9,
+      color: '#D97706',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/59/Connecticut_Sun_logo.svg/200px-Connecticut_Sun_logo.svg.png',
+      score: 14,
     },
     team2: {
       name: 'Голден Стэйт (ж)',
+      shortName: 'Голден Стэйт',
       initials: 'ГС',
-      score: 20,
+      color: '#7C3AED',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/0/04/Golden_State_Valkyries_logo.svg/200px-Golden_State_Valkyries_logo.svg.png',
+      score: 26,
     },
     startTime: '2026-08-27T01:30:00.000Z',
-    displayTime: '1Ч 0\'',
+    displayTime: '1Ч 06:40',
     status: 'live',
     isLive: true,
-    liveTime: '1Ч 0\'',
+    liveMinute: 6,
+    livePeriod: '1Ч',
+    liveTime: '1Ч 06:40',
     odds: {
       p1: 8.20,
       p2: 1.08,
@@ -130,7 +206,7 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // LIVE Esports
+  // LIVE Esports: NAVI vs FaZe
   {
     id: 'navi-faze',
     sport: 'cybersport',
@@ -139,21 +215,27 @@ const MOCK_EVENTS: SportEvent[] = [
       name: 'Natus Vincere',
       shortName: 'NAVI',
       initials: 'NAV',
+      color: '#EAB308',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/a/ac/Natus_Vincere_logo.svg/200px-Natus_Vincere_logo.svg.png',
       score: 1,
-      subScores: [13, 7],
+      subScores: [13, 8],
     },
     team2: {
       name: 'FaZe Clan',
       shortName: 'FaZe',
       initials: 'FAZ',
+      color: '#EF4444',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/FaZe_Clan.svg/200px-FaZe_Clan.svg.png',
       score: 0,
       subScores: [9, 11],
     },
     startTime: '2026-08-27T01:00:00.000Z',
-    displayTime: '2-я карта (7:11)',
+    displayTime: '2-я карта (8:11)',
     status: 'live',
     isLive: true,
-    liveTime: 'Map 2 (7:11)',
+    liveMinute: 48,
+    livePeriod: 'Map 2',
+    liveTime: 'Map 2 (8:11)',
     odds: {
       p1: 1.65,
       p2: 2.25,
@@ -162,7 +244,7 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // PREMATCH Football: North American Leagues Cup
+  // PREMATCH: Deportivo Toluca vs Austin FC
   {
     id: 'toluca-austin',
     sport: 'football',
@@ -171,11 +253,19 @@ const MOCK_EVENTS: SportEvent[] = [
       name: 'Депортиво Толука',
       shortName: 'Толука',
       initials: 'ТОЛ',
+      color: '#DC2626',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Deportivo_Toluca_FC_logo.svg/200px-Deportivo_Toluca_FC_logo.svg.png',
+      attackStrength: 1.6,
+      defenseStrength: 1.0,
     },
     team2: {
-      name: 'Остин',
+      name: 'Остин ФК',
       shortName: 'Остин',
       initials: 'ОСТ',
+      color: '#059669',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7b/Austin_FC_logo.svg/200px-Austin_FC_logo.svg.png',
+      attackStrength: 1.1,
+      defenseStrength: 1.25,
     },
     startTime: '2026-08-27T00:30:00.000Z',
     displayTime: 'Сегодня 03:30',
@@ -190,17 +280,28 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
+  // PREMATCH: America Mexico vs Columbus Crew
   {
     id: 'america-columbus',
     sport: 'football',
     league: 'Кубок Североамериканских лиг. 1/4 финала',
     team1: {
       name: 'Америка Мехико',
+      shortName: 'Америка',
       initials: 'АМЕ',
+      color: '#FBBF24',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Club_Am%C3%A9rica_logo.svg/200px-Club_Am%C3%A9rica_logo.svg.png',
+      attackStrength: 1.55,
+      defenseStrength: 0.95,
     },
     team2: {
       name: 'Коламбус Кру',
+      shortName: 'Коламбус',
       initials: 'КОЛ',
+      color: '#F59E0B',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/59/Columbus_Crew_logo_2021.svg/200px-Columbus_Crew_logo_2021.svg.png',
+      attackStrength: 1.15,
+      defenseStrength: 1.2,
     },
     startTime: '2026-08-27T02:45:00.000Z',
     displayTime: 'Сегодня 05:45',
@@ -215,18 +316,28 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // PREMATCH Football: Brazil Cup
+  // PREMATCH: Palmeiras vs Santos
   {
     id: 'palmeiras-santos',
     sport: 'football',
     league: 'Бразилия. Кубок. 1/4 финала. Первые матчи',
     team1: {
       name: 'Палмейрас СП',
+      shortName: 'Палмейрас',
       initials: 'ПАЛ',
+      color: '#16A34A',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Palmeiras_logo.svg/200px-Palmeiras_logo.svg.png',
+      attackStrength: 1.8,
+      defenseStrength: 0.8,
     },
     team2: {
       name: 'Сантос СП',
+      shortName: 'Сантос',
       initials: 'САН',
+      color: '#4B5563',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Santos_Logo.png/200px-Santos_Logo.png',
+      attackStrength: 0.95,
+      defenseStrength: 1.4,
     },
     startTime: '2026-08-27T00:30:00.000Z',
     displayTime: 'Сегодня 03:30',
@@ -241,17 +352,28 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
+  // PREMATCH: Vasco da Gama vs Vitoria
   {
     id: 'vasco-vitoria',
     sport: 'football',
     league: 'Бразилия. Кубок. 1/4 финала. Первые матчи',
     team1: {
       name: 'Васко да Гама РЖ',
+      shortName: 'Васко да Гама',
       initials: 'ВАС',
+      color: '#111827',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Club_de_Regatas_Vasco_da_Gama.svg/200px-Club_de_Regatas_Vasco_da_Gama.svg.png',
+      attackStrength: 1.6,
+      defenseStrength: 0.9,
     },
     team2: {
       name: 'Витория Салвадор',
+      shortName: 'Витория',
       initials: 'ВИТ',
+      color: '#DC2626',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Esporte_Clube_Vit%C3%B3ria_logo.svg/200px-Esporte_Clube_Vit%C3%B3ria_logo.svg.png',
+      attackStrength: 0.95,
+      defenseStrength: 1.35,
     },
     startTime: '2026-08-27T00:30:00.000Z',
     displayTime: 'Сегодня 03:30',
@@ -266,18 +388,28 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // PREMATCH Football: UEFA Champions League
+  // PREMATCH: Real Madrid vs Man City
   {
     id: 'real-mancity',
     sport: 'football',
     league: 'Лига Чемпионов УЕФА. 1/8 финала',
     team1: {
       name: 'Реал Мадрид',
+      shortName: 'Реал Мадрид',
       initials: 'РМА',
+      color: '#FACC15',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/200px-Real_Madrid_CF.svg.png',
+      attackStrength: 2.1,
+      defenseStrength: 0.9,
     },
     team2: {
       name: 'Манчестер Сити',
+      shortName: 'Ман Сити',
       initials: 'МСИ',
+      color: '#38BDF8',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/200px-Manchester_City_FC_badge.svg.png',
+      attackStrength: 2.05,
+      defenseStrength: 0.92,
     },
     startTime: '2026-08-27T19:00:00.000Z',
     displayTime: 'Завтра 22:00',
@@ -292,18 +424,24 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
-  // Tennis matches from screenshot
+  // Tennis matches
   {
     id: 'udvardy-mertens',
     sport: 'tennis',
     league: 'WTA 500. Монтеррей',
     team1: {
       name: 'Удварди П.',
+      shortName: 'Удварди П.',
       initials: 'УДВ',
+      color: '#10B981',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Panna_Udvardy_2022.jpg/200px-Panna_Udvardy_2022.jpg',
     },
     team2: {
       name: 'Мертенс Э.',
+      shortName: 'Мертенс Э.',
       initials: 'МЕР',
+      color: '#6366F1',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Elise_Mertens_2019.jpg/200px-Elise_Mertens_2019.jpg',
     },
     startTime: '2026-08-27T00:30:00.000Z',
     displayTime: 'Сегодня 02:30',
@@ -317,91 +455,55 @@ const MOCK_EVENTS: SportEvent[] = [
     hasStream: true,
   },
 
+  // Basketball: Boston Celtics vs LA Lakers
   {
-    id: 'chwalinska-parks',
-    sport: 'tennis',
-    league: 'WTA 500. Монтеррей',
-    team1: {
-      name: 'Хвалинска М.',
-      initials: 'ХВА',
-    },
-    team2: {
-      name: 'Паркс А.',
-      initials: 'ПАР',
-    },
-    startTime: '2026-08-27T01:30:00.000Z',
-    displayTime: 'Сегодня 04:30',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.56,
-      p2: 2.42,
-    },
-    marketsCount: 54,
-    hasStream: true,
-  },
-
-  {
-    id: 'alexandrova-tauson',
-    sport: 'tennis',
-    league: 'US Open. Женщины. 1/16 финала',
-    team1: {
-      name: 'Александрова Е.',
-      initials: 'АЛЕ',
-    },
-    team2: {
-      name: 'Таусон К.',
-      initials: 'ТАУ',
-    },
-    startTime: '2026-08-27T14:00:00.000Z',
-    displayTime: 'Сегодня 17:00',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.99,
-      p2: 1.81,
-    },
-    marketsCount: 62,
-    hasStream: true,
-  },
-
-  // Basketball
-  {
-    id: 'seattle-toronto',
+    id: 'celtics-lakers',
     sport: 'basketball',
-    league: 'WNBA. Регулярный чемпионат',
+    league: 'NBA. Регулярный чемпионат',
     team1: {
-      name: 'Сиэтл (ж)',
-      initials: 'СИЭ',
+      name: 'Бостон Селтикс',
+      shortName: 'Бостон',
+      initials: 'БОС',
+      color: '#15803D',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/8/8f/Boston_Celtics.svg/200px-Boston_Celtics.svg.png',
     },
     team2: {
-      name: 'Торонто Темпо (ж)',
-      initials: 'ТОР',
+      name: 'Лос-Анджелес Лейкерс',
+      shortName: 'Лейкерс',
+      initials: 'ЛАЛ',
+      color: '#7E22CE',
+      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Los_Angeles_Lakers_logo.svg/200px-Los_Angeles_Lakers_logo.svg.png',
     },
-    startTime: '2026-08-27T02:00:00.000Z',
-    displayTime: 'Сегодня 05:00',
+    startTime: '2026-08-27T04:00:00.000Z',
+    displayTime: 'Сегодня 07:00',
     status: 'prematch',
     isLive: false,
     odds: {
-      p1: 1.39,
-      p2: 3.00,
+      p1: 1.45,
+      p2: 2.80,
     },
-    marketsCount: 106,
+    marketsCount: 135,
     hasStream: true,
   },
 
-  // Hockey
+  // Hockey: Oilers vs Panthers
   {
     id: 'oilers-panthers',
     sport: 'hockey',
-    league: 'NHL. Кубок Стэнли',
+    league: 'NHL. Финал Кубка Стэнли',
     team1: {
       name: 'Эдмонтон Ойлерз',
+      shortName: 'Эдмонтон',
       initials: 'ЭДМ',
+      color: '#EA580C',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4d/Logo_Edmonton_Oilers.svg/200px-Logo_Edmonton_Oilers.svg.png',
     },
     team2: {
       name: 'Флорида Пантерз',
+      shortName: 'Флорида',
       initials: 'ФЛО',
+      color: '#DC2626',
+      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Florida_Panthers_2016_logo.svg/200px-Florida_Panthers_2016_logo.svg.png',
     },
     startTime: '2026-08-27T03:00:00.000Z',
     displayTime: 'Сегодня 06:00',
@@ -424,61 +526,7 @@ export interface SportsFilterOptions {
 }
 
 export const sportsService = {
-  getEvents: (filters: SportsFilterOptions): SportEvent[] => {
-    let list = [...MOCK_EVENTS];
-
-    // Filter by mode (live / prematch)
-    if (filters.mode === 'live') {
-      list = list.filter((e) => e.isLive);
-    } else if (filters.mode === 'prematch') {
-      list = list.filter((e) => !e.isLive);
-    }
-
-    // Filter by category
-    if (filters.category !== 'all' && filters.category !== 'top') {
-      list = list.filter((e) => e.sport === filters.category);
-    }
-
-    // Filter by search query
-    if (filters.searchQuery?.trim()) {
-      const q = filters.searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (e) =>
-          e.team1.name.toLowerCase().includes(q) ||
-          e.team2.name.toLowerCase().includes(q) ||
-          e.league.toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  },
-
-  getFeaturedMatch: (): SportEvent | undefined => {
-    return MOCK_EVENTS.find((e) => e.isFeatured) || MOCK_EVENTS[0];
-  },
-
-  getLiveCount: (): number => {
-    return MOCK_EVENTS.filter((e) => e.isLive).length;
-  },
-
-  getCategoryCounts: (): Record<SportCategoryKey, number> => {
-    const counts: Record<SportCategoryKey, number> = {
-      all: MOCK_EVENTS.length,
-      top: MOCK_EVENTS.length,
-      football: 0,
-      tennis: 0,
-      hockey: 0,
-      basketball: 0,
-      cybersport: 0,
-      table_tennis: 0,
-      mma: 0,
-    };
-
-    for (const e of MOCK_EVENTS) {
-      if (counts[e.sport] !== undefined) {
-        counts[e.sport]++;
-      }
-    }
-    return counts;
+  getInitialEvents: (): SportEvent[] => {
+    return JSON.parse(JSON.stringify(INITIAL_SPORTS_EVENTS));
   },
 };

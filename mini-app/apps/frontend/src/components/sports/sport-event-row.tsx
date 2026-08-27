@@ -1,9 +1,9 @@
 'use client';
 
-import { Tv, ChevronRight, CircleDot } from 'lucide-react';
+import { Tv, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SportEvent, SelectedBet } from '@/types/sports';
-import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
+import type { SportEvent, SelectedBet, OddsTrend } from '@/types/sports';
+import { TeamLogo } from '@/components/ui/team-logo';
 
 interface SportEventRowProps {
   event: SportEvent;
@@ -52,7 +52,7 @@ export function SportEventRow({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
               </span>
-              <span className="font-roobert font-bold text-red-400 tracking-tight">
+              <span className="font-roobert font-bold text-red-400 tracking-tight tabular-nums">
                 {event.liveTime || 'Live'}
               </span>
             </div>
@@ -65,6 +65,12 @@ export function SportEventRow({
           {event.hasStream && (
             <span className="text-emerald-400 flex items-center gap-0.5 ml-1">
               <Tv size={11} strokeWidth={2.2} />
+            </span>
+          )}
+
+          {event.lastEventNotification && (
+            <span className="text-amber-300 font-bold text-[10px] animate-pulse ml-2 truncate max-w-[140px]">
+              {event.lastEventNotification}
             </span>
           )}
         </div>
@@ -80,14 +86,18 @@ export function SportEventRow({
 
       {/* Main Row: Teams & Live Scores vs Odds Matrix */}
       <div className="flex items-center justify-between gap-3">
-        {/* Teams List with Live Scores */}
+        {/* Teams List with Real Logos & Live Scores */}
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
           {/* Team 1 */}
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 flex items-center justify-center text-whisper-gray font-roobert text-[9px] font-bold shrink-0">
-                {event.team1.initials}
-              </div>
+              <TeamLogo
+                src={event.team1.logo}
+                name={event.team1.name}
+                initials={event.team1.initials}
+                color={event.team1.color}
+                size={22}
+              />
               <span className="font-roobert text-[13px] sm:text-[14px] font-semibold text-frost-white truncate tracking-tight">
                 {event.team1.name}
               </span>
@@ -108,9 +118,13 @@ export function SportEventRow({
           {/* Team 2 */}
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-5 h-5 rounded-md bg-white/[0.06] border border-white/10 flex items-center justify-center text-whisper-gray font-roobert text-[9px] font-bold shrink-0">
-                {event.team2.initials}
-              </div>
+              <TeamLogo
+                src={event.team2.logo}
+                name={event.team2.name}
+                initials={event.team2.initials}
+                color={event.team2.color}
+                size={22}
+              />
               <span className="font-roobert text-[13px] sm:text-[14px] font-semibold text-frost-white truncate tracking-tight">
                 {event.team2.name}
               </span>
@@ -137,53 +151,68 @@ export function SportEventRow({
           )}
         >
           {/* Outcome 1 */}
-          <button
+          <OddsButtonCell
+            odds={event.odds.p1}
+            trend={event.odds.p1Trend}
+            isSelected={isP1Selected}
             onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
-            className={cn(
-              'h-10 rounded-xl border flex flex-col items-center justify-center transition-all duration-150 active:scale-90',
-              isP1Selected
-                ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.45)]'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-frost-white'
-            )}
-          >
-            <span className="font-roobert text-[12.5px] font-bold tabular-nums">
-              {event.odds.p1.toFixed(2)}
-            </span>
-          </button>
+          />
 
           {/* Outcome X (if available) */}
           {hasThreeWay && (
-            <button
+            <OddsButtonCell
+              odds={event.odds.x!}
+              trend={event.odds.xTrend}
+              isSelected={isXSelected}
               onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
-              className={cn(
-                'h-10 rounded-xl border flex flex-col items-center justify-center transition-all duration-150 active:scale-90',
-                isXSelected
-                  ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.45)]'
-                  : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-frost-white'
-              )}
-            >
-              <span className="font-roobert text-[12.5px] font-bold tabular-nums">
-                {event.odds.x!.toFixed(2)}
-              </span>
-            </button>
+            />
           )}
 
           {/* Outcome 2 */}
-          <button
+          <OddsButtonCell
+            odds={event.odds.p2}
+            trend={event.odds.p2Trend}
+            isSelected={isP2Selected}
             onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
-            className={cn(
-              'h-10 rounded-xl border flex flex-col items-center justify-center transition-all duration-150 active:scale-90',
-              isP2Selected
-                ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.45)]'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-frost-white'
-            )}
-          >
-            <span className="font-roobert text-[12.5px] font-bold tabular-nums">
-              {event.odds.p2.toFixed(2)}
-            </span>
-          </button>
+          />
         </div>
       </div>
     </div>
+  );
+}
+
+function OddsButtonCell({
+  odds,
+  trend,
+  isSelected,
+  onClick,
+}: {
+  odds: number;
+  trend?: OddsTrend;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'h-10 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 active:scale-90 relative overflow-hidden',
+        isSelected
+          ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.45)]'
+          : trend === 'up'
+          ? 'bg-emerald-950/40 border-emerald-400/40 text-frost-white shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+          : trend === 'down'
+          ? 'bg-red-950/40 border-red-400/40 text-frost-white shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+          : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-frost-white'
+      )}
+    >
+      <div className="flex items-center gap-0.5">
+        {trend === 'up' && <ArrowUp size={9} className="text-emerald-400" />}
+        {trend === 'down' && <ArrowDown size={9} className="text-red-400" />}
+        <span className="font-roobert text-[12.5px] font-bold tabular-nums">
+          {odds.toFixed(2)}
+        </span>
+      </div>
+    </button>
   );
 }
