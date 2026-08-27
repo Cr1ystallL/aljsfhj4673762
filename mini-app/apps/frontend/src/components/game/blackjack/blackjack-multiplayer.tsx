@@ -416,27 +416,67 @@ export function BlackjackMultiplayer() {
   }, [dealerCardsData]);
 
   // Compute outcome for each seated player during settlement
+  const evaluateSingleHand = useCallback(
+    (
+      hand: any[],
+      status: string,
+      bet: number
+    ): { type: 'win' | 'lose' | 'push' | 'blackjack'; payout: number } => {
+      if (!hand || hand.length === 0) return { type: 'lose', payout: 0 };
+      const pValue = calculateHandValue(hand.map(convertCard)).total;
+      const isDealerBust = dealerScore > 21;
+      const isPlayerBust = status === 'bust' || pValue > 21;
+      const isPlayerBJ = status === 'blackjack' || (hand.length === 2 && pValue === 21);
+      const isDealerBJ = state.dealerHand.length === 2 && dealerScore === 21;
+
+      if (isPlayerBust) return { type: 'lose', payout: 0 };
+      if (isPlayerBJ && !isDealerBJ) return { type: 'blackjack', payout: bet * 2.5 };
+      if (isDealerBJ && !isPlayerBJ) return { type: 'lose', payout: 0 };
+      if (isDealerBust) return { type: 'win', payout: bet * 2 };
+      if (pValue > dealerScore) return { type: 'win', payout: bet * 2 };
+      if (pValue === dealerScore) return { type: 'push', payout: bet };
+      return { type: 'lose', payout: 0 };
+    },
+    [dealerScore, state.dealerHand.length]
+  );
+
   const getPlayerOutcome = useCallback(
-    (player: BJPlayer) => {
+    (player: BJPlayer): { type: 'win' | 'lose' | 'push' | 'blackjack'; label: string; payout: number } | null => {
       if (state.phase !== 'settling' && state.phase !== 'finished') return null;
       if (player.status === 'waiting' || !player.hand || player.hand.length === 0) {
         return null;
       }
-      const pValue = calculateHandValue(player.hand.map(convertCard)).total;
-      const isDealerBust = dealerScore > 21;
-      const isPlayerBust = player.status === 'bust' || pValue > 21;
-      const isPlayerBJ = player.status === 'blackjack' || (player.hand.length === 2 && pValue === 21);
-      const isDealerBJ = state.dealerHand.length === 2 && dealerScore === 21;
 
-      if (isPlayerBust) return 'lose';
-      if (isPlayerBJ && !isDealerBJ) return 'blackjack';
-      if (isDealerBJ && !isPlayerBJ) return 'lose';
-      if (isDealerBust) return 'win';
-      if (pValue > dealerScore) return 'win';
-      if (pValue === dealerScore) return 'push';
-      return 'lose';
+      if (player.splitHand && player.splitHand.length > 0) {
+        const out1 = evaluateSingleHand(player.hand, player.status, player.bet);
+        const out2 = evaluateSingleHand(player.splitHand, player.splitStatus || 'stand', player.bet);
+        const totalPayout = out1.payout + out2.payout;
+        const totalBet = player.bet * 2;
+
+        if (totalPayout > totalBet) {
+          return { type: 'win', label: 'ПОБЕДА В СПЛИТЕ', payout: totalPayout };
+        } else if (totalPayout === totalBet) {
+          return { type: 'push', label: 'НИЧЬЯ В СПЛИТЕ', payout: totalPayout };
+        } else if (totalPayout > 0) {
+          return { type: 'push', label: 'ЧАСТИЧНЫЙ ВОЗВРАТ', payout: totalPayout };
+        } else {
+          return { type: 'lose', label: 'ДИЛЕР ВЫИГРАЛ', payout: 0 };
+        }
+      }
+
+      const res = evaluateSingleHand(player.hand, player.status, player.bet);
+      if (res.type === 'blackjack') {
+        return { type: 'blackjack', label: 'БЛЭКДЖЕК 3:2', payout: res.payout };
+      }
+      if (res.type === 'win') {
+        return { type: 'win', label: 'ПОБЕДА НАД ДИЛЕРОМ', payout: res.payout };
+      }
+      if (res.type === 'push') {
+        return { type: 'push', label: 'НИЧЬЯ С ДИЛЕРОМ', payout: res.payout };
+      }
+      return { type: 'lose', label: 'ДИЛЕР ВЫИГРАЛ', payout: 0 };
     },
-    [state.phase, dealerScore, state.dealerHand.length]
+    [state.phase, evaluateSingleHand]
   );
 
   const myOutcome = useMemo(() => {
@@ -529,7 +569,7 @@ export function BlackjackMultiplayer() {
       prevPhaseRef.current !== 'settling' &&
       prevPhaseRef.current !== 'finished'
     ) {
-      if (myOutcome === 'win' || myOutcome === 'blackjack') {
+      if (myOutcome?.type === 'win' || myOutcome?.type === 'blackjack') {
         soundManager.playWithFadeOut('bj.win', { volume: 0.85, fadeOutDurationMs: 1500 });
       }
     }
@@ -1276,27 +1316,53 @@ return () => {
               </div>
             )}
 
-            {/* SETTLING / RESULT BADGE */}
-            {(state.phase === 'settling' || state.phase === 'finished') && myOutcome && (
+            {/* LUXURY 3D LIQUID GLASS OUTCOME BANNER */}
+            {(state.phase === 'settling' || state.phase === 'finished') && (
               <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-2xl px-5 py-2 text-sm sm:text-base font-black shadow-2xl backdrop-blur-md border-2',
-                  myOutcome.type === 'win' || myOutcome.type === 'blackjack'
-                    ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200'
-                    : myOutcome.type === 'push'
-                    ? 'bg-amber-950/90 border-amber-400 text-amber-200'
-                    : 'bg-red-950/90 border-red-500 text-red-200'
-                )}
+                initial={{ scale: 0.8, opacity: 0, y: -10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: 'spring', damping: 16, stiffness: 300 }}
+                className="relative z-30 flex flex-col items-center pointer-events-none"
               >
-                {myOutcome.type === 'win' && <Trophy className="text-amber-300 shrink-0" size={20} />}
-                {myOutcome.type === 'blackjack' && <Sparkles className="text-amber-300 shrink-0" size={20} />}
-                <span>{myOutcome.label}</span>
-                {myOutcome.payout > 0 && (
-                  <span className="text-amber-300 font-bold ml-1">
-                    +{myOutcome.payout.toFixed(2)} {currencyLabel}
-                  </span>
+                {myOutcome ? (
+                  myOutcome.type === 'blackjack' ? (
+                    <div className="relative flex flex-col items-center px-8 py-3 rounded-2xl bg-gradient-to-b from-amber-950/95 via-black/90 to-black/98 border-2 border-amber-400 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_30px_rgba(251,191,36,0.4)] backdrop-blur-2xl">
+                      <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs sm:text-sm uppercase tracking-widest">
+                        <Sparkles size={16} className="text-amber-300 animate-spin" />
+                        <span>{myOutcome.label}</span>
+                        <Sparkles size={16} className="text-amber-300 animate-spin" />
+                      </div>
+                      <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent drop-shadow-md mt-0.5">
+                        +{myOutcome.payout.toFixed(0)} {currencyLabel}
+                      </span>
+                    </div>
+                  ) : myOutcome.type === 'win' ? (
+                    <div className="relative flex flex-col items-center px-8 py-3 rounded-2xl bg-gradient-to-b from-emerald-950/95 via-black/90 to-black/98 border-2 border-emerald-400 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_30px_rgba(16,185,129,0.4)] backdrop-blur-2xl">
+                      <div className="flex items-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm uppercase tracking-widest">
+                        <Trophy size={16} className="text-emerald-300" />
+                        <span>{myOutcome.label}</span>
+                      </div>
+                      <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200 bg-clip-text text-transparent drop-shadow-md mt-0.5">
+                        +{myOutcome.payout.toFixed(0)} {currencyLabel}
+                      </span>
+                    </div>
+                  ) : myOutcome.type === 'push' ? (
+                    <div className="relative flex flex-col items-center px-8 py-3 rounded-2xl bg-gradient-to-b from-slate-900/95 via-black/90 to-black/98 border-2 border-amber-400/80 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_20px_rgba(251,191,36,0.25)] backdrop-blur-2xl">
+                      <span className="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-wider">{myOutcome.label}</span>
+                      <span className="text-lg sm:text-xl font-black text-white mt-0.5">Возврат {myOutcome.payout.toFixed(0)} {currencyLabel}</span>
+                    </div>
+                  ) : (
+                    <div className="relative flex flex-col items-center px-8 py-3 rounded-2xl bg-gradient-to-b from-red-950/95 via-black/90 to-black/98 border-2 border-red-500/90 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_25px_rgba(239,68,68,0.35)] backdrop-blur-2xl">
+                      <span className="text-xs sm:text-sm font-black text-red-400 uppercase tracking-wider">{myOutcome.label}</span>
+                      <span className="text-lg sm:text-xl font-black text-white/90 mt-0.5">-{myPlayer?.bet ? (myPlayer.splitHand ? myPlayer.bet * 2 : myPlayer.bet) : 0} {currencyLabel}</span>
+                    </div>
+                  )
+                ) : (
+                  <div className="relative flex items-center gap-2 px-6 py-2.5 rounded-full bg-black/90 border border-amber-400/50 shadow-xl backdrop-blur-2xl">
+                    <span className="text-xs sm:text-sm font-bold text-amber-300 uppercase tracking-wider">
+                      РАУНД ЗАВЕРШЕН · ДИЛЕР {dealerScore > 21 ? 'ПЕРЕБОР' : dealerScore}
+                    </span>
+                  </div>
                 )}
               </motion.div>
             )}
