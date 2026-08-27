@@ -742,38 +742,37 @@ return () => {
 
     const payload = { roomId, seatId, bet: 0, userId: user?.id || wsUserId || undefined };
 
-    // 1. Send WebSocket message
+    // 1. Send WebSocket message if connected
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:join_seat', payload);
-    }
+    } else {
+      // 2. Fallback to REST only if WS is disconnected
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // 2. Also call REST endpoint to guarantee instant seat occupation
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    fetch('/api/games/blackjack/join', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.state) setState(data.state);
-        if (data?.success === false) {
-          // If table is full or seat is blocked, matchmake to available table
-          fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
-            .then((r) => r.json())
-            .then((m) => {
-              if (m?.roomId && m.roomId !== roomId) {
-                setRoomId(m.roomId);
-                toast.info(`Перенаправляем на свободный ${m.roomId}`);
-              }
-            })
-            .catch(() => {});
-        }
+      fetch('/api/games/blackjack/join', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'include',
       })
-      .catch(() => {});
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+          if (data?.success === false) {
+            fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
+              .then((r) => r.json())
+              .then((m) => {
+                if (m?.roomId && m.roomId !== roomId) {
+                  setRoomId(m.roomId);
+                  toast.info(`Перенаправляем на свободный ${m.roomId}`);
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   const handleLeaveSeat = () => {
@@ -784,21 +783,22 @@ return () => {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:leave_seat', payload);
-    }
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch('/api/games/blackjack/leave', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.state) setState(data.state);
+      fetch('/api/games/blackjack/leave', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'include',
       })
-      .catch(() => {});
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
   const MIN_BET = 10;
@@ -824,21 +824,22 @@ return () => {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:bet', payload);
-    }
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch('/api/games/blackjack/bet', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.state) setState(data.state);
+      fetch('/api/games/blackjack/bet', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'include',
       })
-      .catch(() => {});
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
   const handleToggleReady = (ready?: boolean) => {
@@ -861,30 +862,30 @@ return () => {
     // 1. WebSocket dispatch
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:ready_to_deal', payload);
-    }
+    } else {
+      // 2. HTTP REST dispatch fallback
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // 2. HTTP REST dispatch fallback
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    fetch('/api/games/blackjack/ready', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.state) setState(data.state);
+      fetch('/api/games/blackjack/ready', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'include',
       })
-      .catch(() => {});
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
   const handleAction = (action: 'hit' | 'stand' | 'double' | 'split') => {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
-    // Auto unfreeze button after 400ms
-    setTimeout(() => setIsActionPending(false), 400);
+    // Auto unfreeze button after 500ms to prevent double clicks
+    setTimeout(() => setIsActionPending(false), 500);
 
     if (action === 'hit') {
       soundManager.play('bj.card_slide');
@@ -900,23 +901,23 @@ return () => {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:action', payload);
-    }
+    } else {
+      // Fallback only if WebSocket is disconnected
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // Always provide REST fallback
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    fetch('/api/games/blackjack/action', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      credentials: 'include',
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.state) setState(data.state);
+      fetch('/api/games/blackjack/action', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'include',
       })
-      .catch(() => {});
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.state) setState(data.state);
+        })
+        .catch(() => {});
+    }
   };
 
   const handleSendMessage = (text: string) => {
@@ -1014,18 +1015,13 @@ return () => {
                 <div className="flex items-center justify-center">
                   {state.dealerHand.map((c, idx) => (
                     <motion.div
-                      key={`dealer_${idx}_${c.rank}_${c.suit}_${c.hidden ? 'h' : 'v'}`}
-                      initial={
-                        c.hidden
-                          ? { opacity: 0, x: 160, y: -160, scale: 0.3, rotate: 20 }
-                          : { rotateY: 90, scale: 0.9 }
-                      }
-                      animate={{ opacity: 1, x: 0, y: 0, rotateY: 0, scale: 1, rotate: 0 }}
+                      key={`dealer_card_${idx}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
                       transition={{
                         type: 'spring',
-                        damping: 20,
-                        stiffness: 220,
-                        delay: idx * 0.12,
+                        damping: 22,
+                        stiffness: 250,
                       }}
                       className="relative"
                       style={{
@@ -1369,9 +1365,14 @@ return () => {
                       <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.splitHand && (player.activeHandIndex === 0 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80"))}>
                         {player.hand.map((c, cardIdx) => (
                           <motion.div
-                            key={`card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
-                            initial={{ opacity: 0, scale: 0.5 }}
+                            key={`seat_${seatId}_card_${cardIdx}`}
+                            initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
+                            transition={{
+                              type: 'spring',
+                              damping: 22,
+                              stiffness: 250,
+                            }}
                             className="relative"
                             style={{
                               marginLeft: cardIdx > 0 ? (player.splitHand ? '-18px' : (isMe ? '-22px' : '-16px')) : '0px',
@@ -1401,9 +1402,14 @@ return () => {
                         <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.activeHandIndex === 1 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80")}>
                           {player.splitHand.map((c, cardIdx) => (
                             <motion.div
-                              key={`split_card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
-                              initial={{ opacity: 0, scale: 0.5 }}
+                              key={`seat_${seatId}_split_${cardIdx}`}
+                              initial={{ opacity: 0, scale: 0.8 }}
                               animate={{ opacity: 1, scale: 1 }}
+                              transition={{
+                                type: 'spring',
+                                damping: 22,
+                                stiffness: 250,
+                              }}
                               className="relative"
                               style={{
                                 marginLeft: cardIdx > 0 ? '-18px' : '0px',

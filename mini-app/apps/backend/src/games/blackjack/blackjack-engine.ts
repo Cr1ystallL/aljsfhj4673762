@@ -44,6 +44,7 @@ export interface Player {
   splitStatus?: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
   activeHandIndex?: 0 | 1;
   splitExtraBetId?: string;
+  lastActionAt?: number;
 }
 
 export interface BlackjackRoundHistoryItem {
@@ -525,6 +526,12 @@ export class BlackjackEngine extends EventEmitter {
       return false;
     }
 
+    const now = Date.now();
+    if (player.lastActionAt && now - player.lastActionAt < 350) {
+      return false;
+    }
+    player.lastActionAt = now;
+
     this.isProcessingTurnAction = true;
     try {
       this.clearTurnTimer();
@@ -581,6 +588,12 @@ export class BlackjackEngine extends EventEmitter {
       return false;
     }
 
+    const now = Date.now();
+    if (player.lastActionAt && now - player.lastActionAt < 350) {
+      return false;
+    }
+    player.lastActionAt = now;
+
     this.isProcessingTurnAction = true;
     try {
       this.clearTurnTimer();
@@ -609,6 +622,12 @@ export class BlackjackEngine extends EventEmitter {
     if (!player || player.seatId !== this.state.currentTurnSeatId || this.state.phase !== 'player_turn') {
       return false;
     }
+
+    const now = Date.now();
+    if (player.lastActionAt && now - player.lastActionAt < 350) {
+      return false;
+    }
+    player.lastActionAt = now;
 
     const isSplitActive = !!player.splitHand && player.activeHandIndex === 1;
     const targetHand = isSplitActive ? player.splitHand! : player.hand;
@@ -689,6 +708,12 @@ export class BlackjackEngine extends EventEmitter {
     if (!player || player.seatId !== this.state.currentTurnSeatId || this.state.phase !== 'player_turn') {
       return false;
     }
+
+    const now = Date.now();
+    if (player.lastActionAt && now - player.lastActionAt < 350) {
+      return false;
+    }
+    player.lastActionAt = now;
 
     if (player.hand.length !== 2 || player.splitHand) {
       return false;
