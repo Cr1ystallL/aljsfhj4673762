@@ -217,10 +217,8 @@ export function MenuDrawer({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
-                  {visibleGames.map((g, index) => {
-                    // Grid Pattern: index % 3 === 2 is wide (1 wide rectangle), otherwise small (2 small rectangles)
-                    const isWide = index % 3 === 2;
+                <div className="grid grid-cols-2 gap-2">
+                  {visibleGames.map((g) => {
                     const BadgeIcon = g.badge?.Icon;
 
                     return (
@@ -230,15 +228,13 @@ export function MenuDrawer({
                           onClose();
                           router.push(`/game/${g.id}`);
                         }}
-                        className={`group relative overflow-hidden rounded-xl border border-white/10 bg-midnight-canvas text-left active:scale-[0.96] hover:border-white/25 transition-all duration-200 shadow-md ${
-                          isWide ? 'col-span-2 aspect-[16/9]' : 'col-span-1 aspect-[5/6]'
-                        }`}
+                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas text-left active:scale-[0.96] hover:border-amber-400/40 transition-all duration-200 shadow-md aspect-[16/11] flex flex-col justify-between p-2.5"
                       >
-                        {/* Background photo artwork from main menu */}
+                        {/* Background photo artwork */}
                         {g.bg && (
                           <div
                             aria-hidden
-                            className="absolute inset-0 opacity-60 group-hover:opacity-80 transition-opacity duration-300"
+                            className="absolute inset-0 opacity-55 group-hover:opacity-75 transition-opacity duration-300"
                             style={{
                               backgroundImage: `url(${g.bg})`,
                               backgroundSize: 'cover',
@@ -251,35 +247,30 @@ export function MenuDrawer({
                         {/* Vignette */}
                         <div
                           aria-hidden
-                          className="absolute inset-0"
-                          style={{
-                            background:
-                              'linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0.90) 100%)',
-                          }}
+                          className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/55 to-black/25"
                         />
 
-                        {/* Card Content */}
-                        <div className="relative h-full w-full p-3 flex flex-col justify-between z-10">
-                          <div className="flex items-start justify-between gap-1">
-                            <span className="w-10 h-10 rounded-xl border border-white/20 bg-black/50 backdrop-blur-md flex items-center justify-center text-frost-white shrink-0 shadow-lg">
-                              <GameIcon game={g.id} size={22} strokeWidth={2} />
+                        {/* Card Top: Icon & Badge */}
+                        <div className="relative z-10 flex items-start justify-between gap-1">
+                          <span className="w-8 h-8 rounded-xl border border-white/20 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                            <GameIcon game={g.id} size={18} strokeWidth={2} />
+                          </span>
+
+                          {g.badge && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[8px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-0.5">
+                              {BadgeIcon && <BadgeIcon size={8} className="shrink-0" />}
+                              <span>{g.badge.label}</span>
                             </span>
+                          )}
+                        </div>
 
-                            {g.badge && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[8px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border border-white/20 bg-black/50 text-amber-300 flex items-center gap-1">
-                                {BadgeIcon && <BadgeIcon size={9} className="shrink-0" />}
-                                <span>{g.badge.label}</span>
-                              </span>
-                            )}
+                        {/* Card Bottom: Name & Play */}
+                        <div className="relative z-10">
+                          <div className="font-roobert text-[13px] font-bold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors">
+                            {g.name}
                           </div>
-
-                          <div>
-                            <div className="font-roobert text-[15px] font-semibold text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
-                              {g.name}
-                            </div>
-                            <div className="text-[9px] font-roobert text-whisper-gray uppercase tracking-wider">
-                              {t('common.play')}
-                            </div>
+                          <div className="text-[9px] font-roobert text-whisper-gray/80 uppercase tracking-wider">
+                            {t('common.play')}
                           </div>
                         </div>
                       </button>

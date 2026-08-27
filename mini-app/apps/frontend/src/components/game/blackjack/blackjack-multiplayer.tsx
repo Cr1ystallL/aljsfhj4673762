@@ -120,11 +120,11 @@ function getChipImage(amount: number): string {
 
 // True arc curve for 5 seats following the casino table ellipse
 const SEATS_CONFIG = [
-  { id: 1, label: 'Игрок 1', arcOffset: '-translate-y-8 sm:-translate-y-12' },
-  { id: 2, label: 'Игрок 2', arcOffset: '-translate-y-3 sm:-translate-y-5' },
-  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-2 sm:translate-y-4' },
-  { id: 4, label: 'Игрок 4', arcOffset: '-translate-y-3 sm:-translate-y-5' },
-  { id: 5, label: 'Игрок 5', arcOffset: '-translate-y-8 sm:-translate-y-12' },
+  { id: 1, label: 'Игрок 1', arcOffset: '-translate-y-5 sm:-translate-y-7' },
+  { id: 2, label: 'Игрок 2', arcOffset: '-translate-y-2 sm:-translate-y-3' },
+  { id: 3, label: 'Игрок 3', arcOffset: 'translate-y-1 sm:translate-y-2' },
+  { id: 4, label: 'Игрок 4', arcOffset: '-translate-y-2 sm:-translate-y-3' },
+  { id: 5, label: 'Игрок 5', arcOffset: '-translate-y-5 sm:-translate-y-7' },
 ];
 const SEATS_LAYOUT = SEATS_CONFIG;
 
@@ -1358,83 +1358,81 @@ return () => {
                 <div
                   key={seatId}
                   className={cn(
-                    'flex flex-col items-center justify-end min-w-0 transition-transform duration-300 h-[190px] sm:h-[220px]',
+                    'relative flex flex-col items-center justify-end min-w-0 transition-transform duration-300',
                     seat.arcOffset
                   )}
                 >
-                  {/* (A) FIXED-HEIGHT CARDS AREA */}
-                  <div className="relative h-[88px] sm:h-[108px] w-full flex items-end justify-center mb-1.5 pointer-events-none">
-                    {player && player.hand.length > 0 && (
-                      <div className="relative flex justify-center items-center gap-1">
-                        {/* Main Hand */}
-                        <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.splitHand && (player.activeHandIndex === 0 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80"))}>
-                          {player.hand.map((c, cardIdx) => (
+                  {/* (A) CARDS AREA: Positioned above avatar */}
+                  {player && player.hand.length > 0 && (
+                    <div className="relative mb-1 pointer-events-none flex justify-center items-center gap-1 z-30">
+                      {/* Main Hand */}
+                      <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.splitHand && (player.activeHandIndex === 0 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80"))}>
+                        {player.hand.map((c, cardIdx) => (
+                          <motion.div
+                            key={`card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="relative"
+                            style={{
+                              marginLeft: cardIdx > 0 ? (player.splitHand ? '-18px' : (isMe ? '-22px' : '-16px')) : '0px',
+                              zIndex: cardIdx + 1,
+                            }}
+                          >
+                            <CasinoBlackjackCard
+                              card={c}
+                              isFaceDown={c.hidden}
+                              className={
+                                player.splitHand
+                                  ? 'w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]'
+                                  : isMe
+                                  ? 'w-[52px] h-[76px] sm:w-[66px] sm:h-[94px]'
+                                  : 'w-[36px] h-[52px] sm:w-[44px] sm:h-[64px]'
+                              }
+                            />
+                          </motion.div>
+                        ))}
+                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
+                          {calculateHandValue(player.hand.map(convertCard)).total}
+                        </span>
+                      </div>
+
+                      {/* Split Hand */}
+                      {player.splitHand && player.splitHand.length > 0 && (
+                        <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.activeHandIndex === 1 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80")}>
+                          {player.splitHand.map((c, cardIdx) => (
                             <motion.div
-                              key={`card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
+                              key={`split_card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
                               initial={{ opacity: 0, scale: 0.5 }}
                               animate={{ opacity: 1, scale: 1 }}
                               className="relative"
                               style={{
-                                marginLeft: cardIdx > 0 ? (player.splitHand ? '-18px' : (isMe ? '-22px' : '-16px')) : '0px',
+                                marginLeft: cardIdx > 0 ? '-18px' : '0px',
                                 zIndex: cardIdx + 1,
                               }}
                             >
                               <CasinoBlackjackCard
                                 card={c}
                                 isFaceDown={c.hidden}
-                                className={
-                                  player.splitHand
-                                    ? 'w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]'
-                                    : isMe
-                                    ? 'w-[52px] h-[76px] sm:w-[66px] sm:h-[94px]'
-                                    : 'w-[36px] h-[52px] sm:w-[44px] sm:h-[64px]'
-                                }
+                                className="w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]"
                               />
                             </motion.div>
                           ))}
                           <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
-                            {calculateHandValue(player.hand.map(convertCard)).total}
+                            {calculateHandValue(player.splitHand.map(convertCard)).total}
                           </span>
                         </div>
+                      )}
+                    </div>
+                  )}
 
-                        {/* Split Hand */}
-                        {player.splitHand && player.splitHand.length > 0 && (
-                          <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.activeHandIndex === 1 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80")}>
-                            {player.splitHand.map((c, cardIdx) => (
-                              <motion.div
-                                key={`split_card_${seatId}_${cardIdx}_${c.rank}_${c.suit}`}
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="relative"
-                                style={{
-                                  marginLeft: cardIdx > 0 ? '-18px' : '0px',
-                                  zIndex: cardIdx + 1,
-                                }}
-                              >
-                                <CasinoBlackjackCard
-                                  card={c}
-                                  isFaceDown={c.hidden}
-                                  className="w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]"
-                                />
-                              </motion.div>
-                            ))}
-                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
-                              {calculateHandValue(player.splitHand.map(convertCard)).total}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* (B) PLAYER LABEL (Visible only for seated players: "ВЫ" or Player Name) */}
-                  <div className="h-4 sm:h-5 flex items-center justify-center mb-1 w-full">
-                    {player ? (
+                  {/* (B) PLAYER LABEL */}
+                  {player && (
+                    <div className="h-4 sm:h-5 flex items-center justify-center mb-0.5 w-full">
                       <span className="font-bold text-[10px] sm:text-xs text-amber-300/90 tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate max-w-[80px] sm:max-w-[120px] text-center">
                         {isMe ? 'ВЫ' : player.name}
                       </span>
-                    ) : null}
-                  </div>
+                    </div>
+                  )}
 
                   {/* (C) 3D LIQUID GLASS DISK / AVATAR SLOT */}
                   <div className="relative flex flex-col items-center">
