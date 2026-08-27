@@ -200,10 +200,10 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
         // Handle Blackjack Seat Join
         if (validMessage.type === 'blackjack:join_seat') {
-          const { roomId, seatId, bet, userId: payloadUserId } = validMessage.payload as any;
+          const { roomId, seatId, bet, userId: payloadUserId, name: payloadName, avatar: payloadAvatar } = validMessage.payload as any;
           const userId = payloadUserId || socket.userId || 'anon_' + connectionId.slice(0, 8);
-          let name = 'Игрок';
-          let avatar: string | undefined;
+          let name = payloadName || 'Игрок';
+          let avatar: string | undefined = payloadAvatar;
 
           if (userId && !userId.startsWith('guest_') && !userId.startsWith('anon_')) {
             try {
@@ -212,8 +212,8 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
                 select: { firstName: true, username: true, photoUrl: true },
               });
               if (user) {
-                name = user.firstName || user.username || 'Игрок';
-                avatar = user.photoUrl || undefined;
+                name = user.firstName || user.username || payloadName || 'Игрок';
+                avatar = user.photoUrl || payloadAvatar || undefined;
               }
             } catch (err) {
               logger.warn({ err }, 'Failed to fetch user info for join_seat');

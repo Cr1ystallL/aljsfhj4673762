@@ -1474,9 +1474,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       } catch {}
     }
 
-    const finalUserId = userId || 'anon_' + randomUUID().slice(0, 8);
-    let name = 'Игрок';
-    let avatar: string | undefined;
+    const finalUserId = userId || body.userId || 'anon_' + randomUUID().slice(0, 8);
+    let name = body.name || 'Игрок';
+    let avatar: string | undefined = body.avatar;
 
     if (userId && !userId.startsWith('guest_') && !userId.startsWith('anon_')) {
       try {
@@ -1485,8 +1485,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           select: { firstName: true, username: true, photoUrl: true },
         });
         if (dbUser) {
-          name = dbUser.firstName || dbUser.username || 'Игрок';
-          avatar = dbUser.photoUrl || undefined;
+          name = dbUser.firstName || dbUser.username || body.name || 'Игрок';
+          avatar = dbUser.photoUrl || body.avatar || undefined;
         }
       } catch {}
     }

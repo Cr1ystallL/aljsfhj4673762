@@ -350,27 +350,18 @@ export function BlackjackMultiplayer() {
   // Determine user's seat
   const myPlayer = useMemo(() => {
     const targetUserId = user?.id || wsUserId;
-    if (!targetUserId) {
-      if (user?.username || user?.firstName) {
-        const found = state.players.find(
-          (p) =>
-            p.name === (user.firstName || user.username) ||
-            p.name === 'ВЫ'
-        );
-        if (found) return found;
-      }
-      return null;
-    }
     return (
       state.players.find(
         (p) =>
-          p.userId === targetUserId ||
+          (targetUserId && p.userId === targetUserId) ||
           (user?.id && p.userId === user.id) ||
           (wsUserId && p.userId === wsUserId) ||
-          (user?.username && p.name === (user.firstName || user.username))
+          (sessionId && p.userId.includes(sessionId.slice(0, 8))) ||
+          (user?.username && p.name === (user.firstName || user.username)) ||
+          p.name === 'ВЫ'
       ) || null
     );
-  }, [state.players, user?.id, user?.username, user?.firstName, wsUserId]);
+  }, [state.players, user?.id, user?.username, user?.firstName, wsUserId, sessionId]);
 
   // Reset selectedBet when entering waiting phase
   useEffect(() => {
@@ -740,39 +731,50 @@ return () => {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
-    const payload = { roomId, seatId, bet: 0, userId: user?.id || wsUserId || undefined };
+    const effectiveUserId = user?.id || wsUserId || (sessionId ? `guest_${sessionId.slice(0, 8)}` : undefined);
+    const effectiveName = user?.firstName || user?.username || 'ВЫ';
+    const effectiveAvatar = user?.photoUrl || undefined;
+
+    const payload = {
+      roomId,
+      seatId,
+      bet: 0,
+      userId: effectiveUserId,
+      name: effectiveName,
+      avatar: effectiveAvatar,
+    };
 
     // 1. Send WebSocket message if connected
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:join_seat', payload);
-    } else {
-      // 2. Fallback to REST only if WS is disconnected
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      fetch('/api/games/blackjack/join', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.state) setState(data.state);
-          if (data?.success === false) {
-            fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
-              .then((r) => r.json())
-              .then((m) => {
-                if (m?.roomId && m.roomId !== roomId) {
-                  setRoomId(m.roomId);
-                  toast.info(`Перенаправляем на свободный ${m.roomId}`);
-                }
-              })
-              .catch(() => {});
-          }
-        })
-        .catch(() => {});
     }
+
+    // 2. Also dispatch REST request to guarantee instant seat occupation
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch('/api/games/blackjack/join', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+        if (data?.success === false) {
+          fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
+            .then((r) => r.json())
+            .then((m) => {
+              if (m?.roomId && m.roomId !== roomId) {
+                setRoomId(m.roomId);
+                toast.info(`Перенаправляем на свободный ${m.roomId}`);
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   };
 
   const handleLeaveSeat = () => {
