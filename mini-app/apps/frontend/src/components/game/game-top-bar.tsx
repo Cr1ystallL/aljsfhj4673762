@@ -167,11 +167,16 @@ export function GameTopBar({
 
           {onHowToPlay && (
             <button
-              onClick={onHowToPlay}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onHowToPlay();
+              }}
               aria-label={t('common.howToPlay')}
-              className="flex items-center justify-center w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white hover:bg-white/[0.08] hover:border-white/20 transition-all active:scale-[0.95] shrink-0"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/15 bg-white/[0.08] text-amber-400 hover:text-amber-300 hover:bg-white/[0.15] hover:border-amber-400/50 active:scale-90 transition-all shrink-0 cursor-pointer touch-manipulation z-20 shadow-md"
+              title="Правила игры"
             >
-              <HelpCircle size={16} strokeWidth={2} />
+              <HelpCircle size={18} strokeWidth={2.2} />
             </button>
           )}
 

@@ -24,6 +24,7 @@ import { useActiveBalance } from '@/hooks/use-active-balance';
 import { Suit } from '@/components/game/hilo/playing-card';
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
 import { BlackjackHistoryModal } from './blackjack-history-modal';
+import { BlackjackRulesModal } from './blackjack-rules-modal';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { cn } from '@/lib/utils';
@@ -1590,6 +1591,12 @@ return () => {
         currentServerSeedHash={(state as any).serverSeedHash}
         history={tableHistory}
         currentUserId={user?.id}
+      />
+
+      {/* Rules Modal */}
+      <BlackjackRulesModal
+        open={showRules}
+        onClose={() => setShowRules(false)}
       />
     </main>
   );
