@@ -36,7 +36,7 @@ export function useBalance() {
         wagerTarget: response.balance.wagerTarget,
         wagerProgress: response.balance.wagerProgress,
         lastSyncedAt: new Date(),
-      }, response.tournamentBalances || []);
+      }, response.tournamentBalances ?? useBalanceStore.getState().tournamentBalances);
     } catch (error: any) {
       if (error?.message === 'No access token provided' || error?.status === 401) {
         return; // Suppress expected error during initial load before auth token is set
@@ -63,7 +63,7 @@ export function useBalance() {
         wagerTarget: response.balance.wagerTarget,
         wagerProgress: response.balance.wagerProgress,
         lastSyncedAt: new Date(),
-      }, response.tournamentBalances || []);
+      }, response.tournamentBalances ?? useBalanceStore.getState().tournamentBalances);
     } catch (error) {
       console.error('Failed to sync balance:', error);
     }

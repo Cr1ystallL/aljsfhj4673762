@@ -25,7 +25,7 @@ export class BalanceService {
   async getBalance(userId: string) {
     try {
       const cached = await this.getCachedBalance(userId);
-      if (cached) return cached;
+      if (cached && cached.tournamentBalances !== undefined) return cached;
 
       let balance = await prisma.balance.findFirst({
         where: { userId, demoMode: false },
@@ -99,9 +99,6 @@ export class BalanceService {
   /**
    * Notify clients of a fresh balance value (called after pipeline mutations).
    * Refreshes the Redis cache so subsequent reads see the new amount.
-   *
-   * The 3rd argument is preserved for source-compat with callers that
-   * still pass a flag — we ignore demo mode entirely.
    */
   async notifyBalance(
     userId: string,
@@ -111,10 +108,12 @@ export class BalanceService {
     autoRtpTarget = 0,
     autoRtpProgress = 0
   ) {
+    const curCached = await this.getCachedBalance(userId);
     const payload = { 
       amount, currency: 'PLN', 
       wagerTarget, wagerProgress, 
-      autoRtpTarget, autoRtpProgress 
+      autoRtpTarget, autoRtpProgress,
+      tournamentBalances: curCached?.tournamentBalances,
     };
     await this.cacheBalance(userId, payload);
     await this.broadcastBalanceUpdate(userId, payload);
@@ -167,15 +166,8 @@ export class BalanceService {
       });
 
       await this.invalidateCache(user.id);
-      await this.broadcastBalanceUpdate(user.id, {
-        amount: Number(updatedBalance.amount),
-        currency: 'PLN',
-        wagerTarget: Number(updatedBalance.wagerTarget),
-        wagerProgress: Number(updatedBalance.wagerProgress),
-        autoRtpTarget: Number(updatedBalance.autoRtpTarget),
-        autoRtpProgress: Number(updatedBalance.autoRtpProgress),
-        freeCases: Number(updatedBalance.freeCases)
-      });
+      const fullBal = await this.getBalance(user.id);
+      await this.broadcastBalanceUpdate(user.id, fullBal);
 
       logger.info(
         { userId: user.id, newAmount, reason, transactionId },
@@ -195,6 +187,7 @@ export class BalanceService {
       wagerTarget?: number; wagerProgress?: number;
       autoRtpTarget?: number; autoRtpProgress?: number;
       freeCases?: number;
+      tournamentBalances?: Array<{ gameType: string; balance: number }>;
     }
   ) {
     try {
@@ -219,6 +212,7 @@ export class BalanceService {
           wagerTarget: number; wagerProgress: number;
           autoRtpTarget: number; autoRtpProgress: number;
           freeCases: number;
+          tournamentBalances?: Array<{ gameType: string; balance: number }>;
         };
       }
     } catch (error) {

@@ -72,6 +72,24 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
     try {
       await balanceService.syncBalance(userId);
       const balance = await balanceService.getBalance(userId);
+      const { prisma } = await import('../lib/prisma.js');
+      
+      const activeParticipants = await (prisma as any).tournamentParticipant.findMany({
+        where: {
+          userId,
+          cycle: {
+            startsAt: { lte: new Date() },
+            endsAt: { gte: new Date() },
+            tournament: { active: true }
+          }
+        },
+        include: { cycle: { include: { tournament: true } } }
+      });
+
+      const tournamentBalances = activeParticipants.map((p: any) => ({
+        gameType: p.cycle.tournament.gameType,
+        balance: Number(p.balance)
+      }));
 
       return reply.send({
         success: true,
@@ -84,6 +102,7 @@ export async function balanceRoutes(app: FastifyInstance): Promise<void> {
           wagerTarget: balance.wagerTarget,
           wagerProgress: balance.wagerProgress,
         },
+        tournamentBalances,
       });
     } catch (error) {
       logger.error(error, 'Failed to sync balance');

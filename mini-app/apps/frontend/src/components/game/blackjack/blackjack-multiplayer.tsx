@@ -574,6 +574,11 @@ export function BlackjackMultiplayer() {
     };
   }, [roomId]);
 
+  const isChatOpenRef = useRef(isChatOpen);
+  useEffect(() => {
+    isChatOpenRef.current = isChatOpen;
+  }, [isChatOpen]);
+
   // WebSocket connection & messaging
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -646,6 +651,7 @@ export function BlackjackMultiplayer() {
             if (data.type === 'balance_update' && data.payload) {
               const payload = data.payload;
               const curBal = useBalanceStore.getState().balance;
+              const nextTb = payload.tournamentBalances ?? useBalanceStore.getState().tournamentBalances;
               useBalanceStore.getState().setBalance({
                 userId: user?.id || '',
                 amount: payload.amount,
@@ -654,7 +660,7 @@ export function BlackjackMultiplayer() {
                 freeCasesJson: payload.freeCasesJson ?? (curBal as any)?.freeCasesJson ?? {},
                 demoMode: payload.demoMode ?? false,
                 lastSyncedAt: new Date(payload.timestamp || Date.now()),
-              }, payload.tournamentBalances || useBalanceStore.getState().tournamentBalances);
+              }, nextTb);
             }
 
             if (data.type === 'bj:state' && data.payload) {
@@ -693,7 +699,7 @@ export function BlackjackMultiplayer() {
                 if (isDuplicate) {
                   return prev;
                 }
-                if (!isChatOpen && !isMine) {
+                if (!isChatOpenRef.current && !isMine) {
                   setUnreadChatCount((c) => c + 1);
                 }
                 return [...prev, msg];
@@ -723,12 +729,12 @@ export function BlackjackMultiplayer() {
 
     connect();
 
-return () => {
+    return () => {
       isDisposed = true;
       if (pingInterval) clearInterval(pingInterval);
       ws?.close();
     };
-  }, [roomId, sessionId, token, user?.id, fetchBalance, isChatOpen]);
+  }, [roomId, sessionId, token, user?.id, syncBalance, fetchBalance, fetchTableHistory]);
 
   const handleJoinSeat = (seatId: number) => {
     setSelectedBet(0);
