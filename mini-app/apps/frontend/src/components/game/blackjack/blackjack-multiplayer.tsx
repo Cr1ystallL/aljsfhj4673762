@@ -48,10 +48,6 @@ export interface BJPlayer {
   bet: number;
   status: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
   isReady?: boolean;
-  splitHand?: BJCard[];
-  splitBet?: number;
-  splitStatus?: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
-  activeHandIndex?: 0 | 1;
 }
 
 export type BJPhase = 'waiting' | 'countdown' | 'dealing' | 'player_turn' | 'dealer_turn' | 'settling' | 'finished';
@@ -390,19 +386,9 @@ export function BlackjackMultiplayer() {
     return state.players.filter((p) => p.isReady).length;
   }, [state.players]);
 
-  const isSplitEligible = useMemo(() => {
-    if (!myPlayer || myPlayer.splitHand || myPlayer.hand.length !== 2) return false;
-    const r0 = myPlayer.hand[0]?.rank;
-    const r1 = myPlayer.hand[1]?.rank;
-    if (!r0 || !r1) return false;
-    const tens = ['10', 'J', 'Q', 'K'];
-    return r0 === r1 || (tens.includes(r0) && tens.includes(r1));
-  }, [myPlayer]);
-
   const isDoubleEligible = useMemo(() => {
     if (!myPlayer) return false;
-    const targetHand = myPlayer.splitHand && myPlayer.activeHandIndex === 1 ? myPlayer.splitHand : myPlayer.hand;
-    return targetHand?.length === 2;
+    return myPlayer.hand?.length === 2;
   }, [myPlayer]);
 
   // Dealer score
@@ -416,30 +402,6 @@ export function BlackjackMultiplayer() {
   }, [dealerCardsData]);
 
   // Compute outcome for each seated player during settlement
-  const evaluateSingleHand = useCallback(
-    (
-      hand: any[],
-      status: string,
-      bet: number
-    ): { type: 'win' | 'lose' | 'push' | 'blackjack'; payout: number } => {
-      if (!hand || hand.length === 0) return { type: 'lose', payout: 0 };
-      const pValue = calculateHandValue(hand.map(convertCard)).total;
-      const isDealerBust = dealerScore > 21;
-      const isPlayerBust = status === 'bust' || pValue > 21;
-      const isPlayerBJ = status === 'blackjack' || (hand.length === 2 && pValue === 21);
-      const isDealerBJ = state.dealerHand.length === 2 && dealerScore === 21;
-
-      if (isPlayerBust) return { type: 'lose', payout: 0 };
-      if (isPlayerBJ && !isDealerBJ) return { type: 'blackjack', payout: bet * 2.5 };
-      if (isDealerBJ && !isPlayerBJ) return { type: 'lose', payout: 0 };
-      if (isDealerBust) return { type: 'win', payout: bet * 2 };
-      if (pValue > dealerScore) return { type: 'win', payout: bet * 2 };
-      if (pValue === dealerScore) return { type: 'push', payout: bet };
-      return { type: 'lose', payout: 0 };
-    },
-    [dealerScore, state.dealerHand.length]
-  );
-
   const getPlayerOutcome = useCallback(
     (player: BJPlayer): { type: 'win' | 'lose' | 'push' | 'blackjack'; label: string; payout: number } | null => {
       if (state.phase !== 'settling' && state.phase !== 'finished') return null;
@@ -447,36 +409,21 @@ export function BlackjackMultiplayer() {
         return null;
       }
 
-      if (player.splitHand && player.splitHand.length > 0) {
-        const out1 = evaluateSingleHand(player.hand, player.status, player.bet);
-        const out2 = evaluateSingleHand(player.splitHand, player.splitStatus || 'stand', player.bet);
-        const totalPayout = out1.payout + out2.payout;
-        const totalBet = player.bet * 2;
+      const pValue = calculateHandValue(player.hand.map(convertCard)).total;
+      const isDealerBust = dealerScore > 21;
+      const isPlayerBust = player.status === 'bust' || pValue > 21;
+      const isPlayerBJ = player.status === 'blackjack' || (player.hand.length === 2 && pValue === 21);
+      const isDealerBJ = state.dealerHand.length === 2 && dealerScore === 21;
 
-        if (totalPayout > totalBet) {
-          return { type: 'win', label: 'ПОБЕДА В СПЛИТЕ', payout: totalPayout };
-        } else if (totalPayout === totalBet) {
-          return { type: 'push', label: 'НИЧЬЯ В СПЛИТЕ', payout: totalPayout };
-        } else if (totalPayout > 0) {
-          return { type: 'push', label: 'ЧАСТИЧНЫЙ ВОЗВРАТ', payout: totalPayout };
-        } else {
-          return { type: 'lose', label: 'ДИЛЕР ВЫИГРАЛ', payout: 0 };
-        }
-      }
-
-      const res = evaluateSingleHand(player.hand, player.status, player.bet);
-      if (res.type === 'blackjack') {
-        return { type: 'blackjack', label: 'БЛЭКДЖЕК 3:2', payout: res.payout };
-      }
-      if (res.type === 'win') {
-        return { type: 'win', label: 'ПОБЕДА НАД ДИЛЕРОМ', payout: res.payout };
-      }
-      if (res.type === 'push') {
-        return { type: 'push', label: 'НИЧЬЯ С ДИЛЕРОМ', payout: res.payout };
-      }
+      if (isPlayerBust) return { type: 'lose', label: 'ДИЛЕР ВЫИГРАЛ', payout: 0 };
+      if (isPlayerBJ && !isDealerBJ) return { type: 'blackjack', label: 'БЛЭКДЖЕК 3:2', payout: player.bet * 2.5 };
+      if (isDealerBJ && !isPlayerBJ) return { type: 'lose', label: 'ДИЛЕР ВЫИГРАЛ', payout: 0 };
+      if (isDealerBust) return { type: 'win', label: 'ПОБЕДА НАД ДИЛЕРОМ', payout: player.bet * 2 };
+      if (pValue > dealerScore) return { type: 'win', label: 'ПОБЕДА НАД ДИЛЕРОМ', payout: player.bet * 2 };
+      if (pValue === dealerScore) return { type: 'push', label: 'НИЧЬЯ С ДИЛЕРОМ', payout: player.bet };
       return { type: 'lose', label: 'ДИЛЕР ВЫИГРАЛ', payout: 0 };
     },
-    [state.phase, evaluateSingleHand]
+    [state.phase, dealerScore, state.dealerHand.length]
   );
 
   const myOutcome = useMemo(() => {
@@ -923,7 +870,7 @@ return () => {
     }
   };
 
-  const handleAction = (action: 'hit' | 'stand' | 'double' | 'split') => {
+  const handleAction = (action: 'hit' | 'stand' | 'double') => {
     if (!isMyTurn || isActionPending) return;
     setIsActionPending(true);
     // Auto unfreeze button after 500ms to prevent double clicks
@@ -931,7 +878,7 @@ return () => {
 
     if (action === 'hit') {
       soundManager.play('bj.card_slide');
-    } else if (action === 'double' || action === 'split') {
+    } else if (action === 'double') {
       soundManager.play('bj.chip_click');
       soundManager.play('bj.card_slide');
     } else {
@@ -1256,7 +1203,7 @@ return () => {
                 <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.14] to-transparent pointer-events-none rounded-t-2xl" />
                 <div className="relative z-10 flex items-center gap-1.5 text-xs font-black text-amber-300 uppercase tracking-wider">
                   <Clock size={14} className="text-amber-400 animate-spin" />
-                  <span>ВАШ ХОД: {clientTurnCountdown}с {myPlayer?.splitHand ? `(РУКА ${((myPlayer?.activeHandIndex ?? 0) + 1)}/2)` : ''}</span>
+                  <span>ВАШ ХОД: {clientTurnCountdown}с</span>
                 </div>
 
                 <div className="relative z-10 flex flex-row items-center justify-center gap-1.5 sm:gap-2.5 flex-nowrap">
@@ -1284,16 +1231,6 @@ return () => {
                       className="py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#b45309] to-[#451a03] border border-amber-500/50 hover:brightness-110 text-amber-100 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                     >
                       2× УДВОИТЬ
-                    </button>
-                  )}
-                  {isSplitEligible && (
-                    <button
-                      type="button"
-                      onClick={() => handleAction('split')}
-                      disabled={isActionPending}
-                      className="py-2.5 px-3 sm:px-4 rounded-xl bg-gradient-to-b from-[#1d4ed8] to-[#172554] border border-blue-500/50 hover:brightness-110 text-blue-100 font-black text-[11px] sm:text-sm uppercase tracking-wider shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
-                    >
-                      ✂️ СПЛИТ
                     </button>
                   )}
                 </div>
@@ -1354,7 +1291,7 @@ return () => {
                   ) : (
                     <div className="relative flex flex-col items-center px-8 py-3 rounded-2xl bg-gradient-to-b from-red-950/95 via-black/90 to-black/98 border-2 border-red-500/90 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_25px_rgba(239,68,68,0.35)] backdrop-blur-2xl">
                       <span className="text-xs sm:text-sm font-black text-red-400 uppercase tracking-wider">{myOutcome.label}</span>
-                      <span className="text-lg sm:text-xl font-black text-white/90 mt-0.5">-{myPlayer?.bet ? (myPlayer.splitHand ? myPlayer.bet * 2 : myPlayer.bet) : 0} {currencyLabel}</span>
+                      <span className="text-lg sm:text-xl font-black text-white/90 mt-0.5">-{myPlayer?.bet || 0} {currencyLabel}</span>
                     </div>
                   )
                 ) : (
@@ -1394,7 +1331,7 @@ return () => {
                   {player && player.hand.length > 0 && (
                     <div className="relative mb-1 pointer-events-none flex justify-center items-center gap-1 z-30">
                       {/* Main Hand */}
-                      <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.splitHand && (player.activeHandIndex === 0 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80"))}>
+                      <div className="relative flex justify-center items-center rounded-lg p-0.5">
                         {player.hand.map((c, cardIdx) => (
                           <motion.div
                             key={`seat_${seatId}_card_${cardIdx}`}
@@ -1420,7 +1357,7 @@ return () => {
                             }}
                             className="relative"
                             style={{
-                              marginLeft: cardIdx > 0 ? (player.splitHand ? '-18px' : (isMe ? '-22px' : '-16px')) : '0px',
+                              marginLeft: cardIdx > 0 ? (isMe ? '-22px' : '-16px') : '0px',
                               zIndex: cardIdx + 1,
                             }}
                           >
@@ -1428,9 +1365,7 @@ return () => {
                               card={c}
                               isFaceDown={c.hidden}
                               className={
-                                player.splitHand
-                                  ? 'w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]'
-                                  : isMe
+                                isMe
                                   ? 'w-[52px] h-[76px] sm:w-[66px] sm:h-[94px]'
                                   : 'w-[36px] h-[52px] sm:w-[44px] sm:h-[64px]'
                               }
@@ -1441,51 +1376,6 @@ return () => {
                           {calculateHandValue(player.hand.map(convertCard)).total}
                         </span>
                       </div>
-
-                      {/* Split Hand */}
-                      {player.splitHand && player.splitHand.length > 0 && (
-                        <div className={cn("relative flex justify-center items-center rounded-lg p-0.5 transition-all", player.activeHandIndex === 1 ? "ring-1 ring-amber-400 bg-amber-500/10" : "opacity-80")}>
-                          {player.splitHand.map((c, cardIdx) => (
-                            <motion.div
-                              key={`seat_${seatId}_split_${cardIdx}`}
-                              initial={{
-                                opacity: 0,
-                                y: -160,
-                                x: 100,
-                                scale: 0.25,
-                                rotate: -20,
-                              }}
-                              animate={{
-                                opacity: 1,
-                                y: 0,
-                                x: 0,
-                                scale: 1,
-                                rotate: 0,
-                              }}
-                              transition={{
-                                type: 'spring',
-                                damping: 18,
-                                stiffness: 190,
-                                mass: 0.8,
-                              }}
-                              className="relative"
-                              style={{
-                                marginLeft: cardIdx > 0 ? '-18px' : '0px',
-                                zIndex: cardIdx + 1,
-                              }}
-                            >
-                              <CasinoBlackjackCard
-                                card={c}
-                                isFaceDown={c.hidden}
-                                className="w-[32px] h-[46px] sm:w-[42px] sm:h-[60px]"
-                              />
-                            </motion.div>
-                          ))}
-                          <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-black/95 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-black text-amber-300 border border-amber-400/40 shadow-xl whitespace-nowrap">
-                            {calculateHandValue(player.splitHand.map(convertCard)).total}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   )}
 

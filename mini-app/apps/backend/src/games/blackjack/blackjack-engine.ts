@@ -39,11 +39,6 @@ export interface Player {
   isReady: boolean;
   betMetadata?: Record<string, any>;
   extraBetId?: string;
-  splitHand?: Card[];
-  splitBet?: number;
-  splitStatus?: 'waiting' | 'playing' | 'stand' | 'bust' | 'blackjack' | 'surrender' | 'doubled';
-  activeHandIndex?: 0 | 1;
-  splitExtraBetId?: string;
   lastActionAt?: number;
 }
 
@@ -539,39 +534,18 @@ export class BlackjackEngine extends EventEmitter {
     try {
       this.clearTurnTimer();
 
-      const isSplitActive = !!player.splitHand && player.activeHandIndex === 1;
-      const targetHand = isSplitActive ? player.splitHand! : player.hand;
-
       // Draw card with RTP bias
-      targetHand.push(this.drawCard(userId));
+      player.hand.push(this.drawCard(userId));
       
-      const { total } = this.calculateHandValue(targetHand);
+      const { total } = this.calculateHandValue(player.hand);
       
       if (total > 21) {
-        if (isSplitActive) {
-          player.splitStatus = 'bust';
-          await this.nextTurn();
-        } else if (player.splitHand) {
-          player.status = 'bust';
-          // Move to second hand
-          player.activeHandIndex = 1;
-          this.startTurnTimer();
-        } else {
-          player.status = 'bust';
-          await this.nextTurn();
-        }
+        player.status = 'bust';
+        await this.nextTurn();
       } else if (total === 21) {
         // Auto-stand on 21
-        if (isSplitActive) {
-          player.splitStatus = 'stand';
-          await this.nextTurn();
-        } else if (player.splitHand) {
-          player.status = 'stand';
-          player.activeHandIndex = 1;
-          this.startTurnTimer();
-        } else {
-          await this.nextTurn();
-        }
+        player.status = 'stand';
+        await this.nextTurn();
       } else {
         // Continue turn (restart timer)
         this.startTurnTimer();
@@ -600,18 +574,8 @@ export class BlackjackEngine extends EventEmitter {
     this.isProcessingTurnAction = true;
     try {
       this.clearTurnTimer();
-      if (player.splitHand && player.activeHandIndex === 0) {
-        player.status = 'stand';
-        player.activeHandIndex = 1;
-        this.startTurnTimer();
-      } else {
-        if (player.splitHand) {
-          player.splitStatus = 'stand';
-        } else {
-          player.status = 'stand';
-        }
-        await this.nextTurn();
-      }
+      player.status = 'stand';
+      await this.nextTurn();
       this.broadcastState();
       return true;
     } finally {
@@ -632,23 +596,19 @@ export class BlackjackEngine extends EventEmitter {
     }
     player.lastActionAt = now;
 
-    const isSplitActive = !!player.splitHand && player.activeHandIndex === 1;
-    const targetHand = isSplitActive ? player.splitHand! : player.hand;
-
-    // Can only double on first two cards of the current hand
-    if (targetHand.length !== 2) {
+    // Can only double on first two cards
+    if (player.hand.length !== 2) {
       return false;
     }
 
     this.isProcessingTurnAction = true;
     try {
-      const betAmount = isSplitActive ? (player.splitBet || player.bet) : player.bet;
       const extraBet: Bet = {
-        id: `bj_double_${player.userId}_${this.state.roundId}_${isSplitActive ? 'split' : 'main'}`,
+        id: `bj_double_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
         gameId: this.state.roundId,
         roundId: this.state.roundId,
-        amount: betAmount,
+        amount: player.bet,
         state: 'pending',
         placedAt: Date.now(),
         metadata: {
@@ -663,8 +623,7 @@ export class BlackjackEngine extends EventEmitter {
       if (!player.userId.startsWith('guest_') && !player.userId.startsWith('anon_')) {
         try {
           await bettingPipeline.processBet(extraBet, false);
-          if (isSplitActive) player.splitExtraBetId = extraBet.id;
-          else player.extraBetId = extraBet.id;
+          player.extraBetId = extraBet.id;
         } catch (err) {
           logger.warn({ err, userId: player.userId }, 'Failed to process double bet');
           return false;
@@ -673,120 +632,18 @@ export class BlackjackEngine extends EventEmitter {
 
       this.clearTurnTimer();
 
-      if (isSplitActive) {
-        player.splitBet = (player.splitBet || player.bet) * 2;
-        player.splitStatus = 'doubled';
-      } else {
-        player.bet *= 2;
-        player.status = 'doubled';
-      }
+      player.bet *= 2;
+      player.status = 'doubled';
 
       // Draw exactly one card
-      targetHand.push(this.drawCard(userId));
-      
-      const { total } = this.calculateHandValue(targetHand);
-      if (total > 21) {
-        if (isSplitActive) player.splitStatus = 'bust';
-        else player.status = 'bust';
-      }
-
-      if (!isSplitActive && player.splitHand) {
-        // Move to split hand
-        player.activeHandIndex = 1;
-        this.startTurnTimer();
-      } else {
-        await this.nextTurn();
-      }
-
-      this.broadcastState();
-      return true;
-    } finally {
-      this.isProcessingTurnAction = false;
-    }
-  }
-
-  async split(userId: string): Promise<boolean> {
-    if (this.isProcessingTurnAction) return false;
-    const player = this.state.players.find((p) => p.userId === userId);
-    if (!player || player.seatId !== this.state.currentTurnSeatId || this.state.phase !== 'player_turn') {
-      return false;
-    }
-
-    const now = Date.now();
-    if (player.lastActionAt && now - player.lastActionAt < 350) {
-      return false;
-    }
-    player.lastActionAt = now;
-
-    if (player.hand.length !== 2 || player.splitHand) {
-      return false;
-    }
-
-    const rank0 = player.hand[0].rank;
-    const rank1 = player.hand[1].rank;
-    const val0 = this.getCardRankValue(rank0);
-    const val1 = this.getCardRankValue(rank1);
-
-    if (rank0 !== rank1 && val0 !== val1) {
-      return false;
-    }
-
-    this.isProcessingTurnAction = true;
-    try {
-      const originalBet = player.bet;
-      const extraBet: Bet = {
-        id: `bj_split_${player.userId}_${this.state.roundId}`,
-        userId: player.userId,
-        gameId: this.state.roundId,
-        roundId: this.state.roundId,
-        amount: originalBet,
-        state: 'pending',
-        placedAt: Date.now(),
-        metadata: {
-          ...(player.betMetadata || {}),
-          gameType: 'blackjack',
-          mode: 'multi',
-          roomId: this.roomId,
-          action: 'split',
-        },
-      };
-
-      if (!player.userId.startsWith('guest_') && !player.userId.startsWith('anon_')) {
-        try {
-          await bettingPipeline.processBet(extraBet, false);
-          player.splitExtraBetId = extraBet.id;
-        } catch (err) {
-          logger.warn({ err, userId: player.userId }, 'Failed to process split bet');
-          return false;
-        }
-      }
-
-      this.clearTurnTimer();
-
-      // Split the two cards
-      const secondCard = player.hand.pop()!;
-      player.splitHand = [secondCard];
-      player.splitBet = originalBet;
-      player.splitStatus = 'playing';
-      player.activeHandIndex = 0;
-
-      // Deal 1 card to Hand 1, 1 card to Hand 2
       player.hand.push(this.drawCard(userId));
-      player.splitHand.push(this.drawCard(userId));
-
-      const val1Total = this.calculateHandValue(player.hand).total;
-      if (val1Total === 21) {
-        player.activeHandIndex = 1;
-        const val2Total = this.calculateHandValue(player.splitHand).total;
-        if (val2Total === 21) {
-          await this.nextTurn();
-        } else {
-          this.startTurnTimer();
-        }
-      } else {
-        this.startTurnTimer();
+      
+      const { total } = this.calculateHandValue(player.hand);
+      if (total > 21) {
+        player.status = 'bust';
       }
 
+      await this.nextTurn();
       this.broadcastState();
       return true;
     } finally {
@@ -974,61 +831,6 @@ export class BlackjackEngine extends EventEmitter {
           },
         }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
 
-        // Process splitHand payout if present
-        if (player.splitHand && player.splitHand.length > 0) {
-          const splitBetAmount = player.splitBet || player.bet;
-          const splitVal = this.calculateHandValue(player.splitHand).total;
-          const splitBust = player.splitStatus === 'bust' || splitVal > 21;
-          const splitBJ = player.splitStatus === 'blackjack' || this.isBlackjack(player.splitHand);
-
-          let splitResult: 'win' | 'lose' | 'push' | 'blackjack';
-          let splitPayout = 0;
-
-          if (splitBust) {
-            splitResult = 'lose';
-            splitPayout = 0;
-          } else if (splitBJ && !dealerBJ) {
-            splitResult = 'blackjack';
-            splitPayout = splitBetAmount * 2.5;
-          } else if (dealerBJ && !splitBJ) {
-            splitResult = 'lose';
-            splitPayout = 0;
-          } else if (dealerBust || splitVal > dealerValue) {
-            splitResult = 'win';
-            splitPayout = splitBetAmount * 2;
-          } else if (splitVal === dealerValue) {
-            splitResult = 'push';
-            splitPayout = splitBetAmount;
-          } else {
-            splitResult = 'lose';
-            splitPayout = 0;
-          }
-
-          const splitBetObj: Bet = {
-            id: `bj_split_bet_${player.userId}_${this.state.roundId}`,
-            userId: player.userId,
-            gameId: this.state.roundId,
-            roundId: this.state.roundId,
-            amount: splitBetAmount,
-            multiplier: splitBetAmount > 0 ? splitPayout / splitBetAmount : 0,
-            state: 'active',
-            placedAt: Date.now(),
-            metadata: { ...(player.betMetadata || {}), gameType: 'blackjack', mode: 'multi', hand: 'split', result: splitResult },
-          };
-
-          try {
-            if (splitPayout > 0) {
-              await bettingPipeline.processPayout(splitBetObj, splitPayout, false);
-            } else if (splitResult === 'push') {
-              await bettingPipeline.processPayout(splitBetObj, splitBetAmount, false);
-            } else {
-              await bettingPipeline.processLoss(splitBetObj);
-            }
-          } catch (err) {
-            logger.error({ err, userId: player.userId }, 'Failed to settle split bet');
-          }
-        }
-
       } catch (err) {
         logger.error({ err, userId: player.userId }, 'Failed to settle blackjack bet');
       }
@@ -1113,11 +915,6 @@ export class BlackjackEngine extends EventEmitter {
 
     for (const player of this.state.players) {
       player.hand = [];
-      player.splitHand = undefined;
-      player.splitBet = undefined;
-      player.splitStatus = undefined;
-      player.activeHandIndex = undefined;
-      player.splitExtraBetId = undefined;
       player.extraBetId = undefined;
       player.status = 'waiting';
       player.bet = 0; // Point #12: bet resets to 0 for next round

@@ -1537,7 +1537,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   // Blackjack REST Action
   app.post('/blackjack/action', async (request, reply) => {
     const { userId } = await resolveBjUser(request);
-    const { roomId = 'bj_table_1', action } = (request.body as { roomId?: string; action: 'hit' | 'stand' | 'double' | 'split' }) || {};
+    const { roomId = 'bj_table_1', action } = (request.body as { roomId?: string; action: 'hit' | 'stand' | 'double' }) || {};
 
     const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
     const table = blackjackSingleton.getTable(roomId);
@@ -1545,7 +1545,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (action === 'hit') success = await table.hit(userId);
     else if (action === 'stand') success = await table.stand(userId);
     else if (action === 'double') success = await table.double(userId);
-    else if (action === 'split') success = await table.split(userId);
 
     return reply.send({ success, state: table.getState() });
   });
