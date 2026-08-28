@@ -33,12 +33,13 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   pendingBalance: null,
   pendingTournamentBalances: null,
 
-  setBalance: (balance, tournamentBalances = []) => {
+  setBalance: (balance, tournamentBalances) => {
     const state = get();
+    const effectiveTb = tournamentBalances !== undefined ? tournamentBalances : state.tournamentBalances;
     if (state.isFrozen) {
-      set({ pendingBalance: balance, pendingTournamentBalances: tournamentBalances });
+      set({ pendingBalance: balance, pendingTournamentBalances: effectiveTb });
     } else {
-      set({ balance, tournamentBalances, isLoading: false, pendingBalance: null, pendingTournamentBalances: null });
+      set({ balance, tournamentBalances: effectiveTb, isLoading: false, pendingBalance: null, pendingTournamentBalances: null });
     }
   },
 

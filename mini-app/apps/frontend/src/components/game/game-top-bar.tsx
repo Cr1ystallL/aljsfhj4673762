@@ -37,6 +37,8 @@ export function GameTopBar({
   iconRotate = 0,
   onHowToPlay,
   hideBalance = false,
+  balance,
+  currency,
   extraAction,
   width = 'reading',
 }: GameTopBarProps) {
@@ -56,12 +58,25 @@ export function GameTopBar({
   );
 
   useEffect(() => {
-    void fetchBalance();
-  }, [fetchBalance]);
+    // Only fetch if caller didn't pass explicit balance
+    if (balance === undefined) {
+      void fetchBalance();
+    }
+  }, [fetchBalance, balance]);
 
-  const balanceAmount = activeTournamentBalance
-    ? activeTournamentBalance.balance
-    : balanceStore?.amount ?? 0;
+  const balanceAmount =
+    balance !== undefined
+      ? balance
+      : activeTournamentBalance
+      ? activeTournamentBalance.balance
+      : balanceStore?.amount ?? 0;
+
+  const currencySymbol = currency
+    ? currency
+    : activeTournamentBalance
+    ? '🏆'
+    : 'zł';
+
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   const showPillWrapper = !hideBalance || !isProfilePage;
@@ -129,10 +144,10 @@ export function GameTopBar({
                       })}
                     </span>
                     <span className="font-roobert text-amber-300 text-[11px] font-bold tracking-wider uppercase">
-                      {activeTournamentBalance ? (
+                      {currencySymbol === '🏆' ? (
                         <Trophy size={11} strokeWidth={2.5} />
                       ) : (
-                        'zł'
+                        currencySymbol
                       )}
                     </span>
                   </div>
