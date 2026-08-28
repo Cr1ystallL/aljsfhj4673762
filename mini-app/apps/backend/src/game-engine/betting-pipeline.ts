@@ -76,18 +76,65 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
   return cycle as { id: string; startsAt: Date; endsAt: Date; prizePool: Prisma.Decimal; state: string };
 }
 
+export function getGameTypeFromBet(bet: Bet): GameType | string {
+  if (bet.metadata?.gameType) {
+    const metaGt = String(bet.metadata.gameType).toLowerCase();
+    return metaGt === 'bj' ? 'blackjack' : metaGt;
+  }
+  const raw = bet.gameId ? bet.gameId.split('_')[0].toLowerCase() : '';
+  if (raw === 'bj') return 'blackjack';
+  return raw || 'blackjack';
+}
+
 async function findTournamentContext(userId: string, gameType: string) {
-  const t = await (prisma as any).tournament.findFirst({ where: { active: true, gameType }, orderBy: { createdAt: 'desc' } });
-  if (!t) return null;
-  const cycle = await ensureCycle(t);
-  if (cycle.state !== 'live') return null;
-  const now = Date.now();
-  if (now < cycle.startsAt.getTime() || now > cycle.endsAt.getTime()) return null;
-  const participant = await (prisma as any).tournamentParticipant.findUnique({
-    where: { cycleId_userId: { cycleId: cycle.id, userId } },
-  });
-  if (!participant) return null;
-  return { tournament: t as any, cycle, participant };
+  const normGameType = gameType === 'bj' ? 'blackjack' : gameType;
+  const now = new Date();
+
+  // 1. Direct match: Active participant in a current cycle for this gameType
+  try {
+    const activeParticipant = await (prisma as any).tournamentParticipant.findFirst({
+      where: {
+        userId,
+        cycle: {
+          startsAt: { lte: now },
+          endsAt: { gte: now },
+          tournament: { active: true, gameType: { in: [normGameType, gameType] } },
+        },
+      },
+      include: { cycle: { include: { tournament: true } } },
+    });
+
+    if (activeParticipant) {
+      return {
+        tournament: activeParticipant.cycle.tournament,
+        cycle: activeParticipant.cycle,
+        participant: activeParticipant,
+      };
+    }
+  } catch (err) {
+    logger.warn({ err, userId, gameType }, 'Error looking up active tournament participant');
+  }
+
+  // 2. Fallback: Find active tournament and ensure current cycle
+  try {
+    const t = await (prisma as any).tournament.findFirst({
+      where: { active: true, gameType: { in: [normGameType, gameType] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!t) return null;
+    const cycle = await ensureCycle(t);
+    if (cycle.state !== 'live') return null;
+    const nowTs = Date.now();
+    if (nowTs < cycle.startsAt.getTime() || nowTs > cycle.endsAt.getTime()) return null;
+    const participant = await (prisma as any).tournamentParticipant.findUnique({
+      where: { cycleId_userId: { cycleId: cycle.id, userId } },
+    });
+    if (!participant) return null;
+    return { tournament: t as any, cycle, participant };
+  } catch (err) {
+    logger.warn({ err, userId, gameType }, 'Error checking tournament cycle fallback');
+    return null;
+  }
 }
 
 export class BettingPipeline {
@@ -169,9 +216,7 @@ export class BettingPipeline {
   async processBet(bet: Bet, demoMode: boolean = false): Promise<boolean> {
     const amount = TWO_DP(bet.amount);
 
-    // Honour admin-controlled limits and pause flag. The engine knows
-    // its game-type from `bet.gameId` (e.g. "crash_main_..." → "crash").
-    const gt = bet.gameId.split('_')[0];
+    const gt = getGameTypeFromBet(bet);
     const supported: GameType[] = ['crash', 'mines', 'coinflip', 'wheel', 'blackjack', 'macvpot'];
     if (supported.includes(gt as GameType)) {
       const cfg = await gameConfig.get(gt as GameType);
@@ -226,7 +271,7 @@ export class BettingPipeline {
             data: {
               id: bet.id,
               userId: bet.userId,
-              gameType: bet.gameId.split('_')[0],
+              gameType: gt,
               roundId: bet.roundId,
               amount,
               state: bet.state,
@@ -267,7 +312,7 @@ export class BettingPipeline {
           data: {
             id: bet.id,
             userId: bet.userId,
-            gameType: bet.gameId.split('_')[0],
+            gameType: gt,
             roundId: bet.roundId,
             amount,
             state: bet.state,
@@ -283,7 +328,7 @@ export class BettingPipeline {
             amount: -amount,
             balanceBefore: updated + amount,
             balanceAfter: updated,
-            gameType: bet.gameId.split('_')[0],
+            gameType: gt,
             gameRoundId: bet.roundId || null,
             metadata: {
               betId: bet.id,
@@ -392,6 +437,7 @@ export class BettingPipeline {
     const credit = TWO_DP(capped);
 
     try {
+      const gt = getGameTypeFromBet(bet);
       const newBalance = await prisma.$transaction(async (tx) => {
         let balanceAfter = 0;
 
@@ -405,7 +451,7 @@ export class BettingPipeline {
               amount: credit,
               balanceBefore: balanceAfter - credit,
               balanceAfter,
-              gameType: bet.gameId.split('_')[0],
+              gameType: gt,
               gameRoundId: bet.roundId || null,
               metadata: {
                 betId: bet.id,
@@ -449,8 +495,7 @@ export class BettingPipeline {
             autoRtpProgress = new Prisma.Decimal(0);
             needsUpdate = true;
           } else if (!demoMode && wagerQualifying) {
-            const gt = bet.gameId.split('_')[0] as GameType;
-            const cfg = gameConfig.getCachedOrDefault(gt);
+            const cfg = gameConfig.getCachedOrDefault(gt as GameType);
             const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
             
             if (Number(wagerProgress) < Number(wagerTarget)) {
@@ -487,7 +532,7 @@ export class BettingPipeline {
         credit,
         newBalance,
         demoMode,
-        bet.gameId.split('_')[0]
+        gt
       );
 
       logger.info(
@@ -514,7 +559,39 @@ export class BettingPipeline {
    */
   async processLoss(bet: Bet, demoMode = false, wagerQualifying = true): Promise<void> {
     try {
+      const meta = (bet.metadata || {}) as Record<string, any>;
+      let tournamentCycleId = meta.tournamentCycleId as string | undefined;
+
+      if (!tournamentCycleId) {
+        try {
+          const dbBet = await prisma.bet.findUnique({
+            where: { id: bet.id },
+            select: { metadata: true },
+          });
+          const dbMeta = (dbBet?.metadata || {}) as Record<string, any>;
+          if (dbMeta.tournamentCycleId) {
+            tournamentCycleId = dbMeta.tournamentCycleId;
+            bet.metadata = { ...(bet.metadata || {}), ...dbMeta };
+          }
+        } catch {}
+      }
+
+      if (tournamentCycleId) {
+        await prisma.bet.update({
+          where: { id: bet.id },
+          data: {
+            state: 'lost',
+            payout: 0,
+            resolvedAt: new Date(),
+          },
+        });
+        logger.info({ betId: bet.id, userId: bet.userId, tournamentCycleId }, 'Tournament bet lost');
+        await balanceService.syncBalance(bet.userId);
+        return;
+      }
+
       let finalBalance = 0;
+      const gt = getGameTypeFromBet(bet) as GameType;
       await prisma.$transaction(async (tx) => {
         await tx.bet.update({
           where: { id: bet.id },
@@ -542,7 +619,6 @@ export class BettingPipeline {
             autoRtpProgress = new Prisma.Decimal(0);
             needsUpdate = true;
           } else if (!demoMode && wagerQualifying) {
-            const gt = bet.gameId.split('_')[0] as GameType;
             const cfg = gameConfig.getCachedOrDefault(gt);
             const addedProgress = bet.amount * (cfg.wagerContribution ?? 1.0);
             
@@ -565,26 +641,9 @@ export class BettingPipeline {
         }
       });
 
-      const meta = (bet.metadata || {}) as Record<string, any>;
-      let tournamentCycleId = meta.tournamentCycleId as string | undefined;
-
-      if (!tournamentCycleId) {
-        try {
-          const dbBet = await prisma.bet.findUnique({
-            where: { id: bet.id },
-            select: { metadata: true },
-          });
-          const dbMeta = (dbBet?.metadata || {}) as Record<string, any>;
-          if (dbMeta.tournamentCycleId) {
-            tournamentCycleId = dbMeta.tournamentCycleId;
-            bet.metadata = { ...(bet.metadata || {}), ...dbMeta };
-          }
-        } catch {}
-      }
-
       // Casino kept the full stake — record it for the controller,
       // but only if it's real money.
-      if (!tournamentCycleId && !meta.demoMode) {
+      if (!meta.demoMode) {
         await balanceService.syncBalance(bet.userId);
         await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0);
         
@@ -595,7 +654,7 @@ export class BettingPipeline {
           0,
           finalBalance,
           demoMode,
-          bet.gameId.split('_')[0]
+          gt
         );
       }
       logger.info({ betId: bet.id, userId: bet.userId }, 'Bet lost');

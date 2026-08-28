@@ -838,11 +838,25 @@ return () => {
     const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;
     if (!effectiveUserId) return;
 
+    const currentBet = myPlayer?.bet || selectedBet || 0;
+    if (nextReady && currentBet < MIN_BET) {
+      toast.info(`Сделайте ставку (мин. ${MIN_BET} ${currencyLabel})`);
+      return;
+    }
+
+    // If bet changed locally, sync bet first
+    if (selectedBet >= MIN_BET && myPlayer?.bet !== selectedBet) {
+      const betPayload = { roomId, bet: selectedBet, userId: effectiveUserId };
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        sendWs('blackjack:bet', betPayload);
+      }
+    }
+
     // Optimistic local state update
     setState((prev) => ({
       ...prev,
       players: prev.players.map((p) =>
-        p.userId === effectiveUserId ? { ...p, isReady: nextReady } : p
+        p.userId === effectiveUserId ? { ...p, isReady: nextReady, bet: selectedBet || p.bet } : p
       ),
     }));
 

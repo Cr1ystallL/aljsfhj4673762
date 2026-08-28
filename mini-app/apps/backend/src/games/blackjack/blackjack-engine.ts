@@ -258,12 +258,13 @@ export class BlackjackEngine extends EventEmitter {
       this.startCountdown();
     }
 
-    // Check if ALL seated players at the table have voted ready
-    const totalSeated = this.state.players.length;
-    const allReady = totalSeated > 0 && this.state.players.every((p) => p.isReady);
+    // Check if ALL seated players who placed a valid bet (or all players) have voted ready
+    const bettingPlayers = this.state.players.filter((p) => p.bet >= 10);
+    const allBettingReady = bettingPlayers.length > 0 && bettingPlayers.every((p) => p.isReady);
+    const allSeatedReady = this.state.players.length > 0 && this.state.players.every((p) => p.isReady);
 
-    if (allReady) {
-      logger.info({ roomId: this.roomId, totalSeated }, 'ALL seated players voted ready! Skipping countdown to deal immediately');
+    if (allBettingReady || allSeatedReady) {
+      logger.info({ roomId: this.roomId, bettingCount: bettingPlayers.length }, 'All active players ready! Dealing immediately');
       this.stopCountdown();
       this.startRound();
       return true;
@@ -384,7 +385,7 @@ export class BlackjackEngine extends EventEmitter {
       const bet: Bet = {
         id: `bj_bet_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
-        gameId: this.state.roundId,
+        gameId: 'blackjack',
         roundId: this.state.roundId,
         amount: player.bet,
         state: 'pending',
@@ -392,20 +393,27 @@ export class BlackjackEngine extends EventEmitter {
         metadata: { gameType: 'blackjack', mode: 'multi', roomId: this.roomId },
       };
 
-      try {
-        await bettingPipeline.processBet(bet, false);
-        player.status = 'playing';
-        player.betMetadata = { ...(bet.metadata || {}) };
-        (player as any).consecutiveAfkRounds = 0;
-      } catch (error) {
-        logger.error({ error, userId: player.userId }, 'Failed to process blackjack bet');
-        player.status = 'waiting';
-        player.hand = [];
-        player.bet = 0;
-        (player as any).consecutiveAfkRounds = ((player as any).consecutiveAfkRounds || 0) + 1;
-        if ((player as any).consecutiveAfkRounds >= 2) {
-          this.leave(player.userId);
+      if (!player.userId.startsWith('guest_') && !player.userId.startsWith('anon_')) {
+        try {
+          await bettingPipeline.processBet(bet, false);
+          player.status = 'playing';
+          player.betMetadata = { ...(bet.metadata || {}) };
+          (player as any).consecutiveAfkRounds = 0;
+        } catch (error) {
+          logger.error({ error, userId: player.userId }, 'Failed to process blackjack bet');
+          player.status = 'waiting';
+          player.hand = [];
+          player.bet = 0;
+          (player as any).consecutiveAfkRounds = ((player as any).consecutiveAfkRounds || 0) + 1;
+          if ((player as any).consecutiveAfkRounds >= 2) {
+            this.leave(player.userId);
+          }
         }
+      } else {
+        // Guest / Demo player
+        player.status = 'playing';
+        player.betMetadata = { gameType: 'blackjack', mode: 'multi', roomId: this.roomId, demoMode: true };
+        (player as any).consecutiveAfkRounds = 0;
       }
     }
 
@@ -762,13 +770,14 @@ export class BlackjackEngine extends EventEmitter {
         ...(player.betMetadata || {}),
         gameType: 'blackjack',
         mode: 'multi',
+        roomId: this.roomId,
         result,
       };
 
       const bet: Bet = {
         id: `bj_bet_${player.userId}_${this.state.roundId}`,
         userId: player.userId,
-        gameId: this.state.roundId,
+        gameId: 'blackjack',
         roundId: this.state.roundId,
         amount: player.bet,
         multiplier: player.bet > 0 ? payout / player.bet : 0,
@@ -777,62 +786,64 @@ export class BlackjackEngine extends EventEmitter {
         metadata: betMetadata,
       };
 
-      try {
-        if (payout > 0) {
-          await bettingPipeline.processPayout(bet, payout, false);
-        } else if (result === 'push') {
-          await bettingPipeline.processPayout(bet, player.bet, false);
-        } else {
-          await bettingPipeline.processLoss(bet);
-        }
-
-        if (player.extraBetId) {
-          try {
-            await prisma.bet.update({
-              where: { id: player.extraBetId },
-              data: {
-                state: payout > 0 ? 'won' : (result === 'push' ? 'push' : 'lost'),
-                resolvedAt: new Date(),
-              },
-            });
-          } catch {}
-        }
-
-        // Force balance broadcast to all user clients
+      if (!player.userId.startsWith('guest_') && !player.userId.startsWith('anon_')) {
         try {
-          const { balanceService } = await import('../../services/balance-service.js');
-          await balanceService.syncBalance(player.userId);
-        } catch {}
+          if (payout > 0) {
+            await bettingPipeline.processPayout(bet, payout, false);
+          } else if (result === 'push') {
+            await bettingPipeline.processPayout(bet, player.bet, false);
+          } else {
+            await bettingPipeline.processLoss(bet);
+          }
 
-        // Save game round
-        await prisma.gameRound.create({
-          data: {
-            id: `${this.state.roundId}_${player.userId}`,
-            gameType: 'blackjack',
-            state: 'completed',
-            serverSeedHash: this.currentSeeds.serverSeedHash,
-            serverSeed: this.currentSeeds.serverSeed,
-            clientSeed: this.currentSeeds.clientSeed,
-            nonce: 1,
-            startedAt: new Date(this.currentSeeds.startedAt || Date.now()),
-            endedAt: new Date(),
-            metadata: { mode: 'multi', betAmount: player.bet, roomId: this.roomId },
-            result: {
-              result,
-              payout,
-              playerHand: JSON.parse(JSON.stringify(player.hand)),
-              dealerHand: JSON.parse(JSON.stringify(this.state.dealerHand)),
-              playerValue,
-              dealerValue,
-              serverSeed: this.currentSeeds.serverSeed,
+          if (player.extraBetId) {
+            try {
+              await prisma.bet.update({
+                where: { id: player.extraBetId },
+                data: {
+                  state: payout > 0 ? 'won' : (result === 'push' ? 'push' : 'lost'),
+                  resolvedAt: new Date(),
+                },
+              });
+            } catch {}
+          }
+
+          // Force balance broadcast to all user clients
+          try {
+            const { balanceService } = await import('../../services/balance-service.js');
+            await balanceService.syncBalance(player.userId);
+          } catch {}
+
+          // Save game round
+          await prisma.gameRound.create({
+            data: {
+              id: `${this.state.roundId}_${player.userId}`,
+              gameType: 'blackjack',
+              state: 'completed',
               serverSeedHash: this.currentSeeds.serverSeedHash,
+              serverSeed: this.currentSeeds.serverSeed,
               clientSeed: this.currentSeeds.clientSeed,
-            } as any,
-          },
-        }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
+              nonce: 1,
+              startedAt: new Date(this.currentSeeds.startedAt || Date.now()),
+              endedAt: new Date(),
+              metadata: { mode: 'multi', betAmount: player.bet, roomId: this.roomId },
+              result: {
+                result,
+                payout,
+                playerHand: JSON.parse(JSON.stringify(player.hand)),
+                dealerHand: JSON.parse(JSON.stringify(this.state.dealerHand)),
+                playerValue,
+                dealerValue,
+                serverSeed: this.currentSeeds.serverSeed,
+                serverSeedHash: this.currentSeeds.serverSeedHash,
+                clientSeed: this.currentSeeds.clientSeed,
+              } as any,
+            },
+          }).catch((err) => logger.warn(err, 'Failed to record blackjack round'));
 
-      } catch (err) {
-        logger.error({ err, userId: player.userId }, 'Failed to settle blackjack bet');
+        } catch (err) {
+          logger.error({ err, userId: player.userId }, 'Failed to settle blackjack bet');
+        }
       }
     }
 
