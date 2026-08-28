@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useBalanceStore } from '@/store/balance-store';
 import { useBalance } from '@/hooks/use-balance';
 
@@ -14,6 +15,8 @@ export interface ActiveBalance {
   fetchBalance: () => Promise<void>;
   /** Forces balance sync from server via POST /api/balance/sync */
   syncBalance: () => Promise<void>;
+  /** Optimistic delta update for this active balance */
+  optimisticUpdate: (delta: number) => void;
 }
 
 /**
@@ -28,10 +31,14 @@ export interface ActiveBalance {
 export function useActiveBalance(gameType: string): ActiveBalance {
   const balance = useBalanceStore((s) => s.balance);
   const tournamentBalances = useBalanceStore((s) => s.tournamentBalances);
-  const { fetchBalance, syncBalance } = useBalance();
+  const { fetchBalance, syncBalance, optimisticUpdate: baseOptimisticUpdate } = useBalance();
 
   const tournament = tournamentBalances.find((t) => t.gameType === gameType);
   const isTournament = tournament !== undefined;
+
+  const optimisticUpdate = useCallback((delta: number) => {
+    baseOptimisticUpdate(delta, isTournament ? gameType : undefined);
+  }, [baseOptimisticUpdate, isTournament, gameType]);
 
   return {
     amount: tournament?.balance ?? balance?.amount ?? 0,
@@ -40,5 +47,6 @@ export function useActiveBalance(gameType: string): ActiveBalance {
     currencyLabel: isTournament ? '🏆' : 'zł',
     fetchBalance,
     syncBalance,
+    optimisticUpdate,
   };
 }

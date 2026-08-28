@@ -244,6 +244,7 @@ export function BlackjackMultiplayer() {
     currencyLabel,
     fetchBalance,
     syncBalance,
+    optimisticUpdate,
   } = useActiveBalance('blackjack');
 
   const searchParams = useSearchParams();
@@ -340,6 +341,7 @@ export function BlackjackMultiplayer() {
   }, []);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const hasDebitedBetRef = useRef(false);
 
   const [wsUserId, setWsUserId] = useState<string | null>(null);
 
@@ -359,12 +361,26 @@ export function BlackjackMultiplayer() {
     );
   }, [state.players, user?.id, user?.username, user?.firstName, wsUserId, sessionId]);
 
-  // Reset selectedBet when entering waiting phase
+  // Track phase transitions for instant balance updates and reset
   useEffect(() => {
-    if (state.phase === 'waiting') {
+    if (state.phase === 'dealing' || state.phase === 'player_turn') {
+      const myBet = myPlayer?.bet || selectedBet || 0;
+      if (myBet >= 10 && !hasDebitedBetRef.current) {
+        hasDebitedBetRef.current = true;
+        optimisticUpdate(-myBet);
+      }
+      void syncBalance();
+    } else if (state.phase === 'waiting') {
+      hasDebitedBetRef.current = false;
       setSelectedBet(0);
+      void fetchBalance();
+      void syncBalance();
+    } else if (state.phase === 'settling' || state.phase === 'finished') {
+      hasDebitedBetRef.current = false;
+      void fetchBalance();
+      void syncBalance();
     }
-  }, [state.phase]);
+  }, [state.phase, myPlayer?.bet, selectedBet, optimisticUpdate, syncBalance, fetchBalance]);
 
   // Keep selectedBet synchronized if player already has a bet on server in countdown phase
   useEffect(() => {
@@ -852,6 +868,12 @@ return () => {
       }
     }
 
+    // Instant optimistic balance deduction when player commits bet to deal
+    if (nextReady && currentBet >= MIN_BET && !hasDebitedBetRef.current) {
+      hasDebitedBetRef.current = true;
+      optimisticUpdate(-currentBet);
+    }
+
     // Optimistic local state update
     setState((prev) => ({
       ...prev,
@@ -895,6 +917,11 @@ return () => {
     } else if (action === 'double') {
       soundManager.play('bj.chip_click');
       soundManager.play('bj.card_slide');
+      // Instant optimistic deduction of the double bet
+      const doubleAmount = myPlayer?.bet || selectedBet || 0;
+      if (doubleAmount > 0) {
+        optimisticUpdate(-doubleAmount);
+      }
     } else {
       soundManager.play('ui.click');
     }
