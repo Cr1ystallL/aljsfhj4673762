@@ -9,6 +9,7 @@ import { BlockedGuard } from './blocked-guard';
 import { MaintenanceGuard } from './maintenance-guard';
 import { ToastHost } from '@/components/ui/toast-host';
 import { LocaleSync } from './locale-sync';
+import { TournamentRebuyGlobalModal } from '@/components/tournament/tournament-rebuy-global-modal';
 import { useState } from 'react';
 
 /**
@@ -39,6 +40,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                   <SplashGate>
                     <LocaleSync />
                     <ToastHost />
+                    <TournamentRebuyGlobalModal />
                     {children}
                   </SplashGate>
                 </MaintenanceGuard>

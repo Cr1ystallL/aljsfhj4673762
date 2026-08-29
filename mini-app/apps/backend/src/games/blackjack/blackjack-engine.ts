@@ -258,13 +258,15 @@ export class BlackjackEngine extends EventEmitter {
       this.startCountdown();
     }
 
-    // Check if ALL seated players who placed a valid bet (or all players) have voted ready
-    const bettingPlayers = this.state.players.filter((p) => p.bet >= 10);
-    const allBettingReady = bettingPlayers.length > 0 && bettingPlayers.every((p) => p.isReady);
-    const allSeatedReady = this.state.players.length > 0 && this.state.players.every((p) => p.isReady);
+    // Check if ALL seated players are ready to deal immediately:
+    // 1 player at table: deals immediately if player has bet >= 10 and isReady.
+    // Multiple players at table: deals immediately ONLY if EVERY seated player has bet >= 10 AND voted isReady.
+    const totalSeated = this.state.players.length;
+    const readyBettingPlayers = this.state.players.filter((p) => p.bet >= 10 && p.isReady);
+    const allSeatedReadyToDeal = totalSeated > 0 && readyBettingPlayers.length === totalSeated;
 
-    if (allBettingReady || allSeatedReady) {
-      logger.info({ roomId: this.roomId, bettingCount: bettingPlayers.length }, 'All active players ready! Dealing immediately');
+    if (allSeatedReadyToDeal) {
+      logger.info({ roomId: this.roomId, totalSeated }, 'All seated players ready! Dealing immediately');
       this.stopCountdown();
       this.startRound();
       return true;
@@ -417,7 +419,9 @@ export class BlackjackEngine extends EventEmitter {
       }
     }
 
-    const activePlayers = this.state.players.filter((p) => p.status === 'playing');
+    const activePlayers = this.state.players
+      .filter((p) => p.status === 'playing')
+      .sort((a, b) => a.seatId - b.seatId);
     if (activePlayers.length === 0) {
       this.state.phase = 'waiting';
       this.state.countdown = this.config.countdownSeconds;
@@ -634,6 +638,10 @@ export class BlackjackEngine extends EventEmitter {
           player.extraBetId = extraBet.id;
         } catch (err) {
           logger.warn({ err, userId: player.userId }, 'Failed to process double bet');
+          wsManager.sendToUser(player.userId, {
+            type: 'error',
+            message: (err as Error)?.message || 'Недостаточно средств для удвоения',
+          });
           return false;
         }
       }

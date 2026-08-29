@@ -405,8 +405,9 @@ export function BlackjackMultiplayer() {
 
   const isDoubleEligible = useMemo(() => {
     if (!myPlayer) return false;
-    return myPlayer.hand?.length === 2;
-  }, [myPlayer]);
+    const doubleAmount = myPlayer.bet || selectedBet || 0;
+    return myPlayer.hand?.length === 2 && doubleAmount > 0 && activeBalance >= doubleAmount;
+  }, [myPlayer, selectedBet, activeBalance]);
 
   // Dealer score
   const dealerCardsData = useMemo(() => {
@@ -922,13 +923,16 @@ export function BlackjackMultiplayer() {
     if (action === 'hit') {
       soundManager.play('bj.card_slide');
     } else if (action === 'double') {
+      const doubleAmount = myPlayer?.bet || selectedBet || 0;
+      if (doubleAmount <= 0 || activeBalance < doubleAmount) {
+        toast.error('Недостаточно средств для удвоения');
+        setIsActionPending(false);
+        return;
+      }
       soundManager.play('bj.chip_click');
       soundManager.play('bj.card_slide');
       // Instant optimistic deduction of the double bet
-      const doubleAmount = myPlayer?.bet || selectedBet || 0;
-      if (doubleAmount > 0) {
-        optimisticUpdate(-doubleAmount);
-      }
+      optimisticUpdate(-doubleAmount);
     } else {
       soundManager.play('ui.click');
     }
@@ -1419,27 +1423,41 @@ export function BlackjackMultiplayer() {
                   {/* (C) 3D LIQUID GLASS DISK / AVATAR SLOT */}
                   <div className="relative flex flex-col items-center">
                     {player ? (
-                      /* Occupied Seat Avatar with Golden Glow Ring */
-                      <div
-                        className={cn(
-                          'relative flex w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 items-center justify-center rounded-full border-2 bg-black/80 text-white font-black text-sm sm:text-lg shadow-2xl transition-all overflow-hidden',
-                          outcome === 'win' || outcome === 'blackjack'
-                            ? 'border-emerald-400 ring-4 ring-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.9)] scale-105'
-                            : outcome === 'lose'
-                            ? 'border-red-500 ring-4 ring-red-500 shadow-[0_0_25px_rgba(239,68,68,0.9)]'
-                            : outcome === 'push'
-                            ? 'border-amber-400 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)]'
-                            : isTurn
-                            ? 'border-yellow-400 ring-4 ring-yellow-400 ring-offset-2 ring-offset-black scale-105 shadow-[0_0_25px_rgba(250,204,21,0.9)]'
-                            : 'border-amber-400/90 ring-2 ring-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.5),0_10px_25px_rgba(0,0,0,0.8)]'
+                      <>
+                        {/* Occupied Seat Avatar with Golden Glow Ring */}
+                        <div
+                          className={cn(
+                            'relative flex w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 items-center justify-center rounded-full border-2 bg-black/80 text-white font-black text-sm sm:text-lg shadow-2xl transition-all overflow-hidden',
+                            outcome === 'win' || outcome === 'blackjack'
+                              ? 'border-emerald-400 ring-4 ring-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.9)] scale-105'
+                              : outcome === 'lose'
+                              ? 'border-red-500 ring-4 ring-red-500 shadow-[0_0_25px_rgba(239,68,68,0.9)]'
+                              : outcome === 'push'
+                              ? 'border-amber-400 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)]'
+                              : isTurn
+                              ? 'border-yellow-400 ring-4 ring-yellow-400 ring-offset-2 ring-offset-black scale-105 shadow-[0_0_25px_rgba(250,204,21,0.9)]'
+                              : 'border-amber-400/90 ring-2 ring-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.5),0_10px_25px_rgba(0,0,0,0.8)]'
+                          )}
+                        >
+                          {player.avatar ? (
+                            <img src={player.avatar} alt={player.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="drop-shadow-md text-amber-300">{player.name.slice(0, 1).toUpperCase()}</span>
+                          )}
+                        </div>
+
+                        {/* READY BADGE ON AVATAR (Visible during betting / countdown) */}
+                        {player && player.isReady && (state.phase === 'waiting' || state.phase === 'countdown') && (
+                          <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="absolute -top-1.5 -right-1.5 z-40 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500 text-black text-[8px] sm:text-[9px] font-black uppercase shadow-[0_0_12px_rgba(16,185,129,0.9)] border border-emerald-300 pointer-events-none"
+                          >
+                            <CheckCircle2 size={10} strokeWidth={3} className="text-black shrink-0" />
+                            <span>Готов</span>
+                          </motion.div>
                         )}
-                      >
-                        {player.avatar ? (
-                          <img src={player.avatar} alt={player.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="drop-shadow-md text-amber-300">{player.name.slice(0, 1).toUpperCase()}</span>
-                        )}
-                      </div>
+                      </>
                     ) : (
                       /* Empty Seat: 3D Liquid Glass Disc with Perfectly Centered SVG Plus */
                       <button
