@@ -137,6 +137,11 @@ async function findTournamentContext(userId: string, gameType: string) {
   }
 }
 
+export async function isTournamentActive(userId: string, gameType: string): Promise<boolean> {
+  const ctx = await findTournamentContext(userId, gameType);
+  return ctx !== null;
+}
+
 export class BettingPipeline {
   /**
    * Atomically deduct funds from the user's balance.
@@ -235,8 +240,10 @@ export class BettingPipeline {
       const tournamentCtx = await findTournamentContext(bet.userId, gt);
 
       if (tournamentCtx) {
+        bet.isTournament = true;
         bet.metadata = {
           ...(bet.metadata || {}),
+          isTournament: true,
           tournamentId: tournamentCtx.tournament.id,
           tournamentCycleId: tournamentCtx.cycle.id,
         };

@@ -420,9 +420,11 @@ export class CrashGameEngine extends BaseGameEngine {
     // If loss mode is active and there are real bets, force crashPoint to 1.00.
     const cfg = await gameConfig.get('crash').catch(() => null);
     const isLossMode = cfg && cfg.houseEdge >= 1.0;
-    const hasBets = Array.from(this.crashState.slotBets.values()).some((b) => !b.metadata?.demoMode);
+    const hasRealBets = Array.from(this.crashState.slotBets.values()).some(
+      (b) => !b.metadata?.demoMode && !b.isTournament && !b.metadata?.isTournament && !b.metadata?.tournamentId
+    );
 
-    if (isLossMode && hasBets) {
+    if (isLossMode && hasRealBets) {
       crashPoint = 1.00;
     } else {
       crashPoint = Math.max(1.01, crashPoint);

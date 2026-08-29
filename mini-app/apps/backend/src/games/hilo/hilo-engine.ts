@@ -20,6 +20,7 @@ export interface HiloState {
   status: HiloStatus;
   betAmount: number;
   bet: Bet | null;
+  isTournament?: boolean;
   currentMultiplier: number;
   currentCard: Card | null;
   history: Card[];
@@ -117,12 +118,14 @@ export const hiloEngine = {
       placedAt: Date.now(),
       metadata: { gameType: 'hilo' },
     };
-    await bettingPipeline.processBet(bet, false);
+    const isTournament = await bettingPipeline.processBet(bet, false);
     bet.state = 'active';
+    bet.metadata = { ...(bet.metadata || {}), isTournament: Boolean(isTournament) };
 
     state.status = 'playing';
     state.betAmount = amount;
     state.bet = bet;
+    state.isTournament = Boolean(isTournament);
     state.currentMultiplier = 1.0;
     // Keep current card
     state.history = state.currentCard ? [state.currentCard] : [];
@@ -134,7 +137,7 @@ export const hiloEngine = {
     }
     
     const cfg = await gameConfig.get('hilo');
-    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank, cfg.houseEdge);
+    state.nextMultipliers = getHiloMultipliers(state.currentCard.rank, isTournament ? 0.04 : cfg.houseEdge);
 
     return state;
   },
@@ -144,25 +147,25 @@ export const hiloEngine = {
     if (state.status !== 'playing') throw new Error('Game not in progress');
     if (!state.currentCard) throw new Error('No current card');
 
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
     const cfg = await gameConfig.get('hilo');
-    
-    // Hilo-specific RTP forced loss mechanic based on house edge setting
-    const localBias = cfg.houseEdge >= 1 ? cfg.houseEdge / 100 : cfg.houseEdge;
-    
-    // Total bias towards casino winning
-    const totalBias = Math.max(bias, localBias);
-
     let shouldWin: boolean | null = null;
-    if (totalBias > 0 && Math.random() < totalBias) shouldWin = false; // Casino favours, player loses
-    else if (totalBias < 0 && Math.random() < -totalBias) shouldWin = true; // Player favours, player wins
+
+    // SmartDrain & house edge only apply to real balance bets
+    if (!state.isTournament) {
+      const bias = await rtpEngine.getBiasFor(userId, false).catch(() => 0);
+      const localBias = cfg.houseEdge >= 1 ? cfg.houseEdge / 100 : cfg.houseEdge;
+      const totalBias = Math.max(bias, localBias);
+
+      if (totalBias > 0 && Math.random() < totalBias) shouldWin = false; // Casino favours, player loses
+      else if (totalBias < 0 && Math.random() < -totalBias) shouldWin = true; // Player favours, player wins
+    }
     
     let nextCard = this.generateCard();
     const currentCard = state.currentCard;
     
     let won = false;
     let stepMultiplier = 0;
-    const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, cfg.houseEdge);
+    const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, state.isTournament ? 0.04 : cfg.houseEdge);
 
     // Calculate potential step multiplier first
     switch (choice) {
@@ -172,31 +175,45 @@ export const hiloEngine = {
       case 'lower': stepMultiplier = mults.lower; break;
     }
 
-    // --- Forced Loss / SmartDrain ---
-    const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
-    if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier)) {
-      shouldWin = false;
+    // --- Forced Loss / SmartDrain (Completely bypassed for tournament bets) ---
+    if (!state.isTournament) {
+      const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
+      if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier, false)) {
+        shouldWin = false;
+      }
     }
 
-    // Regenerate up to 50 times if we need to force an outcome
-    for (let loop = 0; loop < 50; loop++) {
+    if (shouldWin !== null) {
+      // Regenerate up to 50 times if we need to force an outcome
+      for (let loop = 0; loop < 50; loop++) {
+        const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
+        const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
+
+        switch (choice) {
+          case 'red': won = isRed; stepMultiplier = mults.red; break;
+          case 'black': won = isBlack; stepMultiplier = mults.black; break;
+          case 'higher': won = nextCard.rank >= currentCard.rank; stepMultiplier = mults.higher; break;
+          case 'lower': won = nextCard.rank <= currentCard.rank; stepMultiplier = mults.lower; break;
+        }
+        
+        if (won === shouldWin) break;
+        nextCard = this.generateCard();
+      }
+    } else {
+      // Pure 100% RNG
       const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
       const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
-
       switch (choice) {
         case 'red': won = isRed; stepMultiplier = mults.red; break;
         case 'black': won = isBlack; stepMultiplier = mults.black; break;
         case 'higher': won = nextCard.rank >= currentCard.rank; stepMultiplier = mults.higher; break;
         case 'lower': won = nextCard.rank <= currentCard.rank; stepMultiplier = mults.lower; break;
       }
-      
-      if (shouldWin === null || won === shouldWin) break;
-      nextCard = this.generateCard();
     }
 
     state.currentCard = nextCard;
     state.history.push(nextCard);
-    state.nextMultipliers = getHiloMultipliers(nextCard.rank, cfg.houseEdge);
+    state.nextMultipliers = getHiloMultipliers(nextCard.rank, state.isTournament ? 0.04 : cfg.houseEdge);
 
     if (won) {
       // Step win
@@ -218,7 +235,9 @@ export const hiloEngine = {
         state.bet.metadata = { ...state.bet.metadata, cards: state.history };
         await bettingPipeline.processLoss(state.bet, false);
       }
-      void rtpEngine.recordRoundForDrain(userId, state.betAmount, 0, false);
+      if (!state.isTournament) {
+        void rtpEngine.recordRoundForDrain(userId, state.betAmount, 0, false, false);
+      }
       this.forget(userId);
     }
 
@@ -237,7 +256,9 @@ export const hiloEngine = {
       await bettingPipeline.processPayout(state.bet, winAmount, false);
     }
 
-    void rtpEngine.recordRoundForDrain(userId, state.betAmount, winAmount, true);
+    if (!state.isTournament) {
+      void rtpEngine.recordRoundForDrain(userId, state.betAmount, winAmount, true, false);
+    }
 
     state.status = 'cashed_out';
     state.nextMultipliers = null;

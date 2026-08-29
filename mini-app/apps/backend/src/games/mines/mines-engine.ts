@@ -37,6 +37,7 @@ interface MinesGameState {
   userId: string;
   bet: Bet;
   demoMode: boolean;
+  isTournament?: boolean;
   mineCount: number;
   /** Sorted ascending positions 0..24 of mines (kept secret until reveal). */
   minePositions: number[];
@@ -125,25 +126,8 @@ class MinesEngine {
       throw new Error(`Кол-во мин: от ${MIN_MINES} до ${MAX_MINES}`);
     }
 
-    // Commit provably-fair material first so the user could verify later.
-    const serverSeed = provablyFair.generateServerSeed();
-    const clientSeed = provablyFair.generateClientSeed();
-    const nonce = 0;
-    const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
-    // Pre-fact tilt: the controller may push mines toward the centre
-    // (where humans click first) when the casino is lagging the earn
-    // target, or toward the corners when we want to give back.
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    const minePositions = provablyFair.generateMinesPositions(
-      hash,
-      5,
-      mineCount,
-      bias
-    );
-
-    const roundId = `mines_${Date.now()}_${randomUUID()}`;
-
     // Take the stake atomically — pipeline rejects on insufficient balance.
+    const roundId = `mines_${Date.now()}_${randomUUID()}`;
     const bet: Bet = {
       id: `bet_${Date.now()}_${randomUUID()}`,
       userId,
@@ -154,8 +138,21 @@ class MinesEngine {
       placedAt: Date.now(),
       metadata: { mineCount, gameType: 'mines' },
     };
-    await bettingPipeline.processBet(bet, demoMode);
+    const isTournament = await bettingPipeline.processBet(bet, demoMode);
     bet.state = 'active';
+
+    // Commit provably-fair material. Tournament bets receive 100% Pure RNG (bias = 0)
+    const serverSeed = provablyFair.generateServerSeed();
+    const clientSeed = provablyFair.generateClientSeed();
+    const nonce = 0;
+    const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
+    const bias = isTournament ? 0 : await rtpEngine.getBiasFor(userId, isTournament).catch(() => 0);
+    const minePositions = provablyFair.generateMinesPositions(
+      hash,
+      5,
+      mineCount,
+      bias
+    );
 
     // Persist the round record so the audit trail is consistent across
     // services (the same `game_rounds` table the bot sees).
@@ -169,7 +166,7 @@ class MinesEngine {
           clientSeed,
           nonce,
           startedAt: new Date(),
-          metadata: { mineCount, betAmount: amount },
+          metadata: { mineCount, betAmount: amount, isTournament: Boolean(isTournament) },
         },
       });
     } catch (err) {
@@ -180,6 +177,7 @@ class MinesEngine {
       userId,
       bet,
       demoMode,
+      isTournament: Boolean(isTournament),
       mineCount,
       minePositions,
       revealed: [],
@@ -191,7 +189,7 @@ class MinesEngine {
       startedAt: Date.now(),
     };
     this.rooms.set(userId, game);
-    logger.info({ userId, roundId, mineCount, amount }, 'Mines round started');
+    logger.info({ userId, roundId, mineCount, amount, isTournament }, 'Mines round started');
 
     return this.toPublic(game, false);
   }
@@ -207,16 +205,16 @@ class MinesEngine {
       throw new Error('Эта клетка уже открыта');
     }
 
-    // --- SmartDrain Intervention ---
+    // --- SmartDrain Intervention (Disabled completely for tournament bets) ---
     const clickNumber = g.revealed.length + 1;
     let forceBust = false;
 
-    if (!g.demoMode) {
+    if (!g.demoMode && !g.isTournament) {
       const config = await gameConfig.get('mines');
-      const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
+      const bias = await rtpEngine.getBiasFor(userId, false).catch(() => 0);
       const nextMult = minesMultiplier(g.mineCount, clickNumber);
-      const isForcedLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, nextMult).catch(() => false);
-      const isDrain = await rtpEngine.isDrainActive(userId).catch(() => false);
+      const isForcedLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, nextMult, false).catch(() => false);
+      const isDrain = await rtpEngine.isDrainActive(userId, false).catch(() => false);
 
       if (config.houseEdge >= 1.0) {
         forceBust = true;
@@ -275,8 +273,8 @@ class MinesEngine {
       } catch (err) {
         logger.error(err, 'Failed to finalise mines bust');
       }
-      if (!g.demoMode) {
-        void rtpEngine.recordRoundForDrain(userId, g.bet.amount, 0, false);
+      if (!g.demoMode && !g.isTournament) {
+        void rtpEngine.recordRoundForDrain(userId, g.bet.amount, 0, false, false);
       }
       logger.info({ userId, position }, 'Mines bust');
       return this.toPublic(g, true);
@@ -325,8 +323,8 @@ class MinesEngine {
       logger.error(err, 'Failed to finalise mines cashout');
     }
 
-    if (!g.demoMode) {
-      void rtpEngine.recordRoundForDrain(userId, g.bet.amount, payout, true);
+    if (!g.demoMode && !g.isTournament) {
+      void rtpEngine.recordRoundForDrain(userId, g.bet.amount, payout, true, false);
     }
 
     logger.info(

@@ -48,6 +48,7 @@ export interface Bet {
   resolvedAt?: number;
   payout?: number;
   multiplier?: number;
+  isTournament?: boolean;
   metadata?: Record<string, any>;
 }
 

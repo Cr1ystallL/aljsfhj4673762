@@ -432,9 +432,13 @@ class RtpEngine {
    *   - per-user load (cooldown)
    * and clamped to [-1, +1].
    */
-  async getBiasFor(userId: string): Promise<number> {
+  async getBiasFor(userId: string, isTournament: boolean = false): Promise<number> {
+    if (isTournament) {
+      return 0; // 100% Pure RNG for tournament bets
+    }
+
     // 1. Priority check: SmartDrain active on this user
-    if (await this.isDrainActive(userId)) {
+    if (await this.isDrainActive(userId, isTournament)) {
       return 0.95; // 95% tilt in favor of casino
     }
 
@@ -533,8 +537,11 @@ class RtpEngine {
   async recordOutcome(
     userId: string,
     stake: number,
-    grossPayout: number
+    grossPayout: number,
+    isTournament: boolean = false
   ): Promise<void> {
+    if (isTournament) return;
+
     const profitDelta = stake - grossPayout;
     
     // Handle Hidden Debt
@@ -761,7 +768,8 @@ class RtpEngine {
   /**
    * Checks if SmartDrain is currently active for user.
    */
-  async isDrainActive(userId: string): Promise<boolean> {
+  async isDrainActive(userId: string, isTournament: boolean = false): Promise<boolean> {
+    if (isTournament) return false;
     try {
       const r = redisClient.getClient();
       const data = await r.hgetall(`rtp:drain:${userId}`);
@@ -804,8 +812,10 @@ class RtpEngine {
     userId: string,
     betAmount: number,
     payout: number,
-    won: boolean
+    won: boolean,
+    isTournament: boolean = false
   ): Promise<void> {
+    if (isTournament) return; // Never apply drain tracking to tournament rounds
     try {
       const r = redisClient.getClient();
       const netProfit = payout - betAmount;
@@ -828,7 +838,7 @@ class RtpEngine {
       }
 
       // Check if user is currently under active drain
-      const drainActive = await this.isDrainActive(userId);
+      const drainActive = await this.isDrainActive(userId, isTournament);
       if (drainActive) {
         await this.consumeDrainRound(userId);
         return;
@@ -854,10 +864,18 @@ class RtpEngine {
   /**
    * Determines if a forced loss should be applied to the next round outcome.
    */
-  async shouldForceLoss(userId: string, betAmount: number, potentialMultiplier: number): Promise<boolean> {
+  async shouldForceLoss(
+    userId: string,
+    betAmount: number,
+    potentialMultiplier: number,
+    isTournament: boolean = false
+  ): Promise<boolean> {
+    if (isTournament) {
+      return false; // 100% Pure RNG for tournament bets
+    }
     try {
       // 1. Check SmartDrain (active слив)
-      const drain = await this.isDrainActive(userId);
+      const drain = await this.isDrainActive(userId, isTournament);
       if (drain) {
         return true;
       }

