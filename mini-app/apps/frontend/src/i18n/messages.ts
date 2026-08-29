@@ -203,10 +203,10 @@ export const ru = {
   splash: {
     l1: 'MacvBet — играй красиво.',
     l2: 'Честная математика в каждом раунде.',
-    l3: 'Provably fair: проверь любой раунд.',
+    l3: 'Честная игра: случайные исходы.',
     l4: 'Классика казино в Telegram.',
     l5: 'Твоя игра, твой темп.',
-    l6: 'Прозрачные шансы, открытая проверка.',
+    l6: 'Прозрачные шансы, лучший опыт.',
     l7: 'Спокойный интерфейс, честный результат.',
   },
   crash: {
@@ -248,7 +248,7 @@ export const ru = {
     multiply: 'Серия',
     multiplyBody:
       'Каждое верное угадывание умножает банк примерно на 1.94×. Забрать можно в любой момент. Один промах — весь банк сгорает.',
-    rulesHint: 'RTP 97% за бросок. Provably fair — хеш сервера виден до раунда.',
+    rulesHint: 'RTP 97% за бросок. Классический честный алгоритм.',
     heads: 'Орёл',
     tails: 'Решка',
     round: 'раунд',
@@ -665,10 +665,10 @@ export const en: Messages = {
   splash: {
     l1: 'MacvBet — play it clean.',
     l2: 'Honest math in every round.',
-    l3: 'Provably fair: check any round.',
+    l3: 'Fair play: random outcomes.',
     l4: 'Casino classics in Telegram.',
     l5: 'Your game, your pace.',
-    l6: 'Open odds, open verification.',
+    l6: 'Open odds, great experience.',
     l7: 'Calm interface, fair result.',
   },
   crash: {
@@ -710,7 +710,7 @@ export const en: Messages = {
     multiply: 'Multiply',
     multiplyBody:
       'Each correct call multiplies the bank by ~1.94×. Cash out any time. One miss and the whole bank is lost.',
-    rulesHint: 'RTP 97% per toss. Provably fair — server hash shown before the round.',
+    rulesHint: 'RTP 97% per toss. Classic fair algorithm.',
     heads: 'Heads',
     tails: 'Tails',
     round: 'round',
@@ -1125,10 +1125,10 @@ export const pl: Messages = {
   splash: {
     l1: 'MacvBet — graj czysto.',
     l2: 'Uczciwa matematyka w każdej rundzie.',
-    l3: 'Provably fair: sprawdź dowolną rundę.',
+    l3: 'Uczciwa gra: losowe wyniki.',
     l4: 'Klasyka kasyna w Telegramie.',
     l5: 'Twoja gra, twoje tempo.',
-    l6: 'Otwarte szanse, otwarta weryfikacja.',
+    l6: 'Otwarte szanse, świetne doświadczenie.',
     l7: 'Spokojny interfejs, uczciwy wynik.',
   },
   crash: {
@@ -1170,7 +1170,7 @@ export const pl: Messages = {
     multiply: 'Seria',
     multiplyBody:
       'Każde trafienie mnoży bank ok. 1.94×. Wypłatę możesz zabrać w każdej chwili. Jeden błąd — cały bank przepada.',
-    rulesHint: 'RTP 97% na rzut. Provably fair — hash serwera widać przed rundą.',
+    rulesHint: 'RTP 97% na rzut. Klasyczny uczciwy algorytm.',
     heads: 'Orzeł',
     tails: 'Reszka',
     round: 'runda',

@@ -32,7 +32,6 @@ interface GameStoreState {
   // UI state
   isBetting: boolean;
   isAnimating: boolean;
-  showProvablyFair: boolean;
   
   // Actions
   setCurrentGame: (gameType: GameType | null, roomId: string | null) => void;
@@ -43,7 +42,6 @@ interface GameStoreState {
   setIsSpectating: (isSpectating: boolean) => void;
   setIsBetting: (isBetting: boolean) => void;
   setIsAnimating: (isAnimating: boolean) => void;
-  setShowProvablyFair: (show: boolean) => void;
   clearHistory: () => void;
   reset: () => void;
 }
@@ -61,7 +59,6 @@ export const useGameStore = create<GameStoreState>()(
     maxHistorySize: 100,
     isBetting: false,
     isAnimating: false,
-    showProvablyFair: false,
     
     // Actions
     setCurrentGame: (gameType, roomId) =>
@@ -102,9 +99,6 @@ export const useGameStore = create<GameStoreState>()(
     setIsAnimating: (isAnimating) =>
       set({ isAnimating }),
     
-    setShowProvablyFair: (show) =>
-      set({ showProvablyFair: show }),
-    
     clearHistory: () =>
       set({ eventHistory: [] }),
     
@@ -119,7 +113,6 @@ export const useGameStore = create<GameStoreState>()(
         eventHistory: [],
         isBetting: false,
         isAnimating: false,
-        showProvablyFair: false,
       }),
   }))
 );

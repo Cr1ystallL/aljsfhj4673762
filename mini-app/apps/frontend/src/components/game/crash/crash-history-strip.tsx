@@ -3,24 +3,6 @@
 import { ChevronDown } from 'lucide-react';
 import { memo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { ProvablyFairModal } from '../provably-fair-modal';
-
-/**
- * Crash History Strip — Monopo Saigon Style
- *
- * Pill-shaped multiplier chips on a frosted-glass surface. Collapsed shows
- * the most recent 7 crashes; expanded reveals the last 20 in a flowing
- * grid. Color tiers come from the deep-ocean palette — restrained, never
- * harsh.
- *
- * Optimisation note: the original implementation animated each chip with
- * framer-motion `layout` + AnimatePresence. On iPhone WebViews this
- * forced a full FLIP measurement pass on every render. The list is short
- * and chips fade in cheaply on the next paint anyway, so we render a
- * static `<div>` per chip and rely on a single CSS keyframe for the
- * subtle entry animation. Net win: ~2-4ms shaved off every snapshot
- * update, no layout thrash.
- */
 
 interface HistoryItem {
   crashPoint: number;
@@ -48,8 +30,6 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
   history,
 }: CrashHistoryStripProps) {
   const [expanded, setExpanded] = useState(false);
-  const [pfModalOpen, setPfModalOpen] = useState(false);
-  const [pfRoundId, setPfRoundId] = useState<string | null>(null);
 
   const visible = expanded ? history.slice(0, 20) : history.slice(0, 7);
 
@@ -65,25 +45,19 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
           )}
         >
           {visible.map((item, idx) => (
-            <button
+            <div
               key={`${idx}-${item.crashPoint}`}
-              onClick={() => {
-                if (item.roundId) {
-                  setPfRoundId(item.roundId);
-                  setPfModalOpen(true);
-                }
-              }}
               className={cn(
-                'shrink-0 px-2.5 py-1 rounded-pill border text-[11px] font-roobert font-normal tracking-normal animate-fade-in',
+                'shrink-0 px-2.5 py-1 rounded-pill border text-[11px] font-roobert font-normal tracking-normal animate-fade-in select-none',
                 chipStyle(item.crashPoint)
               )}
             >
               x{item.crashPoint.toFixed(2)}
-            </button>
+            </div>
           ))}
           {history.length === 0 && (
             <span className="text-whisper-gray text-[11px] font-roobert">
-              History will appear after the first round
+              История появится после первого раунда
             </span>
           )}
         </div>
@@ -98,12 +72,6 @@ export const CrashHistoryStrip = memo(function CrashHistoryStrip({
           />
         </button>
       </div>
-
-      <ProvablyFairModal 
-        roundId={pfRoundId} 
-        open={pfModalOpen} 
-        onOpenChange={setPfModalOpen} 
-      />
     </div>
   );
 });

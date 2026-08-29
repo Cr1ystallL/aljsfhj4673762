@@ -108,17 +108,6 @@ export function CoinflipRulesModal({ open, onClose }: CoinflipRulesModalProps) {
                 </div>
               </div>
 
-              {/* 3. Provably Fair */}
-              <div className="p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-1.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-[13px]">
-                  <ShieldCheck size={16} />
-                  <span>Доказуемая честность (Provably Fair)</span>
-                </div>
-                <p className="text-white/75 text-[11.5px]">
-                  Результат броска генерируется криптографическим хэшем SHA-256 до броска. Вы можете скопировать хэш и проверить результат в калькуляторе.
-                </p>
-              </div>
-
             </div>
 
             {/* Footer */}

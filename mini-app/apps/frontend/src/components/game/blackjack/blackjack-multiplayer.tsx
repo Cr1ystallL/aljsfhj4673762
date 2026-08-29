@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Play,
+  History,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -1000,26 +1001,6 @@ export function BlackjackMultiplayer() {
               1. TOP CENTER: Large Dealer Avatar, Name & Hand Cards
              ========================================================================= */}
           <div className="relative z-10 flex flex-col items-center pt-2 sm:pt-4">
-            {/* Live Provably Fair Round Hash Badge */}
-            {(state as any).serverSeedHash && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsHistoryOpen(true);
-                  void fetchTableHistory();
-                  soundManager.play('ui.click');
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-1.5 rounded-full bg-black/80 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono hover:bg-black hover:border-emerald-400 transition-all cursor-pointer shadow-lg"
-                title="Нажмите для проверки Provably Fair"
-              >
-                <ShieldCheck size={12} className="text-emerald-400" />
-                <span className="text-white/50">SHA-256:</span>
-                <span className="font-bold truncate max-w-[100px] sm:max-w-[160px]">
-                  {(state as any).serverSeedHash}
-                </span>
-              </button>
-            )}
-
             {/* Prominent Large Dealer Avatar with locked pixel dimensions */}
             <div className="relative flex w-[72px] h-[72px] sm:w-[88px] sm:h-[88px] md:w-[96px] md:h-[96px] shrink-0 items-center justify-center">
               <div className="h-full w-full rounded-full bg-black border-2 sm:border-[3px] border-amber-400 text-white shadow-[0_0_25px_rgba(251,191,36,0.6),0_12px_30px_rgba(0,0,0,0.85)] overflow-hidden flex items-center justify-center">
@@ -1646,23 +1627,23 @@ export function BlackjackMultiplayer() {
           </AnimatePresence>
         </div>
 
-        {/* Provably Fair & Round History Button */}
+        {/* Round History Button */}
         <button
           onClick={() => {
             setIsHistoryOpen(true);
             void fetchTableHistory();
             soundManager.play('ui.click');
           }}
-          className="flex h-12 items-center gap-2 px-3 rounded-2xl border border-emerald-500/30 bg-black/85 text-frost-white shadow-2xl backdrop-blur-xl hover:border-emerald-400/50 hover:text-emerald-300 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-          title="История раундов и Честность (Provably Fair)"
+          className="flex h-12 items-center gap-2 px-3 rounded-2xl border border-white/15 bg-black/85 text-frost-white shadow-2xl backdrop-blur-xl hover:border-white/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          title="История раундов"
         >
-          <ShieldCheck size={18} className="text-emerald-400 shrink-0" />
+          <History size={18} className="text-amber-400 shrink-0" />
           <div className="flex flex-col items-start leading-none text-left hidden sm:flex">
-            <span className="text-[11px] font-bold text-emerald-300">
-              Честность
+            <span className="text-[11px] font-bold text-frost-white">
+              История
             </span>
             <span className="text-[9px] text-white/50 font-mono mt-0.5">
-              Provably Fair
+              Раунды
             </span>
           </div>
         </button>

@@ -5,7 +5,6 @@ import { Bomb, ShieldCheck, Copy, Check, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { MinesGrid } from '@/components/game/mines/mines-grid';
 import {
   MinesBetPanel,
@@ -65,7 +64,6 @@ export default function MinesGamePage() {
   const [server, setServer] = useState<ServerState | null>(null);
   const [busy, setBusy] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
-  const [pfModalOpen, setPfModalOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Local config (used while no round is live).
@@ -396,78 +394,11 @@ export default function MinesGamePage() {
         {/* Player's last 5 completed rounds */}
         <MinesRecentBets bets={recentBets} />
 
-        {/* Provably-fair seed strip & verification */}
-        {server?.serverSeedHash && (
-          <div className="rounded-card border border-emerald-500/30 bg-emerald-950/15 backdrop-blur-xl p-3.5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold font-roobert">
-                <ShieldCheck size={13} className="text-emerald-400" />
-                Provably Fair
-              </span>
-              <button
-                type="button"
-                onClick={() => setPfModalOpen(true)}
-                className="text-[11px] font-bold text-amber-300 hover:text-amber-200 transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <span>Подробнее</span>
-                <ExternalLink size={11} />
-              </button>
-            </div>
-
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-black/50 border border-white/5 font-mono text-[11px]">
-                <span className="text-white/40 text-[10px] select-none">SHA-256:</span>
-                <span className="text-emerald-300 truncate flex-1 font-bold">
-                  {server.serverSeedHash}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(server.serverSeedHash);
-                    setCopiedKey('ssh');
-                    setTimeout(() => setCopiedKey(null), 2000);
-                  }}
-                  className="p-1 text-white/60 hover:text-white transition-colors"
-                  title="Скопировать SHA-256 хэш"
-                >
-                  {copiedKey === 'ssh' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                </button>
-              </div>
-
-              {server.serverSeed && (
-                <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-black/50 border border-white/5 font-mono text-[11px]">
-                  <span className="text-white/40 text-[10px] select-none">Seed:</span>
-                  <span className="text-amber-200 truncate flex-1">
-                    {server.serverSeed}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(server.serverSeed!);
-                      setCopiedKey('ss');
-                      setTimeout(() => setCopiedKey(null), 2000);
-                    }}
-                    className="p-1 text-white/60 hover:text-white transition-colors"
-                    title="Скопировать открытый Server Seed"
-                  >
-                    {copiedKey === 'ss' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Live ticker — recent mines bets across all players */}
         <MinesHistory entries={history} />
       </div>
 
       <MinesRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
-      <ProvablyFairModal
-        roundId={server?.roundId || null}
-        open={pfModalOpen}
-        onOpenChange={setPfModalOpen}
-      />
     </main>
   );
 }

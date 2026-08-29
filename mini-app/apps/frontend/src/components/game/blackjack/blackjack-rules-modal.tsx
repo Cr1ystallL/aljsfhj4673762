@@ -182,17 +182,6 @@ export function BlackjackRulesModal({ open, onClose }: BlackjackRulesModalProps)
                 </div>
               </div>
 
-              {/* 7. Provably Fair */}
-              <div className="p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-1.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-[13px]">
-                  <ShieldCheck size={16} />
-                  <span>100% Доказуемая честность (Provably Fair)</span>
-                </div>
-                <p className="text-white/75 text-[11.5px]">
-                  Игра использует 6-колодный башмак (312 карт). Колода генерируется криптографическим хэшем SHA-256 до начала раунда. Карты сдаются строго по порядку из башмака, а результат можно в любой момент проверить в калькуляторе.
-                </p>
-              </div>
-
             </div>
 
             {/* Footer */}

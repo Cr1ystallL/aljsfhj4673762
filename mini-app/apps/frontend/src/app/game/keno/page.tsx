@@ -10,7 +10,6 @@ import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-pa
 import { KenoDrawTray } from '@/components/game/keno/keno-draw-tray';
 import { KenoLiveBets, type KenoLiveBetEntry } from '@/components/game/keno/keno-live-bets';
 import { KenoPayoutStrip } from '@/components/game/keno/keno-payout-strip';
-import { ProvablyFairModal } from '@/components/game/provably-fair-modal';
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -73,7 +72,6 @@ export default function KenoGamePage() {
   const displayBalance = frozenBalance !== null ? frozenBalance : activeBalance;
 
   const [history, setHistory] = useState<KenoLiveBetEntry[]>([]);
-  const [pfOpen, setPfOpen] = useState(false);
 
   useEffect(() => {
     soundManager.initialize();
@@ -351,23 +349,6 @@ export default function KenoGamePage() {
           entries={history}
           currency={isTournament ? 'T-COIN' : 'zł'}
         />
-
-        {lastRoundId && (
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => setPfOpen(true)}
-              className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert"
-            >
-              {t('info.fairness')}
-            </button>
-            <ProvablyFairModal
-              roundId={lastRoundId}
-              open={pfOpen}
-              onOpenChange={setPfOpen}
-            />
-          </div>
-        )}
       </div>
     </main>
   );

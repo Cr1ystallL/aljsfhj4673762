@@ -113,17 +113,6 @@ export function MinesRulesModal({ open, onClose }: MinesRulesModalProps) {
                 </p>
               </div>
 
-              {/* 4. Provably Fair */}
-              <div className="p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-1.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-[13px]">
-                  <ShieldCheck size={16} />
-                  <span>Доказуемая честность (Provably Fair)</span>
-                </div>
-                <p className="text-white/75 text-[11.5px]">
-                  Расположение мин генерируется криптографическим хэшем SHA-256 до начала раунда. Хэш отображается в реальном времени, а после окончания игры вы можете сверить позиции мин в калькуляторе.
-                </p>
-              </div>
-
             </div>
 
             {/* Footer */}

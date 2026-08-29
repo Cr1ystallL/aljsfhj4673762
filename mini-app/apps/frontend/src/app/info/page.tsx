@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Shield, CheckCircle2, HelpCircle, Scale, ChevronDown } from 'lucide-react';
-import { ProvablyFairCalculator } from '@/components/info/provably-fair-calculator';
+import { ChevronLeft, Shield, CheckCircle2, HelpCircle, ChevronDown } from 'lucide-react';
 import { useT } from '@/i18n/use-t';
 
 function Accordion({ question, answer }: { question: string, answer: React.ReactNode }) {
@@ -32,13 +31,12 @@ function Accordion({ question, answer }: { question: string, answer: React.React
 export default function InfoPage() {
   const router = useRouter();
   const { t } = useT();
-  const [activeTab, setActiveTab] = useState<'rules' | 'privacy' | 'faq' | 'fairness'>('rules');
+  const [activeTab, setActiveTab] = useState<'rules' | 'privacy' | 'faq'>('rules');
 
   const tabs = [
     { id: 'rules', label: t('info.rules'), icon: Shield },
     { id: 'privacy', label: t('info.privacy'), icon: CheckCircle2 },
     { id: 'faq', label: t('info.faq'), icon: HelpCircle },
-    { id: 'fairness', label: t('info.fairness'), icon: Scale },
   ] as const;
 
   // Deep links such as /info#faq open the right tab. Read from the hash rather
@@ -367,46 +365,14 @@ export default function InfoPage() {
                   question="Можно ли злоупотреблять бонусами?" 
                   answer="Любые стратегии игры с минимальным риском на бонусные деньги признаются абузом. Выигрыши будут аннулированы." 
                 />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Безопасность и Честность (Provably Fair)</h3>
+                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Безопасность и надежность</h3>
                 <Accordion 
-                  question="Что такое Provably Fair (Доказуемая Честность)?" 
-                  answer="Это криптографическая система (HMAC-SHA256), гарантирующая честность каждого раунда. Исход формируется до вашей ставки и объединяет Server Seed и Client Seed." 
-                />
-                <Accordion 
-                  question="Как проверить раунд?" 
-                  answer="Скопируйте Server Seed, Client Seed и Nonce из инспектора ставок и вставьте их в наш Калькулятор Честности на странице Инфо." 
-                />
-                <Accordion 
-                  question="Может ли казино изменить результат игры?" 
-                  answer="Исключено. Мы отдаем вам зашифрованный хэш (Server Seed Hash) до начала раунда. Поменять результат незаметно математически невозможно." 
-                />
-                <Accordion 
-                  question="Что такое Server Seed?" 
-                  answer="Это секретная строка, генерируемая сервером для каждого пула раундов. Она скрыта до окончания игры." 
-                />
-                <Accordion 
-                  question="Что такое Client Seed?" 
-                  answer="Это ваша публичная строка. Вы можете изменить её в любой момент, чтобы влиять на генерацию случайных чисел." 
-                />
-                <Accordion 
-                  question="Что такое Nonce?" 
-                  answer="Это номер раунда, который увеличивается на 1 с каждой вашей ставкой, гарантируя уникальность каждого исхода." 
-                />
-                <Accordion 
-                  question="Используется ли Provably Fair во всех играх?" 
-                  answer="Да, все наши фирменные (In-House) игры (MacvJet, Mines, Coinflip и др.) работают на алгоритме Provably Fair." 
-                />
-                <Accordion 
-                  question="Как работает ГСЧ (Генератор Случайных Чисел)?" 
-                  answer="ГСЧ берет хэш от Seed-ов и конвертирует первые байты в число от 0 до 1, которое затем масштабируется под правила конкретной игры." 
+                  question="Как обеспечивается безопасность аккаунта?" 
+                  answer="Все данные передаются по защищенному SSL-каналу. Доступ к аккаунту привязан к вашему Telegram ID, что исключает несанкционированный вход." 
                 />
                 <Accordion 
                   question="Что делать, если я нашел ошибку/баг?" 
                   answer="Сообщите в поддержку. У нас действует программа Bug Bounty — за критические уязвимости мы выплачиваем вознаграждение." 
-                />
-                <Accordion 
-                  question="Могут ли другие игроки повлиять на мой результат?" 
-                  answer="Нет, в одиночных играх (Mines, Coinflip) ваш Client Seed влияет только на вас. В многопользовательских (MacvJet) Client Seed формируется из хэша первого сделавшего ставку игрока." 
                 />
                 <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Правила Игр (In-House)</h3>
                 <Accordion 
@@ -451,7 +417,7 @@ export default function InfoPage() {
                 />
                 <Accordion
                   question="🏆 Что такое MacvPot?"
-                  answer="Многопользовательский джекпот-раунд. Игроки делают ставки в общий банк в течение фазы приёма ставок, затем разыгрывается победитель. Чем больше ваша доля в банке, тем выше шанс на победу. Раунд полностью серверный и проверяется через Provably Fair."
+                  answer="Многопользовательский джекпот-раунд. Игроки делают ставки в общий банк в течение фазы приёма ставок, затем разыгрывается победитель. Чем больше ваша доля в банке, тем выше шанс на победу."
                 />
                 <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Отыгрыш по играм</h3>
                 <div className="border border-white/5 rounded-2xl bg-white/[0.02] overflow-hidden mb-3">
@@ -515,43 +481,6 @@ export default function InfoPage() {
                   answer="Telegram Web App обновляется автоматически. Достаточно закрыть его свайпом вниз и открыть заново из меню бота." 
                 />
               </div>
-            </div>
-          )}
-
-          {/* TAB: FAIRNESS */}
-          {activeTab === 'fairness' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-3 mb-8">
-                <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4 border border-green-500/20">
-                  <Scale size={32} className="text-green-400" />
-                </div>
-                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">Provably Fair</h2>
-                <p className="text-sm text-frost-white/50 max-w-md mx-auto">Абсолютная прозрачность. Вы можете лично верифицировать исход каждого сыгранного раунда.</p>
-              </div>
-
-              <div className="text-frost-white/80 space-y-4 text-sm leading-relaxed bg-white/[0.02] p-6 rounded-3xl border border-white/5 shadow-inner">
-                <p>Наша система <strong>Provably Fair (Доказуемая Честность)</strong> построена на криптографическом алгоритме HMAC-SHA256.</p>
-                
-                <h3 className="text-base font-semibold text-white mt-4 mb-2 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-xs">1</span>
-                  Генерация
-                </h3>
-                <p className="pl-8 text-frost-white/60">Сервер генерирует случайный <strong>Server Seed</strong> и сразу выдает вам его зашифрованный хэш. Таким образом, мы обязуемся не менять результат, а вы не знаете его до окончания игры.</p>
-
-                <h3 className="text-base font-semibold text-white mt-4 mb-2 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-xs">2</span>
-                  Участие клиента
-                </h3>
-                <p className="pl-8 text-frost-white/60">Ваш браузер или вы сами задаете <strong>Client Seed</strong>. Это гарантирует, что мы не можем подстроить Server Seed под ваш стиль игры.</p>
-
-                <h3 className="text-base font-semibold text-white mt-4 mb-2 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded bg-white/10 flex items-center justify-center text-xs">3</span>
-                  Результат
-                </h3>
-                <p className="pl-8 text-frost-white/60">Seeds и номер раунда (Nonce) объединяются. Полученный хэш конвертируется в число, определяющее множитель или выпавший сектор.</p>
-              </div>
-
-              <ProvablyFairCalculator />
             </div>
           )}
         </div>

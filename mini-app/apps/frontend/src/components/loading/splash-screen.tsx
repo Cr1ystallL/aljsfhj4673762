@@ -41,17 +41,16 @@ const SPLASH_KEYS: TxKey[] = [
 export const SPLASH_TAGLINES: ReadonlyArray<string> = [
   'MacvBet — играй красиво.',
   'Честная математика в каждом раунде.',
-  'Provably fair: проверь любой раунд.',
   'Классика казино в Telegram.',
   'Твоя игра, твой темп.',
-  'Прозрачные шансы, открытая проверка.',
+  'Прозрачные шансы, лучший опыт.',
   'Спокойный интерфейс, честный результат.',
 ];
 
 export const TITLE_TAGLINES: ReadonlyArray<string> = [
   'MacvBet',
   'MacvBet — казино в Telegram',
-  'MacvBet — provably fair игры',
+  'MacvBet — честные игры',
   'MacvBet — прозрачные шансы',
   'MacvBet — Crash, Mines, Wheel',
   'MacvBet — играй красиво',

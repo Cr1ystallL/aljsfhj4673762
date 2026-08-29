@@ -87,11 +87,11 @@ export function MacvpotHistory({ history }: MacvpotHistoryProps) {
 
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-amber-400">
-                <ShieldCheck size={22} />
+                <Trophy size={22} />
               </div>
               <div className="flex flex-col">
                 <h3 className="font-bold text-base font-roobert text-white">
-                  Проверка честности раунда
+                  Детали раунда
                 </h3>
                 <span className="text-xs text-white/40 font-mono">
                   ID: {selectedRound.roundId.substring(0, 18)}...
@@ -136,53 +136,11 @@ export function MacvpotHistory({ history }: MacvpotHistoryProps) {
               </div>
             </div>
 
-            {/* Provably Fair Seeds */}
-            <div className="flex flex-col gap-2 text-xs">
-              <div className="flex flex-col gap-1 bg-black/60 border border-white/10 p-3 rounded-2xl">
-                <span className="text-white/50 font-medium">Server Seed (Открытый ключ):</span>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-white/80 break-all text-[11px]">
-                    {selectedRound.serverSeed || 'Скрыт'}
-                  </span>
-                  <button
-                    onClick={() => handleCopy(selectedRound.serverSeed, 'ss')}
-                    className="p-1 text-white/60 hover:text-white"
-                  >
-                    {copiedKey === 'ss' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1 bg-black/60 border border-white/10 p-3 rounded-2xl">
-                <span className="text-white/50 font-medium">Server Seed Hash (SHA256):</span>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-white/80 break-all text-[11px]">
-                    {selectedRound.serverSeedHash}
-                  </span>
-                  <button
-                    onClick={() => handleCopy(selectedRound.serverSeedHash, 'ssh')}
-                    className="p-1 text-white/60 hover:text-white"
-                  >
-                    {copiedKey === 'ssh' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-black/60 border border-white/10 p-2.5 rounded-2xl flex flex-col gap-0.5">
-                  <span className="text-white/50 text-[10px]">Client Seed:</span>
-                  <span className="font-mono text-white/80 text-[11px] truncate">
-                    {selectedRound.clientSeed}
-                  </span>
-                </div>
-
-                <div className="bg-black/60 border border-white/10 p-2.5 rounded-2xl flex flex-col gap-0.5">
-                  <span className="text-white/50 text-[10px]">Выигрышный билет:</span>
-                  <span className="font-mono text-amber-400 text-xs font-bold">
-                    #{selectedRound.winningTicket}
-                  </span>
-                </div>
-              </div>
+            <div className="bg-black/60 border border-white/10 p-3 rounded-2xl flex items-center justify-between">
+              <span className="text-white/60 text-xs">Выигрышный билет:</span>
+              <span className="font-mono text-amber-400 text-sm font-bold">
+                #{selectedRound.winningTicket}
+              </span>
             </div>
 
             <button

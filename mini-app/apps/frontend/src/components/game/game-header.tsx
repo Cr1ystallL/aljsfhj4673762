@@ -24,10 +24,9 @@ import { soundManager } from '@/lib/sound/sound-manager';
 interface GameHeaderProps {
   title: string;
   roundId?: string;
-  onShowProvablyFair?: () => void;
 }
 
-export function GameHeader({ title, roundId, onShowProvablyFair }: GameHeaderProps) {
+export function GameHeader({ title, roundId }: GameHeaderProps) {
   const router = useRouter();
   const [isMuted, setIsMuted] = useState(soundManager.isMuted());
 
@@ -66,17 +65,6 @@ export function GameHeader({ title, roundId, onShowProvablyFair }: GameHeaderPro
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {onShowProvablyFair && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onShowProvablyFair}
-              className="hidden sm:flex"
-            >
-              <Info className="h-4 w-4" />
-            </Button>
-          )}
-          
           <Button
             variant="ghost"
             size="sm"
