@@ -37,6 +37,13 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
   });
   const now = Date.now();
   if (!cycle) {
+    cycle = await (prisma as any).tournamentCycle.findFirst({
+      where: { tournamentId: t.id, state: { in: ['live', 'waiting'] } },
+      orderBy: { startsAt: 'desc' },
+    });
+  }
+
+  if (!cycle) {
     cycle = await (prisma as any).tournamentCycle.create({
       data: {
         tournamentId: t.id,
@@ -51,8 +58,16 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
     if (Number(cycle.prizePool) !== Number(t.prizePool)) {
       updates.prizePool = t.prizePool;
     }
-    if (cycle.state === 'waiting' && now >= cycle.startsAt.getTime() && now <= cycle.endsAt.getTime()) {
+    const expectedEnd = new Date(cycle.startsAt.getTime() + t.durationHours * 3600 * 1000);
+    if (cycle.endsAt.getTime() !== expectedEnd.getTime()) {
+      updates.endsAt = expectedEnd;
+    }
+    if (cycle.state === 'waiting' && now >= cycle.startsAt.getTime() && now <= expectedEnd.getTime()) {
       updates.state = 'live';
+    } else if (cycle.state === 'ended' && now <= expectedEnd.getTime()) {
+      updates.state = 'live';
+    } else if (cycle.state === 'live' && now > expectedEnd.getTime()) {
+      updates.state = 'ended';
     }
     if (Object.keys(updates).length > 0) {
       cycle = await (prisma as any).tournamentCycle.update({
@@ -361,31 +376,61 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
             ? Number(b.prizePool)
             : t.prizePool;
 
-          const newStartAt = Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1;
-          const nextStartAt = Math.abs(newStartAt.getTime() - t.startAtGmt1.getTime()) < 60000 ? t.startAtGmt1 : newStartAt;
-          
-          await (prisma as any).tournament.update({
-            where: { id: t.id },
-            data: {
-              title: b.title ?? t.title,
-              description: b.description ?? t.description,
-              bannerUrl: b.bannerUrl ?? t.bannerUrl,
-              gameType: b.gameType ?? t.gameType,
-              prizePool: nextPrizePool,
-              prizeMode: nextPrizeMode,
-              winnersCount: nextWinners,
-              fixedPrize: nextPrizeMode === 'fixed' ? nextFixedPrize : null,
-              wagerMultiplier: Number.isFinite(b.wagerMultiplier) && b.wagerMultiplier! >= 0 ? Math.floor(Number(b.wagerMultiplier)) : t.wagerMultiplier,
-              startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
-              entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
-              rebuyFee: Number.isFinite(b.rebuyFee) ? Number(b.rebuyFee) : t.rebuyFee,
-              startAtGmt1: nextStartAt,
-          durationHours: Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours,
-          repeatType: typeof b.repeatType === 'string' ? b.repeatType : t.repeatType,
+      const newStartAt = Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1;
+      const nextStartAt = Math.abs(newStartAt.getTime() - t.startAtGmt1.getTime()) < 60000 ? t.startAtGmt1 : newStartAt;
+      const nextDurationHours = Number.isFinite(b.durationHours) ? Number(b.durationHours) : t.durationHours;
+      const nextRepeatType = typeof b.repeatType === 'string' ? b.repeatType : t.repeatType;
+
+      const updated = await (prisma as any).tournament.update({
+        where: { id: t.id },
+        data: {
+          title: b.title ?? t.title,
+          description: b.description ?? t.description,
+          bannerUrl: b.bannerUrl ?? t.bannerUrl,
+          gameType: b.gameType ?? t.gameType,
+          prizePool: nextPrizePool,
+          prizeMode: nextPrizeMode,
+          winnersCount: nextWinners,
+          fixedPrize: nextPrizeMode === 'fixed' ? nextFixedPrize : null,
+          wagerMultiplier: Number.isFinite(b.wagerMultiplier) && b.wagerMultiplier! >= 0 ? Math.floor(Number(b.wagerMultiplier)) : t.wagerMultiplier,
+          startBalance: Number.isFinite(b.startBalance) ? Number(b.startBalance) : t.startBalance,
+          entryFee: Number.isFinite(b.entryFee) ? Number(b.entryFee) : t.entryFee,
+          rebuyFee: Number.isFinite(b.rebuyFee) ? Number(b.rebuyFee) : t.rebuyFee,
+          startAtGmt1: nextStartAt,
+          durationHours: nextDurationHours,
+          repeatType: nextRepeatType,
           active: typeof b.active === 'boolean' ? b.active : t.active,
         },
       });
-      await ensureCycle({ ...t, ...b, startAtGmt1: Number.isFinite(b.startAtGmt1) ? new Date(Number(b.startAtGmt1)) : t.startAtGmt1 });
+
+      // Update existing cycles of this tournament with new endsAt, state, and prizePool
+      const cycles = await (prisma as any).tournamentCycle.findMany({
+        where: { tournamentId: t.id },
+        orderBy: { startsAt: 'desc' },
+        take: 5,
+      });
+
+      const now = Date.now();
+      for (const c of cycles) {
+        const newEndsAt = new Date(c.startsAt.getTime() + nextDurationHours * 3600 * 1000);
+        const updates: Record<string, any> = {
+          endsAt: newEndsAt,
+          prizePool: nextPrizePool,
+        };
+        if (now >= c.startsAt.getTime() && now <= newEndsAt.getTime()) {
+          updates.state = 'live';
+        } else if (now > newEndsAt.getTime()) {
+          updates.state = 'ended';
+        } else if (now < c.startsAt.getTime()) {
+          updates.state = 'waiting';
+        }
+        await (prisma as any).tournamentCycle.update({
+          where: { id: c.id },
+          data: updates,
+        });
+      }
+
+      await ensureCycle(updated);
       return reply.send({ ok: true });
     }
   );

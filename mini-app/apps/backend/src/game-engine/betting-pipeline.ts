@@ -37,11 +37,16 @@ const toNumber = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 
 
 const PERCENT_PAYOUTS = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
 
-function cycleBounds(t: { startAtGmt1: Date; durationHours: number }, now = Date.now()) {
+function cycleBounds(t: { startAtGmt1: Date; durationHours: number; repeatType?: string }, now = Date.now()) {
   const offsetMs = 60 * 60 * 1000;
   const firstStartUtc = t.startAtGmt1.getTime() - offsetMs;
-  const dayMs = 24 * 3600 * 1000;
   const durationMs = t.durationHours * 3600 * 1000;
+
+  if (t.repeatType === 'once') {
+    return { startsAt: firstStartUtc, endsAt: firstStartUtc + durationMs };
+  }
+
+  const dayMs = 24 * 3600 * 1000;
   if (now <= firstStartUtc) return { startsAt: firstStartUtc, endsAt: firstStartUtc + durationMs };
   const daysPassed = Math.floor((now - firstStartUtc) / dayMs);
   const currentStart = firstStartUtc + daysPassed * dayMs;
@@ -51,12 +56,19 @@ function cycleBounds(t: { startAtGmt1: Date; durationHours: number }, now = Date
   return { startsAt: nextStart, endsAt: nextStart + durationMs };
 }
 
-async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: number; prizePool: Prisma.Decimal }) {
+async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: number; prizePool: Prisma.Decimal; repeatType?: string }) {
   const { startsAt, endsAt } = cycleBounds(t);
   let cycle = await (prisma as any).tournamentCycle.findFirst({
     where: { tournamentId: t.id, startsAt: new Date(startsAt) },
   });
   const now = Date.now();
+  if (!cycle) {
+    cycle = await (prisma as any).tournamentCycle.findFirst({
+      where: { tournamentId: t.id, state: { in: ['live', 'waiting'] } },
+      orderBy: { startsAt: 'desc' },
+    });
+  }
+
   if (!cycle) {
     cycle = await (prisma as any).tournamentCycle.create({
       data: {
@@ -67,11 +79,28 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
         state: now < startsAt ? 'waiting' : (now > endsAt ? 'ended' : 'live'),
       },
     });
-  } else if (cycle.state === 'waiting' && now >= cycle.startsAt.getTime() && now <= cycle.endsAt.getTime()) {
-    cycle = await (prisma as any).tournamentCycle.update({
-      where: { id: cycle.id },
-      data: { state: 'live' },
-    });
+  } else {
+    const updates: Record<string, any> = {};
+    if (Number(cycle.prizePool) !== Number(t.prizePool)) {
+      updates.prizePool = t.prizePool;
+    }
+    const expectedEnd = new Date(cycle.startsAt.getTime() + (t.durationHours * 3600 * 1000));
+    if (cycle.endsAt.getTime() !== expectedEnd.getTime()) {
+      updates.endsAt = expectedEnd;
+    }
+    if (cycle.state === 'waiting' && now >= cycle.startsAt.getTime() && now <= expectedEnd.getTime()) {
+      updates.state = 'live';
+    } else if (cycle.state === 'ended' && now <= expectedEnd.getTime()) {
+      updates.state = 'live';
+    } else if (cycle.state === 'live' && now > expectedEnd.getTime()) {
+      updates.state = 'ended';
+    }
+    if (Object.keys(updates).length > 0) {
+      cycle = await (prisma as any).tournamentCycle.update({
+        where: { id: cycle.id },
+        data: updates,
+      });
+    }
   }
   return cycle as { id: string; startsAt: Date; endsAt: Date; prizePool: Prisma.Decimal; state: string };
 }
