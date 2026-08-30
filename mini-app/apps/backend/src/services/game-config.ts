@@ -25,7 +25,8 @@ export type GameType =
   | 'blackjack'
   | 'hilo'
   | 'cases'
-  | 'macvpot';
+  | 'macvpot'
+  | 'sports';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve
@@ -156,6 +157,16 @@ const DEFAULTS: Record<GameType, GameConfig> = {
       rollDuration: 12,
       rtp: 95,
     },
+  },
+  sports: {
+    paused: false,
+    hidden: false,
+    minBet: 1,
+    maxBet: 500,
+    // Margin is already inside the posted odds (~5.5%).
+    houseEdge: 0,
+    wagerContribution: 1.0,
+    extras: {},
   },
 };
 

@@ -89,6 +89,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     'hilo',
     'cases',
     'macvpot',
+    'sports',
   ];
 
   app.get('/availability', { preHandler: authenticate }, async (request, reply) => {

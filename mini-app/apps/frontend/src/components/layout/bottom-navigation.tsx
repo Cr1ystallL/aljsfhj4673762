@@ -1,14 +1,13 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp, Menu, Sparkles, User, Users } from 'lucide-react';
+import { ChevronDown, ChevronUp, Menu, Sparkles, User } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { usePathname } from 'next/navigation';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { useNavStore } from '@/store/nav-store';
-import { useIsAdmin } from '@/lib/admin-probe';
 import { useT } from '@/i18n/use-t';
 
 interface BottomNavigationProps {
@@ -27,7 +26,7 @@ interface BottomNavigationProps {
  * Updates:
  *   - Center logo: painted glass (opaque fill + specular), no backdrop-blur —
  *     Telegram WebView taxes a full-width blur every frame.
- *   - Admin switch: Shows 'Sport' with soccer ball icon for admins, 'Partner' for users.
+ *   - Dock: Sport for every player. Partner lives in the side menu.
  */
 
 const fastSpringTransition = {
@@ -48,13 +47,11 @@ export const BottomNavigation = memo(function BottomNavigation({
 }: BottomNavigationProps) {
   const pathname = usePathname();
   const { collapsed, hideable, setCollapsed } = useNavStore();
-  const isAdmin = useIsAdmin();
   const { t } = useT();
 
   const isHomeActive = pathname === '/';
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
   const isBonusesActive = pathname?.startsWith('/bonuses') ?? false;
-  const isPartnerActive = pathname?.startsWith('/partner') ?? false;
   const isSportActive = pathname?.startsWith('/sport') ?? false;
 
   if (forceHidden) return null;
@@ -155,22 +152,12 @@ export const BottomNavigation = memo(function BottomNavigation({
               </span>
             </button>
 
-            {/* Sport (for admins) or Partner (for users) */}
-            {isAdmin ? (
-              <NavItem
-                active={isSportActive}
-                onClick={onSportClick ?? onPartnerClick}
-                label={t('nav.sport')}
-                icon={<SoccerBallIcon size={19} className="stroke-[2]" />}
-              />
-            ) : (
-              <NavItem
-                active={isPartnerActive}
-                onClick={onPartnerClick}
-                label={t('nav.partner')}
-                icon={<Users size={19} className="stroke-[2]" />}
-              />
-            )}
+            <NavItem
+              active={isSportActive}
+              onClick={onSportClick ?? onPartnerClick}
+              label={t('nav.sport')}
+              icon={<SoccerBallIcon size={19} className="stroke-[2]" />}
+            />
 
             {/* Profile */}
             <NavItem

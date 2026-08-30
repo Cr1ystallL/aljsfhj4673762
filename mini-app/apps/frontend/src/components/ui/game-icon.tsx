@@ -8,6 +8,7 @@ import {
   Dice5,
   Box,
   Trophy,
+  CircleDot,
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ export type GameKey =
   | 'keno'
   | 'cases'
   | 'macvpot'
+  | 'sports'
   | 'unknown';
 
 /**
@@ -123,6 +125,7 @@ const META: Record<GameKey, { label: string; Icon: LucideIcon }> = {
   keno: { label: 'Keno', Icon: Dice5 },
   cases: { label: 'Case', Icon: Box },
   macvpot: { label: 'MacvPot', Icon: Trophy },
+  sports: { label: 'Спорт', Icon: CircleDot },
   unknown: { label: 'Прочее', Icon: Box },
 };
 
@@ -145,6 +148,7 @@ export function resolveGameKey(input: unknown): GameKey {
   if (v.startsWith('keno')) return 'keno';
   if (v.startsWith('cases') || v.startsWith('case')) return 'cases';
   if (v.startsWith('macvpot') || v.startsWith('pot')) return 'macvpot';
+  if (v.startsWith('sport')) return 'sports';
   return 'unknown';
 }
 

@@ -1,9 +1,12 @@
 'use client';
 
-import { Tv, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SportEvent, SelectedBet, OddsTrend } from '@/types/sports';
 import { TeamLogo } from '@/components/ui/team-logo';
+import { Pressable } from '@/components/ui/pressable';
+import { useT } from '@/i18n/use-t';
+import { formatSportsKickoff } from '@/lib/format-sports-time';
 
 interface SportEventRowProps {
   event: SportEvent;
@@ -16,11 +19,15 @@ export function SportEventRow({
   selectedBet,
   onSelectBet,
 }: SportEventRowProps) {
+  const { t, localeTag } = useT();
+  const finished = event.status === 'finished';
+
   const handleOutcomeClick = (
     outcomeType: 'p1' | 'x' | 'p2',
     outcomeLabel: string,
     odds: number
   ) => {
+    if (finished) return;
     onSelectBet({
       eventId: event.id,
       eventName: `${event.team1.name} — ${event.team2.name}`,
@@ -40,55 +47,48 @@ export function SportEventRow({
     selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'p2';
 
   const hasThreeWay = event.odds.x !== undefined;
+  const kickoff = formatSportsKickoff(event.startTime, localeTag, {
+    today: t('sports.today'),
+    tomorrow: t('sports.tomorrow'),
+  });
+
+  const lastNote = event.lastEvent
+    ? event.lastEvent.kind === 'goal'
+      ? `${t('sports.goal')} ${event.lastEvent.score1}:${event.lastEvent.score2}`
+      : `${event.lastEvent.score1}:${event.lastEvent.score2}`
+    : event.lastEventNotification;
 
   return (
-    <div className="w-full rounded-2xl border border-white/10 bg-[#0e1015]/95 hover:border-white/20 transition-all duration-200 p-3 sm:p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05)] flex flex-col gap-2.5">
-      {/* Top Meta: Sport / Status / Stream / Markets */}
+    <div className="w-full rounded-2xl border border-white/10 bg-[#0e1015] p-3 sm:p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)] flex flex-col gap-2.5">
       <div className="flex items-center justify-between text-[11px] text-whisper-gray">
         <div className="flex items-center gap-1.5 min-w-0">
           {event.isLive ? (
             <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-              </span>
-              <span className="font-roobert font-bold text-red-400 tracking-tight tabular-nums">
+              <span className="inline-flex rounded-full h-1.5 w-1.5 bg-red-400" />
+              <span className="font-roobert font-bold text-red-300 tracking-tight tabular-nums">
                 {event.liveTime || 'Live'}
               </span>
             </div>
+          ) : finished ? (
+            <span className="font-roobert font-medium text-whisper-gray">
+              {t('sports.finished')}
+            </span>
           ) : (
             <span className="font-roobert font-medium text-whisper-gray">
-              {event.displayTime}
+              {kickoff || event.displayTime}
             </span>
           )}
 
-          {event.hasStream && (
-            <span className="text-emerald-400 flex items-center gap-0.5 ml-1">
-              <Tv size={11} strokeWidth={2.2} />
-            </span>
-          )}
-
-          {event.lastEventNotification && (
-            <span className="text-amber-300 font-bold text-[10px] animate-pulse ml-2 truncate max-w-[140px]">
-              {event.lastEventNotification}
+          {lastNote && (
+            <span className="text-frost-white/70 font-semibold text-[10px] ml-2 truncate max-w-[140px]">
+              {lastNote}
             </span>
           )}
         </div>
-
-        <button
-          type="button"
-          className="flex items-center gap-0.5 font-roobert font-medium text-[11px] text-whisper-gray/80 hover:text-frost-white transition-colors"
-        >
-          <span>+{event.marketsCount}</span>
-          <ChevronRight size={12} />
-        </button>
       </div>
 
-      {/* Main Row: Teams & Live Scores vs Odds Matrix */}
       <div className="flex items-center justify-between gap-3">
-        {/* Teams List with Real Logos & Live Scores */}
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {/* Team 1 */}
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <TeamLogo
@@ -103,19 +103,13 @@ export function SportEventRow({
               </span>
             </div>
 
-            {event.isLive && (
-              <div className="flex items-center gap-1 shrink-0 pl-1">
-                {event.team1.yellowCards ? (
-                  <span className="w-2 h-3 rounded-[2px] bg-amber-400 inline-block shadow-sm" />
-                ) : null}
-                <span className="font-roobert font-bold text-[14px] text-frost-white tabular-nums">
-                  {event.team1.score ?? 0}
-                </span>
-              </div>
+            {(event.isLive || finished) && (
+              <span className="font-roobert font-bold text-[14px] text-frost-white tabular-nums shrink-0 pl-1">
+                {event.team1.score ?? 0}
+              </span>
             )}
           </div>
 
-          {/* Team 2 */}
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <TeamLogo
@@ -130,49 +124,41 @@ export function SportEventRow({
               </span>
             </div>
 
-            {event.isLive && (
-              <div className="flex items-center gap-1 shrink-0 pl-1">
-                {event.team2.yellowCards ? (
-                  <span className="w-2 h-3 rounded-[2px] bg-amber-400 inline-block shadow-sm" />
-                ) : null}
-                <span className="font-roobert font-bold text-[14px] text-frost-white tabular-nums">
-                  {event.team2.score ?? 0}
-                </span>
-              </div>
+            {(event.isLive || finished) && (
+              <span className="font-roobert font-bold text-[14px] text-frost-white tabular-nums shrink-0 pl-1">
+                {event.team2.score ?? 0}
+              </span>
             )}
           </div>
         </div>
 
-        {/* Odds Matrix Buttons */}
         <div
           className={cn(
             'grid gap-1.5 shrink-0',
             hasThreeWay ? 'grid-cols-3 w-[165px] sm:w-[185px]' : 'grid-cols-2 w-[115px] sm:w-[130px]'
           )}
         >
-          {/* Outcome 1 */}
           <OddsButtonCell
             odds={event.odds.p1}
             trend={event.odds.p1Trend}
             isSelected={isP1Selected}
+            disabled={finished}
             onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
           />
-
-          {/* Outcome X (if available) */}
           {hasThreeWay && (
             <OddsButtonCell
               odds={event.odds.x!}
               trend={event.odds.xTrend}
               isSelected={isXSelected}
+              disabled={finished}
               onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
             />
           )}
-
-          {/* Outcome 2 */}
           <OddsButtonCell
             odds={event.odds.p2}
             trend={event.odds.p2Trend}
             isSelected={isP2Selected}
+            disabled={finished}
             onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
           />
         </div>
@@ -185,25 +171,30 @@ function OddsButtonCell({
   odds,
   trend,
   isSelected,
+  disabled,
   onClick,
 }: {
   odds: number;
   trend?: OddsTrend;
   isSelected: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
+    <Pressable
+      type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
-        'h-10 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 active:scale-90 relative overflow-hidden',
+        'h-10 rounded-xl border flex flex-col items-center justify-center',
         isSelected
-          ? 'bg-amber-400 text-black border-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.45)]'
+          ? 'bg-frost-white text-midnight-canvas border-white/40'
           : trend === 'up'
-          ? 'bg-emerald-950/40 border-emerald-400/40 text-frost-white shadow-[0_0_8px_rgba(16,185,129,0.3)]'
-          : trend === 'down'
-          ? 'bg-red-950/40 border-red-400/40 text-frost-white shadow-[0_0_8px_rgba(239,68,68,0.3)]'
-          : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-frost-white'
+            ? 'bg-white/[0.04] border-emerald-400/30 text-frost-white'
+            : trend === 'down'
+              ? 'bg-white/[0.04] border-red-400/25 text-frost-white'
+              : 'bg-white/[0.04] border-white/10 text-frost-white',
+        disabled && 'opacity-40'
       )}
     >
       <div className="flex items-center gap-0.5">
@@ -213,6 +204,6 @@ function OddsButtonCell({
           {odds.toFixed(2)}
         </span>
       </div>
-    </button>
+    </Pressable>
   );
 }
