@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShieldCheck, Gamepad2, Award } from 'lucide-react';
+import { X, Gamepad2, Award } from 'lucide-react';
 
 interface BlackjackRulesModalProps {
   open: boolean;

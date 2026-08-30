@@ -30,10 +30,11 @@ export function findMarketOutcome(
       continue;
     }
     const found = market.outcomes?.find((o) => o.key === key);
-    if (found?.available) return found;
+    if (found) return found.available ? found : null;
   }
 
-  if (kind === '1x2') {
+  const has1x2 = marketsForEvent(event).some((m) => m.kind === '1x2');
+  if (kind === '1x2' && !has1x2) {
     const odds = key === 'p1' ? event.odds.p1 : key === 'p2' ? event.odds.p2 : event.odds.x;
     if (odds && Number.isFinite(odds)) {
       return { key, label: key === 'p1' ? '1' : key === 'p2' ? '2' : 'X', odds, available: true };
@@ -74,6 +75,12 @@ export function sameLeg(
     a.outcomeType === b.outcomeType &&
     lineSame
   );
+}
+
+export function matchWinnerOpen(event: SportEvent, key: 'p1' | 'x' | 'p2'): boolean {
+  const row = event.markets?.find((m) => m.kind === '1x2')?.outcomes?.find((o) => o.key === key);
+  if (!row) return true;
+  return row.available;
 }
 
 export function conflictingEventIds(legs: SelectedBet[]): string[] {

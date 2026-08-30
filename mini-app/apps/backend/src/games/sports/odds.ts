@@ -14,6 +14,7 @@ export interface LiveOddsResult {
   p1: number;
   x?: number;
   p2: number;
+  available?: { p1: boolean; x?: boolean; p2: boolean };
   total?: {
     threshold: number;
     over: number;
@@ -47,8 +48,8 @@ function footballLikeOdds(
   redCards2 = 0
 ): LiveOddsResult {
   const clampedMinute = Math.min(Math.max(minute, 0), matchMinutes + 5);
-  const remainingMinutes = Math.max(matchMinutes - clampedMinute, 1);
-  const timeFactor = remainingMinutes / matchMinutes;
+  const remainingMinutes = Math.max(matchMinutes - clampedMinute, 0);
+  const timeFactor = Math.max(remainingMinutes, 0.15) / matchMinutes;
 
   const redPenalty1 = Math.max(0.4, 1 - redCards1 * 0.25);
   const redPenalty2 = Math.max(0.4, 1 - redCards2 * 0.25);
@@ -80,11 +81,31 @@ function footballLikeOdds(
   }
 
   const totalProb = Math.max(1e-9, prob1Wins + probDraw + prob2Wins);
-  const normP1 = Math.max(0.005, prob1Wins / totalProb);
-  const normPX = Math.max(0.005, probDraw / totalProb);
-  const normP2 = Math.max(0.005, prob2Wins / totalProb);
+  let normP1 = prob1Wins / totalProb;
+  let normPX = probDraw / totalProb;
+  let normP2 = prob2Wins / totalProb;
   const margin = 1.055;
-  const toBook = (p: number) => formatOdds(1 / (p * margin));
+  const toBook = (p: number) => formatOdds(1 / (Math.max(0.008, p) * margin));
+
+  const lead = score1 - score2;
+  const remainMin = remainingMinutes;
+  const pUnder = lead > 0 ? normP2 : lead < 0 ? normP1 : 0;
+  const lockUnderdogWin =
+    lead !== 0 &&
+    (pUnder < 0.05 ||
+      (Math.abs(lead) >= 1 && remainMin <= 5) ||
+      (Math.abs(lead) >= 2 && remainMin <= 12));
+  const lockDraw = lead !== 0 && normPX < 0.04 && remainMin <= 3 && Math.abs(lead) >= 2;
+
+  if (lockUnderdogWin) {
+    if (lead > 0) {
+      normP1 = Math.max(normP1, 0.94);
+      normP2 = 0;
+    } else {
+      normP2 = Math.max(normP2, 0.94);
+      normP1 = 0;
+    }
+  }
 
   const currentTotal = score1 + score2;
   const threshold = currentTotal <= 1 ? 2.5 : currentTotal + 1.5;
@@ -100,10 +121,15 @@ function footballLikeOdds(
   const normUnder = Math.min(Math.max(probUnder / totalProb, 0.05), 0.95);
   const normOver = 1 - normUnder;
 
+  const p1Open = !(lockUnderdogWin && lead < 0);
+  const p2Open = !(lockUnderdogWin && lead > 0);
+  const xOpen = !lockDraw;
+
   return {
-    p1: toBook(normP1),
-    x: toBook(normPX),
-    p2: toBook(normP2),
+    p1: p1Open ? (lockUnderdogWin && lead > 0 ? 1.01 : toBook(normP1)) : 1.01,
+    x: xOpen ? toBook(normPX) : 1.01,
+    p2: p2Open ? (lockUnderdogWin && lead < 0 ? 1.01 : toBook(normP2)) : 1.01,
+    available: { p1: p1Open, x: xOpen, p2: p2Open },
     total: {
       threshold,
       over: formatOdds(1 / (normOver * 1.05)),

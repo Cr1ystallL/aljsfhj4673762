@@ -192,24 +192,24 @@ function fallbackOdds(
   t1: FeedTeam,
   t2: FeedTeam,
   minute: number
-): FeedEvent['odds'] {
+): { odds: FeedEvent['odds']; available?: { p1?: boolean; x?: boolean; p2?: boolean } } {
   const s1 = t1.score ?? 0;
   const s2 = t2.score ?? 0;
   const liveMinute = status === 'live' ? minute : 0;
   if (sport === 'football') {
     const o = calculateFootballLiveOdds(liveMinute, s1, s2);
-    return { p1: o.p1, x: o.x, p2: o.p2 };
+    return { odds: { p1: o.p1, x: o.x, p2: o.p2 }, available: o.available };
   }
   if (sport === 'hockey') {
     const o = calculateHockeyLiveOdds(liveMinute, s1, s2);
-    return { p1: o.p1, x: o.x, p2: o.p2 };
+    return { odds: { p1: o.p1, x: o.x, p2: o.p2 }, available: o.available };
   }
   if (sport === 'basketball') {
     const o = calculateBasketballLiveOdds(s1, s2, 2, 300);
-    return { p1: o.p1, p2: o.p2 };
+    return { odds: { p1: o.p1, p2: o.p2 } };
   }
   const o = calculateTennisLiveOdds([s1], [s2], 0, 0);
-  return { p1: o.p1, p2: o.p2 };
+  return { odds: { p1: o.p1, p2: o.p2 } };
 }
 
 function parseDisplaySeconds(display: string, sport: SportKind): number | null {
@@ -248,13 +248,18 @@ function parseEspnClock(
 
   if (sport === 'football') {
     direction = 'up';
-    if (Number.isFinite(asNum) && asNum >= 60) {
-      seconds = Math.floor(asNum);
-    } else {
-      seconds = parseDisplaySeconds(display, sport);
-      if (seconds == null && Number.isFinite(asNum) && asNum >= 0 && asNum <= 130) {
-        seconds = Math.floor(asNum) * 60;
-      }
+    seconds = parseDisplaySeconds(display, sport);
+    if (seconds == null && Number.isFinite(asNum)) {
+      // ESPN soccer `clock` is usually the match minute (89), not seconds.
+      // Values above ~130 are elapsed seconds (89' = 5340).
+      seconds = asNum > 130 ? Math.floor(asNum) : Math.max(0, Math.floor(asNum)) * 60;
+    }
+    const periodNum = Number(ev.period ?? ev.fullStatus?.period);
+    if (seconds != null && Number.isFinite(periodNum)) {
+      const min = Math.floor(seconds / 60);
+      if (periodNum === 2 && min < 45) seconds += 45 * 60;
+      else if (periodNum === 3 && min < 90) seconds += 90 * 60;
+      else if (periodNum >= 4 && min < 105) seconds += 105 * 60;
     }
   } else if (sport === 'hockey' || sport === 'basketball') {
     direction = 'down';
@@ -310,25 +315,30 @@ function parseEvent(
   const threeWay = threeWaySport(sport);
 
   const clock = parseEspnClock(sport, ev, status);
+  const minute = clock.liveMinute ?? 0;
+  const liveLine = fallbackOdds(sport, status, team1, team2, minute);
   const p1 = americanToDecimal(ev.odds?.home?.moneyLine);
   const p2 = americanToDecimal(ev.odds?.away?.moneyLine);
   const x = americanToDecimal(ev.odds?.draw?.moneyLine);
-  let odds: FeedEvent['odds'];
-  if (p1 && p2 && (!threeWay || x)) {
-    odds = threeWay ? { p1, x, p2 } : { p1, p2 };
-  } else {
-    odds = fallbackOdds(sport, status, team1, team2, clock.liveMinute ?? 0);
-  }
+  const espnOk = !!(p1 && p2 && (!threeWay || x));
+  const odds: FeedEvent['odds'] =
+    status === 'live' || !espnOk
+      ? liveLine.odds
+      : threeWay
+        ? { p1: p1 as number, x, p2: p2 as number }
+        : { p1: p1 as number, p2: p2 as number };
+  const available = status === 'live' ? liveLine.available : undefined;
 
   const stats = parseCompetitorStats(pair.home, pair.away);
   const markets = buildMarkets({
     sport,
     score1: team1.score ?? 0,
     score2: team2.score ?? 0,
-    minute: status === 'live' ? clock.liveMinute ?? 0 : 0,
+    minute: status === 'live' ? minute : 0,
     threeWay,
     odds,
     stats,
+    available,
   });
 
   return {
@@ -495,6 +505,8 @@ async function attachEspnBoxscores(events: FeedEvent[]): Promise<void> {
       const stats = await fetchSoccerBoxscore(ev.espnLeague, id);
       if (!stats) return;
       ev.stats = { ...ev.stats, ...stats };
+      const live = fallbackOdds(ev.sport, ev.status, ev.team1, ev.team2, ev.liveMinute ?? 0);
+      if (ev.status === 'live') ev.odds = live.odds;
       ev.markets = buildMarkets({
         sport: ev.sport,
         score1: ev.team1.score ?? 0,
@@ -503,6 +515,7 @@ async function attachEspnBoxscores(events: FeedEvent[]): Promise<void> {
         threeWay: ev.threeWay,
         odds: ev.odds,
         stats: ev.stats,
+        available: ev.status === 'live' ? live.available : undefined,
       });
       ev.marketsCount = marketsCount(ev.markets);
     } catch (err) {

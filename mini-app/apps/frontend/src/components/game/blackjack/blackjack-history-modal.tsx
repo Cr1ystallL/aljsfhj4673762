@@ -19,10 +19,6 @@ export interface Card {
 export interface BlackjackRoundHistoryItem {
   roundId: string;
   endedAt: number;
-  serverSeedHash?: string;
-  serverSeed?: string;
-  clientSeed?: string;
-  nonce?: number;
   dealerHand: Card[];
   dealerValue: number;
   dealerBust: boolean;
@@ -43,8 +39,6 @@ interface BlackjackHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomId: string;
-  currentRoundId?: string;
-  currentServerSeedHash?: string;
   history: BlackjackRoundHistoryItem[];
   currentUserId?: string;
 }
