@@ -346,21 +346,18 @@ export function BlackjackMultiplayer() {
 
   const [wsUserId, setWsUserId] = useState<string | null>(null);
 
-  // Determine user's seat
+  // Determine user's seat strictly by authenticated/session user IDs
   const myPlayer = useMemo(() => {
-    const targetUserId = user?.id || wsUserId;
     return (
       state.players.find(
         (p) =>
-          (targetUserId && p.userId === targetUserId) ||
           (user?.id && p.userId === user.id) ||
           (wsUserId && p.userId === wsUserId) ||
-          (sessionId && p.userId.includes(sessionId.slice(0, 8))) ||
-          (user?.username && p.name === (user.firstName || user.username)) ||
-          p.name === 'ВЫ'
+          (sessionId && p.userId === `guest_${sessionId.slice(0, 8)}`) ||
+          (sessionId && p.userId.includes(sessionId.slice(0, 8)))
       ) || null
     );
-  }, [state.players, user?.id, user?.username, user?.firstName, wsUserId, sessionId]);
+  }, [state.players, user?.id, wsUserId, sessionId]);
 
   // Track phase transitions for instant balance updates and reset
   useEffect(() => {
@@ -743,7 +740,7 @@ export function BlackjackMultiplayer() {
     soundManager.play('bj.chip_click');
 
     const effectiveUserId = user?.id || wsUserId || (sessionId ? `guest_${sessionId.slice(0, 8)}` : undefined);
-    const effectiveName = user?.firstName || user?.username || 'ВЫ';
+    const effectiveName = user?.firstName || user?.username || 'Игрок';
     const effectiveAvatar = user?.photoUrl || undefined;
 
     const payload = {
@@ -792,26 +789,26 @@ export function BlackjackMultiplayer() {
     setSelectedBet(0);
     soundManager.play('bj.chip_click');
 
-    const payload = { roomId, userId: user?.id || wsUserId || undefined };
+    const effectiveUserId = myPlayer?.userId || user?.id || wsUserId || (sessionId ? `guest_${sessionId.slice(0, 8)}` : undefined);
+    const payload = { roomId, userId: effectiveUserId };
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       sendWs('blackjack:leave_seat', payload);
-    } else {
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      fetch('/api/games/blackjack/leave', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.state) setState(data.state);
-        })
-        .catch(() => {});
     }
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch('/api/games/blackjack/leave', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.state) setState(data.state);
+      })
+      .catch(() => {});
   };
 
   const MIN_BET = 10;
@@ -1456,6 +1453,21 @@ export function BlackjackMultiplayer() {
                             <CheckCircle2 size={10} strokeWidth={3} className="text-black shrink-0" />
                             <span>Готов</span>
                           </motion.div>
+                        )}
+
+                        {/* LEAVE SEAT BUTTON ON AVATAR (Visible during waiting / countdown for own seat) */}
+                        {isMe && (state.phase === 'waiting' || state.phase === 'countdown') && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLeaveSeat();
+                            }}
+                            className="absolute -bottom-1 -left-1 z-40 flex items-center justify-center w-5 h-5 rounded-full bg-red-600/90 hover:bg-red-500 text-white shadow-lg border border-red-400 cursor-pointer active:scale-95 transition-all"
+                            title="Встать из-за стола"
+                          >
+                            <LogOut size={10} />
+                          </button>
                         )}
                       </>
                     ) : (
