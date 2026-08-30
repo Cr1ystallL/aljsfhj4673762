@@ -66,7 +66,7 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/my-bets', { preHandler: authenticate }, async (request, reply) => {
     const { user } = request as AuthenticatedRequest;
-    const bets = await sportsEngine.listUserBets(user.userId);
+    const bets = await sportsEngine.listUserBets(user.userId, 80);
     return reply.send({ ok: true, bets });
   });
 

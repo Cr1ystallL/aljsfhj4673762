@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Trophy, Calendar, X } from 'lucide-react';
+import { Search, Trophy, Calendar, X, Ticket } from 'lucide-react';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { SportsTopBar } from '@/components/sports/sports-top-bar';
 import { SportsCategoryNav } from '@/components/sports/sports-category-nav';
 import { FeaturedMatchCard } from '@/components/sports/featured-match-card';
 import { SportEventRow } from '@/components/sports/sport-event-row';
 import { SportsBetslipDrawer } from '@/components/sports/sports-betslip-drawer';
-import { SportsMyBets } from '@/components/sports/sports-my-bets';
+import { SportsMyBetsSheet } from '@/components/sports/sports-my-bets';
 import { useLiveSports } from '@/hooks/use-live-sports';
 import type { SportCategoryKey, SportEvent } from '@/types/sports';
 import { useSportsSlip } from '@/store/sports-slip-store';
@@ -21,6 +21,7 @@ export default function SportPage() {
   const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('all');
   const [mode, setMode] = useState<'all' | 'live' | 'prematch'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [myBetsOpen, setMyBetsOpen] = useState(false);
   const syncFromEvents = useSportsSlip((s) => s.syncFromEvents);
 
   const {
@@ -111,6 +112,16 @@ export default function SportPage() {
               </button>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => setMyBetsOpen(true)}
+            className="shrink-0 h-[42px] px-3 rounded-2xl border border-white/10 bg-[#12141a] text-frost-white hover:border-white/25 active:scale-[0.97] transition-all flex items-center gap-1.5"
+          >
+            <Ticket size={15} className="text-whisper-gray" strokeWidth={1.9} />
+            <span className="font-roobert text-[12px] font-semibold whitespace-nowrap">
+              {t('sports.myBets')}
+            </span>
+          </button>
         </div>
 
         <SportsCategoryNav
@@ -239,9 +250,9 @@ export default function SportPage() {
           </div>
         )}
 
-        <SportsMyBets />
       </main>
 
+      <SportsMyBetsSheet open={myBetsOpen} onClose={() => setMyBetsOpen(false)} />
       <SportsBetslipDrawer minBet={minBet} maxBet={maxBet} paused={paused} />
     </div>
   );
