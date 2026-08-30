@@ -17,7 +17,6 @@ import {
   Clock,
   RotateCcw,
   ChevronDown,
-  ShieldCheck,
   CheckCircle2,
   Play,
   History,
@@ -63,7 +62,6 @@ export interface BJState {
   players: BJPlayer[];
   currentTurnSeatId: number | null;
   roundId: string;
-  serverSeedHash?: string;
 }
 
 const CHIP_VALUES = [10, 25, 50, 100, 250, 500];
@@ -2151,13 +2149,10 @@ export function BlackjackMultiplayer() {
         players={state.players}
       />
 
-      {/* Provably Fair & Table Rounds History Modal */}
       <BlackjackHistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         roomId={roomId}
-        currentRoundId={state.roundId}
-        currentServerSeedHash={(state as any).serverSeedHash}
         history={tableHistory}
         currentUserId={user?.id}
       />

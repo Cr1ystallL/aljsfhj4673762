@@ -54,10 +54,6 @@ export interface Player {
 export interface BlackjackRoundHistoryItem {
   roundId: string;
   endedAt: number;
-  serverSeedHash: string;
-  serverSeed?: string;
-  clientSeed: string;
-  nonce: number;
   dealerHand: Card[];
   dealerValue: number;
   dealerBust: boolean;
@@ -85,7 +81,6 @@ export interface BlackjackState {
   players: Player[];
   currentTurnSeatId: number | null;
   roundId: string;
-  serverSeedHash?: string;
   history?: BlackjackRoundHistoryItem[];
 }
 
@@ -404,7 +399,6 @@ export class BlackjackEngine extends EventEmitter {
     this.dealLock = true;
     this.state.phase = 'dealing';
     this.state.roundId = `blackjack_${Date.now()}_${randomUUID()}`;
-    this.state.serverSeedHash = serverSeedHash;
     this.state.dealerHand = [];
     
     // Create deterministic cryptographically shuffled deck
@@ -897,10 +891,6 @@ export class BlackjackEngine extends EventEmitter {
     const historyItem: BlackjackRoundHistoryItem = {
       roundId: this.state.roundId,
       endedAt: Date.now(),
-      serverSeedHash: this.currentSeeds.serverSeedHash,
-      serverSeed: this.currentSeeds.serverSeed,
-      clientSeed: this.currentSeeds.clientSeed,
-      nonce: 1,
       dealerHand: JSON.parse(JSON.stringify(this.state.dealerHand)),
       dealerValue,
       dealerBust,
@@ -998,7 +988,7 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   /* -----------------------------------------------------------------
-   * Card utilities (Provably Fair deterministic dealing)
+   * Card utilities (deterministic dealing)
    * ---------------------------------------------------------------- */
 
   private drawCard(userId: string, currentHand?: Card[]): Card {
@@ -1085,7 +1075,6 @@ export class BlackjackEngine extends EventEmitter {
         players: sanitizedPlayers,
         currentTurnSeatId: this.state.currentTurnSeatId,
         roundId: this.state.roundId,
-        serverSeedHash: this.state.serverSeedHash,
       },
       timestamp: Date.now(),
     };
@@ -1183,7 +1172,6 @@ export class BlackjackEngine extends EventEmitter {
         : [],
       currentTurnSeatId: raw.currentTurnSeatId,
       roundId: raw.roundId,
-      serverSeedHash: raw.serverSeedHash,
     };
   }
 

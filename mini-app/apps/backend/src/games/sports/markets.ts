@@ -148,12 +148,15 @@ export function buildMarkets(input: {
   threeWay: boolean;
   odds: { p1: number; x?: number; p2: number };
   stats?: MatchStats;
+  available?: { p1?: boolean; x?: boolean; p2?: boolean };
 }): SportMarket[] {
   const markets: SportMarket[] = [];
   const oneXTwo: MarketOutcome[] = [
-    oc('p1', '1', input.odds.p1),
-    ...(input.threeWay && input.odds.x != null ? [oc('x', 'X', input.odds.x)] : []),
-    oc('p2', '2', input.odds.p2),
+    oc('p1', '1', input.odds.p1, undefined, input.available?.p1 !== false),
+    ...(input.threeWay && input.odds.x != null
+      ? [oc('x', 'X', input.odds.x, undefined, input.available?.x !== false)]
+      : []),
+    oc('p2', '2', input.odds.p2, undefined, input.available?.p2 !== false),
   ];
   markets.push({ id: '1x2', kind: '1x2', outcomes: oneXTwo });
 

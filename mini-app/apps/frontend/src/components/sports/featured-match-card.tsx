@@ -8,7 +8,7 @@ import { TeamLogo } from '@/components/ui/team-logo';
 import { Pressable } from '@/components/ui/pressable';
 import { useT, type TxKey } from '@/i18n/use-t';
 import { formatSportsKickoff } from '@/lib/format-sports-time';
-import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
+import { betFromOutcome, matchWinnerOpen, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { LiveClock } from './live-clock';
 import { teamLogoMark } from './team-mark';
@@ -24,7 +24,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
   const finished = event.status === 'finished';
 
   const handleOutcomeClick = (key: 'p1' | 'x' | 'p2', label: string, odds: number) => {
-    if (finished) return;
+    if (finished || !matchWinnerOpen(event, key)) return;
     toggle(betFromOutcome(event, '1x2', key, label, odds));
   };
 
@@ -140,7 +140,8 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
           odds={event.odds.p1}
           trend={event.odds.p1Trend}
           isSelected={isSelected('p1')}
-          disabled={finished}
+          disabled={finished || !matchWinnerOpen(event, 'p1')}
+          locked={!matchWinnerOpen(event, 'p1')}
           onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
         />
         {event.odds.x !== undefined ? (
@@ -149,7 +150,8 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
             odds={event.odds.x}
             trend={event.odds.xTrend}
             isSelected={isSelected('x')}
-            disabled={finished}
+            disabled={finished || !matchWinnerOpen(event, 'x')}
+            locked={!matchWinnerOpen(event, 'x')}
             onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
           />
         ) : (
@@ -162,7 +164,8 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
           odds={event.odds.p2}
           trend={event.odds.p2Trend}
           isSelected={isSelected('p2')}
-          disabled={finished}
+          disabled={finished || !matchWinnerOpen(event, 'p2')}
+          locked={!matchWinnerOpen(event, 'p2')}
           onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
         />
       </div>
@@ -188,6 +191,7 @@ function OddsButton({
   trend,
   isSelected,
   disabled,
+  locked,
   onClick,
 }: {
   label: string;
@@ -195,6 +199,7 @@ function OddsButton({
   trend?: OddsTrend;
   isSelected: boolean;
   disabled?: boolean;
+  locked?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -219,7 +224,7 @@ function OddsButton({
         {trend === 'up' && <ArrowUp size={11} className="text-emerald-400" />}
         {trend === 'down' && <ArrowDown size={11} className="text-red-400" />}
         <span className="font-roobert text-[14px] font-bold tabular-nums">
-          {odds.toFixed(2)}
+          {locked ? '—' : odds.toFixed(2)}
         </span>
       </div>
     </Pressable>

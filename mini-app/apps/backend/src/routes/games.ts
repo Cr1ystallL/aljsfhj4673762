@@ -1170,8 +1170,24 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           return reply.status(404).send({ message: 'Раунд не найден' });
         }
 
-        // Only return sensitive data if round is completed
-        const isCompleted = round.state === 'completed' || round.gameType === 'crash'; // crash doesn't strictly update GameRound on completion right now? Oh wait, it does not use prisma.gameRound. Wait, does Crash use GameRound?
+        if (round.gameType === 'blackjack') {
+          const raw = round.result && typeof round.result === 'object' ? round.result as Record<string, unknown> : null;
+          const result = raw
+            ? Object.fromEntries(
+                Object.entries(raw).filter(
+                  ([key]) => !['serverSeed', 'serverSeedHash', 'clientSeed', 'nonce'].includes(key)
+                )
+              )
+            : round.result;
+          return reply.send({
+            id: round.id,
+            gameType: round.gameType,
+            state: round.state,
+            startedAt: round.startedAt,
+            endedAt: round.endedAt,
+            result,
+          });
+        }
 
         return reply.send({
           id: round.id,
@@ -1383,7 +1399,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // Blackjack Table History (Provably Fair recent rounds)
   app.get('/blackjack/history', async (request, reply) => {
     try {
       const { roomId = 'bj_table_1' } = (request.query as { roomId?: string }) || {};

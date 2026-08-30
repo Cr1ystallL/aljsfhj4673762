@@ -8,7 +8,7 @@ import { TeamLogo } from '@/components/ui/team-logo';
 import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
 import { formatSportsKickoff } from '@/lib/format-sports-time';
-import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
+import { betFromOutcome, matchWinnerOpen, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { LiveClock } from './live-clock';
 import { teamLogoMark } from './team-mark';
@@ -24,7 +24,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
   const finished = event.status === 'finished';
 
   const handleOutcomeClick = (key: 'p1' | 'x' | 'p2', label: string, odds: number) => {
-    if (finished) return;
+    if (finished || !matchWinnerOpen(event, key)) return;
     toggle(betFromOutcome(event, '1x2', key, label, odds));
   };
 
@@ -165,7 +165,8 @@ export function SportEventRow({ event }: SportEventRowProps) {
             trend={event.odds.p1Trend}
             isSelected={isSelected('p1')}
             conflicts={legs.some((leg) => leg.eventId === event.id) && !isSelected('p1')}
-            disabled={finished}
+            disabled={finished || !matchWinnerOpen(event, 'p1')}
+            locked={!matchWinnerOpen(event, 'p1')}
             onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
           />
           {hasThreeWay && (
@@ -174,7 +175,8 @@ export function SportEventRow({ event }: SportEventRowProps) {
               trend={event.odds.xTrend}
               isSelected={isSelected('x')}
               conflicts={legs.some((leg) => leg.eventId === event.id) && !isSelected('x')}
-              disabled={finished}
+              disabled={finished || !matchWinnerOpen(event, 'x')}
+              locked={!matchWinnerOpen(event, 'x')}
               onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
             />
           )}
@@ -183,7 +185,8 @@ export function SportEventRow({ event }: SportEventRowProps) {
             trend={event.odds.p2Trend}
             isSelected={isSelected('p2')}
             conflicts={legs.some((leg) => leg.eventId === event.id) && !isSelected('p2')}
-            disabled={finished}
+            disabled={finished || !matchWinnerOpen(event, 'p2')}
+            locked={!matchWinnerOpen(event, 'p2')}
             onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
           />
         </div>
@@ -218,6 +221,7 @@ function OddsButtonCell({
   isSelected,
   conflicts,
   disabled,
+  locked,
   onClick,
 }: {
   odds: number;
@@ -225,6 +229,7 @@ function OddsButtonCell({
   isSelected: boolean;
   conflicts?: boolean;
   disabled?: boolean;
+  locked?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -250,7 +255,7 @@ function OddsButtonCell({
         {trend === 'up' && <ArrowUp size={9} className="text-emerald-400" />}
         {trend === 'down' && <ArrowDown size={9} className="text-red-400" />}
         <span className="font-roobert text-[12.5px] font-bold tabular-nums">
-          {odds.toFixed(2)}
+          {locked ? '—' : odds.toFixed(2)}
         </span>
       </div>
     </Pressable>
