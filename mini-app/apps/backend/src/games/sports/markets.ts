@@ -436,6 +436,25 @@ export function settleLeg(
   return 'void';
 }
 
+export function cashoutPriceFactor(
+  legs: Array<{ result: SettleResult | 'pending'; quoted: number; liveOdds?: number }>
+): number | null {
+  let factor = 1;
+  for (const leg of legs) {
+    if (leg.result === 'lost') return null;
+    if (leg.result === 'void') continue;
+    if (leg.result === 'won') {
+      if (!(leg.quoted >= 1.01)) return null;
+      factor *= leg.quoted;
+      continue;
+    }
+    const live = leg.liveOdds;
+    if (live == null || !Number.isFinite(live) || live < 1.01) return null;
+    factor *= leg.quoted / live;
+  }
+  return Number.isFinite(factor) && factor > 0 ? factor : null;
+}
+
 export function interpolateClock(
   status: 'prematch' | 'live' | 'finished',
   clockSeconds: number | null | undefined,
