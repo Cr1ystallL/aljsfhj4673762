@@ -18,8 +18,20 @@ class BlackjackSingletonManager {
     return blackjackRoomManager.findAvailableTable(userId);
   }
 
-  getAllTablesSummary(): BlackjackTableSummary[] {
+  getAllTablesSummary(): Promise<BlackjackTableSummary[]> {
     return blackjackRoomManager.getAllTablesSummary();
+  }
+
+  getPublicTableList() {
+    return blackjackRoomManager.getPublicTableList();
+  }
+
+  ensureSpareEmptyTable(): void {
+    blackjackRoomManager.ensureSpareEmptyTable();
+  }
+
+  removeTable(roomId: string): void {
+    blackjackRoomManager.removeRoom(roomId);
   }
 
   getAllRooms(): BlackjackEngine[] {

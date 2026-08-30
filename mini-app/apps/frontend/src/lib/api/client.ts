@@ -55,7 +55,20 @@ export class APIClient {
       ...(fetchOptions.headers as Record<string, string>),
     };
 
-    const tokenToUse = token || (typeof window !== 'undefined' ? localStorage.getItem('macvbet_token') || sessionStorage.getItem('macvbet_token') : undefined);
+    let storeToken: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        storeToken = (await import('@/store/auth-store')).useAuthStore.getState().token;
+      } catch {
+        storeToken = null;
+      }
+    }
+    const tokenToUse =
+      token ||
+      storeToken ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('macvbet_token') || sessionStorage.getItem('macvbet_token')
+        : undefined);
 
     if (tokenToUse) {
       headers['Authorization'] = `Bearer ${tokenToUse}`;

@@ -6,6 +6,14 @@ import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { wsManager } from '../../lib/websocket-manager.js';
 import type { Bet } from '../../game-engine/types.js';
+import {
+  hasFreeSeat as listHasFreeSeat,
+  loadTables,
+  mergeTableLists,
+  persistTables,
+  sortTables,
+  type SlimBlackjackTable,
+} from './table-directory.js';
 
 export const BJ_MAX_SEATS = 5;
 
@@ -1127,6 +1135,33 @@ export class BlackjackEngine extends EventEmitter {
     return { ...this.state };
   }
 
+  /** JSON-safe snapshot for HTTP (no betMetadata / history bloat). */
+  getPublicState(): Omit<BlackjackState, 'history'> {
+    const raw = this.getState();
+    return {
+      roomId: raw.roomId,
+      phase: raw.phase,
+      countdown: raw.countdown,
+      turnCountdown: raw.turnCountdown,
+      dealerHand: Array.isArray(raw.dealerHand) ? raw.dealerHand.map((c) => ({ ...c })) : [],
+      players: Array.isArray(raw.players)
+        ? raw.players.map((p) => ({
+            userId: p.userId,
+            name: p.name,
+            avatar: p.avatar,
+            seatId: p.seatId,
+            hand: Array.isArray(p.hand) ? p.hand.map((c) => ({ ...c })) : [],
+            bet: p.bet,
+            status: p.status,
+            isReady: p.isReady,
+          }))
+        : [],
+      currentTurnSeatId: raw.currentTurnSeatId,
+      roundId: raw.roundId,
+      serverSeedHash: raw.serverSeedHash,
+    };
+  }
+
   getPlayer(userId: string): Player | undefined {
     return this.state.players.find((p) => p.userId === userId);
   }
@@ -1151,11 +1186,6 @@ export interface BlackjackTableSummary {
   chatCount: number;
 }
 
-function tableIndex(roomId: string): number {
-  const m = roomId.match(/bj_table_(\d+)$/);
-  return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
-}
-
 // Room manager for multiplayer blackjack
 export class BlackjackRoomManager {
   private rooms = new Map<string, BlackjackEngine>();
@@ -1170,15 +1200,55 @@ export class BlackjackRoomManager {
   }
 
   /** Keep exactly one empty extra table visible when every occupied table is 5/5. */
-  ensureSpareEmptyTable(): void {
+  ensureSpareEmptyTable(known?: SlimBlackjackTable[]): void {
     this.getOrCreateRoom('bj_table_1');
-    if ([...this.rooms.values()].some((engine) => this.hasFreeSeat(engine))) return;
+    const occupancy = known ?? this.localSlim();
+    if (listHasFreeSeat(occupancy)) return;
 
     let index = 1;
-    while (this.rooms.has(`bj_table_${index}`)) index += 1;
+    while (
+      this.rooms.has(`bj_table_${index}`) ||
+      occupancy.some((t) => t.roomId === `bj_table_${index}`)
+    ) {
+      index += 1;
+    }
     const newRoomId = `bj_table_${index}`;
-    logger.info({ newRoomId, fullTables: this.rooms.size }, 'Opened spare blackjack table because others are full');
+    logger.info({ newRoomId, fullTables: occupancy.length }, 'Opened spare blackjack table because others are full');
     this.getOrCreateRoom(newRoomId);
+    this.publishLobby(this.localSlim());
+  }
+
+  private localSlim(): SlimBlackjackTable[] {
+    return sortTables(
+      [...this.rooms.values()].map((engine) => {
+        const state = engine.getState();
+        return {
+          roomId: engine.getRoomId() || 'bj_table_1',
+          phase: state?.phase || 'waiting',
+          playersCount: Array.isArray(state?.players) ? state.players.length : 0,
+          maxSeats: BJ_MAX_SEATS,
+          countdown: state?.countdown ?? 12,
+        };
+      })
+    );
+  }
+
+  private publishLobby(tables: SlimBlackjackTable[]): void {
+    const msg = {
+      type: 'bj:tables',
+      payload: { tables },
+      timestamp: Date.now(),
+    };
+    for (const engine of this.rooms.values()) {
+      const id = engine.getRoomId();
+      wsManager.broadcastToRoom(id, msg);
+      wsManager.broadcastToRoom(`bj_${id}`, msg);
+    }
+    void persistTables(tables);
+  }
+
+  getPublicTableList(): SlimBlackjackTable[] {
+    return this.localSlim();
   }
 
   getOrCreateRoom(roomId: string): BlackjackEngine {
@@ -1191,10 +1261,7 @@ export class BlackjackRoomManager {
         const seated = this.seatedCount(engine);
         if (seated >= BJ_MAX_SEATS) {
           this.ensureSpareEmptyTable();
-          return;
-        }
-        // Drop extra empty rooms only if another table still has a free seat.
-        if (cleanId !== 'bj_table_1' && seated === 0 && engine.getState().phase === 'waiting') {
+        } else if (cleanId !== 'bj_table_1' && seated === 0 && engine.getState().phase === 'waiting') {
           setTimeout(() => {
             if (this.seatedCount(engine) !== 0 || !this.rooms.has(cleanId)) return;
             const otherHasFree = [...this.rooms.entries()].some(
@@ -1203,8 +1270,10 @@ export class BlackjackRoomManager {
             if (!otherHasFree) return;
             engine.destroy();
             this.rooms.delete(cleanId);
+            this.publishLobby(this.localSlim());
           }, 300000);
         }
+        this.publishLobby(this.localSlim());
       });
     }
     return this.rooms.get(cleanId)!;
@@ -1253,45 +1322,99 @@ export class BlackjackRoomManager {
     }
   }
 
-  getAllTablesSummary(): BlackjackTableSummary[] {
+  async getAllTablesSummary(): Promise<BlackjackTableSummary[]> {
     try {
       this.getOrCreateRoom('bj_table_1');
-      this.ensureSpareEmptyTable();
-      return Array.from(this.rooms.values())
-        .sort((a, b) => tableIndex(a.getRoomId()) - tableIndex(b.getRoomId()))
-        .map((engine) => {
-        const state = engine.getState() || {
-          phase: 'waiting',
-          players: [],
-          dealerHand: [],
-          countdown: 12,
-          roundId: '',
-          currentTurnSeatId: null,
-          roomId: engine.getRoomId(),
-        };
-        const dealerHand = Array.isArray(state.dealerHand) ? state.dealerHand : [];
-        let dealerScore = 0;
-        try {
-          if (dealerHand.length > 0) {
-            dealerScore = engine.calculateHandValue(dealerHand).total;
-          }
-        } catch {}
-        return {
-          roomId: engine.getRoomId() || 'bj_table_1',
-          phase: state.phase || 'waiting',
-          playersCount: Array.isArray(state.players) ? state.players.length : 0,
-          maxSeats: BJ_MAX_SEATS,
-          countdown: state.countdown ?? 12,
-          turnCountdown: state.turnCountdown ?? 30,
-          dealerHand,
-          dealerScore,
-          players: Array.isArray(state.players) ? state.players : [],
-          chatCount: Array.isArray(engine.getChatHistory()) ? engine.getChatHistory().length : 0,
-        };
-      });
+      const remote = await loadTables();
+      const merged = mergeTableLists(this.localSlim(), remote);
+      this.ensureSpareEmptyTable(merged);
+      const overlay = mergeTableLists(this.localSlim(), remote);
+      void persistTables(overlay);
+
+      const fatById = new Map(
+        Array.from(this.rooms.values()).map((engine) => {
+          const state = engine.getState() || {
+            phase: 'waiting' as const,
+            players: [] as BlackjackState['players'],
+            dealerHand: [] as BlackjackState['dealerHand'],
+            countdown: 12,
+            roundId: '',
+            currentTurnSeatId: null,
+            roomId: engine.getRoomId(),
+          };
+          const dealerHand = Array.isArray(state.dealerHand) ? state.dealerHand : [];
+          let dealerScore = 0;
+          try {
+            if (dealerHand.length > 0) {
+              dealerScore = engine.calculateHandValue(dealerHand).total;
+            }
+          } catch {}
+          const slim = overlay.find((t) => t.roomId === engine.getRoomId());
+          const players = Array.isArray(state.players)
+            ? state.players.map((p) => ({
+                userId: p.userId,
+                name: p.name,
+                avatar: p.avatar,
+                seatId: p.seatId,
+                hand: p.hand,
+                bet: p.bet,
+                status: p.status,
+                isReady: p.isReady,
+              }))
+            : [];
+          return [
+            engine.getRoomId() || 'bj_table_1',
+            {
+              roomId: engine.getRoomId() || 'bj_table_1',
+              phase: (slim?.phase as BlackjackTableSummary['phase']) || state.phase || 'waiting',
+              playersCount: Math.max(players.length, slim?.playersCount ?? 0),
+              maxSeats: BJ_MAX_SEATS,
+              countdown: slim?.countdown ?? state.countdown ?? 12,
+              turnCountdown: state.turnCountdown ?? 30,
+              dealerHand,
+              dealerScore,
+              players,
+              chatCount: Array.isArray(engine.getChatHistory()) ? engine.getChatHistory().length : 0,
+            } satisfies BlackjackTableSummary,
+          ] as const;
+        })
+      );
+
+      for (const row of overlay) {
+        if (!fatById.has(row.roomId)) {
+          fatById.set(row.roomId, {
+            roomId: row.roomId,
+            phase: (row.phase as BlackjackTableSummary['phase']) || 'waiting',
+            playersCount: row.playersCount,
+            maxSeats: row.maxSeats || BJ_MAX_SEATS,
+            countdown: row.countdown,
+            turnCountdown: 30,
+            players: [],
+            dealerHand: [],
+            dealerScore: 0,
+            chatCount: 0,
+          });
+        }
+      }
+
+      return sortTables([...fatById.values()]);
     } catch (err) {
       logger.error({ err }, 'Error in getAllTablesSummary');
-      return [];
+      try {
+        this.getOrCreateRoom('bj_table_1');
+        this.ensureSpareEmptyTable();
+        return this.localSlim().map((row) => ({
+          ...row,
+          phase: (row.phase as GamePhase) || 'waiting',
+          turnCountdown: 30,
+          dealerHand: [],
+          dealerScore: 0,
+          players: [],
+          chatCount: 0,
+        }));
+      } catch {
+        return [];
+      }
     }
   }
 

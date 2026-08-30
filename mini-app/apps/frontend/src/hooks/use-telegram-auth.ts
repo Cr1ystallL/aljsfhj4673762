@@ -54,7 +54,9 @@ export function useTelegramAuth() {
         const photoUrl = tg.initDataUnsafe?.user?.photo_url || undefined;
         console.log('[AUTH] Photo URL:', photoUrl);
 
-        // Store user data and sessionId in Zustand (token is in httpOnly cookie)
+        // Cookie remains the primary session. Keep the access token in
+        // memory (not persisted) so same-origin /api/balance can send Bearer
+        // when the httpOnly cookie is missing in Telegram WebView.
         setAuth(
           {
             id: response.user.id,
@@ -68,7 +70,7 @@ export function useTelegramAuth() {
             createdAt: new Date(),
             updatedAt: new Date(),
           },
-          '', // Token is in httpOnly cookie, not stored in state
+          response.accessToken || '',
           response.sessionId // SessionId for WebSocket authentication
         );
       } catch (err) {

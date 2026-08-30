@@ -184,6 +184,12 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
                 },
                 timestamp: Date.now(),
               }));
+              blackjackSingleton.ensureSpareEmptyTable();
+              socket.send(JSON.stringify({
+                type: 'bj:tables',
+                payload: { tables: blackjackSingleton.getPublicTableList() },
+                timestamp: Date.now(),
+              }));
             }
           }
           return;
@@ -223,10 +229,20 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           const engine = blackjackSingleton.getTable(roomId);
           const success = engine.join(userId, name, avatar, seatId, bet);
           if (!success) {
+            const seated = engine.getState()?.players?.length ?? 0;
+            const full = seated >= 5;
+            if (full) blackjackSingleton.ensureSpareEmptyTable();
             socket.send(JSON.stringify(createEvent('error', {
-              code: 'JOIN_SEAT_FAILED',
-              message: 'Место уже занято',
+              code: full ? 'TABLE_FULL' : 'JOIN_SEAT_FAILED',
+              message: full ? 'Стол заполнен — выберите свободный стол' : 'Место уже занято',
             })));
+            if (full) {
+              socket.send(JSON.stringify({
+                type: 'bj:tables',
+                payload: { tables: blackjackSingleton.getPublicTableList() },
+                timestamp: Date.now(),
+              }));
+            }
           }
           return;
         }
