@@ -7,6 +7,13 @@ import {
   calculateTennisLiveOdds,
 } from './odds.js';
 import { threeWaySport, type SportKind } from './catalog.js';
+import {
+  buildMarkets,
+  formatMmSs,
+  marketsCount,
+  type ClockDirection,
+  type SportMarket,
+} from './markets.js';
 
 const HEADER = 'https://site.web.api.espn.com/apis/v2/scoreboard/header';
 
@@ -42,9 +49,14 @@ export interface FeedEvent {
   liveTime?: string;
   livePeriod?: string;
   liveMinute?: number;
+  clockSeconds?: number | null;
+  clockSyncedAt?: number;
+  clockDirection?: ClockDirection;
   lastPlay?: string;
   odds: { p1: number; x?: number; p2: number };
   threeWay: boolean;
+  markets: SportMarket[];
+  marketsCount: number;
 }
 
 interface EspnCompetitor {
@@ -78,6 +90,7 @@ interface EspnEvent {
     draw?: { moneyLine?: number };
   };
   fullStatus?: {
+    clock?: string | number;
     displayClock?: string;
     displayPeriod?: string;
     period?: number;
@@ -164,16 +177,22 @@ function toTeam(c: EspnCompetitor, scoreLive: boolean): FeedTeam {
   };
 }
 
-function fallbackOdds(sport: SportKind, status: FeedEvent['status'], t1: FeedTeam, t2: FeedTeam): FeedEvent['odds'] {
+function fallbackOdds(
+  sport: SportKind,
+  status: FeedEvent['status'],
+  t1: FeedTeam,
+  t2: FeedTeam,
+  minute: number
+): FeedEvent['odds'] {
   const s1 = t1.score ?? 0;
   const s2 = t2.score ?? 0;
-  const minute = status === 'live' ? 50 : 0;
+  const liveMinute = status === 'live' ? minute : 0;
   if (sport === 'football') {
-    const o = calculateFootballLiveOdds(minute, s1, s2);
+    const o = calculateFootballLiveOdds(liveMinute, s1, s2);
     return { p1: o.p1, x: o.x, p2: o.p2 };
   }
   if (sport === 'hockey') {
-    const o = calculateHockeyLiveOdds(minute, s1, s2);
+    const o = calculateHockeyLiveOdds(liveMinute, s1, s2);
     return { p1: o.p1, x: o.x, p2: o.p2 };
   }
   if (sport === 'basketball') {
@@ -182,6 +201,77 @@ function fallbackOdds(sport: SportKind, status: FeedEvent['status'], t1: FeedTea
   }
   const o = calculateTennisLiveOdds([s1], [s2], 0, 0);
   return { p1: o.p1, p2: o.p2 };
+}
+
+function parseDisplaySeconds(display: string, sport: SportKind): number | null {
+  const injury = display.match(/^(\d+)\s*['′]\s*\+\s*(\d+)/);
+  if (injury) return Number(injury[1]) * 60 + Number(injury[2]);
+  const mmss = display.match(/^(\d+):(\d{2})/);
+  if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+  const minOnly = display.match(/^(\d+)\s*['′]/);
+  if (minOnly) return Number(minOnly[1]) * 60;
+  if (sport === 'football') {
+    const bare = Number(display.replace(/[^\d.]/g, ''));
+    if (Number.isFinite(bare) && bare > 0 && bare <= 130) return Math.floor(bare) * 60;
+  }
+  return null;
+}
+
+function parseEspnClock(
+  sport: SportKind,
+  ev: EspnEvent,
+  status: FeedEvent['status']
+): {
+  clockSeconds: number | null;
+  clockDirection: ClockDirection;
+  liveMinute?: number;
+  liveTime?: string;
+  livePeriod?: string;
+} {
+  const display = String(ev.fullStatus?.displayClock ?? ev.clock ?? '').trim();
+  const period =
+    ev.fullStatus?.displayPeriod || (ev.period ? String(ev.period) : undefined);
+  const raw = ev.fullStatus?.clock ?? ev.clock;
+  const asNum = typeof raw === 'number' ? raw : Number(raw);
+
+  let seconds: number | null = null;
+  let direction: ClockDirection = 'none';
+
+  if (sport === 'football') {
+    direction = 'up';
+    if (Number.isFinite(asNum) && asNum >= 60) {
+      seconds = Math.floor(asNum);
+    } else {
+      seconds = parseDisplaySeconds(display, sport);
+      if (seconds == null && Number.isFinite(asNum) && asNum >= 0 && asNum <= 130) {
+        seconds = Math.floor(asNum) * 60;
+      }
+    }
+  } else if (sport === 'hockey' || sport === 'basketball') {
+    direction = 'down';
+    seconds = parseDisplaySeconds(display, sport);
+    if (seconds == null && Number.isFinite(asNum) && asNum >= 0 && asNum < 1200) {
+      seconds = Math.floor(asNum);
+    }
+  }
+
+  const liveMinute = seconds != null ? Math.floor(seconds / 60) : undefined;
+  const liveTime =
+    status === 'live'
+      ? seconds != null
+        ? formatMmSs(seconds)
+        : display || 'LIVE'
+      : status === 'finished'
+        ? 'FT'
+        : undefined;
+
+  return {
+    clockSeconds: status === 'live' ? seconds : null,
+    clockDirection: status === 'live' ? direction : 'none',
+    liveMinute,
+    liveTime,
+    livePeriod: status === 'live' ? period : undefined,
+  };
 }
 
 function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: number): FeedEvent | null {
@@ -204,6 +294,7 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
   const team2 = toTeam(pair.away, showScore);
   const threeWay = threeWaySport(sport);
 
+  const clock = parseEspnClock(sport, ev, status);
   const p1 = americanToDecimal(ev.odds?.home?.moneyLine);
   const p2 = americanToDecimal(ev.odds?.away?.moneyLine);
   const x = americanToDecimal(ev.odds?.draw?.moneyLine);
@@ -211,18 +302,17 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
   if (p1 && p2 && (!threeWay || x)) {
     odds = threeWay ? { p1, x, p2 } : { p1, p2 };
   } else {
-    odds = fallbackOdds(sport, status, team1, team2);
+    odds = fallbackOdds(sport, status, team1, team2, clock.liveMinute ?? 0);
   }
 
-  const liveTime =
-    status === 'live'
-      ? String(ev.fullStatus?.displayClock || ev.clock || ev.summary || 'LIVE')
-      : status === 'finished'
-        ? 'FT'
-        : undefined;
-  const livePeriod =
-    status === 'live' ? ev.fullStatus?.displayPeriod || (ev.period ? String(ev.period) : undefined) : undefined;
-  const clockNum = Number(String(ev.clock ?? '').replace(/[^\d.]/g, ''));
+  const markets = buildMarkets({
+    sport,
+    score1: team1.score ?? 0,
+    score2: team2.score ?? 0,
+    minute: status === 'live' ? clock.liveMinute ?? 0 : 0,
+    threeWay,
+    odds,
+  });
 
   return {
     id,
@@ -232,12 +322,17 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
     team2,
     startTime,
     status,
-    liveTime,
-    livePeriod,
-    liveMinute: status === 'live' && Number.isFinite(clockNum) ? Math.floor(clockNum) : undefined,
+    liveTime: clock.liveTime,
+    livePeriod: clock.livePeriod,
+    liveMinute: clock.liveMinute,
+    clockSeconds: clock.clockSeconds,
+    clockSyncedAt: now,
+    clockDirection: clock.clockDirection,
     lastPlay: ev.situation?.lastPlay?.text,
     odds,
     threeWay,
+    markets,
+    marketsCount: marketsCount(markets),
   };
 }
 

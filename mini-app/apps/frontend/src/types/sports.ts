@@ -13,6 +13,10 @@ export type EventStatus = 'live' | 'prematch' | 'finished';
 
 export type OddsTrend = 'up' | 'down' | 'same';
 
+export type MarketKind = '1x2' | 'double_chance' | 'total' | 'handicap';
+
+export type ClockDirection = 'up' | 'down' | 'none';
+
 export interface TeamParticipant {
   name: string;
   shortName?: string;
@@ -20,16 +24,16 @@ export interface TeamParticipant {
   initials: string;
   color?: string;
   score?: number;
-  subScores?: number[]; // Set scores in tennis/basketball quarters
+  subScores?: number[];
   yellowCards?: number;
   redCards?: number;
-  attackStrength?: number; // e.g. 1.8 for powerhouse
-  defenseStrength?: number; // e.g. 0.8 for rock solid defense
+  attackStrength?: number;
+  defenseStrength?: number;
 }
 
 export interface MatchOdds {
   p1: number;
-  x?: number; // Optional for 2-way sports
+  x?: number;
   p2: number;
   total?: {
     threshold: number;
@@ -47,6 +51,26 @@ export interface MatchOdds {
   lastChangedAt?: number;
 }
 
+export interface SportMarketOutcome {
+  key: string;
+  label: string;
+  odds: number;
+  line?: number;
+  available: boolean;
+}
+
+export interface SportMarketLine {
+  line: number;
+  outcomes: SportMarketOutcome[];
+}
+
+export interface SportMarket {
+  id: string;
+  kind: MarketKind;
+  outcomes?: SportMarketOutcome[];
+  lines?: SportMarketLine[];
+}
+
 export interface SportEvent {
   id: string;
   sport: SportCategoryKey;
@@ -55,18 +79,22 @@ export interface SportEvent {
   leagueIcon?: string;
   team1: TeamParticipant;
   team2: TeamParticipant;
-  startTime: string; // ISO string or human string
-  displayTime: string; // e.g. "Сегодня 03:30", "27 авг 22:00"
+  startTime: string;
+  displayTime: string;
   status: EventStatus;
   isLive: boolean;
-  liveMinute?: number; // e.g. 71
-  liveSecond?: number; // e.g. 24
-  livePeriod?: string; // e.g. "1T", "HT", "2T", "3-й сет", "Q1"
-  liveTime?: string; // e.g. "2T 71:24", "1Ч 08:12", "3-й сет 3:2"
+  liveMinute?: number;
+  liveSecond?: number;
+  livePeriod?: string;
+  liveTime?: string;
+  clockSeconds?: number | null;
+  clockSyncedAt?: number;
+  clockDirection?: ClockDirection;
   odds: MatchOdds;
-  marketsCount: number; // e.g. 178, 54
-  isFeatured?: boolean; // For Match of the Day hero card
-  featuredTag?: string; // e.g. "Матч дня"
+  markets?: SportMarket[];
+  marketsCount: number;
+  isFeatured?: boolean;
+  featuredTag?: string;
   hasStream?: boolean;
   isFavorite?: boolean;
   lastEventNotification?: string;
@@ -83,8 +111,18 @@ export interface SelectedBet {
   eventId: string;
   eventName: string;
   league: string;
-  outcomeType: 'p1' | 'x' | 'p2' | 'totalOver' | 'totalUnder';
+  sport: SportCategoryKey;
+  marketKind: MarketKind;
+  outcomeType: string;
   outcomeLabel: string;
+  line?: number;
   odds: number;
   isLive: boolean;
+}
+
+export interface SportsBetLegPayload {
+  eventId: string;
+  marketKind: MarketKind;
+  outcomeKey: string;
+  line?: number;
 }

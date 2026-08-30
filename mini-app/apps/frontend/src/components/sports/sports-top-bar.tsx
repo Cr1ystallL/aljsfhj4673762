@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { useT } from '@/i18n/use-t';
 
-export function SportsTopBar() {
+export function SportsTopBar({ backHref = '/' }: { backHref?: string }) {
   const router = useRouter();
   const { t, localeTag } = useT();
   const { user } = useAuthStore();
@@ -33,8 +33,8 @@ export function SportsTopBar() {
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
-            onClick={() => router.push('/')}
-            aria-label={t('nav.backToMenu')}
+            onClick={() => router.push(backHref)}
+            aria-label={backHref === '/sport' ? t('sports.backToLine') : t('nav.backToMenu')}
             className="p-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white hover:bg-white/[0.08] active:scale-[0.95] transition-all flex items-center justify-center shrink-0"
           >
             <ChevronLeft size={20} strokeWidth={2.2} />

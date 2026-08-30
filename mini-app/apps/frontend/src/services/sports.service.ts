@@ -1,4 +1,4 @@
-import type { SelectedBet, SportCategoryKey, SportEvent } from '@/types/sports';
+import type { SelectedBet, SportCategoryKey, SportEvent, SportsBetLegPayload } from '@/types/sports';
 
 export interface SportsFilterOptions {
   category: SportCategoryKey;
@@ -19,7 +19,8 @@ export interface SportsBetReceipt {
   ok: boolean;
   betId: string;
   eventId: string;
-  outcome: SelectedBet['outcomeType'];
+  outcome: string;
+  type?: 'single' | 'express';
   stake: number;
   odds: number;
   potentialWin: number;
@@ -32,6 +33,7 @@ export interface SportsUserBet {
   eventName: string;
   league: string;
   outcome: string;
+  type?: string;
   odds: number;
   stake: number;
   state: string;
@@ -61,10 +63,40 @@ export const sportsService = {
     return data;
   },
 
+  async fetchEvent(id: string): Promise<{
+    event: SportEvent;
+    paused?: boolean;
+    minBet?: number;
+    maxBet?: number;
+  }> {
+    const res = await fetch(`/api/sports/events/${encodeURIComponent(id)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const data = await parseJson<{
+      ok?: boolean;
+      event?: SportEvent;
+      paused?: boolean;
+      minBet?: number;
+      maxBet?: number;
+      error?: string;
+    }>(res);
+    if (!res.ok || !data.event) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    return {
+      event: data.event,
+      paused: data.paused,
+      minBet: data.minBet,
+      maxBet: data.maxBet,
+    };
+  },
+
   async placeBet(input: {
-    eventId: string;
-    outcome: SelectedBet['outcomeType'];
     stake: number;
+    eventId?: string;
+    outcome?: SelectedBet['outcomeType'];
+    legs?: SportsBetLegPayload[];
   }): Promise<SportsBetReceipt> {
     const res = await fetch('/api/sports/bet', {
       method: 'POST',
