@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { SportEvent, SportCategoryKey } from '@/types/sports';
 import { sportsService, type SportsFilterOptions } from '@/services/sports.service';
 
-const POLL_MS = 2_000;
+const POLL_MS = 5_000;
 
 export function useLiveSports() {
   const [events, setEvents] = useState<SportEvent[]>([]);

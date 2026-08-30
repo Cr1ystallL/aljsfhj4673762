@@ -29,7 +29,8 @@ export function TeamLogo({
     <div
       style={{ width: size, height: size }}
       className={cn(
-        'relative rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-white/15 bg-white/[0.04] p-0.5 shadow-sm select-none',
+        'relative rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-white/15 p-0.5 shadow-sm select-none',
+        src && !hasError ? 'bg-white' : 'bg-white/[0.04]',
         className
       )}
     >
