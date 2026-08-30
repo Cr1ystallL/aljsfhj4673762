@@ -31,6 +31,7 @@ interface UserRow {
   photoUrl: string | null;
   isBlocked: boolean;
   withdrawalLocked: boolean;
+  sportsAccess: boolean;
   createdAt: number;
   balance: number;
   bets: number;
@@ -51,7 +52,7 @@ const LIMIT = 5;
 export default function UsersListPage() {
   const router = useRouter();
   const [q, setQ] = useState('');
-  const [flag, setFlag] = useState<'' | 'blocked' | 'locked'>('');
+  const [flag, setFlag] = useState<'' | 'blocked' | 'locked' | 'sports'>('');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -124,7 +125,7 @@ export default function UsersListPage() {
           <select
             value={flag}
             onChange={(e) => {
-              setFlag(e.target.value as '' | 'blocked' | 'locked');
+              setFlag(e.target.value as '' | 'blocked' | 'locked' | 'sports');
               setPage(1);
             }}
             className="px-3 py-2 rounded-pill border border-white/15 bg-white/[0.04] text-frost-white text-[12px] font-roobert focus:outline-none"
@@ -137,6 +138,9 @@ export default function UsersListPage() {
             </option>
             <option value="locked" className="bg-midnight-canvas">
               С блоком вывода
+            </option>
+            <option value="sports" className="bg-midnight-canvas">
+              Доступ к ставкам
             </option>
           </select>
         </div>
@@ -205,6 +209,11 @@ export default function UsersListPage() {
                         className="text-amber-300 shrink-0"
                         strokeWidth={1.8}
                       />
+                    )}
+                    {u.sportsAccess && (
+                      <span className="px-1.5 py-0.5 rounded-pill border border-white/15 bg-white/[0.05] text-[9px] uppercase tracking-[0.14em] text-frost-white/80 font-roobert shrink-0">
+                        Ставки
+                      </span>
                     )}
                   </div>
                   <div className="font-roobert text-[11px] text-whisper-gray tabular-nums truncate">

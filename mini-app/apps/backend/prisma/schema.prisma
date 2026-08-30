@@ -27,6 +27,8 @@ model User {
   ignoreIpCollision Boolean @default(false) @map("ignore_ip_collision")
   isBlocked        Boolean  @default(false) @map("is_blocked")
   withdrawalLocked Boolean  @default(false) @map("withdrawal_locked")
+  // Granted sports book in the player dock (not an admin role).
+  sportsAccess     Boolean  @default(false) @map("sports_access")
   // Free-text moderation note set by admins.
   adminNote        String?  @map("admin_note") @db.Text
   createdAt        DateTime @default(now()) @map("created_at")

@@ -15,6 +15,7 @@ import {
   Trophy,
   Coins,
 } from 'lucide-react';
+import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 
@@ -51,6 +52,7 @@ interface UserDetail {
     isBlocked: boolean;
     ignoreIpCollision: boolean;
     withdrawalLocked: boolean;
+    sportsAccess: boolean;
     adminNote: string | null;
     createdAt: number;
     updatedAt: number;
@@ -181,7 +183,7 @@ export default function UserDetailPage() {
   const [drainBusy, setDrainBusy] = useState(false);
 
   // Action modal state — single modal driven by `action`.
-  type Action = null | 'balance' | 'block' | 'lock' | 'whitelist';
+  type Action = null | 'balance' | 'block' | 'lock' | 'whitelist' | 'sports';
   const [action, setAction] = useState<Action>(null);
   const [delta, setDelta] = useState<string>('');
   const [txType, setTxType] = useState<string>('admin_adjustment');
@@ -376,6 +378,21 @@ export default function UserDetailPage() {
           setBusy(false);
           return;
         }
+      } else if (action === 'sports') {
+        const res = await fetch(`/api/_x/users/${userId}/flags`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sportsAccess: !data.user.sportsAccess,
+            reason: reason.trim(),
+          }),
+        });
+        if (!res.ok) {
+          alert('Не удалось изменить доступ к ставкам');
+          setBusy(false);
+          return;
+        }
       }
 
       // Success — refresh and close.
@@ -538,6 +555,11 @@ export default function UserDetailPage() {
                 {u.ignoreIpCollision && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border border-emerald-400/40 bg-emerald-400/10 text-[10px] uppercase tracking-[0.18em] text-emerald-200 font-roobert">
                     <Check size={10} strokeWidth={1.8} /> Whitelist
+                  </span>
+                )}
+                {u.sportsAccess && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border border-white/20 bg-white/[0.06] text-[10px] uppercase tracking-[0.18em] text-frost-white font-roobert">
+                    <SoccerBallIcon size={10} className="stroke-[2]" /> Ставки
                   </span>
                 )}
               </div>
@@ -739,7 +761,7 @@ export default function UserDetailPage() {
               </p>
             </HelpButton>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-white/5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/5">
             <ActionButton
               label="Изменить баланс"
               hint="Кредит / дебет с причиной"
@@ -783,6 +805,18 @@ export default function UserDetailPage() {
               hint="Игнорировать совпадение IP"
               onClick={() => {
                 setAction('whitelist');
+                setReason('');
+              }}
+            />
+            <ActionButton
+              label={u.sportsAccess ? 'Забрать ставки' : 'Выдать ставки'}
+              hint={
+                u.sportsAccess
+                  ? 'В доке снова партнёрка, раздел ставок закроется'
+                  : 'Не админ: в доке Ставки вместо партнёрки'
+              }
+              onClick={() => {
+                setAction('sports');
                 setReason('');
               }}
             />
@@ -1109,9 +1143,17 @@ export default function UserDetailPage() {
                     ? u.isBlocked
                       ? 'Снять блокировку'
                       : 'Заблокировать игрока'
-                    : u.withdrawalLocked
-                    ? 'Разрешить вывод'
-                    : 'Заморозить вывод'}
+                    : action === 'lock'
+                    ? u.withdrawalLocked
+                      ? 'Разрешить вывод'
+                      : 'Заморозить вывод'
+                    : action === 'whitelist'
+                    ? u.ignoreIpCollision
+                      ? 'Убрать из Whitelist'
+                      : 'Добавить в Whitelist'
+                    : u.sportsAccess
+                    ? 'Забрать доступ к ставкам'
+                    : 'Выдать доступ к ставкам'}
                 </h3>
                 <button
                   onClick={() => !busy && setAction(null)}
