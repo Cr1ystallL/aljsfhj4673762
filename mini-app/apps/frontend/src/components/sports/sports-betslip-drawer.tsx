@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { X, Check, ChevronDown } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
@@ -12,7 +11,6 @@ import { sportsService, SportsOddsChangedError } from '@/services/sports.service
 import { useBalance } from '@/hooks/use-balance';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { conflictingEventIds } from '@/lib/sports-markets';
-import { SportsMyBets } from './sports-my-bets';
 
 interface SportsBetslipDrawerProps {
   minBet: number;
@@ -35,6 +33,8 @@ export function SportsBetslipDrawer({
   const { t, localeTag } = useT();
   const { syncBalance } = useBalance();
   const legs = useSportsSlip((s) => s.legs);
+  const collapsed = useSportsSlip((s) => s.collapsed);
+  const setCollapsed = useSportsSlip((s) => s.setCollapsed);
   const removeLeg = useSportsSlip((s) => s.removeLeg);
   const clear = useSportsSlip((s) => s.clear);
   const [stake, setStake] = useState<number>(Math.max(minBet, 10));
@@ -42,11 +42,8 @@ export function SportsBetslipDrawer({
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [oddsPrompt, setOddsPrompt] = useState<Array<{ quoted: number; current: number }> | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [receipt, setReceipt] = useState<SlipReceipt | null>(null);
   const [dismissed, setDismissed] = useState(false);
-  const [betsTick, setBetsTick] = useState(0);
-  const pathname = usePathname();
   const prevLegs = useRef(0);
   const dragControls = useDragControls();
 
@@ -56,17 +53,10 @@ export function SportsBetslipDrawer({
 
   useEffect(() => {
     if (legs.length > prevLegs.current) {
-      setCollapsed(false);
       setDismissed(false);
     }
     prevLegs.current = legs.length;
   }, [legs.length]);
-
-  useEffect(() => {
-    if (pathname && /^\/sport\/.+/.test(pathname)) {
-      setCollapsed(true);
-    }
-  }, [pathname]);
 
   const combinedOdds = useMemo(
     () => Math.round(legs.reduce((acc, leg) => acc * leg.odds, 1) * 100) / 100,
@@ -120,7 +110,6 @@ export function SportsBetslipDrawer({
         setIsSuccess(false);
         setCollapsed(true);
         setDismissed(false);
-        setBetsTick((n) => n + 1);
         clear();
       }, 700);
     } catch (err) {
@@ -171,19 +160,19 @@ export function SportsBetslipDrawer({
                 setCollapsed(false);
               }
             }}
-            className="pointer-events-auto w-full max-w-[460px] rounded-3xl border border-white/12 bg-[#0f1217] shadow-[0_12px_45px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden"
+            className="pointer-events-auto w-full max-w-[400px] rounded-2xl border border-white/12 bg-[#0f1217] shadow-[0_12px_45px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden"
           >
             <div
-              className="flex justify-center pt-2 pb-0.5 touch-none cursor-grab"
+              className="flex justify-center pt-1.5 pb-0 touch-none cursor-grab"
               onPointerDown={(e) => dragControls.start(e)}
             >
-              <span className="h-1 w-10 rounded-full bg-white/22" />
+              <span className="h-1 w-8 rounded-full bg-white/22" />
             </div>
             {collapsed ? (
               <button
                 type="button"
                 onClick={() => setCollapsed(false)}
-                className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left"
+                className="w-full px-3 py-2 flex items-center justify-between gap-2 text-left"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
@@ -222,13 +211,13 @@ export function SportsBetslipDrawer({
                 </div>
               </button>
             ) : (
-              <div className="p-4 flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+              <div className="px-3 pb-2.5 pt-1 flex flex-col gap-2 max-h-[min(38vh,320px)] overflow-y-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
                       <SoccerBallIcon size={14} strokeWidth={2.2} />
                     </div>
-                    <span className="font-roobert text-[13px] font-bold text-frost-white tracking-tight">
+                    <span className="font-roobert text-[12px] font-bold text-frost-white tracking-tight">
                       {legs.length
                         ? isExpress
                           ? t('sports.express')
@@ -286,21 +275,18 @@ export function SportsBetslipDrawer({
                       </div>
                     )}
 
-                    <div className="flex flex-col gap-1.5 max-h-[168px] overflow-y-auto">
+                    <div className="flex flex-col gap-1 max-h-[108px] overflow-y-auto">
                       {legs.map((leg) => (
                         <div
                           key={`${leg.eventId}-${leg.marketKind}-${leg.outcomeType}-${leg.line ?? ''}`}
                           className={
                             conflictIds.includes(leg.eventId)
-                              ? 'rounded-2xl border border-red-400/45 bg-red-950/25 p-2.5 flex items-center justify-between gap-2'
-                              : 'rounded-2xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2'
+                              ? 'rounded-xl border border-red-400/45 bg-red-950/25 px-2 py-1.5 flex items-center justify-between gap-2'
+                              : 'rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 flex items-center justify-between gap-2'
                           }
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="font-roobert text-[11px] text-whisper-gray truncate">
-                              {leg.league}
-                            </div>
-                            <div className="font-roobert text-[13px] font-semibold text-frost-white truncate">
+                            <div className="font-roobert text-[12px] font-semibold text-frost-white truncate">
                               {leg.eventName}
                             </div>
                             <div className="font-roobert text-[10px] text-whisper-gray truncate">
@@ -309,8 +295,8 @@ export function SportsBetslipDrawer({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="font-roobert text-[15px] font-bold text-frost-white tabular-nums">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="font-roobert text-[13px] font-bold text-frost-white tabular-nums">
                               {leg.odds.toFixed(2)}
                             </span>
                             <button
@@ -344,6 +330,8 @@ export function SportsBetslipDrawer({
                       maxBet={maxBet}
                       disabled={busy || isSuccess}
                       label={t('sports.stake')}
+                      className="gap-1"
+                      inputClassName="text-[16px] text-center"
                     />
 
                     {error && (
@@ -362,10 +350,10 @@ export function SportsBetslipDrawer({
 
                     <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10">
                       <div className="flex flex-col">
-                        <span className="font-roobert text-[10px] text-whisper-gray uppercase tracking-tight">
+                        <span className="font-roobert text-[9px] text-whisper-gray uppercase tracking-tight">
                           {t('sports.potentialWin')}
                         </span>
-                        <span className="font-roobert text-[16px] font-extrabold text-frost-white tabular-nums">
+                        <span className="font-roobert text-[14px] font-extrabold text-frost-white tabular-nums">
                           {potentialWin.toLocaleString(localeTag, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -404,9 +392,13 @@ export function SportsBetslipDrawer({
                       </div>
                     </div>
                   </>
-                ) : (
-                  <SportsMyBets compact hideHeading reloadToken={betsTick} />
-                )}
+                ) : receipt ? (
+                  <div className="font-roobert text-[12px] text-whisper-gray px-0.5 pb-1">
+                    {t('sports.betAccepted')}
+                    {' · '}
+                    {receipt.win.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł
+                  </div>
+                ) : null}
               </div>
             )}
           </motion.div>

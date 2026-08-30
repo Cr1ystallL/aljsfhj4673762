@@ -6,6 +6,8 @@ const MAX_LEGS = 8;
 
 interface SportsSlipState {
   legs: SelectedBet[];
+  collapsed: boolean;
+  setCollapsed: (collapsed: boolean) => void;
   toggle: (bet: SelectedBet) => void;
   remove: (eventId: string) => void;
   removeLeg: (leg: SelectedBet) => void;
@@ -15,6 +17,8 @@ interface SportsSlipState {
 
 export const useSportsSlip = create<SportsSlipState>((set, get) => ({
   legs: [],
+  collapsed: false,
+  setCollapsed: (collapsed) => set({ collapsed }),
   toggle: (bet) => {
     const current = get().legs;
     if (current.some((leg) => sameLeg(leg, bet))) {
@@ -22,7 +26,7 @@ export const useSportsSlip = create<SportsSlipState>((set, get) => ({
       return;
     }
     if (current.length >= MAX_LEGS) return;
-    set({ legs: [...current, bet] });
+    set({ legs: [...current, bet], collapsed: false });
   },
   remove: (eventId) => {
     set({ legs: get().legs.filter((leg) => leg.eventId !== eventId) });
