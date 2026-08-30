@@ -1,50 +1,40 @@
 'use client';
 
+import Link from 'next/link';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SportEvent, SelectedBet, OddsTrend } from '@/types/sports';
+import type { SportEvent, OddsTrend } from '@/types/sports';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
 import { formatSportsKickoff } from '@/lib/format-sports-time';
+import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
+import { useSportsSlip } from '@/store/sports-slip-store';
+import { LiveClock } from './live-clock';
 
 interface FeaturedMatchCardProps {
   event: SportEvent;
-  selectedBet: SelectedBet | null;
-  onSelectBet: (bet: SelectedBet) => void;
 }
 
-export function FeaturedMatchCard({
-  event,
-  selectedBet,
-  onSelectBet,
-}: FeaturedMatchCardProps) {
+export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
   const { t, localeTag } = useT();
+  const legs = useSportsSlip((s) => s.legs);
+  const toggle = useSportsSlip((s) => s.toggle);
   const finished = event.status === 'finished';
 
-  const handleOutcomeClick = (
-    outcomeType: 'p1' | 'x' | 'p2',
-    outcomeLabel: string,
-    odds: number
-  ) => {
+  const handleOutcomeClick = (key: 'p1' | 'x' | 'p2', label: string, odds: number) => {
     if (finished) return;
-    onSelectBet({
-      eventId: event.id,
-      eventName: `${event.team1.name} — ${event.team2.name}`,
-      league: event.league,
-      outcomeType,
-      outcomeLabel,
-      odds,
-      isLive: event.isLive,
-    });
+    toggle(betFromOutcome(event, '1x2', key, label, odds));
   };
 
-  const isP1Selected =
-    selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'p1';
-  const isXSelected =
-    selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'x';
-  const isP2Selected =
-    selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'p2';
+  const isSelected = (key: string) =>
+    legs.some((leg) =>
+      sameLeg(leg, {
+        eventId: event.id,
+        marketKind: '1x2',
+        outcomeType: key,
+      })
+    );
 
   const kickoff = formatSportsKickoff(event.startTime, localeTag, {
     today: t('sports.today'),
@@ -79,13 +69,17 @@ export function FeaturedMatchCard({
         )}
       </div>
 
-      <div className="relative z-10 text-center mb-4">
+      <Link href={`/sport/${event.id}`} className="relative z-10 block text-center mb-4">
         <h3 className="font-roobert text-[15px] sm:text-[17px] font-bold text-frost-white tracking-tight">
           {event.team1.name} — {event.team2.name}
         </h3>
-      </div>
+      </Link>
 
-      <div className="relative z-10 grid grid-cols-3 items-center justify-items-center mb-5">
+      <Link
+        href={`/sport/${event.id}`}
+        className="relative z-10 grid grid-cols-3 items-center justify-items-center mb-5"
+        aria-label={t('sports.openEvent')}
+      >
         <div className="flex flex-col items-center gap-2">
           <TeamLogo
             src={event.team1.logo}
@@ -107,7 +101,7 @@ export function FeaturedMatchCard({
                 {event.team1.score ?? 0} : {event.team2.score ?? 0}
               </div>
               <span className="px-2.5 py-0.5 rounded-md text-[11px] font-roobert font-bold uppercase bg-white/[0.06] text-frost-white/80 border border-white/12 tabular-nums">
-                {finished ? t('sports.finished') : event.liveTime || 'LIVE'}
+                {finished ? t('sports.finished') : <LiveClock event={event} />}
               </span>
             </div>
           ) : (
@@ -135,14 +129,14 @@ export function FeaturedMatchCard({
             {event.team2.shortName || event.team2.name}
           </span>
         </div>
-      </div>
+      </Link>
 
       <div className="relative z-10 grid grid-cols-3 gap-2">
         <OddsButton
           label="1"
           odds={event.odds.p1}
           trend={event.odds.p1Trend}
-          isSelected={isP1Selected}
+          isSelected={isSelected('p1')}
           disabled={finished}
           onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
         />
@@ -151,7 +145,7 @@ export function FeaturedMatchCard({
             label="X"
             odds={event.odds.x}
             trend={event.odds.xTrend}
-            isSelected={isXSelected}
+            isSelected={isSelected('x')}
             disabled={finished}
             onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
           />
@@ -164,7 +158,7 @@ export function FeaturedMatchCard({
           label="2"
           odds={event.odds.p2}
           trend={event.odds.p2Trend}
-          isSelected={isP2Selected}
+          isSelected={isSelected('p2')}
           disabled={finished}
           onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
         />

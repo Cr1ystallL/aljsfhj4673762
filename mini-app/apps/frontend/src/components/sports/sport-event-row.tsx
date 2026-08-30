@@ -1,50 +1,40 @@
 'use client';
 
+import Link from 'next/link';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SportEvent, SelectedBet, OddsTrend } from '@/types/sports';
+import type { SportEvent, OddsTrend } from '@/types/sports';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
 import { formatSportsKickoff } from '@/lib/format-sports-time';
+import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
+import { useSportsSlip } from '@/store/sports-slip-store';
+import { LiveClock } from './live-clock';
 
 interface SportEventRowProps {
   event: SportEvent;
-  selectedBet: SelectedBet | null;
-  onSelectBet: (bet: SelectedBet) => void;
 }
 
-export function SportEventRow({
-  event,
-  selectedBet,
-  onSelectBet,
-}: SportEventRowProps) {
+export function SportEventRow({ event }: SportEventRowProps) {
   const { t, localeTag } = useT();
+  const legs = useSportsSlip((s) => s.legs);
+  const toggle = useSportsSlip((s) => s.toggle);
   const finished = event.status === 'finished';
 
-  const handleOutcomeClick = (
-    outcomeType: 'p1' | 'x' | 'p2',
-    outcomeLabel: string,
-    odds: number
-  ) => {
+  const handleOutcomeClick = (key: 'p1' | 'x' | 'p2', label: string, odds: number) => {
     if (finished) return;
-    onSelectBet({
-      eventId: event.id,
-      eventName: `${event.team1.name} — ${event.team2.name}`,
-      league: event.league,
-      outcomeType,
-      outcomeLabel,
-      odds,
-      isLive: event.isLive,
-    });
+    toggle(betFromOutcome(event, '1x2', key, label, odds));
   };
 
-  const isP1Selected =
-    selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'p1';
-  const isXSelected =
-    selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'x';
-  const isP2Selected =
-    selectedBet?.eventId === event.id && selectedBet?.outcomeType === 'p2';
+  const isSelected = (key: string) =>
+    legs.some((leg) =>
+      sameLeg(leg, {
+        eventId: event.id,
+        marketKind: '1x2',
+        outcomeType: key,
+      })
+    );
 
   const hasThreeWay = event.odds.x !== undefined;
   const kickoff = formatSportsKickoff(event.startTime, localeTag, {
@@ -58,6 +48,8 @@ export function SportEventRow({
       : `${event.lastEvent.score1}:${event.lastEvent.score2}`
     : event.lastEventNotification;
 
+  const extraMarkets = Math.max(0, (event.marketsCount ?? 0) - (hasThreeWay ? 3 : 2));
+
   return (
     <div className="w-full rounded-2xl border border-white/10 bg-[#0e1015] p-3 sm:p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)] flex flex-col gap-2.5">
       <div className="flex items-center justify-between text-[11px] text-whisper-gray">
@@ -65,9 +57,15 @@ export function SportEventRow({
           {event.isLive ? (
             <div className="flex items-center gap-1.5">
               <span className="inline-flex rounded-full h-1.5 w-1.5 bg-red-400" />
-              <span className="font-roobert font-bold text-red-300 tracking-tight tabular-nums">
-                {event.liveTime || 'Live'}
-              </span>
+              <LiveClock
+                event={event}
+                className="font-roobert font-bold text-red-300 tracking-tight"
+              />
+              {event.livePeriod && (
+                <span className="font-roobert text-[10px] text-whisper-gray">
+                  {event.livePeriod}
+                </span>
+              )}
             </div>
           ) : finished ? (
             <span className="font-roobert font-medium text-whisper-gray">
@@ -85,10 +83,23 @@ export function SportEventRow({
             </span>
           )}
         </div>
+
+        {extraMarkets > 0 && (
+          <Link
+            href={`/sport/${event.id}`}
+            className="font-roobert text-[10px] font-semibold text-whisper-gray hover:text-frost-white shrink-0"
+          >
+            {t('sports.moreMarkets', { count: extraMarkets })}
+          </Link>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+        <Link
+          href={`/sport/${event.id}`}
+          className="flex flex-col gap-1.5 flex-1 min-w-0"
+          aria-label={t('sports.openEvent')}
+        >
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <TeamLogo
@@ -130,7 +141,7 @@ export function SportEventRow({
               </span>
             )}
           </div>
-        </div>
+        </Link>
 
         <div
           className={cn(
@@ -141,7 +152,7 @@ export function SportEventRow({
           <OddsButtonCell
             odds={event.odds.p1}
             trend={event.odds.p1Trend}
-            isSelected={isP1Selected}
+            isSelected={isSelected('p1')}
             disabled={finished}
             onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
           />
@@ -149,7 +160,7 @@ export function SportEventRow({
             <OddsButtonCell
               odds={event.odds.x!}
               trend={event.odds.xTrend}
-              isSelected={isXSelected}
+              isSelected={isSelected('x')}
               disabled={finished}
               onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
             />
@@ -157,7 +168,7 @@ export function SportEventRow({
           <OddsButtonCell
             odds={event.odds.p2}
             trend={event.odds.p2Trend}
-            isSelected={isP2Selected}
+            isSelected={isSelected('p2')}
             disabled={finished}
             onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
           />

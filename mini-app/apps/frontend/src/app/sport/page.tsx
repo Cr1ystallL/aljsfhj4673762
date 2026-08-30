@@ -9,7 +9,8 @@ import { FeaturedMatchCard } from '@/components/sports/featured-match-card';
 import { SportEventRow } from '@/components/sports/sport-event-row';
 import { SportsBetslipDrawer } from '@/components/sports/sports-betslip-drawer';
 import { useLiveSports } from '@/hooks/use-live-sports';
-import type { SportCategoryKey, SportEvent, SelectedBet } from '@/types/sports';
+import type { SportCategoryKey, SportEvent } from '@/types/sports';
+import { useSportsSlip } from '@/store/sports-slip-store';
 import { useT } from '@/i18n/use-t';
 import { cn } from '@/lib/utils';
 
@@ -19,7 +20,7 @@ export default function SportPage() {
   const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('top');
   const [mode, setMode] = useState<'all' | 'live' | 'prematch'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBet, setSelectedBet] = useState<SelectedBet | null>(null);
+  const syncFromEvents = useSportsSlip((s) => s.syncFromEvents);
 
   const {
     events: allEvents,
@@ -35,26 +36,8 @@ export default function SportPage() {
   } = useLiveSports();
 
   useEffect(() => {
-    if (!selectedBet) return;
-    const ev = allEvents.find((e) => e.id === selectedBet.eventId);
-    if (!ev || ev.status === 'finished') {
-      setSelectedBet(null);
-      return;
-    }
-    const odds =
-      selectedBet.outcomeType === 'p1'
-        ? ev.odds.p1
-        : selectedBet.outcomeType === 'p2'
-          ? ev.odds.p2
-          : ev.odds.x;
-    if (!odds) {
-      setSelectedBet(null);
-      return;
-    }
-    if (odds !== selectedBet.odds || ev.isLive !== selectedBet.isLive) {
-      setSelectedBet({ ...selectedBet, odds, isLive: ev.isLive });
-    }
-  }, [allEvents, selectedBet]);
+    if (allEvents.length) syncFromEvents(allEvents);
+  }, [allEvents, syncFromEvents]);
 
   const events = useMemo(() => {
     const list = getFilteredEvents({
@@ -97,7 +80,7 @@ export default function SportPage() {
         : t('sports.matches');
 
   return (
-    <div className="min-h-screen bg-midnight-canvas text-frost-white pb-32">
+    <div className="min-h-screen bg-midnight-canvas text-frost-white pb-40">
       <SportsTopBar />
 
       <main className={`mx-auto px-3.5 pt-3 flex flex-col gap-4 ${PAGE_WIDTH.reading}`}>
@@ -184,11 +167,7 @@ export default function SportPage() {
         )}
 
         {showFeaturedHero && featuredMatch && (
-          <FeaturedMatchCard
-            event={featuredMatch}
-            selectedBet={selectedBet}
-            onSelectBet={setSelectedBet}
-          />
+          <FeaturedMatchCard event={featuredMatch} />
         )}
 
         <div className="flex items-center justify-between pt-1">
@@ -227,12 +206,7 @@ export default function SportPage() {
 
                 <div className="flex flex-col gap-2">
                   {leagueEvents.map((ev) => (
-                    <SportEventRow
-                      key={ev.id}
-                      event={ev}
-                      selectedBet={selectedBet}
-                      onSelectBet={setSelectedBet}
-                    />
+                    <SportEventRow key={ev.id} event={ev} />
                   ))}
                 </div>
               </div>
@@ -265,13 +239,7 @@ export default function SportPage() {
         )}
       </main>
 
-      <SportsBetslipDrawer
-        selectedBet={selectedBet}
-        onClearBet={() => setSelectedBet(null)}
-        minBet={minBet}
-        maxBet={maxBet}
-        paused={paused}
-      />
+      <SportsBetslipDrawer minBet={minBet} maxBet={maxBet} paused={paused} />
     </div>
   );
 }
