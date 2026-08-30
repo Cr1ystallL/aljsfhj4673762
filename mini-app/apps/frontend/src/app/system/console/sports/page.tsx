@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { HelpButton } from '@/components/admin/help-button';
 import { cn } from '@/lib/utils';
 
-type Tab = 'line' | 'events' | 'bets';
+type Tab = 'line' | 'events' | 'bets' | 'risk';
 
 const SPORTS = ['football', 'tennis', 'hockey', 'basketball', 'mma', 'cybersport'] as const;
 
@@ -44,16 +44,21 @@ export default function SportsAdminPage() {
   const [bets, setBets] = useState<AdminBet[]>([]);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [caps, setCaps] = useState<Array<{ userId: string; maxBet: number }>>([]);
+  const [capUser, setCapUser] = useState('');
+  const [capBet, setCapBet] = useState('20');
 
   const load = useCallback(async () => {
-    const [g, e, b] = await Promise.all([
+    const [g, e, b, c] = await Promise.all([
       fetch('/api/_x/games/sports', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/_x/sports/events', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/_x/sports/bets', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
+      fetch('/api/_x/sports/player-caps', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
     ]);
     setCfg(g.config ?? null);
     setEvents(e.events ?? []);
     setBets(b.bets ?? []);
+    setCaps(c.caps ?? []);
   }, []);
 
   useEffect(() => {
@@ -110,7 +115,7 @@ export default function SportsAdminPage() {
       </div>
 
       <div className="flex gap-1 p-1 rounded-2xl border border-white/10 bg-white/[0.03]">
-        {(['line', 'events', 'bets'] as Tab[]).map((id) => (
+        {(['line', 'events', 'bets', 'risk'] as Tab[]).map((id) => (
           <button
             key={id}
             type="button"
@@ -120,7 +125,7 @@ export default function SportsAdminPage() {
               tab === id ? 'bg-[#1e222b] text-frost-white border border-white/15' : 'text-whisper-gray'
             )}
           >
-            {id === 'line' ? 'Линия' : id === 'events' ? 'События' : 'Ставки'}
+            {id === 'line' ? 'Линия' : id === 'events' ? 'События' : id === 'bets' ? 'Ставки' : 'Риск'}
           </button>
         ))}
       </div>
@@ -217,6 +222,95 @@ export default function SportsAdminPage() {
                   Расчёт
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'risk' && cfg && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
+          <div className="font-roobert text-[12px] text-whisper-gray">
+            Кэш-аут 0.96 = комиссия 4%. Пауза на гол и задержка купона режут чаек. Потолок рынка закрывает приём, если висит слишком много выплат.
+          </div>
+          {(
+            [
+              ['cashoutMargin', 'Кэш-аут (доля)', '0.96'],
+              ['maxPayout', 'Потолок купона, zł', '50000'],
+              ['maxMarketLiability', 'Потолок рынка, zł', '8000'],
+              ['holdMs', 'Задержка купона, мс', '4000'],
+              ['haltMs', 'Пауза после гола, мс', '10000'],
+              ['nicheMaxBet', 'Макс. на нише, zł', '40'],
+            ] as const
+          ).map(([key, label, fallback]) => (
+            <label key={key} className="flex flex-col gap-1">
+              <span className="font-roobert text-[11px] text-whisper-gray">{label}</span>
+              <input
+                value={String(cfg.extras?.[key] ?? fallback)}
+                onChange={(e) =>
+                  setCfg((c) =>
+                    c ? { ...c, extras: { ...(c.extras ?? {}), [key]: Number(e.target.value) } } : c
+                  )
+                }
+                className="bg-white/[0.04] border border-white/15 rounded-xl px-3 py-2 font-roobert text-[13px] text-frost-white"
+              />
+            </label>
+          ))}
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Причина изменения"
+            className="bg-white/[0.04] border border-white/15 rounded-xl px-3 py-2 font-roobert text-[13px] text-frost-white"
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void saveLine()}
+            className="px-4 py-2 rounded-xl border border-white/15 bg-white/[0.06] text-frost-white font-roobert text-[12px] font-semibold"
+          >
+            Сохранить риск
+          </button>
+
+          <div className="pt-2 border-t border-white/10 font-roobert text-[12px] text-whisper-gray">
+            Лимит игрока (арб — 20 zł, VIP — выше линии)
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={capUser}
+              onChange={(e) => setCapUser(e.target.value)}
+              placeholder="userId"
+              className="flex-1 bg-white/[0.04] border border-white/15 rounded-xl px-3 py-2 font-roobert text-[13px] text-frost-white"
+            />
+            <input
+              value={capBet}
+              onChange={(e) => setCapBet(e.target.value)}
+              placeholder="zł"
+              className="w-24 bg-white/[0.04] border border-white/15 rounded-xl px-3 py-2 font-roobert text-[13px] text-frost-white"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const why = prompt('Причина') ?? '';
+              if (why.trim().length < 3 || !capUser.trim()) return;
+              void fetch('/api/_x/sports/player-caps', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  userId: capUser.trim(),
+                  maxBet: Number(capBet),
+                  reason: why.trim(),
+                }),
+              }).then(() => load());
+            }}
+            className="px-4 py-2 rounded-xl border border-white/15 bg-white/[0.06] text-frost-white font-roobert text-[12px] font-semibold"
+          >
+            Поставить лимит
+          </button>
+          {caps.map((row) => (
+            <div key={row.userId} className="flex justify-between font-roobert text-[12px] text-frost-white">
+              <span className="truncate">{row.userId}</span>
+              <span className="tabular-nums">{row.maxBet} zł</span>
             </div>
           ))}
         </div>

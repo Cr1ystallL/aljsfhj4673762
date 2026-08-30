@@ -21,6 +21,7 @@ export function SportEventCard({ event }: { event: SportEvent }) {
   const [tab, setTab] = useState<'match' | 'overview'>('match');
   const [chip, setChip] = useState<Chip>('popular');
   const finished = event.status === 'finished';
+  const halted = (event.tradingHaltUntil ?? 0) > Date.now();
   const markets = event.markets ?? [];
 
   const chips = useMemo(() => {
@@ -94,6 +95,7 @@ export function SportEventCard({ event }: { event: SportEvent }) {
                 <span className="inline-flex rounded-full h-1.5 w-1.5 bg-red-400" />
                 <LiveClock event={event} />
                 {event.livePeriod ? <span className="text-whisper-gray font-medium">{event.livePeriod}</span> : null}
+                {halted ? <span className="text-amber-200 font-medium">{t('sports.halted')}</span> : null}
               </span>
             ) : (
               <span className="font-roobert text-[11px] text-whisper-gray">
@@ -423,7 +425,8 @@ function OutcomeButton({
       })
     )
   );
-  const disabled = finished || !outcome.available;
+  const halted = (event.tradingHaltUntil ?? 0) > Date.now();
+  const disabled = finished || halted || !outcome.available;
 
   return (
     <Pressable

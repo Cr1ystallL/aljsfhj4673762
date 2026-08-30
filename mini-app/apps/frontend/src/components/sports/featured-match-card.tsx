@@ -22,6 +22,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
   const legs = useSportsSlip((s) => s.legs);
   const toggle = useSportsSlip((s) => s.toggle);
   const finished = event.status === 'finished';
+  const halted = (event.tradingHaltUntil ?? 0) > Date.now();
 
   const handleOutcomeClick = (key: 'p1' | 'x' | 'p2', label: string, odds: number) => {
     if (finished) return;
@@ -140,7 +141,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
           odds={event.odds.p1}
           trend={event.odds.p1Trend}
           isSelected={isSelected('p1')}
-          disabled={finished}
+          disabled={finished || halted}
           onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
         />
         {event.odds.x !== undefined ? (
@@ -149,7 +150,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
             odds={event.odds.x}
             trend={event.odds.xTrend}
             isSelected={isSelected('x')}
-            disabled={finished}
+            disabled={finished || halted}
             onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
           />
         ) : (
@@ -162,7 +163,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
           odds={event.odds.p2}
           trend={event.odds.p2Trend}
           isSelected={isSelected('p2')}
-          disabled={finished}
+          disabled={finished || halted}
           onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
         />
       </div>

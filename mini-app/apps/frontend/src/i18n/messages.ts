@@ -556,6 +556,8 @@ export const ru = {
     slipHidden: 'Купон скрыт',
     slipShow: 'Открыть купон',
     betAcceptedShort: 'Принята',
+    halted: 'Пауза · событие на поле',
+    checkingLine: 'Проверка линии…',
   },
 };
 
@@ -1117,6 +1119,8 @@ export const en: Messages = {
     slipHidden: 'Slip hidden',
     slipShow: 'Open coupon',
     betAcceptedShort: 'Accepted',
+    halted: 'Pause · play on the field',
+    checkingLine: 'Checking the line…',
   },
 };
 
@@ -1676,6 +1680,8 @@ export const pl: Messages = {
     slipHidden: 'Kupon zwinięty',
     slipShow: 'Otwórz kupon',
     betAcceptedShort: 'Przyjęty',
+    halted: 'Pauza · wydarzenie na boisku',
+    checkingLine: 'Sprawdzanie linii…',
   },
 };
 

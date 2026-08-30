@@ -340,22 +340,24 @@ export function SportsBetslipDrawer({
                           disabled={busy || isSuccess || paused}
                           tone={isSuccess ? 'muted' : 'solid'}
                         >
-                          {isSuccess ? (
-                            <>
-                              <Check size={16} strokeWidth={3} />
-                              <span>{t('sports.betAccepted')}</span>
-                            </>
-                          ) : (
-                            <span>
-                              {paused
-                                ? t('sports.linePaused')
-                                : oddsPrompt
-                                  ? t('sports.acceptOdds')
-                                  : isExpress
-                                    ? t('sports.express')
-                                    : t('sports.placeBet')}
-                            </span>
-                          )}
+                      {isSuccess ? (
+                        <>
+                          <Check size={16} strokeWidth={3} />
+                          <span>{t('sports.betAccepted')}</span>
+                        </>
+                      ) : (
+                        <span>
+                          {paused
+                            ? t('sports.linePaused')
+                            : busy
+                              ? t('sports.checkingLine')
+                              : oddsPrompt
+                                ? t('sports.acceptOdds')
+                                : isExpress
+                                  ? t('sports.express')
+                                  : t('sports.placeBet')}
+                        </span>
+                      )}
                         </GamePrimaryButton>
                       </div>
                     </div>

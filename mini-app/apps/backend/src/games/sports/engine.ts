@@ -18,6 +18,16 @@ import {
   type SportMarket,
 } from './markets.js';
 import { sportEnabled, sportsLimits } from './limits.js';
+import { gameConfig } from '../../services/game-config.js';
+import {
+  effectiveMaxBet,
+  getPlayerCap,
+  isDangerPlay,
+  isNicheLine,
+  marketLiabilityKey,
+  scoresRetracted,
+  writeFeedTick,
+} from './book-guard.js';
 import { notifySportsUser, sportsGoalText, sportsSettleText } from './notify.js';
 import { redisClient } from '../../lib/redis.js';
 
@@ -96,6 +106,7 @@ export interface PublicSportEvent {
   lastEventNotification?: string;
   stats?: MatchStats;
   suspended?: boolean;
+  tradingHaltUntil?: number;
 }
 
 export interface SportsActivity {
@@ -172,6 +183,7 @@ class SportsEngine {
   private timer: NodeJS.Timeout | null = null;
   private started = false;
   private syncing = false;
+  private haltUntil = new Map<string, number>();
 
   async start(): Promise<void> {
     if (this.started) return;
@@ -221,6 +233,8 @@ class SportsEngine {
     opts?: { quotedOdds?: number[]; acceptChange?: boolean }
   ): Promise<SportsBetReceipt> {
     const limits = await sportsLimits();
+    const cfg = await gameConfig.get('sports');
+    const playerCap = await getPlayerCap(userId);
     if (!Array.isArray(rawLegs) || rawLegs.length === 0) {
       throw new Error('Добавьте исход в купон');
     }
@@ -229,6 +243,22 @@ class SportsEngine {
     }
 
     const seen = new Set<string>();
+    const snapshot = rawLegs.map((spec) => {
+      const ev = this.events.get(spec.eventId);
+      return {
+        eventId: spec.eventId,
+        score1: ev?.feed.team1.score ?? 0,
+        score2: ev?.feed.team2.score ?? 0,
+      };
+    });
+
+    this.assertCoupon(userId, stake, rawLegs, seen, limits, cfg.maxBet, playerCap, opts);
+
+    if (limits.holdMs > 0) {
+      await sleep(limits.holdMs);
+    }
+
+    seen.clear();
     const locked: TrackedLeg[] = [];
     const drifted: SportsOddsChangedError['legs'] = [];
 
@@ -242,9 +272,16 @@ class SportsEngine {
       const ev = this.events.get(spec.eventId);
       if (!ev) throw new Error('Событие не найдено');
       if (this.suspended.has(spec.eventId)) throw new Error('Событие снято с линии');
+      if (this.haltLeft(spec.eventId)) throw new Error('Приём ставок на паузе · событие на поле');
       if (ev.feed.status === 'finished') throw new Error('Событие уже завершено');
       if (!sportEnabled(ev.feed.sport, limits.enabledSports)) {
         throw new Error('Этот вид спорта сейчас выключен');
+      }
+
+      const s1 = ev.feed.team1.score ?? 0;
+      const s2 = ev.feed.team2.score ?? 0;
+      if (s1 !== snapshot[i].score1 || s2 !== snapshot[i].score2) {
+        throw new Error('Счёт изменился, купон не принят');
       }
 
       const outcome = findOutcome(ev.feed.markets, spec.marketKind, spec.outcomeKey, spec.line);
@@ -284,6 +321,12 @@ class SportsEngine {
     const product = locked.reduce((acc, leg) => acc * leg.odds, 1);
     const combinedOdds = Math.min(limits.maxCombined, formatCombined(product));
     const potentialWin = Math.min(limits.maxPayout, roundMoney(stake * combinedOdds));
+    for (const leg of locked) {
+      const key = marketLiabilityKey(leg.eventId, leg.marketKind, leg.outcomeKey, leg.line);
+      if (this.pendingLiability(key) + potentialWin > limits.maxMarketLiability) {
+        throw new Error('Рынок временно закрыт: лимит выплат');
+      }
+    }
     const type = locked.length >= 2 ? 'express' : 'single';
     const first = locked[0];
     const firstEv = this.events.get(first.eventId)!;
@@ -484,6 +527,64 @@ class SportsEngine {
     });
   }
 
+  private assertCoupon(
+    userId: string,
+    stake: number,
+    rawLegs: BetLegSpec[],
+    seen: Set<string>,
+    limits: Awaited<ReturnType<typeof sportsLimits>>,
+    globalMax: number,
+    playerCap: number | null,
+    opts?: { quotedOdds?: number[]; acceptChange?: boolean }
+  ): void {
+    seen.clear();
+    for (let i = 0; i < rawLegs.length; i++) {
+      const spec = rawLegs[i];
+      if (seen.has(spec.eventId)) {
+        throw new Error('В экспрессе можно взять только один исход с одного события');
+      }
+      seen.add(spec.eventId);
+      const ev = this.events.get(spec.eventId);
+      if (!ev) throw new Error('Событие не найдено');
+      if (this.suspended.has(spec.eventId)) throw new Error('Событие снято с линии');
+      if (this.haltLeft(spec.eventId)) throw new Error('Приём ставок на паузе · событие на поле');
+      if (ev.feed.status === 'finished') throw new Error('Событие уже завершено');
+      if (!sportEnabled(ev.feed.sport, limits.enabledSports)) {
+        throw new Error('Этот вид спорта сейчас выключен');
+      }
+      const maxBet = effectiveMaxBet({
+        globalMax,
+        nicheMax: limits.nicheMaxBet,
+        niche: isNicheLine(ev.feed.sport, ev.feed.league),
+        playerCap,
+      });
+      if (stake > maxBet) {
+        throw new Error(`Ставка до ${maxBet} zł на этой линии`);
+      }
+      const outcome = findOutcome(ev.feed.markets, spec.marketKind, spec.outcomeKey, spec.line);
+      if (!outcome) throw new Error('Исход недоступен');
+      if (this.userHasPendingOn(userId, spec.eventId)) {
+        throw new Error('У вас уже есть ставка на это событие');
+      }
+      const quoted = opts?.quotedOdds?.[i];
+      if (quoted != null && Number.isFinite(quoted) && quoted > 0 && !opts?.acceptChange) {
+        const rel = Math.abs(outcome.odds - quoted) / quoted;
+        if (rel > limits.oddsDrift) {
+          throw new SportsOddsChangedError([
+            {
+              eventId: spec.eventId,
+              marketKind: spec.marketKind,
+              outcomeKey: spec.outcomeKey,
+              line: outcome.line ?? spec.line,
+              quoted,
+              current: outcome.odds,
+            },
+          ]);
+        }
+      }
+    }
+  }
+
   private userHasPendingOn(userId: string, eventId: string): boolean {
     for (const betId of this.byEvent.get(eventId) ?? []) {
       if (this.bets.get(betId)?.bet.userId === userId) return true;
@@ -574,7 +675,32 @@ class SportsEngine {
       lastEventNotification: f.lastPlay,
       stats: f.stats,
       suspended: this.suspended.has(f.id),
+      tradingHaltUntil: this.haltLeft(f.id, now) || undefined,
     };
+  }
+
+  private haltLeft(eventId: string, now = Date.now()): number {
+    const until = this.haltUntil.get(eventId) ?? 0;
+    return until > now ? until : 0;
+  }
+
+  private startHalt(eventId: string, ms: number): void {
+    if (ms <= 0) return;
+    const until = Date.now() + ms;
+    const prev = this.haltUntil.get(eventId) ?? 0;
+    if (until > prev) this.haltUntil.set(eventId, until);
+  }
+
+  private pendingLiability(key: string): number {
+    let sum = 0;
+    for (const tracked of this.bets.values()) {
+      for (const leg of tracked.legs) {
+        if (leg.result !== 'pending') continue;
+        if (marketLiabilityKey(leg.eventId, leg.marketKind, leg.outcomeKey, leg.line) !== key) continue;
+        sum += tracked.bet.amount * leg.odds;
+      }
+    }
+    return sum;
   }
 
   private pickFeatured(): void {
@@ -608,10 +734,16 @@ class SportsEngine {
         return;
       }
       const seen = new Set<string>();
+      const limits = await sportsLimits();
       for (const feed of board) {
         seen.add(feed.id);
         const prev = this.events.get(feed.id);
-        const lastEvent = this.detectScoreEvent(prev?.feed, feed);
+        const p1 = prev?.feed.team1.score ?? 0;
+        const p2 = prev?.feed.team2.score ?? 0;
+        const n1 = feed.team1.score ?? 0;
+        const n2 = feed.team2.score ?? 0;
+        const retracted = !!prev && scoresRetracted(p1, p2, n1, n2);
+        const lastEvent = retracted ? undefined : this.detectScoreEvent(prev?.feed, feed);
         this.events.set(feed.id, {
           feed,
           prevOdds: prev?.feed.odds ?? feed.odds,
@@ -619,14 +751,40 @@ class SportsEngine {
           featured: prev?.featured,
           suspended: this.suspended.has(feed.id),
         });
+        if (retracted) {
+          this.pushActivity(
+            'void',
+            `Счёт откатили ${p1}:${p2} → ${n1}:${n2} · ${feed.team1.name} — ${feed.team2.name}`,
+            feed.id
+          );
+          void writeFeedTick({
+            kind: 'retract',
+            eventId: feed.id,
+            score: `${n1}:${n2}`,
+            prev: `${p1}:${p2}`,
+          });
+        }
         if (lastEvent && (lastEvent.kind === 'goal' || lastEvent.kind === 'point')) {
+          this.startHalt(feed.id, limits.haltMs);
           this.pushActivity(
             'goal',
             `${feed.team1.name} — ${feed.team2.name} ${lastEvent.score1}:${lastEvent.score2}`,
             feed.id
           );
+          void writeFeedTick({
+            kind: lastEvent.kind,
+            eventId: feed.id,
+            score: `${lastEvent.score1}:${lastEvent.score2}`,
+          });
           await this.settleLiveSpecials(feed, lastEvent);
           await this.notifyBettorsGoal(feed, lastEvent);
+        } else if (
+          feed.status === 'live' &&
+          isDangerPlay(feed.lastPlay) &&
+          feed.lastPlay !== prev?.feed.lastPlay
+        ) {
+          this.startHalt(feed.id, limits.haltMs);
+          void writeFeedTick({ kind: 'danger', eventId: feed.id, play: feed.lastPlay ?? '' });
         }
         if (prev && prev.feed.status !== 'finished' && feed.status === 'finished') {
           await this.settleEvent(feed);
@@ -873,6 +1031,10 @@ function featuredScore(feed: FeedEvent): { heat: number; reason: FeaturedReason 
     heat += 8;
   }
   return { heat, reason };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function formatCombined(n: number): number {

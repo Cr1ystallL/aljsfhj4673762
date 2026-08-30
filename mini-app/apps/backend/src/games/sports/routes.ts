@@ -31,6 +31,7 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
       paused: !!cfg.paused,
       minBet: cfg.minBet,
       maxBet: cfg.maxBet,
+      holdMs: limits.holdMs,
       cashoutEnabled: limits.cashoutEnabled,
       events: sportsEngine.listEvents({ enabledSports: limits.enabledSports }),
     });
@@ -112,10 +113,11 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
     if (!Number.isFinite(stake) || stake <= 0) {
       return reply.code(400).send({ error: 'Некорректная сумма' });
     }
-    if (stake < cfg.minBet || stake > cfg.maxBet) {
-      return reply.code(400).send({
-        error: `Ставка от ${cfg.minBet} до ${cfg.maxBet}`,
-      });
+    if (stake < cfg.minBet) {
+      return reply.code(400).send({ error: `Минимум ${cfg.minBet} zł` });
+    }
+    if (stake > 50_000) {
+      return reply.code(400).send({ error: 'Слишком крупная ставка' });
     }
 
     let legs: BetLegSpec[];
