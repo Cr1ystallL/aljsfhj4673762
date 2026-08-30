@@ -64,6 +64,7 @@ export interface FeedEvent {
   marketsCount: number;
   stats?: MatchStats;
   suspended?: boolean;
+  espnLeague?: string;
 }
 
 interface EspnCompetitor {
@@ -109,6 +110,7 @@ interface EspnEvent {
 interface EspnLeague {
   name?: string;
   abbreviation?: string;
+  slug?: string;
   events?: EspnEvent[];
 }
 
@@ -268,7 +270,13 @@ function parseEspnClock(
   };
 }
 
-function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: number): FeedEvent | null {
+function parseEvent(
+  sport: SportKind,
+  leagueName: string,
+  ev: EspnEvent,
+  now: number,
+  leagueSlug?: string
+): FeedEvent | null {
   const id = ev.id ? `espn-${ev.id}` : '';
   if (!id) return null;
   const pair = pickHomeAway(ev.competitors ?? []);
@@ -330,6 +338,7 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
     markets,
     marketsCount: marketsCount(markets),
     stats,
+    espnLeague: leagueSlug,
   };
 }
 
@@ -382,6 +391,114 @@ function parseCompetitorStats(home: EspnCompetitor, away: EspnCompetitor): Match
   return stats;
 }
 
+const ESPN_SUMMARY = 'https://site.web.api.espn.com/apis/site/v2/sports';
+const boxCache = new Map<string, { stats: MatchStats; at: number }>();
+const BOX_TTL_MS = 45_000;
+
+function espnEventId(feedId: string): string | null {
+  const m = feedId.match(/^espn-(\d+)$/);
+  return m?.[1] ?? null;
+}
+
+function boxValue(
+  rows: Array<{ name?: string; displayValue?: string; value?: number; label?: string }> | undefined,
+  names: string[]
+): number | undefined {
+  if (!rows) return undefined;
+  for (const row of rows) {
+    const key = `${row.name ?? ''} ${row.label ?? ''}`.toLowerCase();
+    if (!names.some((n) => key.includes(n))) continue;
+    const n = Number(row.displayValue ?? row.value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function statsFromBoxscore(json: {
+  boxscore?: {
+    teams?: Array<{
+      homeAway?: string;
+      statistics?: Array<{ name?: string; displayValue?: string; value?: number; label?: string }>;
+    }>;
+  };
+}): MatchStats | undefined {
+  const teams = json.boxscore?.teams ?? [];
+  const home = teams.find((t) => t.homeAway === 'home') ?? teams[0];
+  const away = teams.find((t) => t.homeAway === 'away') ?? teams[1];
+  if (!home || !away) return undefined;
+  const h = home.statistics;
+  const a = away.statistics;
+  const shotsOn1 = boxValue(h, ['shotsontarget', 'on goal']);
+  const shotsOn2 = boxValue(a, ['shotsontarget', 'on goal']);
+  const total1 = boxValue(h, ['totalshots']);
+  const total2 = boxValue(a, ['totalshots']);
+  const stats: MatchStats = {
+    yellow1: boxValue(h, ['yellowcards', 'yellow cards']),
+    yellow2: boxValue(a, ['yellowcards', 'yellow cards']),
+    red1: boxValue(h, ['redcards', 'red cards']),
+    red2: boxValue(a, ['redcards', 'red cards']),
+    corners1: boxValue(h, ['woncorners', 'corner kicks', 'corners']),
+    corners2: boxValue(a, ['woncorners', 'corner kicks', 'corners']),
+    shotsOn1,
+    shotsOn2,
+    shotsOff1:
+      total1 != null && shotsOn1 != null ? Math.max(0, Math.round(total1 - shotsOn1)) : undefined,
+    shotsOff2:
+      total2 != null && shotsOn2 != null ? Math.max(0, Math.round(total2 - shotsOn2)) : undefined,
+    possession1: boxValue(h, ['possessionpct', 'possession']),
+    possession2: boxValue(a, ['possessionpct', 'possession']),
+  };
+  if (stats.possession1 != null) stats.possession1 = Math.round(stats.possession1);
+  if (stats.possession2 != null) stats.possession2 = Math.round(stats.possession2);
+  if (Object.values(stats).every((v) => v == null)) return undefined;
+  return stats;
+}
+
+async function fetchSoccerBoxscore(leagueSlug: string, eventId: string): Promise<MatchStats | undefined> {
+  const key = `${leagueSlug}:${eventId}`;
+  const hit = boxCache.get(key);
+  if (hit && Date.now() - hit.at < BOX_TTL_MS) return hit.stats;
+  const url = `${ESPN_SUMMARY}/soccer/${encodeURIComponent(leagueSlug)}/summary?event=${encodeURIComponent(eventId)}`;
+  const res = await fetch(url, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'Mozilla/5.0 MacvBetSports/1.0',
+    },
+  });
+  if (!res.ok) throw new Error(`ESPN summary ${leagueSlug} HTTP ${res.status}`);
+  const stats = statsFromBoxscore((await res.json()) as Parameters<typeof statsFromBoxscore>[0]);
+  if (stats) boxCache.set(key, { stats, at: Date.now() });
+  return stats;
+}
+
+async function attachEspnBoxscores(events: FeedEvent[]): Promise<void> {
+  const live = events.filter(
+    (ev) => ev.sport === 'football' && ev.status === 'live' && ev.espnLeague && espnEventId(ev.id)
+  );
+  const jobs = live.slice(0, 14).map(async (ev) => {
+    const id = espnEventId(ev.id);
+    if (!id || !ev.espnLeague) return;
+    try {
+      const stats = await fetchSoccerBoxscore(ev.espnLeague, id);
+      if (!stats) return;
+      ev.stats = { ...ev.stats, ...stats };
+      ev.markets = buildMarkets({
+        sport: ev.sport,
+        score1: ev.team1.score ?? 0,
+        score2: ev.team2.score ?? 0,
+        minute: ev.liveMinute ?? 0,
+        threeWay: ev.threeWay,
+        odds: ev.odds,
+        stats: ev.stats,
+      });
+      ev.marketsCount = marketsCount(ev.markets);
+    } catch (err) {
+      logger.warn({ err, eventId: ev.id }, 'ESPN boxscore failed');
+    }
+  });
+  await Promise.all(jobs);
+}
+
 async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<FeedEvent[]> {
   const url = `${HEADER}?${feed.query}&lang=en&region=us`;
   const res = await fetch(url, {
@@ -400,7 +517,7 @@ async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<Fee
     for (const league of sport.leagues ?? []) {
       const leagueName = league.name || league.abbreviation || feed.sport;
       for (const ev of league.events ?? []) {
-        const mapped = parseEvent(feed.sport, leagueName, ev, now);
+        const mapped = parseEvent(feed.sport, leagueName, ev, now, league.slug);
         if (mapped) out.push(mapped);
       }
     }
@@ -422,6 +539,7 @@ export async function fetchLiveBoard(): Promise<FeedEvent[]> {
     for (const ev of chunk.value) merged.set(ev.id, ev);
   }
   const list = [...merged.values()];
+  await attachEspnBoxscores(list);
   list.sort((a, b) => {
     const rank = (s: FeedEvent['status']) => (s === 'live' ? 0 : s === 'prematch' ? 1 : 2);
     const d = rank(a.status) - rank(b.status);
