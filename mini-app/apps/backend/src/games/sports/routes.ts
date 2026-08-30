@@ -7,10 +7,13 @@ import {
 import { gameConfig } from '../../services/game-config.js';
 import { logger } from '../../utils/logger.js';
 import { sportsEngine, type SportsOutcome } from './engine.js';
+import { sportsLogoRoutes } from './logo-route.js';
 
 const OUTCOMES = new Set<SportsOutcome>(['p1', 'x', 'p2']);
 
 export async function sportsRoutes(app: FastifyInstance): Promise<void> {
+  await sportsLogoRoutes(app);
+
   app.get('/events', { preHandler: authenticate }, async (request, reply) => {
     const cfg = await gameConfig.get('sports');
     const { user } = request as AuthenticatedRequest;
@@ -21,7 +24,7 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({
       ok: true,
-      virtual: true,
+      virtual: false,
       paused: !!cfg.paused,
       minBet: cfg.minBet,
       maxBet: cfg.maxBet,
