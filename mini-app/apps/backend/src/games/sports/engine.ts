@@ -408,7 +408,7 @@ class SportsEngine {
   }
 
   private newInstance(tpl: EventTemplate, now: number, recycle: boolean): RuntimeEvent {
-    const live = !recycle && tpl.initialLive;
+    const live = !recycle ? tpl.initialLive : undefined;
     const gameSeconds = live ? (live.minute ?? 0) * 60 + (live.second ?? 0) : 0;
     const startTime = live
       ? now - Math.floor((gameSeconds / CLOCK_SPEED) * 1000)
