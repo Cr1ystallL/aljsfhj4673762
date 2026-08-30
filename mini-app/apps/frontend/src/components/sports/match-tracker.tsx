@@ -35,7 +35,7 @@ function detectAction(text: string): ActionKind {
   if (/\b(yellow|red|card|карт)\b/.test(s)) return 'card';
   if (/\b(corner|угл)/.test(s)) return 'corner';
   if (/\b(substitut|replace|замен)/.test(s)) return 'sub';
-  if (/\b(miss|wide|off target|over the|удал.*мимо|мимо)\b/.test(s)) return 'miss';
+  if (/(miss(?:ed)?|\bwide\b|off target|over the|мимо)/.test(s)) return 'miss';
   if (/\b(shot on|saved|blocked|удар в створ)\b/.test(s)) return 'shot';
   if (/\b(shot|attempt|удар|strike)\b/.test(s)) return 'shot';
   if (/\b(box|penalty area|dangerous|опасно)\b/.test(s)) return 'danger';
