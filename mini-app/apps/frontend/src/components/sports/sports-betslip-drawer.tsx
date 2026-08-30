@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { X, Check, ChevronDown } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { useT } from '@/i18n/use-t';
@@ -44,38 +45,28 @@ export function SportsBetslipDrawer({
   const [collapsed, setCollapsed] = useState(false);
   const [receipt, setReceipt] = useState<SlipReceipt | null>(null);
   const [dismissed, setDismissed] = useState(false);
-  const [pendingOpen, setPendingOpen] = useState(0);
   const [betsTick, setBetsTick] = useState(0);
+  const pathname = usePathname();
+  const prevLegs = useRef(0);
+  const dragControls = useDragControls();
 
   useEffect(() => {
     setStake((current) => Math.min(maxBet, Math.max(minBet, current)));
   }, [minBet, maxBet]);
 
   useEffect(() => {
-    if (legs.length > 0) {
+    if (legs.length > prevLegs.current) {
       setCollapsed(false);
       setDismissed(false);
     }
+    prevLegs.current = legs.length;
   }, [legs.length]);
 
   useEffect(() => {
-    let stop = false;
-    const load = async () => {
-      try {
-        const bets = await sportsService.fetchMyBets();
-        if (stop) return;
-        setPendingOpen(bets.filter((b) => b.state === 'pending' || b.state === 'active').length);
-      } catch {
-        /* keep last */
-      }
-    };
-    void load();
-    const id = window.setInterval(() => void load(), 8000);
-    return () => {
-      stop = true;
-      window.clearInterval(id);
-    };
-  }, [receipt, betsTick]);
+    if (pathname && /^\/sport\/.+/.test(pathname)) {
+      setCollapsed(true);
+    }
+  }, [pathname]);
 
   const combinedOdds = useMemo(
     () => Math.round(legs.reduce((acc, leg) => acc * leg.odds, 1) * 100) / 100,
@@ -89,7 +80,7 @@ export function SportsBetslipDrawer({
     () => legs.filter((leg) => conflictIds.includes(leg.eventId)),
     [legs, conflictIds]
   );
-  const visible = !dismissed && (legs.length > 0 || !!receipt || pendingOpen > 0);
+  const visible = !dismissed && (legs.length > 0 || !!receipt);
 
   const dismiss = () => {
     setReceipt(null);
@@ -151,14 +142,12 @@ export function SportsBetslipDrawer({
 
   const dockLabel = legs.length
     ? t('sports.betslipTitle')
-    : receipt
-      ? t('sports.betAcceptedShort')
-      : t('sports.myBets');
+    : t('sports.betAcceptedShort');
   const dockHint = legs.length
     ? t('sports.legsCount', { count: legs.length })
     : receipt
       ? `${t('sports.legsCount', { count: receipt.count })} · ${receipt.win.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł`
-      : t('sports.couponDock', { count: pendingOpen });
+      : '';
 
   return (
     <AnimatePresence>
@@ -169,8 +158,27 @@ export function SportsBetslipDrawer({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 80, opacity: 0, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.12, bottom: 0.55 }}
+            onDragEnd={(_, info) => {
+              if (!collapsed && (info.offset.y > 52 || info.velocity.y > 420)) {
+                setCollapsed(true);
+              }
+              if (collapsed && (info.offset.y < -36 || info.velocity.y < -380)) {
+                setCollapsed(false);
+              }
+            }}
             className="pointer-events-auto w-full max-w-[460px] rounded-3xl border border-white/12 bg-[#0f1217] shadow-[0_12px_45px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden"
           >
+            <div
+              className="flex justify-center pt-2 pb-0.5 touch-none cursor-grab"
+              onPointerDown={(e) => dragControls.start(e)}
+            >
+              <span className="h-1 w-10 rounded-full bg-white/22" />
+            </div>
             {collapsed ? (
               <button
                 type="button"

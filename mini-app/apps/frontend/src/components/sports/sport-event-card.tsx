@@ -8,7 +8,7 @@ import { TeamLogo } from '@/components/ui/team-logo';
 import { Pressable } from '@/components/ui/pressable';
 import { useT, type TxKey } from '@/i18n/use-t';
 import { formatSportsKickoff } from '@/lib/format-sports-time';
-import { betFromOutcome, formatLine, marketTitleKey, sameLeg } from '@/lib/sports-markets';
+import { betFromOutcome, formatLine, marketTitleKey, marketsForEvent, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { LiveClock } from './live-clock';
 import { MatchTracker } from './match-tracker';
@@ -21,7 +21,7 @@ export function SportEventCard({ event }: { event: SportEvent }) {
   const [tab, setTab] = useState<'match' | 'overview'>('match');
   const [chip, setChip] = useState<Chip>('popular');
   const finished = event.status === 'finished';
-  const markets = event.markets ?? [];
+  const markets = marketsForEvent(event);
 
   const chips = useMemo(() => {
     const list: Array<{ id: Chip; label: string }> = [{ id: 'popular', label: t('sports.popular') }];
@@ -101,7 +101,7 @@ export function SportEventCard({ event }: { event: SportEvent }) {
               </span>
             )}
             <span className="font-roobert text-[10px] text-whisper-gray">
-              {t('sports.moreMarkets', { count: event.marketsCount })}
+              {t('sports.moreMarkets', { count: markets.length })}
             </span>
           </div>
 
@@ -206,11 +206,12 @@ function TeamBlock({
 }
 
 function PopularMarkets({ event, finished }: { event: SportEvent; finished: boolean }) {
-  const one = event.markets?.find((m) => m.kind === '1x2');
-  const dc = event.markets?.find((m) => m.kind === 'double_chance');
-  const tot = event.markets?.find((m) => m.kind === 'total');
-  const ah = event.markets?.find((m) => m.kind === 'handicap');
-  const extra = (event.markets ?? []).filter((m) =>
+  const markets = marketsForEvent(event);
+  const one = markets.find((m) => m.kind === '1x2');
+  const dc = markets.find((m) => m.kind === 'double_chance');
+  const tot = markets.find((m) => m.kind === 'total');
+  const ah = markets.find((m) => m.kind === 'handicap');
+  const extra = markets.filter((m) =>
     m.kind === 'btts' || m.kind === 'next_goal' || m.kind === 'sooner' || m.kind === 'cards' || m.kind === 'corners'
   );
   return (

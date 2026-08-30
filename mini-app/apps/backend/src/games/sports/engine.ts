@@ -96,6 +96,9 @@ export interface PublicSportEvent {
   lastEvent?: LastSportsEvent;
   lastEventNotification?: string;
   stats?: MatchStats;
+  extra?: FeedEvent['extra'];
+  streamUrl?: string;
+  hasStream?: boolean;
   suspended?: boolean;
 }
 
@@ -580,6 +583,9 @@ class SportsEngine {
       lastEvent,
       lastEventNotification: f.lastPlay,
       stats: f.stats,
+      extra: f.extra,
+      streamUrl: f.streamUrl,
+      hasStream: Boolean(f.streamUrl),
       suspended: this.suspended.has(f.id),
     };
   }

@@ -1,8 +1,8 @@
 import { logger } from '../../utils/logger.js';
-import { formatOdds } from './odds.js';
+import { calculateEsportsLiveOdds } from './odds.js';
 import { buildMarkets, marketsCount } from './markets.js';
 import { proxiedLogo } from './logo-allow.js';
-import type { FeedEvent } from './provider.js';
+import type { FeedEvent, FeedExtra } from './provider.js';
 
 const OPENDOTA_LIVE = 'https://api.opendota.com/api/live';
 const HLTV = 'https://hltv-api.vercel.app/api/matches.json';
@@ -51,7 +51,7 @@ function initials(name: string): string {
 }
 
 function twoWay(p1 = 1.85, p2 = 1.85): { p1: number; p2: number } {
-  return { p1: formatOdds(p1), p2: formatOdds(p2) };
+  return { p1, p2 };
 }
 
 function isPlaceholderSide(name: string): boolean {
@@ -115,6 +115,52 @@ function hltvLogo(side?: HltvSide): string | undefined {
   return proxiedLogo(httpsUrl(side?.logo || side?.crest));
 }
 
+export function extractStreamUrl(html: string): string | undefined {
+  const hrefs = [...html.matchAll(/href="(https?:\/\/[^"]+)"/gi)].map((m) => decodeHtml(m[1]));
+  for (const href of hrefs) {
+    let url: URL;
+    try {
+      url = new URL(href);
+    } catch {
+      continue;
+    }
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    if (host === 'twitch.tv' || host === 'player.twitch.tv') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const fromQuery = url.searchParams.get('channel');
+      const channel =
+        fromQuery ||
+        (parts[0]?.toLowerCase() === 'popout' || parts[0]?.toLowerCase() === 'embed'
+          ? parts[1]
+          : parts[0]);
+      if (
+        channel &&
+        /^[a-zA-Z0-9_]{2,25}$/.test(channel) &&
+        !/^(videos|directory|p|downloads|jobs|turbo|prime|subs)$/i.test(channel)
+      ) {
+        return `https://www.twitch.tv/${channel}`;
+      }
+    }
+    if (host === 'youtube.com' || host === 'youtu.be' || host === 'm.youtube.com') {
+      const id =
+        url.searchParams.get('v') ||
+        (host === 'youtu.be' ? url.pathname.split('/').filter(Boolean)[0] : undefined) ||
+        (url.pathname.startsWith('/live/') ? url.pathname.split('/')[2] : undefined) ||
+        (url.pathname.startsWith('/embed/') ? url.pathname.split('/')[2] : undefined);
+      if (id && /^[a-zA-Z0-9_-]{6,}$/.test(id)) {
+        return `https://www.youtube.com/watch?v=${id}`;
+      }
+    }
+    if (host === 'kick.com') {
+      const channel = url.pathname.split('/').filter(Boolean)[0];
+      if (channel && /^[a-zA-Z0-9_]{2,25}$/.test(channel)) {
+        return `https://kick.com/${channel}`;
+      }
+    }
+  }
+  return undefined;
+}
+
 function cyberEvent(input: {
   id: string;
   league: string;
@@ -130,15 +176,16 @@ function cyberEvent(input: {
   liveMinute?: number;
   clockSeconds?: number;
   now: number;
+  streamUrl?: string;
+  extra?: FeedExtra;
 }): FeedEvent {
   const s1 = input.score1 ?? 0;
   const s2 = input.score2 ?? 0;
-  const diff = s1 - s2;
-  const p1 = 1 / (1 + Math.exp(-0.28 * diff));
-  const odds = twoWay(
-    formatOdds(1 / (Math.max(0.08, p1) * 1.05)),
-    formatOdds(1 / (Math.max(0.08, 1 - p1) * 1.05))
-  );
+  const liveOdds =
+    input.extra?.scoreKind === 'kills'
+      ? calculateEsportsLiveOdds(0, 0, s1, s2)
+      : calculateEsportsLiveOdds(s1, s2);
+  const odds = twoWay(liveOdds.p1, liveOdds.p2);
   const minute = input.liveMinute ?? 0;
   const markets = buildMarkets({
     sport: 'cybersport',
@@ -179,6 +226,8 @@ function cyberEvent(input: {
     threeWay: false,
     markets,
     marketsCount: marketsCount(markets),
+    streamUrl: input.streamUrl,
+    extra: input.extra,
   };
 }
 
@@ -207,6 +256,25 @@ function fixtureKey(ev: FeedEvent): string {
   return `${pair}:${Math.round(ev.startTime / 3_600_000)}`;
 }
 
+function mergeEsports(winner: FeedEvent, loser: FeedEvent): FeedEvent {
+  const extra: FeedExtra = { ...loser.extra, ...winner.extra };
+  if (winner.extra?.scoreKind === 'kills' && loser.extra?.scoreKind === 'maps') {
+    extra.maps1 = loser.team1.score;
+    extra.maps2 = loser.team2.score;
+  }
+  if (loser.extra?.scoreKind === 'kills' && winner.extra?.scoreKind !== 'kills') {
+    extra.kills1 = loser.extra.kills1;
+    extra.kills2 = loser.extra.kills2;
+    extra.spectators = extra.spectators ?? loser.extra.spectators;
+    extra.duration = extra.duration ?? loser.extra.duration;
+  }
+  return {
+    ...winner,
+    streamUrl: winner.streamUrl || loser.streamUrl,
+    extra,
+  };
+}
+
 function dedupeEsports(events: FeedEvent[]): FeedEvent[] {
   const rank = (ev: FeedEvent) =>
     (ev.status === 'live' ? 3 : ev.status === 'prematch' ? 2 : 1) + (ev.id.startsWith('dota-') ? 0.2 : 0);
@@ -214,7 +282,13 @@ function dedupeEsports(events: FeedEvent[]): FeedEvent[] {
   for (const ev of events) {
     const key = fixtureKey(ev);
     const prev = best.get(key);
-    if (!prev || rank(ev) > rank(prev)) best.set(key, ev);
+    if (!prev) {
+      best.set(key, ev);
+      continue;
+    }
+    const winner = rank(ev) >= rank(prev) ? ev : prev;
+    const loser = winner === ev ? prev : ev;
+    best.set(key, mergeEsports(winner, loser));
   }
   return [...best.values()];
 }
@@ -262,6 +336,14 @@ async function fetchDota(now: number): Promise<FeedEvent[]> {
         liveMinute: Math.floor(clock / 60),
         clockSeconds: clock,
         now,
+        extra: {
+          scoreKind: 'kills',
+          game: 'dota',
+          kills1: s1,
+          kills2: s2,
+          spectators: m.spectators,
+          duration: clock,
+        },
       }),
     ];
   });
@@ -294,6 +376,7 @@ async function fetchHltv(now: number): Promise<FeedEvent[]> {
         status: live ? 'live' : 'prematch',
         liveTime: live ? 'LIVE' : undefined,
         now,
+        extra: { scoreKind: 'maps', game: 'cs' },
       }),
     ];
   });
@@ -414,6 +497,13 @@ function parseLiquipediaBlock(
     status,
     liveTime: live ? 'LIVE' : undefined,
     now,
+    streamUrl: extractStreamUrl(block),
+    extra: {
+      scoreKind: 'maps',
+      game: wiki === 'dota2' ? 'dota' : 'cs',
+      maps1: hasScore ? n1 : undefined,
+      maps2: hasScore ? n2 : undefined,
+    },
   });
 }
 
