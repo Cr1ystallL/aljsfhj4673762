@@ -21,6 +21,7 @@ import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
 import { jsonClone, toSlim } from '../games/blackjack/table-directory.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
+import { canAccessSports } from '../games/sports/access.js';
 import { bettingPipeline } from '../game-engine/betting-pipeline.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -96,13 +97,14 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.get('/availability', { preHandler: authenticate }, async (request, reply) => {
     const { user } = request as AuthenticatedRequest;
     const isAdmin = await isAdminTelegramIdAsync(user.telegramId);
+    const sportsAccess = await canAccessSports(user);
     const games = await Promise.all(
       gameTypes.map(async (t) => {
         const cfg = await gameConfig.get(t);
         return { gameType: t, hidden: !!cfg.hidden, paused: !!cfg.paused };
       })
     );
-    return reply.send({ ok: true, isAdmin, games });
+    return reply.send({ ok: true, isAdmin, sportsAccess, games });
   });
 
   /**

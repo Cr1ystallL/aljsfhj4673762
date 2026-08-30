@@ -23,6 +23,11 @@ import { sessionManager } from '../lib/session-manager.js';
 import { rtpEngine } from '../services/rtp-engine.js';
 import { config } from '../config/index.js';
 import { sportsEngine } from '../games/sports/engine.js';
+import {
+  ensureSportsAccessColumn,
+  listSportsAccessUsers,
+  setSportsAccess,
+} from '../games/sports/access.js';
 
 /**
  * Admin Routes — covert.
@@ -50,6 +55,7 @@ interface RawUserRow {
   is_blocked: boolean;
   ignore_ip_collision: boolean;
   withdrawal_locked: boolean;
+  sports_access: boolean;
   admin_note: string | null;
   created_at: Date;
   updated_at: Date;
@@ -491,6 +497,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const flag = request.query.flag;
 
       try {
+        await ensureSportsAccessColumn(app.prisma);
         // Build conditional where clause via raw SQL fragments — keeps
         // the field reference (`is_blocked`) decoupled from whether the
         // generated Prisma client knows about it yet.
@@ -507,6 +514,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         }
         if (flag === 'blocked') conds.push(Prisma.sql`is_blocked = true`);
         if (flag === 'locked') conds.push(Prisma.sql`withdrawal_locked = true`);
+        if (flag === 'sports') conds.push(Prisma.sql`sports_access = true`);
         const where =
           conds.length > 0
             ? Prisma.sql` WHERE ${Prisma.join(conds, ' AND ')}`
@@ -521,7 +529,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           Prisma.sql`
             SELECT id, telegram_id, username, first_name, last_name,
                    language_code, photo_url, is_premium,
-                   is_blocked, ignore_ip_collision, withdrawal_locked, admin_note,
+                   is_blocked, ignore_ip_collision, withdrawal_locked, sports_access, admin_note,
                    created_at, updated_at
             FROM users${where}
             ORDER BY created_at DESC
@@ -569,6 +577,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             isBlocked: u.is_blocked,
             ignoreIpCollision: u.ignore_ip_collision,
             withdrawalLocked: u.withdrawal_locked,
+            sportsAccess: !!u.sports_access,
             createdAt: u.created_at.getTime(),
             balance: balById.get(u.id) ?? 0,
             bets: Number(a?.count ?? 0),
@@ -909,11 +918,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const betLimit = Math.min(500, Math.max(10, parseInt(request.query?.betLimit ?? '100', 10)));
       const txLimit = Math.min(500, Math.max(10, parseInt(request.query?.txLimit ?? '100', 10)));
       try {
+        await ensureSportsAccessColumn(app.prisma);
         const userRows = await app.prisma.$queryRaw<RawUserRow[]>(
           Prisma.sql`
             SELECT id, telegram_id, username, first_name, last_name,
                    language_code, photo_url, is_premium,
-                   is_blocked, ignore_ip_collision, withdrawal_locked, admin_note,
+                   is_blocked, ignore_ip_collision, withdrawal_locked, sports_access, admin_note,
                    created_at, updated_at
             FROM users WHERE id = ${id} LIMIT 1
           `
@@ -1018,6 +1028,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             isBlocked: u.is_blocked,
             ignoreIpCollision: u.ignore_ip_collision,
             withdrawalLocked: u.withdrawal_locked,
+            sportsAccess: !!u.sports_access,
             adminNote: u.admin_note,
             createdAt: u.created_at.getTime(),
             updatedAt: u.updated_at.getTime(),
@@ -1378,6 +1389,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       isBlocked?: boolean;
       ignoreIpCollision?: boolean;
       withdrawalLocked?: boolean;
+      sportsAccess?: boolean;
       adminNote?: string | null;
       reason: string;
     };
@@ -1392,15 +1404,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
+        await ensureSportsAccessColumn(app.prisma);
         const beforeRows = await app.prisma.$queryRaw<
           Array<{
             is_blocked: boolean;
             withdrawal_locked: boolean;
+            sports_access: boolean;
             admin_note: string | null;
             telegram_id: bigint;
           }>
         >`
-          SELECT is_blocked, ignore_ip_collision, withdrawal_locked, admin_note, telegram_id
+          SELECT is_blocked, ignore_ip_collision, withdrawal_locked, sports_access, admin_note, telegram_id
           FROM users WHERE id = ${id} LIMIT 1
         `;
         const before = beforeRows[0];
@@ -1430,6 +1444,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             Prisma.sql`withdrawal_locked = ${request.body.withdrawalLocked}`
           );
         }
+        if (typeof request.body.sportsAccess === 'boolean') {
+          setFragments.push(
+            Prisma.sql`sports_access = ${request.body.sportsAccess}`
+          );
+        }
         if (request.body.adminNote !== undefined) {
           setFragments.push(
             Prisma.sql`admin_note = ${request.body.adminNote}`
@@ -1449,10 +1468,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           Array<{
             is_blocked: boolean;
             withdrawal_locked: boolean;
+            sports_access: boolean;
             admin_note: string | null;
           }>
         >`
-          SELECT is_blocked, withdrawal_locked, admin_note
+          SELECT is_blocked, withdrawal_locked, sports_access, admin_note
           FROM users WHERE id = ${id} LIMIT 1
         `;
         const after = afterRows[0];
@@ -1472,6 +1492,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           user: {
             isBlocked: after.is_blocked,
             withdrawalLocked: after.withdrawal_locked,
+            sportsAccess: after.sports_access,
             adminNote: after.admin_note,
           },
         });
@@ -1741,6 +1762,36 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get('/_x/sports/bets', { preHandler: adminOnly }, async (_req, reply) => {
     const bets = await sportsEngine.listAdminBets(50);
     return reply.send({ ok: true, bets });
+  });
+
+  app.get('/_x/sports/access', { preHandler: adminOnly }, async (_req, reply) => {
+    const users = await listSportsAccessUsers(app.prisma);
+    return reply.send({ ok: true, users });
+  });
+
+  app.post<{
+    Body: { userId?: string; telegramId?: number; enabled?: boolean; reason?: string };
+  }>('/_x/sports/access', { preHandler: adminOnly }, async (request, reply) => {
+    const reason = String(request.body?.reason ?? '').trim();
+    if (reason.length < 3) return reply.code(400).send({ error: 'Reason required' });
+    const telegramId = Number(request.body?.telegramId);
+    const userId = String(request.body?.userId ?? '').trim();
+    const enabled = request.body?.enabled !== false;
+    const out = await setSportsAccess(app.prisma, {
+      userId: userId || undefined,
+      telegramId: Number.isFinite(telegramId) && telegramId > 0 ? telegramId : undefined,
+      enabled,
+    });
+    if (!out) return reply.code(404).send({ error: 'Игрок не найден' });
+    await audit({
+      request: request as AuthenticatedRequest,
+      action: enabled ? 'sports.access_grant' : 'sports.access_revoke',
+      targetType: 'user',
+      targetId: out.id,
+      payloadAfter: out,
+      reason,
+    });
+    return reply.send({ ok: true, user: out });
   });
 
   app.post<{ Params: { id: string }; Body: { suspended?: boolean; reason?: string } }>(

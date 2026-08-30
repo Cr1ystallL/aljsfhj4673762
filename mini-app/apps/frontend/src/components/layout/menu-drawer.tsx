@@ -72,6 +72,7 @@ export function MenuDrawer({
 
   const [availability, setAvailability] = useState<{
     isAdmin: boolean;
+    sportsAccess: boolean;
     hidden: Record<string, boolean>;
   } | null>(null);
 
@@ -94,7 +95,11 @@ export function MenuDrawer({
             if (g?.gameType) hidden[g.gameType] = !!g.hidden;
           }
         }
-        setAvailability({ isAdmin: !!json.isAdmin, hidden });
+        setAvailability({
+          isAdmin: !!json.isAdmin,
+          sportsAccess: !!json.sportsAccess,
+          hidden,
+        });
       } catch {
         // ignore
       }
@@ -287,15 +292,17 @@ export function MenuDrawer({
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <SectionCard
-                    icon={<SoccerBallIcon size={18} className="text-frost-white" />}
-                    title={t('nav.sportsTitle')}
-                    description={t('nav.sportsDesc')}
-                    onClick={() => {
-                      onClose();
-                      router.push('/sport');
-                    }}
-                  />
+                  {availability?.sportsAccess && (
+                    <SectionCard
+                      icon={<SoccerBallIcon size={18} className="text-frost-white" />}
+                      title={t('nav.sportsTitle')}
+                      description={t('nav.sportsDesc')}
+                      onClick={() => {
+                        onClose();
+                        router.push('/sport');
+                      }}
+                    />
+                  )}
                   <SectionCard
                     icon={<Users size={18} className="text-frost-white" />}
                     title={t('nav.partnerTitle')}

@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { HelpButton } from '@/components/admin/help-button';
 import { cn } from '@/lib/utils';
 
-type Tab = 'line' | 'events' | 'bets';
+type Tab = 'line' | 'events' | 'bets' | 'access';
 
 const SPORTS = ['football', 'tennis', 'hockey', 'basketball', 'mma', 'cybersport'] as const;
 
@@ -37,23 +38,35 @@ interface AdminBet {
   payout: number;
 }
 
+interface AccessUser {
+  id: string;
+  telegramId: number;
+  username: string | null;
+  name: string;
+}
+
 export default function SportsAdminPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>('line');
   const [cfg, setCfg] = useState<SportsCfg | null>(null);
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [bets, setBets] = useState<AdminBet[]>([]);
+  const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  const [grantId, setGrantId] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [g, e, b] = await Promise.all([
+    const [g, e, b, a] = await Promise.all([
       fetch('/api/_x/games/sports', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/_x/sports/events', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/_x/sports/bets', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
+      fetch('/api/_x/sports/access', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
     ]);
     setCfg(g.config ?? null);
     setEvents(e.events ?? []);
     setBets(b.bets ?? []);
+    setAccessUsers(Array.isArray(a.users) ? a.users : []);
   }, []);
 
   useEffect(() => {
@@ -105,12 +118,12 @@ export default function SportsAdminPage() {
           Спорт
         </span>
         <HelpButton title="Категории спорта">
-          <p>Линия — лимиты и виды спорта. События — снять, void, ручной расчёт. Ставки — журнал купонов.</p>
+          <p>Линия — лимиты и виды спорта. События — снять, void, ручной расчёт. Ставки — журнал купонов. Доступ — выдать раздел ставок игроку без роли админа (в доке вместо партнёрки).</p>
         </HelpButton>
       </div>
 
       <div className="flex gap-1 p-1 rounded-2xl border border-white/10 bg-white/[0.03]">
-        {(['line', 'events', 'bets'] as Tab[]).map((id) => (
+        {(['line', 'events', 'bets', 'access'] as Tab[]).map((id) => (
           <button
             key={id}
             type="button"
@@ -120,7 +133,7 @@ export default function SportsAdminPage() {
               tab === id ? 'bg-[#1e222b] text-frost-white border border-white/15' : 'text-whisper-gray'
             )}
           >
-            {id === 'line' ? 'Линия' : id === 'events' ? 'События' : 'Ставки'}
+            {id === 'line' ? 'Линия' : id === 'events' ? 'События' : id === 'bets' ? 'Ставки' : 'Доступ'}
           </button>
         ))}
       </div>
@@ -219,6 +232,112 @@ export default function SportsAdminPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'access' && (
+        <div className="flex flex-col gap-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-2">
+            <div className="font-roobert text-[12px] text-whisper-gray">
+              Игрок не становится админом. В нижнем меню у него «Ставки» вместо «Партнёрка».
+            </div>
+            <input
+              value={grantId}
+              onChange={(e) => setGrantId(e.target.value)}
+              placeholder="Telegram ID"
+              className="bg-white/[0.04] border border-white/15 rounded-xl px-3 py-2 font-roobert text-[13px] text-frost-white"
+            />
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Причина"
+              className="bg-white/[0.04] border border-white/15 rounded-xl px-3 py-2 font-roobert text-[13px] text-frost-white"
+            />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const telegramId = Number(grantId.trim());
+                if (!Number.isFinite(telegramId) || telegramId <= 0) {
+                  alert('Укажи Telegram ID');
+                  return;
+                }
+                if (reason.trim().length < 3) {
+                  alert('Причина обязательна');
+                  return;
+                }
+                setBusy(true);
+                void fetch('/api/_x/sports/access', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({
+                    telegramId,
+                    enabled: true,
+                    reason: reason.trim(),
+                  }),
+                })
+                  .then(async (r) => {
+                    if (!r.ok) {
+                      const j = await r.json().catch(() => null);
+                      alert(j?.error ?? 'Не удалось выдать доступ');
+                      return;
+                    }
+                    setGrantId('');
+                    setReason('');
+                    await load();
+                  })
+                  .finally(() => setBusy(false));
+              }}
+              className="px-4 py-2 rounded-xl border border-white/15 bg-white/[0.06] text-frost-white font-roobert text-[12px] font-semibold"
+            >
+              Выдать доступ
+            </button>
+          </div>
+          {accessUsers.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-6 text-center font-roobert text-[12px] text-whisper-gray">
+              Пока никому не выдано.
+            </div>
+          ) : (
+            accessUsers.map((u) => (
+              <div
+                key={u.id}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 flex items-center justify-between gap-3"
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push(`/system/console/users/${u.id}`)}
+                  className="min-w-0 text-left"
+                >
+                  <div className="font-roobert text-[13px] text-frost-white truncate">{u.name}</div>
+                  <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+                    #{u.telegramId}
+                    {u.username ? ` · @${u.username}` : ''}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="shrink-0 px-2.5 py-1 rounded-lg border border-white/10 text-[11px] text-frost-white"
+                  onClick={() => {
+                    const why = prompt('Причина отзыва') ?? '';
+                    if (why.trim().length < 3) return;
+                    void fetch('/api/_x/sports/access', {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({
+                        userId: u.id,
+                        enabled: false,
+                        reason: why.trim(),
+                      }),
+                    }).then(() => load());
+                  }}
+                >
+                  Забрать
+                </button>
+              </div>
+            ))
+          )}
         </div>
       )}
 

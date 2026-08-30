@@ -13,10 +13,18 @@ import { useLiveSports } from '@/hooks/use-live-sports';
 import type { SportCategoryKey, SportEvent } from '@/types/sports';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { useT } from '@/i18n/use-t';
+import { useSportsAccess } from '@/hooks/use-sports-access';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 export default function SportPage() {
   const { t } = useT();
+  const router = useRouter();
+  const { ready: sportsReady, allowed: sportsAllowed } = useSportsAccess();
+
+  useEffect(() => {
+    if (sportsReady && !sportsAllowed) router.replace('/partner');
+  }, [sportsReady, sportsAllowed, router]);
 
   const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('all');
   const [mode, setMode] = useState<'all' | 'live' | 'prematch'>('all');
@@ -72,6 +80,10 @@ export default function SportPage() {
     !searchQuery.trim() &&
     mode !== 'live' &&
     (selectedCategory === 'all' || selectedCategory === 'football');
+
+  if (!sportsReady || !sportsAllowed) {
+    return <div className="min-h-screen bg-midnight-canvas" />;
+  }
 
   const heading =
     mode === 'live'
