@@ -7,6 +7,8 @@ import { logger } from '../../utils/logger.js';
 import { wsManager } from '../../lib/websocket-manager.js';
 import type { Bet } from '../../game-engine/types.js';
 
+export const BJ_MAX_SEATS = 5;
+
 export interface BlackjackChatMessage {
   id: string;
   roomId: string;
@@ -167,6 +169,10 @@ export class BlackjackEngine extends EventEmitter {
 
     // Remove from old seat if switching
     this.state.players = this.state.players.filter((p) => p.userId !== userId);
+
+    if (this.state.players.length >= BJ_MAX_SEATS) {
+      return false;
+    }
 
     const player: Player = {
       userId,
@@ -1145,24 +1151,58 @@ export interface BlackjackTableSummary {
   chatCount: number;
 }
 
+function tableIndex(roomId: string): number {
+  const m = roomId.match(/bj_table_(\d+)$/);
+  return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+}
+
 // Room manager for multiplayer blackjack
 export class BlackjackRoomManager {
   private rooms = new Map<string, BlackjackEngine>();
+
+  private seatedCount(engine: BlackjackEngine): number {
+    const players = engine.getState()?.players;
+    return Array.isArray(players) ? players.length : 0;
+  }
+
+  private hasFreeSeat(engine: BlackjackEngine): boolean {
+    return this.seatedCount(engine) < BJ_MAX_SEATS;
+  }
+
+  /** Keep exactly one empty extra table visible when every occupied table is 5/5. */
+  ensureSpareEmptyTable(): void {
+    this.getOrCreateRoom('bj_table_1');
+    if ([...this.rooms.values()].some((engine) => this.hasFreeSeat(engine))) return;
+
+    let index = 1;
+    while (this.rooms.has(`bj_table_${index}`)) index += 1;
+    const newRoomId = `bj_table_${index}`;
+    logger.info({ newRoomId, fullTables: this.rooms.size }, 'Opened spare blackjack table because others are full');
+    this.getOrCreateRoom(newRoomId);
+  }
 
   getOrCreateRoom(roomId: string): BlackjackEngine {
     const cleanId = roomId || 'bj_table_1';
     if (!this.rooms.has(cleanId)) {
       const engine = new BlackjackEngine(cleanId);
       this.rooms.set(cleanId, engine);
-      
+
       engine.on('state', () => {
-        // Keep primary table bj_table_1 always active; cleanup extra empty dynamic rooms after 5 minutes of inactivity
-        if (cleanId !== 'bj_table_1' && engine.getState().players.length === 0 && engine.getState().phase === 'waiting') {
+        const seated = this.seatedCount(engine);
+        if (seated >= BJ_MAX_SEATS) {
+          this.ensureSpareEmptyTable();
+          return;
+        }
+        // Drop extra empty rooms only if another table still has a free seat.
+        if (cleanId !== 'bj_table_1' && seated === 0 && engine.getState().phase === 'waiting') {
           setTimeout(() => {
-            if (engine.getState().players.length === 0 && cleanId !== 'bj_table_1') {
-              engine.destroy();
-              this.rooms.delete(cleanId);
-            }
+            if (this.seatedCount(engine) !== 0 || !this.rooms.has(cleanId)) return;
+            const otherHasFree = [...this.rooms.entries()].some(
+              ([id, other]) => id !== cleanId && this.hasFreeSeat(other)
+            );
+            if (!otherHasFree) return;
+            engine.destroy();
+            this.rooms.delete(cleanId);
           }, 300000);
         }
       });
@@ -1198,22 +1238,15 @@ export class BlackjackRoomManager {
         }
       }
 
-      // Find first room with free seats (< 5)
       for (const engine of this.rooms.values()) {
-        const state = engine.getState();
-        if (state && Array.isArray(state.players) && state.players.length < 5) {
-          return engine;
-        }
+        if (this.hasFreeSeat(engine)) return engine;
       }
 
-      // All existing tables are full -> spawn next table
-      let tableIndex = 1;
-      while (this.rooms.has(`bj_table_${tableIndex}`)) {
-        tableIndex++;
+      this.ensureSpareEmptyTable();
+      for (const engine of this.rooms.values()) {
+        if (this.hasFreeSeat(engine)) return engine;
       }
-      const newRoomId = `bj_table_${tableIndex}`;
-      logger.info({ newRoomId, previousFullCount: this.rooms.size }, 'Spawned new blackjack table for matchmaking');
-      return this.getOrCreateRoom(newRoomId);
+      return this.getOrCreateRoom('bj_table_1');
     } catch (err) {
       logger.error({ err }, 'Error finding available table, falling back to main table');
       return this.getOrCreateRoom('bj_table_1');
@@ -1223,7 +1256,10 @@ export class BlackjackRoomManager {
   getAllTablesSummary(): BlackjackTableSummary[] {
     try {
       this.getOrCreateRoom('bj_table_1');
-      return Array.from(this.rooms.values()).map((engine) => {
+      this.ensureSpareEmptyTable();
+      return Array.from(this.rooms.values())
+        .sort((a, b) => tableIndex(a.getRoomId()) - tableIndex(b.getRoomId()))
+        .map((engine) => {
         const state = engine.getState() || {
           phase: 'waiting',
           players: [],
@@ -1244,7 +1280,7 @@ export class BlackjackRoomManager {
           roomId: engine.getRoomId() || 'bj_table_1',
           phase: state.phase || 'waiting',
           playersCount: Array.isArray(state.players) ? state.players.length : 0,
-          maxSeats: 5,
+          maxSeats: BJ_MAX_SEATS,
           countdown: state.countdown ?? 12,
           turnCountdown: state.turnCountdown ?? 30,
           dealerHand,

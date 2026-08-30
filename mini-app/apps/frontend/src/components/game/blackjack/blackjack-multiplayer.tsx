@@ -282,9 +282,10 @@ export function BlackjackMultiplayer() {
       roomId: string;
       phase: string;
       playersCount: number;
+      maxSeats?: number;
       countdown: number;
     }>
-  >([{ roomId: 'bj_table_1', phase: 'waiting', playersCount: 0, countdown: 12 }]);
+  >([{ roomId: 'bj_table_1', phase: 'waiting', playersCount: 0, maxSeats: 5, countdown: 12 }]);
 
   const fetchAvailableTables = useCallback(async () => {
     try {
@@ -292,7 +293,13 @@ export function BlackjackMultiplayer() {
       if (res.ok) {
         const j = await res.json();
         if (Array.isArray(j.tables) && j.tables.length > 0) {
-          setAvailableTables(j.tables);
+          setAvailableTables(
+            [...j.tables].sort((a, b) => {
+              const na = Number(String(a.roomId).replace(/\D/g, '')) || 0;
+              const nb = Number(String(b.roomId).replace(/\D/g, '')) || 0;
+              return na - nb;
+            })
+          );
         }
       }
     } catch {}
@@ -316,6 +323,13 @@ export function BlackjackMultiplayer() {
     void fetchAvailableTables();
     void fetchTableHistory();
   }, [fetchAvailableTables, fetchTableHistory]);
+
+  useEffect(() => {
+    if (!isTableMenuOpen) return;
+    void fetchAvailableTables();
+    const id = window.setInterval(() => void fetchAvailableTables(), 2500);
+    return () => window.clearInterval(id);
+  }, [isTableMenuOpen, fetchAvailableTables]);
 
   // User's selected bet for their seat (defaults to 0 until placed)
   const [selectedBet, setSelectedBet] = useState(0);
@@ -1608,6 +1622,9 @@ export function BlackjackMultiplayer() {
                     const isCountdown = tbl.phase === 'countdown';
                     const isPlayerTurn = tbl.phase === 'player_turn';
                     const isDealerTurn = tbl.phase === 'dealer_turn';
+                    const maxSeats = tbl.maxSeats ?? 5;
+                    const isFull = tbl.playersCount >= maxSeats;
+                    const isEmpty = tbl.playersCount === 0;
 
                     return (
                       <button
@@ -1631,7 +1648,7 @@ export function BlackjackMultiplayer() {
                           <div className="flex items-center gap-1.5">
                             <span className={cn(
                               "h-1.5 w-1.5 rounded-full shrink-0",
-                              isCurrent ? "bg-emerald-400 animate-pulse" : "bg-white/40"
+                              isCurrent ? "bg-emerald-400 animate-pulse" : isEmpty ? "bg-white/70" : "bg-white/40"
                             )} />
                             <span className={cn(
                               "text-xs font-bold truncate",
@@ -1641,7 +1658,11 @@ export function BlackjackMultiplayer() {
                             </span>
                           </div>
                           <span className="text-[9px] text-white/50 mt-0.5">
-                            {isCountdown
+                            {isEmpty
+                              ? 'Свободен'
+                              : isFull
+                              ? 'Полный'
+                              : isCountdown
                               ? `Ставки (${tbl.countdown}с)`
                               : isPlayerTurn
                               ? 'Ход игроков'
@@ -1652,8 +1673,15 @@ export function BlackjackMultiplayer() {
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0 ml-2">
-                          <span className="px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-[9px] font-mono font-bold text-white/80">
-                            {tbl.playersCount}/5
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded-md border text-[9px] font-mono font-bold",
+                            isFull
+                              ? "bg-white/10 border-white/15 text-white/55"
+                              : isEmpty
+                              ? "bg-white/[0.08] border-white/20 text-frost-white"
+                              : "bg-black/60 border-white/10 text-white/80"
+                          )}>
+                            {tbl.playersCount}/{maxSeats}
                           </span>
                         </div>
                       </button>
