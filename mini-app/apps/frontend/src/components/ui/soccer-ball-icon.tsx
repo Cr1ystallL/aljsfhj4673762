@@ -4,8 +4,8 @@ import { forwardRef } from 'react';
 import type { LucideProps } from 'lucide-react';
 
 /**
- * Soccer Ball Icon — Monopo / Minimalist Outlined Glyph
- * Outlined classic football/soccer ball geometry matching Lucide icon props.
+ * Soccer ball — Tabler Icons `ball-football` (MIT).
+ * https://github.com/tabler/tabler-icons
  */
 export const SoccerBallIcon = forwardRef<SVGSVGElement, LucideProps>(
   (
@@ -26,18 +26,13 @@ export const SoccerBallIcon = forwardRef<SVGSVGElement, LucideProps>(
       className={className}
       {...rest}
     >
-      {/* Outer circle boundary */}
-      <circle cx="12" cy="12" r="10" />
-
-      {/* Central pentagon */}
-      <polygon points="12 7.5 15.5 10 14 14.5 10 14.5 8.5 10" />
-
-      {/* Radial seams connecting central pentagon to circumference */}
-      <line x1="12" y1="7.5" x2="12" y2="2" />
-      <line x1="15.5" y1="10" x2="21.5" y2="8" />
-      <line x1="14" y1="14.5" x2="18.5" y2="20" />
-      <line x1="10" y1="14.5" x2="5.5" y2="20" />
-      <line x1="8.5" y1="10" x2="2.5" y2="8" />
+      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+      <path d="M12 7l4.76 3.45l-1.76 5.55h-6l-1.76 -5.55z" />
+      <path d="M12 7v-4" />
+      <path d="M15 16l2.5 3" />
+      <path d="M16.24 10.45l3.76 -1.45" />
+      <path d="M8.76 10.45l-3.76 -1.45" />
+      <path d="M9 16l-2.5 3" />
     </svg>
   )
 );

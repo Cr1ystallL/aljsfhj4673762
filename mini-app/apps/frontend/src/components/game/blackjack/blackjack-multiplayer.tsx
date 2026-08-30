@@ -659,6 +659,26 @@ export function BlackjackMultiplayer() {
     [token, router, finishTableSwitch, clearSwitchTimer]
   );
 
+  const goToFreeTable = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch('/api/games/blackjack/matchmake', {
+        credentials: 'include',
+        headers,
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      if (j.roomId) {
+        if (j.roomId === roomIdRef.current) {
+          setIsTableMenuOpen(false);
+        } else {
+          switchTable(j.roomId);
+        }
+      }
+    } catch {}
+  }, [token, switchTable]);
+
   const loadStateSnapshot = useCallback(async () => {
     try {
       const id = roomIdRef.current;
@@ -792,13 +812,15 @@ export function BlackjackMultiplayer() {
   const syncBalanceRef = useRef(syncBalance);
   const fetchTableHistoryRef = useRef(fetchTableHistory);
   const finishTableSwitchRef = useRef(finishTableSwitch);
+  const switchTableRef = useRef(switchTable);
   useEffect(() => {
     fetchAvailableTablesRef.current = fetchAvailableTables;
     fetchBalanceRef.current = fetchBalance;
     syncBalanceRef.current = syncBalance;
     fetchTableHistoryRef.current = fetchTableHistory;
     finishTableSwitchRef.current = finishTableSwitch;
-  }, [fetchAvailableTables, fetchBalance, syncBalance, fetchTableHistory, finishTableSwitch]);
+    switchTableRef.current = switchTable;
+  }, [fetchAvailableTables, fetchBalance, syncBalance, fetchTableHistory, finishTableSwitch, switchTable]);
 
   // WebSocket connection & messaging
   useEffect(() => {
@@ -912,6 +934,12 @@ export function BlackjackMultiplayer() {
                   void syncBalanceRef.current();
                 }, 800);
                 setTimeout(() => void fetchBalanceRef.current(), 2000);
+              }
+            }
+
+            if (data.type === 'bj:redirect' && data.payload?.roomId) {
+              if (data.payload.roomId !== roomIdRef.current) {
+                switchTableRef.current(data.payload.roomId);
               }
             }
 
@@ -1030,18 +1058,15 @@ export function BlackjackMultiplayer() {
     })
       .then((res) => res.json())
       .then((data) => {
+        if (data?.redirected && data.roomId && data.roomId !== roomIdRef.current) {
+          switchTable(data.roomId);
+          return;
+        }
         if (data?.state && (!data.state.roomId || data.state.roomId === roomIdRef.current)) {
           setState(data.state);
         }
         if (data?.success === false) {
-          fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
-            .then((r) => r.json())
-            .then((m) => {
-              if (m?.roomId && m.roomId !== roomIdRef.current) {
-                switchTable(m.roomId);
-              }
-            })
-            .catch(() => {});
+          void goToFreeTable();
         }
       })
       .catch(() => {});
@@ -1869,26 +1894,8 @@ export function BlackjackMultiplayer() {
                   </span>
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        const headers: Record<string, string> = {};
-                        if (token) headers['Authorization'] = `Bearer ${token}`;
-                        const res = await fetch('/api/games/blackjack/matchmake', {
-                          credentials: 'include',
-                          headers,
-                        });
-                        if (res.ok) {
-                          const j = await res.json();
-                          if (j.roomId) {
-                            if (j.roomId === roomIdRef.current) {
-                              toast.info('Вы уже на лучшем столе');
-                              setIsTableMenuOpen(false);
-                            } else {
-                              switchTable(j.roomId);
-                            }
-                          }
-                        }
-                      } catch {}
+                    onClick={() => {
+                      void goToFreeTable();
                     }}
                     className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 uppercase font-mono tracking-tight cursor-pointer"
                   >
@@ -1911,11 +1918,15 @@ export function BlackjackMultiplayer() {
                         key={tbl.roomId}
                         type="button"
                         onClick={() => {
-                          if (!isCurrent) {
-                            switchTable(tbl.roomId);
-                          } else {
+                          if (isCurrent) {
                             setIsTableMenuOpen(false);
+                            return;
                           }
+                          if (isFull) {
+                            void goToFreeTable();
+                            return;
+                          }
+                          switchTable(tbl.roomId);
                         }}
                         className={cn(
                           "w-full flex items-center justify-between p-2 rounded-xl text-left border transition-all cursor-pointer",

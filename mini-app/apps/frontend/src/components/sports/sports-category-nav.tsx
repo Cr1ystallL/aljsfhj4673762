@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Flame, Trophy } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import {
   BasketballIcon,
@@ -33,13 +33,12 @@ export function SportsCategoryNav({
   const { t } = useT();
 
   const CATEGORIES: CategoryItem[] = [
-    { key: 'top', labelKey: t('sports.categories.top'), icon: <Flame size={14} /> },
+    { key: 'all', labelKey: t('sports.categories.all'), icon: <LayoutGrid size={14} /> },
     { key: 'football', labelKey: t('sports.categories.football'), icon: <SoccerBallIcon size={14} /> },
     { key: 'tennis', labelKey: t('sports.categories.tennis'), icon: <TennisRacquetIcon size={14} /> },
     { key: 'basketball', labelKey: t('sports.categories.basketball'), icon: <BasketballIcon size={14} /> },
     { key: 'hockey', labelKey: t('sports.categories.hockey'), icon: <HockeyStickIcon size={14} /> },
     { key: 'cybersport', labelKey: t('sports.categories.cybersport'), icon: <CsPlayerIcon size={14} /> },
-    { key: 'all', labelKey: t('sports.categories.all'), icon: <Trophy size={14} /> },
   ];
 
   return (

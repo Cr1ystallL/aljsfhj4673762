@@ -1288,20 +1288,28 @@ export class BlackjackRoomManager {
     return Array.from(this.rooms.values());
   }
 
+  isTableFull(engine: BlackjackEngine): boolean {
+    return !this.hasFreeSeat(engine);
+  }
+
   /**
-   * Automatic table matchmaking:
-   * 1. If user is already seated at a table, return that table.
-   * 2. Otherwise find the first table with free seats (< 5 players).
-   * 3. If all active tables are full (5/5), create a new dynamic table (bj_table_2, bj_table_3, etc.).
+   * Never return a full table. If every occupied table is 5/5, open a new empty one.
+   * A seated player is only kept on their table when that table still has a free seat
+   * (they already have a chair). Auto-search / join of a packed table goes to the spare.
    */
   findAvailableTable(userId?: string): BlackjackEngine {
     try {
-      const mainRoom = this.getOrCreateRoom('bj_table_1');
+      this.getOrCreateRoom('bj_table_1');
 
       if (userId) {
         for (const engine of this.rooms.values()) {
           const state = engine.getState();
-          if (state && Array.isArray(state.players) && state.players.some((p) => p.userId === userId)) {
+          if (
+            state &&
+            Array.isArray(state.players) &&
+            state.players.some((p) => p.userId === userId) &&
+            this.hasFreeSeat(engine)
+          ) {
             return engine;
           }
         }
@@ -1315,10 +1323,15 @@ export class BlackjackRoomManager {
       for (const engine of this.rooms.values()) {
         if (this.hasFreeSeat(engine)) return engine;
       }
-      return this.getOrCreateRoom('bj_table_1');
+
+      let index = 1;
+      while (this.rooms.has(`bj_table_${index}`)) index += 1;
+      return this.getOrCreateRoom(`bj_table_${index}`);
     } catch (err) {
-      logger.error({ err }, 'Error finding available table, falling back to main table');
-      return this.getOrCreateRoom('bj_table_1');
+      logger.error({ err }, 'Error finding available table, opening a fresh empty table');
+      let index = 1;
+      while (this.rooms.has(`bj_table_${index}`)) index += 1;
+      return this.getOrCreateRoom(`bj_table_${index}`);
     }
   }
 
