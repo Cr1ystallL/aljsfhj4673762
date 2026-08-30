@@ -170,8 +170,8 @@ function mergeLiveTables(
     });
   }
   const list = sortTableList([...byId.values()]);
-  const hasFree = list.some((t) => t.playersCount < (t.maxSeats ?? 5));
-  if (!hasFree) {
+  const hasEmpty = list.some((t) => t.playersCount === 0);
+  if (!hasEmpty) {
     let index = 1;
     while (byId.has(`bj_table_${index}`)) index += 1;
     list.push({
@@ -442,6 +442,11 @@ export function BlackjackMultiplayer() {
   const hasDebitedBetRef = useRef(false);
 
   const [wsUserId, setWsUserId] = useState<string | null>(null);
+  const wsUserIdRef = useRef<string | null>(null);
+  wsUserIdRef.current = wsUserId;
+  const pendingReseatRef = useRef(false);
+  const handleJoinSeatRef = useRef<(seatId: number) => void>(() => {});
+  const myPlayerRef = useRef<BJPlayer | null>(null);
 
   // Determine user's seat strictly by authenticated/session user IDs
   const myPlayer = useMemo(() => {
@@ -455,6 +460,7 @@ export function BlackjackMultiplayer() {
       ) || null
     );
   }, [state.players, user?.id, wsUserId, sessionId]);
+  myPlayerRef.current = myPlayer;
 
   // Track phase transitions for instant balance updates and reset
   useEffect(() => {
@@ -584,6 +590,7 @@ export function BlackjackMultiplayer() {
 
       switchTargetRef.current = nextId;
       roomIdRef.current = nextId;
+      pendingReseatRef.current = true;
       setTableSwitch({ from: prev, to: nextId });
       setIsTableMenuOpen(false);
       setChatMessages([]);
@@ -591,6 +598,12 @@ export function BlackjackMultiplayer() {
       setSelectedBet(0);
       setIsActionPending(false);
       setState(emptyTableState(nextId));
+
+      const leaveUserId =
+        myPlayerRef.current?.userId ||
+        user?.id ||
+        wsUserIdRef.current ||
+        (sessionId ? `guest_${sessionId.slice(0, 8)}` : undefined);
 
       const headers: Record<string, string> = { 'content-type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -600,7 +613,7 @@ export function BlackjackMultiplayer() {
         ws.send(
           JSON.stringify({
             type: 'blackjack:leave_seat',
-            payload: { roomId: prev },
+            payload: { roomId: prev, userId: leaveUserId },
             timestamp: Date.now(),
           })
         );
@@ -624,7 +637,7 @@ export function BlackjackMultiplayer() {
         method: 'POST',
         credentials: 'include',
         headers,
-        body: JSON.stringify({ roomId: prev }),
+        body: JSON.stringify({ roomId: prev, userId: leaveUserId }),
       }).catch(() => {});
 
       setRoomId(nextId);
@@ -643,6 +656,20 @@ export function BlackjackMultiplayer() {
             setState(data.state);
             if (Array.isArray(data.state.history)) setTableHistory(data.state.history);
             finishTableSwitch(nextId);
+            if (pendingReseatRef.current) {
+              const seated = Array.isArray(data.state.players) ? data.state.players : [];
+              const me = leaveUserId && seated.some((p: BJPlayer) => p.userId === leaveUserId);
+              if (!me) {
+                const taken = new Set(seated.map((p: BJPlayer) => p.seatId));
+                const free = SEATS_CONFIG.find((s) => !taken.has(s.id));
+                if (free) {
+                  pendingReseatRef.current = false;
+                  handleJoinSeatRef.current(free.id);
+                }
+              } else {
+                pendingReseatRef.current = false;
+              }
+            }
           }
           if (Array.isArray(data?.chat)) setChatMessages(data.chat);
         })
@@ -656,7 +683,7 @@ export function BlackjackMultiplayer() {
         }
       }, 4500);
     },
-    [token, router, finishTableSwitch, clearSwitchTimer]
+    [token, router, finishTableSwitch, clearSwitchTimer, user?.id, sessionId]
   );
 
   const goToFreeTable = useCallback(async () => {
@@ -911,9 +938,38 @@ export function BlackjackMultiplayer() {
               if (arrivedId !== roomIdRef.current) {
                 return;
               }
-              setState(data.payload);
+              setState((prev) => {
+                const incoming = data.payload;
+                const prevById = new Map(prev.players.map((p) => [p.userId, p]));
+                return {
+                  ...incoming,
+                  players: (incoming.players ?? []).map((p: BJPlayer) => ({
+                    ...p,
+                    isReady:
+                      typeof p.isReady === 'boolean'
+                        ? p.isReady
+                        : !!prevById.get(p.userId)?.isReady,
+                  })),
+                };
+              });
               setIsActionPending(false);
               finishTableSwitchRef.current(arrivedId);
+              if (pendingReseatRef.current) {
+                const seated = Array.isArray(data.payload.players) ? data.payload.players : [];
+                const me =
+                  (user?.id && seated.some((p: BJPlayer) => p.userId === user.id)) ||
+                  (wsUserIdRef.current && seated.some((p: BJPlayer) => p.userId === wsUserIdRef.current));
+                if (!me) {
+                  const taken = new Set(seated.map((p: BJPlayer) => p.seatId));
+                  const free = SEATS_CONFIG.find((s) => !taken.has(s.id));
+                  if (free) {
+                    pendingReseatRef.current = false;
+                    window.setTimeout(() => handleJoinSeatRef.current?.(free.id), 0);
+                  }
+                } else {
+                  pendingReseatRef.current = false;
+                }
+              }
               if (Array.isArray(data.payload.history)) {
                 setTableHistory(data.payload.history);
               }
@@ -1033,7 +1089,7 @@ export function BlackjackMultiplayer() {
     const effectiveAvatar = user?.photoUrl || undefined;
 
     const payload = {
-      roomId,
+      roomId: roomIdRef.current,
       seatId,
       bet: 0,
       userId: effectiveUserId,
@@ -1071,6 +1127,7 @@ export function BlackjackMultiplayer() {
       })
       .catch(() => {});
   };
+  handleJoinSeatRef.current = handleJoinSeat;
 
   const handleLeaveSeat = () => {
     setSelectedBet(0);
@@ -1517,7 +1574,7 @@ export function BlackjackMultiplayer() {
                       myPlayer?.isReady ? "bg-emerald-400 animate-pulse" : "bg-white/30"
                     )} />
                     <span className="text-[11px] font-roobert text-white/70 truncate">
-                      {readyPlayersCount}/{totalSeatedCount || 1} готовы
+                      {readyPlayersCount} из {totalSeatedCount || 1} готовы
                     </span>
                   </div>
 

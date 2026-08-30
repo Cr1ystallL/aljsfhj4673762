@@ -7,7 +7,6 @@ import { logger } from '../../utils/logger.js';
 import { wsManager } from '../../lib/websocket-manager.js';
 import type { Bet } from '../../game-engine/types.js';
 import {
-  hasFreeSeat as listHasFreeSeat,
   loadTables,
   mergeTableLists,
   persistTables,
@@ -272,15 +271,11 @@ export class BlackjackEngine extends EventEmitter {
       this.startCountdown();
     }
 
-    // Check if ALL seated players are ready to deal immediately:
-    // 1 player at table: deals immediately if player has bet >= 10 and isReady.
-    // Multiple players at table: deals immediately ONLY if EVERY seated player has bet >= 10 AND voted isReady.
-    const totalSeated = this.state.players.length;
-    const readyBettingPlayers = this.state.players.filter((p) => p.bet >= 10 && p.isReady);
-    const allSeatedReadyToDeal = totalSeated > 0 && readyBettingPlayers.length === totalSeated;
-
-    if (allSeatedReadyToDeal) {
-      logger.info({ roomId: this.roomId, totalSeated }, 'All seated players ready! Dealing immediately');
+    if (this.allSeatedReadyToDeal()) {
+      logger.info(
+        { roomId: this.roomId, totalSeated: this.state.players.length },
+        'All seated players ready! Dealing immediately'
+      );
       this.stopCountdown();
       this.startRound();
       return true;
@@ -316,6 +311,12 @@ export class BlackjackEngine extends EventEmitter {
    * Game flow
    * ---------------------------------------------------------------- */
 
+  private allSeatedReadyToDeal(): boolean {
+    const seated = this.state.players;
+    if (seated.length === 0) return false;
+    return seated.every((p) => p.bet >= 10 && p.isReady);
+  }
+
   private startCountdown(): void {
     if (this.state.phase !== 'waiting') return;
     this.stopCountdown();
@@ -326,10 +327,12 @@ export class BlackjackEngine extends EventEmitter {
     this.broadcastState();
 
     this.countdownTimer = setInterval(() => {
-      this.state.countdown--;
+      if (this.state.countdown > 0) {
+        this.state.countdown--;
+      }
       this.broadcastState();
 
-      if (this.state.countdown <= 0) {
+      if (this.state.countdown <= 0 && this.allSeatedReadyToDeal()) {
         this.stopCountdown();
         this.startRound();
       }
@@ -1042,6 +1045,7 @@ export class BlackjackEngine extends EventEmitter {
       hand: p.hand.map((c) => ({ suit: c.suit, rank: c.rank, hidden: c.hidden })),
       bet: p.bet,
       status: p.status,
+      isReady: !!p.isReady,
     }));
 
     const sanitizedDealerHand = this.state.dealerHand.map((c) => ({
@@ -1199,11 +1203,11 @@ export class BlackjackRoomManager {
     return this.seatedCount(engine) < BJ_MAX_SEATS;
   }
 
-  /** Keep exactly one empty extra table visible when every occupied table is 5/5. */
+  /** Keep one completely empty table so players can switch even when table 1 has free seats. */
   ensureSpareEmptyTable(known?: SlimBlackjackTable[]): void {
     this.getOrCreateRoom('bj_table_1');
     const occupancy = known ?? this.localSlim();
-    if (listHasFreeSeat(occupancy)) return;
+    if (occupancy.some((t) => t.playersCount === 0)) return;
 
     let index = 1;
     while (
@@ -1259,15 +1263,14 @@ export class BlackjackRoomManager {
 
       engine.on('state', () => {
         const seated = this.seatedCount(engine);
-        if (seated >= BJ_MAX_SEATS) {
-          this.ensureSpareEmptyTable();
-        } else if (cleanId !== 'bj_table_1' && seated === 0 && engine.getState().phase === 'waiting') {
+        this.ensureSpareEmptyTable();
+        if (cleanId !== 'bj_table_1' && seated === 0 && engine.getState().phase === 'waiting') {
           setTimeout(() => {
             if (this.seatedCount(engine) !== 0 || !this.rooms.has(cleanId)) return;
-            const otherHasFree = [...this.rooms.entries()].some(
-              ([id, other]) => id !== cleanId && this.hasFreeSeat(other)
+            const otherEmpty = [...this.rooms.entries()].some(
+              ([id, other]) => id !== cleanId && this.seatedCount(other) === 0
             );
-            if (!otherHasFree) return;
+            if (!otherEmpty) return;
             engine.destroy();
             this.rooms.delete(cleanId);
             this.publishLobby(this.localSlim());
