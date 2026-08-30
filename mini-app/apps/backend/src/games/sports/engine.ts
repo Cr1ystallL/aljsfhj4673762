@@ -683,10 +683,12 @@ class SportsEngine {
     const p2 = prev.team2.score ?? 0;
     const n1 = next.team1.score ?? 0;
     const n2 = next.team2.score ?? 0;
-    if (n1 === p1 && n2 === p2) return undefined;
+    // Score events must only trigger when score strictly INCREASES (not on 0:0 resets or glitch drops)
+    if (n1 <= p1 && n2 <= p2) return undefined;
+    const team: 1 | 2 = n1 > p1 ? 1 : 2;
     return {
       kind: next.sport === 'football' || next.sport === 'hockey' ? 'goal' : 'point',
-      team: n1 > p1 ? 1 : 2,
+      team,
       score1: n1,
       score2: n2,
       at: Date.now(),
@@ -782,7 +784,14 @@ class SportsEngine {
       seen.add(tracked.bet.userId);
       void notifySportsUser(
         tracked.bet.userId,
-        sportsGoalText(`${feed.team1.name} — ${feed.team2.name}`, last.score1, last.score2, last.team)
+        sportsGoalText(
+          `${feed.team1.name} — ${feed.team2.name}`,
+          last.score1,
+          last.score2,
+          last.team,
+          feed.sport,
+          feed.extra
+        )
       );
     }
   }

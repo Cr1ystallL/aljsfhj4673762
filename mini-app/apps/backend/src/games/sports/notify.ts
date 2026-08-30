@@ -16,11 +16,40 @@ export async function notifySportsUser(userId: string, text: string): Promise<vo
   }
 }
 
-export function sportsGoalText(eventName: string, score1: number, score2: number, team: 1 | 2): string {
+export function sportsGoalText(
+  eventName: string,
+  score1: number,
+  score2: number,
+  team: 1 | 2,
+  sport?: string,
+  extra?: { game?: string; scoreKind?: string }
+): string {
+  let title = 'Спорт · гол';
+  let side1 = 'хозяева';
+  let side2 = 'гости';
+
+  if (sport === 'cybersport') {
+    if (extra?.game === 'cs') {
+      title = 'Киберспорт (CS 2) · раунд';
+      side1 = 'команда 1';
+      side2 = 'команда 2';
+    } else {
+      title = 'Киберспорт (Dota 2) · фраг';
+      side1 = 'Radiant';
+      side2 = 'Dire';
+    }
+  } else if (sport === 'basketball') {
+    title = 'Баскетбол · очки';
+  } else if (sport === 'hockey') {
+    title = 'Хоккей · шайба';
+  } else if (sport === 'tennis') {
+    title = 'Теннис · гейм';
+  }
+
   return [
-    '<b>Спорт · гол</b>',
+    `<b>${title}</b>`,
     eventName,
-    `Счёт ${score1}:${score2}${team === 1 ? ' · хозяева' : ' · гости'}`,
+    `Счёт ${score1}:${score2} · ${team === 1 ? side1 : side2}`,
   ].join('\n');
 }
 
