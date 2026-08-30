@@ -1371,14 +1371,14 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         chat: table.getChatHistory(),
       });
     } catch (err: any) {
-      logger.error({ err }, 'Blackjack matchmake error, fallback to main table');
+      logger.error({ err }, 'Blackjack matchmake error, opening a free table');
       const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-      const main = blackjackSingleton.getMainTable();
+      const free = blackjackSingleton.findAvailableTable();
       return reply.send({
         success: true,
-        roomId: 'bj_table_1',
-        state: main.getPublicState(),
-        chat: main.getChatHistory(),
+        roomId: free.getRoomId(),
+        state: free.getPublicState(),
+        chat: free.getChatHistory(),
       });
     }
   });
@@ -1519,8 +1519,17 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
     const table = blackjackSingleton.getTable(roomId);
     const success = table.join(userId, name, avatar, seatId, bet);
+    if (!success && blackjackSingleton.isTableFull(roomId)) {
+      const free = blackjackSingleton.findAvailableTable(userId);
+      return reply.send({
+        success: false,
+        redirected: true,
+        roomId: free.getRoomId(),
+        state: free.getPublicState(),
+      });
+    }
 
-    return reply.send({ success, state: table.getPublicState() });
+    return reply.send({ success, roomId: table.getRoomId(), state: table.getPublicState() });
   });
 
   // Blackjack REST Leave Seat

@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 export default function SportPage() {
   const { t } = useT();
 
-  const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('top');
+  const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('all');
   const [mode, setMode] = useState<'all' | 'live' | 'prematch'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const syncFromEvents = useSportsSlip((s) => s.syncFromEvents);
@@ -50,7 +50,7 @@ export default function SportPage() {
       featuredMatch &&
       !searchQuery.trim() &&
       mode !== 'live' &&
-      (selectedCategory === 'top' || selectedCategory === 'all' || selectedCategory === 'football')
+      (selectedCategory === 'all' || selectedCategory === 'football')
     ) {
       return list.filter((e) => e.id !== featuredMatch.id);
     }
@@ -71,13 +71,13 @@ export default function SportPage() {
     featuredMatch &&
     !searchQuery.trim() &&
     mode !== 'live' &&
-    (selectedCategory === 'top' || selectedCategory === 'all' || selectedCategory === 'football');
+    (selectedCategory === 'all' || selectedCategory === 'football');
 
   const heading =
     mode === 'live'
       ? t('sports.liveEvents')
-      : selectedCategory === 'top'
-        ? t('sports.mainEvents')
+      : selectedCategory === 'all'
+        ? t('sports.all')
         : t('sports.matches');
 
   return (

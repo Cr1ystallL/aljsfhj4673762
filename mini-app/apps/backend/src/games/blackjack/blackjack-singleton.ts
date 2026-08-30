@@ -18,6 +18,11 @@ class BlackjackSingletonManager {
     return blackjackRoomManager.findAvailableTable(userId);
   }
 
+  isTableFull(roomId: string): boolean {
+    const table = blackjackRoomManager.getRoom(roomId) ?? blackjackRoomManager.getOrCreateRoom(roomId);
+    return blackjackRoomManager.isTableFull(table);
+  }
+
   getAllTablesSummary(): Promise<BlackjackTableSummary[]> {
     return blackjackRoomManager.getAllTablesSummary();
   }

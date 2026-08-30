@@ -103,7 +103,25 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
         // Handle game room join
         if (validMessage.type === 'game:join') {
-          const { roomId } = validMessage.payload;
+          let { roomId } = validMessage.payload;
+          if (roomId === 'bj_table_1' || roomId.startsWith('bj_')) {
+            const requested = blackjackSingleton.getTable(roomId);
+            const joinUserId = socket.userId;
+            const seatedHere =
+              !!joinUserId &&
+              (requested.getState()?.players ?? []).some((p) => p.userId === joinUserId);
+            if (!seatedHere && blackjackSingleton.isTableFull(roomId)) {
+              const free = blackjackSingleton.findAvailableTable(joinUserId);
+              roomId = free.getRoomId();
+              socket.send(
+                JSON.stringify({
+                  type: 'bj:redirect',
+                  payload: { roomId, reason: 'TABLE_FULL' },
+                  timestamp: Date.now(),
+                })
+              );
+            }
+          }
           wsManager.joinRoom(connectionId, roomId);
           const joinedEvent = createEvent<ServerGameJoinedEvent>('game:joined', { roomId });
           socket.send(JSON.stringify(joinedEvent));
@@ -231,17 +249,27 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
           if (!success) {
             const seated = engine.getState()?.players?.length ?? 0;
             const full = seated >= 5;
-            if (full) blackjackSingleton.ensureSpareEmptyTable();
-            socket.send(JSON.stringify(createEvent('error', {
-              code: full ? 'TABLE_FULL' : 'JOIN_SEAT_FAILED',
-              message: full ? 'Стол заполнен — выберите свободный стол' : 'Место уже занято',
-            })));
             if (full) {
-              socket.send(JSON.stringify({
-                type: 'bj:tables',
-                payload: { tables: blackjackSingleton.getPublicTableList() },
-                timestamp: Date.now(),
-              }));
+              const free = blackjackSingleton.findAvailableTable(userId);
+              socket.send(
+                JSON.stringify({
+                  type: 'bj:redirect',
+                  payload: { roomId: free.getRoomId(), reason: 'TABLE_FULL' },
+                  timestamp: Date.now(),
+                })
+              );
+              socket.send(
+                JSON.stringify({
+                  type: 'bj:tables',
+                  payload: { tables: blackjackSingleton.getPublicTableList() },
+                  timestamp: Date.now(),
+                })
+              );
+            } else {
+              socket.send(JSON.stringify(createEvent('error', {
+                code: 'JOIN_SEAT_FAILED',
+                message: 'Место уже занято',
+              })));
             }
           }
           return;
