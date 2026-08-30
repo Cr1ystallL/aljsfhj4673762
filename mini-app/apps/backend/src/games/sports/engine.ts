@@ -13,9 +13,29 @@ import {
   type BetLegSpec,
   type ClockDirection,
   type MarketKind,
+  type MatchStats,
   type SettleResult,
   type SportMarket,
 } from './markets.js';
+import { sportEnabled, sportsLimits } from './limits.js';
+import { notifySportsUser, sportsGoalText, sportsSettleText } from './notify.js';
+import { redisClient } from '../../lib/redis.js';
+
+export class SportsOddsChangedError extends Error {
+  readonly code = 'ODDS_CHANGED';
+  constructor(
+    public readonly legs: Array<{
+      eventId: string;
+      marketKind: MarketKind;
+      outcomeKey: string;
+      line?: number;
+      quoted: number;
+      current: number;
+    }>
+  ) {
+    super('ODDS_CHANGED');
+  }
+}
 
 export type SportsOutcome = 'p1' | 'x' | 'p2';
 export type EventStatus = 'prematch' | 'live' | 'finished';
@@ -69,6 +89,16 @@ export interface PublicSportEvent {
   isFeatured?: boolean;
   lastEvent?: LastSportsEvent;
   lastEventNotification?: string;
+  stats?: MatchStats;
+  suspended?: boolean;
+}
+
+export interface SportsActivity {
+  id: string;
+  kind: 'goal' | 'settle' | 'cashout' | 'void';
+  text: string;
+  at: number;
+  eventId?: string;
 }
 
 export interface SportsBetReceipt {
@@ -93,6 +123,7 @@ interface RuntimeEvent {
   prevOdds: { p1: number; x?: number; p2: number };
   lastEvent?: LastSportsEvent;
   featured?: boolean;
+  suspended?: boolean;
 }
 
 interface TrackedLeg {
@@ -113,8 +144,7 @@ interface TrackedBet {
 const SYNC_MS = 20_000;
 const NOTIFY_TTL_MS = 12_000;
 const MAX_LEGS = 8;
-const MAX_COMBINED = 1000;
-const MAX_PAYOUT = 50_000;
+const CTL_KEY = 'sports:ctl';
 
 function trendOf(next: number, prev: number | undefined): OddsTrend {
   if (prev === undefined) return 'same';
@@ -131,6 +161,8 @@ class SportsEngine {
   private events = new Map<string, RuntimeEvent>();
   private bets = new Map<string, TrackedBet>();
   private byEvent = new Map<string, string[]>();
+  private suspended = new Set<string>();
+  private activity: SportsActivity[] = [];
   private timer: NodeJS.Timeout | null = null;
   private started = false;
   private syncing = false;
@@ -138,6 +170,7 @@ class SportsEngine {
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+    await this.loadControls();
     await this.rehydratePending();
     await this.sync();
     this.timer = setInterval(() => {
@@ -152,9 +185,11 @@ class SportsEngine {
     this.started = false;
   }
 
-  listEvents(): PublicSportEvent[] {
+  listEvents(opts?: { includeSuspended?: boolean; enabledSports?: string[] | null }): PublicSportEvent[] {
     const now = Date.now();
     return [...this.events.values()]
+      .filter((ev) => opts?.includeSuspended || !this.suspended.has(ev.feed.id))
+      .filter((ev) => sportEnabled(ev.feed.sport, opts?.enabledSports ?? null))
       .map((ev) => this.toPublic(ev, now))
       .sort((a, b) => {
         const rank = (s: EventStatus) => (s === 'live' ? 0 : s === 'prematch' ? 1 : 2);
@@ -164,12 +199,22 @@ class SportsEngine {
       });
   }
 
+  listActivity(): SportsActivity[] {
+    return this.activity.slice(0, 30);
+  }
+
   getEvent(id: string): PublicSportEvent | null {
     const ev = this.events.get(id);
     return ev ? this.toPublic(ev, Date.now()) : null;
   }
 
-  async placeBet(userId: string, stake: number, rawLegs: BetLegSpec[]): Promise<SportsBetReceipt> {
+  async placeBet(
+    userId: string,
+    stake: number,
+    rawLegs: BetLegSpec[],
+    opts?: { quotedOdds?: number[]; acceptChange?: boolean }
+  ): Promise<SportsBetReceipt> {
+    const limits = await sportsLimits();
     if (!Array.isArray(rawLegs) || rawLegs.length === 0) {
       throw new Error('Добавьте исход в купон');
     }
@@ -179,8 +224,10 @@ class SportsEngine {
 
     const seen = new Set<string>();
     const locked: TrackedLeg[] = [];
+    const drifted: SportsOddsChangedError['legs'] = [];
 
-    for (const spec of rawLegs) {
+    for (let i = 0; i < rawLegs.length; i++) {
+      const spec = rawLegs[i];
       if (seen.has(spec.eventId)) {
         throw new Error('В экспрессе можно взять только один исход с одного события');
       }
@@ -188,13 +235,32 @@ class SportsEngine {
 
       const ev = this.events.get(spec.eventId);
       if (!ev) throw new Error('Событие не найдено');
+      if (this.suspended.has(spec.eventId)) throw new Error('Событие снято с линии');
       if (ev.feed.status === 'finished') throw new Error('Событие уже завершено');
+      if (!sportEnabled(ev.feed.sport, limits.enabledSports)) {
+        throw new Error('Этот вид спорта сейчас выключен');
+      }
 
       const outcome = findOutcome(ev.feed.markets, spec.marketKind, spec.outcomeKey, spec.line);
       if (!outcome) throw new Error('Исход недоступен');
 
       if (this.userHasPendingOn(userId, spec.eventId)) {
         throw new Error('У вас уже есть ставка на это событие');
+      }
+
+      const quoted = opts?.quotedOdds?.[i];
+      if (quoted != null && Number.isFinite(quoted) && quoted > 0 && !opts?.acceptChange) {
+        const rel = Math.abs(outcome.odds - quoted) / quoted;
+        if (rel > limits.oddsDrift) {
+          drifted.push({
+            eventId: spec.eventId,
+            marketKind: spec.marketKind,
+            outcomeKey: spec.outcomeKey,
+            line: outcome.line ?? spec.line,
+            quoted,
+            current: outcome.odds,
+          });
+        }
       }
 
       locked.push({
@@ -207,9 +273,11 @@ class SportsEngine {
       });
     }
 
+    if (drifted.length) throw new SportsOddsChangedError(drifted);
+
     const product = locked.reduce((acc, leg) => acc * leg.odds, 1);
-    const combinedOdds = Math.min(MAX_COMBINED, formatCombined(product));
-    const potentialWin = Math.min(MAX_PAYOUT, roundMoney(stake * combinedOdds));
+    const combinedOdds = Math.min(limits.maxCombined, formatCombined(product));
+    const potentialWin = Math.min(limits.maxPayout, roundMoney(stake * combinedOdds));
     const type = locked.length >= 2 ? 'express' : 'single';
     const first = locked[0];
     const firstEv = this.events.get(first.eventId)!;
@@ -274,9 +342,24 @@ class SportsEngine {
       orderBy: { placedAt: 'desc' },
       take,
     });
+    const limits = await sportsLimits();
     return rows.map((row) => {
       const meta = (row.metadata ?? {}) as Record<string, unknown>;
-      const legs = Array.isArray(meta.legs) ? meta.legs : [];
+      const rawLegs = Array.isArray(meta.legs) ? meta.legs : [];
+      const tracked = this.bets.get(row.id);
+      const legs = (tracked?.legs ?? parseStoredLegs(meta)).map((leg) => ({
+        eventId: leg.eventId,
+        marketKind: leg.marketKind,
+        outcomeKey: leg.outcomeKey,
+        line: leg.line,
+        odds: leg.odds,
+        result: leg.result,
+        eventName: this.events.get(leg.eventId)
+          ? `${this.events.get(leg.eventId)!.feed.team1.name} — ${this.events.get(leg.eventId)!.feed.team2.name}`
+          : undefined,
+      }));
+      const pending = row.state === 'pending' || row.state === 'active';
+      const cashout = pending ? this.quoteCashout(row.id, Number(row.amount), limits) : null;
       return {
         id: row.id,
         eventId: String(meta.eventId ?? ''),
@@ -289,7 +372,108 @@ class SportsEngine {
         state: row.state,
         payout: Number(row.payout ?? 0),
         placedAt: row.placedAt.toISOString(),
-        legs,
+        legs: legs.length ? legs : rawLegs,
+        cashout,
+      };
+    });
+  }
+
+  quoteCashout(betId: string, stake: number, limits: Awaited<ReturnType<typeof sportsLimits>>) {
+    if (!limits.cashoutEnabled) return null;
+    const tracked = this.bets.get(betId);
+    if (!tracked) return null;
+    if (tracked.legs.some((l) => l.result === 'lost')) return null;
+    let product = 1;
+    for (const leg of tracked.legs) {
+      if (leg.result === 'void') continue;
+      if (leg.result === 'won') {
+        product *= leg.odds;
+        continue;
+      }
+      const ev = this.events.get(leg.eventId);
+      if (!ev || ev.feed.status === 'finished' || this.suspended.has(leg.eventId)) return null;
+      const live = findOutcome(ev.feed.markets, leg.marketKind, leg.outcomeKey, leg.line);
+      if (!live) return null;
+      product *= live.odds;
+    }
+    const amount = Math.min(limits.maxPayout, roundMoney(stake * product * limits.cashoutMargin));
+    if (amount < 0.01) return null;
+    return { amount, multiplier: formatCombined(amount / Math.max(0.01, stake)) };
+  }
+
+  async cashout(userId: string, betId: string) {
+    const limits = await sportsLimits();
+    const tracked = this.bets.get(betId);
+    if (!tracked || tracked.bet.userId !== userId) throw new Error('Ставка не найдена');
+    const offer = this.quoteCashout(betId, tracked.bet.amount, limits);
+    if (!offer) throw new Error('Выкуп недоступен');
+    await bettingPipeline.processCashout(tracked.bet, offer.amount, offer.multiplier, false);
+    this.unindexBet(betId);
+    const name = String((tracked.bet.metadata as Record<string, unknown> | undefined)?.eventName ?? 'Купон');
+    this.pushActivity('cashout', `Выкуп ${offer.amount.toFixed(2)} zł`, tracked.legs[0]?.eventId);
+    void notifySportsUser(userId, sportsSettleText(name, tracked.legs.length >= 2 ? 'express' : 'single', 'cashed_out', offer.amount));
+    return { ok: true, betId, amount: offer.amount, multiplier: offer.multiplier };
+  }
+
+  async adminSetSuspended(eventId: string, suspended: boolean) {
+    if (suspended) this.suspended.add(eventId);
+    else this.suspended.delete(eventId);
+    const ev = this.events.get(eventId);
+    if (ev) ev.suspended = suspended;
+    await this.saveControls();
+    return { eventId, suspended };
+  }
+
+  async adminVoidEvent(eventId: string) {
+    const betIds = [...new Set(this.byEvent.get(eventId) ?? [])];
+    for (const betId of betIds) {
+      const tracked = this.bets.get(betId);
+      if (!tracked) continue;
+      try {
+        await bettingPipeline.rollbackBet(tracked.bet, false);
+        this.unindexBet(betId);
+        void notifySportsUser(
+          tracked.bet.userId,
+          sportsSettleText(String((tracked.bet.metadata as Record<string, unknown>)?.eventName ?? ''), tracked.legs.length >= 2 ? 'express' : 'single', 'void', tracked.bet.amount)
+        );
+      } catch (err) {
+        logger.error({ err, betId }, 'Sports void failed');
+      }
+    }
+    this.pushActivity('void', `Событие снято, ставки возвращены`, eventId);
+    return { eventId, voided: betIds.length };
+  }
+
+  async adminSettleEvent(eventId: string, score1: number, score2: number) {
+    const ev = this.events.get(eventId);
+    if (!ev) throw new Error('Событие не найдено');
+    ev.feed.team1.score = score1;
+    ev.feed.team2.score = score2;
+    ev.feed.status = 'finished';
+    await this.settleEvent(ev.feed);
+    return { eventId, score1, score2 };
+  }
+
+  async listAdminBets(take = 40) {
+    const rows = await prisma.bet.findMany({
+      where: { gameType: 'sports' },
+      orderBy: { placedAt: 'desc' },
+      take,
+      include: { user: { select: { firstName: true, username: true, telegramId: true } } },
+    });
+    return rows.map((row) => {
+      const meta = (row.metadata ?? {}) as Record<string, unknown>;
+      return {
+        id: row.id,
+        userId: row.userId,
+        userName: row.user.firstName || row.user.username || String(row.user.telegramId ?? ''),
+        eventName: String(meta.eventName ?? ''),
+        type: String(meta.type ?? 'single'),
+        stake: Number(row.amount),
+        odds: Number(meta.odds ?? row.multiplier ?? 0),
+        state: row.state,
+        payout: Number(row.payout ?? 0),
+        placedAt: row.placedAt.toISOString(),
       };
     });
   }
@@ -373,6 +557,8 @@ class SportsEngine {
       isFeatured: ev.featured,
       lastEvent,
       lastEventNotification: f.lastPlay,
+      stats: f.stats,
+      suspended: this.suspended.has(f.id),
     };
   }
 
@@ -405,7 +591,17 @@ class SportsEngine {
           prevOdds: prev?.feed.odds ?? feed.odds,
           lastEvent: lastEvent ?? prev?.lastEvent,
           featured: prev?.featured,
+          suspended: this.suspended.has(feed.id),
         });
+        if (lastEvent && (lastEvent.kind === 'goal' || lastEvent.kind === 'point')) {
+          this.pushActivity(
+            'goal',
+            `${feed.team1.name} — ${feed.team2.name} ${lastEvent.score1}:${lastEvent.score2}`,
+            feed.id
+          );
+          await this.settleLiveSpecials(feed, lastEvent);
+          await this.notifyBettorsGoal(feed, lastEvent);
+        }
         if (prev && prev.feed.status !== 'finished' && feed.status === 'finished') {
           await this.settleEvent(feed);
         }
@@ -453,31 +649,124 @@ class SportsEngine {
       const leg = tracked.legs.find((l) => l.eventId === feed.id && l.result === 'pending');
       if (!leg) continue;
 
-      const result = settleLeg(leg.marketKind, leg.outcomeKey, leg.line, s1, s2, feed.threeWay);
+      const result = settleLeg(leg.marketKind, leg.outcomeKey, leg.line, s1, s2, feed.threeWay, {
+        stats: feed.stats,
+        finished: true,
+      });
+      if (result === 'void' && (leg.marketKind === 'next_goal' || leg.marketKind === 'sooner') && leg.result !== 'pending') {
+        continue;
+      }
+      if (leg.result !== 'pending') continue;
       leg.result = result;
 
       try {
-        if (result === 'lost') {
-          tracked.bet.multiplier = 0;
-          tracked.bet.payout = 0;
-          await bettingPipeline.processLoss(tracked.bet, false);
-          this.unindexBet(betId);
-          continue;
-        }
-
-        if (tracked.legs.every((l) => l.result === 'won' || l.result === 'void')) {
-          const multiplier = formatCombined(
-            tracked.legs.reduce((acc, l) => acc * (l.result === 'void' ? 1 : l.odds), 1)
-          );
-          const payout = Math.min(MAX_PAYOUT, roundMoney(tracked.bet.amount * multiplier));
-          tracked.bet.multiplier = multiplier;
-          tracked.bet.payout = payout;
-          await bettingPipeline.processPayout(tracked.bet, payout, false);
-          this.unindexBet(betId);
-        }
+        await this.finishTracked(tracked, betId, result);
       } catch (err) {
         logger.error({ err, betId }, 'Sports settle failed');
       }
+    }
+  }
+
+  private async settleLiveSpecials(feed: FeedEvent, last: LastSportsEvent): Promise<void> {
+    const betIds = [...new Set(this.byEvent.get(feed.id) ?? [])];
+    const sooner = last.kind === 'goal' ? 'goal' : null;
+    for (const betId of betIds) {
+      const tracked = this.bets.get(betId);
+      if (!tracked) continue;
+      const leg = tracked.legs.find((l) => l.eventId === feed.id && l.result === 'pending');
+      if (!leg) continue;
+      if (leg.marketKind !== 'next_goal' && leg.marketKind !== 'sooner') continue;
+      const result = settleLeg(leg.marketKind, leg.outcomeKey, leg.line, last.score1, last.score2, feed.threeWay, {
+        nextTeam: last.team,
+        sooner,
+        finished: false,
+        stats: feed.stats,
+      });
+      if (result === 'void') continue;
+      leg.result = result;
+      try {
+        await this.finishTracked(tracked, betId, result);
+      } catch (err) {
+        logger.error({ err, betId }, 'Sports live special settle failed');
+      }
+    }
+  }
+
+  private async finishTracked(tracked: TrackedBet, betId: string, lastResult: SettleResult): Promise<void> {
+    const limits = await sportsLimits();
+    const name = String((tracked.bet.metadata as Record<string, unknown> | undefined)?.eventName ?? '');
+    const type = tracked.legs.length >= 2 ? 'express' : 'single';
+    if (lastResult === 'lost') {
+      tracked.bet.multiplier = 0;
+      tracked.bet.payout = 0;
+      await bettingPipeline.processLoss(tracked.bet, false);
+      this.unindexBet(betId);
+      this.pushActivity('settle', `Проигрыш · ${name}`, tracked.legs[0]?.eventId);
+      void notifySportsUser(tracked.bet.userId, sportsSettleText(name, type, 'lost', 0));
+      return;
+    }
+    if (tracked.legs.every((l) => l.result === 'won' || l.result === 'void')) {
+      const multiplier = formatCombined(
+        tracked.legs.reduce((acc, l) => acc * (l.result === 'void' ? 1 : l.odds), 1)
+      );
+      const payout = Math.min(limits.maxPayout, roundMoney(tracked.bet.amount * multiplier));
+      tracked.bet.multiplier = multiplier;
+      tracked.bet.payout = payout;
+      await bettingPipeline.processPayout(tracked.bet, payout, false);
+      this.unindexBet(betId);
+      this.pushActivity('settle', `Выигрыш ${payout.toFixed(2)} zł · ${name}`, tracked.legs[0]?.eventId);
+      void notifySportsUser(tracked.bet.userId, sportsSettleText(name, type, 'won', payout));
+    }
+  }
+
+  private async notifyBettorsGoal(feed: FeedEvent, last: LastSportsEvent): Promise<void> {
+    const seen = new Set<string>();
+    for (const betId of this.byEvent.get(feed.id) ?? []) {
+      const tracked = this.bets.get(betId);
+      if (!tracked || seen.has(tracked.bet.userId)) continue;
+      seen.add(tracked.bet.userId);
+      void notifySportsUser(
+        tracked.bet.userId,
+        sportsGoalText(`${feed.team1.name} — ${feed.team2.name}`, last.score1, last.score2, last.team)
+      );
+    }
+  }
+
+  private pushActivity(kind: SportsActivity['kind'], text: string, eventId?: string): void {
+    this.activity.unshift({
+      id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      kind,
+      text,
+      at: Date.now(),
+      eventId,
+    });
+    this.activity = this.activity.slice(0, 40);
+  }
+
+  private async loadControls(): Promise<void> {
+    try {
+      const raw = await redisClient.getClient().hgetall(CTL_KEY);
+      this.suspended.clear();
+      for (const [id, val] of Object.entries(raw ?? {})) {
+        if (val === '1') this.suspended.add(id);
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Sports controls load failed');
+    }
+  }
+
+  private async saveControls(): Promise<void> {
+    try {
+      const client = redisClient.getClient();
+      await client.del(CTL_KEY);
+      if (this.suspended.size === 0) return;
+      const pairs: string[] = [];
+      for (const id of this.suspended) {
+        pairs.push(id, '1');
+      }
+      await client.hset(CTL_KEY, ...pairs);
+    } catch (err) {
+      logger.warn({ err }, 'Sports controls save failed');
     }
   }
 

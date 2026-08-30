@@ -637,6 +637,45 @@ function GameCard({
             </div>
           )}
 
+          {gameType === 'sports' && (
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+              <Field label="Макс. выплата">
+                <NumberInput
+                  value={Number(form.extras?.maxPayout ?? 50_000)}
+                  step={100}
+                  min={10}
+                  onChange={(v) => updateExtra('maxPayout', v)}
+                />
+              </Field>
+              <Field label="Макс. кэф. экспресса">
+                <NumberInput
+                  value={Number(form.extras?.maxCombinedOdds ?? 1000)}
+                  step={10}
+                  min={2}
+                  onChange={(v) => updateExtra('maxCombinedOdds', v)}
+                />
+              </Field>
+              <Field label="Маржа выкупа">
+                <NumberInput
+                  value={Number(form.extras?.cashoutMargin ?? 0.88)}
+                  step={0.01}
+                  min={0.5}
+                  max={0.98}
+                  onChange={(v) => updateExtra('cashoutMargin', v)}
+                />
+              </Field>
+              <Field label="Выкуп">
+                <button
+                  type="button"
+                  onClick={() => updateExtra('cashoutEnabled', form.extras?.cashoutEnabled === false)}
+                  className="px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] text-frost-white"
+                >
+                  {form.extras?.cashoutEnabled === false ? 'Выкл' : 'Вкл'}
+                </button>
+              </Field>
+            </div>
+          )}
+
           {/* Reason + save */}
           <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
             <label className="font-roobert text-[10px] uppercase tracking-[0.22em] text-whisper-gray">

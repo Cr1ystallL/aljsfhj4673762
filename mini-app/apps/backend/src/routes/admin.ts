@@ -22,6 +22,7 @@ import { redisClient } from '../lib/redis.js';
 import { sessionManager } from '../lib/session-manager.js';
 import { rtpEngine } from '../services/rtp-engine.js';
 import { config } from '../config/index.js';
+import { sportsEngine } from '../games/sports/engine.js';
 
 /**
  * Admin Routes — covert.
@@ -1726,6 +1727,85 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         logger.error({ err, gameType: t }, 'Game config update failed');
         return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  app.get('/_x/sports/events', { preHandler: adminOnly }, async (_req, reply) => {
+    return reply.send({
+      ok: true,
+      events: sportsEngine.listEvents({ includeSuspended: true }),
+    });
+  });
+
+  app.get('/_x/sports/bets', { preHandler: adminOnly }, async (_req, reply) => {
+    const bets = await sportsEngine.listAdminBets(50);
+    return reply.send({ ok: true, bets });
+  });
+
+  app.post<{ Params: { id: string }; Body: { suspended?: boolean; reason?: string } }>(
+    '/_x/sports/events/:id/suspend',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = String(request.body?.reason ?? '').trim();
+      if (reason.length < 3) return reply.code(400).send({ error: 'Reason required' });
+      const out = await sportsEngine.adminSetSuspended(request.params.id, request.body?.suspended !== false);
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: out.suspended ? 'sports.suspend' : 'sports.resume',
+        targetType: 'sports_event',
+        targetId: request.params.id,
+        payloadAfter: out,
+        reason,
+      });
+      return reply.send({ ok: true, ...out });
+    }
+  );
+
+  app.post<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/sports/events/:id/void',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = String(request.body?.reason ?? '').trim();
+      if (reason.length < 3) return reply.code(400).send({ error: 'Reason required' });
+      const out = await sportsEngine.adminVoidEvent(request.params.id);
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'sports.void',
+        targetType: 'sports_event',
+        targetId: request.params.id,
+        payloadAfter: out,
+        reason,
+      });
+      return reply.send({ ok: true, ...out });
+    }
+  );
+
+  app.post<{ Params: { id: string }; Body: { score1?: number; score2?: number; reason?: string } }>(
+    '/_x/sports/events/:id/settle',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = String(request.body?.reason ?? '').trim();
+      if (reason.length < 3) return reply.code(400).send({ error: 'Reason required' });
+      const score1 = Number(request.body?.score1);
+      const score2 = Number(request.body?.score2);
+      if (!Number.isFinite(score1) || !Number.isFinite(score2)) {
+        return reply.code(400).send({ error: 'score1 and score2 required' });
+      }
+      try {
+        const out = await sportsEngine.adminSettleEvent(request.params.id, score1, score2);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'sports.settle',
+          targetType: 'sports_event',
+          targetId: request.params.id,
+          payloadAfter: out,
+          reason,
+        });
+        return reply.send({ ok: true, ...out });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Settle failed';
+        return reply.code(400).send({ error: message });
       }
     }
   );

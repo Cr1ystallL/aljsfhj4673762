@@ -27,6 +27,16 @@ export interface SportsBetReceipt {
   error?: string;
 }
 
+export interface SportsUserBetLeg {
+  eventId: string;
+  marketKind?: string;
+  outcomeKey?: string;
+  line?: number;
+  odds?: number;
+  result?: string;
+  eventName?: string;
+}
+
 export interface SportsUserBet {
   id: string;
   eventId: string;
@@ -39,6 +49,16 @@ export interface SportsUserBet {
   state: string;
   payout: number;
   placedAt: string;
+  legs?: SportsUserBetLeg[];
+  cashout?: { amount: number; multiplier: number } | null;
+}
+
+export class SportsOddsChangedError extends Error {
+  constructor(
+    public readonly changed: Array<{ eventId: string; quoted: number; current: number }>
+  ) {
+    super('ODDS_CHANGED');
+  }
 }
 
 async function parseJson<T>(res: Response): Promise<T> {
@@ -97,6 +117,8 @@ export const sportsService = {
     eventId?: string;
     outcome?: SelectedBet['outcomeType'];
     legs?: SportsBetLegPayload[];
+    quotedOdds?: number[];
+    acceptChange?: boolean;
   }): Promise<SportsBetReceipt> {
     const res = await fetch('/api/sports/bet', {
       method: 'POST',
@@ -104,11 +126,37 @@ export const sportsService = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
     });
-    const data = await parseJson<SportsBetReceipt & { error?: string }>(res);
+    const data = await parseJson<
+      SportsBetReceipt & {
+        error?: string;
+        legs?: Array<{ eventId: string; quoted: number; current: number }>;
+      }
+    >(res);
+    if (res.status === 409 || data.error === 'ODDS_CHANGED') {
+      throw new SportsOddsChangedError(data.legs ?? []);
+    }
     if (!res.ok || !data.ok) {
       throw new Error(data.error || 'Не удалось принять ставку');
     }
     return data;
+  },
+
+  async cashout(betId: string): Promise<{ amount: number; multiplier: number }> {
+    const res = await fetch('/api/sports/cashout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ betId }),
+    });
+    const data = await parseJson<{ ok?: boolean; amount?: number; multiplier?: number; error?: string }>(res);
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Не удалось выкупить');
+    return { amount: Number(data.amount ?? 0), multiplier: Number(data.multiplier ?? 0) };
+  },
+
+  async fetchFeed(): Promise<Array<{ id: string; kind: string; text: string; at: number }>> {
+    const res = await fetch('/api/sports/feed', { credentials: 'include', cache: 'no-store' });
+    const data = await parseJson<{ items?: Array<{ id: string; kind: string; text: string; at: number }> }>(res);
+    return data.items ?? [];
   },
 
   async fetchMyBets(): Promise<SportsUserBet[]> {

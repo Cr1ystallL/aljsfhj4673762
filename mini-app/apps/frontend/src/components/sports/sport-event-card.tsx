@@ -16,7 +16,7 @@ type Chip = 'popular' | MarketKind;
 
 export function SportEventCard({ event }: { event: SportEvent }) {
   const { t, localeTag } = useT();
-  const [tab, setTab] = useState<'match' | 'overview' | 'video'>('match');
+  const [tab, setTab] = useState<'match' | 'overview'>('match');
   const [chip, setChip] = useState<Chip>('popular');
   const finished = event.status === 'finished';
   const markets = event.markets ?? [];
@@ -29,12 +29,19 @@ export function SportEventCard({ event }: { event: SportEvent }) {
     }
     if (markets.some((m) => m.kind === 'total')) list.push({ id: 'total', label: t('sports.total') });
     if (markets.some((m) => m.kind === 'handicap')) list.push({ id: 'handicap', label: t('sports.handicap') });
+    if (markets.some((m) => m.kind === 'btts')) list.push({ id: 'btts', label: t('sports.m.btts') });
+    if (markets.some((m) => m.kind === 'next_goal')) list.push({ id: 'next_goal', label: t('sports.m.next') });
+    if (markets.some((m) => m.kind === 'cards')) list.push({ id: 'cards', label: t('sports.m.cards') });
+    if (markets.some((m) => m.kind === 'corners')) list.push({ id: 'corners', label: t('sports.m.corners') });
+    if (markets.some((m) => m.kind === 'sooner')) list.push({ id: 'sooner', label: t('sports.m.sooner') });
     return list;
   }, [markets, t]);
 
   const visible = useMemo(() => {
     if (chip === 'popular') {
-      return markets.filter((m) => m.kind === '1x2' || m.kind === 'double_chance' || m.kind === 'total' || m.kind === 'handicap');
+      return markets.filter((m) =>
+        ['1x2', 'double_chance', 'total', 'handicap', 'btts', 'next_goal', 'sooner'].includes(m.kind)
+      );
     }
     return markets.filter((m) => m.kind === chip);
   }, [chip, markets]);
@@ -57,7 +64,6 @@ export function SportEventCard({ event }: { event: SportEvent }) {
           [
             ['match', t('sports.tabMatch')],
             ['overview', t('sports.tabOverview')],
-            ['video', t('sports.tabVideo')],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -111,9 +117,18 @@ export function SportEventCard({ event }: { event: SportEvent }) {
         </div>
       </div>
 
-      {tab !== 'match' ? (
-        <div className="rounded-2xl border border-white/10 bg-[#101217] px-4 py-8 text-center font-roobert text-[13px] text-whisper-gray">
-          {t('sports.tabSoon')}
+      {tab === 'overview' ? (
+        <div className="rounded-2xl border border-white/10 bg-[#101217] px-4 py-4 flex flex-col gap-2 font-roobert text-[13px] text-whisper-gray">
+          {event.lastEventNotification && (
+            <p className="text-frost-white">{event.lastEventNotification}</p>
+          )}
+          {event.stats && (
+            <div className="grid grid-cols-2 gap-2 text-[12px]">
+              <span>{t('sports.cardsShort')}: {(event.stats.yellow1 ?? 0) + (event.stats.yellow2 ?? 0)}</span>
+              <span>{t('sports.cornersShort')}: {(event.stats.corners1 ?? 0) + (event.stats.corners2 ?? 0)}</span>
+            </div>
+          )}
+          <p>{t('sports.overviewEmpty')}</p>
         </div>
       ) : (
         <>
@@ -183,6 +198,9 @@ function PopularMarkets({ event, finished }: { event: SportEvent; finished: bool
   const dc = event.markets?.find((m) => m.kind === 'double_chance');
   const tot = event.markets?.find((m) => m.kind === 'total');
   const ah = event.markets?.find((m) => m.kind === 'handicap');
+  const extra = (event.markets ?? []).filter((m) =>
+    m.kind === 'btts' || m.kind === 'next_goal' || m.kind === 'sooner' || m.kind === 'cards' || m.kind === 'corners'
+  );
   return (
     <>
       {one && (
@@ -199,6 +217,9 @@ function PopularMarkets({ event, finished }: { event: SportEvent; finished: bool
       )}
       {tot && <MarketGroup event={event} market={tot} finished={finished} defaultOpen />}
       {ah && <MarketGroup event={event} market={ah} finished={finished} defaultOpen />}
+      {extra.map((market) => (
+        <MarketGroup key={market.id} event={event} market={market} finished={finished} defaultOpen />
+      ))}
     </>
   );
 }
@@ -323,7 +344,6 @@ function OutcomeGrid({
 
 function kindFromKey(key: string, fallback: MarketKind): MarketKind {
   if (key.startsWith('dc')) return 'double_chance';
-  if (key === 'over' || key === 'under') return 'total';
   if (key === 'ah1' || key === 'ah2') return 'handicap';
   return fallback;
 }
@@ -340,12 +360,19 @@ function sportCategoryKey(sport: SportEvent['sport']): TxKey {
 
 function outcomeLabel(
   event: SportEvent,
-  _kind: MarketKind,
+  kind: MarketKind,
   outcome: SportMarketOutcome,
   t: (key: TxKey, vars?: Record<string, string | number>) => string
 ): string {
   if (outcome.key === 'over') return t('sports.over');
   if (outcome.key === 'under') return t('sports.under');
+  if (outcome.key === 'yes') return t('sports.yes');
+  if (outcome.key === 'no') return t('sports.no');
+  if (outcome.key === 'none') return t('sports.nextNone');
+  if (outcome.key === 'goal') return t('sports.soonerGoal');
+  if (outcome.key === 'card') return t('sports.soonerCard');
+  if (kind === 'next_goal' && outcome.key === 'p1') return t('sports.nextHome');
+  if (kind === 'next_goal' && outcome.key === 'p2') return t('sports.nextAway');
   if (outcome.key === 'ah1' || outcome.key === 'ah2') {
     const line = outcome.line ?? 0;
     const team = outcome.key === 'ah1' ? event.team1.name : event.team2.name;

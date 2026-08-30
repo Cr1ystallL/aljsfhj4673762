@@ -7,7 +7,7 @@ import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { useT } from '@/i18n/use-t';
 import { StakeField } from '@/components/game/kit/stake-field';
 import { GamePrimaryButton } from '@/components/game/kit/game-primary-button';
-import { sportsService } from '@/services/sports.service';
+import { sportsService, SportsOddsChangedError } from '@/services/sports.service';
 import { useBalance } from '@/hooks/use-balance';
 import { useSportsSlip } from '@/store/sports-slip-store';
 
@@ -31,6 +31,7 @@ export function SportsBetslipDrawer({
   const [busy, setBusy] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [oddsPrompt, setOddsPrompt] = useState<Array<{ quoted: number; current: number }> | null>(null);
 
   useEffect(() => {
     setStake((current) => Math.min(maxBet, Math.max(minBet, current)));
@@ -43,13 +44,15 @@ export function SportsBetslipDrawer({
   const isExpress = legs.length >= 2;
   const potentialWin = stake * combinedOdds;
 
-  const handlePlaceBet = async () => {
+  const handlePlaceBet = async (acceptChange = false) => {
     if (busy || isSuccess || paused || legs.length === 0) return;
     setBusy(true);
     setError(null);
     try {
       await sportsService.placeBet({
         stake,
+        acceptChange,
+        quotedOdds: legs.map((leg) => leg.odds),
         legs: legs.map((leg) => ({
           eventId: leg.eventId,
           marketKind: leg.marketKind,
@@ -58,12 +61,18 @@ export function SportsBetslipDrawer({
         })),
       });
       await syncBalance();
+      setOddsPrompt(null);
       setIsSuccess(true);
       setTimeout(() => {
         setIsSuccess(false);
         clear();
       }, 1400);
     } catch (err) {
+      if (err instanceof SportsOddsChangedError) {
+        setOddsPrompt(err.changed);
+        setError(t('sports.oddsChanged'));
+        return;
+      }
       const message = err instanceof Error ? err.message : t('sports.betFailed');
       setError(
         message === 'Insufficient balance' || message.includes('Недостаточно')
@@ -167,6 +176,16 @@ export function SportsBetslipDrawer({
             {error && (
               <div className="font-roobert text-[11px] text-red-300">{error}</div>
             )}
+            {oddsPrompt && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 font-roobert text-[11px] text-whisper-gray">
+                {oddsPrompt.map((row, i) => (
+                  <div key={i} className="flex justify-between tabular-nums">
+                    <span>{row.quoted.toFixed(2)}</span>
+                    <span className="text-frost-white">{row.current.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10">
               <div className="flex flex-col">
@@ -184,9 +203,9 @@ export function SportsBetslipDrawer({
 
               <div className="flex-1">
                 <GamePrimaryButton
-                  onClick={() => {
-                    void handlePlaceBet();
-                  }}
+                    onClick={() => {
+                      void handlePlaceBet(!!oddsPrompt);
+                    }}
                   disabled={busy || isSuccess || paused}
                   tone={isSuccess ? 'muted' : 'solid'}
                 >
@@ -199,9 +218,11 @@ export function SportsBetslipDrawer({
                     <span>
                       {paused
                         ? t('sports.linePaused')
-                        : isExpress
-                          ? t('sports.express')
-                          : t('sports.placeBet')}
+                        : oddsPrompt
+                          ? t('sports.acceptOdds')
+                          : isExpress
+                            ? t('sports.express')
+                            : t('sports.placeBet')}
                     </span>
                   )}
                 </GamePrimaryButton>

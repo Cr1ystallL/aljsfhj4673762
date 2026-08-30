@@ -13,7 +13,16 @@ export type EventStatus = 'live' | 'prematch' | 'finished';
 
 export type OddsTrend = 'up' | 'down' | 'same';
 
-export type MarketKind = '1x2' | 'double_chance' | 'total' | 'handicap';
+export type MarketKind =
+  | '1x2'
+  | 'double_chance'
+  | 'total'
+  | 'handicap'
+  | 'btts'
+  | 'next_goal'
+  | 'cards'
+  | 'corners'
+  | 'sooner';
 
 export type ClockDirection = 'up' | 'down' | 'none';
 
@@ -105,6 +114,13 @@ export interface SportEvent {
     score2: number;
     at: number;
   };
+  stats?: {
+    yellow1?: number;
+    yellow2?: number;
+    corners1?: number;
+    corners2?: number;
+  };
+  suspended?: boolean;
 }
 
 export interface SelectedBet {
