@@ -84,6 +84,7 @@ function footballLikeOdds(
   const normPX = Math.max(0.005, probDraw / totalProb);
   const normP2 = Math.max(0.005, prob2Wins / totalProb);
   const margin = 1.055;
+  const toBook = (p: number) => formatOdds(1 / (p * margin));
 
   const currentTotal = score1 + score2;
   const threshold = currentTotal <= 1 ? 2.5 : currentTotal + 1.5;
@@ -100,13 +101,13 @@ function footballLikeOdds(
   const normOver = 1 - normUnder;
 
   return {
-    p1: formatOdds(margin / normP1),
-    x: formatOdds(margin / normPX),
-    p2: formatOdds(margin / normP2),
+    p1: toBook(normP1),
+    x: toBook(normPX),
+    p2: toBook(normP2),
     total: {
       threshold,
-      over: formatOdds(1.05 / normOver),
-      under: formatOdds(1.05 / normUnder),
+      over: formatOdds(1 / (normOver * 1.05)),
+      under: formatOdds(1 / (normUnder * 1.05)),
     },
   };
 }
@@ -159,8 +160,8 @@ export function calculateTennisLiveOdds(
   const prob1 = Math.max(0.01, Math.min(0.99, Math.max(0.1, p1Weight) / totalWeight));
   const margin = 1.05;
   return {
-    p1: formatOdds(margin / prob1),
-    p2: formatOdds(margin / (1 - prob1)),
+    p1: formatOdds(1 / (prob1 * margin)),
+    p2: formatOdds(1 / ((1 - prob1) * margin)),
   };
 }
 
@@ -181,8 +182,8 @@ export function calculateBasketballLiveOdds(
   const prob1 = 1 / (1 + Math.exp(-1.7 * zScore));
   const margin = 1.05;
   return {
-    p1: formatOdds(margin / Math.max(0.01, prob1)),
-    p2: formatOdds(margin / Math.max(0.01, 1 - prob1)),
+    p1: formatOdds(1 / (Math.max(0.01, prob1) * margin)),
+    p2: formatOdds(1 / (Math.max(0.01, 1 - prob1) * margin)),
   };
 }
 
@@ -199,7 +200,7 @@ export function calculateEsportsLiveOdds(
   const prob1 = 1 / (1 + Math.exp(-0.4 * scoreDiff));
   const margin = 1.05;
   return {
-    p1: formatOdds(margin / Math.max(0.01, prob1)),
-    p2: formatOdds(margin / Math.max(0.01, 1 - prob1)),
+    p1: formatOdds(1 / (Math.max(0.01, prob1) * margin)),
+    p2: formatOdds(1 / (Math.max(0.01, 1 - prob1) * margin)),
   };
 }
