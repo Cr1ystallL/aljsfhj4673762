@@ -164,6 +164,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
             odds={event.odds.p1}
             trend={event.odds.p1Trend}
             isSelected={isSelected('p1')}
+            conflicts={legs.some((leg) => leg.eventId === event.id) && !isSelected('p1')}
             disabled={finished}
             onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
           />
@@ -172,6 +173,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
               odds={event.odds.x!}
               trend={event.odds.xTrend}
               isSelected={isSelected('x')}
+              conflicts={legs.some((leg) => leg.eventId === event.id) && !isSelected('x')}
               disabled={finished}
               onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
             />
@@ -180,6 +182,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
             odds={event.odds.p2}
             trend={event.odds.p2Trend}
             isSelected={isSelected('p2')}
+            conflicts={legs.some((leg) => leg.eventId === event.id) && !isSelected('p2')}
             disabled={finished}
             onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
           />
@@ -213,12 +216,14 @@ function OddsButtonCell({
   odds,
   trend,
   isSelected,
+  conflicts,
   disabled,
   onClick,
 }: {
   odds: number;
   trend?: OddsTrend;
   isSelected: boolean;
+  conflicts?: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
@@ -231,11 +236,13 @@ function OddsButtonCell({
         'h-10 rounded-xl border flex flex-col items-center justify-center',
         isSelected
           ? 'bg-frost-white text-midnight-canvas border-white/40'
-          : trend === 'up'
-            ? 'bg-white/[0.04] border-emerald-400/30 text-frost-white'
-            : trend === 'down'
-              ? 'bg-white/[0.04] border-red-400/25 text-frost-white'
-              : 'bg-white/[0.04] border-white/10 text-frost-white',
+          : conflicts
+            ? 'bg-red-950/40 border-red-400/40 text-frost-white'
+            : trend === 'up'
+              ? 'bg-white/[0.04] border-emerald-400/30 text-frost-white'
+              : trend === 'down'
+                ? 'bg-white/[0.04] border-red-400/25 text-frost-white'
+                : 'bg-white/[0.04] border-white/10 text-frost-white',
         disabled && 'opacity-40'
       )}
     >

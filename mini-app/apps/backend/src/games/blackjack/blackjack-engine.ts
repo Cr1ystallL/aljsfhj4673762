@@ -117,6 +117,7 @@ export class BlackjackEngine extends EventEmitter {
   private roomId: string;
   private config: GameConfig;
   private state: BlackjackState;
+  private dealLock = false;
   private countdownTimer: NodeJS.Timeout | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
   private soloAfkTimer: NodeJS.Timeout | null = null;
@@ -329,12 +330,12 @@ export class BlackjackEngine extends EventEmitter {
     this.countdownTimer = setInterval(() => {
       if (this.state.countdown > 0) {
         this.state.countdown--;
+        this.broadcastState();
       }
-      this.broadcastState();
 
       if (this.state.countdown <= 0 && this.allSeatedReadyToDeal()) {
         this.stopCountdown();
-        this.startRound();
+        void this.startRound();
       }
     }, 1000);
   }
@@ -347,8 +348,27 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   private async startRound(): Promise<void> {
+    if (this.dealLock) return;
     if (this.state.players.length === 0) {
       this.state.phase = 'waiting';
+      return;
+    }
+
+    if (!this.allSeatedReadyToDeal()) {
+      logger.info(
+        {
+          roomId: this.roomId,
+          ready: this.state.players.filter((p) => p.isReady && p.bet >= 10).length,
+          seated: this.state.players.length,
+          countdown: this.state.countdown,
+        },
+        'Deal blocked — not every seated player is ready'
+      );
+      if (this.state.phase !== 'countdown') {
+        this.state.phase = 'countdown';
+      }
+      this.state.countdown = 0;
+      this.broadcastState();
       return;
     }
 
@@ -381,6 +401,7 @@ export class BlackjackEngine extends EventEmitter {
       startedAt: Date.now(),
     };
 
+    this.dealLock = true;
     this.state.phase = 'dealing';
     this.state.roundId = `blackjack_${Date.now()}_${randomUUID()}`;
     this.state.serverSeedHash = serverSeedHash;

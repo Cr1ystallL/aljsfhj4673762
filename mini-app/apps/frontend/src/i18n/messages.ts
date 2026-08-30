@@ -570,6 +570,11 @@ export const ru = {
     scoreKindMaps: 'По картам',
     cyberHint: 'Счёт и статистика этого матча. Плеер показывается только если есть ссылка на эфир.',
     fieldHint: 'Схема площадки этого вида спорта.',
+    conflictTitle: 'Конфликт в экспрессе',
+    conflictBody:
+      'В одном купоне нельзя брать два исхода одного матча — например победу Челси и победу Реала. Иначе экспресс противоречит сам себе и не может сыграть.',
+    conflictRemove: 'Удалить «{label}»',
+    conflictKeepOne: 'Оставьте один исход',
   },
 };
 
@@ -1145,6 +1150,11 @@ export const en: Messages = {
     scoreKindMaps: 'By maps',
     cyberHint: 'Score and stats for this match. A player appears only when a stream link exists.',
     fieldHint: 'Court schematic for this sport.',
+    conflictTitle: 'Accumulator conflict',
+    conflictBody:
+      'You cannot put two selections from the same match on one accumulator — for example Chelsea to win and Real to win. The coupon would contradict itself.',
+    conflictRemove: 'Remove “{label}”',
+    conflictKeepOne: 'Keep only one selection',
   },
 };
 
@@ -1718,6 +1728,11 @@ export const pl: Messages = {
     scoreKindMaps: 'Według map',
     cyberHint: 'Wynik i statystyki tego meczu. Player tylko gdy jest link do transmisji.',
     fieldHint: 'Schemat boiska tego sportu.',
+    conflictTitle: 'Konflikt w ekspresie',
+    conflictBody:
+      'W jednym kuponie nie można wziąć dwóch typów z tego samego meczu — np. wygrana Chelsea i wygrana Realu. Ekspres przeczyłby sam sobie.',
+    conflictRemove: 'Usuń „{label}”',
+    conflictKeepOne: 'Zostaw jeden typ',
   },
 };
 

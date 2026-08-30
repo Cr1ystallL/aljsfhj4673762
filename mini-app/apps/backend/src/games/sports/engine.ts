@@ -239,7 +239,9 @@ class SportsEngine {
     for (let i = 0; i < rawLegs.length; i++) {
       const spec = rawLegs[i];
       if (seen.has(spec.eventId)) {
-        throw new Error('В экспрессе можно взять только один исход с одного события');
+        throw new Error(
+          'В экспрессе нельзя брать два исхода одного матча — купон противоречит сам себе. Оставьте один исход.'
+        );
       }
       seen.add(spec.eventId);
 
