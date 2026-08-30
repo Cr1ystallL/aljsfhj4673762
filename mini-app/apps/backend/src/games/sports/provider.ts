@@ -339,6 +339,7 @@ function statNum(c: EspnCompetitor, names: string[]): number | undefined {
   for (const row of rows) {
     const key = `${row.name ?? ''} ${row.abbreviation ?? ''}`.toLowerCase();
     if (names.some((n) => key.includes(n))) {
+      if (names.some((n) => n.includes('red')) && key.includes('yellow')) continue;
       const n = Number(row.value ?? row.displayValue);
       if (Number.isFinite(n)) return n;
     }
@@ -349,6 +350,8 @@ function statNum(c: EspnCompetitor, names: string[]): number | undefined {
 function parseCompetitorStats(home: EspnCompetitor, away: EspnCompetitor): MatchStats | undefined {
   const yellow1 = statNum(home, ['yellow']);
   const yellow2 = statNum(away, ['yellow']);
+  const red1 = statNum(home, ['redcard', 'red card', 'redcards']);
+  const red2 = statNum(away, ['redcard', 'red card', 'redcards']);
   const corners1 = statNum(home, ['corner']);
   const corners2 = statNum(away, ['corner']);
   const shotsOn1 = statNum(home, ['shotsontarget', 'shot on', 'sog', 'on target']);
@@ -362,6 +365,8 @@ function parseCompetitorStats(home: EspnCompetitor, away: EspnCompetitor): Match
   const stats: MatchStats = {
     yellow1,
     yellow2,
+    red1,
+    red2,
     corners1,
     corners2,
     shotsOn1,

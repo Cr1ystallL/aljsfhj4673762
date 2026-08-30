@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import type { SportEvent, OddsTrend } from '@/types/sports';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { Pressable } from '@/components/ui/pressable';
-import { useT } from '@/i18n/use-t';
+import { useT, type TxKey } from '@/i18n/use-t';
 import { formatSportsKickoff } from '@/lib/format-sports-time';
 import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
@@ -56,7 +56,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
       <div className="relative z-10 flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-roobert font-bold uppercase tracking-wider bg-white/[0.06] text-frost-white/80 border border-white/12">
-            {event.featuredTag || t('sports.matchOfDay')}
+            {featuredReasonLabel(event.featuredReason, t) || event.featuredTag || t('sports.matchOfDay')}
           </span>
           <span className="font-roobert text-[11px] text-whisper-gray truncate">
             {event.league}
@@ -168,6 +168,18 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
       </div>
     </div>
   );
+}
+
+function featuredReasonLabel(
+  reason: SportEvent['featuredReason'],
+  t: (key: TxKey) => string
+): string | null {
+  if (reason === 'live') return t('sports.featuredLive');
+  if (reason === 'goals') return t('sports.featuredGoals');
+  if (reason === 'cards') return t('sports.featuredCards');
+  if (reason === 'soon') return t('sports.featuredSoon');
+  if (reason === 'line') return t('sports.matchOfDay');
+  return null;
 }
 
 function OddsButton({
