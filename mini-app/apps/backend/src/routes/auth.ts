@@ -103,6 +103,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({
           success: true,
           sessionId,
+          accessToken,
           user: {
             id: user.id,
             telegramId: Number(user.telegramId),
@@ -191,6 +192,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({
           success: true,
           sessionId,
+          accessToken,
           user: {
             id: user.id,
             telegramId: Number(user.telegramId),

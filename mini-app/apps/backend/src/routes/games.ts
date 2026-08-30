@@ -19,6 +19,7 @@ import { macvpotManager } from '../games/macvpot/macvpot-singleton.js';
 import { CASES, getCases } from '../games/cases/config.js';
 import { crashManager } from '../game-engine/crash-room-singleton.js';
 import { logger } from '../utils/logger.js';
+import { jsonClone, toSlim } from '../games/blackjack/table-directory.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { bettingPipeline } from '../game-engine/betting-pipeline.js';
 import { prisma } from '../lib/prisma.js';
@@ -1348,7 +1349,12 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!table) {
       return reply.code(404).send({ error: 'Table not found' });
     }
-    return reply.send({ success: true, roomId: table.getRoomId(), state: table.getState(), chat: table.getChatHistory() });
+    return reply.send({
+      success: true,
+      roomId: table.getRoomId(),
+      state: table.getPublicState(),
+      chat: table.getChatHistory(),
+    });
   });
 
   // Blackjack automatic room matchmaking (routes to free table or creates new one if full)
@@ -1357,10 +1363,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const { userId } = await resolveBjUser(request);
       const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
       const table = blackjackSingleton.findAvailableTable(userId);
+      blackjackSingleton.ensureSpareEmptyTable();
       return reply.send({
         success: true,
         roomId: table.getRoomId(),
-        state: table.getState(),
+        state: table.getPublicState(),
         chat: table.getChatHistory(),
       });
     } catch (err: any) {
@@ -1370,7 +1377,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({
         success: true,
         roomId: 'bj_table_1',
-        state: main.getState(),
+        state: main.getPublicState(),
         chat: main.getChatHistory(),
       });
     }
@@ -1396,8 +1403,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.get('/blackjack/tables', async (_request, reply) => {
     try {
       const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-      const tables = blackjackSingleton.getAllTablesSummary();
-      return reply.send({ ok: true, tables });
+      blackjackSingleton.ensureSpareEmptyTable();
+      const tables = await blackjackSingleton.getAllTablesSummary();
+      return reply.send({ ok: true, tables: tables.map((t) => toSlim(t)) });
     } catch (err: any) {
       logger.error({ err }, 'Blackjack tables list failed');
       return reply.send({ ok: true, tables: [] });
@@ -1408,8 +1416,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.get('/blackjack/admin/tables', async (_request, reply) => {
     try {
       const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-      const tables = blackjackSingleton.getAllTablesSummary();
-      return reply.send({ ok: true, tables });
+      blackjackSingleton.ensureSpareEmptyTable();
+      const tables = await blackjackSingleton.getAllTablesSummary();
+      return reply.send({ ok: true, tables: jsonClone(tables, tables.map((t) => toSlim(t))) });
     } catch (err: any) {
       logger.error({ err }, 'Blackjack admin tables failed');
       return reply.send({ ok: true, tables: [] });
@@ -1419,22 +1428,27 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   // Blackjack Admin Create New Table
   app.post('/blackjack/admin/create-table', async (request, reply) => {
     try {
-      const { roomId } = (request.body as { roomId?: string }) || {};
+      const body = (request.body ?? {}) as { roomId?: string };
       const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-      let targetRoomId = roomId;
+      let targetRoomId = typeof body.roomId === 'string' && body.roomId.startsWith('bj_table_') ? body.roomId : '';
       if (!targetRoomId) {
+        const existing = await blackjackSingleton.getAllTablesSummary();
+        const ids = new Set(existing.map((t) => t.roomId));
+        blackjackSingleton.getAllRooms().forEach((r) => ids.add(r.getRoomId()));
         let idx = 1;
-        const all = blackjackSingleton.getAllRooms();
-        while (all.some((r) => r.getRoomId() === `bj_table_${idx}`)) {
-          idx++;
-        }
+        while (ids.has(`bj_table_${idx}`)) idx += 1;
         targetRoomId = `bj_table_${idx}`;
       }
       const table = blackjackSingleton.getTable(targetRoomId);
-      return reply.send({ ok: true, roomId: table.getRoomId(), state: table.getState() });
+      const tables = await blackjackSingleton.getAllTablesSummary();
+      return reply.send({
+        ok: true,
+        roomId: table.getRoomId(),
+        tables: tables.map((t) => toSlim(t)),
+      });
     } catch (err: any) {
       logger.error({ err }, 'Blackjack create table failed');
-      return reply.code(500).send({ ok: false, error: err.message || 'Failed to create table' });
+      return reply.code(500).send({ ok: false, error: err?.message || 'Failed to create table' });
     }
   });
 
@@ -1443,12 +1457,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     try {
       const { roomId = 'bj_table_1' } = (request.body as { roomId?: string }) || {};
       const { blackjackSingleton } = await import('../games/blackjack/blackjack-singleton.js');
-      const table = blackjackSingleton.getTable(roomId);
-      if (table) {
-        table.destroy();
-      }
+      blackjackSingleton.removeTable(roomId);
       const freshTable = blackjackSingleton.getTable(roomId);
-      return reply.send({ ok: true, roomId: freshTable.getRoomId(), state: freshTable.getState() });
+      const tables = await blackjackSingleton.getAllTablesSummary();
+      return reply.send({ ok: true, roomId: freshTable.getRoomId(), tables: tables.map((t) => ({ roomId: t.roomId, playersCount: t.playersCount, phase: t.phase })) });
     } catch (err: any) {
       logger.error({ err }, 'Blackjack reset table failed');
       return reply.code(500).send({ ok: false, error: err.message || 'Failed to reset table' });
@@ -1508,7 +1520,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const table = blackjackSingleton.getTable(roomId);
     const success = table.join(userId, name, avatar, seatId, bet);
 
-    return reply.send({ success, state: table.getState() });
+    return reply.send({ success, state: table.getPublicState() });
   });
 
   // Blackjack REST Leave Seat
@@ -1520,7 +1532,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const table = blackjackSingleton.getTable(roomId);
     table.leave(userId);
 
-    return reply.send({ success: true, state: table.getState() });
+    return reply.send({ success: true, state: table.getPublicState() });
   });
 
   // Blackjack REST Update Bet
@@ -1532,7 +1544,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const table = blackjackSingleton.getTable(roomId);
     const success = table.updateBet(userId, bet);
 
-    return reply.send({ success, state: table.getState() });
+    return reply.send({ success, state: table.getPublicState() });
   });
 
   // Blackjack REST Action
@@ -1547,7 +1559,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     else if (action === 'stand') success = await table.stand(userId);
     else if (action === 'double') success = await table.double(userId);
 
-    return reply.send({ success, state: table.getState() });
+    return reply.send({ success, state: table.getPublicState() });
   });
 
   // Blackjack REST Ready To Deal
@@ -1559,7 +1571,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const table = blackjackSingleton.getTable(roomId);
     const success = table.readyToDeal(userId, isReady);
 
-    return reply.send({ success, state: table.getState() });
+    return reply.send({ success, state: table.getPublicState() });
   });
 }
 

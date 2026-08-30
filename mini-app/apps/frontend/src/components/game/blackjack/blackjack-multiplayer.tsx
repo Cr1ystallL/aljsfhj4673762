@@ -125,6 +125,65 @@ const SEATS_CONFIG = [
 ];
 const SEATS_LAYOUT = SEATS_CONFIG;
 
+type TableListItem = {
+  roomId: string;
+  phase: string;
+  playersCount: number;
+  maxSeats?: number;
+  countdown: number;
+};
+
+function sortTableList(tables: TableListItem[]): TableListItem[] {
+  return [...tables].sort((a, b) => {
+    const na = Number(String(a.roomId).replace(/\D/g, '')) || 0;
+    const nb = Number(String(b.roomId).replace(/\D/g, '')) || 0;
+    return na - nb;
+  });
+}
+
+function mergeLiveTables(
+  tables: TableListItem[],
+  live?: { roomId: string; playersCount: number; phase?: string; countdown?: number }
+): TableListItem[] {
+  const byId = new Map<string, TableListItem>();
+  for (const row of tables) {
+    if (row?.roomId) byId.set(row.roomId, { maxSeats: 5, ...row });
+  }
+  if (live?.roomId) {
+    const prev = byId.get(live.roomId);
+    byId.set(live.roomId, {
+      roomId: live.roomId,
+      phase: live.phase || prev?.phase || 'waiting',
+      countdown: live.countdown ?? prev?.countdown ?? 12,
+      maxSeats: prev?.maxSeats ?? 5,
+      playersCount: Math.max(prev?.playersCount ?? 0, live.playersCount),
+    });
+  }
+  if (!byId.has('bj_table_1')) {
+    byId.set('bj_table_1', {
+      roomId: 'bj_table_1',
+      phase: 'waiting',
+      playersCount: 0,
+      maxSeats: 5,
+      countdown: 12,
+    });
+  }
+  const list = sortTableList([...byId.values()]);
+  const hasFree = list.some((t) => t.playersCount < (t.maxSeats ?? 5));
+  if (!hasFree) {
+    let index = 1;
+    while (byId.has(`bj_table_${index}`)) index += 1;
+    list.push({
+      roomId: `bj_table_${index}`,
+      phase: 'waiting',
+      playersCount: 0,
+      maxSeats: 5,
+      countdown: 12,
+    });
+  }
+  return sortTableList(list);
+}
+
 function convertCard(c: BJCard) {
   let rankNum = 10;
   if (c.rank === 'A') rankNum = 1;
@@ -277,26 +336,26 @@ export function BlackjackMultiplayer() {
   const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [tableHistory, setTableHistory] = useState<any[]>([]);
-  const [availableTables, setAvailableTables] = useState<
-    Array<{
-      roomId: string;
-      phase: string;
-      playersCount: number;
-      countdown: number;
-    }>
-  >([{ roomId: 'bj_table_1', phase: 'waiting', playersCount: 0, countdown: 12 }]);
+  const [availableTables, setAvailableTables] = useState<TableListItem[]>([
+    { roomId: 'bj_table_1', phase: 'waiting', playersCount: 0, maxSeats: 5, countdown: 12 },
+  ]);
 
   const fetchAvailableTables = useCallback(async () => {
     try {
-      const res = await fetch('/api/games/blackjack/tables', { credentials: 'include' });
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch('/api/games/blackjack/tables', { credentials: 'include', headers });
       if (res.ok) {
         const j = await res.json();
         if (Array.isArray(j.tables) && j.tables.length > 0) {
-          setAvailableTables(j.tables);
+          setAvailableTables((prev) => {
+            const live = prev.find((t) => t.roomId === roomId);
+            return mergeLiveTables(j.tables, live);
+          });
         }
       }
     } catch {}
-  }, []);
+  }, [token, roomId]);
 
   const fetchTableHistory = useCallback(async () => {
     try {
@@ -316,6 +375,24 @@ export function BlackjackMultiplayer() {
     void fetchAvailableTables();
     void fetchTableHistory();
   }, [fetchAvailableTables, fetchTableHistory]);
+
+  useEffect(() => {
+    setAvailableTables((prev) =>
+      mergeLiveTables(prev, {
+        roomId,
+        playersCount: state.players.length,
+        phase: state.phase,
+        countdown: state.countdown,
+      })
+    );
+  }, [roomId, state.players.length, state.phase, state.countdown]);
+
+  useEffect(() => {
+    if (!isTableMenuOpen) return;
+    void fetchAvailableTables();
+    const id = window.setInterval(() => void fetchAvailableTables(), 2500);
+    return () => window.clearInterval(id);
+  }, [isTableMenuOpen, fetchAvailableTables]);
 
   // User's selected bet for their seat (defaults to 0 until placed)
   const [selectedBet, setSelectedBet] = useState(0);
@@ -668,6 +745,14 @@ export function BlackjackMultiplayer() {
               if (Array.isArray(data.payload.history)) {
                 setTableHistory(data.payload.history);
               }
+              setAvailableTables((prev) =>
+                mergeLiveTables(prev, {
+                  roomId: data.payload.roomId || roomId,
+                  playersCount: Array.isArray(data.payload.players) ? data.payload.players.length : 0,
+                  phase: data.payload.phase,
+                  countdown: data.payload.countdown,
+                })
+              );
               if (data.payload.phase === 'settling' || data.payload.phase === 'finished') {
                 void fetchBalance();
                 void syncBalance();
@@ -677,6 +762,26 @@ export function BlackjackMultiplayer() {
                   void syncBalance();
                 }, 800);
                 setTimeout(() => void fetchBalance(), 2000);
+              }
+            }
+
+            if (data.type === 'bj:tables' && Array.isArray(data.payload?.tables)) {
+              setAvailableTables((prev) => {
+                const live = prev.find((t) => t.roomId === roomId) ?? {
+                  roomId,
+                  playersCount: 0,
+                  phase: 'waiting',
+                  countdown: 12,
+                };
+                return mergeLiveTables(data.payload.tables, live);
+              });
+            }
+
+            if (data.type === 'error' && data.payload) {
+              const code = data.payload.code;
+              if (code === 'TABLE_FULL' || code === 'JOIN_SEAT_FAILED') {
+                toast.info(data.payload.message || 'Место занято');
+                void fetchAvailableTables();
               }
             }
 
@@ -733,7 +838,7 @@ export function BlackjackMultiplayer() {
       if (pingInterval) clearInterval(pingInterval);
       ws?.close();
     };
-  }, [roomId, sessionId, token, user?.id, syncBalance, fetchBalance, fetchTableHistory]);
+  }, [roomId, sessionId, token, user?.id, syncBalance, fetchBalance, fetchTableHistory, fetchAvailableTables]);
 
   const handleJoinSeat = (seatId: number) => {
     setSelectedBet(0);
@@ -1608,6 +1713,9 @@ export function BlackjackMultiplayer() {
                     const isCountdown = tbl.phase === 'countdown';
                     const isPlayerTurn = tbl.phase === 'player_turn';
                     const isDealerTurn = tbl.phase === 'dealer_turn';
+                    const maxSeats = tbl.maxSeats ?? 5;
+                    const isFull = tbl.playersCount >= maxSeats;
+                    const isEmpty = tbl.playersCount === 0;
 
                     return (
                       <button
@@ -1631,7 +1739,7 @@ export function BlackjackMultiplayer() {
                           <div className="flex items-center gap-1.5">
                             <span className={cn(
                               "h-1.5 w-1.5 rounded-full shrink-0",
-                              isCurrent ? "bg-emerald-400 animate-pulse" : "bg-white/40"
+                              isCurrent ? "bg-emerald-400 animate-pulse" : isEmpty ? "bg-white/70" : "bg-white/40"
                             )} />
                             <span className={cn(
                               "text-xs font-bold truncate",
@@ -1641,7 +1749,11 @@ export function BlackjackMultiplayer() {
                             </span>
                           </div>
                           <span className="text-[9px] text-white/50 mt-0.5">
-                            {isCountdown
+                            {isEmpty
+                              ? 'Свободен'
+                              : isFull
+                              ? 'Полный'
+                              : isCountdown
                               ? `Ставки (${tbl.countdown}с)`
                               : isPlayerTurn
                               ? 'Ход игроков'
@@ -1652,8 +1764,15 @@ export function BlackjackMultiplayer() {
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0 ml-2">
-                          <span className="px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-[9px] font-mono font-bold text-white/80">
-                            {tbl.playersCount}/5
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded-md border text-[9px] font-mono font-bold",
+                            isFull
+                              ? "bg-white/10 border-white/15 text-white/55"
+                              : isEmpty
+                              ? "bg-white/[0.08] border-white/20 text-frost-white"
+                              : "bg-black/60 border-white/10 text-white/80"
+                          )}>
+                            {tbl.playersCount}/{maxSeats}
                           </span>
                         </div>
                       </button>

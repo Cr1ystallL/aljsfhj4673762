@@ -12,6 +12,7 @@ import { apiClient } from '../api/client';
 export interface TelegramAuthResponse {
   success: boolean;
   sessionId: string;
+  accessToken?: string;
   user: {
     id: string;
     telegramId: number;

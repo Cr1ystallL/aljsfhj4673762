@@ -896,6 +896,7 @@ function BlackjackLiveTablesMonitor() {
   const router = useRouter();
   const [tables, setTables] = useState<BJTableSummary[]>([]);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -917,6 +918,7 @@ function BlackjackLiveTablesMonitor() {
 
   const handleCreateTable = async () => {
     setCreating(true);
+    setCreateError(null);
     try {
       const res = await fetch('/api/games/blackjack/admin/create-table', {
         method: 'POST',
@@ -924,9 +926,23 @@ function BlackjackLiveTablesMonitor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
+      const j = await res.json().catch(() => null);
       if (res.ok) {
+        if (Array.isArray(j?.tables) && j.tables.length > 0) {
+          setTables((prev) => {
+            const byId = new Map(prev.map((t) => [t.roomId, t]));
+            for (const row of j.tables) {
+              if (row?.roomId) byId.set(row.roomId, { ...byId.get(row.roomId), ...row });
+            }
+            return [...byId.values()];
+          });
+        }
         await fetchTables();
+      } else {
+        setCreateError(j?.error || `Не удалось создать стол (${res.status})`);
       }
+    } catch {
+      setCreateError('Не удалось создать стол');
     } finally {
       setCreating(false);
     }
@@ -965,6 +981,9 @@ function BlackjackLiveTablesMonitor() {
           <span>{creating ? 'Создание…' : 'Создать стол'}</span>
         </button>
       </div>
+      {createError ? (
+        <p className="font-roobert text-[11px] text-rose-300">{createError}</p>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {tables.map((tbl) => {

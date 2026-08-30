@@ -3,17 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * Proxy Blackjack game API to the Fastify backend.
  *
- * Same-origin call from the browser → Next forwards to the Fastify host
- * with cookies attached so authentication works through the cookie
- * session layer.
+ * Same-origin call from the browser → Next forwards to Fastify on loopback.
+ * Do NOT fall back to NEXT_PUBLIC_API_URL (https://macvbet.nl): that
+ * re-enters this Next route and returns 500 on create-table / tables.
  */
 function backendBaseUrl(): string {
-  const b =
-    process.env.INTERNAL_API_URL ||
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL;
-  if (b) return b.replace(/\/$/, '');
-  return 'http://127.0.0.1:4000';
+  const b = process.env.INTERNAL_API_URL || process.env.BACKEND_URL || 'http://127.0.0.1:4000';
+  return b.replace(/\/$/, '');
 }
 
 export const dynamic = 'force-dynamic';
@@ -42,14 +38,21 @@ async function proxy(
     body = await request.text();
   }
 
-  const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
-  const text = await res.text();
-  const contentType = res.headers.get('content-type') || 'application/json';
-
-  return new NextResponse(text, {
-    status: res.status,
-    headers: { 'content-type': contentType },
-  });
+  try {
+    const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
+    const text = await res.text();
+    const contentType = res.headers.get('content-type') || 'application/json';
+    return new NextResponse(text, {
+      status: res.status,
+      headers: { 'content-type': contentType },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Blackjack proxy failed';
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status: 502 }
+    );
+  }
 }
 
 export async function GET(
