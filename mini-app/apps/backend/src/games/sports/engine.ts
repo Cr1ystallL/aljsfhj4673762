@@ -6,6 +6,7 @@ import type { Bet } from '../../game-engine/types.js';
 import type { SportKind } from './catalog.js';
 import { fetchLiveBoard, type FeedEvent } from './provider.js';
 import {
+  cashoutPriceFactor,
   findOutcome,
   formatMmSs,
   interpolateClock,
@@ -389,20 +390,24 @@ class SportsEngine {
     const tracked = this.bets.get(betId);
     if (!tracked) return null;
     if (tracked.legs.some((l) => l.result === 'lost')) return null;
-    let product = 1;
-    for (const leg of tracked.legs) {
-      if (leg.result === 'void') continue;
-      if (leg.result === 'won') {
-        product *= leg.odds;
-        continue;
+    const priced = tracked.legs.map((leg) => {
+      if (leg.result === 'void' || leg.result === 'won' || leg.result === 'lost') {
+        return { result: leg.result, quoted: leg.odds };
       }
       const ev = this.events.get(leg.eventId);
-      if (!ev || ev.feed.status === 'finished' || this.suspended.has(leg.eventId)) return null;
+      if (!ev || ev.feed.status === 'finished' || this.suspended.has(leg.eventId)) {
+        return { result: 'pending' as const, quoted: leg.odds, liveOdds: undefined };
+      }
       const live = findOutcome(ev.feed.markets, leg.marketKind, leg.outcomeKey, leg.line);
-      if (!live) return null;
-      product *= live.odds;
-    }
-    const amount = Math.min(limits.maxPayout, roundMoney(stake * product * limits.cashoutMargin));
+      return { result: 'pending' as const, quoted: leg.odds, liveOdds: live?.odds };
+    });
+    const factor = cashoutPriceFactor(priced);
+    if (factor == null) return null;
+    const potential = stake * tracked.combinedOdds;
+    const amount = Math.min(
+      limits.maxPayout,
+      roundMoney(Math.min(potential, stake * factor) * limits.cashoutMargin)
+    );
     if (amount < 0.01) return null;
     return { amount, multiplier: formatCombined(amount / Math.max(0.01, stake)) };
   }
