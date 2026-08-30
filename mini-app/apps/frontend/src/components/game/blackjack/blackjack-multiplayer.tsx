@@ -1260,6 +1260,15 @@ export function BlackjackMultiplayer() {
       const betPayload = { roomId, bet: selectedBet, userId: effectiveUserId };
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         sendWs('blackjack:bet', betPayload);
+      } else {
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        fetch('/api/games/blackjack/bet', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(betPayload),
+          credentials: 'include',
+        }).catch(() => {});
       }
     }
 
@@ -1277,7 +1286,7 @@ export function BlackjackMultiplayer() {
       ),
     }));
 
-    const payload = { roomId, isReady: nextReady, userId: effectiveUserId };
+    const payload = { roomId, isReady: nextReady, userId: effectiveUserId, bet: currentBet };
 
     // 1. WebSocket dispatch
     if (wsRef.current?.readyState === WebSocket.OPEN) {

@@ -312,11 +312,12 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
 
         // Handle Blackjack Ready to Deal / Vote Deal
         if (validMessage.type === 'blackjack:ready_to_deal') {
-          const { roomId, isReady } = validMessage.payload;
+          const { roomId, isReady, bet } = validMessage.payload;
+          const payloadBet = typeof bet === 'number' ? bet : typeof (data?.payload?.bet) === 'number' ? data.payload.bet : undefined;
           const userId = validMessage.payload.userId || (data?.payload?.userId) || socket.userId;
           if (userId) {
             const engine = blackjackSingleton.getTable(roomId);
-            engine.readyToDeal(userId, isReady);
+            engine.readyToDeal(userId, isReady, payloadBet);
           }
           return;
         }

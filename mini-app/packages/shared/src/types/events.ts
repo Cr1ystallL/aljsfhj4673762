@@ -106,6 +106,7 @@ export const ClientBlackjackReadyToDealEventSchema = z.object({
     roomId: z.string(),
     isReady: z.boolean().optional(),
     userId: z.string().optional(),
+    bet: z.number().optional(),
   }),
   timestamp: z.number(),
 });
