@@ -1,10 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Flame, Radio, Calendar, SlidersHorizontal, Trophy, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useIsAdmin } from '@/lib/admin-probe';
+import { Search, Trophy, Calendar, X } from 'lucide-react';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { SportsTopBar } from '@/components/sports/sports-top-bar';
 import { SportsCategoryNav } from '@/components/sports/sports-category-nav';
@@ -17,8 +14,6 @@ import { useT } from '@/i18n/use-t';
 import { cn } from '@/lib/utils';
 
 export default function SportPage() {
-  const router = useRouter();
-  const isAdmin = useIsAdmin();
   const { t } = useT();
 
   const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('top');
@@ -26,31 +21,58 @@ export default function SportPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBet, setSelectedBet] = useState<SelectedBet | null>(null);
 
-  // If explicitly not admin, redirect to home
-  useEffect(() => {
-    if (isAdmin === false) {
-      router.replace('/');
-    }
-  }, [isAdmin, router]);
-
-  // Real-time live sports engine hook
   const {
+    events: allEvents,
     getFilteredEvents,
     featuredMatch,
     liveCount,
     categoryCounts,
+    minBet,
+    maxBet,
+    paused,
+    loading,
+    error,
   } = useLiveSports();
 
-  // Filtered events list
+  useEffect(() => {
+    if (!selectedBet) return;
+    const ev = allEvents.find((e) => e.id === selectedBet.eventId);
+    if (!ev || ev.status === 'finished') {
+      setSelectedBet(null);
+      return;
+    }
+    const odds =
+      selectedBet.outcomeType === 'p1'
+        ? ev.odds.p1
+        : selectedBet.outcomeType === 'p2'
+          ? ev.odds.p2
+          : ev.odds.x;
+    if (!odds) {
+      setSelectedBet(null);
+      return;
+    }
+    if (odds !== selectedBet.odds || ev.isLive !== selectedBet.isLive) {
+      setSelectedBet({ ...selectedBet, odds, isLive: ev.isLive });
+    }
+  }, [allEvents, selectedBet]);
+
   const events = useMemo(() => {
-    return getFilteredEvents({
+    const list = getFilteredEvents({
       category: selectedCategory,
       mode,
       searchQuery,
     });
-  }, [getFilteredEvents, selectedCategory, mode, searchQuery]);
+    if (
+      featuredMatch &&
+      !searchQuery.trim() &&
+      mode !== 'live' &&
+      (selectedCategory === 'top' || selectedCategory === 'all' || selectedCategory === 'football')
+    ) {
+      return list.filter((e) => e.id !== featuredMatch.id);
+    }
+    return list;
+  }, [getFilteredEvents, selectedCategory, mode, searchQuery, featuredMatch]);
 
-  // Group events by league
   const groupedByLeague = useMemo(() => {
     const map = new Map<string, SportEvent[]>();
     for (const ev of events) {
@@ -67,13 +89,22 @@ export default function SportPage() {
     mode !== 'live' &&
     (selectedCategory === 'top' || selectedCategory === 'all' || selectedCategory === 'football');
 
+  const heading =
+    mode === 'live'
+      ? t('sports.liveEvents')
+      : selectedCategory === 'top'
+        ? t('sports.mainEvents')
+        : t('sports.matches');
+
   return (
     <div className="min-h-screen bg-midnight-canvas text-frost-white pb-32">
-      {/* Fixed Sticky Header */}
       <SportsTopBar />
 
       <main className={`mx-auto px-3.5 pt-3 flex flex-col gap-4 ${PAGE_WIDTH.reading}`}>
-        {/* Search & Filter Bar */}
+        <p className="font-roobert text-[11px] text-whisper-gray px-0.5">
+          {t('sports.virtualLine')}
+        </p>
+
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
             <Search
@@ -85,7 +116,7 @@ export default function SportPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('sports.searchPlaceholder')}
-              className="w-full pl-9 pr-8 py-2.5 rounded-2xl border border-white/10 bg-[#12141a] text-frost-white placeholder:text-whisper-gray/70 text-[13px] font-roobert focus:outline-none focus:border-amber-400/50 focus:ring-1 focus:ring-amber-400/30 transition-all shadow-inner"
+              className="w-full pl-9 pr-8 py-2.5 rounded-2xl border border-white/10 bg-[#12141a] text-frost-white placeholder:text-whisper-gray/70 text-[13px] font-roobert focus:outline-none focus:border-white/25 transition-all shadow-inner"
             />
             {searchQuery && (
               <button
@@ -98,82 +129,72 @@ export default function SportPage() {
           </div>
         </div>
 
-        {/* Sports Horizontal Category Carousel */}
         <SportsCategoryNav
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
           counts={categoryCounts}
         />
 
-        {/* Mode Switcher: All | Live (Count) | Prematch */}
         <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl border border-white/10 bg-[#101217]">
-          {/* Mode All */}
           <button
             onClick={() => setMode('all')}
             className={cn(
               'py-2 px-3 rounded-xl font-roobert text-[12px] font-semibold transition-all active:scale-95 flex items-center justify-center gap-1.5',
               mode === 'all'
-                ? 'bg-[#1e222b] text-frost-white border border-white/15 shadow-md'
+                ? 'bg-[#1e222b] text-frost-white border border-white/15'
                 : 'text-whisper-gray hover:text-frost-white'
             )}
           >
-            <Trophy size={13} className="text-amber-400" />
+            <Trophy size={13} className="text-frost-white/70" />
             <span>{t('sports.all')}</span>
           </button>
 
-          {/* Mode Live */}
           <button
             onClick={() => setMode('live')}
             className={cn(
-              'py-2 px-3 rounded-xl font-roobert text-[12px] font-semibold transition-all active:scale-95 flex items-center justify-center gap-1.5 relative',
+              'py-2 px-3 rounded-xl font-roobert text-[12px] font-semibold transition-all active:scale-95 flex items-center justify-center gap-1.5',
               mode === 'live'
-                ? 'bg-red-500/20 text-red-300 border border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                ? 'bg-red-500/15 text-red-200 border border-red-500/30'
                 : 'text-whisper-gray hover:text-frost-white'
             )}
           >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-            </span>
+            <span className="inline-flex rounded-full h-2 w-2 bg-red-400" />
             <span>{t('sports.live')}</span>
             <span className="text-[10px] opacity-75 tabular-nums">({liveCount})</span>
           </button>
 
-          {/* Mode Prematch */}
           <button
             onClick={() => setMode('prematch')}
             className={cn(
               'py-2 px-3 rounded-xl font-roobert text-[12px] font-semibold transition-all active:scale-95 flex items-center justify-center gap-1.5',
               mode === 'prematch'
-                ? 'bg-[#1e222b] text-frost-white border border-white/15 shadow-md'
+                ? 'bg-[#1e222b] text-frost-white border border-white/15'
                 : 'text-whisper-gray hover:text-frost-white'
             )}
           >
-            <Calendar size={13} className="text-cyan-400" />
+            <Calendar size={13} className="text-whisper-gray" />
             <span>{t('sports.prematch')}</span>
           </button>
         </div>
 
-        {/* Featured Hero: "Матч дня" (Winline style) */}
-        {showFeaturedHero && (
-          <div className="flex flex-col gap-2">
-            <FeaturedMatchCard
-              event={featuredMatch}
-              selectedBet={selectedBet}
-              onSelectBet={setSelectedBet}
-            />
+        {paused && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 font-roobert text-[12px] text-whisper-gray">
+            {t('sports.linePaused')}
           </div>
         )}
 
-        {/* Section Heading */}
+        {showFeaturedHero && featuredMatch && (
+          <FeaturedMatchCard
+            event={featuredMatch}
+            selectedBet={selectedBet}
+            onSelectBet={setSelectedBet}
+          />
+        )}
+
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
             <h2 className="font-roobert text-[15px] font-bold text-frost-white tracking-tight">
-              {mode === 'live'
-                ? 'Live события'
-                : selectedCategory === 'top'
-                ? t('sports.mainEvents')
-                : 'Матчи'}
+              {heading}
             </h2>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-roobert font-bold bg-white/[0.08] text-whisper-gray">
               {events.length}
@@ -181,12 +202,20 @@ export default function SportPage() {
           </div>
         </div>
 
-        {/* Matches Feed grouped by League */}
-        {groupedByLeague.length > 0 ? (
+        {loading && events.length === 0 ? (
+          <div className="rounded-3xl border border-white/10 bg-[#12141a] p-8 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
+          </div>
+        ) : error && events.length === 0 ? (
+          <div className="rounded-3xl border border-white/10 bg-[#12141a] p-8 flex flex-col items-center justify-center text-center gap-2">
+            <h4 className="font-roobert text-[15px] font-bold text-frost-white">
+              {t('sports.lineError')}
+            </h4>
+          </div>
+        ) : groupedByLeague.length > 0 ? (
           <div className="flex flex-col gap-4">
             {groupedByLeague.map(([leagueName, leagueEvents]) => (
               <div key={leagueName} className="flex flex-col gap-2">
-                {/* League Header */}
                 <div className="flex items-center justify-between px-1 py-1 rounded-xl bg-white/[0.03] border border-white/5">
                   <span className="font-roobert text-[12px] font-bold text-frost-white/90 truncate max-w-[85%]">
                     {leagueName}
@@ -196,7 +225,6 @@ export default function SportPage() {
                   </span>
                 </div>
 
-                {/* Match Cards */}
                 <div className="flex flex-col gap-2">
                   {leagueEvents.map((ev) => (
                     <SportEventRow
@@ -211,7 +239,6 @@ export default function SportPage() {
             ))}
           </div>
         ) : (
-          /* Empty state */
           <div className="rounded-3xl border border-white/10 bg-[#12141a] p-8 flex flex-col items-center justify-center text-center gap-3 shadow-inner my-6">
             <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-whisper-gray">
               <Search size={22} />
@@ -230,7 +257,7 @@ export default function SportPage() {
                 setSelectedCategory('all');
                 setMode('all');
               }}
-              className="mt-2 px-4 py-2 rounded-xl border border-amber-400/40 bg-amber-400/10 text-amber-300 font-roobert text-[12px] font-semibold hover:bg-amber-400/20 active:scale-95 transition-all"
+              className="mt-2 px-4 py-2 rounded-xl border border-white/15 bg-white/[0.06] text-frost-white font-roobert text-[12px] font-semibold active:scale-95 transition-all"
             >
               {t('sports.resetFilters')}
             </button>
@@ -238,10 +265,12 @@ export default function SportPage() {
         )}
       </main>
 
-      {/* Floating Betslip Drawer */}
       <SportsBetslipDrawer
         selectedBet={selectedBet}
         onClearBet={() => setSelectedBet(null)}
+        minBet={minBet}
+        maxBet={maxBet}
+        paused={paused}
       />
     </div>
   );

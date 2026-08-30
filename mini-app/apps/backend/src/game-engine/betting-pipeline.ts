@@ -251,7 +251,7 @@ export class BettingPipeline {
     const amount = TWO_DP(bet.amount);
 
     const gt = getGameTypeFromBet(bet);
-    const supported: GameType[] = ['crash', 'mines', 'coinflip', 'wheel', 'blackjack', 'macvpot'];
+    const supported: GameType[] = ['crash', 'mines', 'coinflip', 'wheel', 'blackjack', 'macvpot', 'sports'];
     if (supported.includes(gt as GameType)) {
       const cfg = await gameConfig.get(gt as GameType);
       if (cfg.paused) {

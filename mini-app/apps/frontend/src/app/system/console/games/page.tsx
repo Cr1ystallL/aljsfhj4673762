@@ -24,7 +24,7 @@ import { distributePercentages } from '@casino/shared';
  * that's what they intuit.
  */
 
-type GameType = 'crash' | 'macvpot' | 'mines' | 'coinflip' | 'wheel' | 'blackjack' | 'hilo' | 'cases';
+type GameType = 'crash' | 'macvpot' | 'mines' | 'coinflip' | 'wheel' | 'blackjack' | 'hilo' | 'cases' | 'sports';
 
 interface GameCfg {
   paused: boolean;
@@ -41,7 +41,7 @@ interface GamesResponse {
   defaults: Record<GameType, GameCfg>;
 }
 
-const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'coinflip', 'wheel', 'hilo', 'cases'];
+const ORDER: GameType[] = ['macvpot', 'crash', 'mines', 'blackjack', 'coinflip', 'wheel', 'hilo', 'cases', 'sports'];
 
 export default function GamesAdminPage() {
   const [data, setData] = useState<GamesResponse | null>(null);

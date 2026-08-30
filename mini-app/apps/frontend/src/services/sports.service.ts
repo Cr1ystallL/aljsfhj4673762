@@ -1,523 +1,4 @@
-import type { SportCategoryKey, SportEvent } from '@/types/sports';
-
-export const INITIAL_SPORTS_EVENTS: SportEvent[] = [
-  // FEATURED: Match of the day (River Plate vs Santa Fe)
-  {
-    id: 'river-santafe',
-    sport: 'football',
-    league: 'Южноамериканский Кубок. 1/8 финала',
-    leagueCountry: 'Южная Америка',
-    team1: {
-      name: 'Ривер Плейт',
-      shortName: 'Ривер Плейт',
-      initials: 'РП',
-      color: '#DC2626',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_C_A_River_Plate.svg/200px-Escudo_del_C_A_River_Plate.svg.png',
-      attackStrength: 1.9,
-      defenseStrength: 0.85,
-    },
-    team2: {
-      name: 'Индепендьенте Санта-Фе',
-      shortName: 'Санта-Фе',
-      initials: 'СФ',
-      color: '#EF4444',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Escudo_de_Independiente_Santa_Fe.svg/200px-Escudo_de_Independiente_Santa_Fe.svg.png',
-      attackStrength: 0.9,
-      defenseStrength: 1.35,
-    },
-    startTime: '2026-08-27T00:30:00.000Z',
-    displayTime: 'Сегодня 03:30',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.31,
-      x: 5.00,
-      p2: 11.0,
-      total: { threshold: 2.5, over: 1.85, under: 1.95 },
-    },
-    marketsCount: 178,
-    isFeatured: true,
-    featuredTag: 'Матч дня',
-    hasStream: true,
-  },
-
-  // LIVE Football: Aldosivi vs Independiente Rivadavia (at 71st min live!)
-  {
-    id: 'aldosivi-independiente',
-    sport: 'football',
-    league: 'Аргентина. Кубок. 1/8 финала',
-    leagueCountry: 'Аргентина',
-    team1: {
-      name: 'Альдосиви',
-      shortName: 'Альдосиви',
-      initials: 'АЛД',
-      color: '#15803D',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png',
-      score: 0,
-      yellowCards: 2,
-      attackStrength: 0.9,
-      defenseStrength: 1.2,
-    },
-    team2: {
-      name: 'Индепендьенте Ривадавия',
-      shortName: 'Индепендьенте',
-      initials: 'ИНД',
-      color: '#1D4ED8',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Escudo_de_Independiente_Rivadavia.svg/200px-Escudo_de_Independiente_Rivadavia.svg.png',
-      score: 1,
-      yellowCards: 1,
-      attackStrength: 1.2,
-      defenseStrength: 0.95,
-    },
-    startTime: '2026-08-27T01:00:00.000Z',
-    displayTime: '2T 71:15',
-    status: 'live',
-    isLive: true,
-    liveMinute: 71,
-    liveSecond: 15,
-    livePeriod: '2T',
-    liveTime: '2T 71:15',
-    odds: {
-      p1: 15.0,
-      x: 4.80,
-      p2: 1.23,
-      total: { threshold: 1.5, over: 2.10, under: 1.65 },
-    },
-    marketsCount: 50,
-    hasStream: true,
-  },
-
-  // LIVE Football: America de Cali vs Junior Barranquilla (Live 4:33 from Fonbet screen)
-  {
-    id: 'america-junior',
-    sport: 'football',
-    league: 'Колумбия. Серия А',
-    leagueCountry: 'Колумбия',
-    team1: {
-      name: 'Америка де Кали',
-      shortName: 'Америка Кали',
-      initials: 'АМК',
-      color: '#DC2626',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Escudo_de_Am%C3%A9rica_de_Cali.svg/200px-Escudo_de_Am%C3%A9rica_de_Cali.svg.png',
-      score: 0,
-      yellowCards: 0,
-      attackStrength: 1.3,
-      defenseStrength: 1.0,
-    },
-    team2: {
-      name: 'Хуниор Барранкилья',
-      shortName: 'Хуниор',
-      initials: 'ХУН',
-      color: '#B91C1C',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Escudo_del_Club_Deportivo_Popular_Junior_F.C..svg/200px-Escudo_del_Club_Deportivo_Popular_Junior_F.C..svg.png',
-      score: 1,
-      yellowCards: 0,
-      attackStrength: 1.25,
-      defenseStrength: 1.05,
-    },
-    startTime: '2026-08-27T01:50:00.000Z',
-    displayTime: '1T 04:33',
-    status: 'live',
-    isLive: true,
-    liveMinute: 4,
-    liveSecond: 33,
-    livePeriod: '1T',
-    liveTime: '1T 04:33',
-    odds: {
-      p1: 2.50,
-      x: 3.45,
-      p2: 2.65,
-    },
-    marketsCount: 78,
-    hasStream: true,
-  },
-
-  // LIVE Tennis: Djokovic vs Alcaraz
-  {
-    id: 'djokovic-alcaraz',
-    sport: 'tennis',
-    league: 'US Open. Мужчины. Полуфинал',
-    team1: {
-      name: 'Новак Джокович',
-      shortName: 'Джокович Н.',
-      initials: 'НД',
-      color: '#2563EB',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Novak_Djokovic_Queen%27s_Club_2018.jpg/200px-Novak_Djokovic_Queen%27s_Club_2018.jpg',
-      score: 1,
-      subScores: [6, 4, 3],
-    },
-    team2: {
-      name: 'Карлос Алькарас',
-      shortName: 'Алькарас К.',
-      initials: 'КА',
-      color: '#EA580C',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Carlos_Alcaraz_%28ESP%29_2023.jpg/200px-Carlos_Alcaraz_%28ESP%29_2023.jpg',
-      score: 1,
-      subScores: [4, 6, 2],
-    },
-    startTime: '2026-08-27T01:15:00.000Z',
-    displayTime: '3-й сет 3:2',
-    status: 'live',
-    isLive: true,
-    liveMinute: 114,
-    livePeriod: '3-й сет',
-    liveTime: '3-й сет 3:2',
-    odds: {
-      p1: 1.92,
-      p2: 1.88,
-    },
-    marketsCount: 84,
-    hasStream: true,
-  },
-
-  // LIVE Basketball: Connecticut Sun vs Golden State
-  {
-    id: 'connecticut-goldenstate',
-    sport: 'basketball',
-    league: 'WNBA. Регулярный чемпионат',
-    team1: {
-      name: 'Коннектикут Сан (ж)',
-      shortName: 'Коннектикут',
-      initials: 'КОН',
-      color: '#D97706',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/59/Connecticut_Sun_logo.svg/200px-Connecticut_Sun_logo.svg.png',
-      score: 14,
-    },
-    team2: {
-      name: 'Голден Стэйт (ж)',
-      shortName: 'Голден Стэйт',
-      initials: 'ГС',
-      color: '#7C3AED',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/0/04/Golden_State_Valkyries_logo.svg/200px-Golden_State_Valkyries_logo.svg.png',
-      score: 26,
-    },
-    startTime: '2026-08-27T01:30:00.000Z',
-    displayTime: '1Ч 06:40',
-    status: 'live',
-    isLive: true,
-    liveMinute: 6,
-    livePeriod: '1Ч',
-    liveTime: '1Ч 06:40',
-    odds: {
-      p1: 8.20,
-      p2: 1.08,
-    },
-    marketsCount: 45,
-    hasStream: true,
-  },
-
-  // LIVE Esports: NAVI vs FaZe
-  {
-    id: 'navi-faze',
-    sport: 'cybersport',
-    league: 'CS 2. ESL Pro League Season 21',
-    team1: {
-      name: 'Natus Vincere',
-      shortName: 'NAVI',
-      initials: 'NAV',
-      color: '#EAB308',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/a/ac/Natus_Vincere_logo.svg/200px-Natus_Vincere_logo.svg.png',
-      score: 1,
-      subScores: [13, 8],
-    },
-    team2: {
-      name: 'FaZe Clan',
-      shortName: 'FaZe',
-      initials: 'FAZ',
-      color: '#EF4444',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/FaZe_Clan.svg/200px-FaZe_Clan.svg.png',
-      score: 0,
-      subScores: [9, 11],
-    },
-    startTime: '2026-08-27T01:00:00.000Z',
-    displayTime: '2-я карта (8:11)',
-    status: 'live',
-    isLive: true,
-    liveMinute: 48,
-    livePeriod: 'Map 2',
-    liveTime: 'Map 2 (8:11)',
-    odds: {
-      p1: 1.65,
-      p2: 2.25,
-    },
-    marketsCount: 42,
-    hasStream: true,
-  },
-
-  // PREMATCH: Deportivo Toluca vs Austin FC
-  {
-    id: 'toluca-austin',
-    sport: 'football',
-    league: 'Кубок Североамериканских лиг. 1/4 финала',
-    team1: {
-      name: 'Депортиво Толука',
-      shortName: 'Толука',
-      initials: 'ТОЛ',
-      color: '#DC2626',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Deportivo_Toluca_FC_logo.svg/200px-Deportivo_Toluca_FC_logo.svg.png',
-      attackStrength: 1.6,
-      defenseStrength: 1.0,
-    },
-    team2: {
-      name: 'Остин ФК',
-      shortName: 'Остин',
-      initials: 'ОСТ',
-      color: '#059669',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7b/Austin_FC_logo.svg/200px-Austin_FC_logo.svg.png',
-      attackStrength: 1.1,
-      defenseStrength: 1.25,
-    },
-    startTime: '2026-08-27T00:30:00.000Z',
-    displayTime: 'Сегодня 03:30',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.74,
-      x: 3.80,
-      p2: 4.70,
-    },
-    marketsCount: 178,
-    hasStream: true,
-  },
-
-  // PREMATCH: America Mexico vs Columbus Crew
-  {
-    id: 'america-columbus',
-    sport: 'football',
-    league: 'Кубок Североамериканских лиг. 1/4 финала',
-    team1: {
-      name: 'Америка Мехико',
-      shortName: 'Америка',
-      initials: 'АМЕ',
-      color: '#FBBF24',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Club_Am%C3%A9rica_logo.svg/200px-Club_Am%C3%A9rica_logo.svg.png',
-      attackStrength: 1.55,
-      defenseStrength: 0.95,
-    },
-    team2: {
-      name: 'Коламбус Кру',
-      shortName: 'Коламбус',
-      initials: 'КОЛ',
-      color: '#F59E0B',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/59/Columbus_Crew_logo_2021.svg/200px-Columbus_Crew_logo_2021.svg.png',
-      attackStrength: 1.15,
-      defenseStrength: 1.2,
-    },
-    startTime: '2026-08-27T02:45:00.000Z',
-    displayTime: 'Сегодня 05:45',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.75,
-      x: 3.55,
-      p2: 4.70,
-    },
-    marketsCount: 165,
-    hasStream: true,
-  },
-
-  // PREMATCH: Palmeiras vs Santos
-  {
-    id: 'palmeiras-santos',
-    sport: 'football',
-    league: 'Бразилия. Кубок. 1/4 финала. Первые матчи',
-    team1: {
-      name: 'Палмейрас СП',
-      shortName: 'Палмейрас',
-      initials: 'ПАЛ',
-      color: '#16A34A',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Palmeiras_logo.svg/200px-Palmeiras_logo.svg.png',
-      attackStrength: 1.8,
-      defenseStrength: 0.8,
-    },
-    team2: {
-      name: 'Сантос СП',
-      shortName: 'Сантос',
-      initials: 'САН',
-      color: '#4B5563',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Santos_Logo.png/200px-Santos_Logo.png',
-      attackStrength: 0.95,
-      defenseStrength: 1.4,
-    },
-    startTime: '2026-08-27T00:30:00.000Z',
-    displayTime: 'Сегодня 03:30',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.50,
-      x: 3.90,
-      p2: 7.20,
-    },
-    marketsCount: 191,
-    hasStream: true,
-  },
-
-  // PREMATCH: Vasco da Gama vs Vitoria
-  {
-    id: 'vasco-vitoria',
-    sport: 'football',
-    league: 'Бразилия. Кубок. 1/4 финала. Первые матчи',
-    team1: {
-      name: 'Васко да Гама РЖ',
-      shortName: 'Васко да Гама',
-      initials: 'ВАС',
-      color: '#111827',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Club_de_Regatas_Vasco_da_Gama.svg/200px-Club_de_Regatas_Vasco_da_Gama.svg.png',
-      attackStrength: 1.6,
-      defenseStrength: 0.9,
-    },
-    team2: {
-      name: 'Витория Салвадор',
-      shortName: 'Витория',
-      initials: 'ВИТ',
-      color: '#DC2626',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Esporte_Clube_Vit%C3%B3ria_logo.svg/200px-Esporte_Clube_Vit%C3%B3ria_logo.svg.png',
-      attackStrength: 0.95,
-      defenseStrength: 1.35,
-    },
-    startTime: '2026-08-27T00:30:00.000Z',
-    displayTime: 'Сегодня 03:30',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.55,
-      x: 3.60,
-      p2: 7.00,
-    },
-    marketsCount: 190,
-    hasStream: true,
-  },
-
-  // PREMATCH: Real Madrid vs Man City
-  {
-    id: 'real-mancity',
-    sport: 'football',
-    league: 'Лига Чемпионов УЕФА. 1/8 финала',
-    team1: {
-      name: 'Реал Мадрид',
-      shortName: 'Реал Мадрид',
-      initials: 'РМА',
-      color: '#FACC15',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/200px-Real_Madrid_CF.svg.png',
-      attackStrength: 2.1,
-      defenseStrength: 0.9,
-    },
-    team2: {
-      name: 'Манчестер Сити',
-      shortName: 'Ман Сити',
-      initials: 'МСИ',
-      color: '#38BDF8',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/200px-Manchester_City_FC_badge.svg.png',
-      attackStrength: 2.05,
-      defenseStrength: 0.92,
-    },
-    startTime: '2026-08-27T19:00:00.000Z',
-    displayTime: 'Завтра 22:00',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 2.15,
-      x: 3.65,
-      p2: 3.10,
-    },
-    marketsCount: 240,
-    hasStream: true,
-  },
-
-  // Tennis matches
-  {
-    id: 'udvardy-mertens',
-    sport: 'tennis',
-    league: 'WTA 500. Монтеррей',
-    team1: {
-      name: 'Удварди П.',
-      shortName: 'Удварди П.',
-      initials: 'УДВ',
-      color: '#10B981',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Panna_Udvardy_2022.jpg/200px-Panna_Udvardy_2022.jpg',
-    },
-    team2: {
-      name: 'Мертенс Э.',
-      shortName: 'Мертенс Э.',
-      initials: 'МЕР',
-      color: '#6366F1',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Elise_Mertens_2019.jpg/200px-Elise_Mertens_2019.jpg',
-    },
-    startTime: '2026-08-27T00:30:00.000Z',
-    displayTime: 'Сегодня 02:30',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 4.30,
-      p2: 1.22,
-    },
-    marketsCount: 45,
-    hasStream: true,
-  },
-
-  // Basketball: Boston Celtics vs LA Lakers
-  {
-    id: 'celtics-lakers',
-    sport: 'basketball',
-    league: 'NBA. Регулярный чемпионат',
-    team1: {
-      name: 'Бостон Селтикс',
-      shortName: 'Бостон',
-      initials: 'БОС',
-      color: '#15803D',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/8/8f/Boston_Celtics.svg/200px-Boston_Celtics.svg.png',
-    },
-    team2: {
-      name: 'Лос-Анджелес Лейкерс',
-      shortName: 'Лейкерс',
-      initials: 'ЛАЛ',
-      color: '#7E22CE',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Los_Angeles_Lakers_logo.svg/200px-Los_Angeles_Lakers_logo.svg.png',
-    },
-    startTime: '2026-08-27T04:00:00.000Z',
-    displayTime: 'Сегодня 07:00',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 1.45,
-      p2: 2.80,
-    },
-    marketsCount: 135,
-    hasStream: true,
-  },
-
-  // Hockey: Oilers vs Panthers
-  {
-    id: 'oilers-panthers',
-    sport: 'hockey',
-    league: 'NHL. Финал Кубка Стэнли',
-    team1: {
-      name: 'Эдмонтон Ойлерз',
-      shortName: 'Эдмонтон',
-      initials: 'ЭДМ',
-      color: '#EA580C',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4d/Logo_Edmonton_Oilers.svg/200px-Logo_Edmonton_Oilers.svg.png',
-    },
-    team2: {
-      name: 'Флорида Пантерз',
-      shortName: 'Флорида',
-      initials: 'ФЛО',
-      color: '#DC2626',
-      logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Florida_Panthers_2016_logo.svg/200px-Florida_Panthers_2016_logo.svg.png',
-    },
-    startTime: '2026-08-27T03:00:00.000Z',
-    displayTime: 'Сегодня 06:00',
-    status: 'prematch',
-    isLive: false,
-    odds: {
-      p1: 2.10,
-      x: 4.10,
-      p2: 2.85,
-    },
-    marketsCount: 112,
-    hasStream: true,
-  },
-];
+import type { SelectedBet, SportCategoryKey, SportEvent } from '@/types/sports';
 
 export interface SportsFilterOptions {
   category: SportCategoryKey;
@@ -525,8 +6,86 @@ export interface SportsFilterOptions {
   searchQuery?: string;
 }
 
+export interface SportsEventsResponse {
+  ok: boolean;
+  virtual?: boolean;
+  paused?: boolean;
+  minBet?: number;
+  maxBet?: number;
+  events: SportEvent[];
+}
+
+export interface SportsBetReceipt {
+  ok: boolean;
+  betId: string;
+  eventId: string;
+  outcome: SelectedBet['outcomeType'];
+  stake: number;
+  odds: number;
+  potentialWin: number;
+  error?: string;
+}
+
+export interface SportsUserBet {
+  id: string;
+  eventId: string;
+  eventName: string;
+  league: string;
+  outcome: string;
+  odds: number;
+  stake: number;
+  state: string;
+  payout: number;
+  placedAt: string;
+}
+
+async function parseJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+}
+
 export const sportsService = {
-  getInitialEvents: (): SportEvent[] => {
-    return JSON.parse(JSON.stringify(INITIAL_SPORTS_EVENTS));
+  async fetchEvents(): Promise<SportsEventsResponse> {
+    const res = await fetch('/api/sports/events', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const data = await parseJson<SportsEventsResponse & { error?: string }>(res);
+    if (!res.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    return data;
+  },
+
+  async placeBet(input: {
+    eventId: string;
+    outcome: SelectedBet['outcomeType'];
+    stake: number;
+  }): Promise<SportsBetReceipt> {
+    const res = await fetch('/api/sports/bet', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const data = await parseJson<SportsBetReceipt & { error?: string }>(res);
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Не удалось принять ставку');
+    }
+    return data;
+  },
+
+  async fetchMyBets(): Promise<SportsUserBet[]> {
+    const res = await fetch('/api/sports/my-bets', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const data = await parseJson<{ ok?: boolean; bets?: SportsUserBet[]; error?: string }>(res);
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data.bets ?? [];
   },
 };

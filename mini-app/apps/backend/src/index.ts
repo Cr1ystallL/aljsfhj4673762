@@ -46,6 +46,7 @@ async function start() {
     // singleton imported by the routes module.
     await import('./games/wheel/wheel-singleton.js');
     await import('./games/macvpot/macvpot-singleton.js');
+    await import('./games/sports/singleton.js');
     
     // Start automated background jobs
     const { startTournamentCron } = await import('./services/tournament-cron.js');

@@ -16,6 +16,7 @@ import {
   Sparkles,
   Trophy,
   User,
+  Users,
   Wallet,
   X,
   Zap,
@@ -286,17 +287,24 @@ export function MenuDrawer({
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  {availability?.isAdmin && (
-                    <SectionCard
-                      icon={<SoccerBallIcon size={18} className="text-amber-400" />}
-                      title={t('nav.sportsTitle')}
-                      description={t('nav.sportsDesc')}
-                      onClick={() => {
-                        onClose();
-                        router.push('/sport');
-                      }}
-                    />
-                  )}
+                  <SectionCard
+                    icon={<SoccerBallIcon size={18} className="text-frost-white" />}
+                    title={t('nav.sportsTitle')}
+                    description={t('nav.sportsDesc')}
+                    onClick={() => {
+                      onClose();
+                      router.push('/sport');
+                    }}
+                  />
+                  <SectionCard
+                    icon={<Users size={18} className="text-frost-white" />}
+                    title={t('nav.partnerTitle')}
+                    description={t('nav.partnerDesc')}
+                    onClick={() => {
+                      onClose();
+                      router.push('/partner');
+                    }}
+                  />
                   <SectionCard
                     icon={<Wallet size={18} className="text-emerald-400" />}
                     title={t('nav.walletTitle')}

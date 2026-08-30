@@ -69,7 +69,14 @@ export interface SportEvent {
   featuredTag?: string; // e.g. "Матч дня"
   hasStream?: boolean;
   isFavorite?: boolean;
-  lastEventNotification?: string; // e.g. "ГОЛ! 2:0 Ривер Плейт"
+  lastEventNotification?: string;
+  lastEvent?: {
+    kind: 'goal' | 'point';
+    team: 1 | 2;
+    score1: number;
+    score2: number;
+    at: number;
+  };
 }
 
 export interface SelectedBet {
