@@ -16,7 +16,6 @@ import {
   Sparkles,
   Trophy,
   User,
-  Users,
   Wallet,
   X,
   Zap,
@@ -72,7 +71,6 @@ export function MenuDrawer({
 
   const [availability, setAvailability] = useState<{
     isAdmin: boolean;
-    sportsAccess: boolean;
     hidden: Record<string, boolean>;
   } | null>(null);
 
@@ -95,11 +93,7 @@ export function MenuDrawer({
             if (g?.gameType) hidden[g.gameType] = !!g.hidden;
           }
         }
-        setAvailability({
-          isAdmin: !!json.isAdmin,
-          sportsAccess: !!json.sportsAccess,
-          hidden,
-        });
+        setAvailability({ isAdmin: !!json.isAdmin, hidden });
       } catch {
         // ignore
       }
@@ -292,24 +286,13 @@ export function MenuDrawer({
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  {availability?.sportsAccess && (
-                    <SectionCard
-                      icon={<SoccerBallIcon size={18} className="text-frost-white" />}
-                      title={t('nav.sportsTitle')}
-                      description={t('nav.sportsDesc')}
-                      onClick={() => {
-                        onClose();
-                        router.push('/sport');
-                      }}
-                    />
-                  )}
                   <SectionCard
-                    icon={<Users size={18} className="text-frost-white" />}
-                    title={t('nav.partnerTitle')}
-                    description={t('nav.partnerDesc')}
+                    icon={<SoccerBallIcon size={18} className="text-frost-white" />}
+                    title={t('nav.sportsTitle')}
+                    description={t('nav.sportsDesc')}
                     onClick={() => {
                       onClose();
-                      router.push('/partner');
+                      router.push('/sport');
                     }}
                   />
                   <SectionCard

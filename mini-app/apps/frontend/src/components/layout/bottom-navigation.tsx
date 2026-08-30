@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp, Menu, Sparkles, User, Users } from 'lucide-react';
+import { ChevronDown, ChevronUp, Menu, Sparkles, User } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { usePathname } from 'next/navigation';
 import { memo } from 'react';
@@ -15,9 +15,7 @@ interface BottomNavigationProps {
   onPlayClick: () => void;
   onProfileClick: () => void;
   onBonusesClick: () => void;
-  onPartnerClick: () => void;
-  onSportClick?: () => void;
-  showSport?: boolean;
+  onSportClick: () => void;
   forceHidden?: boolean;
 }
 
@@ -27,8 +25,7 @@ interface BottomNavigationProps {
  * Updates:
  *   - Center logo: painted glass (opaque fill + specular), no backdrop-blur —
  *     Telegram WebView taxes a full-width blur every frame.
- *   - Dock: Sport only for granted players / admins. Everyone else
- *     sees Partner in that slot.
+ *   - Dock: Sport for every player, marked BETA.
  */
 
 const fastSpringTransition = {
@@ -43,9 +40,7 @@ export const BottomNavigation = memo(function BottomNavigation({
   onPlayClick,
   onProfileClick,
   onBonusesClick,
-  onPartnerClick,
   onSportClick,
-  showSport = false,
   forceHidden = false,
 }: BottomNavigationProps) {
   const pathname = usePathname();
@@ -56,7 +51,6 @@ export const BottomNavigation = memo(function BottomNavigation({
   const isProfileActive = pathname?.startsWith('/profile') ?? false;
   const isBonusesActive = pathname?.startsWith('/bonuses') ?? false;
   const isSportActive = pathname?.startsWith('/sport') ?? false;
-  const isPartnerActive = pathname?.startsWith('/partner') ?? false;
 
   if (forceHidden) return null;
 
@@ -64,7 +58,6 @@ export const BottomNavigation = memo(function BottomNavigation({
     <div className="fixed bottom-2.5 inset-x-0 z-40 pointer-events-none flex flex-col items-center justify-end px-3">
       <AnimatePresence mode="wait">
         {hideable && collapsed ? (
-          /* Fast Pull Handle on /game/ routes */
           <motion.div
             key="pull-handle"
             initial={{ y: 30, opacity: 0 }}
@@ -87,7 +80,6 @@ export const BottomNavigation = memo(function BottomNavigation({
             </button>
           </motion.div>
         ) : (
-          /* Fast Bottom Dock Navigation */
           <motion.nav
             key="bottom-dock"
             initial={{ y: 50, opacity: 0 }}
@@ -96,7 +88,6 @@ export const BottomNavigation = memo(function BottomNavigation({
             transition={fastSpringTransition}
             className="pointer-events-auto w-full max-w-[460px] sm:max-w-[500px] rounded-full border border-white/15 bg-[#0c0e12] px-4 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)] flex items-center justify-between gap-1 relative"
           >
-            {/* Collapse button on /game/ pages */}
             {hideable && (
               <button
                 onClick={() => setCollapsed(true)}
@@ -107,7 +98,6 @@ export const BottomNavigation = memo(function BottomNavigation({
               </button>
             )}
 
-            {/* Menu Drawer trigger */}
             <NavItem
               active={false}
               onClick={onMenuClick}
@@ -115,7 +105,6 @@ export const BottomNavigation = memo(function BottomNavigation({
               icon={<Menu size={19} className="stroke-[2]" />}
             />
 
-            {/* Bonuses */}
             <NavItem
               active={isBonusesActive}
               onClick={onBonusesClick}
@@ -123,20 +112,17 @@ export const BottomNavigation = memo(function BottomNavigation({
               icon={<Sparkles size={19} className="stroke-[2]" />}
             />
 
-            {/* Center Primary Action — Enlarged Neutral Liquid Glass Button */}
             <button
               onClick={onPlayClick}
               aria-label={t('nav.home')}
               className="relative -top-3.5 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-150 z-10 shrink-0"
             >
-              {/* Pure Neutral Liquid Glass Container (No Color Tint) */}
               <div
                 className={cn(
                   'relative w-[60px] h-[60px] sm:w-[64px] sm:h-[64px] rounded-full border border-white/25 bg-[#16181d] flex items-center justify-center overflow-hidden transition-colors duration-150 shadow-lg',
                   isHomeActive && 'border-white/50 bg-[#1c1f26] ring-1 ring-white/30'
                 )}
               >
-                {/* Top Specular Reflection Line */}
                 <div
                   aria-hidden
                   className="absolute inset-0 pointer-events-none"
@@ -145,8 +131,6 @@ export const BottomNavigation = memo(function BottomNavigation({
                       'radial-gradient(100% 100% at 50% 0%, rgba(255, 255, 255, 0.45) 0%, transparent 60%)',
                   }}
                 />
-
-                {/* Brand Logo inside liquid glass */}
                 <div className="relative z-10 scale-110">
                   <BrandMark size={32} />
                 </div>
@@ -157,19 +141,13 @@ export const BottomNavigation = memo(function BottomNavigation({
             </button>
 
             <NavItem
-              active={showSport ? isSportActive : isPartnerActive}
-              onClick={showSport ? onSportClick ?? onPartnerClick : onPartnerClick}
-              label={showSport ? t('nav.sport') : t('nav.partner')}
-              icon={
-                showSport ? (
-                  <SoccerBallIcon size={19} className="stroke-[2]" />
-                ) : (
-                  <Users size={19} className="stroke-[2]" />
-                )
-              }
+              active={isSportActive}
+              onClick={onSportClick}
+              label={t('nav.sport')}
+              badge={t('sports.beta')}
+              icon={<SoccerBallIcon size={19} className="stroke-[2]" />}
             />
 
-            {/* Profile */}
             <NavItem
               active={isProfileActive}
               onClick={onProfileClick}
@@ -188,11 +166,13 @@ function NavItem({
   onClick,
   label,
   icon,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   icon: React.ReactElement;
+  badge?: string;
 }) {
   return (
     <button
@@ -201,11 +181,16 @@ function NavItem({
     >
       <div
         className={cn(
-          'flex items-center justify-center transition-colors duration-150',
+          'relative flex items-center justify-center transition-colors duration-150',
           active ? 'text-amber-400' : 'text-whisper-gray/70 hover:text-frost-white/90'
         )}
       >
         {icon}
+        {badge && (
+          <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 px-1 rounded-[3px] border border-white/20 bg-[#0c0e12] font-roobert text-[7px] font-semibold tracking-[0.12em] text-frost-white/75 leading-none py-px">
+            {badge}
+          </span>
+        )}
       </div>
       <span
         className={cn(

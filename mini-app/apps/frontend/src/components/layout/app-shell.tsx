@@ -7,7 +7,7 @@ import { MenuDrawer } from './menu-drawer';
 import { useNavStore } from '@/store/nav-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useT } from '@/i18n/use-t';
-import { useSportsAccess } from '@/hooks/use-sports-access';
+import { SportsBetaNotice } from '@/components/sports/sports-beta-notice';
 import { ChevronRight, Menu } from 'lucide-react';
 
 const HIDEABLE_PREFIXES = ['/game/'];
@@ -18,7 +18,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const setHideable = useNavStore((s) => s.setHideable);
   const isAuthenticated = !!useAuthStore((s) => s.token);
-  const { allowed: sportsAllowed } = useSportsAccess();
   const { t } = useT();
 
   useEffect(() => {
@@ -70,11 +69,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onPlayClick={handlePlayClick}
         onProfileClick={handleProfileClick}
         onBonusesClick={() => router.push('/bonuses')}
-        onPartnerClick={() => router.push('/partner')}
         onSportClick={() => router.push('/sport')}
-        showSport={sportsAllowed}
         forceHidden={isMenuOpen || isConsole}
       />
+      {pathname.startsWith('/sport') && <SportsBetaNotice />}
 
       <MenuDrawer
         isOpen={isMenuOpen}
