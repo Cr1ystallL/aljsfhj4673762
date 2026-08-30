@@ -363,7 +363,7 @@ export function BlackjackMultiplayer() {
   useEffect(() => {
     if (state.phase === 'dealing' || state.phase === 'player_turn') {
       const myBet = myPlayer?.bet || selectedBet || 0;
-      if (myBet >= 10 && !hasDebitedBetRef.current) {
+      if (myBet >= 10 && !hasDebitedBetRef.current && activeBalance >= myBet) {
         hasDebitedBetRef.current = true;
         optimisticUpdate(-myBet);
       }
@@ -819,10 +819,14 @@ export function BlackjackMultiplayer() {
       toast.info(`Максимальная ставка ${MAX_BET} ${currencyLabel}`);
       bet = MAX_BET;
     }
-    const maxAllowed = Math.min(MAX_BET, activeBalance > 0 ? activeBalance : MAX_BET);
+    const maxAllowed = Math.min(MAX_BET, Math.max(0, activeBalance));
+    if (bet > 0 && activeBalance < MIN_BET) {
+      toast.error('Недостаточно средств на балансе!');
+      return;
+    }
     const validBet = bet === 0 ? 0 : Math.max(MIN_BET, Math.min(bet, maxAllowed));
 
-    if (bet > 0 && isBalanceReady && activeBalance < validBet) {
+    if (validBet > activeBalance) {
       toast.error('Недостаточно средств на балансе!');
       return;
     }
@@ -859,9 +863,13 @@ export function BlackjackMultiplayer() {
     const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;
     if (!effectiveUserId) return;
 
-    const currentBet = myPlayer?.bet || selectedBet || 0;
+    const currentBet = selectedBet || myPlayer?.bet || 0;
     if (nextReady && currentBet < MIN_BET) {
       toast.info(`Сделайте ставку (мин. ${MIN_BET} ${currencyLabel})`);
+      return;
+    }
+    if (nextReady && currentBet > activeBalance) {
+      toast.error('Недостаточно средств на балансе для ставки!');
       return;
     }
 
@@ -874,7 +882,7 @@ export function BlackjackMultiplayer() {
     }
 
     // Instant optimistic balance deduction when player commits bet to deal
-    if (nextReady && currentBet >= MIN_BET && !hasDebitedBetRef.current) {
+    if (nextReady && currentBet >= MIN_BET && !hasDebitedBetRef.current && activeBalance >= currentBet) {
       hasDebitedBetRef.current = true;
       optimisticUpdate(-currentBet);
     }

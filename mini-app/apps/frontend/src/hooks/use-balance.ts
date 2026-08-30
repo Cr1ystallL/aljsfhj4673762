@@ -73,13 +73,13 @@ export function useBalance() {
     if (gameType) {
       const curT = useBalanceStore.getState().tournamentBalances.find(t => t.gameType === gameType);
       if (curT) {
-        useBalanceStore.getState().updateBalance(curT.balance + delta, gameType);
+        useBalanceStore.getState().updateBalance(Math.max(0, curT.balance + delta), gameType);
       }
       return;
     }
     const cur = useBalanceStore.getState().balance;
     if (!cur) return;
-    useBalanceStore.getState().updateBalance(cur.amount + delta);
+    useBalanceStore.getState().updateBalance(Math.max(0, cur.amount + delta));
   }, []);
   
   const freezeBalance = useCallback(() => {

@@ -35,21 +35,26 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
   setBalance: (balance, tournamentBalances) => {
     const state = get();
-    const effectiveTb = tournamentBalances !== undefined ? tournamentBalances : state.tournamentBalances;
+    const cleanBalance = balance ? { ...balance, amount: Math.max(0, balance.amount) } : null;
+    const effectiveTb = (tournamentBalances !== undefined ? tournamentBalances : state.tournamentBalances).map((t) => ({
+      ...t,
+      balance: Math.max(0, t.balance),
+    }));
     if (state.isFrozen) {
-      set({ pendingBalance: balance, pendingTournamentBalances: effectiveTb });
+      set({ pendingBalance: cleanBalance, pendingTournamentBalances: effectiveTb });
     } else {
-      set({ balance, tournamentBalances: effectiveTb, isLoading: false, pendingBalance: null, pendingTournamentBalances: null });
+      set({ balance: cleanBalance, tournamentBalances: effectiveTb, isLoading: false, pendingBalance: null, pendingTournamentBalances: null });
     }
   },
 
   updateBalance: (amount, gameType) =>
     set((state) => {
+      const nonNegative = Math.max(0, amount);
       if (gameType) {
         return {
-          tournamentBalances: state.tournamentBalances.map(t => 
-            t.gameType === gameType ? { ...t, balance: amount } : t
-          )
+          tournamentBalances: state.tournamentBalances.map((t) => 
+            t.gameType === gameType ? { ...t, balance: nonNegative } : t
+          ),
         };
       }
       
@@ -58,7 +63,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
       return {
         balance: {
           ...state.balance,
-          amount,
+          amount: nonNegative,
           lastSyncedAt: new Date(),
         },
       };
