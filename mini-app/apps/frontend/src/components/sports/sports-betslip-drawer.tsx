@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, ChevronUp } from 'lucide-react';
+import { X, Check, ChevronDown } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { useT } from '@/i18n/use-t';
 import { StakeField } from '@/components/game/kit/stake-field';
@@ -10,6 +10,7 @@ import { GamePrimaryButton } from '@/components/game/kit/game-primary-button';
 import { sportsService, SportsOddsChangedError } from '@/services/sports.service';
 import { useBalance } from '@/hooks/use-balance';
 import { useSportsSlip } from '@/store/sports-slip-store';
+import { SportsMyBets } from './sports-my-bets';
 
 interface SportsBetslipDrawerProps {
   minBet: number;
@@ -41,6 +42,9 @@ export function SportsBetslipDrawer({
   const [oddsPrompt, setOddsPrompt] = useState<Array<{ quoted: number; current: number }> | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [receipt, setReceipt] = useState<SlipReceipt | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(0);
+  const [betsTick, setBetsTick] = useState(0);
 
   useEffect(() => {
     setStake((current) => Math.min(maxBet, Math.max(minBet, current)));
@@ -49,8 +53,28 @@ export function SportsBetslipDrawer({
   useEffect(() => {
     if (legs.length > 0) {
       setCollapsed(false);
+      setDismissed(false);
     }
   }, [legs.length]);
+
+  useEffect(() => {
+    let stop = false;
+    const load = async () => {
+      try {
+        const bets = await sportsService.fetchMyBets();
+        if (stop) return;
+        setPendingOpen(bets.filter((b) => b.state === 'pending' || b.state === 'active').length);
+      } catch {
+        /* keep last */
+      }
+    };
+    void load();
+    const id = window.setInterval(() => void load(), 8000);
+    return () => {
+      stop = true;
+      window.clearInterval(id);
+    };
+  }, [receipt, betsTick]);
 
   const combinedOdds = useMemo(
     () => Math.round(legs.reduce((acc, leg) => acc * leg.odds, 1) * 100) / 100,
@@ -58,12 +82,13 @@ export function SportsBetslipDrawer({
   );
   const isExpress = legs.length >= 2;
   const potentialWin = stake * combinedOdds;
-  const visible = legs.length > 0 || !!receipt;
+  const visible = !dismissed && (legs.length > 0 || !!receipt || pendingOpen > 0);
 
   const dismiss = () => {
     setReceipt(null);
     setCollapsed(false);
     setIsSuccess(false);
+    setDismissed(true);
     clear();
   };
 
@@ -96,6 +121,8 @@ export function SportsBetslipDrawer({
         setReceipt(placed);
         setIsSuccess(false);
         setCollapsed(true);
+        setDismissed(false);
+        setBetsTick((n) => n + 1);
         clear();
       }, 700);
     } catch (err) {
@@ -115,6 +142,17 @@ export function SportsBetslipDrawer({
     }
   };
 
+  const dockLabel = legs.length
+    ? t('sports.betslipTitle')
+    : receipt
+      ? t('sports.betAcceptedShort')
+      : t('sports.myBets');
+  const dockHint = legs.length
+    ? t('sports.legsCount', { count: legs.length })
+    : receipt
+      ? `${t('sports.legsCount', { count: receipt.count })} · ${receipt.win.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł`
+      : t('sports.couponDock', { count: pendingOpen });
+
   return (
     <AnimatePresence>
       {visible && (
@@ -126,58 +164,67 @@ export function SportsBetslipDrawer({
             transition={{ type: 'spring', stiffness: 450, damping: 30 }}
             className="pointer-events-auto w-full max-w-[460px] rounded-3xl border border-white/12 bg-[#0f1217] shadow-[0_12px_45px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden"
           >
-            {collapsed || (receipt && legs.length === 0) ? (
-              <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
+            {collapsed ? (
+              <button
+                type="button"
+                onClick={() => setCollapsed(false)}
+                className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left"
+              >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
-                    <Check size={13} strokeWidth={2.6} />
+                    {receipt && !legs.length ? (
+                      <Check size={13} strokeWidth={2.6} />
+                    ) : (
+                      <SoccerBallIcon size={13} strokeWidth={2.2} />
+                    )}
                   </div>
                   <div className="min-w-0">
                     <div className="font-roobert text-[12px] font-bold text-frost-white truncate">
-                      {t('sports.betAcceptedShort')}
-                      {receipt ? ` · ${t('sports.legsCount', { count: receipt.count })}` : ''}
+                      {dockLabel}
                     </div>
-                    <div className="font-roobert text-[10px] text-whisper-gray">
-                      {t('sports.slipHidden')}
-                      {receipt
-                        ? ` · ${receipt.win.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł`
-                        : ''}
-                    </div>
+                    <div className="font-roobert text-[10px] text-whisper-gray truncate">{dockHint}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {legs.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setCollapsed(false)}
-                      className="px-2 py-1 rounded-lg border border-white/10 bg-white/[0.04] font-roobert text-[10px] text-frost-white"
-                    >
-                      {t('sports.slipShow')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={dismiss}
+                  <span className="px-2 py-1 rounded-lg border border-white/10 bg-white/[0.04] font-roobert text-[10px] text-frost-white">
+                    {t('sports.openCoupon')}
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dismiss();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') dismiss();
+                    }}
                     className="p-1 rounded-full text-whisper-gray hover:text-frost-white"
                     aria-label={t('common.close')}
                   >
                     <X size={15} />
-                  </button>
+                  </span>
                 </div>
-              </div>
+              </button>
             ) : (
-              <div className="p-4 flex flex-col gap-3">
+              <div className="p-4 flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
                       <SoccerBallIcon size={14} strokeWidth={2.2} />
                     </div>
                     <span className="font-roobert text-[13px] font-bold text-frost-white tracking-tight">
-                      {isExpress ? t('sports.express') : t('sports.betslipTitle')}
+                      {legs.length
+                        ? isExpress
+                          ? t('sports.express')
+                          : t('sports.betslipTitle')
+                        : t('sports.myBets')}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/[0.08] text-whisper-gray border border-white/10">
-                      {t('sports.legsCount', { count: legs.length })}
-                    </span>
+                    {legs.length > 0 && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/[0.08] text-whisper-gray border border-white/10">
+                        {t('sports.legsCount', { count: legs.length })}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1">
@@ -187,7 +234,7 @@ export function SportsBetslipDrawer({
                       className="p-1 rounded-full text-whisper-gray hover:text-frost-white hover:bg-white/10 transition-colors"
                       aria-label={t('sports.slipHidden')}
                     >
-                      <ChevronUp size={16} />
+                      <ChevronDown size={16} />
                     </button>
                     <button
                       onClick={dismiss}
@@ -199,117 +246,123 @@ export function SportsBetslipDrawer({
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5 max-h-[168px] overflow-y-auto">
-                  {legs.map((leg) => (
-                    <div
-                      key={`${leg.eventId}-${leg.marketKind}-${leg.outcomeType}-${leg.line ?? ''}`}
-                      className="rounded-2xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-roobert text-[11px] text-whisper-gray truncate">
-                          {leg.league}
+                {legs.length > 0 ? (
+                  <>
+                    <div className="flex flex-col gap-1.5 max-h-[168px] overflow-y-auto">
+                      {legs.map((leg) => (
+                        <div
+                          key={`${leg.eventId}-${leg.marketKind}-${leg.outcomeType}-${leg.line ?? ''}`}
+                          className="rounded-2xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-roobert text-[11px] text-whisper-gray truncate">
+                              {leg.league}
+                            </div>
+                            <div className="font-roobert text-[13px] font-semibold text-frost-white truncate">
+                              {leg.eventName}
+                            </div>
+                            <div className="font-roobert text-[10px] text-whisper-gray truncate">
+                              {leg.outcomeLabel}
+                              {leg.isLive ? ' · Live' : ''}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-roobert text-[15px] font-bold text-frost-white tabular-nums">
+                              {leg.odds.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => remove(leg.eventId)}
+                              className="p-1 rounded-full text-whisper-gray hover:text-frost-white"
+                              aria-label={t('sports.clearCoupon')}
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
                         </div>
-                        <div className="font-roobert text-[13px] font-semibold text-frost-white truncate">
-                          {leg.eventName}
-                        </div>
-                        <div className="font-roobert text-[10px] text-whisper-gray truncate">
-                          {leg.outcomeLabel}
-                          {leg.isLive ? ' · Live' : ''}
-                        </div>
+                      ))}
+                    </div>
+
+                    {isExpress && (
+                      <div className="flex items-center justify-between px-0.5">
+                        <span className="font-roobert text-[11px] text-whisper-gray">
+                          {t('sports.combinedOdds')}
+                        </span>
+                        <span className="font-roobert text-[14px] font-bold text-frost-white tabular-nums">
+                          {combinedOdds.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
+                    <StakeField
+                      amount={stake}
+                      onAmountChange={setStake}
+                      minBet={minBet}
+                      maxBet={maxBet}
+                      disabled={busy || isSuccess}
+                      label={t('sports.stake')}
+                    />
+
+                    {error && (
+                      <div className="font-roobert text-[11px] text-red-300">{error}</div>
+                    )}
+                    {oddsPrompt && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 font-roobert text-[11px] text-whisper-gray">
+                        {oddsPrompt.map((row, i) => (
+                          <div key={i} className="flex justify-between tabular-nums">
+                            <span>{row.quoted.toFixed(2)}</span>
+                            <span className="text-frost-white">{row.current.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10">
+                      <div className="flex flex-col">
+                        <span className="font-roobert text-[10px] text-whisper-gray uppercase tracking-tight">
+                          {t('sports.potentialWin')}
+                        </span>
+                        <span className="font-roobert text-[16px] font-extrabold text-frost-white tabular-nums">
+                          {potentialWin.toLocaleString(localeTag, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          zł
+                        </span>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-roobert text-[15px] font-bold text-frost-white tabular-nums">
-                          {leg.odds.toFixed(2)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => remove(leg.eventId)}
-                          className="p-1 rounded-full text-whisper-gray hover:text-frost-white"
-                          aria-label={t('sports.clearCoupon')}
+                      <div className="flex-1">
+                        <GamePrimaryButton
+                          onClick={() => {
+                            void handlePlaceBet(!!oddsPrompt);
+                          }}
+                          disabled={busy || isSuccess || paused}
+                          tone={isSuccess ? 'muted' : 'solid'}
                         >
-                          <X size={13} />
-                        </button>
+                          {isSuccess ? (
+                            <>
+                              <Check size={16} strokeWidth={3} />
+                              <span>{t('sports.betAccepted')}</span>
+                            </>
+                          ) : (
+                            <span>
+                              {paused
+                                ? t('sports.linePaused')
+                                : oddsPrompt
+                                  ? t('sports.acceptOdds')
+                                  : isExpress
+                                    ? t('sports.express')
+                                    : t('sports.placeBet')}
+                            </span>
+                          )}
+                        </GamePrimaryButton>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {isExpress && (
-                  <div className="flex items-center justify-between px-0.5">
-                    <span className="font-roobert text-[11px] text-whisper-gray">
-                      {t('sports.combinedOdds')}
-                    </span>
-                    <span className="font-roobert text-[14px] font-bold text-frost-white tabular-nums">
-                      {combinedOdds.toFixed(2)}
-                    </span>
-                  </div>
+                  </>
+                ) : (
+                  <SportsMyBets compact hideHeading reloadToken={betsTick} />
                 )}
-
-                <StakeField
-                  amount={stake}
-                  onAmountChange={setStake}
-                  minBet={minBet}
-                  maxBet={maxBet}
-                  disabled={busy || isSuccess}
-                  label={t('sports.stake')}
-                />
-
-                {error && (
-                  <div className="font-roobert text-[11px] text-red-300">{error}</div>
-                )}
-                {oddsPrompt && (
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 font-roobert text-[11px] text-whisper-gray">
-                    {oddsPrompt.map((row, i) => (
-                      <div key={i} className="flex justify-between tabular-nums">
-                        <span>{row.quoted.toFixed(2)}</span>
-                        <span className="text-frost-white">{row.current.toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10">
-                  <div className="flex flex-col">
-                    <span className="font-roobert text-[10px] text-whisper-gray uppercase tracking-tight">
-                      {t('sports.potentialWin')}
-                    </span>
-                    <span className="font-roobert text-[16px] font-extrabold text-frost-white tabular-nums">
-                      {potentialWin.toLocaleString(localeTag, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{' '}
-                      zł
-                    </span>
-                  </div>
-
-                  <div className="flex-1">
-                    <GamePrimaryButton
-                      onClick={() => {
-                        void handlePlaceBet(!!oddsPrompt);
-                      }}
-                      disabled={busy || isSuccess || paused}
-                      tone={isSuccess ? 'muted' : 'solid'}
-                    >
-                      {isSuccess ? (
-                        <>
-                          <Check size={16} strokeWidth={3} />
-                          <span>{t('sports.betAccepted')}</span>
-                        </>
-                      ) : (
-                        <span>
-                          {paused
-                            ? t('sports.linePaused')
-                            : oddsPrompt
-                              ? t('sports.acceptOdds')
-                              : isExpress
-                                ? t('sports.express')
-                                : t('sports.placeBet')}
-                        </span>
-                      )}
-                    </GamePrimaryButton>
-                  </div>
-                </div>
               </div>
             )}
           </motion.div>

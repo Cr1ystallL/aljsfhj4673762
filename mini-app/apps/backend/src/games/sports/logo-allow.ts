@@ -6,6 +6,7 @@ const LOGO_HOSTS = [
   /(^|\.)dota2\.com$/i,
   /(^|\.)hltv\.org$/i,
   /(^|\.)liquipedia\.net$/i,
+  /(^|\.)steamusercontent\.com$/i,
 ];
 
 export function isAllowedLogoHost(url: string): boolean {

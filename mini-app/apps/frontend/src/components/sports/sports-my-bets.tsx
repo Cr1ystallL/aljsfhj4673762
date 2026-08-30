@@ -7,7 +7,15 @@ import { useT } from '@/i18n/use-t';
 import { GamePrimaryButton } from '@/components/game/kit/game-primary-button';
 import { cn } from '@/lib/utils';
 
-export function SportsMyBets({ compact = false, hideHeading = false }: { compact?: boolean; hideHeading?: boolean }) {
+export function SportsMyBets({
+  compact = false,
+  hideHeading = false,
+  reloadToken = 0,
+}: {
+  compact?: boolean;
+  hideHeading?: boolean;
+  reloadToken?: number;
+}) {
   const { t, localeTag } = useT();
   const { syncBalance } = useBalance();
   const [bets, setBets] = useState<SportsUserBet[]>([]);
@@ -25,7 +33,7 @@ export function SportsMyBets({ compact = false, hideHeading = false }: { compact
     void load();
     const id = window.setInterval(() => void load(), 8000);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, reloadToken]);
 
   const onCashout = async (id: string) => {
     setBusy(id);
@@ -119,21 +127,41 @@ export function SportsMyBets({ compact = false, hideHeading = false }: { compact
                 </div>
               )}
 
-              <div className="mt-2 flex items-center justify-between">
-                <span className="font-roobert text-[12px] text-frost-white tabular-nums">
-                  {bet.payout > 0
-                    ? `${bet.payout.toLocaleString(localeTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
-                    : '—'}
-                </span>
+              <div className="mt-2 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-roobert text-[11px] text-whisper-gray">
+                    {t('sports.stakeShort', {
+                      amount: bet.stake.toLocaleString(localeTag, { maximumFractionDigits: 2 }),
+                    })}
+                  </span>
+                  <span className="font-roobert text-[12px] font-bold text-frost-white tabular-nums">
+                    {bet.payout > 0
+                      ? t('sports.paidOut', {
+                          amount: bet.payout.toLocaleString(localeTag, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }),
+                        })
+                      : t('sports.toWin', {
+                          amount: (bet.stake * bet.odds).toLocaleString(localeTag, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }),
+                        })}
+                  </span>
+                </div>
                 {bet.cashout && (
-                  <div className="w-[160px]">
+                  <>
+                    <p className="font-roobert text-[10px] leading-snug text-whisper-gray">
+                      {t('sports.cashoutHint')}
+                    </p>
                     <GamePrimaryButton
                       onClick={() => void onCashout(bet.id)}
                       disabled={busy === bet.id}
                     >
                       {t('sports.cashoutFor', { amount: bet.cashout.amount.toFixed(2) })}
                     </GamePrimaryButton>
-                  </div>
+                  </>
                 )}
               </div>
             </article>

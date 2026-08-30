@@ -69,27 +69,46 @@ function httpsUrl(raw?: string): string | undefined {
   return undefined;
 }
 
-function dotaLogo(teamId?: number, explicit?: string): string | undefined {
-  const fromApi = httpsUrl(explicit);
-  const fromId = teamId
-    ? `https://steamcdn-a.akamaihd.net/apps/dota2/images/team_logos/${teamId}.png`
-    : undefined;
-  return proxiedLogo(fromApi || fromId);
+const dotaLogoCache = new Map<number, string | undefined>();
+
+function dotaLogo(explicit?: string): string | undefined {
+  return proxiedLogo(httpsUrl(explicit));
+}
+
+async function resolveOpenDotaLogo(teamId?: number): Promise<string | undefined> {
+  if (!teamId) return undefined;
+  if (dotaLogoCache.has(teamId)) return dotaLogoCache.get(teamId);
+  try {
+    const res = await fetch(`https://api.opendota.com/api/teams/${teamId}`, {
+      headers: { accept: 'application/json', 'user-agent': LP_UA },
+    });
+    if (!res.ok) {
+      dotaLogoCache.set(teamId, undefined);
+      return undefined;
+    }
+    const json = (await res.json()) as { logo_url?: string };
+    const logo = proxiedLogo(httpsUrl(json.logo_url));
+    dotaLogoCache.set(teamId, logo);
+    return logo;
+  } catch {
+    dotaLogoCache.set(teamId, undefined);
+    return undefined;
+  }
 }
 
 function dotaSide(
   raw: OpenDotaLive['radiant_team'],
   flatName?: string,
   flatId?: number
-): { name: string; logo?: string } {
+): { name: string; teamId?: number; logo?: string } {
   if (typeof raw === 'string' && raw.trim()) {
-    return { name: raw.trim(), logo: dotaLogo(flatId) };
+    return { name: raw.trim(), teamId: flatId, logo: undefined };
   }
   if (raw && typeof raw === 'object') {
     const name = raw.team_name?.trim() || flatName?.trim() || '';
-    return { name, logo: dotaLogo(raw.team_id || flatId, raw.team_logo) };
+    return { name, teamId: raw.team_id || flatId, logo: dotaLogo(raw.team_logo) };
   }
-  return { name: flatName?.trim() || '', logo: dotaLogo(flatId) };
+  return { name: flatName?.trim() || '', teamId: flatId, logo: undefined };
 }
 
 function hltvLogo(side?: HltvSide): string | undefined {
@@ -210,9 +229,19 @@ async function fetchDota(now: number): Promise<FeedEvent[]> {
     .filter((m) => m.match_id && (m.league_id || (m.spectators ?? 0) > 80))
     .slice(0, 40);
 
-  return live.flatMap((m) => {
-    const side1 = dotaSide(m.radiant_team, m.team_name_radiant, m.team_id_radiant);
-    const side2 = dotaSide(m.dire_team, m.team_name_dire, m.team_id_dire);
+  const sides = live.map((m) => ({
+    match: m,
+    side1: dotaSide(m.radiant_team, m.team_name_radiant, m.team_id_radiant),
+    side2: dotaSide(m.dire_team, m.team_name_dire, m.team_id_dire),
+  }));
+  const teamIds = [
+    ...new Set(
+      sides.flatMap((row) => [row.side1.teamId, row.side2.teamId]).filter((id): id is number => !!id)
+    ),
+  ];
+  await Promise.all(teamIds.map((id) => resolveOpenDotaLogo(id)));
+
+  return sides.flatMap(({ match: m, side1, side2 }) => {
     if (isPlaceholderSide(side1.name) || isPlaceholderSide(side2.name)) return [];
     const s1 = m.radiant_score ?? 0;
     const s2 = m.dire_score ?? 0;
@@ -223,8 +252,8 @@ async function fetchDota(now: number): Promise<FeedEvent[]> {
         league: m.league_id ? 'Dota 2 · League' : 'Dota 2 · Live',
         team1: side1.name,
         team2: side2.name,
-        logo1: side1.logo,
-        logo2: side2.logo,
+        logo1: side1.logo || (side1.teamId ? dotaLogoCache.get(side1.teamId) : undefined),
+        logo2: side2.logo || (side2.teamId ? dotaLogoCache.get(side2.teamId) : undefined),
         score1: s1,
         score2: s2,
         startTime: now - clock * 1000,
