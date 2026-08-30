@@ -11,6 +11,7 @@ import { formatSportsKickoff } from '@/lib/format-sports-time';
 import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { LiveClock } from './live-clock';
+import { teamLogoMark } from './team-mark';
 
 interface FeaturedMatchCardProps {
   event: SportEvent;
@@ -88,6 +89,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
             color={event.team1.color}
             size={56}
             className="border-white/20 bg-black/40"
+            mark={teamLogoMark(event)}
           />
           <span className="font-roobert text-[12px] font-medium text-frost-white text-center line-clamp-1 max-w-[100px]">
             {event.team1.shortName || event.team1.name}
@@ -124,6 +126,7 @@ export function FeaturedMatchCard({ event }: FeaturedMatchCardProps) {
             color={event.team2.color}
             size={56}
             className="border-white/20 bg-black/40"
+            mark={teamLogoMark(event)}
           />
           <span className="font-roobert text-[12px] font-medium text-frost-white text-center line-clamp-1 max-w-[100px]">
             {event.team2.shortName || event.team2.name}

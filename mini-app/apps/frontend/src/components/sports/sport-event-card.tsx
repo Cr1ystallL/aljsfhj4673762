@@ -11,12 +11,14 @@ import { formatSportsKickoff } from '@/lib/format-sports-time';
 import { betFromOutcome, formatLine, marketTitleKey, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { LiveClock } from './live-clock';
+import { MatchTracker } from './match-tracker';
+import { teamLogoMark } from './team-mark';
 
 type Chip = 'popular' | MarketKind;
 
 export function SportEventCard({ event }: { event: SportEvent }) {
   const { t, localeTag } = useT();
-  const [tab, setTab] = useState<'match' | 'overview'>('match');
+  const [tab, setTab] = useState<'match' | 'overview'>(event.isLive ? 'overview' : 'match');
   const [chip, setChip] = useState<Chip>('popular');
   const finished = event.status === 'finished';
   const markets = event.markets ?? [];
@@ -82,55 +84,46 @@ export function SportEventCard({ event }: { event: SportEvent }) {
         ))}
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-[#12141a] p-4 shadow-[0_8px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)]">
-        <div className="flex items-center justify-between mb-3">
-          {event.isLive ? (
-            <span className="flex items-center gap-1.5 text-[11px] font-roobert font-bold text-red-300">
-              <span className="inline-flex rounded-full h-1.5 w-1.5 bg-red-400" />
-              <LiveClock event={event} />
-              {event.livePeriod ? <span className="text-whisper-gray font-medium">{event.livePeriod}</span> : null}
-            </span>
-          ) : (
-            <span className="font-roobert text-[11px] text-whisper-gray">
-              {finished ? t('sports.finished') : kickoff}
-            </span>
-          )}
-          <span className="font-roobert text-[10px] text-whisper-gray">
-            {t('sports.moreMarkets', { count: event.marketsCount })}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <TeamBlock team={event.team1} align="left" />
-          <div className="font-roobert text-[28px] font-black tabular-nums text-frost-white">
-            {event.isLive || finished ? (
-              <>
-                {event.team1.score ?? 0}
-                <span className="text-whisper-gray mx-1">:</span>
-                {event.team2.score ?? 0}
-              </>
-            ) : (
-              <span className="text-[16px] text-whisper-gray font-semibold">vs</span>
-            )}
-          </div>
-          <TeamBlock team={event.team2} align="right" />
-        </div>
-      </div>
-
       {tab === 'overview' ? (
-        <div className="rounded-2xl border border-white/10 bg-[#101217] px-4 py-4 flex flex-col gap-2 font-roobert text-[13px] text-whisper-gray">
-          {event.lastEventNotification && (
-            <p className="text-frost-white">{event.lastEventNotification}</p>
-          )}
-          {event.stats && (
-            <div className="grid grid-cols-2 gap-2 text-[12px]">
-              <span>{t('sports.cardsShort')}: {(event.stats.yellow1 ?? 0) + (event.stats.yellow2 ?? 0)}</span>
-              <span>{t('sports.cornersShort')}: {(event.stats.corners1 ?? 0) + (event.stats.corners2 ?? 0)}</span>
-            </div>
-          )}
-          <p>{t('sports.overviewEmpty')}</p>
-        </div>
+        <MatchTracker event={event} />
       ) : (
+        <div className="rounded-3xl border border-white/10 bg-[#12141a] p-4 shadow-[0_8px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="flex items-center justify-between mb-3">
+            {event.isLive ? (
+              <span className="flex items-center gap-1.5 text-[11px] font-roobert font-bold text-red-300">
+                <span className="inline-flex rounded-full h-1.5 w-1.5 bg-red-400" />
+                <LiveClock event={event} />
+                {event.livePeriod ? <span className="text-whisper-gray font-medium">{event.livePeriod}</span> : null}
+              </span>
+            ) : (
+              <span className="font-roobert text-[11px] text-whisper-gray">
+                {finished ? t('sports.finished') : kickoff}
+              </span>
+            )}
+            <span className="font-roobert text-[10px] text-whisper-gray">
+              {t('sports.moreMarkets', { count: event.marketsCount })}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <TeamBlock team={event.team1} align="left" mark={teamLogoMark(event)} />
+            <div className="font-roobert text-[28px] font-black tabular-nums text-frost-white">
+              {event.isLive || finished ? (
+                <>
+                  {event.team1.score ?? 0}
+                  <span className="text-whisper-gray mx-1">:</span>
+                  {event.team2.score ?? 0}
+                </>
+              ) : (
+                <span className="text-[16px] text-whisper-gray font-semibold">vs</span>
+              )}
+            </div>
+            <TeamBlock team={event.team2} align="right" mark={teamLogoMark(event)} />
+          </div>
+        </div>
+      )}
+
+      {tab === 'match' && (
         <>
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             {chips.map((item) => (
@@ -168,9 +161,11 @@ export function SportEventCard({ event }: { event: SportEvent }) {
 function TeamBlock({
   team,
   align,
+  mark,
 }: {
   team: SportEvent['team1'];
   align: 'left' | 'right';
+  mark?: 'cs' | 'dota';
 }) {
   return (
     <div className={cn('flex items-center gap-2 min-w-0', align === 'right' && 'flex-row-reverse')}>
@@ -180,6 +175,7 @@ function TeamBlock({
         initials={team.initials}
         color={team.color}
         size={36}
+        mark={mark}
       />
       <span
         className={cn(

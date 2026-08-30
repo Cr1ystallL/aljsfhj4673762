@@ -9,7 +9,6 @@ import { FeaturedMatchCard } from '@/components/sports/featured-match-card';
 import { SportEventRow } from '@/components/sports/sport-event-row';
 import { SportsBetslipDrawer } from '@/components/sports/sports-betslip-drawer';
 import { SportsMyBets } from '@/components/sports/sports-my-bets';
-import { SportsActivityFeed } from '@/components/sports/sports-activity-feed';
 import { useLiveSports } from '@/hooks/use-live-sports';
 import type { SportCategoryKey, SportEvent } from '@/types/sports';
 import { useSportsSlip } from '@/store/sports-slip-store';
@@ -161,8 +160,6 @@ export default function SportPage() {
             <span>{t('sports.prematch')}</span>
           </button>
         </div>
-
-        <SportsActivityFeed />
 
         {paused && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 font-roobert text-[12px] text-whisper-gray">

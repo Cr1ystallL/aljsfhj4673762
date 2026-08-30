@@ -16,6 +16,9 @@ import {
   type SportMarket,
 } from './markets.js';
 import { fetchEsportsBoard } from './esports.js';
+import { isAllowedLogoHost, proxiedLogo } from './logo-allow.js';
+
+export { isAllowedLogoHost, proxiedLogo } from './logo-allow.js';
 
 const HEADER = 'https://site.web.api.espn.com/apis/v2/scoreboard/header';
 
@@ -129,19 +132,6 @@ function colorHex(raw?: string): string {
   return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex}` : '#3b82f6';
 }
 
-export function isAllowedLogoHost(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' && /(^|\.)espncdn\.com$/i.test(u.hostname);
-  } catch {
-    return false;
-  }
-}
-
-export function proxiedLogo(url?: string): string | undefined {
-  if (!url || !isAllowedLogoHost(url)) return undefined;
-  return `/api/sports/logo?u=${encodeURIComponent(url)}`;
-}
 
 function competitorLogo(c: EspnCompetitor): string | undefined {
   const head =
@@ -361,8 +351,30 @@ function parseCompetitorStats(home: EspnCompetitor, away: EspnCompetitor): Match
   const yellow2 = statNum(away, ['yellow']);
   const corners1 = statNum(home, ['corner']);
   const corners2 = statNum(away, ['corner']);
-  if (yellow1 == null && yellow2 == null && corners1 == null && corners2 == null) return undefined;
-  return { yellow1, yellow2, corners1, corners2 };
+  const shotsOn1 = statNum(home, ['shotsontarget', 'shot on', 'sog', 'on target']);
+  const shotsOn2 = statNum(away, ['shotsontarget', 'shot on', 'sog', 'on target']);
+  const shotsOff1 = statNum(home, ['shotsofftarget', 'shot off', 'off target', 'missed']);
+  const shotsOff2 = statNum(away, ['shotsofftarget', 'shot off', 'off target', 'missed']);
+  const possession1 = statNum(home, ['possession']);
+  const possession2 = statNum(away, ['possession']);
+  const subs1 = statNum(home, ['substitution', 'subs']);
+  const subs2 = statNum(away, ['substitution', 'subs']);
+  const stats: MatchStats = {
+    yellow1,
+    yellow2,
+    corners1,
+    corners2,
+    shotsOn1,
+    shotsOn2,
+    shotsOff1,
+    shotsOff2,
+    possession1,
+    possession2,
+    subs1,
+    subs2,
+  };
+  if (Object.values(stats).every((v) => v == null)) return undefined;
+  return stats;
 }
 
 async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<FeedEvent[]> {
