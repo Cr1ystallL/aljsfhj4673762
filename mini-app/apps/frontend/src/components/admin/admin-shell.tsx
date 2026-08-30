@@ -29,6 +29,7 @@ import {
   Wallet,
   Database,
   Handshake,
+  Trophy,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -73,6 +74,7 @@ const links: AdminLink[] = [
   { id: 'dashboard', label: 'Сводка', Icon: Gauge, href: '/system/console' },
   { id: 'users', label: 'Игроки', Icon: Users, href: '/system/console/users' },
   { id: 'games', label: 'Игры', Icon: Gamepad2, href: '/system/console/games' },
+  { id: 'sports', label: 'Спорт', Icon: Trophy, href: '/system/console/sports' },
   {
     id: 'deposits',
     label: 'Депозиты',

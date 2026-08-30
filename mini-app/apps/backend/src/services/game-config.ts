@@ -166,7 +166,21 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     // Margin is already inside the posted odds (~5.5%).
     houseEdge: 0,
     wagerContribution: 1.0,
-    extras: {},
+    extras: {
+      maxPayout: 50_000,
+      maxCombinedOdds: 1000,
+      cashoutEnabled: true,
+      cashoutMargin: 0.88,
+      oddsDrift: 0.02,
+      enabledSports: [
+        'football',
+        'tennis',
+        'hockey',
+        'basketball',
+        'mma',
+        'cybersport',
+      ],
+    },
   },
 };
 

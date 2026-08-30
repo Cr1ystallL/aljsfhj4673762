@@ -33,6 +33,11 @@ export function marketTitleKey(kind: MarketKind): TxKey {
   if (kind === 'double_chance') return 'sports.m.dc';
   if (kind === 'total') return 'sports.m.total';
   if (kind === 'handicap') return 'sports.m.ah';
+  if (kind === 'btts') return 'sports.m.btts';
+  if (kind === 'next_goal') return 'sports.m.next';
+  if (kind === 'cards') return 'sports.m.cards';
+  if (kind === 'corners') return 'sports.m.corners';
+  if (kind === 'sooner') return 'sports.m.sooner';
   return 'sports.m.1x2';
 }
 

@@ -24,6 +24,8 @@ import { useRouter } from 'next/navigation';
 import { useIsAdmin } from '@/lib/admin-probe';
 import { LanguageSwitcher } from '@/components/profile/language-switcher';
 import { ProfileTrophyShelf } from '@/components/profile/profile-trophy-shelf';
+import { SportsMyBets } from '@/components/sports/sports-my-bets';
+import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { Pressable } from '@/components/ui/pressable';
 import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
 import { useWinStreak } from '@/hooks/use-win-streak';
@@ -236,6 +238,31 @@ export default function ProfilePage() {
               ) : null}
 
             </div>
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', duration: 0.45, bounce: 0, delay: 0.05 }}
+            className="rounded-[20px] border border-white/12 bg-[#101216] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between px-0.5 mb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
+                  <SoccerBallIcon size={16} strokeWidth={2.2} />
+                </div>
+                <span className="font-roobert text-[15px] font-bold text-frost-white">
+                  {t('profile.sportsBets')}
+                </span>
+              </div>
+              <Pressable
+                onClick={() => router.push('/sport')}
+                className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] font-roobert text-[11px] text-whisper-gray"
+              >
+                {t('profile.sportsOpen')}
+              </Pressable>
+            </div>
+            <SportsMyBets compact hideHeading />
           </motion.section>
 
           <ProfileTrophyShelf

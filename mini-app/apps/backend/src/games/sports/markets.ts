@@ -1,7 +1,16 @@
 import { formatOdds } from './odds.js';
 import type { SportKind } from './catalog.js';
 
-export type MarketKind = '1x2' | 'double_chance' | 'total' | 'handicap';
+export type MarketKind =
+  | '1x2'
+  | 'double_chance'
+  | 'total'
+  | 'handicap'
+  | 'btts'
+  | 'next_goal'
+  | 'cards'
+  | 'corners'
+  | 'sooner';
 export type ClockDirection = 'up' | 'down' | 'none';
 export type SettleResult = 'won' | 'lost' | 'void';
 
@@ -74,6 +83,13 @@ export function remainingLambdas(
   return { rem1: 0.35, rem2: 0.35 };
 }
 
+export interface MatchStats {
+  yellow1?: number;
+  yellow2?: number;
+  corners1?: number;
+  corners2?: number;
+}
+
 export function buildMarkets(input: {
   sport: SportKind;
   score1: number;
@@ -81,6 +97,7 @@ export function buildMarkets(input: {
   minute: number;
   threeWay: boolean;
   odds: { p1: number; x?: number; p2: number };
+  stats?: MatchStats;
 }): SportMarket[] {
   const markets: SportMarket[] = [];
   const oneXTwo: MarketOutcome[] = [
@@ -137,6 +154,66 @@ export function buildMarkets(input: {
         outcomes: priceHandicap(input.score1, input.score2, rem1, rem2, line),
       })),
     });
+  }
+
+  if (input.sport === 'football') {
+    const { rem1, rem2 } = remainingLambdas('football', input.minute);
+    const pBoth =
+      (1 - Math.exp(-rem1) * (input.score1 > 0 ? 0 : 1)) *
+      (1 - Math.exp(-rem2) * (input.score2 > 0 ? 0 : 1));
+    const bothAlready = input.score1 > 0 && input.score2 > 0;
+    markets.push({
+      id: 'btts',
+      kind: 'btts',
+      outcomes: [
+        oc('yes', 'yes', bothAlready ? 1.01 : book(Math.min(0.92, Math.max(0.08, pBoth))), undefined, !bothAlready),
+        oc('no', 'no', bothAlready ? 1 : book(1 - Math.min(0.92, Math.max(0.08, pBoth))), undefined, !bothAlready),
+      ],
+    });
+
+    const pNext1 = rem1 / Math.max(0.08, rem1 + rem2 + 0.35);
+    const pNext2 = rem2 / Math.max(0.08, rem1 + rem2 + 0.35);
+    const pNone = 0.35 / Math.max(0.08, rem1 + rem2 + 0.35);
+    markets.push({
+      id: 'next_goal',
+      kind: 'next_goal',
+      outcomes: [
+        oc('p1', 'next1', book(pNext1)),
+        oc('p2', 'next2', book(pNext2)),
+        oc('none', 'none', book(pNone)),
+      ],
+    });
+
+    const yellow = (input.stats?.yellow1 ?? 0) + (input.stats?.yellow2 ?? 0);
+    const corners = (input.stats?.corners1 ?? 0) + (input.stats?.corners2 ?? 0);
+    const remainFrac = Math.max(90 - input.minute, 8) / 90;
+    if (input.stats) {
+      markets.push({
+        id: 'cards',
+        kind: 'cards',
+        lines: [3.5, 4.5, 5.5].map((line) => ({
+          line,
+          outcomes: priceTotal(yellow, 3.2 * remainFrac, line),
+        })),
+      });
+      markets.push({
+        id: 'corners',
+        kind: 'corners',
+        lines: [8.5, 9.5, 10.5].map((line) => ({
+          line,
+          outcomes: priceTotal(corners, 6.4 * remainFrac, line),
+        })),
+      });
+      const pGoalSooner = (rem1 + rem2) / Math.max(0.2, rem1 + rem2 + 1.1);
+      markets.push({
+        id: 'sooner',
+        kind: 'sooner',
+        outcomes: [
+          oc('goal', 'goal', book(pGoalSooner)),
+          oc('card', 'card', book(1 - pGoalSooner)),
+        ],
+      });
+    }
   }
 
   return markets;
@@ -235,7 +312,13 @@ export function settleLeg(
   line: number | undefined,
   s1: number,
   s2: number,
-  threeWay: boolean
+  threeWay: boolean,
+  extras?: {
+    stats?: MatchStats;
+    nextTeam?: 1 | 2 | null;
+    sooner?: 'goal' | 'card' | null;
+    finished?: boolean;
+  }
 ): SettleResult {
   if (kind === '1x2') {
     if (!threeWay && s1 === s2) return 'void';
@@ -271,6 +354,33 @@ export function settleLeg(
       return v > 0 ? 'won' : 'lost';
     }
   }
+  if (kind === 'btts') {
+    const both = s1 > 0 && s2 > 0;
+    if (key === 'yes') return both ? 'won' : extras?.finished ? 'lost' : 'void';
+    if (key === 'no') return extras?.finished ? (both ? 'lost' : 'won') : 'void';
+  }
+  if (kind === 'next_goal') {
+    if (extras?.nextTeam === 1) return key === 'p1' ? 'won' : 'lost';
+    if (extras?.nextTeam === 2) return key === 'p2' ? 'won' : 'lost';
+    if (extras?.finished) return key === 'none' ? 'won' : 'lost';
+    return 'void';
+  }
+  if (kind === 'cards' || kind === 'corners') {
+    if (line == null || !extras?.stats) return extras?.finished ? 'void' : 'void';
+    const total =
+      kind === 'cards'
+        ? (extras.stats.yellow1 ?? 0) + (extras.stats.yellow2 ?? 0)
+        : (extras.stats.corners1 ?? 0) + (extras.stats.corners2 ?? 0);
+    if (!extras.finished) return 'void';
+    if (Math.abs(total - line) < 1e-9) return 'void';
+    if (key === 'over') return total > line ? 'won' : 'lost';
+    if (key === 'under') return total < line ? 'won' : 'lost';
+  }
+  if (kind === 'sooner') {
+    if (extras?.sooner === 'goal') return key === 'goal' ? 'won' : 'lost';
+    if (extras?.sooner === 'card') return key === 'card' ? 'won' : 'lost';
+    if (extras?.finished) return 'void';
+  }
   return 'void';
 }
 
@@ -303,4 +413,9 @@ export const MARKET_KINDS = new Set<MarketKind>([
   'double_chance',
   'total',
   'handicap',
+  'btts',
+  'next_goal',
+  'cards',
+  'corners',
+  'sooner',
 ]);

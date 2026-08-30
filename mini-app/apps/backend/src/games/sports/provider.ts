@@ -12,8 +12,10 @@ import {
   formatMmSs,
   marketsCount,
   type ClockDirection,
+  type MatchStats,
   type SportMarket,
 } from './markets.js';
+import { fetchEsportsBoard } from './esports.js';
 
 const HEADER = 'https://site.web.api.espn.com/apis/v2/scoreboard/header';
 
@@ -57,6 +59,8 @@ export interface FeedEvent {
   threeWay: boolean;
   markets: SportMarket[];
   marketsCount: number;
+  stats?: MatchStats;
+  suspended?: boolean;
 }
 
 interface EspnCompetitor {
@@ -305,6 +309,7 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
     odds = fallbackOdds(sport, status, team1, team2, clock.liveMinute ?? 0);
   }
 
+  const stats = parseCompetitorStats(pair.home, pair.away);
   const markets = buildMarkets({
     sport,
     score1: team1.score ?? 0,
@@ -312,6 +317,7 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
     minute: status === 'live' ? clock.liveMinute ?? 0 : 0,
     threeWay,
     odds,
+    stats,
   });
 
   return {
@@ -333,7 +339,30 @@ function parseEvent(sport: SportKind, leagueName: string, ev: EspnEvent, now: nu
     threeWay,
     markets,
     marketsCount: marketsCount(markets),
+    stats,
   };
+}
+
+function statNum(c: EspnCompetitor, names: string[]): number | undefined {
+  const rows = (c as EspnCompetitor & { statistics?: Array<{ name?: string; abbreviation?: string; displayValue?: string; value?: number }> }).statistics;
+  if (!rows) return undefined;
+  for (const row of rows) {
+    const key = `${row.name ?? ''} ${row.abbreviation ?? ''}`.toLowerCase();
+    if (names.some((n) => key.includes(n))) {
+      const n = Number(row.value ?? row.displayValue);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return undefined;
+}
+
+function parseCompetitorStats(home: EspnCompetitor, away: EspnCompetitor): MatchStats | undefined {
+  const yellow1 = statNum(home, ['yellow']);
+  const yellow2 = statNum(away, ['yellow']);
+  const corners1 = statNum(home, ['corner']);
+  const corners2 = statNum(away, ['corner']);
+  if (yellow1 == null && yellow2 == null && corners1 == null && corners2 == null) return undefined;
+  return { yellow1, yellow2, corners1, corners2 };
 }
 
 async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<FeedEvent[]> {
@@ -363,7 +392,10 @@ async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<Fee
 }
 
 export async function fetchLiveBoard(): Promise<FeedEvent[]> {
-  const chunks = await Promise.allSettled(FEEDS.map((f) => fetchFeed(f)));
+  const chunks = await Promise.allSettled([
+    ...FEEDS.map((f) => fetchFeed(f)),
+    fetchEsportsBoard(),
+  ]);
   const merged = new Map<string, FeedEvent>();
   for (const chunk of chunks) {
     if (chunk.status === 'rejected') {
