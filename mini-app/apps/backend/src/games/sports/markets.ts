@@ -88,6 +88,14 @@ export interface MatchStats {
   yellow2?: number;
   corners1?: number;
   corners2?: number;
+  shotsOn1?: number;
+  shotsOn2?: number;
+  shotsOff1?: number;
+  shotsOff2?: number;
+  possession1?: number;
+  possession2?: number;
+  subs1?: number;
+  subs2?: number;
 }
 
 export function buildMarkets(input: {

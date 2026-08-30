@@ -49,6 +49,7 @@ export default function ProfilePage() {
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
   const [copied, setCopied] = useState(false);
   const [isWagerModalOpen, setIsWagerModalOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState<'games' | 'sports'>('games');
   const isAdmin = useIsAdmin();
 
   useEffect(() => {
@@ -240,31 +241,6 @@ export default function ProfilePage() {
             </div>
           </motion.section>
 
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: 'spring', duration: 0.45, bounce: 0, delay: 0.05 }}
-            className="rounded-[20px] border border-white/12 bg-[#101216] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-          >
-            <div className="flex items-center justify-between px-0.5 mb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
-                  <SoccerBallIcon size={16} strokeWidth={2.2} />
-                </div>
-                <span className="font-roobert text-[15px] font-bold text-frost-white">
-                  {t('profile.sportsBets')}
-                </span>
-              </div>
-              <Pressable
-                onClick={() => router.push('/sport')}
-                className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] font-roobert text-[11px] text-whisper-gray"
-              >
-                {t('profile.sportsOpen')}
-              </Pressable>
-            </div>
-            <SportsMyBets compact hideHeading />
-          </motion.section>
-
           <ProfileTrophyShelf
             stats={{
               totalBets: stats.totalBets,
@@ -275,37 +251,85 @@ export default function ProfilePage() {
             }}
           />
 
-          {/* Recent Bets Section */}
           <section className="mt-1">
-            <div className="flex items-center justify-between px-1 mb-2.5">
-              <div className="flex items-center gap-2">
-                <Clock size={15} className="text-whisper-gray" strokeWidth={1.8} />
-                <span className="font-roobert font-medium text-white text-[15px]">
-                  {t('profile.recentBets')}
-                </span>
-              </div>
-              <span className="font-roobert text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tracking-wider">
-                {t('profile.shownOf', {
-                  n: Math.min(transactions.length, 7),
-                  total: transactions.length,
-                })}
-              </span>
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl border border-white/10 bg-[#101216] mb-3">
+              <button
+                type="button"
+                onClick={() => setHistoryTab('games')}
+                className={`py-2 rounded-xl font-roobert text-[12px] font-semibold transition-all ${
+                  historyTab === 'games'
+                    ? 'bg-[#1e222b] text-frost-white border border-white/15'
+                    : 'text-whisper-gray'
+                }`}
+              >
+                {t('profile.tabGames')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryTab('sports')}
+                className={`py-2 rounded-xl font-roobert text-[12px] font-semibold transition-all ${
+                  historyTab === 'sports'
+                    ? 'bg-[#1e222b] text-frost-white border border-white/15'
+                    : 'text-whisper-gray'
+                }`}
+              >
+                {t('profile.tabSports')}
+              </button>
             </div>
 
-            {txLoading ? (
-              <div className="rounded-[22px] border border-white/10 bg-[#0c0d0f] py-14 flex flex-col items-center justify-center gap-3">
-                <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                <span className="text-[12px] text-whisper-gray">{t('profile.loadingHistory')}</span>
-              </div>
-            ) : stats.bets.length === 0 ? (
-              <EmptyBets onPlay={() => router.push('/game/crash')} />
-            ) : (
-              <div className="rounded-[24px] border border-white/10 bg-[#0c0d0f] overflow-hidden shadow-xl">
-                <div className="divide-y divide-white/[0.05]">
-                  {stats.bets.slice(0, 7).map((row, idx) => (
-                    <BetRow key={row.id} row={row} index={idx} />
-                  ))}
+            {historyTab === 'games' ? (
+              <>
+                <div className="flex items-center justify-between px-1 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Clock size={15} className="text-whisper-gray" strokeWidth={1.8} />
+                    <span className="font-roobert font-medium text-white text-[15px]">
+                      {t('profile.recentBets')}
+                    </span>
+                  </div>
+                  <span className="font-roobert text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tracking-wider">
+                    {t('profile.shownOf', {
+                      n: Math.min(transactions.length, 7),
+                      total: transactions.length,
+                    })}
+                  </span>
                 </div>
+
+                {txLoading ? (
+                  <div className="rounded-[22px] border border-white/10 bg-[#0c0d0f] py-14 flex flex-col items-center justify-center gap-3">
+                    <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                    <span className="text-[12px] text-whisper-gray">{t('profile.loadingHistory')}</span>
+                  </div>
+                ) : stats.bets.length === 0 ? (
+                  <EmptyBets onPlay={() => router.push('/game/crash')} />
+                ) : (
+                  <div className="rounded-[24px] border border-white/10 bg-[#0c0d0f] overflow-hidden shadow-xl">
+                    <div className="divide-y divide-white/[0.05]">
+                      {stats.bets.slice(0, 7).map((row, idx) => (
+                        <BetRow key={row.id} row={row} index={idx} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-[20px] border border-white/12 bg-[#101216] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <div className="flex items-center justify-between px-0.5 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
+                      <SoccerBallIcon size={16} strokeWidth={2.2} />
+                    </div>
+                    <span className="font-roobert text-[15px] font-bold text-frost-white">
+                      {t('profile.sportsBets')}
+                    </span>
+                  </div>
+                  <Pressable
+                    onClick={() => router.push('/sport')}
+                    className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] font-roobert text-[11px] text-whisper-gray"
+                  >
+                    {t('profile.sportsOpen')}
+                  </Pressable>
+                </div>
+                <SportsMyBets compact hideHeading />
               </div>
             )}
           </section>

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { isAllowedLogoHost } from './provider.js';
+import { isAllowedLogoHost } from './logo-allow.js';
 
 const MAX_BYTES = 400_000;
 const cache = new Map<string, { body: Buffer; type: string; at: number }>();

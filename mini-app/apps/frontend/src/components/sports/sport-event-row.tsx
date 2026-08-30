@@ -11,6 +11,7 @@ import { formatSportsKickoff } from '@/lib/format-sports-time';
 import { betFromOutcome, sameLeg } from '@/lib/sports-markets';
 import { useSportsSlip } from '@/store/sports-slip-store';
 import { LiveClock } from './live-clock';
+import { teamLogoMark } from './team-mark';
 
 interface SportEventRowProps {
   event: SportEvent;
@@ -108,6 +109,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
                 initials={event.team1.initials}
                 color={event.team1.color}
                 size={22}
+                mark={teamLogoMark(event)}
               />
               <span className="font-roobert text-[13px] sm:text-[14px] font-semibold text-frost-white truncate tracking-tight">
                 {event.team1.name}
@@ -129,6 +131,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
                 initials={event.team2.initials}
                 color={event.team2.color}
                 size={22}
+                mark={teamLogoMark(event)}
               />
               <span className="font-roobert text-[13px] sm:text-[14px] font-semibold text-frost-white truncate tracking-tight">
                 {event.team2.name}
