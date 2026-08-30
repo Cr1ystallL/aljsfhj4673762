@@ -168,10 +168,14 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     wagerContribution: 1.0,
     extras: {
       maxPayout: 50_000,
+      maxMarketLiability: 8_000,
       maxCombinedOdds: 1000,
       cashoutEnabled: true,
-      cashoutMargin: 0.88,
+      cashoutMargin: 0.96,
       oddsDrift: 0.02,
+      holdMs: 4_000,
+      haltMs: 10_000,
+      nicheMaxBet: 40,
       enabledSports: [
         'football',
         'tennis',

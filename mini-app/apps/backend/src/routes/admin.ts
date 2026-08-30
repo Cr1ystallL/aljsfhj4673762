@@ -23,6 +23,7 @@ import { sessionManager } from '../lib/session-manager.js';
 import { rtpEngine } from '../services/rtp-engine.js';
 import { config } from '../config/index.js';
 import { sportsEngine } from '../games/sports/engine.js';
+import { listPlayerCaps, setPlayerCap } from '../games/sports/book-guard.js';
 
 /**
  * Admin Routes — covert.
@@ -1742,6 +1743,37 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const bets = await sportsEngine.listAdminBets(50);
     return reply.send({ ok: true, bets });
   });
+
+  app.get('/_x/sports/player-caps', { preHandler: adminOnly }, async (_req, reply) => {
+    return reply.send({ ok: true, caps: await listPlayerCaps() });
+  });
+
+  app.post<{ Body: { userId?: string; maxBet?: number | null; reason?: string } }>(
+    '/_x/sports/player-caps',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = String(request.body?.reason ?? '').trim();
+      if (reason.length < 3) return reply.code(400).send({ error: 'Reason required' });
+      const userId = String(request.body?.userId ?? '').trim();
+      if (!userId) return reply.code(400).send({ error: 'userId required' });
+      const raw = request.body?.maxBet;
+      const maxBet = raw == null || String(raw) === '' ? null : Number(raw);
+      if (maxBet != null && (!Number.isFinite(maxBet) || maxBet <= 0)) {
+        return reply.code(400).send({ error: 'maxBet invalid' });
+      }
+      await setPlayerCap(userId, maxBet);
+      const out = { userId, maxBet };
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'sports.player_cap',
+        targetType: 'user',
+        targetId: userId,
+        payloadAfter: out,
+        reason,
+      });
+      return reply.send({ ok: true, ...out, caps: await listPlayerCaps() });
+    }
+  );
 
   app.post<{ Params: { id: string }; Body: { suspended?: boolean; reason?: string } }>(
     '/_x/sports/events/:id/suspend',

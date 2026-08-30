@@ -132,6 +132,7 @@ export interface SportEvent {
     subs2?: number;
   };
   suspended?: boolean;
+  tradingHaltUntil?: number;
 }
 
 export interface SelectedBet {

@@ -22,6 +22,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
   const legs = useSportsSlip((s) => s.legs);
   const toggle = useSportsSlip((s) => s.toggle);
   const finished = event.status === 'finished';
+  const halted = (event.tradingHaltUntil ?? 0) > Date.now();
 
   const handleOutcomeClick = (key: 'p1' | 'x' | 'p2', label: string, odds: number) => {
     if (finished) return;
@@ -78,6 +79,11 @@ export function SportEventRow({ event }: SportEventRowProps) {
             </span>
           )}
 
+          {halted && (
+            <span className="text-amber-200 font-semibold text-[10px] ml-2 shrink-0">
+              {t('sports.halted')}
+            </span>
+          )}
           {lastNote && (
             <span className="text-frost-white/70 font-semibold text-[10px] ml-2 truncate max-w-[140px]">
               {lastNote}
@@ -164,7 +170,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
             odds={event.odds.p1}
             trend={event.odds.p1Trend}
             isSelected={isSelected('p1')}
-            disabled={finished}
+            disabled={finished || halted}
             onClick={() => handleOutcomeClick('p1', '1', event.odds.p1)}
           />
           {hasThreeWay && (
@@ -172,7 +178,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
               odds={event.odds.x!}
               trend={event.odds.xTrend}
               isSelected={isSelected('x')}
-              disabled={finished}
+              disabled={finished || halted}
               onClick={() => handleOutcomeClick('x', 'X', event.odds.x!)}
             />
           )}
@@ -180,7 +186,7 @@ export function SportEventRow({ event }: SportEventRowProps) {
             odds={event.odds.p2}
             trend={event.odds.p2Trend}
             isSelected={isSelected('p2')}
-            disabled={finished}
+            disabled={finished || halted}
             onClick={() => handleOutcomeClick('p2', '2', event.odds.p2)}
           />
         </div>
