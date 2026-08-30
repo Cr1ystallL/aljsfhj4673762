@@ -63,6 +63,14 @@ export function sameLeg(
   );
 }
 
+export function conflictingEventIds(legs: SelectedBet[]): string[] {
+  const counts = new Map<string, number>();
+  for (const leg of legs) {
+    counts.set(leg.eventId, (counts.get(leg.eventId) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id);
+}
+
 export function betFromOutcome(
   event: SportEvent,
   kind: MarketKind,
