@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { VideoOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SportEvent } from '@/types/sports';
 import { TeamLogo } from '@/components/ui/team-logo';
 import { useT } from '@/i18n/use-t';
+import { interpolateEventClock } from '@/lib/sports-clock';
 import { LiveClock } from './live-clock';
 import { teamLogoMark } from './team-mark';
 
@@ -59,46 +60,96 @@ function markerFor(action: ActionKind, team: 1 | 2, seed: number): { x: number; 
   return { x: team === 1 ? 58 + unit(seed, 9) * 16 : 26 + unit(seed, 9) * 16, y };
 }
 
+function liveDrift(seconds: number, possession1: number, playTeam: 1 | 2): { x: number; y: number; team: 1 | 2 } {
+  const poss = clamp(possession1, 28, 72) / 100;
+  const wave = seconds / 7.5;
+  const attackFlip = (Math.sin(seconds / 18) + 1) / 2;
+  const team: 1 | 2 = attackFlip > 1 - poss ? 1 : 2;
+  const toward = team === 1 ? 1 : -1;
+  const progress = (Math.sin(wave) + 1) / 2;
+  const x = clamp(50 + toward * (10 + progress * 32), 12, 88);
+  const y = clamp(50 + Math.sin(seconds / 5.2) * 22 + Math.cos(seconds / 9.1) * 8, 16, 84);
+  if (playTeam && Math.abs(x - (playTeam === 1 ? 72 : 28)) < 40) {
+    return { x, y, team: playTeam };
+  }
+  return { x, y, team };
+}
+
+function periodShare(period: Period, minute: number): { a: number; b: number } {
+  if (period === 'all' || minute <= 0) return { a: 1, b: 0 };
+  if (minute <= 45) return period === 'h1' ? { a: 1, b: 0 } : { a: 0, b: 0 };
+  const h1 = clamp(45 / minute, 0.42, 0.68);
+  if (period === 'h1') return { a: h1, b: 0 };
+  return { a: 0, b: 1 - h1 };
+}
+
+function splitStat(value: number | undefined, period: Period, minute: number): number | undefined {
+  if (value == null) return undefined;
+  const share = periodShare(period, minute);
+  const part = period === 'h2' ? share.b : share.a;
+  if (period !== 'all' && part === 0) return 0;
+  return Math.max(0, Math.round(value * (period === 'all' ? 1 : part)));
+}
+
 export function MatchTracker({ event }: { event: SportEvent }) {
   const { t } = useT();
   const [period, setPeriod] = useState<Period>('all');
+  const [now, setNow] = useState(() => Date.now());
   const mark = teamLogoMark(event);
   const play = event.lastEventNotification?.trim() ?? '';
-  const minute = event.liveMinute ?? 0;
+  const clock = interpolateEventClock(event, now);
+  const minute = clock != null ? Math.floor(clock / 60) : event.liveMinute ?? 0;
+  const seconds = clock ?? minute * 60;
   const seed = hash32(`${event.id}:${minute}:${play}:${event.team1.score ?? 0}:${event.team2.score ?? 0}`);
+
+  useEffect(() => {
+    if (!event.isLive) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [event.isLive, event.id]);
 
   const model = useMemo(() => {
     const action = play ? detectAction(play) : event.isLive ? 'attack' : 'attack';
     const team = play ? actionTeam(event, play, seed) : ((unit(seed, 11) > 0.5 ? 1 : 2) as 1 | 2);
-    const marker = markerFor(action, team, seed);
-    const s1 = event.team1.score ?? 0;
-    const s2 = event.team2.score ?? 0;
-    const possBias = clamp(50 + (s1 - s2) * 4 + (unit(seed, 13) - 0.5) * 10, 38, 62);
+    const pinned = markerFor(action, team, seed);
+    const possBias = clamp(
+      50 + ((event.team1.score ?? 0) - (event.team2.score ?? 0)) * 4 + (unit(seed, 13) - 0.5) * 8,
+      36,
+      64
+    );
     const possession1 = Math.round(event.stats?.possession1 ?? possBias);
     const possession2 = Math.round(event.stats?.possession2 ?? 100 - possession1);
-    const fill = (real: number | undefined, base: number, spread: number, salt: number) =>
-      real ?? Math.max(0, Math.round(base + unit(seed, salt) * spread));
+    const drift = liveDrift(seconds, possession1, team);
+    const marker = event.isLive
+      ? play
+        ? {
+            x: clamp(pinned.x + Math.sin(seconds / 4.2) * 3.5, 8, 92),
+            y: clamp(pinned.y + Math.cos(seconds / 5.6) * 4.5, 12, 88),
+          }
+        : { x: drift.x, y: drift.y }
+      : pinned;
+    const liveTeam = event.isLive && !play ? drift.team : team;
 
     return {
       action,
-      team,
+      team: liveTeam,
       marker,
       possession1,
       possession2,
-      corners1: fill(event.stats?.corners1, 1 + s1, 4, 21),
-      corners2: fill(event.stats?.corners2, 1 + s2, 4, 22),
-      shotsOn1: fill(event.stats?.shotsOn1, 1 + s1, 4, 23),
-      shotsOn2: fill(event.stats?.shotsOn2, s2, 4, 24),
-      shotsOff1: fill(event.stats?.shotsOff1, 1, 5, 25),
-      shotsOff2: fill(event.stats?.shotsOff2, 1, 5, 26),
-      subs1: fill(event.stats?.subs1, minute >= 55 ? 1 : 0, 2, 27),
-      subs2: fill(event.stats?.subs2, minute >= 55 ? 1 : 0, 2, 28),
-      cards1: fill(event.stats?.yellow1, 0, 2, 29),
-      cards2: fill(event.stats?.yellow2, 0, 2, 30),
-      attack1: Math.round(clamp(38 + s1 * 8 + unit(seed, 31) * 28, 22, 92)),
-      attack2: Math.round(clamp(38 + s2 * 8 + unit(seed, 32) * 28, 22, 92)),
+      corners1: splitStat(event.stats?.corners1, period, minute),
+      corners2: splitStat(event.stats?.corners2, period, minute),
+      shotsOn1: splitStat(event.stats?.shotsOn1, period, minute),
+      shotsOn2: splitStat(event.stats?.shotsOn2, period, minute),
+      shotsOff1: splitStat(event.stats?.shotsOff1, period, minute),
+      shotsOff2: splitStat(event.stats?.shotsOff2, period, minute),
+      subs1: splitStat(event.stats?.subs1, period, minute),
+      subs2: splitStat(event.stats?.subs2, period, minute),
+      cards1: splitStat(event.stats?.yellow1 ?? event.team1.yellowCards, period, minute),
+      cards2: splitStat(event.stats?.yellow2 ?? event.team2.yellowCards, period, minute),
+      reds1: splitStat(event.stats?.red1 ?? event.team1.redCards, period, minute),
+      reds2: splitStat(event.stats?.red2 ?? event.team2.redCards, period, minute),
     };
-  }, [event, play, seed, minute]);
+  }, [event, play, seed, minute, seconds, period]);
 
   const actionLabel =
     model.action === 'goal'
@@ -120,8 +171,13 @@ export function MatchTracker({ event }: { event: SportEvent }) {
                     : t('sports.tabOverview');
 
   const actor = model.team === 1 ? event.team1.name : event.team2.name;
-  const duration = event.sport === 'football' ? 90 : event.sport === 'hockey' ? 60 : event.sport === 'basketball' ? 48 : 60;
-  const progress = event.isLive ? clamp(((event.liveMinute ?? 0) + (event.liveSecond ?? 0) / 60) / duration, 0.04, 0.98) : event.status === 'finished' ? 1 : 0.04;
+  const duration =
+    event.sport === 'football' ? 90 : event.sport === 'hockey' ? 60 : event.sport === 'basketball' ? 48 : 60;
+  const progress = event.isLive
+    ? clamp(((clock ?? (event.liveMinute ?? 0) * 60) / 60) / duration, 0.04, 0.98)
+    : event.status === 'finished'
+      ? 1
+      : 0.04;
   const showPeriods = event.sport === 'football';
 
   const actionKeys: Array<{ key: string; label: string }> = [
@@ -130,6 +186,7 @@ export function MatchTracker({ event }: { event: SportEvent }) {
     { key: 'off', label: t('sports.statOffTarget') },
     { key: 'subs', label: t('sports.statSubs') },
     { key: 'cards', label: t('sports.statCards') },
+    { key: 'reds', label: t('sports.statReds') },
   ];
 
   return (
@@ -172,7 +229,7 @@ export function MatchTracker({ event }: { event: SportEvent }) {
       <div className="px-3.5 pb-2">
         <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
           <div
-            className="h-full rounded-full bg-amber-300/80"
+            className="h-full rounded-full bg-amber-300/80 transition-[width] duration-1000 ease-linear"
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
@@ -180,7 +237,7 @@ export function MatchTracker({ event }: { event: SportEvent }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-[1.15fr_1fr] gap-0 border-t border-white/8">
         <div className="relative px-3 py-3">
-          <Pitch sport={event.sport} marker={model.marker} team={model.team} />
+          <Pitch sport={event.sport} marker={model.marker} team={model.team} live={event.isLive} />
           <div className="absolute inset-x-3 top-5 flex flex-col items-center pointer-events-none">
             <div className="px-3 py-1 rounded-md bg-black/55 border border-white/10 text-center">
               <div className="font-roobert text-[13px] font-black tracking-[0.06em] text-frost-white uppercase">
@@ -230,14 +287,13 @@ export function MatchTracker({ event }: { event: SportEvent }) {
             </div>
           )}
 
-          <div className="grid grid-cols-[28px_repeat(5,1fr)_36px] items-center gap-x-1">
+          <div className="grid grid-cols-[28px_repeat(6,1fr)] items-center gap-x-1">
             <span />
             {actionKeys.map((item) => (
               <div key={item.key} className="flex justify-center text-white/70" title={item.label}>
                 <StatGlyph kind={item.key} />
               </div>
             ))}
-            <span className="font-roobert text-[9px] text-whisper-gray text-right">{t('sports.attacks')}</span>
 
             <TeamLogo
               src={event.team1.logo}
@@ -252,9 +308,7 @@ export function MatchTracker({ event }: { event: SportEvent }) {
             <StatCell value={model.shotsOff1} />
             <StatCell value={model.subs1} />
             <StatCell value={model.cards1} />
-            <div className="row-span-2 self-center">
-              <AttackPair a={model.attack1} b={model.attack2} />
-            </div>
+            <StatCell value={model.reds1} />
 
             <TeamLogo
               src={event.team2.logo}
@@ -269,6 +323,7 @@ export function MatchTracker({ event }: { event: SportEvent }) {
             <StatCell value={model.shotsOff2} />
             <StatCell value={model.subs2} />
             <StatCell value={model.cards2} />
+            <StatCell value={model.reds2} />
           </div>
 
           {play ? (
@@ -286,22 +341,10 @@ export function MatchTracker({ event }: { event: SportEvent }) {
   );
 }
 
-function StatCell({ value }: { value: number }) {
+function StatCell({ value }: { value: number | undefined }) {
   return (
     <div className="text-center font-roobert text-[12px] font-bold tabular-nums text-frost-white py-1.5">
-      {value}
-    </div>
-  );
-}
-
-function AttackPair({ a, b }: { a: number; b: number }) {
-  return (
-    <div className="flex flex-col items-end justify-center gap-0.5">
-      <span className="font-roobert text-[10px] font-bold tabular-nums text-frost-white">{a}</span>
-      <div className="flex items-end gap-0.5 h-8">
-        <div className="w-1.5 rounded-sm bg-red-400/85" style={{ height: `${clamp(a, 18, 100)}%` }} />
-        <div className="w-1.5 rounded-sm bg-sky-400/80" style={{ height: `${clamp(b, 18, 100)}%` }} />
-      </div>
+      {value == null ? '—' : value}
     </div>
   );
 }
@@ -341,8 +384,15 @@ function StatGlyph({ kind }: { kind: string }) {
       </svg>
     );
   }
+  if (kind === 'reds') {
+    return (
+      <svg width="11" height="14" viewBox="0 0 16 20" fill="#f87171">
+        <rect x="3" y="2" width="10" height="16" rx="1.4" />
+      </svg>
+    );
+  }
   return (
-    <svg width="11" height="14" viewBox="0 0 16 20" fill="currentColor">
+    <svg width="11" height="14" viewBox="0 0 16 20" fill="#facc15">
       <rect x="3" y="2" width="10" height="16" rx="1.4" />
     </svg>
   );
@@ -352,10 +402,12 @@ function Pitch({
   sport,
   marker,
   team,
+  live,
 }: {
   sport: SportEvent['sport'];
   marker: { x: number; y: number };
   team: 1 | 2;
+  live: boolean;
 }) {
   const grass =
     sport === 'basketball'
@@ -364,25 +416,29 @@ function Pitch({
         ? '#1a3344'
         : sport === 'cybersport'
           ? '#14181f'
-          : '#1f4d32';
+          : sport === 'tennis'
+            ? '#2f6b3a'
+            : '#1f4d32';
   const line = 'rgba(255,255,255,0.28)';
 
   return (
     <div className="relative w-full aspect-[1.7] rounded-xl overflow-hidden border border-white/10">
       <svg viewBox="0 0 200 118" className="w-full h-full" preserveAspectRatio="none">
         <rect width="200" height="118" fill={grass} />
-        <rect x="4" y="4" width="192" height="110" fill="none" stroke={line} strokeWidth="1.1" />
-        <line x1="100" y1="4" x2="100" y2="114" stroke={line} strokeWidth="1" />
-        <circle cx="100" cy="59" r="16" fill="none" stroke={line} strokeWidth="1" />
-        <rect x="4" y="28" width="28" height="62" fill="none" stroke={line} strokeWidth="1" />
-        <rect x="168" y="28" width="28" height="62" fill="none" stroke={line} strokeWidth="1" />
-        <rect x="4" y="42" width="12" height="34" fill="none" stroke={line} strokeWidth="1" />
-        <rect x="184" y="42" width="12" height="34" fill="none" stroke={line} strokeWidth="1" />
+        {sport === 'hockey' ? <HockeyLines stroke={line} /> : <FootballLines stroke={line} />}
       </svg>
       <div
-        className="absolute -translate-x-1/2 -translate-y-1/2"
+        className="absolute -translate-x-1/2 -translate-y-1/2 transition-[left,top] duration-1000 ease-in-out"
         style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
       >
+        {live && (
+          <span
+            className={cn(
+              'absolute inset-[-12px] rounded-full animate-ping opacity-30',
+              team === 1 ? 'bg-red-400' : 'bg-sky-400'
+            )}
+          />
+        )}
         <span
           className={cn(
             'absolute inset-[-10px] rounded-full opacity-40',
@@ -403,5 +459,31 @@ function Pitch({
         />
       </div>
     </div>
+  );
+}
+
+function FootballLines({ stroke }: { stroke: string }) {
+  return (
+    <>
+      <rect x="4" y="4" width="192" height="110" fill="none" stroke={stroke} strokeWidth="1.1" />
+      <line x1="100" y1="4" x2="100" y2="114" stroke={stroke} strokeWidth="1" />
+      <circle cx="100" cy="59" r="16" fill="none" stroke={stroke} strokeWidth="1" />
+      <rect x="4" y="28" width="28" height="62" fill="none" stroke={stroke} strokeWidth="1" />
+      <rect x="168" y="28" width="28" height="62" fill="none" stroke={stroke} strokeWidth="1" />
+      <rect x="4" y="42" width="12" height="34" fill="none" stroke={stroke} strokeWidth="1" />
+      <rect x="184" y="42" width="12" height="34" fill="none" stroke={stroke} strokeWidth="1" />
+    </>
+  );
+}
+
+function HockeyLines({ stroke }: { stroke: string }) {
+  return (
+    <>
+      <rect x="6" y="8" width="188" height="102" rx="28" fill="none" stroke={stroke} strokeWidth="1.2" />
+      <line x1="100" y1="8" x2="100" y2="110" stroke={stroke} strokeWidth="1" />
+      <line x1="40" y1="8" x2="40" y2="110" stroke="rgba(248,113,113,0.45)" strokeWidth="1.2" />
+      <line x1="160" y1="8" x2="160" y2="110" stroke="rgba(248,113,113,0.45)" strokeWidth="1.2" />
+      <circle cx="100" cy="59" r="10" fill="none" stroke={stroke} strokeWidth="1" />
+    </>
   );
 }

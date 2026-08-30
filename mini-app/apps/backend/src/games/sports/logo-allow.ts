@@ -5,6 +5,7 @@ const LOGO_HOSTS = [
   /^steamuserimages-a\.akamaihd\.net$/i,
   /(^|\.)dota2\.com$/i,
   /(^|\.)hltv\.org$/i,
+  /(^|\.)liquipedia\.net$/i,
 ];
 
 export function isAllowedLogoHost(url: string): boolean {

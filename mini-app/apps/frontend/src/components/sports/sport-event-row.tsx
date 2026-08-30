@@ -114,6 +114,10 @@ export function SportEventRow({ event }: SportEventRowProps) {
               <span className="font-roobert text-[13px] sm:text-[14px] font-semibold text-frost-white truncate tracking-tight">
                 {event.team1.name}
               </span>
+              <DisciplinePips
+                yellow={event.team1.yellowCards ?? event.stats?.yellow1}
+                red={event.team1.redCards ?? event.stats?.red1}
+              />
             </div>
 
             {(event.isLive || finished) && (
@@ -136,6 +140,10 @@ export function SportEventRow({ event }: SportEventRowProps) {
               <span className="font-roobert text-[13px] sm:text-[14px] font-semibold text-frost-white truncate tracking-tight">
                 {event.team2.name}
               </span>
+              <DisciplinePips
+                yellow={event.team2.yellowCards ?? event.stats?.yellow2}
+                red={event.team2.redCards ?? event.stats?.red2}
+              />
             </div>
 
             {(event.isLive || finished) && (
@@ -178,6 +186,26 @@ export function SportEventRow({ event }: SportEventRowProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function DisciplinePips({ yellow, red }: { yellow?: number; red?: number }) {
+  if (!yellow && !red) return null;
+  return (
+    <span className="flex items-center gap-1 shrink-0 font-roobert text-[10px] font-bold tabular-nums">
+      {yellow ? (
+        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-300/15 text-amber-200 border border-amber-300/20">
+          <span className="inline-block w-1.5 h-2 rounded-[1px] bg-amber-300" />
+          {yellow}
+        </span>
+      ) : null}
+      {red ? (
+        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-red-400/15 text-red-300 border border-red-400/25">
+          <span className="inline-block w-1.5 h-2 rounded-[1px] bg-red-400" />
+          {red}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

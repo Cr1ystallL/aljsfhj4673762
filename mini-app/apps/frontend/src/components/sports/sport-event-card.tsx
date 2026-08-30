@@ -18,7 +18,7 @@ type Chip = 'popular' | MarketKind;
 
 export function SportEventCard({ event }: { event: SportEvent }) {
   const { t, localeTag } = useT();
-  const [tab, setTab] = useState<'match' | 'overview'>(event.isLive ? 'overview' : 'match');
+  const [tab, setTab] = useState<'match' | 'overview'>('match');
   const [chip, setChip] = useState<Chip>('popular');
   const finished = event.status === 'finished';
   const markets = event.markets ?? [];
@@ -185,6 +185,22 @@ function TeamBlock({
       >
         {team.name}
       </span>
+      {(team.yellowCards || team.redCards) ? (
+        <span className="flex items-center gap-1 shrink-0 font-roobert text-[10px] font-bold tabular-nums">
+          {team.yellowCards ? (
+            <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-300/15 text-amber-200 border border-amber-300/20">
+              <span className="inline-block w-1.5 h-2 rounded-[1px] bg-amber-300" />
+              {team.yellowCards}
+            </span>
+          ) : null}
+          {team.redCards ? (
+            <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-red-400/15 text-red-300 border border-red-400/25">
+              <span className="inline-block w-1.5 h-2 rounded-[1px] bg-red-400" />
+              {team.redCards}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </div>
   );
 }

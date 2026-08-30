@@ -104,6 +104,7 @@ export interface SportEvent {
   marketsCount: number;
   isFeatured?: boolean;
   featuredTag?: string;
+  featuredReason?: 'live' | 'goals' | 'cards' | 'soon' | 'line';
   hasStream?: boolean;
   isFavorite?: boolean;
   lastEventNotification?: string;
@@ -117,6 +118,8 @@ export interface SportEvent {
   stats?: {
     yellow1?: number;
     yellow2?: number;
+    red1?: number;
+    red2?: number;
     corners1?: number;
     corners2?: number;
     shotsOn1?: number;

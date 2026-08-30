@@ -41,6 +41,8 @@ export type SportsOutcome = 'p1' | 'x' | 'p2';
 export type EventStatus = 'prematch' | 'live' | 'finished';
 export type OddsTrend = 'up' | 'down' | 'same';
 
+export type FeaturedReason = 'live' | 'goals' | 'cards' | 'soon' | 'line';
+
 export interface PublicTeam {
   name: string;
   shortName: string;
@@ -48,6 +50,8 @@ export interface PublicTeam {
   color: string;
   logo?: string;
   score?: number;
+  yellowCards?: number;
+  redCards?: number;
 }
 
 export interface PublicOdds {
@@ -87,6 +91,7 @@ export interface PublicSportEvent {
   markets: SportMarket[];
   marketsCount: number;
   isFeatured?: boolean;
+  featuredReason?: FeaturedReason;
   lastEvent?: LastSportsEvent;
   lastEventNotification?: string;
   stats?: MatchStats;
@@ -123,6 +128,7 @@ interface RuntimeEvent {
   prevOdds: { p1: number; x?: number; p2: number };
   lastEvent?: LastSportsEvent;
   featured?: boolean;
+  featuredReason?: FeaturedReason;
   suspended?: boolean;
 }
 
@@ -527,8 +533,16 @@ class SportsEngine {
       id: f.id,
       sport: f.sport,
       league: f.league,
-      team1: { ...f.team1 },
-      team2: { ...f.team2 },
+      team1: {
+        ...f.team1,
+        yellowCards: f.stats?.yellow1,
+        redCards: f.stats?.red1,
+      },
+      team2: {
+        ...f.team2,
+        yellowCards: f.stats?.yellow2,
+        redCards: f.stats?.red2,
+      },
       startTime: new Date(f.startTime).toISOString(),
       displayTime:
         f.status === 'live'
@@ -555,6 +569,7 @@ class SportsEngine {
       markets: f.markets,
       marketsCount: f.marketsCount,
       isFeatured: ev.featured,
+      featuredReason: ev.featuredReason,
       lastEvent,
       lastEventNotification: f.lastPlay,
       stats: f.stats,
@@ -563,13 +578,24 @@ class SportsEngine {
   }
 
   private pickFeatured(): void {
-    for (const ev of this.events.values()) ev.featured = false;
-    const list = [...this.events.values()];
-    const featured =
-      list.find((e) => e.feed.status === 'live' && e.feed.sport === 'football') ||
-      list.find((e) => e.feed.status === 'live') ||
-      list.find((e) => e.feed.status === 'prematch');
-    if (featured) featured.featured = true;
+    for (const ev of this.events.values()) {
+      ev.featured = false;
+      ev.featuredReason = undefined;
+    }
+    let best: RuntimeEvent | undefined;
+    let bestHeat = -1;
+    for (const ev of this.events.values()) {
+      const { heat, reason } = featuredScore(ev.feed);
+      ev.featuredReason = reason;
+      if (heat > bestHeat) {
+        bestHeat = heat;
+        best = ev;
+      }
+    }
+    if (best) best.featured = true;
+    for (const ev of this.events.values()) {
+      if (ev !== best) ev.featuredReason = undefined;
+    }
   }
 
   private async sync(): Promise<void> {
@@ -820,6 +846,33 @@ class SportsEngine {
       });
     }
   }
+}
+
+function featuredScore(feed: FeedEvent): { heat: number; reason: FeaturedReason } {
+  if (feed.status === 'finished') return { heat: -1, reason: 'line' };
+  const goals = (feed.team1.score ?? 0) + (feed.team2.score ?? 0);
+  const yellow = (feed.stats?.yellow1 ?? 0) + (feed.stats?.yellow2 ?? 0);
+  const red = (feed.stats?.red1 ?? 0) + (feed.stats?.red2 ?? 0);
+  let heat = feed.sport === 'football' ? 12 : 0;
+  let reason: FeaturedReason = 'line';
+
+  if (feed.status === 'live') {
+    heat += 40 + goals * 10 + yellow * 2 + red * 8;
+    if ((feed.liveMinute ?? 0) >= 75) heat += 8;
+    reason = 'live';
+    if (goals >= 3) reason = 'goals';
+    else if (red > 0 || yellow >= 5) reason = 'cards';
+    return { heat, reason };
+  }
+
+  const mins = (feed.startTime - Date.now()) / 60_000;
+  if (mins >= 0 && mins <= 90) {
+    heat += 28 - mins / 4;
+    reason = 'soon';
+  } else if (mins > 90 && mins < 24 * 60) {
+    heat += 8;
+  }
+  return { heat, reason };
 }
 
 function formatCombined(n: number): number {

@@ -80,12 +80,27 @@ export function remainingLambdas(
     const t = Math.max(60 - Math.min(Math.max(minute, 0), 60), 1) / 60;
     return { rem1: 2.7 * t, rem2: 2.5 * t };
   }
+  if (sport === 'basketball') {
+    const t = Math.max(48 - Math.min(Math.max(minute, 0), 48), 1) / 48;
+    return { rem1: 52 * t, rem2: 50 * t };
+  }
+  if (sport === 'tennis') {
+    return { rem1: 1.1, rem2: 1.05 };
+  }
+  if (sport === 'cybersport') {
+    return { rem1: 1.35, rem2: 1.3 };
+  }
+  if (sport === 'table_tennis') {
+    return { rem1: 2.2, rem2: 2.1 };
+  }
   return { rem1: 0.35, rem2: 0.35 };
 }
 
 export interface MatchStats {
   yellow1?: number;
   yellow2?: number;
+  red1?: number;
+  red2?: number;
   corners1?: number;
   corners2?: number;
   shotsOn1?: number;
@@ -97,6 +112,35 @@ export interface MatchStats {
   subs1?: number;
   subs2?: number;
 }
+
+function totalLinesFor(sport: SportKind, current: number): number[] {
+  if (sport === 'hockey') return [4.5, 5.5, 6.5].filter((n) => n > current - 0.05);
+  if (sport === 'basketball') {
+    const base = Math.max(210.5, Math.ceil((current + 42) * 2) / 2);
+    return [base - 10, base, base + 10].filter((n) => n > current);
+  }
+  if (sport === 'tennis') return [2.5].filter((n) => n > current - 0.05);
+  if (sport === 'cybersport') return [1.5, 2.5].filter((n) => n > current - 0.05);
+  if (sport === 'table_tennis') return [3.5, 5.5].filter((n) => n > current - 0.05);
+  return [1.5, 2, 2.5, 3, 3.5].filter((n) => n > current - 0.05);
+}
+
+function handicapLinesFor(sport: SportKind): number[] {
+  if (sport === 'hockey') return [1.5, 2.5];
+  if (sport === 'basketball') return [3.5, 6.5];
+  if (sport === 'tennis' || sport === 'cybersport') return [1.5];
+  if (sport === 'table_tennis') return [1.5, 2.5];
+  return [1, 1.5, 2];
+}
+
+const LINE_SPORTS: SportKind[] = [
+  'football',
+  'hockey',
+  'basketball',
+  'tennis',
+  'cybersport',
+  'table_tennis',
+];
 
 export function buildMarkets(input: {
   sport: SportKind;
@@ -134,14 +178,11 @@ export function buildMarkets(input: {
     });
   }
 
-  if (input.sport === 'football' || input.sport === 'hockey') {
+  if (LINE_SPORTS.includes(input.sport)) {
     const { rem1, rem2 } = remainingLambdas(input.sport, input.minute);
     const rem = rem1 + rem2;
     const current = input.score1 + input.score2;
-    const totalLines =
-      input.sport === 'hockey'
-        ? [4.5, 5.5, 6.5]
-        : [1.5, 2, 2.5, 3, 3.5].filter((n) => n > current - 0.05);
+    const totalLines = totalLinesFor(input.sport, current);
     if (totalLines.length > 0) {
       markets.push({
         id: 'totals',
@@ -153,11 +194,10 @@ export function buildMarkets(input: {
       });
     }
 
-    const hLines = input.sport === 'hockey' ? [1.5, 2.5] : [1, 1.5, 2];
     markets.push({
       id: 'ah',
       kind: 'handicap',
-      lines: hLines.map((line) => ({
+      lines: handicapLinesFor(input.sport).map((line) => ({
         line,
         outcomes: priceHandicap(input.score1, input.score2, rem1, rem2, line),
       })),
@@ -192,36 +232,37 @@ export function buildMarkets(input: {
       ],
     });
 
-    const yellow = (input.stats?.yellow1 ?? 0) + (input.stats?.yellow2 ?? 0);
+    const yellow =
+      (input.stats?.yellow1 ?? 0) +
+      (input.stats?.yellow2 ?? 0) +
+      ((input.stats?.red1 ?? 0) + (input.stats?.red2 ?? 0)) * 2;
     const corners = (input.stats?.corners1 ?? 0) + (input.stats?.corners2 ?? 0);
     const remainFrac = Math.max(90 - input.minute, 8) / 90;
-    if (input.stats) {
-      markets.push({
-        id: 'cards',
-        kind: 'cards',
-        lines: [3.5, 4.5, 5.5].map((line) => ({
-          line,
-          outcomes: priceTotal(yellow, 3.2 * remainFrac, line),
-        })),
-      });
-      markets.push({
-        id: 'corners',
-        kind: 'corners',
-        lines: [8.5, 9.5, 10.5].map((line) => ({
-          line,
-          outcomes: priceTotal(corners, 6.4 * remainFrac, line),
-        })),
-      });
-      const pGoalSooner = (rem1 + rem2) / Math.max(0.2, rem1 + rem2 + 1.1);
-      markets.push({
-        id: 'sooner',
-        kind: 'sooner',
-        outcomes: [
-          oc('goal', 'goal', book(pGoalSooner)),
-          oc('card', 'card', book(1 - pGoalSooner)),
-        ],
-      });
-    }
+    markets.push({
+      id: 'cards',
+      kind: 'cards',
+      lines: [3.5, 4.5, 5.5].map((line) => ({
+        line,
+        outcomes: priceTotal(yellow, 3.2 * remainFrac, line),
+      })),
+    });
+    markets.push({
+      id: 'corners',
+      kind: 'corners',
+      lines: [8.5, 9.5, 10.5].map((line) => ({
+        line,
+        outcomes: priceTotal(corners, 6.4 * remainFrac, line),
+      })),
+    });
+    const pGoalSooner = (rem1 + rem2) / Math.max(0.2, rem1 + rem2 + 1.1);
+    markets.push({
+      id: 'sooner',
+      kind: 'sooner',
+      outcomes: [
+        oc('goal', 'goal', book(pGoalSooner)),
+        oc('card', 'card', book(1 - pGoalSooner)),
+      ],
+    });
   }
 
   return markets;
@@ -374,12 +415,15 @@ export function settleLeg(
     return 'void';
   }
   if (kind === 'cards' || kind === 'corners') {
-    if (line == null || !extras?.stats) return extras?.finished ? 'void' : 'void';
+    if (line == null) return 'void';
+    const stats = extras?.stats;
     const total =
       kind === 'cards'
-        ? (extras.stats.yellow1 ?? 0) + (extras.stats.yellow2 ?? 0)
-        : (extras.stats.corners1 ?? 0) + (extras.stats.corners2 ?? 0);
-    if (!extras.finished) return 'void';
+        ? (stats?.yellow1 ?? 0) +
+          (stats?.yellow2 ?? 0) +
+          ((stats?.red1 ?? 0) + (stats?.red2 ?? 0)) * 2
+        : (stats?.corners1 ?? 0) + (stats?.corners2 ?? 0);
+    if (!extras?.finished) return 'void';
     if (Math.abs(total - line) < 1e-9) return 'void';
     if (key === 'over') return total > line ? 'won' : 'lost';
     if (key === 'under') return total < line ? 'won' : 'lost';
