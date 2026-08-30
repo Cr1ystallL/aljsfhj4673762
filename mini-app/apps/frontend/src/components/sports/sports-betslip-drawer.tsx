@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { X, Check, ChevronDown } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
+import { ExpressTrainIcon } from '@/components/ui/express-train-icon';
 import { useT } from '@/i18n/use-t';
 import { StakeField } from '@/components/game/kit/stake-field';
 import { GamePrimaryButton } from '@/components/game/kit/game-primary-button';
@@ -178,6 +179,8 @@ export function SportsBetslipDrawer({
                   <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
                     {receipt && !legs.length ? (
                       <Check size={13} strokeWidth={2.6} />
+                    ) : isExpress ? (
+                      <ExpressTrainIcon size={13} strokeWidth={2.2} />
                     ) : (
                       <SoccerBallIcon size={13} strokeWidth={2.2} />
                     )}
@@ -215,7 +218,11 @@ export function SportsBetslipDrawer({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/12 flex items-center justify-center text-frost-white">
-                      <SoccerBallIcon size={14} strokeWidth={2.2} />
+                      {isExpress ? (
+                        <ExpressTrainIcon size={14} strokeWidth={2.2} />
+                      ) : (
+                        <SoccerBallIcon size={14} strokeWidth={2.2} />
+                      )}
                     </div>
                     <span className="font-roobert text-[12px] font-bold text-frost-white tracking-tight">
                       {legs.length

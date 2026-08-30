@@ -317,13 +317,17 @@ class SportsEngine {
         eventName,
         league: firstEv.feed.league,
         scoreAtBet: [firstEv.feed.team1.score ?? 0, firstEv.feed.team2.score ?? 0],
-        legs: locked.map((leg) => ({
-          eventId: leg.eventId,
-          marketKind: leg.marketKind,
-          outcomeKey: leg.outcomeKey,
-          line: leg.line,
-          odds: leg.odds,
-        })),
+        legs: locked.map((leg) => {
+          const ev = this.events.get(leg.eventId);
+          return {
+            eventId: leg.eventId,
+            eventName: ev ? `${ev.feed.team1.name} — ${ev.feed.team2.name}` : undefined,
+            marketKind: leg.marketKind,
+            outcomeKey: leg.outcomeKey,
+            line: leg.line,
+            odds: leg.odds,
+          };
+        }),
       },
     };
 
@@ -338,13 +342,17 @@ class SportsEngine {
       stake,
       odds: combinedOdds,
       potentialWin,
-      legs: locked.map((leg) => ({
-        eventId: leg.eventId,
-        marketKind: leg.marketKind,
-        outcomeKey: leg.outcomeKey,
-        line: leg.line,
-        odds: leg.odds,
-      })),
+      legs: locked.map((leg) => {
+        const ev = this.events.get(leg.eventId);
+        return {
+          eventId: leg.eventId,
+          eventName: ev ? `${ev.feed.team1.name} — ${ev.feed.team2.name}` : undefined,
+          marketKind: leg.marketKind,
+          outcomeKey: leg.outcomeKey,
+          line: leg.line,
+          odds: leg.odds,
+        };
+      }),
     };
   }
 
@@ -357,19 +365,27 @@ class SportsEngine {
     const limits = await sportsLimits();
     return rows.map((row) => {
       const meta = (row.metadata ?? {}) as Record<string, unknown>;
-      const rawLegs = Array.isArray(meta.legs) ? meta.legs : [];
+      const rawLegs = Array.isArray(meta.legs) ? (meta.legs as Array<Record<string, unknown>>) : [];
       const tracked = this.bets.get(row.id);
-      const legs = (tracked?.legs ?? parseStoredLegs(meta)).map((leg) => ({
-        eventId: leg.eventId,
-        marketKind: leg.marketKind,
-        outcomeKey: leg.outcomeKey,
-        line: leg.line,
-        odds: leg.odds,
-        result: leg.result,
-        eventName: this.events.get(leg.eventId)
-          ? `${this.events.get(leg.eventId)!.feed.team1.name} — ${this.events.get(leg.eventId)!.feed.team2.name}`
-          : undefined,
-      }));
+      const parsedLegs = tracked?.legs ?? parseStoredLegs(meta);
+      const legs = parsedLegs.map((leg, idx) => {
+        const stored = rawLegs[idx];
+        const liveEvent = this.events.get(leg.eventId);
+        const eventName =
+          (stored?.eventName as string | undefined) ||
+          (liveEvent ? `${liveEvent.feed.team1.name} — ${liveEvent.feed.team2.name}` : undefined) ||
+          (parsedLegs.length === 1 ? String(meta.eventName ?? '') : undefined);
+
+        return {
+          eventId: leg.eventId,
+          marketKind: leg.marketKind,
+          outcomeKey: leg.outcomeKey,
+          line: leg.line,
+          odds: leg.odds,
+          result: leg.result,
+          eventName,
+        };
+      });
       const pending = row.state === 'pending' || row.state === 'active';
       const cashout = pending ? this.quoteCashout(row.id, Number(row.amount), limits) : null;
       return {
