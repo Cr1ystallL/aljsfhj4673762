@@ -1,12 +1,15 @@
 import type { FastifyInstance } from 'fastify';
-import { authenticate, type AuthenticatedRequest } from '../../middleware/auth.js';
+import {
+  authenticate,
+  isAdminTelegramIdAsync,
+  type AuthenticatedRequest,
+} from '../../middleware/auth.js';
 import { gameConfig } from '../../services/game-config.js';
 import { logger } from '../../utils/logger.js';
 import { sportsEngine, SportsOddsChangedError } from './engine.js';
 import { MARKET_KINDS, type BetLegSpec, type MarketKind } from './markets.js';
 import { sportsLimits } from './limits.js';
 import { sportsLogoRoutes } from './logo-route.js';
-import { canAccessSports } from './access.js';
 
 const LEGACY_OUTCOMES = new Set(['p1', 'x', 'p2']);
 
@@ -17,7 +20,8 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
     const cfg = await gameConfig.get('sports');
     const limits = await sportsLimits();
     const { user } = request as AuthenticatedRequest;
-    if (!(await canAccessSports(user))) {
+    const isAdmin = await isAdminTelegramIdAsync(user.telegramId);
+    if (cfg.hidden && !isAdmin) {
       return reply.code(404).send({ error: 'Not Found' });
     }
 
@@ -42,7 +46,8 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const cfg = await gameConfig.get('sports');
       const { user } = request as AuthenticatedRequest;
-      if (!(await canAccessSports(user))) {
+      const isAdmin = await isAdminTelegramIdAsync(user.telegramId);
+      if (cfg.hidden && !isAdmin) {
         return reply.code(404).send({ error: 'Not Found' });
       }
 
@@ -95,7 +100,8 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
   }>('/bet', { preHandler: authenticate }, async (request, reply) => {
     const cfg = await gameConfig.get('sports');
     const { user } = request as AuthenticatedRequest;
-    if (!(await canAccessSports(user))) {
+    const isAdmin = await isAdminTelegramIdAsync(user.telegramId);
+    if (cfg.hidden && !isAdmin) {
       return reply.code(404).send({ error: 'Not Found' });
     }
     if (cfg.paused) {

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useSportsAccess } from '@/hooks/use-sports-access';
+import { useParams } from 'next/navigation';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { SportsTopBar } from '@/components/sports/sports-top-bar';
 import { SportsBetslipDrawer } from '@/components/sports/sports-betslip-drawer';
@@ -15,8 +14,6 @@ import type { SportEvent } from '@/types/sports';
 
 export default function SportEventPage() {
   const { t } = useT();
-  const router = useRouter();
-  const { ready: sportsReady, allowed: sportsAllowed } = useSportsAccess();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(String(params?.id ?? ''));
   const { events, minBet, maxBet, paused } = useLiveSports();
@@ -51,14 +48,6 @@ export default function SportEventPage() {
       cancelled = true;
     };
   }, [id, events]);
-
-  useEffect(() => {
-    if (sportsReady && !sportsAllowed) router.replace('/partner');
-  }, [sportsReady, sportsAllowed, router]);
-
-  if (!sportsReady || !sportsAllowed) {
-    return <div className="min-h-screen bg-midnight-canvas" />;
-  }
 
   return (
     <div className="min-h-screen bg-midnight-canvas text-frost-white pb-40">
