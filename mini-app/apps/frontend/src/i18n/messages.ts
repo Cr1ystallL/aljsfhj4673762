@@ -560,6 +560,11 @@ export const ru = {
     slipHidden: 'Купон скрыт',
     slipShow: 'Открыть купон',
     betAcceptedShort: 'Принята',
+    conflictTitle: 'Конфликт в экспрессе',
+    conflictBody:
+      'В одном купоне нельзя брать два исхода одного матча — например победу Челси и победу Реала. Иначе экспресс противоречит сам себе и не может сыграть.',
+    conflictRemove: 'Удалить «{label}»',
+    conflictKeepOne: 'Оставьте один исход',
   },
 };
 
@@ -1125,6 +1130,11 @@ export const en: Messages = {
     slipHidden: 'Slip hidden',
     slipShow: 'Open coupon',
     betAcceptedShort: 'Accepted',
+    conflictTitle: 'Accumulator conflict',
+    conflictBody:
+      'You cannot put two selections from the same match on one accumulator — for example Chelsea to win and Real to win. The coupon would contradict itself.',
+    conflictRemove: 'Remove “{label}”',
+    conflictKeepOne: 'Keep only one selection',
   },
 };
 
@@ -1688,6 +1698,11 @@ export const pl: Messages = {
     slipHidden: 'Kupon zwinięty',
     slipShow: 'Otwórz kupon',
     betAcceptedShort: 'Przyjęty',
+    conflictTitle: 'Konflikt w ekspresie',
+    conflictBody:
+      'W jednym kuponie nie można wziąć dwóch typów z tego samego meczu — np. wygrana Chelsea i wygrana Realu. Ekspres przeczyłby sam sobie.',
+    conflictRemove: 'Usuń „{label}”',
+    conflictKeepOne: 'Zostaw jeden typ',
   },
 };
 

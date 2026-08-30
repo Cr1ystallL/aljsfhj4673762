@@ -8,6 +8,7 @@ interface SportsSlipState {
   legs: SelectedBet[];
   toggle: (bet: SelectedBet) => void;
   remove: (eventId: string) => void;
+  removeLeg: (leg: SelectedBet) => void;
   clear: () => void;
   syncFromEvents: (events: SportEvent[]) => void;
 }
@@ -20,12 +21,14 @@ export const useSportsSlip = create<SportsSlipState>((set, get) => ({
       set({ legs: current.filter((leg) => !sameLeg(leg, bet)) });
       return;
     }
-    const withoutEvent = current.filter((leg) => leg.eventId !== bet.eventId);
-    if (withoutEvent.length >= MAX_LEGS) return;
-    set({ legs: [...withoutEvent, bet] });
+    if (current.length >= MAX_LEGS) return;
+    set({ legs: [...current, bet] });
   },
   remove: (eventId) => {
     set({ legs: get().legs.filter((leg) => leg.eventId !== eventId) });
+  },
+  removeLeg: (target) => {
+    set({ legs: get().legs.filter((leg) => !sameLeg(leg, target)) });
   },
   clear: () => set({ legs: [] }),
   syncFromEvents: (events) => {

@@ -423,6 +423,14 @@ function OutcomeButton({
       })
     )
   );
+  const conflictsWithSlip = useSportsSlip((s) =>
+    s.legs.some((leg) => leg.eventId === event.id && !sameLeg(leg, {
+      eventId: event.id,
+      marketKind: kind,
+      outcomeType: outcome.key,
+      line: outcome.line,
+    }))
+  );
   const disabled = finished || !outcome.available;
 
   return (
@@ -437,7 +445,9 @@ function OutcomeButton({
         'min-h-[44px] px-2.5 py-2 rounded-xl border flex items-center justify-between gap-2',
         selected
           ? 'bg-frost-white text-midnight-canvas border-white/40'
-          : 'bg-white/[0.04] border-white/10 text-frost-white',
+          : conflictsWithSlip
+            ? 'bg-red-950/40 border-red-400/40 text-frost-white'
+            : 'bg-white/[0.04] border-white/10 text-frost-white',
         disabled && 'opacity-35'
       )}
     >

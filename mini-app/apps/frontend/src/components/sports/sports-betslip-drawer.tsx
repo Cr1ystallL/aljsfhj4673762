@@ -10,6 +10,7 @@ import { GamePrimaryButton } from '@/components/game/kit/game-primary-button';
 import { sportsService, SportsOddsChangedError } from '@/services/sports.service';
 import { useBalance } from '@/hooks/use-balance';
 import { useSportsSlip } from '@/store/sports-slip-store';
+import { conflictingEventIds } from '@/lib/sports-markets';
 import { SportsMyBets } from './sports-my-bets';
 
 interface SportsBetslipDrawerProps {
@@ -33,7 +34,7 @@ export function SportsBetslipDrawer({
   const { t, localeTag } = useT();
   const { syncBalance } = useBalance();
   const legs = useSportsSlip((s) => s.legs);
-  const remove = useSportsSlip((s) => s.remove);
+  const removeLeg = useSportsSlip((s) => s.removeLeg);
   const clear = useSportsSlip((s) => s.clear);
   const [stake, setStake] = useState<number>(Math.max(minBet, 10));
   const [busy, setBusy] = useState(false);
@@ -82,6 +83,12 @@ export function SportsBetslipDrawer({
   );
   const isExpress = legs.length >= 2;
   const potentialWin = stake * combinedOdds;
+  const conflictIds = useMemo(() => conflictingEventIds(legs), [legs]);
+  const hasConflict = conflictIds.length > 0;
+  const conflictLegs = useMemo(
+    () => legs.filter((leg) => conflictIds.includes(leg.eventId)),
+    [legs, conflictIds]
+  );
   const visible = !dismissed && (legs.length > 0 || !!receipt || pendingOpen > 0);
 
   const dismiss = () => {
@@ -93,7 +100,7 @@ export function SportsBetslipDrawer({
   };
 
   const handlePlaceBet = async (acceptChange = false) => {
-    if (busy || isSuccess || paused || legs.length === 0) return;
+    if (busy || isSuccess || paused || legs.length === 0 || hasConflict) return;
     setBusy(true);
     setError(null);
     try {
@@ -248,11 +255,38 @@ export function SportsBetslipDrawer({
 
                 {legs.length > 0 ? (
                   <>
+                    {hasConflict && (
+                      <div className="rounded-2xl border border-red-400/35 bg-red-950/35 px-3 py-2.5 flex flex-col gap-2">
+                        <div className="font-roobert text-[12px] font-bold text-red-200">
+                          {t('sports.conflictTitle')}
+                        </div>
+                        <p className="font-roobert text-[11px] leading-snug text-red-100/80">
+                          {t('sports.conflictBody')}
+                        </p>
+                        <div className="flex flex-col gap-1.5">
+                          {conflictLegs.map((leg) => (
+                            <button
+                              key={`${leg.eventId}-${leg.marketKind}-${leg.outcomeType}-${leg.line ?? ''}-fix`}
+                              type="button"
+                              onClick={() => removeLeg(leg)}
+                              className="w-full text-left px-2.5 py-1.5 rounded-xl border border-red-300/25 bg-black/30 font-roobert text-[11px] text-frost-white hover:bg-black/50"
+                            >
+                              {t('sports.conflictRemove', { label: `${leg.eventName}: ${leg.outcomeLabel}` })}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex flex-col gap-1.5 max-h-[168px] overflow-y-auto">
                       {legs.map((leg) => (
                         <div
                           key={`${leg.eventId}-${leg.marketKind}-${leg.outcomeType}-${leg.line ?? ''}`}
-                          className="rounded-2xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2"
+                          className={
+                            conflictIds.includes(leg.eventId)
+                              ? 'rounded-2xl border border-red-400/45 bg-red-950/25 p-2.5 flex items-center justify-between gap-2'
+                              : 'rounded-2xl border border-white/10 bg-black/40 p-2.5 flex items-center justify-between gap-2'
+                          }
                         >
                           <div className="min-w-0 flex-1">
                             <div className="font-roobert text-[11px] text-whisper-gray truncate">
@@ -273,7 +307,7 @@ export function SportsBetslipDrawer({
                             </span>
                             <button
                               type="button"
-                              onClick={() => remove(leg.eventId)}
+                              onClick={() => removeLeg(leg)}
                               className="p-1 rounded-full text-whisper-gray hover:text-frost-white"
                               aria-label={t('sports.clearCoupon')}
                             >
@@ -337,8 +371,8 @@ export function SportsBetslipDrawer({
                           onClick={() => {
                             void handlePlaceBet(!!oddsPrompt);
                           }}
-                          disabled={busy || isSuccess || paused}
-                          tone={isSuccess ? 'muted' : 'solid'}
+                          disabled={busy || isSuccess || paused || hasConflict}
+                          tone={isSuccess || hasConflict ? 'muted' : 'solid'}
                         >
                           {isSuccess ? (
                             <>
@@ -347,13 +381,15 @@ export function SportsBetslipDrawer({
                             </>
                           ) : (
                             <span>
-                              {paused
-                                ? t('sports.linePaused')
-                                : oddsPrompt
-                                  ? t('sports.acceptOdds')
-                                  : isExpress
-                                    ? t('sports.express')
-                                    : t('sports.placeBet')}
+                              {hasConflict
+                                ? t('sports.conflictKeepOne')
+                                : paused
+                                  ? t('sports.linePaused')
+                                  : oddsPrompt
+                                    ? t('sports.acceptOdds')
+                                    : isExpress
+                                      ? t('sports.express')
+                                      : t('sports.placeBet')}
                             </span>
                           )}
                         </GamePrimaryButton>
