@@ -131,6 +131,17 @@ export interface SportEvent {
     subs1?: number;
     subs2?: number;
   };
+  extra?: {
+    scoreKind?: 'maps' | 'kills';
+    game?: 'dota' | 'cs';
+    kills1?: number;
+    kills2?: number;
+    maps1?: number;
+    maps2?: number;
+    spectators?: number;
+    duration?: number;
+  };
+  streamUrl?: string;
   suspended?: boolean;
 }
 

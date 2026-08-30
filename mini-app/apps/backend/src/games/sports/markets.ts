@@ -120,7 +120,6 @@ function totalLinesFor(sport: SportKind, current: number): number[] {
     return [base - 10, base, base + 10].filter((n) => n > current);
   }
   if (sport === 'tennis') return [2.5].filter((n) => n > current - 0.05);
-  if (sport === 'cybersport') return [1.5, 2.5].filter((n) => n > current - 0.05);
   if (sport === 'table_tennis') return [3.5, 5.5].filter((n) => n > current - 0.05);
   return [1.5, 2, 2.5, 3, 3.5].filter((n) => n > current - 0.05);
 }
@@ -128,7 +127,7 @@ function totalLinesFor(sport: SportKind, current: number): number[] {
 function handicapLinesFor(sport: SportKind): number[] {
   if (sport === 'hockey') return [1.5, 2.5];
   if (sport === 'basketball') return [3.5, 6.5];
-  if (sport === 'tennis' || sport === 'cybersport') return [1.5];
+  if (sport === 'tennis') return [1.5];
   if (sport === 'table_tennis') return [1.5, 2.5];
   return [1, 1.5, 2];
 }
@@ -138,7 +137,6 @@ const LINE_SPORTS: SportKind[] = [
   'hockey',
   'basketball',
   'tennis',
-  'cybersport',
   'table_tennis',
 ];
 

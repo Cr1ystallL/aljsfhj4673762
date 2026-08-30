@@ -43,6 +43,17 @@ export interface FeedTeam {
   score?: number;
 }
 
+export interface FeedExtra {
+  scoreKind?: 'maps' | 'kills';
+  game?: 'dota' | 'cs';
+  kills1?: number;
+  kills2?: number;
+  maps1?: number;
+  maps2?: number;
+  spectators?: number;
+  duration?: number;
+}
+
 export interface FeedEvent {
   id: string;
   sport: SportKind;
@@ -63,6 +74,8 @@ export interface FeedEvent {
   markets: SportMarket[];
   marketsCount: number;
   stats?: MatchStats;
+  extra?: FeedExtra;
+  streamUrl?: string;
   suspended?: boolean;
   espnLeague?: string;
 }

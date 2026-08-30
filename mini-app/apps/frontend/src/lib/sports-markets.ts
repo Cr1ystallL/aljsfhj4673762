@@ -1,5 +1,18 @@
-import type { MarketKind, SelectedBet, SportEvent, SportMarketOutcome } from '@/types/sports';
+import type { MarketKind, SelectedBet, SportEvent, SportMarket, SportMarketOutcome } from '@/types/sports';
 import type { TxKey } from '@/i18n/use-t';
+
+const FOOTBALL_ONLY: MarketKind[] = ['btts', 'next_goal', 'cards', 'corners', 'sooner'];
+
+export function marketsForEvent(event: SportEvent): SportMarket[] {
+  const raw = event.markets ?? [];
+  if (event.sport === 'cybersport') {
+    return raw.filter((m) => m.kind === '1x2');
+  }
+  if (event.sport !== 'football') {
+    return raw.filter((m) => !FOOTBALL_ONLY.includes(m.kind));
+  }
+  return raw;
+}
 
 export function findMarketOutcome(
   event: SportEvent,
@@ -7,7 +20,7 @@ export function findMarketOutcome(
   key: string,
   line?: number
 ): SportMarketOutcome | null {
-  for (const market of event.markets ?? []) {
+  for (const market of marketsForEvent(event)) {
     if (market.kind !== kind) continue;
     if (market.lines) {
       if (line == null) continue;
