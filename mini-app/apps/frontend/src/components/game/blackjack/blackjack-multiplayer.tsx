@@ -23,6 +23,7 @@ import {
   History,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
+import { useBalanceStore } from '@/store/balance-store';
 import { useActiveBalance } from '@/hooks/use-active-balance';
 import { Suit } from '@/components/game/hilo/playing-card';
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
@@ -184,6 +185,25 @@ function mergeLiveTables(
   return sortTableList(list);
 }
 
+function tableShortName(id: string): string {
+  if (!id) return 'стол';
+  if (id === 'bj_table_1') return 'Стол #1';
+  const n = String(id).replace(/^bj_table_/, '');
+  return n && n !== id ? `Стол #${n}` : id;
+}
+
+function emptyTableState(id: string): BJState {
+  return {
+    roomId: id,
+    phase: 'waiting',
+    countdown: 12,
+    dealerHand: [],
+    players: [],
+    currentTurnSeatId: null,
+    roundId: '',
+  };
+}
+
 function convertCard(c: BJCard) {
   let rankNum = 10;
   if (c.rank === 'A') rankNum = 1;
@@ -310,22 +330,22 @@ export function BlackjackMultiplayer() {
   const searchParams = useSearchParams();
   const explicitRoom = searchParams.get('roomId');
   const [roomId, setRoomId] = useState(explicitRoom || 'bj_table_1');
+  const roomIdRef = useRef(roomId);
+  const switchTargetRef = useRef<string | null>(null);
+  const switchTimerRef = useRef<number | null>(null);
+  const [tableSwitch, setTableSwitch] = useState<{ from: string; to: string } | null>(null);
 
   useEffect(() => {
-    if (explicitRoom && explicitRoom !== roomId) {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
+  useEffect(() => {
+    if (explicitRoom && explicitRoom !== roomIdRef.current && !switchTargetRef.current) {
       setRoomId(explicitRoom);
     }
-  }, [explicitRoom, roomId]);
+  }, [explicitRoom]);
 
-  const [state, setState] = useState<BJState>({
-    roomId: explicitRoom || 'bj_table_1',
-    phase: 'waiting',
-    countdown: 12,
-    dealerHand: [],
-    players: [],
-    currentTurnSeatId: null,
-    roundId: '',
-  });
+  const [state, setState] = useState<BJState>(emptyTableState(explicitRoom || 'bj_table_1'));
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -536,35 +556,134 @@ export function BlackjackMultiplayer() {
     }
   }, []);
 
+  const clearSwitchTimer = useCallback(() => {
+    if (switchTimerRef.current) {
+      window.clearTimeout(switchTimerRef.current);
+      switchTimerRef.current = null;
+    }
+  }, []);
 
-  // REST state fallback loader with automatic matchmaking
+  const finishTableSwitch = useCallback(
+    (arrivedId: string) => {
+      if (switchTargetRef.current && arrivedId === switchTargetRef.current) {
+        switchTargetRef.current = null;
+        setTableSwitch(null);
+        clearSwitchTimer();
+      }
+    },
+    [clearSwitchTimer]
+  );
+
+  const switchTable = useCallback(
+    (nextId: string) => {
+      const prev = roomIdRef.current;
+      if (!nextId || nextId === prev) {
+        setIsTableMenuOpen(false);
+        return;
+      }
+
+      switchTargetRef.current = nextId;
+      roomIdRef.current = nextId;
+      setTableSwitch({ from: prev, to: nextId });
+      setIsTableMenuOpen(false);
+      setChatMessages([]);
+      setUnreadChatCount(0);
+      setSelectedBet(0);
+      setIsActionPending(false);
+      setState(emptyTableState(nextId));
+
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: 'blackjack:leave_seat',
+            payload: { roomId: prev },
+            timestamp: Date.now(),
+          })
+        );
+        ws.send(
+          JSON.stringify({
+            type: 'game:leave',
+            payload: { roomId: prev },
+            timestamp: Date.now(),
+          })
+        );
+        ws.send(
+          JSON.stringify({
+            type: 'game:join',
+            payload: { roomId: nextId },
+            timestamp: Date.now(),
+          })
+        );
+      }
+
+      void fetch('/api/games/blackjack/leave', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ roomId: prev }),
+      }).catch(() => {});
+
+      setRoomId(nextId);
+      try {
+        router.replace(`/game/blackjack?roomId=${encodeURIComponent(nextId)}`, { scroll: false });
+      } catch {}
+
+      void fetch(`/api/games/blackjack/state?roomId=${encodeURIComponent(nextId)}`, {
+        credentials: 'include',
+        headers,
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (roomIdRef.current !== nextId) return;
+          if (data?.state && (!data.state.roomId || data.state.roomId === nextId)) {
+            setState(data.state);
+            if (Array.isArray(data.state.history)) setTableHistory(data.state.history);
+            finishTableSwitch(nextId);
+          }
+          if (Array.isArray(data?.chat)) setChatMessages(data.chat);
+        })
+        .catch(() => {});
+
+      clearSwitchTimer();
+      switchTimerRef.current = window.setTimeout(() => {
+        if (switchTargetRef.current === nextId) {
+          switchTargetRef.current = null;
+          setTableSwitch(null);
+        }
+      }, 4500);
+    },
+    [token, router, finishTableSwitch, clearSwitchTimer]
+  );
+
   const loadStateSnapshot = useCallback(async () => {
     try {
-      const targetUrl = explicitRoom
-        ? `/api/games/blackjack/state?roomId=${roomId}`
-        : `/api/games/blackjack/matchmake`;
-
+      const id = roomIdRef.current;
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(targetUrl, { credentials: 'include', headers });
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`/api/games/blackjack/state?roomId=${encodeURIComponent(id)}`, {
+        credentials: 'include',
+        headers,
+      });
       if (res.ok) {
         const data = await res.json();
-        if (data.roomId && data.roomId !== roomId) {
-          setRoomId(data.roomId);
-        }
-        if (data.state) {
+        if (roomIdRef.current !== id) return;
+        if (data.state && (!data.state.roomId || data.state.roomId === id)) {
           setState(data.state);
           if (Array.isArray(data.state.history)) {
             setTableHistory(data.state.history);
           }
+          finishTableSwitch(id);
         }
         if (Array.isArray(data.chat)) {
           setChatMessages(data.chat);
         }
       }
     } catch {}
-  }, [roomId, explicitRoom, token]);
+  }, [token, finishTableSwitch]);
 
   // Audio system initialization and registration
   useEffect(() => {
@@ -626,14 +745,22 @@ export function BlackjackMultiplayer() {
     return () => clearInterval(pollInterval);
   }, [loadStateSnapshot]);
 
-  // Comprehensive exit / unmount / beforeunload seat release cleanup
+  // Seat release on tab close / leave page — not on table switch (that's switchTable).
   useEffect(() => {
     const handleLeave = () => {
+      const id = roomIdRef.current;
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(
           JSON.stringify({
             type: 'blackjack:leave_seat',
-            payload: { roomId },
+            payload: { roomId: id },
+            timestamp: Date.now(),
+          })
+        );
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'game:leave',
+            payload: { roomId: id },
             timestamp: Date.now(),
           })
         );
@@ -646,14 +773,32 @@ export function BlackjackMultiplayer() {
     return () => {
       window.removeEventListener('beforeunload', handleLeave);
       window.removeEventListener('pagehide', handleLeave);
-      handleLeave();
     };
-  }, [roomId]);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (switchTimerRef.current) window.clearTimeout(switchTimerRef.current);
+    };
+  }, []);
 
   const isChatOpenRef = useRef(isChatOpen);
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
   }, [isChatOpen]);
+
+  const fetchAvailableTablesRef = useRef(fetchAvailableTables);
+  const fetchBalanceRef = useRef(fetchBalance);
+  const syncBalanceRef = useRef(syncBalance);
+  const fetchTableHistoryRef = useRef(fetchTableHistory);
+  const finishTableSwitchRef = useRef(finishTableSwitch);
+  useEffect(() => {
+    fetchAvailableTablesRef.current = fetchAvailableTables;
+    fetchBalanceRef.current = fetchBalance;
+    syncBalanceRef.current = syncBalance;
+    fetchTableHistoryRef.current = fetchTableHistory;
+    finishTableSwitchRef.current = finishTableSwitch;
+  }, [fetchAvailableTables, fetchBalance, syncBalance, fetchTableHistory, finishTableSwitch]);
 
   // WebSocket connection & messaging
   useEffect(() => {
@@ -695,7 +840,7 @@ export function BlackjackMultiplayer() {
           ws?.send(
             JSON.stringify({
               type: 'game:join',
-              payload: { roomId },
+              payload: { roomId: roomIdRef.current },
               timestamp: Date.now(),
             })
           );
@@ -718,7 +863,7 @@ export function BlackjackMultiplayer() {
               ws?.send(
                 JSON.stringify({
                   type: 'game:join',
-                  payload: { roomId },
+                  payload: { roomId: roomIdRef.current },
                   timestamp: Date.now(),
                 })
               );
@@ -740,35 +885,41 @@ export function BlackjackMultiplayer() {
             }
 
             if (data.type === 'bj:state' && data.payload) {
+              const arrivedId = data.payload.roomId || roomIdRef.current;
+              if (arrivedId !== roomIdRef.current) {
+                return;
+              }
               setState(data.payload);
               setIsActionPending(false);
+              finishTableSwitchRef.current(arrivedId);
               if (Array.isArray(data.payload.history)) {
                 setTableHistory(data.payload.history);
               }
               setAvailableTables((prev) =>
                 mergeLiveTables(prev, {
-                  roomId: data.payload.roomId || roomId,
+                  roomId: arrivedId,
                   playersCount: Array.isArray(data.payload.players) ? data.payload.players.length : 0,
                   phase: data.payload.phase,
                   countdown: data.payload.countdown,
                 })
               );
               if (data.payload.phase === 'settling' || data.payload.phase === 'finished') {
-                void fetchBalance();
-                void syncBalance();
-                void fetchTableHistory();
+                void fetchBalanceRef.current();
+                void syncBalanceRef.current();
+                void fetchTableHistoryRef.current();
                 setTimeout(() => {
-                  void fetchBalance();
-                  void syncBalance();
+                  void fetchBalanceRef.current();
+                  void syncBalanceRef.current();
                 }, 800);
-                setTimeout(() => void fetchBalance(), 2000);
+                setTimeout(() => void fetchBalanceRef.current(), 2000);
               }
             }
 
             if (data.type === 'bj:tables' && Array.isArray(data.payload?.tables)) {
               setAvailableTables((prev) => {
-                const live = prev.find((t) => t.roomId === roomId) ?? {
-                  roomId,
+                const currentId = roomIdRef.current;
+                const live = prev.find((t) => t.roomId === currentId) ?? {
+                  roomId: currentId,
                   playersCount: 0,
                   phase: 'waiting',
                   countdown: 12,
@@ -781,16 +932,21 @@ export function BlackjackMultiplayer() {
               const code = data.payload.code;
               if (code === 'TABLE_FULL' || code === 'JOIN_SEAT_FAILED') {
                 toast.info(data.payload.message || 'Место занято');
-                void fetchAvailableTables();
+                void fetchAvailableTablesRef.current();
               }
             }
 
             if (data.type === 'blackjack:chat:history' && Array.isArray(data.payload?.messages)) {
-              setChatMessages(data.payload.messages);
+              if (!data.payload.roomId || data.payload.roomId === roomIdRef.current) {
+                setChatMessages(data.payload.messages);
+              }
             }
 
             if (data.type === 'blackjack:chat:message' && data.payload) {
               const msg = data.payload;
+              if (msg.roomId && msg.roomId !== roomIdRef.current) {
+                return;
+              }
               const isMine = msg.userId === user?.id || (wsUserId && msg.userId === wsUserId);
               setChatMessages((prev) => {
                 const isDuplicate = prev.some(
@@ -838,7 +994,7 @@ export function BlackjackMultiplayer() {
       if (pingInterval) clearInterval(pingInterval);
       ws?.close();
     };
-  }, [roomId, sessionId, token, user?.id, syncBalance, fetchBalance, fetchTableHistory, fetchAvailableTables]);
+  }, [sessionId, token, user?.id]);
 
   const handleJoinSeat = (seatId: number) => {
     setSelectedBet(0);
@@ -874,14 +1030,15 @@ export function BlackjackMultiplayer() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data?.state) setState(data.state);
+        if (data?.state && (!data.state.roomId || data.state.roomId === roomIdRef.current)) {
+          setState(data.state);
+        }
         if (data?.success === false) {
           fetch('/api/games/blackjack/matchmake', { credentials: 'include', headers })
             .then((r) => r.json())
             .then((m) => {
-              if (m?.roomId && m.roomId !== roomId) {
-                setRoomId(m.roomId);
-                toast.info(`Перенаправляем на свободный ${m.roomId}`);
+              if (m?.roomId && m.roomId !== roomIdRef.current) {
+                switchTable(m.roomId);
               }
             })
             .catch(() => {});
@@ -911,7 +1068,9 @@ export function BlackjackMultiplayer() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data?.state) setState(data.state);
+        if (data?.state && (!data.state.roomId || data.state.roomId === roomIdRef.current)) {
+          setState(data.state);
+        }
       })
       .catch(() => {});
   };
@@ -955,7 +1114,9 @@ export function BlackjackMultiplayer() {
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data?.state) setState(data.state);
+          if (data?.state && (!data.state.roomId || data.state.roomId === roomIdRef.current)) {
+            setState(data.state);
+          }
         })
         .catch(() => {});
     }
@@ -1018,7 +1179,9 @@ export function BlackjackMultiplayer() {
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data?.state) setState(data.state);
+          if (data?.state && (!data.state.roomId || data.state.roomId === roomIdRef.current)) {
+            setState(data.state);
+          }
         })
         .catch(() => {});
     }
@@ -1065,7 +1228,9 @@ export function BlackjackMultiplayer() {
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data?.state) setState(data.state);
+          if (data?.state && (!data.state.roomId || data.state.roomId === roomIdRef.current)) {
+            setState(data.state);
+          }
         })
         .catch(() => {});
     }
@@ -1079,6 +1244,29 @@ export function BlackjackMultiplayer() {
 
   return (
     <main className="relative min-h-screen w-full bg-[#000000] text-frost-white flex flex-col justify-between select-none overflow-x-hidden pb-12 sm:pb-6">
+      <AnimatePresence>
+        {tableSwitch ? (
+          <motion.div
+            key={`switch-${tableSwitch.to}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[#050505]/88 backdrop-blur-md"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div
+              className="h-10 w-10 rounded-full border-2 border-white/15 border-t-amber-300 animate-spin"
+              aria-hidden
+            />
+            <p className="mt-4 text-[13px] font-bold uppercase tracking-[0.18em] text-amber-200">
+              {tableShortName(tableSwitch.to)}
+            </p>
+            <p className="mt-1.5 text-[11px] text-white/50">Переход за стол…</p>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {/* Top Bar Header */}
       <div className="w-full max-w-[1360px] mx-auto px-3 pt-3">
         <GameTopBar
@@ -1656,7 +1844,7 @@ export function BlackjackMultiplayer() {
             <Users size={16} className="text-amber-400 shrink-0" />
             <div className="flex flex-col items-start leading-none text-left">
               <span className="text-[11px] font-bold text-amber-300">
-                {roomId === 'bj_table_1' ? 'Стол #1' : `Стол #${roomId.replace('bj_table_', '')}`}
+              {roomId === 'bj_table_1' ? 'Стол #1' : `Стол #${roomId.replace('bj_table_', '')}`}
               </span>
               <span className="text-[9px] text-white/50 font-mono mt-0.5">
                 {state.players.length}/5 мест
@@ -1691,12 +1879,13 @@ export function BlackjackMultiplayer() {
                         });
                         if (res.ok) {
                           const j = await res.json();
-                          if (j.roomId && j.roomId !== roomId) {
-                            setRoomId(j.roomId);
-                            toast.success(`Переход на ${j.roomId}`);
-                            setIsTableMenuOpen(false);
-                          } else {
-                            toast.info('Вы уже на лучшем столе');
+                          if (j.roomId) {
+                            if (j.roomId === roomIdRef.current) {
+                              toast.info('Вы уже на лучшем столе');
+                              setIsTableMenuOpen(false);
+                            } else {
+                              switchTable(j.roomId);
+                            }
                           }
                         }
                       } catch {}
@@ -1723,10 +1912,10 @@ export function BlackjackMultiplayer() {
                         type="button"
                         onClick={() => {
                           if (!isCurrent) {
-                            setRoomId(tbl.roomId);
-                            toast.success(`Переход на ${tbl.roomId}`);
+                            switchTable(tbl.roomId);
+                          } else {
+                            setIsTableMenuOpen(false);
                           }
-                          setIsTableMenuOpen(false);
                         }}
                         className={cn(
                           "w-full flex items-center justify-between p-2 rounded-xl text-left border transition-all cursor-pointer",
