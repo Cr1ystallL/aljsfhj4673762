@@ -500,12 +500,12 @@ export function BlackjackMultiplayer() {
     return state.currentTurnSeatId === myPlayer.seatId;
   }, [myPlayer, state.currentTurnSeatId, state.phase]);
 
-  const totalSeatedCount = useMemo(() => {
-    return state.players.length;
+  const bettingPlayersCount = useMemo(() => {
+    return state.players.filter((p) => (p.bet ?? 0) >= 10).length;
   }, [state.players]);
 
   const readyPlayersCount = useMemo(() => {
-    return state.players.filter((p) => p.isReady).length;
+    return state.players.filter((p) => p.isReady && (p.bet ?? 0) >= 10).length;
   }, [state.players]);
 
   const isDoubleEligible = useMemo(() => {
@@ -1526,14 +1526,9 @@ export function BlackjackMultiplayer() {
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs sm:text-sm tracking-wider uppercase">
                     <Zap size={14} className="text-amber-400" />
                     <span>Ставка: {selectedBet > 0 ? `${selectedBet} ${currencyLabel}` : 'Не выбрана'}</span>
-                    {state.phase === 'countdown' && clientCountdown > 0 && (
+                    {state.phase === 'countdown' && (
                       <span className="text-xs font-normal text-amber-300/90 lowercase font-mono">
-                        ({clientCountdown}с)
-                      </span>
-                    )}
-                    {state.phase === 'countdown' && clientCountdown <= 0 && readyPlayersCount < totalSeatedCount && (
-                      <span className="text-[10px] font-normal text-amber-200/90 lowercase">
-                        ждём всех
+                        ({Math.max(0, clientCountdown)}с)
                       </span>
                     )}
                   </div>
@@ -1629,9 +1624,7 @@ export function BlackjackMultiplayer() {
                       myPlayer?.isReady ? "bg-emerald-400 animate-pulse" : "bg-white/30"
                     )} />
                     <span className="text-[11px] font-roobert text-white/70 truncate">
-                      {state.phase === 'countdown' && clientCountdown <= 0 && readyPlayersCount < totalSeatedCount
-                        ? 'Таймер вышел — ждём «Готов» у всех'
-                        : `${readyPlayersCount} из ${totalSeatedCount || 1} готовы`}
+                      {readyPlayersCount} из {bettingPlayersCount || 1} готовы
                     </span>
                   </div>
 
@@ -1710,9 +1703,7 @@ export function BlackjackMultiplayer() {
             {!myPlayer && state.phase === 'countdown' && (
               <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-black/85 text-amber-300 px-4 py-1 text-xs font-bold shadow-lg backdrop-blur-md">
                 <Zap size={14} className="text-amber-400 animate-bounce" />
-                {clientCountdown > 0
-                  ? `Ставки: ${clientCountdown}с`
-                  : 'Ждём, пока все нажмут «Готов»'}
+                {`Ставки: ${Math.max(0, clientCountdown)}с`}
                 {seatedRoomId && seatedRoomId !== roomId ? ' · смотрите' : ' · займите место'}
               </div>
             )}

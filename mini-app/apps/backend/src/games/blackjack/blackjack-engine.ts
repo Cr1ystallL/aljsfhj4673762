@@ -216,10 +216,23 @@ export class BlackjackEngine extends EventEmitter {
     // Reset if no players
     if (this.state.players.length === 0) {
       this.resetGame();
-    } else {
-      this.checkSoloAfkTimer();
+      return;
     }
 
+    if (this.state.phase === 'countdown' && !this.state.players.some((p) => p.bet >= 10)) {
+      this.stopCountdown();
+      this.state.phase = 'waiting';
+      this.state.countdown = this.config.countdownSeconds;
+    } else if (
+      (this.state.phase === 'waiting' || this.state.phase === 'countdown') &&
+      this.allBettingReadyToDeal()
+    ) {
+      this.stopCountdown();
+      void this.startRound();
+      return;
+    }
+
+    this.checkSoloAfkTimer();
     this.broadcastState();
   }
 
@@ -232,6 +245,15 @@ export class BlackjackEngine extends EventEmitter {
     if (player.bet > 0) {
       (player as any).consecutiveAfkRounds = 0;
       this.clearSoloAfkTimer();
+    }
+
+    if (
+      (this.state.phase === 'waiting' || this.state.phase === 'countdown') &&
+      this.allBettingReadyToDeal()
+    ) {
+      this.stopCountdown();
+      void this.startRound();
+      return true;
     }
 
     // Start countdown if at least one player has bet >= 10 in waiting phase
@@ -262,22 +284,21 @@ export class BlackjackEngine extends EventEmitter {
     player.isReady = isReady !== undefined ? isReady : !player.isReady;
     logger.info({ userId, isReady: player.isReady, roomId: this.roomId }, 'Player voted ready to deal');
 
-    // If player has bet >= 10 and table was waiting, start countdown
-    if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
-      this.startCountdown();
-    }
-
-    if (this.allSeatedReadyToDeal()) {
+    if (this.allBettingReadyToDeal()) {
       logger.info(
-        { roomId: this.roomId, totalSeated: this.state.players.length },
-        'All seated players ready! Dealing immediately'
+        { roomId: this.roomId, betting: this.state.players.filter((p) => p.bet >= 10).length },
+        'All betting players ready — skip countdown and deal'
       );
       this.stopCountdown();
-      this.startRound();
+      void this.startRound();
       return true;
     }
 
-    this.broadcastState();
+    if (this.state.players.some((p) => p.bet >= 10) && this.state.phase === 'waiting') {
+      this.startCountdown();
+    } else {
+      this.broadcastState();
+    }
     return true;
   }
 
@@ -307,10 +328,10 @@ export class BlackjackEngine extends EventEmitter {
    * Game flow
    * ---------------------------------------------------------------- */
 
-  private allSeatedReadyToDeal(): boolean {
-    const seated = this.state.players;
-    if (seated.length === 0) return false;
-    return seated.every((p) => p.bet >= 10 && p.isReady);
+  /** Seated players who already staked ≥ 10 and all of them pressed Ready. */
+  private allBettingReadyToDeal(): boolean {
+    const betting = this.state.players.filter((p) => p.bet >= 10);
+    return betting.length > 0 && betting.every((p) => p.isReady);
   }
 
   private startCountdown(): void {
@@ -328,7 +349,7 @@ export class BlackjackEngine extends EventEmitter {
         this.broadcastState();
       }
 
-      if (this.state.countdown <= 0 && this.allSeatedReadyToDeal()) {
+      if (this.state.countdown <= 0) {
         this.stopCountdown();
         void this.startRound();
       }
@@ -346,24 +367,6 @@ export class BlackjackEngine extends EventEmitter {
     if (this.dealLock) return;
     if (this.state.players.length === 0) {
       this.state.phase = 'waiting';
-      return;
-    }
-
-    if (!this.allSeatedReadyToDeal()) {
-      logger.info(
-        {
-          roomId: this.roomId,
-          ready: this.state.players.filter((p) => p.isReady && p.bet >= 10).length,
-          seated: this.state.players.length,
-          countdown: this.state.countdown,
-        },
-        'Deal blocked — not every seated player is ready'
-      );
-      if (this.state.phase !== 'countdown') {
-        this.state.phase = 'countdown';
-      }
-      this.state.countdown = 0;
-      this.broadcastState();
       return;
     }
 
