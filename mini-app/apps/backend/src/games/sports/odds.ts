@@ -220,13 +220,17 @@ export function calculateEsportsLiveOdds(
   mapsWon2: number,
   rounds1 = 0,
   rounds2 = 0,
-  strength1 = 1.0,
-  strength2 = 1.0
+  team1Name = '',
+  team2Name = ''
 ): LiveOddsResult {
+  const r1 = getTeamPowerRating(team1Name);
+  const r2 = getTeamPowerRating(team2Name);
+  const ratingDiff = (r1 - r2) * 0.28;
+
   const scoreDiff =
-    (mapsWon1 - mapsWon2) * 8 + (rounds1 - rounds2) * 0.4 + (strength1 - strength2) * 2;
-  const prob1 = 1 / (1 + Math.exp(-0.4 * scoreDiff));
-  const margin = 1.05;
+    (mapsWon1 - mapsWon2) * 6.5 + (rounds1 - rounds2) * 0.35 + ratingDiff;
+  const prob1 = 1 / (1 + Math.exp(-0.35 * scoreDiff));
+  const margin = 1.055;
   return {
     p1: formatOdds(1 / (Math.max(0.01, prob1) * margin)),
     p2: formatOdds(1 / (Math.max(0.01, 1 - prob1) * margin)),
@@ -235,37 +239,46 @@ export function calculateEsportsLiveOdds(
 
 const POWER_RANKINGS: Record<string, number> = {
   // Football Top Clubs
-  'real madrid': 95, 'manchester city': 96, 'bayern': 93, 'arsenal': 92, 'liverpool': 93,
-  'barcelona': 91, 'inter': 89, 'psg': 90, 'juventus': 86, 'chelsea': 87, 'atletico': 88,
+  'real madrid': 96, 'manchester city': 96, 'bayern': 94, 'arsenal': 93, 'liverpool': 94,
+  'barcelona': 92, 'inter': 90, 'psg': 91, 'juventus': 86, 'chelsea': 88, 'atletico': 88,
   'bayer leverkusen': 90, 'borussia dortmund': 87, 'ac milan': 86, 'aston villa': 85,
   'tottenham': 85, 'manchester united': 84, 'newcastle': 84, 'sporting': 86, 'benfica': 84,
   'porto': 83, 'ajax': 80, 'roma': 83, 'feyenoord': 82, 'psv': 83,
-  // CS2 Top Teams
-  'natus vincere': 95, 'navi': 95, 'faze clan': 93, 'faze': 93, 'team vitality': 94, 'vitality': 94,
-  'g2 esports': 93, 'g2': 93, 'mouz': 91, 'team spirit': 94, 'spirit': 94, 'virtus.pro': 87, 'vp': 87,
-  'astralis': 88, 'heroic': 86, 'complexity': 84, 'eternal fire': 88, 'liquid': 87, 'team liquid': 87,
-  'the mongolz': 89, 'furia': 86, 'pain': 83, 'saw': 84, 'falcons': 88, 'cloud9': 85,
-  // Dota 2 Top Teams
-  'team falcons': 95, 'falcons dota': 95, 'gladiators': 94, 'gaimin gladiators': 94, 'betboom': 92,
-  'betboom team': 92, 'xtreme gaming': 93, 'tundra esports': 92, 'tundra': 92, 'og': 88, 'nigma': 82,
-  'psg.lgd': 89, 'aurora': 87, 'beastcoast': 83, 'blacklist': 82, 'nouns': 81,
+
+  // CS2 Teams
+  'natus vincere': 96, 'navi': 96, 'team vitality': 95, 'vitality': 95, 'spirit': 95,
+  'faze clan': 93, 'faze': 93, 'g2 esports': 93, 'g2': 93, 'mouz': 92, 'mousesports': 92,
+  'the mongolz': 90, 'mongolz': 90, 'eternal fire': 89, 'astralis': 88, 'virtus.pro': 88, 'vp': 88,
+  'liquid': 88, 'heroic': 87, 'complexity': 85, 'furia': 87, 'pain': 84,
+  'saw': 84, 'falcons': 92, 'cloud9': 85, 'big': 84, 'ence': 83,
+  'gamerlegion': 84, 'nemiga': 80, 'parivision': 84, 'betboom': 90, 'passion ua': 81,
+  'flyquest': 83, 'imperial': 83, 'monte': 82, '1win': 81, '9pandas': 82,
+
+  // Dota 2 Teams
+  'team falcons': 96, 'team spirit': 95, 'gaimin gladiators': 94, 'gladiators': 94,
+  'betboom team': 93, 'xtreme gaming': 93, 'tundra esports': 93, 'tundra': 93,
+  'team liquid': 94, 'liquid dota': 94, 'og': 88, 'aurora': 88, 'psg quest': 86,
+  'heroic dota': 86, 'beastcoast': 83, 'nouns': 83, 'nigma galaxy': 84, 'nigma': 84,
+  'azure ray': 87, 'secret': 85, 'team secret': 85, 'talon': 84, '1win dota': 83,
+
   // Basketball (NBA)
-  'celtics': 95, 'boston celtics': 95, 'nuggets': 93, 'denver nuggets': 93, 'thunder': 93,
-  'timberwolves': 91, 'mavericks': 92, 'dallas mavericks': 92, 'bucks': 89, 'knicks': 89,
-  '76ers': 88, 'lakers': 88, 'la lakers': 88, 'warriors': 87, 'suns': 86, 'heat': 85,
+  'celtics': 96, 'boston celtics': 96, 'nuggets': 94, 'denver nuggets': 94, 'thunder': 94,
+  'timberwolves': 92, 'mavericks': 93, 'dallas mavericks': 93, 'bucks': 90, 'knicks': 90,
+  '76ers': 88, 'lakers': 89, 'la lakers': 89, 'warriors': 88, 'suns': 87, 'heat': 86,
+
   // Tennis
-  'jannik sinner': 96, 'sinner': 96, 'carlos alcaraz': 95, 'alcaraz': 95, 'novak djokovic': 95, 'djokovic': 95,
-  'alexander zverev': 92, 'zverev': 92, 'daniil medvedev': 91, 'medvedev': 91, 'andrey rublev': 88,
-  'taylor fritz': 88, 'casper ruud': 87, 'grigor dimitrov': 86, 'stefanos tsitsipas': 86,
+  'jannik sinner': 97, 'sinner': 97, 'carlos alcaraz': 96, 'alcaraz': 96, 'novak djokovic': 95, 'djokovic': 95,
+  'alexander zverev': 93, 'zverev': 93, 'daniil medvedev': 91, 'medvedev': 91, 'andrey rublev': 88,
+  'taylor fritz': 89, 'casper ruud': 87, 'grigor dimitrov': 86, 'stefanos tsitsipas': 86,
   'iga swiatek': 96, 'swiatek': 96, 'aryna sabalenka': 95, 'sabalenka': 95, 'coco gauff': 92,
   'elena rybakina': 91, 'jessica pegula': 89, 'mirra andreeva': 86,
 };
 
 export function getTeamPowerRating(name: string): number {
   if (!name) return 72;
-  const norm = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const norm = name.toLowerCase().replace(/[^a-z0-9а-яё]/g, '');
   for (const [k, v] of Object.entries(POWER_RANKINGS)) {
-    const kNorm = k.replace(/[^a-z0-9]/g, '');
+    const kNorm = k.replace(/[^a-z0-9а-яё]/g, '');
     if (norm.includes(kNorm) || kNorm.includes(norm)) {
       return v;
     }
@@ -275,7 +288,7 @@ export function getTeamPowerRating(name: string): number {
     hash = (hash << 5) - hash + name.charCodeAt(i);
     hash |= 0;
   }
-  return 60 + (Math.abs(hash) % 26);
+  return 68 + (Math.abs(hash) % 20);
 }
 
 export function calculatePrematchOdds(

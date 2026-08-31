@@ -185,8 +185,14 @@ function cyberEvent(input: {
     input.status === 'prematch'
       ? calculatePrematchOdds('cybersport', input.team1, input.team2, false)
       : input.extra?.scoreKind === 'kills'
-        ? twoWay(calculateEsportsLiveOdds(0, 0, s1, s2).p1, calculateEsportsLiveOdds(0, 0, s1, s2).p2)
-        : twoWay(calculateEsportsLiveOdds(s1, s2).p1, calculateEsportsLiveOdds(s1, s2).p2);
+        ? twoWay(
+            calculateEsportsLiveOdds(0, 0, s1, s2, input.team1, input.team2).p1,
+            calculateEsportsLiveOdds(0, 0, s1, s2, input.team1, input.team2).p2
+          )
+        : twoWay(
+            calculateEsportsLiveOdds(s1, s2, 0, 0, input.team1, input.team2).p1,
+            calculateEsportsLiveOdds(s1, s2, 0, 0, input.team1, input.team2).p2
+          );
   const minute = input.liveMinute ?? 0;
   const markets = buildMarkets({
     sport: 'cybersport',
@@ -497,6 +503,28 @@ function parseLiquipediaBlock(
   const hasScore = Number.isFinite(n1) && Number.isFinite(n2);
   const finished = /match-info-header-winner|match-info-header-loser/.test(block);
   const live = !finished && startTime <= now && (hasScore || now - startTime < 5 * 3600_000);
+  let score1 = hasScore ? n1 : 0;
+  let score2 = hasScore ? n2 : 0;
+
+  if (finished && (!hasScore || score1 === score2)) {
+    const winPos = block.indexOf('match-info-header-winner');
+    const losePos = block.indexOf('match-info-header-loser');
+    if (winPos >= 0) {
+      if (losePos >= 0) {
+        if (winPos < losePos) {
+          score1 = 1;
+          score2 = 0;
+        } else {
+          score1 = 0;
+          score2 = 1;
+        }
+      } else {
+        score1 = 1;
+        score2 = 0;
+      }
+    }
+  }
+
   const status: FeedEvent['status'] = finished ? 'finished' : live ? 'live' : 'prematch';
   if (status === 'finished' && now - startTime > 6 * 3600_000) return null;
 
@@ -513,8 +541,8 @@ function parseLiquipediaBlock(
     team2,
     logo1,
     logo2,
-    score1: hasScore ? n1 : 0,
-    score2: hasScore ? n2 : 0,
+    score1,
+    score2,
     startTime,
     status,
     liveTime: live ? 'LIVE' : undefined,
@@ -523,8 +551,8 @@ function parseLiquipediaBlock(
     extra: {
       scoreKind: 'maps',
       game: wiki === 'dota2' ? 'dota' : 'cs',
-      maps1: hasScore ? n1 : undefined,
-      maps2: hasScore ? n2 : undefined,
+      maps1: score1,
+      maps2: score2,
     },
   });
 }
