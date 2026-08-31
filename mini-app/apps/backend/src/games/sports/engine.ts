@@ -257,10 +257,6 @@ class SportsEngine {
       const outcome = findOutcome(ev.feed.markets, spec.marketKind, spec.outcomeKey, spec.line);
       if (!outcome) throw new Error('Исход недоступен');
 
-      if (this.userHasPendingOn(userId, spec.eventId)) {
-        throw new Error('У вас уже есть ставка на это событие');
-      }
-
       const quoted = opts?.quotedOdds?.[i];
       if (quoted != null && Number.isFinite(quoted) && quoted > 0 && !opts?.acceptChange) {
         const rel = Math.abs(outcome.odds - quoted) / quoted;
@@ -660,23 +656,57 @@ class SportsEngine {
         logger.warn('Sports feed empty — keeping last snapshot');
         return;
       }
-      const seen = new Set<string>();
+
+      // Deduplicate board by fixture key first (same teams in same sport within 12h)
+      const fixtureMap = new Map<string, FeedEvent>();
       for (const feed of board) {
-        seen.add(feed.id);
-        const prev = this.events.get(feed.id);
+        const key = fixtureFingerprint(feed.sport, feed.team1.name, feed.team2.name, feed.startTime);
+        const existing = fixtureMap.get(key);
+        if (!existing) {
+          fixtureMap.set(key, feed);
+        } else {
+          // If duplicate feed item arrives, pick the one with live status or higher score
+          const rank = (ev: FeedEvent) =>
+            (ev.status === 'live' ? 10 : ev.status === 'prematch' ? 5 : 1) +
+            ((ev.team1.score ?? 0) + (ev.team2.score ?? 0) > 0 ? 3 : 0);
+          if (rank(feed) > rank(existing)) {
+            fixtureMap.set(key, feed);
+          }
+        }
+      }
+      const cleanBoard = [...fixtureMap.values()];
+
+      const seen = new Set<string>();
+      const existingFixtures = new Map<string, string>(); // fixtureKey -> id
+
+      for (const [id, ev] of this.events) {
+        const key = fixtureFingerprint(ev.feed.sport, ev.feed.team1.name, ev.feed.team2.name, ev.feed.startTime);
+        existingFixtures.set(key, id);
+      }
+
+      for (const feed of cleanBoard) {
+        const key = fixtureFingerprint(feed.sport, feed.team1.name, feed.team2.name, feed.startTime);
+        const existingId = existingFixtures.get(key);
+        const targetId = existingId && this.byEvent.has(existingId) ? existingId : feed.id;
+
+        // If targetId is different from feed.id, preserve targetId so existing bets remain tracked
+        feed.id = targetId;
+        seen.add(targetId);
+
+        const prev = this.events.get(targetId);
         const lastEvent = this.detectScoreEvent(prev?.feed, feed);
-        this.events.set(feed.id, {
+        this.events.set(targetId, {
           feed,
           prevOdds: prev?.feed.odds ?? feed.odds,
           lastEvent: lastEvent ?? prev?.lastEvent,
           featured: prev?.featured,
-          suspended: this.suspended.has(feed.id),
+          suspended: this.suspended.has(targetId),
         });
         if (lastEvent && (lastEvent.kind === 'goal' || lastEvent.kind === 'point')) {
           this.pushActivity(
             'goal',
             `${feed.team1.name} — ${feed.team2.name} ${lastEvent.score1}:${lastEvent.score2}`,
-            feed.id
+            targetId
           );
           await this.settleLiveSpecials(feed, lastEvent);
           await this.notifyBettorsGoal(feed, lastEvent);
@@ -1006,6 +1036,20 @@ function parseStoredLegs(meta: Record<string, unknown>): TrackedLeg[] {
       result: 'pending',
     },
   ];
+}
+
+function fixtureFingerprint(sport: string, team1: string, team2: string, startTime: number): string {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9а-яё]+/g, '')
+      .replace(/^(team|esports|gaming|clan|club|org|fc|fk)/, '')
+      .replace(/(team|esports|gaming|clan|club|org|fc|fk)$/, '');
+  const a = norm(team1) || team1.toLowerCase().trim();
+  const b = norm(team2) || team2.toLowerCase().trim();
+  const pair = [a, b].sort().join(':');
+  const window12h = Math.floor(startTime / (12 * 3600_000));
+  return `${sport}:${pair}:${window12h}`;
 }
 
 export const sportsEngine = new SportsEngine();

@@ -6,21 +6,42 @@ import { sportsService, type SportsFilterOptions } from '@/services/sports.servi
 
 const POLL_MS = 5_000;
 
+let globalEventsCache: {
+  events: SportEvent[];
+  minBet: number;
+  maxBet: number;
+  paused: boolean;
+  timestamp: number;
+} | null = null;
+
 export function useLiveSports() {
-  const [events, setEvents] = useState<SportEvent[]>([]);
-  const [minBet, setMinBet] = useState(1);
-  const [maxBet, setMaxBet] = useState(500);
-  const [paused, setPaused] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<SportEvent[]>(() => globalEventsCache?.events ?? []);
+  const [minBet, setMinBet] = useState(() => globalEventsCache?.minBet ?? 1);
+  const [maxBet, setMaxBet] = useState(() => globalEventsCache?.maxBet ?? 500);
+  const [paused, setPaused] = useState(() => globalEventsCache?.paused ?? false);
+  const [loading, setLoading] = useState(() => !globalEventsCache);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (silent = false) => {
     try {
       const data = await sportsService.fetchEvents();
-      setEvents(data.events ?? []);
-      if (typeof data.minBet === 'number') setMinBet(data.minBet);
-      if (typeof data.maxBet === 'number') setMaxBet(data.maxBet);
-      setPaused(!!data.paused);
+      const newEvents = data.events ?? [];
+      const newMinBet = typeof data.minBet === 'number' ? data.minBet : 1;
+      const newMaxBet = typeof data.maxBet === 'number' ? data.maxBet : 500;
+      const newPaused = !!data.paused;
+
+      globalEventsCache = {
+        events: newEvents,
+        minBet: newMinBet,
+        maxBet: newMaxBet,
+        paused: newPaused,
+        timestamp: Date.now(),
+      };
+
+      setEvents(newEvents);
+      setMinBet(newMinBet);
+      setMaxBet(newMaxBet);
+      setPaused(newPaused);
       setError(null);
     } catch (err) {
       if (!silent) {

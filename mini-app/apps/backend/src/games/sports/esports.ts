@@ -249,12 +249,22 @@ export async function fetchEsportsBoard(): Promise<FeedEvent[]> {
   return dedupeEsports(out);
 }
 
+function teamNormalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/g, '')
+    .replace(/^(team|esports|gaming|clan|club|org)/, '')
+    .replace(/(team|esports|gaming|clan|club|org)$/, '');
+}
+
 function fixtureKey(ev: FeedEvent): string {
-  const n = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const a = n(ev.team1.name);
-  const b = n(ev.team2.name);
+  const a = teamNormalize(ev.team1.name) || ev.team1.name.toLowerCase();
+  const b = teamNormalize(ev.team2.name) || ev.team2.name.toLowerCase();
   const pair = [a, b].sort().join(':');
-  return `${pair}:${Math.round(ev.startTime / 3_600_000)}`;
+  // Group within 12-hour windows (same match session)
+  const window12h = Math.floor(ev.startTime / (12 * 3600_000));
+  const game = ev.extra?.game || (ev.league.toLowerCase().includes('dota') ? 'dota' : 'cs');
+  return `${game}:${pair}:${window12h}`;
 }
 
 function mergeEsports(winner: FeedEvent, loser: FeedEvent): FeedEvent {
@@ -269,16 +279,27 @@ function mergeEsports(winner: FeedEvent, loser: FeedEvent): FeedEvent {
     extra.spectators = extra.spectators ?? loser.extra.spectators;
     extra.duration = extra.duration ?? loser.extra.duration;
   }
+  // Retain the best non-empty team scores
+  const s1 = winner.team1.score != null && winner.team1.score > 0 ? winner.team1.score : loser.team1.score;
+  const s2 = winner.team2.score != null && winner.team2.score > 0 ? winner.team2.score : loser.team2.score;
   return {
     ...winner,
+    team1: { ...winner.team1, score: winner.status === 'prematch' ? undefined : s1, logo: winner.team1.logo || loser.team1.logo },
+    team2: { ...winner.team2, score: winner.status === 'prematch' ? undefined : s2, logo: winner.team2.logo || loser.team2.logo },
     streamUrl: winner.streamUrl || loser.streamUrl,
     extra,
   };
 }
 
 function dedupeEsports(events: FeedEvent[]): FeedEvent[] {
-  const rank = (ev: FeedEvent) =>
-    (ev.status === 'live' ? 3 : ev.status === 'prematch' ? 2 : 1) + (ev.id.startsWith('dota-') ? 0.2 : 0);
+  const rank = (ev: FeedEvent) => {
+    let score = ev.status === 'live' ? 10 : ev.status === 'prematch' ? 5 : 1;
+    if ((ev.team1.score ?? 0) > 0 || (ev.team2.score ?? 0) > 0) score += 3;
+    if (ev.extra?.maps1 != null || ev.extra?.maps2 != null) score += 2;
+    if (ev.extra?.kills1 != null || ev.extra?.kills2 != null) score += 2;
+    if (ev.id.startsWith('dota-') || ev.id.startsWith('lp-')) score += 0.5;
+    return score;
+  };
   const best = new Map<string, FeedEvent>();
   for (const ev of events) {
     const key = fixtureKey(ev);
