@@ -4,9 +4,7 @@ import { useEffect, useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplashStore } from '@/store/splash-store';
 
-export const SPLASH_TAGLINES: ReadonlyArray<string> = [
-  'MacvBet',
-];
+export const SPLASH_TAGLINES: ReadonlyArray<string> = ['MacvBet'];
 
 export const TITLE_TAGLINES: ReadonlyArray<string> = [
   'MacvBet',
@@ -36,12 +34,12 @@ export function SplashScreen({ ready }: SplashScreenProps) {
   const gradId = `splash-m-grad-${id.replace(/:/g, '')}`;
   const gradId2 = `splash-m-grad2-${id.replace(/:/g, '')}`;
 
-  // Complete the full liquid filling animation cycle (2.2 seconds) before allowing dismissal
+  // Complete the full liquid filling animation cycle (2.4s) before allowing dismissal
   useEffect(() => {
-    const animTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       setAnimationFinished(true);
-    }, 2200);
-    return () => clearTimeout(animTimer);
+    }, 2400);
+    return () => clearTimeout(timer);
   }, []);
 
   // When both the app data is ready AND the animation finished, smoothly exit
@@ -50,7 +48,7 @@ export function SplashScreen({ ready }: SplashScreenProps) {
       const exitTimer = setTimeout(() => {
         setVisible(false);
         useSplashStore.getState().dismiss();
-      }, 350);
+      }, 300);
       return () => clearTimeout(exitTimer);
     }
   }, [ready, animationFinished]);
@@ -62,17 +60,17 @@ export function SplashScreen({ ready }: SplashScreenProps) {
           key="splash-screen"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 z-[9999] bg-[#000000] flex flex-col items-center justify-center select-none overflow-hidden"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           {/* Subtle Ambient Radial Glow */}
           <div
             aria-hidden
-            className="absolute w-[360px] h-[360px] rounded-full pointer-events-none opacity-40 blur-[90px]"
+            className="absolute w-[320px] h-[320px] rounded-full pointer-events-none opacity-30 blur-[80px]"
             style={{
               background:
-                'radial-gradient(circle, rgba(0, 245, 160, 0.25) 0%, rgba(255, 172, 46, 0.18) 45%, rgba(239, 68, 68, 0.12) 75%, transparent 100%)',
+                'radial-gradient(circle, rgba(0, 245, 160, 0.3) 0%, rgba(255, 172, 46, 0.2) 45%, rgba(239, 68, 68, 0.15) 75%, transparent 100%)',
             }}
           />
 
@@ -80,17 +78,18 @@ export function SplashScreen({ ready }: SplashScreenProps) {
           <div className="relative flex items-center justify-center">
             <svg
               viewBox="0 0 1024 1024"
-              width={140}
-              height={140}
+              width={110}
+              height={110}
               className="relative overflow-visible"
               aria-label="MacvBet Logo"
             >
               <defs>
                 {/* Precise M Silhouette Clip */}
                 <clipPath id={clipId}>
-                  <g transform="translate(0,1024) scale(0.1,-0.1)">
-                    <path d={M_PATH} />
-                  </g>
+                  <path
+                    d={M_PATH}
+                    transform="translate(0,1024) scale(0.1,-0.1)"
+                  />
                 </clipPath>
 
                 {/* Signature Brand Vibrant Liquid Gradient */}
@@ -98,152 +97,137 @@ export function SplashScreen({ ready }: SplashScreenProps) {
                   <stop offset="0%" stopColor="#a0e0ab" />
                   <stop offset="25%" stopColor="#00f5a0" />
                   <stop offset="55%" stopColor="#ffac2e" />
-                  <stop offset="85%" stopColor="#ff4757" />
+                  <stop offset="85%" stopColor="#ef4444" />
                   <stop offset="100%" stopColor="#a0e0ab" />
                 </linearGradient>
 
                 <linearGradient id={gradId2} x1="100%" y1="100%" x2="0%" y2="0%">
                   <stop offset="0%" stopColor="#00f5a0" />
                   <stop offset="50%" stopColor="#ffac2e" />
-                  <stop offset="100%" stopColor="#ff4757" />
+                  <stop offset="100%" stopColor="#ef4444" />
                 </linearGradient>
               </defs>
 
               {/* 1. Base Unfilled M Silhouette (Glass Outline) */}
-              <g transform="translate(0,1024) scale(0.1,-0.1)">
-                <path
-                  d={M_PATH}
-                  fill="rgba(255, 255, 255, 0.05)"
-                  stroke="rgba(255, 255, 255, 0.14)"
-                  strokeWidth="12"
-                />
-              </g>
+              <path
+                d={M_PATH}
+                transform="translate(0,1024) scale(0.1,-0.1)"
+                fill="rgba(255, 255, 255, 0.05)"
+                stroke="rgba(255, 255, 255, 0.15)"
+                strokeWidth="14"
+              />
 
               {/* 2. Liquid Water Filling Container */}
               <g clipPath={`url(#${clipId})`}>
                 {/* Secondary Water Wave Layer (Depth) */}
-                <g className="splash-water-level-secondary">
-                  <path
-                    className="splash-water-wave-2"
-                    d="M 0 0 C 300 45, 600 -45, 900 0 C 1200 45, 1500 -45, 1800 0 C 2100 45, 2400 -45, 2700 0 L 2700 1600 L 0 1600 Z"
+                <motion.g
+                  initial={{ y: 980 }}
+                  animate={{ y: 80 }}
+                  transition={{
+                    duration: 2.2,
+                    delay: 0.05,
+                    ease: [0.25, 0.9, 0.35, 1],
+                  }}
+                >
+                  <motion.path
+                    d="M 0 0 C 250 40, 500 -40, 750 0 C 1000 40, 1250 -40, 1500 0 C 1750 40, 2000 -40, 2250 0 C 2500 40, 2750 -40, 3000 0 L 3000 1400 L 0 1400 Z"
                     fill={`url(#${gradId2})`}
                     opacity={0.55}
+                    initial={{ x: -750 }}
+                    animate={{ x: 0 }}
+                    transition={{
+                      duration: 2.4,
+                      repeat: Infinity,
+                      ease: 'linear',
+                    }}
                   />
-                </g>
+                </motion.g>
 
                 {/* Primary Water Wave Layer (Front) */}
-                <g className="splash-water-level-primary">
-                  <path
-                    className="splash-water-wave-1"
-                    d="M 0 0 C 280 -40, 560 40, 840 0 C 1120 -40, 1400 40, 1680 0 C 1960 -40, 2240 40, 2520 0 L 2520 1600 L 0 1600 Z"
+                <motion.g
+                  initial={{ y: 980 }}
+                  animate={{ y: 80 }}
+                  transition={{
+                    duration: 2.2,
+                    ease: [0.25, 0.9, 0.35, 1],
+                  }}
+                >
+                  <motion.path
+                    d="M 0 0 C 250 -45, 500 45, 750 0 C 1000 -45, 1250 45, 1500 0 C 1750 -45, 2000 45, 2250 0 C 2500 -45, 2750 45, 3000 0 L 3000 1400 L 0 1400 Z"
                     fill={`url(#${gradId})`}
+                    initial={{ x: 0 }}
+                    animate={{ x: -750 }}
+                    transition={{
+                      duration: 2.0,
+                      repeat: Infinity,
+                      ease: 'linear',
+                    }}
                   />
-                </g>
+                </motion.g>
 
-                {/* Surface Liquid Shimmer Flash when filled */}
-                <div className="splash-liquid-shimmer" />
+                {/* Full Fill Radiant Flash / Sheen */}
+                <motion.path
+                  d={M_PATH}
+                  transform="translate(0,1024) scale(0.1,-0.1)"
+                  fill="#ffffff"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0, 0, 0.25, 0] }}
+                  transition={{
+                    duration: 2.3,
+                    times: [0, 0.85, 0.93, 1],
+                    ease: 'easeInOut',
+                  }}
+                />
               </g>
+
+              {/* Glowing Aura when full */}
+              <motion.path
+                d={M_PATH}
+                transform="translate(0,1024) scale(0.1,-0.1)"
+                fill="none"
+                stroke={`url(#${gradId})`}
+                strokeWidth="10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 0, 0.8, 0.4] }}
+                transition={{
+                  duration: 2.4,
+                  times: [0, 0.85, 0.95, 1],
+                  ease: 'easeInOut',
+                }}
+              />
             </svg>
           </div>
 
           {/* Shimmering Brand Name "MacvBet" with shifting iridescent gradient */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.5, ease: 'easeOut' }}
-            className="relative mt-7 flex flex-col items-center"
+            transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }}
+            className="relative mt-6 flex flex-col items-center"
           >
-            <span className="splash-brand-text font-roobert font-extrabold text-[24px] sm:text-[28px] tracking-[0.22em] uppercase">
+            <motion.span
+              animate={{
+                backgroundPosition: ['0% center', '200% center'],
+              }}
+              transition={{
+                duration: 2.8,
+                repeat: Infinity,
+                ease: 'linear',
+              }}
+              className="splash-shimmer-brand font-roobert font-bold text-[14px] sm:text-[15px] tracking-[0.28em] uppercase select-none"
+              style={{
+                background:
+                  'linear-gradient(90deg, #a0e0ab 0%, #00f5a0 25%, #ffac2e 50%, #ef4444 75%, #a0e0ab 100%)',
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                display: 'inline-block',
+                filter: 'drop-shadow(0 0 12px rgba(0, 245, 160, 0.35))',
+              }}
+            >
               MacvBet
-            </span>
+            </motion.span>
           </motion.div>
-
-          {/* Inline Scoped Animations & Styles */}
-          <style jsx>{`
-            /* Liquid rise animation from bottom to top (0% -> 100% full fill) */
-            .splash-water-level-primary {
-              animation: liquidRise 2.1s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-            }
-
-            .splash-water-level-secondary {
-              animation: liquidRiseSecondary 2.1s cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
-            }
-
-            /* Horizontal undulating water wave motion */
-            .splash-water-wave-1 {
-              animation: waveFlow 2s linear infinite;
-            }
-
-            .splash-water-wave-2 {
-              animation: waveFlowReverse 2.6s linear infinite;
-            }
-
-            /* Shimmering Brand Text Gradient */
-            .splash-brand-text {
-              background: linear-gradient(
-                90deg,
-                #a0e0ab 0%,
-                #00f5a0 20%,
-                #ffac2e 40%,
-                #ff4757 60%,
-                #a0e0ab 80%,
-                #00f5a0 100%
-              );
-              background-size: 300% auto;
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-              animation: brandShimmer 3s ease-in-out infinite;
-              filter: drop-shadow(0 0 16px rgba(0, 245, 160, 0.3));
-            }
-
-            @keyframes liquidRise {
-              0% {
-                transform: translateY(1050px);
-              }
-              100% {
-                transform: translateY(-80px);
-              }
-            }
-
-            @keyframes liquidRiseSecondary {
-              0% {
-                transform: translateY(1080px);
-              }
-              100% {
-                transform: translateY(-90px);
-              }
-            }
-
-            @keyframes waveFlow {
-              0% {
-                transform: translateX(0);
-              }
-              100% {
-                transform: translateX(-840px);
-              }
-            }
-
-            @keyframes waveFlowReverse {
-              0% {
-                transform: translateX(-900px);
-              }
-              100% {
-                transform: translateX(0);
-              }
-            }
-
-            @keyframes brandShimmer {
-              0% {
-                background-position: 0% 50%;
-              }
-              50% {
-                background-position: 100% 50%;
-              }
-              100% {
-                background-position: 0% 50%;
-              }
-            }
-          `}</style>
         </motion.div>
       )}
     </AnimatePresence>

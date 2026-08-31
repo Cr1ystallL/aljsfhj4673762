@@ -335,8 +335,34 @@ option:hover {
   will-change: transform;
 }
 
+/* Splash Screen Liquid & Shimmer animations */
+@keyframes brandShimmerAnim {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.splash-shimmer-brand {
+  background: linear-gradient(
+    90deg,
+    #a0e0ab 0%,
+    #00f5a0 25%,
+    #ffac2e 50%,
+    #ef4444 75%,
+    #a0e0ab 100%
+  ) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: brandShimmerAnim 2.5s linear infinite !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-luck-scroll {
     animation: none;
   }
 }
+
