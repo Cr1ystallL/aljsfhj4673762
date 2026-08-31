@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Clock, X, Check, ArrowUpRight } from 'lucide-react';
+import { Clock, X, Check, ArrowUpRight, Sparkles } from 'lucide-react';
 import { sportsService, type SportsUserBet } from '@/services/sports.service';
 import { useBalance } from '@/hooks/use-balance';
 import { useT } from '@/i18n/use-t';
 import { GamePrimaryButton } from '@/components/game/kit/game-primary-button';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
-import { ExpressTrainIcon } from '@/components/ui/express-train-icon';
+import { ExpressIcon } from '@/components/ui/express-train-icon';
 import { cn } from '@/lib/utils';
 
 function isOpenBet(state: string) {
@@ -73,6 +73,290 @@ function useSportsBetList(reloadToken = 0, active = true) {
   return { bets, busy, onCashout };
 }
 
+/**
+ * Ticket Barcode Graphic Component
+ */
+function TicketBarcode({ seed }: { seed: string }) {
+  return (
+    <div className="flex items-center gap-[2px] opacity-25 h-3.5 select-none" aria-hidden>
+      {Array.from({ length: 28 }).map((_, i) => {
+        const charCode = seed.charCodeAt(i % seed.length) || 1;
+        const width = (charCode + i) % 3 === 0 ? 'w-[2.5px]' : (charCode + i) % 2 === 0 ? 'w-[1.5px]' : 'w-[1px]';
+        return <div key={i} className={cn('h-full bg-white rounded-full', width)} />;
+      })}
+    </div>
+  );
+}
+
+/**
+ * Single Bet Ticket / Coupon Card
+ */
+function BetCouponCard({
+  bet,
+  localeTag,
+  busy,
+  onCashout,
+}: {
+  bet: SportsUserBet;
+  localeTag: string;
+  busy: string | null;
+  onCashout: (id: string) => Promise<void>;
+}) {
+  const isExpress = bet.type === 'express' || (bet.legs && bet.legs.length > 1);
+  const openBet = isOpenBet(bet.state);
+  const legCount = bet.legs?.length || 1;
+  const dateLabel = new Date(bet.placedAt).toLocaleString(localeTag, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const net = openBet
+    ? null
+    : bet.isFreebet
+    ? bet.state === 'won'
+      ? Number(bet.payout)
+      : 0
+    : bet.state === 'lost'
+    ? Number(bet.payout) > 0
+      ? Number(bet.payout) - bet.stake
+      : -bet.stake
+    : Number(bet.payout) - bet.stake;
+
+  const ticketCode = bet.id.slice(-6).toUpperCase();
+
+  return (
+    <div
+      className={cn(
+        'group relative overflow-hidden rounded-[22px] border transition-all',
+        'bg-gradient-to-b from-[#141720] via-[#0f1117] to-[#0c0e13]',
+        openBet
+          ? 'border-amber-400/35 shadow-[0_8px_24px_rgba(251,191,36,0.08)]'
+          : bet.state === 'won'
+          ? 'border-emerald-500/35 shadow-[0_8px_24px_rgba(16,185,129,0.08)]'
+          : 'border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.4)] opacity-95'
+      )}
+    >
+      {/* Background Subtle Watermark Sigil */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-8 -top-8 w-32 h-32 rounded-full opacity-[0.03] bg-white blur-xl"
+      />
+
+      {/* 1. TICKET STUB HEADER */}
+      <div className="flex items-center justify-between gap-2 px-4 py-3 bg-white/[0.03] border-b border-white/8">
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className={cn(
+              'w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 shadow-sm',
+              isExpress
+                ? 'border-amber-400/40 bg-amber-400/15 text-amber-300'
+                : 'border-white/15 bg-white/[0.08] text-frost-white'
+            )}
+          >
+            {isExpress ? (
+              <ExpressIcon size={15} strokeWidth={2.4} />
+            ) : (
+              <SoccerBallIcon size={14} strokeWidth={2.2} />
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-roobert font-extrabold text-[12.5px] text-white tracking-wide uppercase">
+              {isExpress ? `Экспресс (${legCount})` : 'Ординар'}
+            </span>
+            <span className="font-mono text-[10px] text-whisper-gray/70 tracking-wider">
+              #{ticketCode}
+            </span>
+          </div>
+        </div>
+
+        {/* STATUS BADGE / STAMP */}
+        <div
+          className={cn(
+            'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-extrabold tracking-tight border',
+            openBet
+              ? 'border-amber-400/40 bg-amber-400/15 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.2)]'
+              : bet.state === 'won'
+              ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.2)]'
+              : bet.state === 'lost'
+              ? 'border-rose-500/30 bg-rose-500/15 text-rose-300'
+              : bet.state === 'cashed_out'
+              ? 'border-cyan-400/30 bg-cyan-400/15 text-cyan-300'
+              : 'border-white/10 bg-white/[0.05] text-whisper-gray'
+          )}
+        >
+          {openBet && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+          {bet.state === 'won' && <span>✓</span>}
+          {bet.state === 'lost' && <span>✕</span>}
+          <span>
+            {openBet
+              ? 'В игре'
+              : bet.state === 'won'
+              ? 'Выигрыш'
+              : bet.state === 'lost'
+              ? 'Проигрыш'
+              : bet.state === 'cashed_out'
+              ? 'Выкуплен'
+              : 'Рассчитан'}
+          </span>
+        </div>
+      </div>
+
+      {/* 2. TICKET BODY: EVENT LEGS */}
+      <div className="px-4 py-3 space-y-2.5">
+        {bet.legs && bet.legs.length > 0 ? (
+          <div className="space-y-2">
+            {bet.legs.map((leg, idx) => {
+              const matchTitle = leg.eventName || bet.eventName || `Событие #${idx + 1}`;
+              const outcomePick = formatOutcomeLabel(leg.outcomeKey, leg.marketKind, leg.line);
+
+              return (
+                <div
+                  key={`${bet.id}-leg-${idx}`}
+                  className="relative p-2.5 rounded-xl bg-black/40 border border-white/6 flex items-center justify-between gap-3"
+                >
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-roobert font-semibold text-[13px] text-white truncate leading-snug">
+                      {matchTitle}
+                    </span>
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/25 text-amber-300 font-bold text-[11px] leading-none">
+                        {outcomePick}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-roobert font-bold text-[13px] text-white tabular-nums px-2 py-0.5 rounded-lg bg-white/[0.06] border border-white/10">
+                      {leg.odds ? Number(leg.odds).toFixed(2) : '—'}
+                    </span>
+                    {leg.result === 'won' && (
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                        ✓
+                      </span>
+                    )}
+                    {leg.result === 'lost' && (
+                      <span className="w-5 h-5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[10px] font-bold">
+                        ✕
+                      </span>
+                    )}
+                    {(!leg.result || leg.result === 'pending') && (
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-2.5 rounded-xl bg-black/40 border border-white/6 flex items-center justify-between gap-3">
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="font-roobert font-semibold text-[13px] text-white truncate">
+                {bet.eventName || 'Спортивное событие'}
+              </span>
+            </div>
+            <span className="font-roobert font-bold text-[13px] text-white tabular-nums px-2 py-0.5 rounded-lg bg-white/[0.06] border border-white/10">
+              x{bet.odds.toFixed(2)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 3. TICKET PERFORATION TEAR LINE (With left and right cutouts) */}
+      <div className="relative flex items-center my-1">
+        {/* Left notch cutout */}
+        <div className="absolute -left-2.5 w-5 h-5 rounded-full bg-[#07090e] border border-white/10 shadow-inner z-10" />
+        {/* Dotted perforation */}
+        <div className="w-full border-t-2 border-dashed border-white/15 mx-3" />
+        {/* Right notch cutout */}
+        <div className="absolute -right-2.5 w-5 h-5 rounded-full bg-[#07090e] border border-white/10 shadow-inner z-10" />
+      </div>
+
+      {/* 4. TICKET RECEIPT FOOTER */}
+      <div className="px-4 py-3 bg-white/[0.02] flex flex-col gap-2.5">
+        <div className="grid grid-cols-3 items-center gap-2">
+          {/* Stake */}
+          <div>
+            <span className="block text-[10px] uppercase tracking-wider font-semibold text-whisper-gray">
+              Ставка
+            </span>
+            <span className="font-roobert font-bold text-[13px] text-white tabular-nums">
+              {bet.stake.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł
+            </span>
+            {bet.isFreebet && (
+              <span className="block text-[9.5px] text-amber-300 font-bold">Фрибет</span>
+            )}
+          </div>
+
+          {/* Total Odds */}
+          <div className="text-center">
+            <span className="block text-[10px] uppercase tracking-wider font-semibold text-whisper-gray">
+              Итог. КФ
+            </span>
+            <span className="inline-block font-roobert font-extrabold text-[13px] text-amber-300 tabular-nums px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20">
+              x{bet.odds.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Potential / Actual Payout */}
+          <div className="text-right">
+            <span className="block text-[10px] uppercase tracking-wider font-semibold text-whisper-gray">
+              {openBet ? 'К выплате' : bet.state === 'won' ? 'Выигрыш' : 'Результат'}
+            </span>
+            <span
+              className={cn(
+                'font-roobert font-black text-[14px] sm:text-[15px] tabular-nums',
+                openBet
+                  ? 'text-amber-300'
+                  : bet.state === 'won'
+                  ? 'text-emerald-400'
+                  : bet.state === 'lost'
+                  ? 'text-[#ff8a76]'
+                  : 'text-white'
+              )}
+            >
+              {openBet
+                ? `${(bet.stake * bet.odds).toLocaleString(localeTag, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} zł`
+                : bet.payout > 0
+                ? `+${bet.payout.toLocaleString(localeTag, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} zł`
+                : `${(net ?? -bet.stake).toLocaleString(localeTag, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} zł`}
+            </span>
+          </div>
+        </div>
+
+        {/* Cashout Option */}
+        {bet.cashout && (
+          <div className="pt-1">
+            <GamePrimaryButton
+              onClick={() => void onCashout(bet.id)}
+              disabled={busy === bet.id}
+            >
+              Выкупить билет за {bet.cashout.amount.toFixed(2)} zł
+            </GamePrimaryButton>
+          </div>
+        )}
+
+        {/* Date & Vector Barcode Strip */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/6 text-[10px] text-whisper-gray/70">
+          <span className="font-mono">{dateLabel}</span>
+          <TicketBarcode seed={bet.id} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SportsMyBets({
   compact = false,
   hideHeading = false,
@@ -88,152 +372,35 @@ export function SportsMyBets({
   const list = compact ? bets.slice(0, 4) : bets;
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex flex-col gap-2.5">
       {!hideHeading && (
         <div className="flex items-center justify-between px-0.5">
-          <h3 className="font-roobert text-[15px] font-bold text-frost-white">{t('sports.myBets')}</h3>
-          <span className="font-roobert text-[10px] text-whisper-gray tabular-nums">{list.length}</span>
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-roobert text-[15px] font-extrabold text-frost-white">
+              {t('sports.myBets')}
+            </h3>
+            <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-white/[0.08] text-whisper-gray tabular-nums border border-white/8">
+              {list.length}
+            </span>
+          </div>
         </div>
       )}
 
       {list.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#0e1015] px-4 py-6 text-center font-roobert text-[12px] text-whisper-gray">
+        <div className="rounded-[22px] border border-white/10 bg-[#0e1015] px-4 py-8 text-center font-roobert text-[12.5px] text-whisper-gray">
           {t('sports.noBets')}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {list.map((bet) => {
-            const isExpress = bet.type === 'express' || (bet.legs && bet.legs.length > 1);
-            const openBet = isOpenBet(bet.state);
-
-            return (
-              <article
-                key={bet.id}
-                className="rounded-2xl border border-white/10 bg-[#0e1015] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] flex flex-col gap-2"
-              >
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={cn(
-                        'w-8 h-8 rounded-full border flex items-center justify-center shrink-0',
-                        isExpress
-                          ? 'border-amber-400/30 bg-amber-400/10 text-amber-400'
-                          : 'border-white/12 bg-white/[0.05] text-frost-white'
-                      )}
-                    >
-                      {isExpress ? (
-                        <ExpressTrainIcon size={16} strokeWidth={2.2} />
-                      ) : (
-                        <SoccerBallIcon size={15} strokeWidth={2.1} />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-roobert text-[13px] font-semibold text-frost-white truncate">
-                        {isExpress && bet.legs && bet.legs.length > 1
-                          ? `${bet.legs[0]?.eventName || bet.eventName || 'Матч'} +${bet.legs.length - 1}`
-                          : bet.eventName || (bet.legs?.[0]?.eventName ?? 'Ставка')}
-                      </div>
-                      <div className="font-roobert text-[10.5px] text-whisper-gray">
-                        {isExpress ? 'Экспресс' : 'Ординар'}
-                        {' · '}
-                        x{bet.odds.toFixed(2)}
-                        {' · '}
-                        {bet.stake.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł
-                      </div>
-                    </div>
-                  </div>
-
-                  <span
-                    className={cn(
-                      'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border',
-                      openBet
-                        ? 'text-amber-300 border-amber-400/30 bg-amber-400/10'
-                        : bet.state === 'won'
-                        ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
-                        : bet.state === 'lost'
-                        ? 'text-red-300 border-red-500/25 bg-red-500/10'
-                        : 'text-whisper-gray border-white/10 bg-white/[0.04]'
-                    )}
-                  >
-                    {openBet
-                      ? 'Рассчитывается'
-                      : bet.state === 'won'
-                      ? 'Рассчитана (Выигрыш)'
-                      : bet.state === 'lost'
-                      ? 'Рассчитана (Проигрыш)'
-                      : bet.state === 'cashed_out'
-                      ? 'Выкуплена'
-                      : 'Рассчитана'}
-                  </span>
-                </div>
-
-                {!!bet.legs?.length && (
-                  <div className="mt-1 rounded-xl bg-black/40 border border-white/5 p-2 flex flex-col gap-1.5">
-                    {bet.legs.map((leg, i) => {
-                      const matchTitle = leg.eventName || bet.eventName || `Событие #${i + 1}`;
-                      const pick = formatOutcomeLabel(leg.outcomeKey, leg.marketKind, leg.line);
-
-                      return (
-                        <div
-                          key={`${bet.id}-${i}`}
-                          className="flex items-center justify-between gap-2 font-roobert text-[11.5px]"
-                        >
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-frost-white font-medium truncate">
-                              {matchTitle}
-                            </span>
-                            <span className="text-amber-300/90 text-[10.5px]">
-                              {pick}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="tabular-nums font-bold text-frost-white">
-                              {leg.odds ? Number(leg.odds).toFixed(2) : ''}
-                            </span>
-                            {leg.result === 'won' && (
-                              <span className="text-emerald-400 text-[10px] font-bold">✓</span>
-                            )}
-                            {leg.result === 'lost' && (
-                              <span className="text-rose-400 text-[10px] font-bold">✕</span>
-                            )}
-                            {(!leg.result || leg.result === 'pending') && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="mt-1 flex items-center justify-between gap-2 border-t border-white/5 pt-1.5">
-                  <span className="font-roobert text-[11px] text-whisper-gray">
-                    Ставка: {bet.stake.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł
-                  </span>
-                  <span className="font-roobert text-[12px] font-bold text-frost-white tabular-nums">
-                    {bet.payout > 0
-                      ? `Выплата: ${bet.payout.toLocaleString(localeTag, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })} zł`
-                      : `К выплате: ${(bet.stake * bet.odds).toLocaleString(localeTag, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })} zł`}
-                  </span>
-                </div>
-
-                {bet.cashout && (
-                  <GamePrimaryButton
-                    onClick={() => void onCashout(bet.id)}
-                    disabled={busy === bet.id}
-                  >
-                    Выкуп за {bet.cashout.amount.toFixed(2)} zł
-                  </GamePrimaryButton>
-                )}
-              </article>
-            );
-          })}
+        <div className="flex flex-col gap-3">
+          {list.map((bet) => (
+            <BetCouponCard
+              key={bet.id}
+              bet={bet}
+              localeTag={localeTag}
+              busy={busy}
+              onCashout={onCashout}
+            />
+          ))}
         </div>
       )}
     </section>
@@ -249,7 +416,6 @@ export function SportsMyBetsSheet({
 }) {
   const { t, localeTag } = useT();
   const { bets, busy, onCashout } = useSportsBetList(0, open);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const list = useMemo(() => {
     return [...bets].sort((a, b) => {
@@ -273,244 +439,59 @@ export function SportsMyBetsSheet({
             type="button"
             onClick={onClose}
             aria-label={t('sports.myBetsClose')}
-            className="absolute inset-0 bg-black/80 cursor-pointer"
+            className="absolute inset-0 bg-black/85 backdrop-blur-sm cursor-pointer"
           />
 
           <motion.div
             initial={{ y: '100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-            className="relative z-10 w-full max-w-lg max-h-[86vh] flex flex-col rounded-t-[28px] sm:rounded-3xl border border-white/10 bg-[#0c0d0f] overflow-hidden"
+            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            className="relative z-10 w-full max-w-lg max-h-[88vh] flex flex-col rounded-t-[28px] sm:rounded-3xl border border-white/12 bg-[#0c0d12] overflow-hidden shadow-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/10 bg-[#111318]">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center text-whisper-gray">
-                  <Clock size={15} className="text-amber-400 shrink-0" strokeWidth={2.2} />
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-[#12141c]">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-amber-400/15 border border-amber-400/30 flex items-center justify-center">
+                  <Clock size={16} className="text-amber-400 shrink-0" strokeWidth={2.4} />
                 </div>
-                <h2 className="font-roobert font-bold text-white text-[16px] tracking-tight">
-                  {t('sports.myBets')}
-                </h2>
+                <div>
+                  <h2 className="font-roobert font-extrabold text-white text-[16px] tracking-tight">
+                    {t('sports.myBets')}
+                  </h2>
+                  <span className="text-[10px] text-whisper-gray font-mono">
+                    Всего билетов: {list.length}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-roobert text-[11px] font-semibold px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray tabular-nums">
-                  {list.length > 0 ? `1 из ${list.length}` : '0 из 0'}
-                </span>
                 <button
                   type="button"
                   onClick={onClose}
                   aria-label={t('sports.myBetsClose')}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-white hover:bg-white/10 transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-whisper-gray hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
                 >
-                  <X size={15} strokeWidth={2.2} />
+                  <X size={16} strokeWidth={2.2} />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2.5 no-scrollbar">
+            {/* Coupons List */}
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3 custom-scrollbar">
               {list.length === 0 ? (
-                <div className="px-4 py-14 text-center font-roobert text-[13px] text-whisper-gray">
+                <div className="px-4 py-16 text-center font-roobert text-[13px] text-whisper-gray">
                   {t('sports.noBets')}
                 </div>
               ) : (
-                list.map((bet, index) => {
-                  const openBet = isOpenBet(bet.state);
-                  const isExpress = bet.type === 'express' || (bet.legs && bet.legs.length > 1);
-                  const dateLabel = new Date(bet.placedAt).toLocaleString(localeTag, {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-                  const stakeLabel = bet.stake.toLocaleString(localeTag, {
-                    maximumFractionDigits: 2,
-                  });
-                  const net = openBet
-                    ? null
-                    : bet.isFreebet
-                    ? bet.state === 'won'
-                      ? Number(bet.payout)
-                      : 0
-                    : bet.state === 'lost'
-                    ? Number(bet.payout) > 0
-                      ? Number(bet.payout) - bet.stake
-                      : -bet.stake
-                    : Number(bet.payout) - bet.stake;
-
-                  // Header title: "Feyenoord Rotterdam — ADO Den Haag +2"
-                  const firstLeg = bet.legs?.[0];
-                  const titleName = isExpress && bet.legs && bet.legs.length > 1
-                    ? `${firstLeg?.eventName || bet.eventName || 'Матч'} +${bet.legs.length - 1}`
-                    : bet.eventName || firstLeg?.eventName || 'Ставка';
-
-                  return (
-                    <div
-                      key={bet.id}
-                      className={cn(
-                        'rounded-2xl border transition-all overflow-hidden',
-                        openBet
-                          ? 'border-amber-400/30 bg-black/50 shadow-md shadow-amber-500/5'
-                          : bet.state === 'won'
-                          ? 'border-emerald-500/20 bg-black/40'
-                          : 'border-white/5 bg-black/30 opacity-90'
-                      )}
-                    >
-                      {/* Top Clickable Row */}
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(expandedId === bet.id ? null : bet.id)}
-                        className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 text-left transition-colors p-3.5"
-                      >
-                        {/* Icon: Express Train if express, Soccer ball if single */}
-                        <div
-                          className={cn(
-                            'w-10 h-10 rounded-full border flex items-center justify-center shrink-0 shadow-inner',
-                            isExpress
-                              ? 'border-amber-400/30 bg-amber-400/10 text-amber-400'
-                              : 'border-white/12 bg-white/[0.05] text-frost-white'
-                          )}
-                        >
-                          {isExpress ? (
-                            <ExpressTrainIcon size={19} strokeWidth={2.2} />
-                          ) : (
-                            <SoccerBallIcon size={17} strokeWidth={2.1} />
-                          )}
-                        </div>
-
-                        {/* Title and date */}
-                        <div className="min-w-0">
-                          <div className="font-roobert font-bold text-[14px] sm:text-[15px] text-white truncate tracking-tight">
-                            {titleName}
-                          </div>
-                          <div className="font-roobert text-[11.5px] text-whisper-gray/80 tabular-nums mt-0.5 flex items-center gap-1.5">
-                            <span>{dateLabel} · {bet.isFreebet ? 'фрибет' : 'ставка'} {stakeLabel} zł</span>
-                            {bet.isFreebet && (
-                              <span className="px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold text-[10px]">
-                                🎁 ФРИБЕТ
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Payout & Odds */}
-                        <div className="text-right shrink-0">
-                          <div
-                            className={cn(
-                              'font-roobert font-extrabold text-[14px] sm:text-[15px] tabular-nums',
-                              openBet
-                                ? 'text-amber-300 text-[12px] font-bold px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/25'
-                                : net != null && net > 0
-                                ? 'text-emerald-400'
-                                : net != null && net < 0
-                                ? 'text-[#ff8a76]'
-                                : 'text-whisper-gray'
-                            )}
-                          >
-                            {openBet
-                              ? 'Рассчитывается'
-                              : `${(net ?? 0) >= 0 ? '+' : '−'}${Math.abs(net ?? 0).toLocaleString(localeTag, {
-                                  maximumFractionDigits: 2,
-                                })} zł`}
-                          </div>
-                          {bet.odds > 0 && (
-                            <div className="mt-0.5 font-roobert text-[11.5px] font-semibold text-whisper-gray tabular-nums">
-                              x{bet.odds.toFixed(2)}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Status indicator bar */}
-                      <div className="flex items-center justify-between px-2.5 py-1 rounded-xl bg-black/40 border border-white/5 text-[11px]">
-                        <span className="text-whisper-gray">Статус:</span>
-                        <span
-                          className={cn(
-                            'font-bold tracking-tight',
-                            openBet
-                              ? 'text-amber-300 flex items-center gap-1'
-                              : bet.state === 'won'
-                              ? 'text-emerald-400'
-                              : 'text-rose-400'
-                          )}
-                        >
-                          {openBet ? (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                              <span>Рассчитывается</span>
-                            </>
-                          ) : bet.state === 'won' ? (
-                            'Рассчитана (Выигрыш)'
-                          ) : (
-                            'Рассчитана (Проигрыш)'
-                          )}
-                        </span>
-                      </div>
-
-                      {/* Detailed Match Legs (Full Match Names & Chosen Outcomes instead of raw p1, p2, p3) */}
-                      {!!bet.legs?.length && (
-                        <div className="rounded-xl border border-white/10 bg-black/50 p-2.5 flex flex-col gap-2 shadow-inner">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-whisper-gray/70 px-0.5">
-                            События купона ({bet.legs.length}):
-                          </div>
-
-                          <div className="divide-y divide-white/5">
-                            {bet.legs.map((leg, i) => {
-                              const matchTitle = leg.eventName || bet.eventName || `Матч #${i + 1}`;
-                              const pick = formatOutcomeLabel(leg.outcomeKey, leg.marketKind, leg.line);
-
-                              return (
-                                <div
-                                  key={`${bet.id}-${i}-${index}`}
-                                  className="py-1.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2 text-[12px]"
-                                >
-                                  {/* Match and Selected Outcome */}
-                                  <div className="flex flex-col min-w-0 flex-1">
-                                    <span className="font-semibold text-frost-white truncate">
-                                      {matchTitle}
-                                    </span>
-                                    <span className="text-[11px] text-amber-300/90 font-medium">
-                                      {pick}
-                                    </span>
-                                  </div>
-
-                                  {/* Individual Leg Odds & Outcome Status */}
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="font-roobert font-bold text-frost-white tabular-nums text-[12.5px]">
-                                      {leg.odds ? Number(leg.odds).toFixed(2) : ''}
-                                    </span>
-                                    {leg.result === 'won' && (
-                                      <span className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-[9px] font-bold">
-                                        ✓
-                                      </span>
-                                    )}
-                                    {leg.result === 'lost' && (
-                                      <span className="w-4 h-4 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[9px] font-bold">
-                                        ✕
-                                      </span>
-                                    )}
-                                    {(!leg.result || leg.result === 'pending') && (
-                                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {bet.cashout && (
-                        <GamePrimaryButton
-                          onClick={() => void onCashout(bet.id)}
-                          disabled={busy === bet.id}
-                        >
-                          {t('sports.cashoutFor', { amount: bet.cashout.amount.toFixed(2) })}
-                        </GamePrimaryButton>
-                      )}
-                    </div>
-                  );
-                })
+                list.map((bet) => (
+                  <BetCouponCard
+                    key={bet.id}
+                    bet={bet}
+                    localeTag={localeTag}
+                    busy={busy}
+                    onCashout={onCashout}
+                  />
+                ))
               )}
             </div>
           </motion.div>
@@ -519,3 +500,4 @@ export function SportsMyBetsSheet({
     </AnimatePresence>
   );
 }
+

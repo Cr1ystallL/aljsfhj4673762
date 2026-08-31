@@ -5,10 +5,10 @@ import type { LucideProps } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Express Train Icon — Vector icon representing an Express / Accumulator bet.
- * Designed after high-speed bullet train with speed motion lines.
+ * ExpressIcon / ExpressTrainIcon — Modern vector icon representing an Express / Accumulator bet.
+ * Designed with tiered multi-ticket combo cards, boost multiplier chevron, and linked nodes.
  */
-export const ExpressTrainIcon = forwardRef<SVGSVGElement, LucideProps>(
+export const ExpressIcon = forwardRef<SVGSVGElement, LucideProps>(
   (
     {
       color = 'currentColor',
@@ -34,33 +34,33 @@ export const ExpressTrainIcon = forwardRef<SVGSVGElement, LucideProps>(
         className={cn('shrink-0', className)}
         {...rest}
       >
-        {/* Speed motion lines trailing behind */}
-        <path d="M1 4h1" />
-        <path d="M2.5 7h4" />
-        <path d="M1 9.5h3" />
-        <path d="M1 18.5h1.5" />
-        <path d="M1 23h2" />
-
-        {/* Pantograph / Roof power connector */}
-        <path d="M8.5 2.5L11 5h4" />
-
-        {/* Locomotive Aerodynamic Hull */}
-        <path d="M8 5h6.5l6.5 7.5h2l-2.5 4.5h-15l-1.5 3h17l2-3.5L23 12.5 15.5 5" />
+        {/* Tier 1: Background stacked card */}
+        <path d="M4 8.5V6a2 2 0 0 1 2-2h10" opacity="0.4" />
         
-        {/* Horizontal dividing streamline */}
-        <path d="M3 13.5h19" />
+        {/* Tier 2: Middle stacked card */}
+        <path d="M6 12.5V8.5a2 2 0 0 1 2-2h11" opacity="0.7" />
 
-        {/* Slanted Aerodynamic Windows */}
-        <path d="M10 7.5h2.5l2.5 3.5h-2.5z" />
-        <path d="M14 7.5h2.5l2.5 3.5h-2.5z" />
+        {/* Tier 3: Foreground main ticket card */}
+        <rect x="7.5" y="6.5" width="13.5" height="15" rx="2.5" />
 
-        {/* Undercarriage Wheels */}
-        <circle cx="5.5" cy="20.5" r="1.8" />
-        <circle cx="10" cy="20.5" r="1.8" />
-        <circle cx="14.5" cy="20.5" r="1.8" />
+        {/* Dynamic Combo Energy / Multiplier Lightning Bolt */}
+        <path
+          d="M14.5 9.5L12 13.5H15.5L13.5 18"
+          strokeWidth={strokeWidth}
+          fill="currentColor"
+          fillOpacity="0.25"
+        />
+
+        {/* Multi-bet connector link line */}
+        <path d="M3 18.5h2.5" />
+        <circle cx="3" cy="18.5" r="1" fill="currentColor" />
       </svg>
     );
   }
 );
 
-ExpressTrainIcon.displayName = 'ExpressTrainIcon';
+ExpressIcon.displayName = 'ExpressIcon';
+
+// Backward-compatible alias
+export const ExpressTrainIcon = ExpressIcon;
+
