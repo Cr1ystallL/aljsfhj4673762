@@ -23,6 +23,7 @@ import { sessionManager } from '../lib/session-manager.js';
 import { rtpEngine } from '../services/rtp-engine.js';
 import { config } from '../config/index.js';
 import { sportsEngine } from '../games/sports/engine.js';
+import { freebetService } from '../services/freebet-service.js';
 
 /**
  * Admin Routes — covert.
@@ -6088,6 +6089,285 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) {
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // FREEBETS MANAGEMENT
+  // ---------------------------------------------------------------------------
+
+  /**
+   * GET /api/_x/freebets/campaigns
+   */
+  app.get('/_x/freebets/campaigns', { preHandler: adminOnly }, async (_req, reply) => {
+    const campaigns = await app.prisma.freebetCampaign.findMany({
+      include: {
+        _count: {
+          select: { userFreebets: true },
+        },
+        userFreebets: {
+          where: { status: 'used' },
+          select: { id: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return reply.send({
+      ok: true,
+      campaigns: campaigns.map((c) => ({
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        amount: Number(c.amount),
+        triggerType: c.triggerType,
+        minDeposit: Number(c.minDeposit),
+        minOdds: Number(c.minOdds),
+        maxOdds: Number(c.maxOdds),
+        minLegs: c.minLegs,
+        validDays: c.validDays,
+        payoutType: c.payoutType,
+        allowedSports: c.allowedSports,
+        maxPerUser: c.maxPerUser,
+        active: c.active,
+        createdBy: c.createdBy,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        issuedCount: c._count.userFreebets,
+        usedCount: c.userFreebets.length,
+      })),
+    });
+  });
+
+  /**
+   * POST /api/_x/freebets/campaigns
+   */
+  app.post<{
+    Body: {
+      title: string;
+      description?: string;
+      amount: number;
+      triggerType?: 'deposit' | 'welcome' | 'manual';
+      minDeposit?: number;
+      minOdds?: number;
+      maxOdds?: number;
+      minLegs?: number;
+      validDays?: number;
+      payoutType?: 'net_win' | 'full_win';
+      allowedSports?: string[];
+      maxPerUser?: number;
+      active?: boolean;
+      reason: string;
+    };
+  }>('/_x/freebets/campaigns', { preHandler: adminOnly }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const body = request.body;
+    if (!body?.title?.trim()) return reply.code(400).send({ error: 'Укажите название' });
+    if (!body?.amount || body.amount <= 0) return reply.code(400).send({ error: 'Укажите сумму фрибета' });
+    if (!body?.reason || body.reason.length < 3) return reply.code(400).send({ error: 'Причина обязательна (от 3 символов)' });
+
+    const campaign = await app.prisma.freebetCampaign.create({
+      data: {
+        title: body.title.trim(),
+        description: body.description?.trim() || null,
+        amount: body.amount,
+        triggerType: body.triggerType || 'deposit',
+        minDeposit: body.minDeposit || 0,
+        minOdds: body.minOdds || 2.50,
+        maxOdds: body.maxOdds || 35.00,
+        minLegs: body.minLegs || 1,
+        validDays: body.validDays || 7,
+        payoutType: body.payoutType || 'net_win',
+        allowedSports: body.allowedSports ?? undefined,
+        maxPerUser: body.maxPerUser || 1,
+        active: body.active !== false,
+        createdBy: user.userId,
+      },
+    });
+
+    await audit({
+      request: request as AuthenticatedRequest,
+      action: 'freebet.create_campaign',
+      targetType: 'freebet_campaign',
+      targetId: campaign.id,
+      reason: body.reason,
+      payloadAfter: { title: campaign.title, amount: body.amount },
+    });
+
+    return reply.send({ ok: true, campaign });
+  });
+
+  /**
+   * PATCH /api/_x/freebets/campaigns/:id
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: {
+      title?: string;
+      description?: string;
+      amount?: number;
+      triggerType?: 'deposit' | 'welcome' | 'manual';
+      minDeposit?: number;
+      minOdds?: number;
+      maxOdds?: number;
+      minLegs?: number;
+      validDays?: number;
+      payoutType?: 'net_win' | 'full_win';
+      allowedSports?: string[];
+      maxPerUser?: number;
+      active?: boolean;
+      reason: string;
+    };
+  }>('/_x/freebets/campaigns/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const { id } = request.params;
+    const b = request.body;
+    if (!b?.reason || b.reason.length < 3) return reply.code(400).send({ error: 'Причина обязательна' });
+
+    const campaign = await app.prisma.freebetCampaign.update({
+      where: { id },
+      data: {
+        ...(b.title !== undefined ? { title: b.title.trim() } : {}),
+        ...(b.description !== undefined ? { description: b.description?.trim() || null } : {}),
+        ...(b.amount !== undefined ? { amount: b.amount } : {}),
+        ...(b.triggerType !== undefined ? { triggerType: b.triggerType } : {}),
+        ...(b.minDeposit !== undefined ? { minDeposit: b.minDeposit } : {}),
+        ...(b.minOdds !== undefined ? { minOdds: b.minOdds } : {}),
+        ...(b.maxOdds !== undefined ? { maxOdds: b.maxOdds } : {}),
+        ...(b.minLegs !== undefined ? { minLegs: b.minLegs } : {}),
+        ...(b.validDays !== undefined ? { validDays: b.validDays } : {}),
+        ...(b.payoutType !== undefined ? { payoutType: b.payoutType } : {}),
+        ...(b.allowedSports !== undefined ? { allowedSports: b.allowedSports } : {}),
+        ...(b.maxPerUser !== undefined ? { maxPerUser: b.maxPerUser } : {}),
+        ...(b.active !== undefined ? { active: b.active } : {}),
+      },
+    });
+
+    await audit({
+      request: request as AuthenticatedRequest,
+      action: 'freebet.update_campaign',
+      targetType: 'freebet_campaign',
+      targetId: id,
+      reason: b.reason,
+      payloadAfter: b,
+    });
+
+    return reply.send({ ok: true, campaign });
+  });
+
+  /**
+   * DELETE /api/_x/freebets/campaigns/:id
+   */
+  app.delete<{
+    Params: { id: string };
+    Body: { reason?: string };
+  }>('/_x/freebets/campaigns/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const { id } = request.params;
+    const reason = request.body?.reason || 'Deleted by admin';
+
+    await app.prisma.freebetCampaign.delete({ where: { id } });
+
+    await audit({
+      request: request as AuthenticatedRequest,
+      action: 'freebet.delete_campaign',
+      targetType: 'freebet_campaign',
+      targetId: id,
+      reason,
+    });
+
+    return reply.send({ ok: true });
+  });
+
+  /**
+   * POST /api/_x/freebets/grant
+   */
+  app.post<{
+    Body: {
+      userIdOrTelegramId: string;
+      campaignId?: string;
+      amount?: number;
+      minOdds?: number;
+      maxOdds?: number;
+      minLegs?: number;
+      validDays?: number;
+      payoutType?: 'net_win' | 'full_win';
+      allowedSports?: string[];
+      reason: string;
+    };
+  }>('/_x/freebets/grant', { preHandler: adminOnly }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const b = request.body;
+    if (!b?.userIdOrTelegramId) return reply.code(400).send({ error: 'Укажите ID игрока или Telegram ID' });
+    if (!b?.reason || b.reason.length < 3) return reply.code(400).send({ error: 'Причина обязательна' });
+
+    const targetUser = await app.prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: b.userIdOrTelegramId },
+          { telegramId: /^\d+$/.test(b.userIdOrTelegramId) ? BigInt(b.userIdOrTelegramId) : undefined },
+          { username: b.userIdOrTelegramId.replace(/^@/, '') },
+        ].filter(Boolean) as any,
+      },
+    });
+
+    if (!targetUser) return reply.code(404).send({ error: 'Игрок не найден' });
+
+    const freebet = await freebetService.grantManualFreebet({
+      userId: targetUser.id,
+      campaignId: b.campaignId,
+      amount: b.amount,
+      minOdds: b.minOdds,
+      maxOdds: b.maxOdds,
+      minLegs: b.minLegs,
+      validDays: b.validDays,
+      payoutType: b.payoutType,
+      allowedSports: b.allowedSports,
+    });
+
+    await audit({
+      request: request as AuthenticatedRequest,
+      action: 'freebet.grant_manual',
+      targetType: 'user_freebet',
+      targetId: freebet.id,
+      reason: b.reason,
+      payloadAfter: { targetUserId: targetUser.id, freebetId: freebet.id, amount: freebet.amount },
+    });
+
+    return reply.send({ ok: true, freebet });
+  });
+
+  /**
+   * GET /api/_x/freebets/history
+   */
+  app.get('/_x/freebets/history', { preHandler: adminOnly }, async (_req, reply) => {
+    const freebets = await app.prisma.userFreebet.findMany({
+      include: {
+        user: { select: { id: true, username: true, firstName: true, telegramId: true } },
+        campaign: { select: { title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return reply.send({
+      ok: true,
+      freebets: freebets.map((fb) => ({
+        id: fb.id,
+        userId: fb.userId,
+        userName: fb.user.firstName || fb.user.username || String(fb.user.telegramId),
+        campaignTitle: fb.campaign?.title ?? 'Прямой фрибет',
+        amount: Number(fb.amount),
+        minOdds: Number(fb.minOdds),
+        maxOdds: Number(fb.maxOdds),
+        minLegs: fb.minLegs,
+        payoutType: fb.payoutType,
+        status: fb.status,
+        expiresAt: fb.expiresAt.toISOString(),
+        createdAt: fb.createdAt.toISOString(),
+        usedAt: fb.usedAt?.toISOString() || null,
+        betId: fb.betId,
+      })),
+    });
   });
 
   void isAdminTelegramId;

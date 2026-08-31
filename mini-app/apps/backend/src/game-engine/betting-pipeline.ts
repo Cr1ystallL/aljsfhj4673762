@@ -322,6 +322,65 @@ export class BettingPipeline {
         return true;
       }
 
+      if (bet.metadata?.freebetId) {
+        await prisma.$transaction(async (tx) => {
+          const userRows = await tx.$queryRaw<
+            Array<{ is_blocked: boolean; telegram_id: bigint }>
+          >`SELECT is_blocked, telegram_id FROM users WHERE id::text = ${bet.userId}::text LIMIT 1`;
+          let blocked = userRows[0]?.is_blocked;
+          if (blocked && userRows[0]?.telegram_id) {
+            if (await isAdminTelegramIdAsync(Number(userRows[0].telegram_id))) {
+              blocked = false;
+            }
+          }
+          if (blocked) {
+            throw new Error('Аккаунт заблокирован администратором');
+          }
+
+          const curRows = await tx.$queryRaw<Array<{ amount: string }>>`SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = false LIMIT 1`;
+          const currentBalance = curRows[0] ? Number(curRows[0].amount) : 0;
+
+          await tx.bet.create({
+            data: {
+              id: bet.id,
+              userId: bet.userId,
+              gameType: gt,
+              roundId: bet.roundId,
+              amount: 0,
+              state: bet.state,
+              placedAt: new Date(bet.placedAt),
+              metadata: bet.metadata || {},
+            },
+          });
+
+          await tx.transaction.create({
+            data: {
+              userId: bet.userId,
+              type: 'bet',
+              amount: 0,
+              balanceBefore: currentBalance,
+              balanceAfter: currentBalance,
+              gameType: gt,
+              gameRoundId: bet.roundId || null,
+              metadata: {
+                betId: bet.id,
+                gameId: bet.gameId,
+                roundId: bet.roundId,
+                freebetId: bet.metadata?.freebetId,
+                freebetAmount: bet.metadata?.freebetAmount,
+                demoMode: false,
+              },
+            },
+          });
+        });
+
+        logger.info(
+          { betId: bet.id, userId: bet.userId, freebetId: bet.metadata.freebetId },
+          'Freebet processed without balance debit'
+        );
+        return false;
+      }
+
       const newBalance = await prisma.$transaction(async (tx) => {
         // Block flagged accounts before touching the balance row.
         // We use a Prisma raw query so this works even when the client

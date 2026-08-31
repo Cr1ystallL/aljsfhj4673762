@@ -21,6 +21,7 @@ import {
 import { sportEnabled, sportsLimits } from './limits.js';
 import { notifySportsUser, sportsGoalText, sportsSettleText } from './notify.js';
 import { redisClient } from '../../lib/redis.js';
+import { freebetService } from '../../services/freebet-service.js';
 
 export class SportsOddsChangedError extends Error {
   readonly code = 'ODDS_CHANGED';
@@ -222,7 +223,7 @@ class SportsEngine {
     userId: string,
     stake: number,
     rawLegs: BetLegSpec[],
-    opts?: { quotedOdds?: number[]; acceptChange?: boolean }
+    opts?: { quotedOdds?: number[]; acceptChange?: boolean; freebetId?: string }
   ): Promise<SportsBetReceipt> {
     const limits = await sportsLimits();
     if (!Array.isArray(rawLegs) || rawLegs.length === 0) {
@@ -289,7 +290,20 @@ class SportsEngine {
 
     const product = locked.reduce((acc, leg) => acc * leg.odds, 1);
     const combinedOdds = Math.min(limits.maxCombined, formatCombined(product));
-    const potentialWin = Math.min(limits.maxPayout, roundMoney(stake * combinedOdds));
+
+    let freebetData: Awaited<ReturnType<typeof freebetService.lockFreebetForBet>> | null = null;
+    if (opts?.freebetId) {
+      freebetData = await freebetService.lockFreebetForBet(userId, opts.freebetId, {
+        odds: combinedOdds,
+        legsCount: locked.length,
+        sports: locked.map((l) => this.events.get(l.eventId)?.feed.sport || ''),
+      });
+      stake = freebetData.amount;
+    }
+
+    const isNetWin = freebetData?.payoutType === 'net_win';
+    const winMultiplier = isNetWin ? Math.max(0, combinedOdds - 1) : combinedOdds;
+    const potentialWin = Math.min(limits.maxPayout, roundMoney(stake * winMultiplier));
     const type = locked.length >= 2 ? 'express' : 'single';
     const first = locked[0];
     const firstEv = this.events.get(first.eventId)!;
@@ -317,6 +331,10 @@ class SportsEngine {
         eventName,
         league: firstEv.feed.league,
         scoreAtBet: [firstEv.feed.team1.score ?? 0, firstEv.feed.team2.score ?? 0],
+        freebetId: freebetData?.id,
+        freebetAmount: freebetData?.amount,
+        freebetPayoutType: freebetData?.payoutType,
+        freebetTitle: freebetData?.campaignTitle,
         legs: locked.map((leg) => {
           const ev = this.events.get(leg.eventId);
           return {
@@ -396,7 +414,9 @@ class SportsEngine {
         outcome: String(meta.outcome ?? ''),
         type: String(meta.type ?? (legs.length >= 2 ? 'express' : 'single')),
         odds: Number(meta.odds ?? row.multiplier ?? 0),
-        stake: Number(row.amount),
+        stake: meta.freebetAmount ? Number(meta.freebetAmount) : Number(row.amount),
+        isFreebet: !!meta.freebetId,
+        freebetTitle: meta.freebetTitle ? String(meta.freebetTitle) : undefined,
         state: row.state,
         payout: Number(row.payout ?? 0),
         placedAt: row.placedAt.toISOString(),
@@ -410,6 +430,7 @@ class SportsEngine {
     if (!limits.cashoutEnabled) return null;
     const tracked = this.bets.get(betId);
     if (!tracked) return null;
+    if ((tracked.bet.metadata as Record<string, unknown> | undefined)?.freebetId) return null;
     if (tracked.legs.some((l) => l.result === 'lost')) return null;
     const priced = tracked.legs.map((leg) => {
       if (leg.result === 'void' || leg.result === 'won' || leg.result === 'lost') {
@@ -754,17 +775,25 @@ class SportsEngine {
 
   private async finishTracked(tracked: TrackedBet, betId: string, lastResult: SettleResult): Promise<void> {
     const limits = await sportsLimits();
-    const name = String((tracked.bet.metadata as Record<string, unknown> | undefined)?.eventName ?? '');
+    const meta = (tracked.bet.metadata || {}) as Record<string, any>;
+    const name = String(meta.eventName ?? '');
     const type = tracked.legs.length >= 2 ? 'express' : 'single';
+    const freebetId = meta.freebetId as string | undefined;
+    const freebetPayoutType = meta.freebetPayoutType as string | undefined;
+    const freebetAmount = Number(meta.freebetAmount || tracked.bet.amount);
+
     if (lastResult === 'lost') {
       tracked.bet.multiplier = 0;
       tracked.bet.payout = 0;
+      if (freebetId) {
+        await freebetService.settleFreebet(freebetId, betId, 'lost');
+      }
       await bettingPipeline.processLoss(tracked.bet, false);
       this.unindexBet(betId);
       this.pushActivity('settle', `Проигрыш · ${name}`, tracked.legs[0]?.eventId);
       void notifySportsUser(
         tracked.bet.userId,
-        sportsSettleText(name, type, 'lost', 0, undefined, tracked.bet.amount)
+        sportsSettleText(name, type, 'lost', 0, undefined, freebetAmount)
       );
       return;
     }
@@ -772,7 +801,16 @@ class SportsEngine {
       const multiplier = formatCombined(
         tracked.legs.reduce((acc, l) => acc * (l.result === 'void' ? 1 : l.odds), 1)
       );
-      const payout = Math.min(limits.maxPayout, roundMoney(tracked.bet.amount * multiplier));
+      let payout = 0;
+      if (freebetId) {
+        const isNet = freebetPayoutType === 'net_win';
+        const winMult = isNet ? Math.max(0, multiplier - 1) : multiplier;
+        payout = Math.min(limits.maxPayout, roundMoney(freebetAmount * winMult));
+        await freebetService.settleFreebet(freebetId, betId, 'won');
+      } else {
+        payout = Math.min(limits.maxPayout, roundMoney(tracked.bet.amount * multiplier));
+      }
+
       tracked.bet.multiplier = multiplier;
       tracked.bet.payout = payout;
       await bettingPipeline.processPayout(tracked.bet, payout, false);
@@ -780,7 +818,7 @@ class SportsEngine {
       this.pushActivity('settle', `Выигрыш ${payout.toFixed(2)} zł · ${name}`, tracked.legs[0]?.eventId);
       void notifySportsUser(
         tracked.bet.userId,
-        sportsSettleText(name, type, 'won', payout, multiplier, tracked.bet.amount)
+        sportsSettleText(name, type, 'won', payout, multiplier, freebetAmount)
       );
     }
   }

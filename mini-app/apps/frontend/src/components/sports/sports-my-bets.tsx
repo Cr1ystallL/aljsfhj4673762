@@ -328,6 +328,10 @@ export function SportsMyBetsSheet({
                   });
                   const net = openBet
                     ? null
+                    : bet.isFreebet
+                    ? bet.state === 'won'
+                      ? Number(bet.payout)
+                      : 0
                     : bet.state === 'lost'
                     ? Number(bet.payout) > 0
                       ? Number(bet.payout) - bet.stake
@@ -343,13 +347,20 @@ export function SportsMyBetsSheet({
                   return (
                     <div
                       key={bet.id}
-                      className="rounded-2xl border border-white/10 bg-[#12141a] p-3.5 shadow-md flex flex-col gap-2.5"
+                      className={cn(
+                        'rounded-2xl border transition-all overflow-hidden',
+                        openBet
+                          ? 'border-amber-400/30 bg-black/50 shadow-md shadow-amber-500/5'
+                          : bet.state === 'won'
+                          ? 'border-emerald-500/20 bg-black/40'
+                          : 'border-white/5 bg-black/30 opacity-90'
+                      )}
                     >
                       {/* Top Clickable Row */}
                       <button
                         type="button"
                         onClick={() => setExpandedId(expandedId === bet.id ? null : bet.id)}
-                        className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 text-left transition-colors"
+                        className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 text-left transition-colors p-3.5"
                       >
                         {/* Icon: Express Train if express, Soccer ball if single */}
                         <div
@@ -372,8 +383,13 @@ export function SportsMyBetsSheet({
                           <div className="font-roobert font-bold text-[14px] sm:text-[15px] text-white truncate tracking-tight">
                             {titleName}
                           </div>
-                          <div className="font-roobert text-[11.5px] text-whisper-gray/80 tabular-nums mt-0.5">
-                            {dateLabel} · ставка {stakeLabel} zł
+                          <div className="font-roobert text-[11.5px] text-whisper-gray/80 tabular-nums mt-0.5 flex items-center gap-1.5">
+                            <span>{dateLabel} · {bet.isFreebet ? 'фрибет' : 'ставка'} {stakeLabel} zł</span>
+                            {bet.isFreebet && (
+                              <span className="px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold text-[10px]">
+                                🎁 ФРИБЕТ
+                              </span>
+                            )}
                           </div>
                         </div>
 

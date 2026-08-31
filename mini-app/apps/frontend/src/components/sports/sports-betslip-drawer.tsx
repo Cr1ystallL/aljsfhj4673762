@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { X, Check, ChevronDown } from 'lucide-react';
+import { X, Check, ChevronDown, Gift } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { ExpressTrainIcon } from '@/components/ui/express-train-icon';
 import { useT } from '@/i18n/use-t';
@@ -45,8 +46,30 @@ export function SportsBetslipDrawer({
   const [oddsPrompt, setOddsPrompt] = useState<Array<{ quoted: number; current: number }> | null>(null);
   const [receipt, setReceipt] = useState<SlipReceipt | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [freebets, setFreebets] = useState<Array<{
+    id: string;
+    campaignTitle?: string;
+    amount: number;
+    minOdds: number;
+    maxOdds: number;
+    minLegs: number;
+    payoutType: 'net_win' | 'full_win';
+    status: string;
+  }>>([]);
+  const [selectedFreebetId, setSelectedFreebetId] = useState<string | null>(null);
   const prevLegs = useRef(0);
   const dragControls = useDragControls();
+
+  const loadFreebets = useCallback(async () => {
+    try {
+      const fbs = await sportsService.fetchFreebets();
+      setFreebets(fbs.filter((f) => f.status === 'available'));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void loadFreebets();
+  }, [loadFreebets]);
 
   useEffect(() => {
     setStake((current) => Math.min(maxBet, Math.max(minBet, current)));
@@ -63,8 +86,46 @@ export function SportsBetslipDrawer({
     () => Math.min(35, Math.round(legs.reduce((acc, leg) => acc * leg.odds, 1) * 100) / 100),
     [legs]
   );
+  const selectedFreebet = useMemo(
+    () => freebets.find((f) => f.id === selectedFreebetId) ?? null,
+    [freebets, selectedFreebetId]
+  );
+
   const isExpress = legs.length >= 2;
-  const potentialWin = stake * combinedOdds;
+  const effectiveStake = selectedFreebet ? selectedFreebet.amount : stake;
+
+  const freebetEligible = useMemo(() => {
+    if (!selectedFreebet) return true;
+    if (combinedOdds < selectedFreebet.minOdds - 0.001) return false;
+    if (combinedOdds > selectedFreebet.maxOdds + 0.001) return false;
+    if (legs.length < selectedFreebet.minLegs) return false;
+    return true;
+  }, [selectedFreebet, combinedOdds, legs.length]);
+
+  const freebetError = useMemo(() => {
+    if (!selectedFreebet) return null;
+    if (combinedOdds < selectedFreebet.minOdds - 0.001) {
+      return `Мин. кэф для фрибета: x${selectedFreebet.minOdds.toFixed(2)}`;
+    }
+    if (combinedOdds > selectedFreebet.maxOdds + 0.001) {
+      return `Макс. кэф для фрибета: x${selectedFreebet.maxOdds.toFixed(2)}`;
+    }
+    if (legs.length < selectedFreebet.minLegs) {
+      return `Минимум событий: ${selectedFreebet.minLegs}`;
+    }
+    return null;
+  }, [selectedFreebet, combinedOdds, legs.length]);
+
+  const potentialWin = useMemo(() => {
+    if (selectedFreebet) {
+      if (selectedFreebet.payoutType === 'net_win') {
+        return Math.max(0, Math.round(effectiveStake * Math.max(0, combinedOdds - 1) * 100) / 100);
+      }
+      return Math.round(effectiveStake * combinedOdds * 100) / 100;
+    }
+    return Math.round(stake * combinedOdds * 100) / 100;
+  }, [selectedFreebet, effectiveStake, combinedOdds, stake]);
+
   const conflictIds = useMemo(() => conflictingEventIds(legs), [legs]);
   const hasConflict = conflictIds.length > 0;
   const conflictLegs = useMemo(
@@ -78,16 +139,18 @@ export function SportsBetslipDrawer({
     setCollapsed(false);
     setIsSuccess(false);
     setDismissed(true);
+    setSelectedFreebetId(null);
     clear();
   };
 
   const handlePlaceBet = async (acceptChange = false) => {
-    if (busy || isSuccess || paused || legs.length === 0 || hasConflict) return;
+    if (busy || isSuccess || paused || legs.length === 0 || hasConflict || !freebetEligible) return;
     setBusy(true);
     setError(null);
     try {
       await sportsService.placeBet({
-        stake,
+        stake: effectiveStake,
+        freebetId: selectedFreebetId ?? undefined,
         acceptChange,
         quotedOdds: legs.map((leg) => leg.odds),
         legs: legs.map((leg) => ({
@@ -98,11 +161,12 @@ export function SportsBetslipDrawer({
         })),
       });
       await syncBalance();
+      void loadFreebets();
       setOddsPrompt(null);
       setIsSuccess(true);
       const placed: SlipReceipt = {
         count: legs.length,
-        stake,
+        stake: effectiveStake,
         odds: combinedOdds,
         win: potentialWin,
       };
@@ -111,6 +175,7 @@ export function SportsBetslipDrawer({
         setIsSuccess(false);
         setCollapsed(true);
         setDismissed(false);
+        setSelectedFreebetId(null);
         clear();
       }, 700);
     } catch (err) {
@@ -330,16 +395,80 @@ export function SportsBetslipDrawer({
                       </div>
                     )}
 
-                    <StakeField
-                      amount={stake}
-                      onAmountChange={setStake}
-                      minBet={minBet}
-                      maxBet={maxBet}
-                      disabled={busy || isSuccess}
-                      label={t('sports.stake')}
-                      className="gap-1"
-                      inputClassName="text-[16px] text-center"
-                    />
+                    {freebets.length > 0 && (
+                      <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-amber-400/10 border border-amber-400/25">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-300">
+                          <span className="flex items-center gap-1.5">
+                            <Gift size={13} /> Доступные фрибеты ({freebets.length})
+                          </span>
+                          {selectedFreebetId && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFreebetId(null)}
+                              className="text-whisper-gray hover:text-white text-[10px] font-normal underline"
+                            >
+                              Отменить
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {freebets.map((fb) => {
+                            const isSel = selectedFreebetId === fb.id;
+                            const valid = combinedOdds >= fb.minOdds && legs.length >= fb.minLegs;
+                            return (
+                              <button
+                                key={fb.id}
+                                type="button"
+                                onClick={() => setSelectedFreebetId(isSel ? null : fb.id)}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5",
+                                  isSel
+                                    ? "bg-amber-400 text-black shadow-md shadow-amber-400/20 ring-2 ring-amber-300"
+                                    : valid
+                                    ? "bg-white/10 text-frost-white hover:bg-white/15 border border-white/10"
+                                    : "bg-white/5 text-whisper-gray border border-white/5 opacity-60"
+                                )}
+                              >
+                                <span>{fb.amount} zł</span>
+                                <span className="text-[9.5px] opacity-80 font-normal">
+                                  (кэф ≥{fb.minOdds})
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {selectedFreebet && (
+                          <div className="text-[10px] text-amber-200/90 flex items-center justify-between pt-0.5">
+                            <span>
+                              {selectedFreebet.payoutType === 'net_win' ? 'Чистый выигрыш (кэф - 1)' : 'Полный выигрыш'}
+                            </span>
+                            {freebetError ? (
+                              <span className="text-red-300 font-bold">{freebetError}</span>
+                            ) : (
+                              <span className="text-emerald-400 font-bold">✓ Условия выполнены</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!selectedFreebet ? (
+                      <StakeField
+                        amount={stake}
+                        onAmountChange={setStake}
+                        minBet={minBet}
+                        maxBet={maxBet}
+                        disabled={busy || isSuccess}
+                        label={t('sports.stake')}
+                        className="gap-1"
+                        inputClassName="text-[16px] text-center"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-black/40 border border-amber-400/30">
+                        <span className="text-[12px] font-semibold text-whisper-gray">Сумма ставки (Фрибет):</span>
+                        <span className="text-[14px] font-extrabold text-amber-300">{selectedFreebet.amount} zł</span>
+                      </div>
+                    )}
 
                     {error && (
                       <div className="font-roobert text-[11px] text-red-300">{error}</div>
@@ -374,8 +503,8 @@ export function SportsBetslipDrawer({
                           onClick={() => {
                             void handlePlaceBet(!!oddsPrompt);
                           }}
-                          disabled={busy || isSuccess || paused || hasConflict}
-                          tone={isSuccess || hasConflict ? 'muted' : 'solid'}
+                          disabled={busy || isSuccess || paused || hasConflict || (!!selectedFreebet && !freebetEligible)}
+                          tone={isSuccess || hasConflict || (!!selectedFreebet && !freebetEligible) ? 'muted' : 'solid'}
                         >
                           {isSuccess ? (
                             <>
@@ -390,9 +519,13 @@ export function SportsBetslipDrawer({
                                   ? t('sports.linePaused')
                                   : oddsPrompt
                                     ? t('sports.acceptOdds')
-                                    : isExpress
-                                      ? t('sports.express')
-                                      : t('sports.placeBet')}
+                                    : selectedFreebet
+                                      ? freebetError
+                                        ? freebetError
+                                        : `Фрибет ${selectedFreebet.amount} zł`
+                                      : isExpress
+                                        ? t('sports.express')
+                                        : t('sports.placeBet')}
                             </span>
                           )}
                         </GamePrimaryButton>

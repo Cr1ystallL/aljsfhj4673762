@@ -55,6 +55,7 @@ model User {
   userIpAddresses        UserIpAddress[]
   macvpayOrders          MacvpayOrder[]
   withdrawalRequests     WithdrawalRequest[]
+  userFreebets           UserFreebet[]
 
   @@index([telegramId])
   @@index([isBlocked])
@@ -626,4 +627,58 @@ model AffiliateStatsDaily {
   @@unique([date, affiliateTelegramId])
   @@index([affiliateTelegramId])
   @@map("affiliate_stats_daily")
+}
+
+// -----------------------------------------------------------------------------
+// Freebets (Фрибеты)
+// -----------------------------------------------------------------------------
+
+model FreebetCampaign {
+  id                    String   @id @default(uuid())
+  title                 String
+  description           String?  @db.Text
+  amount                Decimal  @db.Decimal(12, 2)
+  triggerType           String   @default("deposit") @map("trigger_type") // deposit, welcome, manual
+  minDeposit            Decimal  @default(0) @map("min_deposit") @db.Decimal(12, 2)
+  minOdds               Decimal  @default(2.50) @map("min_odds") @db.Decimal(8, 2)
+  maxOdds               Decimal  @default(35.00) @map("max_odds") @db.Decimal(8, 2)
+  minLegs               Int      @default(1) @map("min_legs")
+  validDays             Int      @default(7) @map("valid_days")
+  payoutType            String   @default("net_win") @map("payout_type") // net_win (stake * (odds - 1)), full_win (stake * odds)
+  allowedSports         Json?    @map("allowed_sports") // ["all"] or ["football", "cybersport", ...]
+  maxPerUser            Int      @default(1) @map("max_per_user")
+  active                Boolean  @default(true)
+  createdBy             String?  @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  userFreebets          UserFreebet[]
+
+  @@index([active, triggerType])
+  @@map("freebet_campaigns")
+}
+
+model UserFreebet {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  campaignId            String?  @map("campaign_id")
+  amount                Decimal  @db.Decimal(12, 2)
+  minOdds               Decimal  @default(2.50) @map("min_odds") @db.Decimal(8, 2)
+  maxOdds               Decimal  @default(35.00) @map("max_odds") @db.Decimal(8, 2)
+  minLegs               Int      @default(1) @map("min_legs")
+  payoutType            String   @default("net_win") @map("payout_type") // net_win, full_win
+  allowedSports         Json?    @map("allowed_sports")
+  status                String   @default("available") // available, locked, used, expired
+  expiresAt             DateTime @map("expires_at")
+  betId                 String?  @map("bet_id")
+  sourceDepositId       String?  @map("source_deposit_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  usedAt                DateTime? @map("used_at")
+
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign              FreebetCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@map("user_freebets")
 }

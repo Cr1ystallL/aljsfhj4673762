@@ -8,6 +8,7 @@ import {
   type FoluxPayWebhookPayload,
 } from '../services/foluxpay.js';
 import { walletConfig } from '../services/wallet-config.js';
+import { freebetService } from '../services/freebet-service.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -205,6 +206,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
           });
 
           logger.info({ orderId: order.id, userId, paidAmount }, 'Auto-credited FoluxPay order on active check');
+          void freebetService.checkAndGrantDepositFreebets(userId, paidAmount, order.id);
           return reply.send({ ok: true, activeOrder: null, credited: true });
         }
       } catch (err) {
@@ -510,6 +512,7 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
         { orderId, userId: order.user_id, amount: paidAmount },
         'FoluxPay order credited successfully'
       );
+      void freebetService.checkAndGrantDepositFreebets(order.user_id, paidAmount, orderId);
       return reply.send({ ok: true });
     } catch (err) {
       logger.error({ err, orderId }, 'Failed to process FoluxPay webhook');

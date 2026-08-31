@@ -10,6 +10,7 @@ import { sportsEngine, SportsOddsChangedError } from './engine.js';
 import { MARKET_KINDS, type BetLegSpec, type MarketKind } from './markets.js';
 import { sportsLimits } from './limits.js';
 import { sportsLogoRoutes } from './logo-route.js';
+import { freebetService } from '../../services/freebet-service.js';
 
 const LEGACY_OUTCOMES = new Set(['p1', 'x', 'p2']);
 
@@ -64,6 +65,12 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  app.get('/freebets', { preHandler: authenticate }, async (request, reply) => {
+    const { user } = request as AuthenticatedRequest;
+    const freebets = await freebetService.getUserFreebets(user.userId);
+    return reply.send({ ok: true, freebets });
+  });
+
   app.get('/my-bets', { preHandler: authenticate }, async (request, reply) => {
     const { user } = request as AuthenticatedRequest;
     const bets = await sportsEngine.listUserBets(user.userId, 80);
@@ -89,6 +96,7 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
       outcome?: string;
       stake?: number;
       acceptChange?: boolean;
+      freebetId?: string;
       quotedOdds?: number[];
       legs?: Array<{
         eventId?: string;
@@ -108,14 +116,20 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Спорт временно недоступен' });
     }
 
-    const stake = Number(request.body?.stake);
-    if (!Number.isFinite(stake) || stake <= 0) {
-      return reply.code(400).send({ error: 'Некорректная сумма' });
-    }
-    if (stake < cfg.minBet || stake > cfg.maxBet) {
-      return reply.code(400).send({
-        error: `Ставка от ${cfg.minBet} до ${cfg.maxBet}`,
-      });
+    const freebetId = request.body?.freebetId ? String(request.body.freebetId).trim() : undefined;
+    let stake = Number(request.body?.stake);
+
+    if (!freebetId) {
+      if (!Number.isFinite(stake) || stake <= 0) {
+        return reply.code(400).send({ error: 'Некорректная сумма' });
+      }
+      if (stake < cfg.minBet || stake > cfg.maxBet) {
+        return reply.code(400).send({
+          error: `Ставка от ${cfg.minBet} до ${cfg.maxBet}`,
+        });
+      }
+    } else {
+      stake = 0; // Stake populated from freebet
     }
 
     let legs: BetLegSpec[];
@@ -130,6 +144,7 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
       const receipt = await sportsEngine.placeBet(user.userId, stake, legs, {
         quotedOdds: Array.isArray(request.body?.quotedOdds) ? request.body.quotedOdds : undefined,
         acceptChange: !!request.body?.acceptChange,
+        freebetId,
       });
       return reply.send({ ok: true, ...receipt });
     } catch (err) {

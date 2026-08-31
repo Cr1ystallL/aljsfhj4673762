@@ -9,3 +9,4 @@ export * from './game';
 export * from './auth';
 export * from './websocket';
 export * from './events';
+export * from './freebet';

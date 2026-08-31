@@ -49,6 +49,8 @@ export interface SportsUserBet {
   state: string;
   payout: number;
   placedAt: string;
+  isFreebet?: boolean;
+  freebetTitle?: string;
   legs?: SportsUserBetLeg[];
   cashout?: { amount: number; multiplier: number } | null;
 }
@@ -112,8 +114,32 @@ export const sportsService = {
     };
   },
 
+  async fetchFreebets(): Promise<Array<{
+    id: string;
+    userId: string;
+    campaignId?: string | null;
+    campaignTitle?: string;
+    amount: number;
+    minOdds: number;
+    maxOdds: number;
+    minLegs: number;
+    payoutType: 'net_win' | 'full_win';
+    allowedSports?: string[] | null;
+    status: string;
+    expiresAt: string;
+  }>> {
+    const res = await fetch('/api/sports/freebets', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const data = await parseJson<{ ok?: boolean; freebets?: any[]; error?: string }>(res);
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data.freebets ?? [];
+  },
+
   async placeBet(input: {
     stake: number;
+    freebetId?: string;
     eventId?: string;
     outcome?: SelectedBet['outcomeType'];
     legs?: SportsBetLegPayload[];

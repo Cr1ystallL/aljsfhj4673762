@@ -105,6 +105,9 @@ export default function BonusesPage() {
         {/* Lucky Wheel Hero */}
         <LuckyWheelHero onWin={() => void fetchBalance()} />
 
+        {/* Freebets Section (Rendered when user has active freebets) */}
+        <UserFreebetsSection />
+
         {/* Deposit Bonuses Section (One-time deposit bonuses) */}
         <DepositBonusesSection />
 
@@ -115,6 +118,89 @@ export default function BonusesPage() {
         <ContestsList currentUserId={user?.id ?? null} />
       </div>
     </main>
+  );
+}
+
+function UserFreebetsSection() {
+  const router = useRouter();
+  const [freebets, setFreebets] = useState<Array<{
+    id: string;
+    campaignTitle?: string;
+    amount: number;
+    minOdds: number;
+    maxOdds: number;
+    minLegs: number;
+    payoutType: 'net_win' | 'full_win';
+    expiresAt: string;
+    status: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/sports/freebets', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok && Array.isArray(j.freebets)) {
+          setFreebets(j.freebets.filter((f: any) => f.status === 'available'));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || freebets.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2 font-roobert text-[15px] font-bold text-frost-white">
+          <Gift size={18} className="text-amber-400" />
+          <span>Ваши фрибеты ({freebets.length})</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push('/sports')}
+          className="text-[12px] font-bold text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
+        >
+          <span>В спорт</span>
+          <ChevronRight size={14} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {freebets.map((fb) => (
+          <div
+            key={fb.id}
+            className="p-4 rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-950/20 via-black/50 to-black/80 flex items-center justify-between gap-4 shadow-lg shadow-amber-500/5"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-roobert font-extrabold text-[17px] text-amber-300 tabular-nums">
+                  {fb.amount} zł
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/25 text-amber-300 text-[10px] font-bold">
+                  Кэф ≥ x{fb.minOdds.toFixed(2)}
+                </span>
+              </div>
+              <div className="font-roobert text-[12.5px] font-bold text-frost-white truncate mt-1">
+                {fb.campaignTitle || 'Фрибет на спорт'}
+              </div>
+              <div className="font-roobert text-[11px] text-whisper-gray mt-0.5">
+                Истекает: {new Date(fb.expiresAt).toLocaleDateString()}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push('/sports')}
+              className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-roobert text-[12px] font-extrabold transition-all shrink-0 shadow-md shadow-amber-400/20"
+            >
+              Поставить
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

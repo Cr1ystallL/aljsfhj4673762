@@ -40,7 +40,7 @@ import { gameLabel, type GameKey } from '@/components/ui/game-icon';
  * of the admin panel.
  */
 
-type Tab = 'promo' | 'deposits' | 'contests' | 'tournaments';
+type Tab = 'promo' | 'deposits' | 'contests' | 'tournaments' | 'freebets';
 
 interface DepositBonusAdminRow {
   id: string;
@@ -534,6 +534,7 @@ export default function AdminBonusesPage() {
             [
               { id: 'promo' as const, label: 'Промокоды' },
               { id: 'deposits' as const, label: 'Депозитные бонусы' },
+              { id: 'freebets' as const, label: 'Фрибеты' },
               { id: 'contests' as const, label: 'Конкурсы' },
               { id: 'tournaments' as const, label: 'Турниры' },
             ]
@@ -556,6 +557,7 @@ export default function AdminBonusesPage() {
 
       {tab === 'promo' && <PromoTab />}
       {tab === 'deposits' && <DepositBonusesAdminSection />}
+      {tab === 'freebets' && <FreebetsTab />}
       {tab === 'contests' && <ContestsTab />}
       {tab === 'tournaments' && <TournamentsTab />}
     </div>
@@ -3501,6 +3503,768 @@ function CreateDepositBonusModal({
           onSaved();
         }}
       />
+    </Modal>
+  );
+}
+
+/* ============================================================== Freebets */
+
+interface FreebetCampaignAdminRow {
+  id: string;
+  title: string;
+  description?: string | null;
+  amount: number;
+  triggerType: 'deposit' | 'welcome' | 'manual';
+  minDeposit: number;
+  minOdds: number;
+  maxOdds: number;
+  minLegs: number;
+  validDays: number;
+  payoutType: 'net_win' | 'full_win';
+  allowedSports?: string[] | null;
+  maxPerUser: number;
+  active: boolean;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  issuedCount: number;
+  usedCount: number;
+}
+
+interface FreebetHistoryRow {
+  id: string;
+  userId: string;
+  userName: string;
+  campaignTitle: string;
+  amount: number;
+  minOdds: number;
+  maxOdds: number;
+  minLegs: number;
+  payoutType: 'net_win' | 'full_win';
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+  usedAt?: string | null;
+  betId?: string | null;
+}
+
+function FreebetsTab() {
+  const [campaigns, setCampaigns] = useState<FreebetCampaignAdminRow[]>([]);
+  const [history, setHistory] = useState<FreebetHistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [reasonPrompt, setReasonPrompt] = useState<{
+    action: (reason: string) => Promise<void>;
+    title: string;
+  } | null>(null);
+  const [reasonText, setReasonText] = useState('');
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [cRes, hRes] = await Promise.all([
+        fetch('/api/_x/freebets/campaigns', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/_x/freebets/history', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()),
+      ]);
+      if (cRes.ok) setCampaigns(cRes.campaigns || []);
+      if (hRes.ok) setHistory(hRes.freebets || []);
+    } catch (e: any) {
+      setError(e.message || 'Ошибка загрузки фрибетов');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const toggleActive = (c: FreebetCampaignAdminRow) => {
+    setReasonText('');
+    setReasonPrompt({
+      title: c.active ? `Отключить «${c.title}»?` : `Включить «${c.title}»?`,
+      action: async (reason: string) => {
+        const res = await fetch(`/api/_x/freebets/campaigns/${c.id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: !c.active, reason }),
+        });
+        if (!res.ok) {
+          const j = await res.json();
+          throw new Error(j.error || 'Ошибка переключения');
+        }
+        await reload();
+      },
+    });
+  };
+
+  const deleteCampaign = (c: FreebetCampaignAdminRow) => {
+    setReasonText('');
+    setReasonPrompt({
+      title: `Удалить кампанию «${c.title}»?`,
+      action: async (reason: string) => {
+        const res = await fetch(`/api/_x/freebets/campaigns/${c.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason }),
+        });
+        if (!res.ok) {
+          const j = await res.json();
+          throw new Error(j.error || 'Ошибка удаления');
+        }
+        await reload();
+      },
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Top action header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10">
+        <div>
+          <div className="font-roobert font-extrabold text-[17px] text-frost-white flex items-center gap-2">
+            <Gift className="text-amber-400" size={20} />
+            Управление фрибетами
+          </div>
+          <div className="font-roobert text-[12px] text-whisper-gray mt-0.5">
+            Настройка условий выдачи (за депозит, регистрацию) и условий ставки фрибетом (кэф, номинал).
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setGrantOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-frost-white font-roobert text-[12.5px] font-bold transition-all"
+          >
+            <Gift size={14} />
+            Выдать игроку
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-roobert text-[12.5px] font-extrabold transition-all shadow-md shadow-amber-400/20"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            Создать кампанию
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[12px]">
+          {error}
+        </div>
+      )}
+
+      {/* Campaigns list */}
+      <div className="flex flex-col gap-3">
+        <div className="font-roobert text-[13px] font-extrabold text-frost-white uppercase tracking-wider px-1">
+          Активные кампании ({campaigns.length})
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center text-whisper-gray text-[13px]">Загрузка...</div>
+        ) : campaigns.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl bg-white/[0.02] border border-dashed border-white/10 text-whisper-gray text-[13px]">
+            Кампаний пока нет. Создайте первую кампанию фрибета!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {campaigns.map((c) => (
+              <div
+                key={c.id}
+                className={cn(
+                  'p-4 rounded-2xl border flex flex-col justify-between gap-3 transition-all',
+                  c.active
+                    ? 'bg-white/[0.04] border-amber-400/30 shadow-lg shadow-amber-500/5'
+                    : 'bg-white/[0.01] border-white/5 opacity-60'
+                )}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-roobert font-extrabold text-[15px] text-frost-white">
+                      {c.title}
+                    </div>
+                    <span
+                      className={cn(
+                        'px-2 py-0.5 rounded-full text-[10.5px] font-bold shrink-0',
+                        c.active
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-white/10 text-whisper-gray'
+                      )}
+                    >
+                      {c.active ? 'Активна' : 'Выключена'}
+                    </span>
+                  </div>
+
+                  {c.description && (
+                    <div className="font-roobert text-[11.5px] text-whisper-gray mt-1 line-clamp-2">
+                      {c.description}
+                    </div>
+                  )}
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11.5px] font-roobert">
+                    <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+                      <div className="text-whisper-gray text-[10px] uppercase">Номинал</div>
+                      <div className="text-[14px] font-extrabold text-amber-300 tabular-nums">
+                        {c.amount} zł
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+                      <div className="text-whisper-gray text-[10px] uppercase">Триггер</div>
+                      <div className="font-bold text-frost-white capitalize">
+                        {c.triggerType === 'deposit' ? `Депозит ≥${c.minDeposit} zł` : c.triggerType === 'welcome' ? 'Регистрация' : 'Ручной'}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+                      <div className="text-whisper-gray text-[10px] uppercase">Мин. кэф</div>
+                      <div className="font-bold text-frost-white tabular-nums">
+                        x{c.minOdds.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-black/30 border border-white/5">
+                      <div className="text-whisper-gray text-[10px] uppercase">Срок / Выплата</div>
+                      <div className="font-bold text-frost-white">
+                        {c.validDays} дн. · {c.payoutType === 'net_win' ? 'Чистый' : 'Полный'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-whisper-gray">
+                    <span>Выдано: <b className="text-frost-white">{c.issuedCount}</b></span>
+                    <span>Сыграно: <b className="text-frost-white">{c.usedCount}</b></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => toggleActive(c)}
+                    className={cn(
+                      'flex-1 py-1.5 rounded-xl font-roobert text-[11.5px] font-bold border transition-colors',
+                      c.active
+                        ? 'bg-amber-400/15 border-amber-400/30 text-amber-300 hover:bg-amber-400/25'
+                        : 'bg-white/10 border-white/15 text-frost-white hover:bg-white/20'
+                    )}
+                  >
+                    {c.active ? 'Выключить' : 'Включить'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCampaign(c)}
+                    className="p-1.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+                    title="Удалить"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* History Table */}
+      <div className="flex flex-col gap-3">
+        <div className="font-roobert text-[13px] font-extrabold text-frost-white uppercase tracking-wider px-1">
+          История выданных фрибетов ({history.length})
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02]">
+          <table className="w-full text-left font-roobert text-[12px]">
+            <thead>
+              <tr className="border-b border-white/10 text-whisper-gray text-[10.5px] uppercase">
+                <th className="p-3">Игрок</th>
+                <th className="p-3">Кампания</th>
+                <th className="p-3">Номинал</th>
+                <th className="p-3">Мин. кэф</th>
+                <th className="p-3">Статус</th>
+                <th className="p-3">Выдан</th>
+                <th className="p-3">Использован</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-whisper-gray">
+                    Фрибеты ещё не выдавались
+                  </td>
+                </tr>
+              ) : (
+                history.map((h) => (
+                  <tr key={h.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <td className="p-3 font-semibold text-frost-white">{h.userName}</td>
+                    <td className="p-3 text-whisper-gray">{h.campaignTitle}</td>
+                    <td className="p-3 font-extrabold text-amber-300">{h.amount} zł</td>
+                    <td className="p-3 font-bold text-frost-white">x{h.minOdds.toFixed(2)}</td>
+                    <td className="p-3">
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-bold',
+                          h.status === 'available'
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : h.status === 'locked'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : h.status === 'used'
+                            ? 'bg-blue-500/20 text-blue-300'
+                            : 'bg-rose-500/20 text-rose-400'
+                        )}
+                      >
+                        {h.status === 'available'
+                          ? 'Доступен'
+                          : h.status === 'locked'
+                          ? 'В ставке'
+                          : h.status === 'used'
+                          ? 'Использован'
+                          : 'Истёк'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-whisper-gray">{new Date(h.createdAt).toLocaleDateString()}</td>
+                    <td className="p-3 text-whisper-gray">
+                      {h.usedAt ? new Date(h.usedAt).toLocaleDateString() : '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Create Modal */}
+      {createOpen && (
+        <CreateFreebetModal
+          onClose={() => setCreateOpen(false)}
+          onSaved={() => {
+            setCreateOpen(false);
+            void reload();
+          }}
+        />
+      )}
+
+      {/* Grant Modal */}
+      {grantOpen && (
+        <GrantFreebetModal
+          campaigns={campaigns}
+          onClose={() => setGrantOpen(false)}
+          onSaved={() => {
+            setGrantOpen(false);
+            void reload();
+          }}
+        />
+      )}
+
+      {/* Reason Confirmation Modal */}
+      {reasonPrompt && (
+        <Modal onClose={() => setReasonPrompt(null)} title={reasonPrompt.title}>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (reasonText.trim().length < 3) return;
+              await reasonPrompt.action(reasonText.trim());
+              setReasonPrompt(null);
+            }}
+            className="flex flex-col gap-3 p-4"
+          >
+            <div>
+              <label className="text-[11px] text-whisper-gray uppercase">Причина (для аудита)</label>
+              <input
+                type="text"
+                value={reasonText}
+                onChange={(e) => setReasonText(e.target.value)}
+                placeholder="Например: Обновление условий"
+                className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setReasonPrompt(null)}
+                className="px-3 py-1.5 rounded-xl border border-white/10 text-whisper-gray text-[12px]"
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                disabled={reasonText.trim().length < 3}
+                className="px-4 py-1.5 rounded-xl bg-amber-400 text-black font-bold text-[12px] disabled:opacity-50"
+              >
+                Подтвердить
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function CreateFreebetModal({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState(25);
+  const [triggerType, setTriggerType] = useState<'deposit' | 'welcome' | 'manual'>('deposit');
+  const [minDeposit, setMinDeposit] = useState(50);
+  const [minOdds, setMinOdds] = useState(2.5);
+  const [maxOdds, setMaxOdds] = useState(35.0);
+  const [minLegs, setMinLegs] = useState(1);
+  const [validDays, setValidDays] = useState(7);
+  const [payoutType, setPayoutType] = useState<'net_win' | 'full_win'>('net_win');
+  const [maxPerUser, setMaxPerUser] = useState(1);
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || amount <= 0 || reason.trim().length < 3) return;
+    setSubmitting(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/_x/freebets/campaigns', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          amount,
+          triggerType,
+          minDeposit: triggerType === 'deposit' ? minDeposit : 0,
+          minOdds,
+          maxOdds,
+          minLegs,
+          validDays,
+          payoutType,
+          maxPerUser,
+          reason: reason.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json();
+        throw new Error(j.error || 'Не удалось создать кампанию');
+      }
+      onSaved();
+    } catch (e: any) {
+      setErr(e.message || 'Ошибка');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Создание кампании фрибета" wide>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4 max-h-[80vh] overflow-y-auto">
+        {err && <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[12px]">{err}</div>}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Название кампании</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Фрибет за первый депозит 25 zł"
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+              required
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Описание (для игрока)</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Пополни счет от 50 zł и получи фрибет 25 zł на спорт!"
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Номинал фрибета (zł)</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Условие начисления</label>
+            <select
+              value={triggerType}
+              onChange={(e) => setTriggerType(e.target.value as any)}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            >
+              <option value="deposit">При депозите (от мин. суммы)</option>
+              <option value="welcome">При регистрации (Welcome)</option>
+              <option value="manual">Только ручная выдача</option>
+            </select>
+          </div>
+
+          {triggerType === 'deposit' && (
+            <div>
+              <label className="text-[11px] text-whisper-gray uppercase font-bold">Мин. сумма депозита (zł)</label>
+              <input
+                type="number"
+                min={0}
+                value={minDeposit}
+                onChange={(e) => setMinDeposit(Number(e.target.value))}
+                className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Мин. коэффициент ставки</label>
+            <input
+              type="number"
+              min={1.01}
+              max={35}
+              step={0.05}
+              value={minOdds}
+              onChange={(e) => setMinOdds(Number(e.target.value))}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Макс. коэффициент ставки</label>
+            <input
+              type="number"
+              min={1.01}
+              max={35}
+              step={0.1}
+              value={maxOdds}
+              onChange={(e) => setMaxOdds(Number(e.target.value))}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Срок жизни (дней)</label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={validDays}
+              onChange={(e) => setValidDays(Number(e.target.value))}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Тип расчета выигрыша</label>
+            <select
+              value={payoutType}
+              onChange={(e) => setPayoutType(e.target.value as any)}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            >
+              <option value="net_win">Чистый выигрыш (Ставка × (Кэф - 1))</option>
+              <option value="full_win">Полный выигрыш (Ставка × Кэф)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Мин. событий в купоне</label>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={minLegs}
+              onChange={(e) => setMinLegs(Number(e.target.value))}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-[11px] text-whisper-gray uppercase font-bold">Причина создания (аудит)</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Создание новой промо-кампании"
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-white/10 text-whisper-gray text-[12.5px]"
+          >
+            Отмена
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || reason.trim().length < 3}
+            className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-extrabold text-[12.5px] disabled:opacity-50"
+          >
+            {submitting ? 'Создание...' : 'Создать кампанию'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function GrantFreebetModal({
+  campaigns,
+  onClose,
+  onSaved,
+}: {
+  campaigns: FreebetCampaignAdminRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [userQuery, setUserQuery] = useState('');
+  const [campaignId, setCampaignId] = useState<string>('');
+  const [customAmount, setCustomAmount] = useState<number>(25);
+  const [customMinOdds, setCustomMinOdds] = useState<number>(2.5);
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userQuery.trim() || reason.trim().length < 3) return;
+    setSubmitting(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/_x/freebets/grant', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userIdOrTelegramId: userQuery.trim(),
+          campaignId: campaignId || undefined,
+          amount: campaignId ? undefined : customAmount,
+          minOdds: campaignId ? undefined : customMinOdds,
+          reason: reason.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json();
+        throw new Error(j.error || 'Не удалось выдать фрибет');
+      }
+      onSaved();
+    } catch (e: any) {
+      setErr(e.message || 'Ошибка');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Выдача фрибета игроку">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
+        {err && <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[12px]">{err}</div>}
+
+        <div>
+          <label className="text-[11px] text-whisper-gray uppercase font-bold">Игрок (ID, Telegram ID или @username)</label>
+          <input
+            type="text"
+            value={userQuery}
+            onChange={(e) => setUserQuery(e.target.value)}
+            placeholder="123456789 или username"
+            className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            required
+            autoFocus
+          />
+        </div>
+
+        <div>
+          <label className="text-[11px] text-whisper-gray uppercase font-bold">Шаблон кампании (опционально)</label>
+          <select
+            value={campaignId}
+            onChange={(e) => setCampaignId(e.target.value)}
+            className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+          >
+            <option value="">-- Произвольный фрибет --</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title} ({c.amount} zł, кэф ≥{c.minOdds})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {!campaignId && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-whisper-gray uppercase font-bold">Номинал (zł)</label>
+              <input
+                type="number"
+                min={1}
+                value={customAmount}
+                onChange={(e) => setCustomAmount(Number(e.target.value))}
+                className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-whisper-gray uppercase font-bold">Мин. кэф</label>
+              <input
+                type="number"
+                min={1.01}
+                max={35}
+                step={0.1}
+                value={customMinOdds}
+                onChange={(e) => setCustomMinOdds(Number(e.target.value))}
+                className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+              />
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label className="text-[11px] text-whisper-gray uppercase font-bold">Причина выдачи (аудит)</label>
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Бонус за активность / Компенсация"
+            className="w-full mt-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-frost-white text-[13px]"
+            required
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-white/10 text-whisper-gray text-[12.5px]"
+          >
+            Отмена
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || reason.trim().length < 3}
+            className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-extrabold text-[12.5px] disabled:opacity-50"
+          >
+            {submitting ? 'Выдача...' : 'Выдать фрибет'}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }
