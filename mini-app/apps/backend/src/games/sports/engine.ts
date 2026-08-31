@@ -443,7 +443,10 @@ class SportsEngine {
     this.unindexBet(betId);
     const name = String((tracked.bet.metadata as Record<string, unknown> | undefined)?.eventName ?? 'Купон');
     this.pushActivity('cashout', `Выкуп ${offer.amount.toFixed(2)} zł`, tracked.legs[0]?.eventId);
-    void notifySportsUser(userId, sportsSettleText(name, tracked.legs.length >= 2 ? 'express' : 'single', 'cashed_out', offer.amount));
+    void notifySportsUser(
+      userId,
+      sportsSettleText(name, tracked.legs.length >= 2 ? 'express' : 'single', 'cashed_out', offer.amount, offer.multiplier, tracked.bet.amount)
+    );
     return { ok: true, betId, amount: offer.amount, multiplier: offer.multiplier };
   }
 
@@ -759,7 +762,10 @@ class SportsEngine {
       await bettingPipeline.processLoss(tracked.bet, false);
       this.unindexBet(betId);
       this.pushActivity('settle', `Проигрыш · ${name}`, tracked.legs[0]?.eventId);
-      void notifySportsUser(tracked.bet.userId, sportsSettleText(name, type, 'lost', 0));
+      void notifySportsUser(
+        tracked.bet.userId,
+        sportsSettleText(name, type, 'lost', 0, undefined, tracked.bet.amount)
+      );
       return;
     }
     if (tracked.legs.every((l) => l.result === 'won' || l.result === 'void')) {
@@ -772,11 +778,19 @@ class SportsEngine {
       await bettingPipeline.processPayout(tracked.bet, payout, false);
       this.unindexBet(betId);
       this.pushActivity('settle', `Выигрыш ${payout.toFixed(2)} zł · ${name}`, tracked.legs[0]?.eventId);
-      void notifySportsUser(tracked.bet.userId, sportsSettleText(name, type, 'won', payout));
+      void notifySportsUser(
+        tracked.bet.userId,
+        sportsSettleText(name, type, 'won', payout, multiplier, tracked.bet.amount)
+      );
     }
   }
 
   private async notifyBettorsGoal(feed: FeedEvent, last: LastSportsEvent): Promise<void> {
+    // Strictly only notify on rare, major events: Football goals & Hockey pucks.
+    // NEVER spam point-by-point in basketball, esports kills/rounds, tennis games, etc.
+    if (feed.sport !== 'football' && feed.sport !== 'hockey') return;
+    if (last.kind !== 'goal') return;
+
     const seen = new Set<string>();
     for (const betId of this.byEvent.get(feed.id) ?? []) {
       const tracked = this.bets.get(betId);
@@ -789,8 +803,7 @@ class SportsEngine {
           last.score1,
           last.score2,
           last.team,
-          feed.sport,
-          feed.extra
+          feed.sport
         )
       );
     }

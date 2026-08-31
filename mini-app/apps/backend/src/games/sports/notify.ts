@@ -21,35 +21,16 @@ export function sportsGoalText(
   score1: number,
   score2: number,
   team: 1 | 2,
-  sport?: string,
-  extra?: { game?: string; scoreKind?: string }
+  sport?: string
 ): string {
-  let title = 'Спорт · гол';
-  let side1 = 'хозяева';
-  let side2 = 'гости';
-
-  if (sport === 'cybersport') {
-    if (extra?.game === 'cs') {
-      title = 'Киберспорт (CS 2) · раунд';
-      side1 = 'команда 1';
-      side2 = 'команда 2';
-    } else {
-      title = 'Киберспорт (Dota 2) · фраг';
-      side1 = 'Radiant';
-      side2 = 'Dire';
-    }
-  } else if (sport === 'basketball') {
-    title = 'Баскетбол · очки';
-  } else if (sport === 'hockey') {
-    title = 'Хоккей · шайба';
-  } else if (sport === 'tennis') {
-    title = 'Теннис · гейм';
-  }
+  const icon = sport === 'hockey' ? '🏒' : '⚽';
+  const title = sport === 'hockey' ? 'ШАЙБА!' : 'ГОЛ!';
+  const side = team === 1 ? 'Команда 1' : 'Команда 2';
 
   return [
-    `<b>${title}</b>`,
-    eventName,
-    `Счёт ${score1}:${score2} · ${team === 1 ? side1 : side2}`,
+    `${icon} <b>${title}</b>`,
+    `<b>${eventName}</b>`,
+    `📊 Счёт: <b>${score1} : ${score2}</b> (${side})`,
   ].join('\n');
 }
 
@@ -57,19 +38,45 @@ export function sportsSettleText(
   eventName: string,
   type: string,
   state: 'won' | 'lost' | 'void' | 'cashed_out',
-  payout: number
+  payout: number,
+  odds?: number,
+  stake?: number
 ): string {
-  const label =
-    state === 'won'
-      ? 'выигрыш'
-      : state === 'lost'
-        ? 'проигрыш'
-        : state === 'cashed_out'
-          ? 'выкуп'
-          : 'возврат';
+  const isExpress = type === 'express';
+  const typeTag = isExpress ? '🚂 Экспресс' : '🎯 Одинар';
+
+  if (state === 'won') {
+    return [
+      `🏆 <b>СТАВКА ВЫИГРАЛА!</b>`,
+      `📋 ${typeTag} · <b>${eventName}</b>`,
+      `💰 Выигрыш: <b>+${payout.toFixed(2)} zł</b>`,
+      odds ? `📈 Коэффициент: <b>x${odds.toFixed(2)}</b>` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (state === 'lost') {
+    return [
+      `❌ <b>Ставка не сыграла</b>`,
+      `📋 ${typeTag} · <b>${eventName}</b>`,
+      stake ? `📉 Сумма ставки: <b>${stake.toFixed(2)} zł</b>` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (state === 'cashed_out') {
+    return [
+      `⚡ <b>Выкуп ставки (Cashout)</b>`,
+      `📋 ${typeTag} · <b>${eventName}</b>`,
+      `💵 Получено: <b>+${payout.toFixed(2)} zł</b>`,
+    ].join('\n');
+  }
+
   return [
-    `<b>Спорт · ${type === 'express' ? 'экспресс' : 'одинар'}</b>`,
-    eventName,
-    `${label}${payout > 0 ? ` · ${payout.toFixed(2)} zł` : ''}`,
+    `🔄 <b>Возврат ставки</b>`,
+    `📋 ${typeTag} · <b>${eventName}</b>`,
+    `💵 Возвращено: <b>${payout.toFixed(2)} zł</b>`,
   ].join('\n');
 }
