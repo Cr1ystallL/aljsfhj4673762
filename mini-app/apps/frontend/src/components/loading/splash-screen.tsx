@@ -64,16 +64,6 @@ export function SplashScreen({ ready }: SplashScreenProps) {
           className="fixed inset-0 z-[9999] bg-[#000000] flex flex-col items-center justify-center select-none overflow-hidden"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
-          {/* Subtle Ambient Radial Glow */}
-          <div
-            aria-hidden
-            className="absolute w-[380px] h-[380px] rounded-full pointer-events-none opacity-35 blur-[90px]"
-            style={{
-              background:
-                'radial-gradient(circle, rgba(160, 224, 171, 0.3) 0%, rgba(255, 172, 46, 0.2) 50%, rgba(165, 45, 37, 0.15) 80%, transparent 100%)',
-            }}
-          />
-
           {/* Liquid Filling M Logo */}
           <div className="relative flex items-center justify-center">
             <svg
