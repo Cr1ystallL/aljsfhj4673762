@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger.js';
-import { calculateEsportsLiveOdds } from './odds.js';
+import { calculateEsportsLiveOdds, calculatePrematchOdds } from './odds.js';
 import { buildMarkets, marketsCount } from './markets.js';
 import { proxiedLogo } from './logo-allow.js';
 import type { FeedEvent, FeedExtra } from './provider.js';
@@ -181,11 +181,12 @@ function cyberEvent(input: {
 }): FeedEvent {
   const s1 = input.score1 ?? 0;
   const s2 = input.score2 ?? 0;
-  const liveOdds =
-    input.extra?.scoreKind === 'kills'
-      ? calculateEsportsLiveOdds(0, 0, s1, s2)
-      : calculateEsportsLiveOdds(s1, s2);
-  const odds = twoWay(liveOdds.p1, liveOdds.p2);
+  const odds =
+    input.status === 'prematch'
+      ? calculatePrematchOdds('cybersport', input.team1, input.team2, false)
+      : input.extra?.scoreKind === 'kills'
+        ? twoWay(calculateEsportsLiveOdds(0, 0, s1, s2).p1, calculateEsportsLiveOdds(0, 0, s1, s2).p2)
+        : twoWay(calculateEsportsLiveOdds(s1, s2).p1, calculateEsportsLiveOdds(s1, s2).p2);
   const minute = input.liveMinute ?? 0;
   const markets = buildMarkets({
     sport: 'cybersport',

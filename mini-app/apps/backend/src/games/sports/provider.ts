@@ -5,6 +5,7 @@ import {
   calculateFootballLiveOdds,
   calculateHockeyLiveOdds,
   calculateTennisLiveOdds,
+  calculatePrematchOdds,
 } from './odds.js';
 import { threeWaySport, type SportKind } from './catalog.js';
 import {
@@ -193,6 +194,11 @@ function fallbackOdds(
   t2: FeedTeam,
   minute: number
 ): { odds: FeedEvent['odds']; available?: { p1?: boolean; x?: boolean; p2?: boolean } } {
+  if (status === 'prematch') {
+    const pm = calculatePrematchOdds(sport, t1.name, t2.name, threeWaySport(sport));
+    return { odds: pm };
+  }
+
   const s1 = t1.score ?? 0;
   const s2 = t2.score ?? 0;
   const liveMinute = status === 'live' ? minute : 0;

@@ -5,9 +5,6 @@ const FOOTBALL_ONLY: MarketKind[] = ['btts', 'next_goal', 'cards', 'corners', 's
 
 export function marketsForEvent(event: SportEvent): SportMarket[] {
   const raw = event.markets ?? [];
-  if (event.sport === 'cybersport') {
-    return raw.filter((m) => m.kind === '1x2');
-  }
   if (event.sport !== 'football') {
     return raw.filter((m) => !FOOTBALL_ONLY.includes(m.kind));
   }
@@ -52,6 +49,7 @@ export function marketTitleKey(kind: MarketKind): TxKey {
   if (kind === 'cards') return 'sports.m.cards';
   if (kind === 'corners') return 'sports.m.corners';
   if (kind === 'sooner') return 'sports.m.sooner';
+  if (kind === 'correct_score') return 'sports.m.cs';
   return 'sports.m.1x2';
 }
 

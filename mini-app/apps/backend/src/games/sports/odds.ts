@@ -230,3 +230,87 @@ export function calculateEsportsLiveOdds(
     p2: formatOdds(1 / (Math.max(0.01, 1 - prob1) * margin)),
   };
 }
+
+const POWER_RANKINGS: Record<string, number> = {
+  // Football Top Clubs
+  'real madrid': 95, 'manchester city': 96, 'bayern': 93, 'arsenal': 92, 'liverpool': 93,
+  'barcelona': 91, 'inter': 89, 'psg': 90, 'juventus': 86, 'chelsea': 87, 'atletico': 88,
+  'bayer leverkusen': 90, 'borussia dortmund': 87, 'ac milan': 86, 'aston villa': 85,
+  'tottenham': 85, 'manchester united': 84, 'newcastle': 84, 'sporting': 86, 'benfica': 84,
+  'porto': 83, 'ajax': 80, 'roma': 83, 'feyenoord': 82, 'psv': 83,
+  // CS2 Top Teams
+  'natus vincere': 95, 'navi': 95, 'faze clan': 93, 'faze': 93, 'team vitality': 94, 'vitality': 94,
+  'g2 esports': 93, 'g2': 93, 'mouz': 91, 'team spirit': 94, 'spirit': 94, 'virtus.pro': 87, 'vp': 87,
+  'astralis': 88, 'heroic': 86, 'complexity': 84, 'eternal fire': 88, 'liquid': 87, 'team liquid': 87,
+  'the mongolz': 89, 'furia': 86, 'pain': 83, 'saw': 84, 'falcons': 88, 'cloud9': 85,
+  // Dota 2 Top Teams
+  'team falcons': 95, 'falcons dota': 95, 'gladiators': 94, 'gaimin gladiators': 94, 'betboom': 92,
+  'betboom team': 92, 'xtreme gaming': 93, 'tundra esports': 92, 'tundra': 92, 'og': 88, 'nigma': 82,
+  'psg.lgd': 89, 'aurora': 87, 'beastcoast': 83, 'blacklist': 82, 'nouns': 81,
+  // Basketball (NBA)
+  'celtics': 95, 'boston celtics': 95, 'nuggets': 93, 'denver nuggets': 93, 'thunder': 93,
+  'timberwolves': 91, 'mavericks': 92, 'dallas mavericks': 92, 'bucks': 89, 'knicks': 89,
+  '76ers': 88, 'lakers': 88, 'la lakers': 88, 'warriors': 87, 'suns': 86, 'heat': 85,
+  // Tennis
+  'jannik sinner': 96, 'sinner': 96, 'carlos alcaraz': 95, 'alcaraz': 95, 'novak djokovic': 95, 'djokovic': 95,
+  'alexander zverev': 92, 'zverev': 92, 'daniil medvedev': 91, 'medvedev': 91, 'andrey rublev': 88,
+  'taylor fritz': 88, 'casper ruud': 87, 'grigor dimitrov': 86, 'stefanos tsitsipas': 86,
+  'iga swiatek': 96, 'swiatek': 96, 'aryna sabalenka': 95, 'sabalenka': 95, 'coco gauff': 92,
+  'elena rybakina': 91, 'jessica pegula': 89, 'mirra andreeva': 86,
+};
+
+export function getTeamPowerRating(name: string): number {
+  if (!name) return 72;
+  const norm = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const [k, v] of Object.entries(POWER_RANKINGS)) {
+    const kNorm = k.replace(/[^a-z0-9]/g, '');
+    if (norm.includes(kNorm) || kNorm.includes(norm)) {
+      return v;
+    }
+  }
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return 60 + (Math.abs(hash) % 26);
+}
+
+export function calculatePrematchOdds(
+  sport: string,
+  name1: string,
+  name2: string,
+  threeWay = false
+): { p1: number; x?: number; p2: number } {
+  const r1 = getTeamPowerRating(name1);
+  const r2 = getTeamPowerRating(name2);
+  const diff = r1 - r2;
+
+  const homeBonus = threeWay ? 2.2 : 1.2;
+  const effectiveDiff = diff + homeBonus;
+
+  const scale = sport === 'cybersport' || sport === 'tennis' ? 0.085 : 0.068;
+  const rawProb1 = 1 / (1 + Math.exp(-scale * effectiveDiff));
+  const rawProb2 = 1 - rawProb1;
+
+  const margin = 1.055;
+
+  if (threeWay) {
+    const maxDraw = sport === 'hockey' ? 0.23 : 0.27;
+    const drawFactor = Math.max(0.08, maxDraw - Math.abs(diff) * 0.005);
+    const p1Adj = rawProb1 * (1 - drawFactor);
+    const p2Adj = rawProb2 * (1 - drawFactor);
+    const pxAdj = drawFactor;
+
+    return {
+      p1: formatOdds(1 / (Math.max(0.02, p1Adj) * margin)),
+      x: formatOdds(1 / (Math.max(0.02, pxAdj) * margin)),
+      p2: formatOdds(1 / (Math.max(0.02, p2Adj) * margin)),
+    };
+  }
+
+  return {
+    p1: formatOdds(1 / (Math.max(0.02, rawProb1) * margin)),
+    p2: formatOdds(1 / (Math.max(0.02, rawProb2) * margin)),
+  };
+}

@@ -22,7 +22,8 @@ export type MarketKind =
   | 'next_goal'
   | 'cards'
   | 'corners'
-  | 'sooner';
+  | 'sooner'
+  | 'correct_score';
 
 export type ClockDirection = 'up' | 'down' | 'none';
 

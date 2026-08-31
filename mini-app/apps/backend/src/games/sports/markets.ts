@@ -10,7 +10,8 @@ export type MarketKind =
   | 'next_goal'
   | 'cards'
   | 'corners'
-  | 'sooner';
+  | 'sooner'
+  | 'correct_score';
 export type ClockDirection = 'up' | 'down' | 'none';
 export type SettleResult = 'won' | 'lost' | 'void';
 
@@ -121,6 +122,11 @@ function totalLinesFor(sport: SportKind, current: number): number[] {
   }
   if (sport === 'tennis') return [2.5].filter((n) => n > current - 0.05);
   if (sport === 'table_tennis') return [3.5, 5.5].filter((n) => n > current - 0.05);
+  if (sport === 'cybersport') {
+    if (current <= 2) return [2.5].filter((n) => n > current - 0.05);
+    const base = Math.max(21.5, Math.ceil((current + 6) * 2) / 2);
+    return [base - 1, base, base + 1].filter((n) => n > current - 0.05);
+  }
   return [1.5, 2, 2.5, 3, 3.5].filter((n) => n > current - 0.05);
 }
 
@@ -129,6 +135,7 @@ function handicapLinesFor(sport: SportKind): number[] {
   if (sport === 'basketball') return [3.5, 6.5];
   if (sport === 'tennis') return [1.5];
   if (sport === 'table_tennis') return [1.5, 2.5];
+  if (sport === 'cybersport') return [1.5];
   return [1, 1.5, 2];
 }
 
@@ -138,6 +145,7 @@ const LINE_SPORTS: SportKind[] = [
   'basketball',
   'tennis',
   'table_tennis',
+  'cybersport',
 ];
 
 export function buildMarkets(input: {
@@ -202,6 +210,31 @@ export function buildMarkets(input: {
         line,
         outcomes: priceHandicap(input.score1, input.score2, rem1, rem2, line),
       })),
+    });
+  }
+
+  if (input.sport === 'cybersport' && !input.threeWay) {
+    const i1 = 1 / Math.max(1.01, input.odds.p1);
+    const i2 = 1 / Math.max(1.01, input.odds.p2);
+    const sum = i1 + i2;
+    const prob1 = i1 / sum;
+    const prob2 = i2 / sum;
+
+    const p2_0 = prob1 * prob1;
+    const p2_1 = 2 * prob1 * prob1 * prob2;
+    const p1_2 = 2 * prob2 * prob2 * prob1;
+    const p0_2 = prob2 * prob2;
+    const totScore = Math.max(1e-9, p2_0 + p2_1 + p1_2 + p0_2);
+
+    markets.push({
+      id: 'correct_score',
+      kind: 'correct_score',
+      outcomes: [
+        oc('cs2_0', '2:0 (Карты)', book(p2_0 / totScore)),
+        oc('cs2_1', '2:1 (Карты)', book(p2_1 / totScore)),
+        oc('cs1_2', '1:2 (Карты)', book(p1_2 / totScore)),
+        oc('cs0_2', '0:2 (Карты)', book(p0_2 / totScore)),
+      ],
     });
   }
 
@@ -434,6 +467,14 @@ export function settleLeg(
     if (extras?.sooner === 'card') return key === 'card' ? 'won' : 'lost';
     if (extras?.finished) return 'void';
   }
+  if (kind === 'correct_score') {
+    if (!extras?.finished) return 'void';
+    if (key === 'cs2_0') return s1 === 2 && s2 === 0 ? 'won' : 'lost';
+    if (key === 'cs2_1') return s1 === 2 && s2 === 1 ? 'won' : 'lost';
+    if (key === 'cs1_2') return s1 === 1 && s2 === 2 ? 'won' : 'lost';
+    if (key === 'cs0_2') return s1 === 0 && s2 === 2 ? 'won' : 'lost';
+    return 'void';
+  }
   return 'void';
 }
 
@@ -490,4 +531,5 @@ export const MARKET_KINDS = new Set<MarketKind>([
   'cards',
   'corners',
   'sooner',
+  'correct_score',
 ]);

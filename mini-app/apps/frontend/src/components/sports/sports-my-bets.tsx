@@ -30,6 +30,10 @@ export function formatOutcomeLabel(outcomeKey?: string, marketKind?: string, lin
   if (k === 'h2' || k === 'handicap_2') return `Ф2 (${line != null ? (line > 0 ? `+${line}` : line) : ''})`;
   if (k === 'yes' || k === 'btts_yes') return 'Обе забьют: Да';
   if (k === 'no' || k === 'btts_no') return 'Обе забьют: Нет';
+  if (k === 'cs2_0') return 'Точный счёт: 2:0 (Карты)';
+  if (k === 'cs2_1') return 'Точный счёт: 2:1 (Карты)';
+  if (k === 'cs1_2') return 'Точный счёт: 1:2 (Карты)';
+  if (k === 'cs0_2') return 'Точный счёт: 0:2 (Карты)';
   return outcomeKey;
 }
 
