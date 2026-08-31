@@ -168,7 +168,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     wagerContribution: 1.0,
     extras: {
       maxPayout: 50_000,
-      maxCombinedOdds: 1000,
+      maxCombinedOdds: 35,
       cashoutEnabled: true,
       cashoutMargin: 0.88,
       oddsDrift: 0.02,

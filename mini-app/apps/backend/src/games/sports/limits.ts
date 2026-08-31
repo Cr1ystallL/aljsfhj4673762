@@ -17,7 +17,7 @@ export async function sportsLimits(): Promise<SportsLimits> {
   const enabled = extras.enabledSports;
   return {
     paused: !!cfg.paused,
-    maxCombined: Math.max(2, Number(extras.maxCombinedOdds ?? 1000)),
+    maxCombined: Math.min(35, Math.max(2, Number(extras.maxCombinedOdds ?? 35))),
     maxPayout: Math.max(10, Number(extras.maxPayout ?? 50_000)),
     cashoutEnabled: extras.cashoutEnabled !== false,
     cashoutMargin: Math.min(0.98, Math.max(0.5, Number(extras.cashoutMargin ?? 0.88))),

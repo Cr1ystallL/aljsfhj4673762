@@ -60,7 +60,7 @@ export function SportsBetslipDrawer({
   }, [legs.length]);
 
   const combinedOdds = useMemo(
-    () => Math.round(legs.reduce((acc, leg) => acc * leg.odds, 1) * 100) / 100,
+    () => Math.min(35, Math.round(legs.reduce((acc, leg) => acc * leg.odds, 1) * 100) / 100),
     [legs]
   );
   const isExpress = legs.length >= 2;

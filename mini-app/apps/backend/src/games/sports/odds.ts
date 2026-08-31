@@ -29,9 +29,11 @@ function poissonPmf(k: number, lambda: number): number {
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial;
 }
 
+export const MAX_SPORTS_ODDS = 35;
+
 export function formatOdds(odds: number): number {
   if (odds < 1.01) return 1.01;
-  if (odds > 100) return Math.round(odds);
+  if (odds >= MAX_SPORTS_ODDS) return MAX_SPORTS_ODDS;
   if (odds > 20) return Math.round(odds * 2) / 2;
   if (odds > 10) return Math.round(odds * 10) / 10;
   return Math.round(odds * 100) / 100;
