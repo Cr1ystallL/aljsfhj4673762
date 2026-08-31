@@ -173,50 +173,166 @@ function drawRocket(
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  const flicker = 0.82 + Math.sin(t * 28) * 0.18;
 
+  const flicker = 0.85 + Math.sin(t * 30) * 0.15;
+  const flameLen = (26 + Math.sin(t * 22) * 6) * flicker;
+
+  // 1. Dual Hyper-Plasma Thruster Flames (Top & Bottom exhausts)
   if (!crashed) {
-    const flame = ctx.createRadialGradient(-18, 0, 0, -18, 0, 22);
-    flame.addColorStop(0, `rgba(255,240,200,${0.85 * flicker})`);
-    flame.addColorStop(0.35, rgba(color, 0.45 * flicker));
-    flame.addColorStop(1, rgba(color, 0));
-    ctx.fillStyle = flame;
+    // Upper thruster flame
+    const flameGrad1 = ctx.createLinearGradient(-14, -4.5, -14 - flameLen, -4.5);
+    flameGrad1.addColorStop(0, '#ffffff');
+    flameGrad1.addColorStop(0.2, 'rgba(255, 235, 160, 0.95)');
+    flameGrad1.addColorStop(0.55, rgba(color, 0.75));
+    flameGrad1.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    ctx.fillStyle = flameGrad1;
     ctx.beginPath();
-    ctx.ellipse(-20, 0, 18 + flicker * 4, 7, 0, 0, Math.PI * 2);
+    ctx.moveTo(-14, -6.5);
+    ctx.quadraticCurveTo(-14 - flameLen * 0.55, -8.5, -14 - flameLen, -4.5);
+    ctx.quadraticCurveTo(-14 - flameLen * 0.55, -1, -14, -2.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lower thruster flame
+    const flameGrad2 = ctx.createLinearGradient(-14, 4.5, -14 - flameLen, 4.5);
+    flameGrad2.addColorStop(0, '#ffffff');
+    flameGrad2.addColorStop(0.2, 'rgba(255, 235, 160, 0.95)');
+    flameGrad2.addColorStop(0.55, rgba(color, 0.75));
+    flameGrad2.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    ctx.fillStyle = flameGrad2;
+    ctx.beginPath();
+    ctx.moveTo(-14, 2.5);
+    ctx.quadraticCurveTo(-14 - flameLen * 0.55, 1, -14 - flameLen, 4.5);
+    ctx.quadraticCurveTo(-14 - flameLen * 0.55, 8.5, -14, 6.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Ambient Thruster Core Flare Glow
+    const glow = ctx.createRadialGradient(-14, 0, 2, -14, 0, 22);
+    glow.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    glow.addColorStop(0.35, rgba(color, 0.45 * flicker));
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(-14, 0, 22, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  ctx.fillStyle = crashed ? 'rgba(255,150,130,0.92)' : 'rgba(248,248,250,0.96)';
-  ctx.beginPath();
-  ctx.moveTo(22, 0);
-  ctx.quadraticCurveTo(10, -6.5, -2, -5.5);
-  ctx.lineTo(-15, -3.6);
-  ctx.lineTo(-15, 3.6);
-  ctx.lineTo(-2, 5.5);
-  ctx.quadraticCurveTo(10, 6.5, 22, 0);
-  ctx.fill();
+  // 2. Swept Delta Wings (Aerodynamic Fighter Interceptor)
+  // Left Wing (Top)
+  ctx.fillStyle = crashed ? '#4a1510' : '#11151f';
+  ctx.strokeStyle = crashed ? 'rgba(255,100,80,0.5)' : rgba(color, 0.85);
+  ctx.lineWidth = 1.2;
 
-  ctx.fillStyle = crashed ? 'rgba(165,45,37,0.85)' : 'rgba(20,20,22,0.92)';
   ctx.beginPath();
-  ctx.moveTo(-1, -5);
-  ctx.lineTo(-11, -15);
-  ctx.lineTo(5, -3.2);
+  ctx.moveTo(3, -5.5);
+  ctx.lineTo(-13, -18);
+  ctx.lineTo(-17, -16);
+  ctx.lineTo(-9, -5.5);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+
+  // Right Wing (Bottom)
   ctx.beginPath();
-  ctx.moveTo(-1, 5);
-  ctx.lineTo(-11, 15);
-  ctx.lineTo(5, 3.2);
+  ctx.moveTo(3, 5.5);
+  ctx.lineTo(-13, 18);
+  ctx.lineTo(-17, 16);
+  ctx.lineTo(-9, 5.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Wingtip LED Plasma Beacons
+  ctx.fillStyle = crashed ? '#ff4d4d' : '#a0e0ab';
+  ctx.beginPath();
+  ctx.arc(-14, -17, 1.8, 0, Math.PI * 2);
+  ctx.arc(-14, 17, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3. Engine Nozzles (Dual Cylinders)
+  ctx.fillStyle = crashed ? '#3a1210' : '#222838';
+  ctx.fillRect(-15, -7, 3.5, 4.5);
+  ctx.fillRect(-15, 2.5, 3.5, 4.5);
+
+  // 4. Main Fuselage Hull (Sleek aerodynamic space interceptor contour)
+  const hullGrad = ctx.createLinearGradient(0, -8, 0, 8);
+  if (crashed) {
+    hullGrad.addColorStop(0, '#e06050');
+    hullGrad.addColorStop(0.5, '#7a1f18');
+    hullGrad.addColorStop(1, '#3a0e0b');
+  } else {
+    hullGrad.addColorStop(0, '#ffffff');
+    hullGrad.addColorStop(0.4, '#e2e8f0');
+    hullGrad.addColorStop(0.7, '#94a3b8');
+    hullGrad.addColorStop(1, '#334155');
+  }
+
+  ctx.fillStyle = hullGrad;
+  ctx.beginPath();
+  ctx.moveTo(25, 0); // Sharp Needle Prow
+  ctx.quadraticCurveTo(13, -6.8, -1, -7.2);
+  ctx.lineTo(-13, -6.8);
+  ctx.lineTo(-13, 6.8);
+  ctx.lineTo(-1, 7.2);
+  ctx.quadraticCurveTo(13, 6.8, 25, 0);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = crashed ? 'rgba(255,180,160,0.7)' : 'rgba(160,224,171,0.55)';
+  // Hull Brand Racing Accents
+  ctx.fillStyle = rgba(color, crashed ? 0.6 : 0.95);
   ctx.beginPath();
-  ctx.ellipse(7, 0, 5.2, 2.6, 0, 0, Math.PI * 2);
+  ctx.moveTo(11, -3.5);
+  ctx.lineTo(-9, -5);
+  ctx.lineTo(-9, -3.2);
+  ctx.lineTo(9, -1.8);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = rgba(color, crashed ? 0.55 : 0.95);
-  ctx.fillRect(-17.5, -2.4, 4, 4.8);
+  ctx.beginPath();
+  ctx.moveTo(11, 3.5);
+  ctx.lineTo(-9, 5);
+  ctx.lineTo(-9, 3.2);
+  ctx.lineTo(9, 1.8);
+  ctx.closePath();
+  ctx.fill();
+
+  // 5. Cockpit Visor / Glass Canopy
+  const canopyGrad = ctx.createLinearGradient(12, -3, 0, 3);
+  canopyGrad.addColorStop(0, '#00f5a0');
+  canopyGrad.addColorStop(0.4, '#06b6d4');
+  canopyGrad.addColorStop(1, '#0f172a');
+
+  ctx.fillStyle = crashed ? 'rgba(255, 120, 100, 0.8)' : canopyGrad;
+  ctx.beginPath();
+  ctx.moveTo(17, 0);
+  ctx.quadraticCurveTo(9, -3.5, 1, -2.8);
+  ctx.lineTo(1, 2.8);
+  ctx.quadraticCurveTo(9, 3.5, 17, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cockpit glass glint reflection
+  if (!crashed) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(13, -1);
+    ctx.lineTo(5, -2.1);
+    ctx.stroke();
+  }
+
+  // 6. Dorsal Stabilizer Ridge
+  ctx.fillStyle = crashed ? '#802018' : '#0f172a';
+  ctx.beginPath();
+  ctx.moveTo(3, 0);
+  ctx.lineTo(-11, -3);
+  ctx.lineTo(-13, 0);
+  ctx.lineTo(-11, 3);
+  ctx.closePath();
+  ctx.fill();
 
   ctx.restore();
 }

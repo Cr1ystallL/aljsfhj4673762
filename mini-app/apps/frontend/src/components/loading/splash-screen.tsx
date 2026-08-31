@@ -67,10 +67,10 @@ export function SplashScreen({ ready }: SplashScreenProps) {
           {/* Subtle Ambient Radial Glow */}
           <div
             aria-hidden
-            className="absolute w-[320px] h-[320px] rounded-full pointer-events-none opacity-30 blur-[80px]"
+            className="absolute w-[380px] h-[380px] rounded-full pointer-events-none opacity-35 blur-[90px]"
             style={{
               background:
-                'radial-gradient(circle, rgba(0, 245, 160, 0.3) 0%, rgba(255, 172, 46, 0.2) 45%, rgba(239, 68, 68, 0.15) 75%, transparent 100%)',
+                'radial-gradient(circle, rgba(160, 224, 171, 0.3) 0%, rgba(255, 172, 46, 0.2) 50%, rgba(165, 45, 37, 0.15) 80%, transparent 100%)',
             }}
           />
 
@@ -78,8 +78,8 @@ export function SplashScreen({ ready }: SplashScreenProps) {
           <div className="relative flex items-center justify-center">
             <svg
               viewBox="0 0 1024 1024"
-              width={110}
-              height={110}
+              width={140}
+              height={140}
               className="relative overflow-visible"
               aria-label="MacvBet Logo"
             >
@@ -92,19 +92,17 @@ export function SplashScreen({ ready }: SplashScreenProps) {
                   />
                 </clipPath>
 
-                {/* Signature Brand Vibrant Liquid Gradient */}
+                {/* Signature Deep Ocean Brand Liquid Gradient */}
                 <linearGradient id={gradId} x1="0%" y1="100%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="#a0e0ab" />
-                  <stop offset="25%" stopColor="#00f5a0" />
-                  <stop offset="55%" stopColor="#ffac2e" />
-                  <stop offset="85%" stopColor="#ef4444" />
-                  <stop offset="100%" stopColor="#a0e0ab" />
+                  <stop offset="50%" stopColor="#ffac2e" />
+                  <stop offset="100%" stopColor="#a52d25" />
                 </linearGradient>
 
                 <linearGradient id={gradId2} x1="100%" y1="100%" x2="0%" y2="0%">
-                  <stop offset="0%" stopColor="#00f5a0" />
-                  <stop offset="50%" stopColor="#ffac2e" />
-                  <stop offset="100%" stopColor="#ef4444" />
+                  <stop offset="0%" stopColor="#ffac2e" />
+                  <stop offset="50%" stopColor="#a52d25" />
+                  <stop offset="100%" stopColor="#a0e0ab" />
                 </linearGradient>
               </defs>
 
@@ -132,7 +130,7 @@ export function SplashScreen({ ready }: SplashScreenProps) {
                   <motion.path
                     d="M 0 0 C 250 40, 500 -40, 750 0 C 1000 40, 1250 -40, 1500 0 C 1750 40, 2000 -40, 2250 0 C 2500 40, 2750 -40, 3000 0 L 3000 1400 L 0 1400 Z"
                     fill={`url(#${gradId2})`}
-                    opacity={0.55}
+                    opacity={0.6}
                     initial={{ x: -750 }}
                     animate={{ x: 0 }}
                     transition={{
@@ -198,12 +196,12 @@ export function SplashScreen({ ready }: SplashScreenProps) {
             </svg>
           </div>
 
-          {/* Shimmering Brand Name "MacvBet" with shifting iridescent gradient */}
+          {/* Shimmering Brand Name "MacvBet" with authentic Deep Ocean gradient */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }}
-            className="relative mt-6 flex flex-col items-center"
+            className="relative mt-7 flex flex-col items-center"
           >
             <motion.span
               animate={{
@@ -214,15 +212,15 @@ export function SplashScreen({ ready }: SplashScreenProps) {
                 repeat: Infinity,
                 ease: 'linear',
               }}
-              className="splash-shimmer-brand font-roobert font-bold text-[14px] sm:text-[15px] tracking-[0.28em] uppercase select-none"
+              className="splash-shimmer-brand font-roobert font-extrabold text-[19px] sm:text-[21px] tracking-[0.24em] uppercase select-none"
               style={{
                 background:
-                  'linear-gradient(90deg, #a0e0ab 0%, #00f5a0 25%, #ffac2e 50%, #ef4444 75%, #a0e0ab 100%)',
+                  'linear-gradient(90deg, #a0e0ab 0%, #ffac2e 25%, #a52d25 50%, #ffac2e 75%, #a0e0ab 100%)',
                 backgroundSize: '200% auto',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 display: 'inline-block',
-                filter: 'drop-shadow(0 0 12px rgba(0, 245, 160, 0.35))',
+                filter: 'drop-shadow(0 0 14px rgba(255, 172, 46, 0.35))',
               }}
             >
               MacvBet

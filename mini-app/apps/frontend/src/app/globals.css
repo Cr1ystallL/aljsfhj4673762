@@ -349,15 +349,15 @@ option:hover {
   background: linear-gradient(
     90deg,
     #a0e0ab 0%,
-    #00f5a0 25%,
-    #ffac2e 50%,
-    #ef4444 75%,
+    #ffac2e 25%,
+    #a52d25 50%,
+    #ffac2e 75%,
     #a0e0ab 100%
   ) !important;
   background-size: 200% auto !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
-  animation: brandShimmerAnim 2.5s linear infinite !important;
+  animation: brandShimmerAnim 2.8s linear infinite !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
