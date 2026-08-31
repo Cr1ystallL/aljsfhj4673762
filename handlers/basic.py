@@ -288,3 +288,51 @@ async def game_handler(callback: CallbackQuery):
     
     lang = db.get_user_language(callback.from_user.id)
     await callback.answer(get_text(lang, 'game_in_dev'), show_alert=True)
+
+
+@router.callback_query(F.data.startswith("disable_goals:"))
+async def cb_disable_goals(callback: CallbackQuery):
+    """Отключение уведомлений о голах в Telegram"""
+    user_id_str = callback.data.split(":", 1)[1]
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(config.REDIS_URL or "redis://localhost:6379/0")
+        await r.set(f"user:sports:disable_goals:{user_id_str}", "1")
+        if callback.from_user and callback.from_user.id:
+            await r.set(f"user:sports:disable_goals:{callback.from_user.id}", "1")
+        await r.close()
+    except Exception:
+        pass
+
+    await callback.answer("🔕 Уведомления о голах отключены!", show_alert=True)
+    try:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔔 Включить голы", callback_data=f"enable_goals:{user_id_str}")]
+        ])
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("enable_goals:"))
+async def cb_enable_goals(callback: CallbackQuery):
+    """Включение уведомлений о голах в Telegram"""
+    user_id_str = callback.data.split(":", 1)[1]
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(config.REDIS_URL or "redis://localhost:6379/0")
+        await r.delete(f"user:sports:disable_goals:{user_id_str}")
+        if callback.from_user and callback.from_user.id:
+            await r.delete(f"user:sports:disable_goals:{callback.from_user.id}")
+        await r.close()
+    except Exception:
+        pass
+
+    await callback.answer("🔔 Уведомления о голах включены!", show_alert=True)
+    try:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔕 Выключить голы", callback_data=f"disable_goals:{user_id_str}")]
+        ])
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    except Exception:
+        pass

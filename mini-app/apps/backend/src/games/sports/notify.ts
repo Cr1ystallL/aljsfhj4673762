@@ -1,15 +1,48 @@
 import { prisma } from '../../lib/prisma.js';
 import { telegramApi } from '../../lib/telegram-api.js';
+import { redisClient } from '../../lib/redis.js';
 import { logger } from '../../utils/logger.js';
 
-export async function notifySportsUser(userId: string, text: string): Promise<void> {
+export async function notifySportsUser(
+  userId: string,
+  text: string,
+  options?: { isGoalAlert?: boolean }
+): Promise<void> {
   try {
+    if (options?.isGoalAlert) {
+      try {
+        const disabled = await redisClient.getClient().get(`user:sports:disable_goals:${userId}`);
+        if (disabled === '1') return;
+      } catch {}
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { telegramId: true },
     });
     const chatId = user?.telegramId ? Number(user.telegramId) : 0;
     if (!chatId) return;
+
+    if (options?.isGoalAlert) {
+      try {
+        const tgDisabled = await redisClient.getClient().get(`user:sports:disable_goals:${chatId}`);
+        if (tgDisabled === '1') return;
+      } catch {}
+
+      const markup = {
+        inline_keyboard: [
+          [
+            {
+              text: '🔕 Выключить голы',
+              callback_data: `disable_goals:${userId}`,
+            },
+          ],
+        ],
+      };
+      await telegramApi.sendMessageWithMarkup(chatId, text, markup);
+      return;
+    }
+
     await telegramApi.sendMessage(chatId, text);
   } catch (err) {
     logger.warn({ err, userId }, 'Sports telegram notify failed');

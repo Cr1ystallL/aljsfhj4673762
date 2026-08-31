@@ -804,7 +804,8 @@ class SportsEngine {
           last.score2,
           last.team,
           feed.sport
-        )
+        ),
+        { isGoalAlert: true }
       );
     }
   }
