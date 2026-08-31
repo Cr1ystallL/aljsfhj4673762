@@ -4,7 +4,7 @@ This document contains critical context for any new AI agent or developer workin
 
 ## ⚠️ CRITICAL AGENT RULE
 **DO NOT RUN TERMINAL COMMANDS DIRECTLY EXPECTING THEM TO AFFECT THE PRODUCTION SERVER.** 
-The agent operates in a local sandbox (Windows), while the actual production server is a remote Linux VPS (IP: `163.5.41.97`).
+The agent operates in a local sandbox (Windows), while the actual production server is a remote Linux VPS (IP: `185.111.246.222`).
 **Whenever you need the user to run commands on their server, you MUST provide them in a single Markdown `bash` code block** starting with the `clear` command, so the user can easily copy and paste them into their SSH terminal.
 
 ## 📂 Project Architecture
