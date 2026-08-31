@@ -11,6 +11,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import ErrorEvent
+from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
 
 from handlers import basic, dice, bowling, darts, basketball, football, mines, rps, spider, payment, admin, referral
 from config import config
@@ -88,8 +90,20 @@ async def main():
     except Exception as e:
         logger.warning(f"RevShare worker did not start: {e}")
 
-    # Запуск polling
-    await dp.start_polling(bot)
+    # Глобальный обработчик ошибок
+    @dp.error()
+    async def global_error_handler(event: ErrorEvent):
+        if isinstance(event.exception, (TelegramForbiddenError, TelegramBadRequest)):
+            return True
+        if isinstance(event.exception, TelegramRetryAfter):
+            logger.warning(f"Flood limit exceeded: retry after {event.exception.retry_after}s")
+            return True
+        logger.error(f"Unhandled bot exception: {event.exception}")
+        return True
+
+    # Сбрасываем зависшие старые апдейты и запускаем polling
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot, drop_pending_updates=True)
 
 
 if __name__ == "__main__":

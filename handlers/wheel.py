@@ -123,19 +123,26 @@ async def cmd_mb_wheel(message: Message):
                         )
                     
                     # Запускаем задачу на удаление через 2 минуты
-                    asyncio.create_task(delete_message_later(result_msg, 120))
                 except Exception as e:
-                    # Если отправка с картинкой упала, отправляем текстом
-                    result_msg = await message.answer(
-                        text=text,
-                        reply_markup=keyboard,
-                        parse_mode="HTML"
-                    )
-                    asyncio.create_task(delete_message_later(result_msg, 120))
+                    # Если отправка с картинкой упала, пытаемся отправить текстом
+                    try:
+                        result_msg = await message.answer(
+                            text=text,
+                            reply_markup=keyboard,
+                            parse_mode="HTML"
+                        )
+                        asyncio.create_task(delete_message_later(result_msg, 120))
+                    except Exception:
+                        pass
                     
-        except Exception as e:
-            msg = await message.answer("❌ Сервер временно недоступен.")
-            asyncio.create_task(delete_message_later(msg, 15))
+        except aiohttp.ClientError:
+            try:
+                msg = await message.answer("❌ Сервер временно недоступен.")
+                asyncio.create_task(delete_message_later(msg, 15))
+            except Exception:
+                pass
+        except Exception:
+            pass
 
 
 async def delete_message_later(message: Message, delay_seconds: int):
