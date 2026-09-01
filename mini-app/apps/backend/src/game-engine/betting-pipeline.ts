@@ -1158,19 +1158,6 @@ export class BettingPipeline {
               }
             }
           }
-
-          // Trigger strict RTP by setting the autoRtpTarget on the balance.
-          // This ensures rtpEngine.getBiasFor immediately returns 1.0.
-          const b = await prisma.balance.findFirst({ where: { userId, demoMode: false } });
-          if (b) {
-            await prisma.balance.update({
-              where: { id: b.id },
-              data: {
-                autoRtpTarget: balanceAfter * 2,
-                autoRtpProgress: 0,
-              }
-            });
-          }
         }
       }
 
@@ -1180,24 +1167,6 @@ export class BettingPipeline {
 
       if (isWin) {
         if (nextStreak === 3 && !streakActive) {
-          // Trigger Auto-RTP on 3rd win by updating balance.autoRtpTarget
-          let nextTarget = balanceAfter * 1.5;
-
-          const b = await prisma.balance.findFirst({ where: { userId, demoMode: false } });
-          if (b) {
-            if (Number(b.autoRtpTarget) > Number(b.autoRtpProgress)) {
-              // Already active? Increase it heavily
-              nextTarget = Number(b.autoRtpTarget) * 2.5;
-            }
-            await prisma.balance.update({
-              where: { id: b.id },
-              data: {
-                autoRtpTarget: nextTarget,
-                autoRtpProgress: 0,
-              }
-            });
-          }
-
           streakActive = true;
         }
 

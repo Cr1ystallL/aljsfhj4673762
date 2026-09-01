@@ -354,15 +354,16 @@ export default function CoinflipGamePage() {
 
         {/* Hero — 3D coin arena stage, round/multiplier plate, side picks */}
         <section className="relative rounded-[24px] border border-white/10 bg-gradient-to-b from-[#161922]/80 via-[#0e1017]/90 to-[#090b0f] px-4 pt-4 pb-4 flex flex-col items-center gap-3 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-          {/* Dynamic Ambient Background Glow */}
+          {/* Dynamic Ambient Background Glow (Neutral while flipping, side-colored when settled) */}
           <div
             aria-hidden
             className="absolute inset-0 pointer-events-none transition-all duration-700 opacity-70"
             style={{
-              background:
-                coinFace === 'heads'
-                  ? 'radial-gradient(90% 70% at 50% 25%, rgba(251, 191, 36, 0.14) 0%, rgba(180, 83, 9, 0.05) 40%, transparent 80%)'
-                  : 'radial-gradient(90% 70% at 50% 25%, rgba(56, 189, 248, 0.14) 0%, rgba(14, 116, 144, 0.05) 40%, transparent 80%)',
+              background: flipping
+                ? 'radial-gradient(90% 70% at 50% 25%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 80%)'
+                : coinFace === 'heads'
+                ? 'radial-gradient(90% 70% at 50% 25%, rgba(251, 191, 36, 0.14) 0%, rgba(180, 83, 9, 0.05) 40%, transparent 80%)'
+                : 'radial-gradient(90% 70% at 50% 25%, rgba(56, 189, 248, 0.14) 0%, rgba(14, 116, 144, 0.05) 40%, transparent 80%)',
             }}
           />
 
