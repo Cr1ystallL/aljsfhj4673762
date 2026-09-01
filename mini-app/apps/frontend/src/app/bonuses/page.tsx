@@ -26,8 +26,6 @@ import type { TxKey } from '@/i18n/use-t';
 import { Pressable } from '@/components/ui/pressable';
 import { BetPanelShell, GamePrimaryButton } from '@/components/game/kit';
 import { haptics } from '@/lib/haptics';
-import { VipRankCard } from '@/components/vip/vip-rank-card';
-import { CashbackCard } from '@/components/vip/cashback-card';
 
 type TFn = (key: TxKey, vars?: Record<string, string | number>) => string;
 
@@ -104,12 +102,6 @@ export default function BonusesPage() {
       <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-4 pb-32 flex flex-col gap-6`}>
         {/* Promo Code Hero */}
         <PromoCodeHero onRedeemed={() => void fetchBalance()} />
-
-        {/* VIP Rank Loyalty Card */}
-        <VipRankCard />
-
-        {/* Weekly Cashback Card */}
-        <CashbackCard />
 
         {/* Lucky Wheel Hero */}
         <LuckyWheelHero onWin={() => void fetchBalance()} />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { VipStatusDto, CashbackStatusDto } from '@casino/shared';
+import type { VipStatusDto, CashbackStatusDto } from '@/lib/vip';
 import { toast } from '@/store/toast-store';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { haptics } from '@/lib/haptics';

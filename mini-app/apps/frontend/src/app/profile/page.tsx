@@ -32,7 +32,6 @@ import { useWinStreak } from '@/hooks/use-win-streak';
 import { useT } from '@/i18n/use-t';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { VipRankCard } from '@/components/vip/vip-rank-card';
-import { CashbackCard } from '@/components/vip/cashback-card';
 import { VipBadge } from '@/components/vip/vip-badge';
 import { useVip } from '@/hooks/use-vip';
 
@@ -255,9 +254,6 @@ export default function ProfilePage() {
 
           {/* VIP Rank Loyalty Card */}
           <VipRankCard />
-
-          {/* Weekly Cashback Card */}
-          <CashbackCard />
 
           <ProfileTrophyShelf
             stats={{

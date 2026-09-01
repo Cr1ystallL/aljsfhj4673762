@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Crown, Gift, Percent, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
-import { VIP_RANKS } from '@casino/shared';
+import { VIP_RANKS } from '@/lib/vip';
 import { VipBadge } from './vip-badge';
 import { Pressable } from '@/components/ui/pressable';
 

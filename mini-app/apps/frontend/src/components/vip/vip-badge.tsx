@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import type { VipRankId } from '@casino/shared';
+import type { VipRankId } from '@/lib/vip';
 
 interface VipBadgeProps {
   rankId?: VipRankId | string;

@@ -13,6 +13,7 @@ import {
   Gift,
   Headphones,
   Layers,
+  Percent,
   Sparkles,
   Trophy,
   User,
@@ -311,6 +312,15 @@ export function MenuDrawer({
                     onClick={() => {
                       onClose();
                       router.push('/bonuses');
+                    }}
+                  />
+                  <SectionCard
+                    icon={<Percent size={18} className="text-emerald-400" />}
+                    title="Кэшбэк"
+                    description="Еженедельный возврат от проигрыша"
+                    onClick={() => {
+                      onClose();
+                      router.push('/cashback');
                     }}
                   />
                   <SectionCard

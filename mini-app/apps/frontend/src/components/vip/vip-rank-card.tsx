@@ -7,7 +7,7 @@ import { useVip } from '@/hooks/use-vip';
 import { VipBadge } from './vip-badge';
 import { VipFaqModal } from './vip-faq-modal';
 import { Pressable } from '@/components/ui/pressable';
-import { VIP_RANKS } from '@casino/shared';
+import { VIP_RANKS } from '@/lib/vip';
 
 export function VipRankCard({ className }: { className?: string }) {
   const { status, loading, claiming, claimReward } = useVip();
