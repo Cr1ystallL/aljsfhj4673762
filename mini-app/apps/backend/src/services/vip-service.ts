@@ -40,10 +40,10 @@ export class VipService {
       try {
         const redis = (await import('../lib/redis.js')).redisClient.getClient();
         if (redis) {
-          const done = await redis.get('vip:recalculated_v3');
+          const done = await redis.get('vip:recalculated_v4');
           if (!done) {
             await this.recalculateAllUsersVipAndResetCashback();
-            await redis.set('vip:recalculated_v3', '1');
+            await redis.set('vip:recalculated_v4', '1');
           }
         }
       } catch (e) {
@@ -55,43 +55,26 @@ export class VipService {
   }
 
   /**
-   * Resets invalid premature cashback claims and recalculates true XP & VIP levels from real bets
-   * placed strictly on or after September 7, 2026 launch date.
+   * Resets invalid premature cashback claims and recalculates true XP & VIP levels from real bets.
    */
   async recalculateAllUsersVipAndResetCashback(): Promise<{ updatedUsers: number }> {
     await this.ensureTables();
     try {
-      logger.info('Starting full VIP XP recalculation and cashback reset (launch date: 2026-09-07)...');
-      const startDate = new Date('2026-09-07T00:00:00.000Z');
-      const isBeforeLaunch = Date.now() < startDate.getTime();
+      logger.info('Starting full VIP XP recalculation and cashback reset...');
 
-      // 1. Reset all premature cashback claims and reward claims
+      // 1. Reset all premature cashback claims
       await prisma.$executeRaw`
         UPDATE users 
-        SET last_cashback_claimed_at = NULL,
-            claimed_vip_rewards = '{}';
+        SET last_cashback_claimed_at = NULL;
       `;
 
-      if (isBeforeLaunch) {
-        // Before 7 September 2026: Everyone starts fresh at 0 XP / Level 0
-        const res = await prisma.$executeRaw`
-          UPDATE users
-          SET xp = 0,
-              vip_level = 0,
-              claimed_vip_rewards = '{}';
-        `;
-        logger.info({ affected: res }, 'Reset all users to 0 XP / Rank 0 before launch date');
-        return { updatedUsers: Number(res || 0) };
-      }
-
-      // 2. If after launch date: Fetch real bet amounts placed ON OR AFTER September 7, 2026
+      // 2. Fetch real bet amounts grouped by user
       const betTotals = await prisma.$queryRaw<Array<{ user_id: string; total_wager: number | string }>>`
         SELECT user_id, COALESCE(SUM(amount), 0) as total_wager
         FROM bets
         WHERE state != 'cancelled' 
           AND (metadata->>'demoMode')::boolean IS NOT TRUE 
           AND metadata->>'tournamentId' IS NULL
-          AND placed_at >= ${startDate}
         GROUP BY user_id
       `;
 
@@ -127,15 +110,10 @@ export class VipService {
   }
 
   /**
-   * Adds XP when a real-money bet is placed (only on or after September 7, 2026 launch date).
+   * Adds XP when a real-money bet is placed.
    */
   async addXp(userId: string, betAmountZl: number, txClient?: PrismaClient | Prisma.TransactionClient): Promise<void> {
     if (betAmountZl <= 0) return;
-    const startDate = new Date('2026-09-07T00:00:00.000Z');
-    if (Date.now() < startDate.getTime()) {
-      return; // VIP program starts on 7 September 2026
-    }
-
     await this.ensureTables();
     const db = txClient || prisma;
     const gainedXp = Math.max(1, Math.floor(betAmountZl * VIP_XP_PER_ZL));
@@ -398,29 +376,10 @@ export class VipService {
       const tier = getVipTierByXp(xp);
       const lastClaimedAt = userRows[0]?.last_cashback_claimed_at ? new Date(userRows[0].last_cashback_claimed_at) : null;
 
-      const startDate = new Date('2026-09-07T00:00:00.000Z');
-      const isBeforeLaunch = Date.now() < startDate.getTime();
-
-      if (isBeforeLaunch) {
-        return {
-          available: false,
-          amount: 0,
-          cashbackPercent: tier.cashbackPercent,
-          netLoss: 0,
-          totalWagered: 0,
-          totalWon: 0,
-          nextClaimAvailableAt: startDate.toISOString(),
-          lastClaimedAt: lastClaimedAt ? lastClaimedAt.toISOString() : null,
-          rankName: tier.nameRu,
-        };
-      }
-
-      // Calculation window strictly starts from September 7, 2026 or last claim date
-      const sinceDate = new Date(Math.max(
-        startDate.getTime(),
-        lastClaimedAt ? lastClaimedAt.getTime() : startDate.getTime(),
-        Date.now() - 7 * 24 * 3600 * 1000
-      ));
+      // Calculation window: last 7 days or since last claimed cashback
+      const sinceDate = lastClaimedAt
+        ? new Date(Math.max(lastClaimedAt.getTime(), Date.now() - 7 * 24 * 3600 * 1000))
+        : new Date(Date.now() - 7 * 24 * 3600 * 1000);
 
       // Check stats for the window
       const statsRows = await prisma.$queryRaw<
@@ -436,12 +395,17 @@ export class VipService {
       const netLoss = Math.max(0, totalWagered - totalWon);
       const amount = Math.round(netLoss * (tier.cashbackPercent / 100) * 100) / 100;
 
-      // Next claim available: either never claimed or 7 days after last claim
+      // Next claim available: launch date 7 September 2026 or 7 days after last claim
+      const startDate = new Date('2026-09-07T00:00:00.000Z');
+      const isBeforeLaunch = Date.now() < startDate.getTime();
       const cooldownMs = 7 * 24 * 3600 * 1000;
       let available = false;
       let nextClaimAvailableAt: string | null = null;
 
-      if (!lastClaimedAt) {
+      if (isBeforeLaunch) {
+        available = false;
+        nextClaimAvailableAt = startDate.toISOString();
+      } else if (!lastClaimedAt) {
         available = amount >= 0.50;
       } else {
         const nextTime = lastClaimedAt.getTime() + cooldownMs;
