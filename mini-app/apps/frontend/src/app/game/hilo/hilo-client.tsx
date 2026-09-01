@@ -259,7 +259,7 @@ export function HiloClient() {
   const profitHigher = currentBet * higherMult;
   const profitLower = currentBet * lowerMult;
 
-  const prevCard = state?.history?.length > 1 ? state.history[state.history.length - 2] : null;
+  const prevCard = state?.history && state.history.length > 1 ? state.history[state.history.length - 2] : null;
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">

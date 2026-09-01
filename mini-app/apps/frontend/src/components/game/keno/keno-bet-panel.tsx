@@ -204,7 +204,7 @@ export function KenoBetPanel({
       {/* Row 2: Auto & Clear (compact 1 row) */}
       <div className="grid grid-cols-2 gap-2">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={disabled}
           onClick={onAutoPick}
@@ -214,7 +214,7 @@ export function KenoBetPanel({
           Автовыбор
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={disabled || picks.length === 0}
           onClick={onClear}

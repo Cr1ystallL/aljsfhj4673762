@@ -218,7 +218,7 @@ export default function MacvpotPage() {
     return () => clearInterval(interval);
   }, [state?.phaseEndsAt, state?.timestamp, state?.phase]);
 
-  const userBet = state?.bets.find((b) => b.userId === user?.userId);
+  const userBet = state?.bets.find((b) => b.userId === user?.id);
   const isBettingPhase = state?.phase === 'betting';
 
   // Handle Bet placement

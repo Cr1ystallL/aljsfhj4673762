@@ -31,7 +31,7 @@ interface Deposit {
   uniqueAmount: number;
   currency: string;
   type: string;
-  status: 'pending' | 'paid' | 'cancelled' | 'expired';
+  status: 'pending' | 'paid' | 'cancelled' | 'expired' | 'failed' | 'credited';
   card: string | null;
   recipient: string | null;
   details: string | null;

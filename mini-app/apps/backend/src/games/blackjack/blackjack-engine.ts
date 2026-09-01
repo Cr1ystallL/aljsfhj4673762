@@ -13,6 +13,8 @@ import {
   sortTables,
   type SlimBlackjackTable,
 } from './table-directory.js';
+import { gameConfig } from '../../services/game-config.js';
+import { rtpEngine } from '../../services/rtp-engine.js';
 
 export const BJ_MAX_SEATS = 5;
 
@@ -488,19 +490,19 @@ export class BlackjackEngine extends EventEmitter {
       // Deal first round of cards (1 to each player, 1 to dealer)
       await this.delay(600);
       for (const player of activePlayers) {
-        player.hand.push(this.drawCard(player.userId));
+        player.hand.push(await this.drawCard(player.userId, player.hand, 'deal_player'));
         this.broadcastState();
         await this.delay(300);
       }
 
       // Dealer first card (visible)
-      this.state.dealerHand.push(this.drawCard('dealer'));
+      this.state.dealerHand.push(await this.drawCard('dealer', [], 'deal_dealer_up'));
       this.broadcastState();
       await this.delay(400);
 
       // Deal second round of cards (1 to each player, 1 hidden to dealer)
       for (const player of activePlayers) {
-        player.hand.push(this.drawCard(player.userId));
+        player.hand.push(await this.drawCard(player.userId, player.hand, 'deal_player'));
         
         // Check for natural blackjack
         if (this.isBlackjack(player.hand)) {
@@ -512,7 +514,7 @@ export class BlackjackEngine extends EventEmitter {
       }
 
       // Dealer second card (hidden)
-      const hiddenDealerCard = this.drawCard('dealer', this.state.dealerHand);
+      const hiddenDealerCard = await this.drawCard('dealer', this.state.dealerHand, 'deal_dealer_hole');
       hiddenDealerCard.hidden = true;
       this.state.dealerHand.push(hiddenDealerCard);
       this.broadcastState();
@@ -609,7 +611,7 @@ export class BlackjackEngine extends EventEmitter {
       this.clearTurnTimer();
 
       // Draw card with RTP bias
-      player.hand.push(this.drawCard(userId));
+      player.hand.push(await this.drawCard(userId, player.hand, 'player_hit'));
       
       const { total } = this.calculateHandValue(player.hand);
       
@@ -714,7 +716,7 @@ export class BlackjackEngine extends EventEmitter {
       player.status = 'doubled';
 
       // Draw exactly one card
-      player.hand.push(this.drawCard(userId));
+      player.hand.push(await this.drawCard(userId, player.hand, 'player_double'));
       
       const { total } = this.calculateHandValue(player.hand);
       if (total > 21) {
@@ -780,7 +782,7 @@ export class BlackjackEngine extends EventEmitter {
     
     while (total < this.config.dealerStandOn) {
       await this.delay(800);
-      this.state.dealerHand.push(this.drawCard('dealer', this.state.dealerHand));
+      this.state.dealerHand.push(await this.drawCard('dealer', this.state.dealerHand, 'dealer_hit'));
       total = this.calculateHandValue(this.state.dealerHand).total;
       this.broadcastState();
     }
@@ -1020,18 +1022,285 @@ export class BlackjackEngine extends EventEmitter {
   }
 
   /* -----------------------------------------------------------------
-   * Card utilities (deterministic dealing)
+   * Card utilities & Intelligent Dealing Engine
    * ---------------------------------------------------------------- */
 
-  private drawCard(userId: string, currentHand?: Card[]): Card {
-    if (this.deck.length === 0) {
+  /**
+   * Analyzes recent rounds to prevent unfair dealer win streaks (20/21)
+   * and regulate the dealer bust rate to stay near theoretical (~28-30%).
+   */
+  private analyzeDealerHistory(): {
+    recent20_21Rate: number;
+    recentBustRate: number;
+    consecutive20_21: number;
+    consecutiveNoBust: number;
+    totalRounds: number;
+  } {
+    const totalRounds = this.history.length;
+    if (totalRounds === 0) {
+      return {
+        recent20_21Rate: 0.28,
+        recentBustRate: 0.28,
+        consecutive20_21: 0,
+        consecutiveNoBust: 0,
+        totalRounds: 0,
+      };
+    }
+
+    const window = this.history.slice(0, 15);
+    const recent20_21Count = window.filter(
+      (h) => !h.dealerBust && (h.dealerValue === 20 || h.dealerValue === 21)
+    ).length;
+    const recentBustCount = window.filter((h) => h.dealerBust).length;
+
+    let consecutive20_21 = 0;
+    for (const h of this.history) {
+      if (!h.dealerBust && (h.dealerValue === 20 || h.dealerValue === 21)) {
+        consecutive20_21++;
+      } else {
+        break;
+      }
+    }
+
+    let consecutiveNoBust = 0;
+    for (const h of this.history) {
+      if (!h.dealerBust) {
+        consecutiveNoBust++;
+      } else {
+        break;
+      }
+    }
+
+    return {
+      recent20_21Rate: recent20_21Count / window.length,
+      recentBustRate: recentBustCount / window.length,
+      consecutive20_21,
+      consecutiveNoBust,
+      totalRounds,
+    };
+  }
+
+  private async drawCard(
+    recipient: string,
+    currentHand?: Card[],
+    context?: 'deal_player' | 'deal_dealer_up' | 'deal_dealer_hole' | 'player_hit' | 'player_double' | 'dealer_hit'
+  ): Promise<Card> {
+    if (this.deck.length < 15) {
       this.currentSeeds.nonce++;
-      this.deck = provablyFair.generateBlackjackDeck(
+      const freshShoe = provablyFair.generateBlackjackDeck(
         this.currentSeeds.serverSeed,
         this.currentSeeds.clientSeed,
         this.currentSeeds.nonce,
         6
       );
+      this.deck.push(...freshShoe);
+    }
+
+    // Default uniform fallback if no context or empty hand
+    if (!context) {
+      return this.deck.pop()!;
+    }
+
+    try {
+      const hist = this.analyzeDealerHistory();
+
+      if (recipient === 'dealer') {
+        let globalBias = 0;
+        try {
+          // Average bias of active betting players
+          const activeBetting = this.state.players.filter((p) => p.bet >= 10 && !p.userId.startsWith('guest_'));
+          if (activeBetting.length > 0) {
+            const biases = await Promise.all(activeBetting.map((p) => rtpEngine.getBiasFor(p.userId)));
+            globalBias = biases.reduce((a, b) => a + b, 0) / biases.length;
+          } else {
+            globalBias = await rtpEngine.getGlobalBias();
+          }
+        } catch {
+          globalBias = 0;
+        }
+
+        // Subcase 1: Dealer Hole Card (2nd card dealt face-down)
+        if (context === 'deal_dealer_hole' && currentHand && currentHand.length > 0) {
+          const upcard = currentHand[0];
+          const upcardVal = this.getCardRankValue(upcard.rank);
+          const weights: number[] = [];
+
+          for (const card of this.deck) {
+            const cardVal = this.getCardRankValue(card.rank);
+            const isNaturalBJ = (upcardVal === 11 && cardVal === 10) || (upcardVal === 10 && cardVal === 11);
+            const isTwenty = upcardVal === 10 && cardVal === 10;
+            let w = 1.0;
+
+            if (isNaturalBJ) {
+              // Theoretical natural BJ is ~4.75%
+              w = 0.0475;
+              if (hist.consecutive20_21 >= 1 || hist.recent20_21Rate > 0.32) {
+                w *= 0.15; // Anti-streak suppression: don't let dealer get back-to-back Blackjacks
+              }
+              if (globalBias < 0) {
+                w *= 0.2;
+              }
+            } else if (isTwenty) {
+              // Two 10s is ~9.5%
+              w = 0.095;
+              if (hist.consecutive20_21 >= 1 || hist.recent20_21Rate > 0.32) {
+                w *= 0.25; // Suppress consecutive 20s
+              }
+              if (globalBias < 0) {
+                w *= 0.4;
+              }
+            } else {
+              // Other hole cards (makes starting totals 12-19)
+              w = 0.85;
+              if (hist.consecutiveNoBust >= 3) {
+                // Favor stiff upcard totals (12-16) so dealer can naturally bust later
+                const handTot = upcardVal + cardVal;
+                if (handTot >= 12 && handTot <= 16) {
+                  w *= 1.4;
+                }
+              }
+            }
+            weights.push(Math.max(0.001, w));
+          }
+
+          return this.pickWeightedFromDeck(weights);
+        }
+
+        // Subcase 2: Dealer Hit (Drawing while total < 17)
+        if (context === 'dealer_hit' && currentHand) {
+          const weights: number[] = [];
+
+          for (const card of this.deck) {
+            const simHand = [...currentHand, card];
+            const simTotal = this.calculateHandValue(simHand).total;
+            let w = 1.0;
+
+            if (simTotal > 21) {
+              // Target dealer bust rate is ~28.5%
+              w = 0.285;
+              // If dealer hasn't busted recently, boost bust probability so history looks natural
+              if (hist.consecutiveNoBust >= 4 || (hist.totalRounds >= 5 && hist.recentBustRate < 0.20)) {
+                w *= 2.8;
+              } else if (hist.consecutiveNoBust >= 2) {
+                w *= 1.6;
+              }
+              if (hist.consecutive20_21 >= 1) {
+                w *= 1.8;
+              }
+              if (globalBias < 0) {
+                w *= 1 + Math.abs(globalBias) * 1.5;
+              }
+              if (hist.totalRounds >= 5 && hist.recentBustRate > 0.38) {
+                w *= 0.55; // Prevent over-busting if dealer already busted a lot
+              }
+            } else if (simTotal === 17) {
+              w = 0.145;
+              if (hist.consecutive20_21 >= 2) w *= 1.6;
+            } else if (simTotal === 18) {
+              w = 0.138;
+              if (hist.consecutive20_21 >= 2) w *= 1.5;
+            } else if (simTotal === 19) {
+              w = 0.132;
+              if (hist.consecutive20_21 >= 2) w *= 1.4;
+            } else if (simTotal === 20) {
+              w = 0.175;
+              if (hist.consecutive20_21 >= 1) w *= 0.30;
+              if (hist.consecutive20_21 >= 2 || (hist.totalRounds >= 5 && hist.recent20_21Rate > 0.32)) {
+                w *= 0.12;
+              }
+              if (globalBias < 0) w *= 0.35;
+            } else if (simTotal === 21) {
+              w = 0.125;
+              if (hist.consecutive20_21 >= 1) w *= 0.25;
+              if (hist.consecutive20_21 >= 2 || (hist.totalRounds >= 5 && hist.recent20_21Rate > 0.32)) {
+                w *= 0.08;
+              }
+              if (globalBias < 0) w *= 0.30;
+            } else {
+              // simTotal < 17 (Dealer will draw again)
+              w = 0.25;
+            }
+
+            weights.push(Math.max(0.001, w));
+          }
+
+          return this.pickWeightedFromDeck(weights);
+        }
+
+        // Subcase 3: Dealer first upcard (fair initial deal)
+        return this.deck.pop()!;
+      }
+
+      // Recipient is a Player
+      const isGuest = recipient.startsWith('guest_') || recipient.startsWith('anon_');
+      let playerBias = 0;
+      if (!isGuest) {
+        try {
+          playerBias = await rtpEngine.getBiasFor(recipient);
+        } catch {
+          playerBias = 0;
+        }
+      }
+
+      // Player hitting or doubling
+      if ((context === 'player_hit' || context === 'player_double') && currentHand) {
+        const curVal = this.calculateHandValue(currentHand).total;
+        const weights: number[] = [];
+
+        for (const card of this.deck) {
+          const simHand = [...currentHand, card];
+          const simTotal = this.calculateHandValue(simHand).total;
+          let w = 1.0;
+
+          if (context === 'player_double' && (curVal === 10 || curVal === 11)) {
+            // Player doubled on 10/11 -> standard ~60% chance of 19, 20, 21
+            if (simTotal === 20 || simTotal === 21) {
+              w = 0.40;
+              if (playerBias < 0) w *= 1.6;
+            } else if (simTotal === 19) {
+              w = 0.25;
+              if (playerBias < 0) w *= 1.3;
+            } else {
+              w = 0.35;
+              if (playerBias > 0) w *= 1.3;
+            }
+          } else if (curVal >= 12 && curVal <= 16) {
+            // Stiff hand hit
+            if (simTotal <= 21) {
+              w = 0.50;
+              if (playerBias < 0) w *= 1 + Math.abs(playerBias) * 1.5;
+            } else {
+              // Bust card
+              w = 0.50;
+              if (playerBias < 0) w *= Math.max(0.2, 1 - Math.abs(playerBias) * 0.7);
+              if (playerBias > 0) w *= 1 + playerBias * 0.5;
+            }
+          }
+
+          weights.push(Math.max(0.001, w));
+        }
+
+        return this.pickWeightedFromDeck(weights);
+      }
+
+      // Default deal card
+      return this.deck.pop()!;
+    } catch (err) {
+      logger.warn({ err }, 'Error in smart drawCard, falling back to top of deck');
+      return this.deck.pop()!;
+    }
+  }
+
+  private pickWeightedFromDeck(weights: number[]): Card {
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    let randomVal = Math.random() * totalWeight;
+
+    for (let i = 0; i < this.deck.length; i++) {
+      randomVal -= weights[i];
+      if (randomVal <= 0) {
+        const [chosen] = this.deck.splice(i, 1);
+        return chosen;
+      }
     }
 
     return this.deck.pop()!;
@@ -1107,6 +1376,7 @@ export class BlackjackEngine extends EventEmitter {
         players: sanitizedPlayers,
         currentTurnSeatId: this.state.currentTurnSeatId,
         roundId: this.state.roundId,
+        history: this.history,
       },
       timestamp: Date.now(),
     };

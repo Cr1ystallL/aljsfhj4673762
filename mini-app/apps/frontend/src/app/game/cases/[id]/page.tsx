@@ -255,7 +255,6 @@ export default function CaseOpeningPage() {
         <GameTopBar 
            title={caseTier.name} 
            Icon={Box} 
-           onBack={() => router.push('/game/cases')} 
            extraAction={muteButton}
         />
 

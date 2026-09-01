@@ -31,6 +31,7 @@ interface AudienceFilter {
   inactiveDays?: number;
   telegramIds?: number[];
   channelId?: string;
+  channels?: string[];
 }
 
 export default function NewBroadcastPage() {

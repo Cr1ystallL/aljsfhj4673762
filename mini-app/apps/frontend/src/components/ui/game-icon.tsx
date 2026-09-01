@@ -83,7 +83,7 @@ const CoinflipIcon: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
 CoinflipIcon.displayName = 'CoinflipIcon';
 export { CoinflipIcon };
 
-const ClownIcon = forwardRef<SVGSVGElement, Omit<React.SVGProps<SVGSVGElement>, 'width' | 'height'>>(
+const ClownIcon = forwardRef<SVGSVGElement, Omit<React.SVGProps<SVGSVGElement>, 'width' | 'height'> & { size?: number | string }>(
   ({ size = 24, color = 'currentColor', className, strokeWidth = 1.5, ...rest }, ref) => (
     <svg
       ref={ref}

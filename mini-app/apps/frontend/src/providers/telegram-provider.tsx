@@ -45,7 +45,9 @@ function requestDesktopFullscreen(tg: NonNullable<Window['Telegram']>['WebApp'])
 
   const tryEnter = () => {
     try {
-      if (!tg.isFullscreen) tg.requestFullscreen();
+      if (!tg.isFullscreen && typeof tg.requestFullscreen === 'function') {
+        tg.requestFullscreen();
+      }
     } catch {
       // Older clients throw; fullscreenFailed is also fired — ignore.
     }

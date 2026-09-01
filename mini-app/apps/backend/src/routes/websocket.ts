@@ -191,6 +191,7 @@ export async function websocketRoutes(app: FastifyInstance): Promise<void> {
                   players: bjState.players,
                   currentTurnSeatId: bjState.currentTurnSeatId,
                   roundId: bjState.roundId,
+                  history: engine.getHistory(),
                 },
                 timestamp: Date.now(),
               }));

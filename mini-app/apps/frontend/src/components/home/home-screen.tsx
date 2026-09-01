@@ -230,21 +230,6 @@ export function HomeScreen() {
           setOnline(Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
           const paid = Number(data.payouts24h ?? 0);
           setPayouts24h(Number.isFinite(paid) && paid > 0 ? paid : 0);
-          if (Array.isArray(data.feed)) {
-            setLuckFeed(
-              data.feed
-                .map((row: Partial<LuckFeedItem>) => ({
-                  id: String(row.id ?? ''),
-                  name: String(row.name ?? ''),
-                  photoUrl: row.photoUrl ?? null,
-                  gameType: String(row.gameType ?? ''),
-                  payout: Number(row.payout) || 0,
-                  multiplier: Number(row.multiplier) || 0,
-                  at: Number(row.at) || 0,
-                }))
-                .filter((row: LuckFeedItem) => row.id && row.payout > 0)
-            );
-          }
         }
       } catch {
         // keep last known — do not invent a lobby
@@ -635,7 +620,7 @@ function GameTile({
   isRectangle,
   router,
 }: {
-  game: GameItem;
+  game: InAppGame;
   index: number;
   isRectangle: boolean;
   router: ReturnType<typeof useRouter>;
@@ -830,7 +815,7 @@ function ActiveEventsShowcase({
 
   if (!hasTournaments && !hasContests) {
     if (!showMacvJet) return null;
-    return <MacvJetHero onClick={() => router.push('/game/crash')} />;
+    return <MacvJetHero onOpen={() => router.push('/game/crash')} />;
   }
 
   return (

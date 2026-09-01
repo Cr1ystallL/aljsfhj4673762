@@ -48,7 +48,9 @@ export default function AdminPartnersPage() {
             Список партнеров и их статистика
           </p>
         </div>
-        <HelpButton topic="partners" />
+        <HelpButton title="Партнеры">
+          <p>Список всех партнеров реферальной программы и их статистика по привлеченным пользователям и доходу.</p>
+        </HelpButton>
       </div>
 
       <div className="flex flex-col gap-4">
