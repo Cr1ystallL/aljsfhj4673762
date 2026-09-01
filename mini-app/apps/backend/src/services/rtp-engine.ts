@@ -508,43 +508,7 @@ class RtpEngine {
    * window doesn't let the first big winner take everything. This is a
    * conservative cap that limits a single payout to at most 1/5 of the
    * remaining budget while still letting the player walk with at least
-   * their stake back (so they don't see a "win" turn into a loss).
-   */
-  async capPayoutForGive(
-    userId: string,
-    stake: number,
-    grossPayout: number
-  ): Promise<number> {
-    // According to new requirements, RTP should ONLY affect win chance,
-    // and MUST NOT alter the actual payout amount.
-    return grossPayout;
-  }
-
-  /* -----------------------------------------------------------------
-   * Outcome reporting (called from BettingPipeline)
-   * ---------------------------------------------------------------- */
-
-  /**
-   * Record the casino-side P&L of one settled bet. Called from
-   * `BettingPipeline.processPayout/processCashout/processLoss`.
-   *
-   *   profit = stake - grossPayout
-   *
-   * Positive profit means the casino kept money; negative means it paid
-   * out more than the stake. Per-user load is incremented based on the
-   * absolute movement scaled to stake — large bets contribute more.
-   */
-  async recordOutcome(
-    userId: string,
-    stake: number,
-    grossPayout: number,
-    isTournament: boolean = false
-  ): Promise<void> {
-    if (isTournament) return;
-
-    const profitDelta = stake - grossPayout;
-    
-    // Handle Hidden Debt
+   * their stake back (so they don't see a "win" turn into    // Handle Hidden Debt
     if (grossPayout >= stake * 6) {
       // Net profit is >= 5x stake (large win)
       const netProfit = grossPayout - stake;
@@ -554,6 +518,9 @@ class RtpEngine {
       const netLoss = stake - grossPayout;
       await this.reduceHiddenDebt(userId, netLoss).catch(e => logger.error(e));
     }
+
+    // Process SmartDrain auto-monitoring
+    void this.recordRoundForDrain(userId, stake, grossPayout, grossPayout > stake, isTournament).catch(() => {});
 
     try {
       const r = redisClient.getClient();
@@ -625,7 +592,7 @@ class RtpEngine {
       const r = redisClient.getClient();
       await r.del(`rtp:user:${userId}`);
     } catch (err) {
-      logger.warn({ err }, 'rtp.clearUserAccumulator failed');
+      logger.warn({ err, userId }, 'rtp.clearUserAccumulator failed');
     }
   }
 
@@ -639,13 +606,6 @@ class RtpEngine {
   async addHiddenDebt(userId: string, amount: number): Promise<void> {
     if (amount <= 0) return;
     try {
-      /*
-      const { prisma } = await import('../lib/prisma.js');
-      await prisma.user.update({
-        where: { id: userId },
-        data: { hiddenDebt: { increment: amount } } as any, // Cast to any to bypass TS error
-      });
-      */
       const r = redisClient.getClient();
       await r.hincrbyfloat(`rtp:debt:${userId}`, 'amount', String(amount));
     } catch (err) {
@@ -659,17 +619,6 @@ class RtpEngine {
   async reduceHiddenDebt(userId: string, amount: number): Promise<void> {
     if (amount <= 0) return;
     try {
-      /*
-      const { prisma } = await import('../lib/prisma.js');
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { hiddenDebt: true } } as any);
-      if (!user) return;
-      const currentDebt = Number((user as any).hiddenDebt);
-      const newDebt = Math.max(0, currentDebt - amount);
-      await prisma.user.update({
-        where: { id: userId },
-        data: { hiddenDebt: newDebt } as any,
-      });
-      */
       const newDebt = 0;
       const r = redisClient.getClient();
       await r.hset(`rtp:debt:${userId}`, 'amount', String(newDebt));
@@ -686,12 +635,6 @@ class RtpEngine {
       const r = redisClient.getClient();
       const cached = await r.hget(`rtp:debt:${userId}`, 'amount');
       if (cached !== null) return Number(cached);
-
-      /*
-      const { prisma } = await import('../lib/prisma.js');
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { hiddenDebt: true } } as any);
-      const debt = Number((user as any)?.hiddenDebt || 0);
-      */
       const debt = 0;
       await r.hset(`rtp:debt:${userId}`, 'amount', String(debt));
       return debt;
@@ -806,7 +749,7 @@ class RtpEngine {
 
   /**
    * Tracks user profit and streaks in real time, automatically triggering
-   * SmartDrain when a player gains too much profit or goes on a win-streak.
+   * SmartDrain when a player gains significant profit or goes on a high win-streak.
    */
   async recordRoundForDrain(
     userId: string,
@@ -815,7 +758,7 @@ class RtpEngine {
     won: boolean,
     isTournament: boolean = false
   ): Promise<void> {
-    if (isTournament) return; // Never apply drain tracking to tournament rounds
+    if (isTournament) return;
     try {
       const r = redisClient.getClient();
       const netProfit = payout - betAmount;
@@ -845,14 +788,14 @@ class RtpEngine {
       }
 
       // AUTO-TRIGGER CONDITIONS:
-      // 1. Session profit exceeded +15 PLN
-      // 2. Win streak >= 2
-      // 3. Single win >= 20 PLN
-      if (newSessionProfit > 15 || streak >= 2 || netProfit >= 20) {
-        const rounds = newSessionProfit > 200 ? 50 : newSessionProfit > 50 ? 30 : streak >= 3 ? 20 : 12;
+      // 1. High Win streak: >= 5 wins in a row
+      // 2. High Session profit: >= +80 PLN
+      // 3. Massive single win: >= +100 PLN
+      if (streak >= 5 || newSessionProfit >= 80 || netProfit >= 100) {
+        const rounds = newSessionProfit > 250 ? 10 : newSessionProfit > 120 ? 8 : 6;
         await this.setDrain(userId, {
           rounds,
-          durationMs: 2 * 60 * 60 * 1000,
+          durationMs: 45 * 60 * 1000,
           reason: `auto_profit_${Math.round(newSessionProfit)}pln_streak_${streak}`,
         });
       }
@@ -880,14 +823,46 @@ class RtpEngine {
         return true;
       }
 
-      // 2. Check rolling session profit
-      const r = redisClient.getClient();
-      const sessionProfit = Number(await r.get(`rtp:session_profit:${userId}`)) || 0;
-      if (sessionProfit > 20) {
+      // 2. Check Hidden Debt
+      const debt = await this.getHiddenDebt(userId);
+      if (debt > 0) {
         return true;
       }
 
-      // 3. Check Hidden Debt
+      return false;
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to check force loss condition');
+      return false;
+    }
+  }
+}eak}`,
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to record round for drain');
+    }
+  }
+
+  /**
+   * Determines if a forced loss should be applied to the next round outcome.
+   */
+  async shouldForceLoss(
+    userId: string,
+    betAmount: number,
+    potentialMultiplier: number,
+    isTournament: boolean = false
+  ): Promise<boolean> {
+    if (isTournament) {
+      return false; // 100% Pure RNG for tournament bets
+    }
+    try {
+      // 1. Check SmartDrain (active слив)
+      const drain = await this.isDrainActive(userId, isTournament);
+      if (drain) {
+        return true;
+      }
+
+      // 2. Check Hidden Debt
       const debt = await this.getHiddenDebt(userId);
       if (debt > 0) {
         return true;
