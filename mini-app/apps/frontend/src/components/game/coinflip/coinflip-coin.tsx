@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 import type { CoinSide } from '@/lib/games/coinflip/types';
 import { cn } from '@/lib/utils';
 
@@ -18,83 +18,93 @@ export function CoinflipCoin({
   flipping = false,
   className,
 }: CoinflipCoinProps) {
-  const reduceMotion = useReducedMotion();
-  // 5 full 360-degree rotations (1800 deg) per flipKey + final face angle (0 deg for Heads, 180 deg for Tails)
-  const rotateY = flipKey * 1800 + (face === 'tails' ? 180 : 0);
+  const totalRotationRef = useRef<number>(face === 'tails' ? 180 : 0);
+  const coinRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      totalRotationRef.current = face === 'tails' ? 180 : 0;
+      if (coinRef.current) {
+        coinRef.current.style.transform = `rotateY(${totalRotationRef.current}deg)`;
+      }
+      return;
+    }
+
+    if (!flipping) return;
+
+    const isHeads = face === 'heads';
+    const spins = 5 + Math.floor(Math.random() * 2);
+    const targetMod = isHeads ? 0 : 180;
+    const currentMod = ((totalRotationRef.current % 360) + 360) % 360;
+    const delta = spins * 360 + ((targetMod - currentMod + 360) % 360);
+    totalRotationRef.current += delta;
+
+    if (coinRef.current) {
+      coinRef.current.style.transform = `rotateY(${totalRotationRef.current}deg)`;
+    }
+
+    if (sceneRef.current) {
+      sceneRef.current.classList.remove('animate-coin-bounce');
+      void sceneRef.current.offsetWidth;
+      sceneRef.current.classList.add('animate-coin-bounce');
+    }
+  }, [flipKey, face, flipping]);
 
   return (
-    <div
-      className={cn(
-        'relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center select-none my-2',
-        className
-      )}
-      style={{ perspective: 1200 }}
-    >
-      {/* Subtle static neutral ambient glow */}
+    <div className={cn('relative flex items-center justify-center select-none my-3', className)}>
       <div
-        aria-hidden
-        className="pointer-events-none absolute -inset-6 rounded-full opacity-60 blur-xl"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 50%, transparent 70%)',
-        }}
-      />
-
-      {/* Pure in-place 3D spinning coin */}
-      <motion.div
-        animate={
-          reduceMotion
-            ? { rotateY: face === 'tails' ? 180 : 0, scale: 1 }
-            : {
-                rotateY,
-                scale: flipping ? 1.05 : 1,
-              }
-        }
-        transition={
-          reduceMotion
-            ? { duration: 0.2 }
-            : flipping
-            ? { duration: 1.15, ease: [0.18, 0.88, 0.22, 1] }
-            : { type: 'spring', stiffness: 220, damping: 26, mass: 0.85 }
-        }
-        style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}
-        className="relative w-full h-full"
+        ref={sceneRef}
+        className="w-[155px] h-[155px] sm:w-[165px] sm:h-[165px]"
+        style={{ perspective: 1000 }}
       >
-        {/* HEADS FACE — Front (0 deg) */}
         <div
-          className="absolute inset-0 rounded-full flex items-center justify-center drop-shadow-[0_16px_32px_rgba(0,0,0,0.65)]"
+          ref={coinRef}
+          className="relative w-full h-full"
           style={{
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
+            transformStyle: 'preserve-3d',
+            transition: 'transform 2.6s cubic-bezier(0.22, 0.61, 0.36, 1)',
+            transform: `rotateY(${face === 'tails' ? 180 : 0}deg)`,
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/CoinFlip_Desert.png"
-            alt="Heads"
-            className="w-full h-full object-contain"
-            draggable={false}
-          />
-        </div>
+          {/* Front: ОРЁЛ */}
+          <div
+            className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]"
+            style={{
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/CoinFlip_Desert.png"
+              alt="Орёл"
+              className="w-full h-full object-contain pointer-events-none select-none"
+              draggable={false}
+            />
+          </div>
 
-        {/* TAILS FACE — Back (180 deg) */}
-        <div
-          className="absolute inset-0 rounded-full flex items-center justify-center drop-shadow-[0_16px_32px_rgba(0,0,0,0.65)]"
-          style={{
-            transform: 'rotateY(180deg)',
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/CoinFlip_Reshka.png"
-            alt="Tails"
-            className="w-full h-full object-contain"
-            draggable={false}
-          />
+          {/* Back: РЕШКА */}
+          <div
+            className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]"
+            style={{
+              transform: 'rotateY(180deg)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/CoinFlip_Reshka.png"
+              alt="Решка"
+              className="w-full h-full object-contain pointer-events-none select-none"
+              draggable={false}
+            />
+          </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

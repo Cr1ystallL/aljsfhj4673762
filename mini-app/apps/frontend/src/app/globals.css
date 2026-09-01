@@ -366,3 +366,16 @@ option:hover {
   }
 }
 
+/* Coinflip physics bounce */
+@keyframes coin-bounce {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-24px); }
+  60% { transform: translateY(0); }
+  80% { transform: translateY(-7px); }
+  100% { transform: translateY(0); }
+}
+
+.animate-coin-bounce {
+  animation: coin-bounce 2.6s ease-in-out;
+}
+
