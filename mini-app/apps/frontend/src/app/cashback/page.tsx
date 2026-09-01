@@ -253,20 +253,6 @@ export default function CashbackPage() {
             })}
           </div>
         </div>
-
-        {/* Informational rules card */}
-        <div className="rounded-[20px] border border-white/10 bg-[#0d0f13] p-5 flex flex-col gap-3 text-xs text-white/60 leading-relaxed">
-          <div className="font-bold text-white text-sm flex items-center gap-2">
-            <span>ℹ️ Как работает еженедельный кэшбэк:</span>
-          </div>
-          <p>
-            • Расчет производится от суммы чистого проигрыша за последние 7 дней: <br />
-            <b className="text-white font-mono text-[11px]">Кэшбэк = (Ставки − Выигрыши) × % вашего ранга</b>.
-          </p>
-          <p>
-            • Накопленные средства становятся доступны к выплате каждый понедельник (старт программы с <b>7 сентября 2026</b>).
-          </p>
-        </div>
       </div>
 
       <VipFaqModal

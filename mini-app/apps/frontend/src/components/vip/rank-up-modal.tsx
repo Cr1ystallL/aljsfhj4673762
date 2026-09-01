@@ -15,6 +15,57 @@ interface RankUpModalProps {
   unclaimedLevels?: number[];
 }
 
+const RANK_THEMES: Record<string, {
+  color: string;
+  glow: string;
+  border: string;
+  pillBg: string;
+  particle: string;
+}> = {
+  bronze: {
+    color: 'rgba(205, 127, 50, 0.6)',
+    glow: 'rgba(205, 127, 50, 0.35)',
+    border: 'border-[#cd7f32]/60',
+    pillBg: 'from-[#cd7f32]/30 to-[#b87333]/20 border-[#cd7f32]/50 text-[#f5cba7]',
+    particle: 'from-[#cd7f32] to-[#f5cba7]',
+  },
+  silver: {
+    color: 'rgba(192, 192, 192, 0.7)',
+    glow: 'rgba(220, 220, 240, 0.4)',
+    border: 'border-slate-300/60',
+    pillBg: 'from-slate-400/30 to-slate-200/20 border-slate-300/50 text-slate-100',
+    particle: 'from-slate-200 to-white',
+  },
+  gold: {
+    color: 'rgba(245, 158, 11, 0.7)',
+    glow: 'rgba(245, 158, 11, 0.4)',
+    border: 'border-amber-400/60',
+    pillBg: 'from-amber-500/30 to-yellow-400/20 border-amber-400/50 text-amber-200',
+    particle: 'from-amber-300 to-yellow-500',
+  },
+  platinum: {
+    color: 'rgba(6, 182, 212, 0.7)',
+    glow: 'rgba(6, 182, 212, 0.45)',
+    border: 'border-cyan-400/60',
+    pillBg: 'from-cyan-500/30 to-teal-400/20 border-cyan-400/50 text-cyan-200',
+    particle: 'from-cyan-300 to-teal-400',
+  },
+  diamond: {
+    color: 'rgba(168, 85, 247, 0.7)',
+    glow: 'rgba(168, 85, 247, 0.5)',
+    border: 'border-purple-400/60',
+    pillBg: 'from-purple-500/30 to-pink-500/20 border-purple-400/50 text-purple-200',
+    particle: 'from-purple-300 to-pink-400',
+  },
+  no_rank: {
+    color: 'rgba(148, 163, 184, 0.5)',
+    glow: 'rgba(148, 163, 184, 0.3)',
+    border: 'border-slate-500/50',
+    pillBg: 'from-slate-600/30 to-slate-400/20 border-slate-400/50 text-slate-200',
+    particle: 'from-slate-300 to-white',
+  },
+};
+
 export function RankUpModal({
   currentTier,
   onClaim,
@@ -63,15 +114,19 @@ export function RankUpModal({
   if (!isOpen || !levelUpTier) return null;
 
   const isRewardAvailable = unclaimedLevels.includes(levelUpTier.level);
+  const theme = RANK_THEMES[levelUpTier.id] || RANK_THEMES.gold;
 
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-hidden select-none">
-        {/* Ambient rotating rays */}
+        {/* Ambient rotating rays in rank theme color */}
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-          className="pointer-events-none absolute w-[600px] h-[600px] rounded-full opacity-30 bg-[conic-gradient(from_0deg_at_50%_50%,rgba(245,158,11,0.5)_0deg,transparent_60deg,rgba(245,158,11,0.5)_120deg,transparent_180deg,rgba(245,158,11,0.5)_240deg,transparent_300deg,rgba(245,158,11,0.5)_360deg)] blur-2xl -z-10"
+          style={{
+            background: `conic-gradient(from 0deg at 50% 50%, ${theme.color} 0deg, transparent 60deg, ${theme.color} 120deg, transparent 180deg, ${theme.color} 240deg, transparent 300deg, ${theme.color} 360deg)`,
+          }}
+          className="pointer-events-none absolute w-[650px] h-[650px] rounded-full opacity-35 blur-2xl -z-10"
         />
 
         {/* Modal Container */}
@@ -80,31 +135,34 @@ export function RankUpModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.8, y: 30 }}
           transition={{ type: 'spring', duration: 0.6, bounce: 0.25 }}
-          className="relative w-full max-w-sm rounded-[32px] border border-amber-400/40 bg-gradient-to-b from-[#181a22] via-[#0f1117] to-[#08090c] p-6 text-center shadow-[0_0_80px_rgba(245,158,11,0.25)] flex flex-col items-center"
+          style={{
+            boxShadow: `0 0 80px ${theme.glow}`,
+          }}
+          className={`relative w-full max-w-sm rounded-[32px] border ${theme.border} bg-gradient-to-b from-[#181a22] via-[#0f1117] to-[#08090c] p-6 text-center flex flex-col items-center`}
         >
-          {/* Confetti particles */}
+          {/* Confetti particles in rank theme */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[32px]">
-            {[...Array(12)].map((_, i) => (
+            {[...Array(14)].map((_, i) => (
               <motion.div
                 key={i}
                 initial={{
                   opacity: 1,
                   y: 100,
-                  x: (i - 6) * 25,
+                  x: (i - 7) * 22,
                   scale: Math.random() * 0.5 + 0.5,
                 }}
                 animate={{
                   opacity: [1, 0.8, 0],
                   y: -220 - Math.random() * 80,
-                  x: (i - 6) * 35 + (Math.random() - 0.5) * 40,
+                  x: (i - 7) * 32 + (Math.random() - 0.5) * 40,
                   rotate: Math.random() * 720,
                 }}
                 transition={{
                   duration: 2.2 + Math.random() * 0.8,
                   ease: 'easeOut',
-                  delay: i * 0.08,
+                  delay: i * 0.07,
                 }}
-                className="absolute bottom-10 left-1/2 w-2.5 h-2.5 rounded-sm bg-gradient-to-r from-amber-300 to-yellow-500 shadow-md"
+                className={`absolute bottom-10 left-1/2 w-2.5 h-2.5 rounded-sm bg-gradient-to-r ${theme.particle} shadow-md`}
               />
             ))}
           </div>
@@ -114,9 +172,9 @@ export function RankUpModal({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/40 text-amber-300 font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow-inner"
+            className={`px-3.5 py-1 rounded-full bg-gradient-to-r ${theme.pillBg} font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow-inner`}
           >
-            <Sparkles size={13} className="text-amber-400 animate-pulse" />
+            <Sparkles size={13} className="animate-pulse" />
             <span>Новый VIP Ранг!</span>
           </motion.div>
 
@@ -127,7 +185,10 @@ export function RankUpModal({
             transition={{ type: 'spring', duration: 0.8, bounce: 0.4, delay: 0.2 }}
             className="relative my-5"
           >
-            <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-2xl scale-125 pointer-events-none" />
+            <div
+              style={{ background: theme.color }}
+              className="absolute inset-0 rounded-full blur-2xl scale-125 pointer-events-none opacity-40"
+            />
             <VipBadge rankId={levelUpTier.id} size="xl" showGlow={true} />
           </motion.div>
 

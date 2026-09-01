@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useT } from '@/i18n/use-t';
 import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/user-avatar';
 
 interface CaseHistoryEntry {
   id: string;
@@ -95,16 +96,11 @@ export function CasesHistory() {
 
             {/* 1. Who opened it */}
             <div className="w-full flex items-center gap-1.5 px-0.5 min-w-0 z-10">
-              <div className="w-5 h-5 rounded-full overflow-hidden bg-white/10 flex-shrink-0 border border-white/15 shadow-sm">
-                {entry.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={entry.photoUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white/70">
-                    {entry.name.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-              </div>
+              <UserAvatar
+                photoUrl={entry.photoUrl}
+                name={entry.name}
+                size="xs"
+              />
               <span className="text-[10.5px] font-medium text-frost-white/90 truncate leading-none">
                 {entry.name}
               </span>

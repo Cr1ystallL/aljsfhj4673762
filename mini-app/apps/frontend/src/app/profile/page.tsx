@@ -214,7 +214,7 @@ export default function ProfilePage() {
                       onClick={() => setIsVipModalOpen(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[11px] font-bold"
                     >
-                      <Sparkles size={12} className="text-amber-400" />
+                      <Sparkles size={12} className="text-white" />
                       <span>Ранги</span>
                     </button>
                   </div>

@@ -28,6 +28,7 @@ import { Suit } from '@/components/game/hilo/playing-card';
 import { BlackjackTableChat, ChatMessage } from './blackjack-table-chat';
 import { BlackjackHistoryModal } from './blackjack-history-modal';
 import { BlackjackRulesModal } from './blackjack-rules-modal';
+import { VipBadge } from '@/components/vip/vip-badge';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { cn } from '@/lib/utils';
@@ -1888,6 +1889,11 @@ export function BlackjackMultiplayer() {
                           ) : (
                             <span className="drop-shadow-md text-amber-300">{player.name.slice(0, 1).toUpperCase()}</span>
                           )}
+                        </div>
+
+                        {/* Mini VIP Badge attached at bottom-right of avatar */}
+                        <div className="absolute -bottom-1 -right-1 z-30 scale-90 pointer-events-none drop-shadow-md">
+                          <VipBadge rankId={(player as any).rankId || 'no_rank'} size="sm" />
                         </div>
 
                         {/* READY BADGE ON AVATAR (Visible during betting / countdown) */}

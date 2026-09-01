@@ -307,13 +307,37 @@ export class VipService {
       const tier = getVipTierByXp(xp);
       const lastClaimedAt = userRows[0]?.last_cashback_claimed_at ? new Date(userRows[0].last_cashback_claimed_at) : null;
 
-      // Check stats for the last 7 days
+      const startDate = new Date('2026-09-07T00:00:00.000Z');
+      const isBeforeLaunch = Date.now() < startDate.getTime();
+
+      if (isBeforeLaunch) {
+        return {
+          available: false,
+          amount: 0,
+          cashbackPercent: tier.cashbackPercent,
+          netLoss: 0,
+          totalWagered: 0,
+          totalWon: 0,
+          nextClaimAvailableAt: startDate.toISOString(),
+          lastClaimedAt: lastClaimedAt ? lastClaimedAt.toISOString() : null,
+          rankName: tier.nameRu,
+        };
+      }
+
+      // Calculation window strictly starts from September 7, 2026 or last claim date
+      const sinceDate = new Date(Math.max(
+        startDate.getTime(),
+        lastClaimedAt ? lastClaimedAt.getTime() : startDate.getTime(),
+        Date.now() - 7 * 24 * 3600 * 1000
+      ));
+
+      // Check stats for the window
       const statsRows = await prisma.$queryRaw<
         Array<{ total_wagered: string | null; total_won: string | null }>
       >`
         SELECT 
-          (SELECT COALESCE(SUM(amount), 0) FROM bets WHERE user_id = ${userId} AND state != 'cancelled' AND placed_at >= NOW() - INTERVAL '7 days') as total_wagered,
-          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = ${userId} AND type IN ('win', 'payout') AND created_at >= NOW() - INTERVAL '7 days') as total_won
+          (SELECT COALESCE(SUM(amount), 0) FROM bets WHERE user_id = ${userId} AND state != 'cancelled' AND placed_at >= ${sinceDate}) as total_wagered,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = ${userId} AND type IN ('win', 'payout') AND created_at >= ${sinceDate}) as total_won
       `;
 
       const totalWagered = Number(statsRows[0]?.total_wagered || 0);
@@ -326,14 +350,7 @@ export class VipService {
       let available = false;
       let nextClaimAvailableAt: string | null = null;
 
-      // Start date check — launch on next week Monday 7 September 2026
-      const startDate = new Date('2026-09-07T00:00:00.000Z');
-      const isBeforeLaunch = Date.now() < startDate.getTime();
-
-      if (isBeforeLaunch) {
-        available = false;
-        nextClaimAvailableAt = startDate.toISOString();
-      } else if (!lastClaimedAt) {
+      if (!lastClaimedAt) {
         available = amount >= 0.50;
       } else {
         const nextTime = lastClaimedAt.getTime() + cooldownMs;

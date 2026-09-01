@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X, MessageSquare, Sparkles } from 'lucide-react';
 import { BJPlayer } from './blackjack-multiplayer';
+import { UserAvatar } from '@/components/ui/user-avatar';
 
 export interface ChatMessage {
   id: string;
@@ -130,16 +131,13 @@ export function BlackjackTableChat({
                       key={msg.id}
                       className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
                     >
-                      {/* User Avatar */}
-                      <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full border border-amber-400/35 bg-black/60 shadow-md overflow-hidden">
-                        {avatarSrc ? (
-                          <img src={avatarSrc} alt={msg.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-[11px] font-bold text-amber-300">
-                            {msg.name.slice(0, 1).toUpperCase()}
-                          </span>
-                        )}
-                      </div>
+                      {/* User Avatar with VIP Badge */}
+                      <UserAvatar
+                        photoUrl={avatarSrc}
+                        name={msg.name}
+                        size="sm"
+                        className="shrink-0"
+                      />
 
                       {/* Message Bubble */}
                       <div

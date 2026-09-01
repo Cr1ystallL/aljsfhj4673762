@@ -21,6 +21,7 @@ import {
   GamePrimaryButton,
   StakeField,
 } from '@/components/game/kit';
+import { UserAvatar } from '@/components/ui/user-avatar';
 
 /* ========================================================================== */
 /*  Monopo Saigon — Wheel of Fortune                                          */
@@ -650,30 +651,12 @@ function BetsFeed({
               )}
               style={!b.isTournament ? { borderBottom: '1px solid #0a0a0a' } : {}}
             >
-              {/* Avatar */}
-              {b.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={b.photoUrl}
-                  alt={b.name}
-                  className="w-7 h-7 object-cover"
-                  style={{ borderRadius: 75, border: '1px solid #1a1a1a' }}
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <span
-                  className="w-7 h-7 flex items-center justify-center font-sans"
-                  style={{
-                    borderRadius: 75,
-                    background: '#181818',
-                    color: '#6d6d6d',
-                    fontSize: 11,
-                    border: '1px solid #1a1a1a',
-                  }}
-                >
-                  {b.name.charAt(0).toUpperCase()}
-                </span>
-              )}
+              {/* Avatar with VIP badge */}
+              <UserAvatar
+                photoUrl={b.photoUrl}
+                name={b.name}
+                size="xs"
+              />
 
               {/* Name + meta */}
               <div className="flex-1 min-w-0">

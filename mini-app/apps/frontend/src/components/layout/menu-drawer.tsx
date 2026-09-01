@@ -3,12 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowRight,
   BookOpen,
   ChevronRight,
   Crown,
   Flame,
-  Gamepad2,
   Gem,
   Gift,
   Headphones,
@@ -16,7 +14,6 @@ import {
   Percent,
   Sparkles,
   Trophy,
-  User,
   Wallet,
   X,
   Zap,
@@ -46,17 +43,17 @@ interface InAppGame {
   badge?: { label: string; color: string; Icon: LucideIcon };
 }
 
-const ALL_IN_APP_GAMES: InAppGame[] = [
-  { id: 'crash', name: 'MacvJet', bg: '/tiles/macvjet.webp', badge: { label: 'TOP', color: 'red', Icon: Flame } },
-  { id: 'hilo', name: 'Hi-Lo', bg: '/tiles/hilo.webp', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
-  { id: 'mines', name: 'Mines', bg: '/tiles/mines.webp', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
-  { id: 'coinflip', name: 'Coinflip', bg: '/tiles/coinflip.webp', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
-  { id: 'blackjack', name: 'Blackjack', bg: '/tiles/bj.webp', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
-  { id: 'macvpot', name: 'MacvPot', bg: '/tiles/macvpot.webp', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
-  { id: 'wheel', name: 'Wheel', bg: '/tiles/wheel.webp', badge: { label: 'x50', color: 'gold', Icon: Zap } },
-  { id: 'cases', name: 'Case', bg: '/tiles/case.webp', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
-  { id: 'keno', name: 'Keno', bg: '/tiles/keno.webp', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
-];
+const GAME_BY_ID: Record<GameKey, InAppGame> = {
+  crash: { id: 'crash', name: 'MacvJet', bg: '/tiles/macvjet.webp', badge: { label: 'TOP', color: 'red', Icon: Flame } },
+  mines: { id: 'mines', name: 'Mines', bg: '/tiles/mines.webp', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
+  blackjack: { id: 'blackjack', name: 'BlackJack', bg: '/tiles/bj.webp', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
+  coinflip: { id: 'coinflip', name: 'CoinFlip', bg: '/tiles/coinflip.webp', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
+  wheel: { id: 'wheel', name: 'Wheel', bg: '/tiles/wheel.webp', badge: { label: 'x50', color: 'gold', Icon: Zap } },
+  hilo: { id: 'hilo', name: 'Hi-Lo', bg: '/tiles/hilo.webp', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
+  macvpot: { id: 'macvpot', name: 'MacvPot', bg: '/tiles/macvpot.webp', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
+  keno: { id: 'keno', name: 'Keno', bg: '/tiles/keno.webp', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
+  cases: { id: 'cases', name: 'Case', bg: '/tiles/case.webp', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
+};
 
 export function MenuDrawer({
   isOpen,
@@ -104,15 +101,12 @@ export function MenuDrawer({
     };
   }, [isOpen]);
 
-  // Filter out hidden games for non-admin users
-  const visibleGames = useMemo(() => {
+  const isGameVisible = (id: GameKey) => {
     const hidden = availability?.hidden ?? {};
     const isAdmin = availability?.isAdmin ?? false;
-    return ALL_IN_APP_GAMES.filter((g) => {
-      if (hidden[g.id] && !isAdmin) return false;
-      return true;
-    });
-  }, [availability]);
+    if (hidden[id] && !isAdmin) return false;
+    return true;
+  };
 
   // Close on Escape key
   useEffect(() => {
@@ -130,6 +124,11 @@ export function MenuDrawer({
   }, [isOpen, onClose]);
 
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
+
+  const handleOpenGame = (gameId: string) => {
+    onClose();
+    router.push(`/game/${gameId}`);
+  };
 
   return (
     <AnimatePresence>
@@ -209,76 +208,66 @@ export function MenuDrawer({
 
             {/* Main Content Area */}
             <div className="p-4 flex flex-col gap-5 flex-1">
-              {/* Games Grid in Mobile Style (3 Columns) */}
+              {/* Games Layout in exact requested structure:
+                  2 squares (MacvJet, Mines)
+                  1 rect (BlackJack)
+                  2 squares (CoinFlip, Wheel)
+                  1 rect (HiLo)
+                  2 squares (MacvPot, Keno)
+                  1 rect (Case)
+              */}
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-baseline justify-between">
                   <span className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
                     {t('nav.gamesMiniApp')}
                   </span>
-                  <span className="font-roobert text-[10px] text-whisper-gray">
-                    {visibleGames.length}
-                  </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  {visibleGames.map((g) => {
-                    const BadgeIcon = g.badge?.Icon;
+                <div className="flex flex-col gap-2">
+                  {/* Block 1: 2 Squares (MacvJet, Mines) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {isGameVisible('crash') && (
+                      <DrawerGameSquare game={GAME_BY_ID.crash} onClick={() => handleOpenGame('crash')} />
+                    )}
+                    {isGameVisible('mines') && (
+                      <DrawerGameSquare game={GAME_BY_ID.mines} onClick={() => handleOpenGame('mines')} />
+                    )}
+                  </div>
 
-                    return (
-                      <button
-                        key={g.id}
-                        onClick={() => {
-                          onClose();
-                          router.push(`/game/${g.id}`);
-                        }}
-                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#12141a] text-center active:scale-[0.95] hover:border-amber-400/40 transition-all duration-200 shadow-md aspect-square flex flex-col items-center justify-between p-2"
-                      >
-                        {/* Background photo artwork */}
-                        {g.bg && (
-                          <div
-                            aria-hidden
-                            className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity duration-300"
-                            style={{
-                              backgroundImage: `url(${g.bg})`,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              backgroundRepeat: 'no-repeat',
-                            }}
-                          />
-                        )}
+                  {/* Block 2: 1 Rectangle (BlackJack) */}
+                  {isGameVisible('blackjack') && (
+                    <DrawerGameRectangle game={GAME_BY_ID.blackjack} onClick={() => handleOpenGame('blackjack')} />
+                  )}
 
-                        {/* Vignette */}
-                        <div
-                          aria-hidden
-                          className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20"
-                        />
+                  {/* Block 3: 2 Squares (CoinFlip, Wheel) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {isGameVisible('coinflip') && (
+                      <DrawerGameSquare game={GAME_BY_ID.coinflip} onClick={() => handleOpenGame('coinflip')} />
+                    )}
+                    {isGameVisible('wheel') && (
+                      <DrawerGameSquare game={GAME_BY_ID.wheel} onClick={() => handleOpenGame('wheel')} />
+                    )}
+                  </div>
 
-                        {/* Card Top: Badge if present */}
-                        <div className="relative z-10 w-full flex justify-end">
-                          {g.badge ? (
-                            <span className="px-1 py-0.2 rounded-full text-[7.5px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-0.5">
-                              {BadgeIcon && <BadgeIcon size={7} className="shrink-0" />}
-                              <span>{g.badge.label}</span>
-                            </span>
-                          ) : (
-                            <span className="h-3" />
-                          )}
-                        </div>
+                  {/* Block 4: 1 Rectangle (HiLo) */}
+                  {isGameVisible('hilo') && (
+                    <DrawerGameRectangle game={GAME_BY_ID.hilo} onClick={() => handleOpenGame('hilo')} />
+                  )}
 
-                        {/* Card Center: Icon */}
-                        <div className="relative z-10 w-8 h-8 rounded-xl border border-white/15 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shadow-md group-hover:scale-110 transition-transform">
-                          <GameIcon game={g.id} size={18} strokeWidth={2} />
-                        </div>
+                  {/* Block 5: 2 Squares (MacvPot, Keno) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {isGameVisible('macvpot') && (
+                      <DrawerGameSquare game={GAME_BY_ID.macvpot} onClick={() => handleOpenGame('macvpot')} />
+                    )}
+                    {isGameVisible('keno') && (
+                      <DrawerGameSquare game={GAME_BY_ID.keno} onClick={() => handleOpenGame('keno')} />
+                    )}
+                  </div>
 
-                        {/* Card Bottom: Name */}
-                        <div className="relative z-10 w-full truncate">
-                          <div className="font-roobert text-[11px] font-bold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors truncate">
-                            {g.name}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {/* Block 6: 1 Rectangle (Case) */}
+                  {isGameVisible('cases') && (
+                    <DrawerGameRectangle game={GAME_BY_ID.cases} onClick={() => handleOpenGame('cases')} />
+                  )}
                 </div>
               </div>
 
@@ -358,6 +347,113 @@ export function MenuDrawer({
         </div>
       )}
     </AnimatePresence>
+  );
+}
+
+function DrawerGameSquare({
+  game,
+  onClick,
+}: {
+  game: InAppGame;
+  onClick: () => void;
+}) {
+  const BadgeIcon = game.badge?.Icon;
+  return (
+    <button
+      key={game.id}
+      onClick={onClick}
+      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#12141a] text-center active:scale-[0.96] hover:border-amber-400/40 transition-all duration-200 shadow-md aspect-square flex flex-col items-center justify-between p-2.5"
+    >
+      {game.bg && (
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity duration-300"
+          style={{
+            backgroundImage: `url(${game.bg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20"
+      />
+      <div className="relative z-10 w-full flex justify-end">
+        {game.badge ? (
+          <span className="px-1.5 py-0.5 rounded-full text-[7.5px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-0.5">
+            {BadgeIcon && <BadgeIcon size={7} className="shrink-0" />}
+            <span>{game.badge.label}</span>
+          </span>
+        ) : (
+          <span className="h-3" />
+        )}
+      </div>
+      <div className="relative z-10 w-9 h-9 rounded-xl border border-white/15 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shadow-md group-hover:scale-110 transition-transform">
+        <GameIcon game={game.id} size={20} strokeWidth={2} />
+      </div>
+      <div className="relative z-10 w-full truncate">
+        <div className="font-roobert text-[11.5px] font-bold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors truncate">
+          {game.name}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function DrawerGameRectangle({
+  game,
+  onClick,
+}: {
+  game: InAppGame;
+  onClick: () => void;
+}) {
+  const BadgeIcon = game.badge?.Icon;
+  return (
+    <button
+      key={game.id}
+      onClick={onClick}
+      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#12141a] text-left active:scale-[0.97] hover:border-amber-400/40 transition-all duration-200 shadow-md h-[66px] w-full flex items-center justify-between px-3.5"
+    >
+      {game.bg && (
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity duration-300"
+          style={{
+            backgroundImage: `url(${game.bg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/65 to-black/35"
+      />
+      <div className="relative z-10 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl border border-white/15 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shadow-md group-hover:scale-110 transition-transform shrink-0">
+          <GameIcon game={game.id} size={20} strokeWidth={2} />
+        </div>
+        <div>
+          <div className="font-roobert text-[13.5px] font-extrabold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors">
+            {game.name}
+          </div>
+          <span className="text-[9.5px] uppercase font-bold tracking-wider text-whisper-gray/70">
+            Играть
+          </span>
+        </div>
+      </div>
+      {game.badge && (
+        <div className="relative z-10">
+          <span className="px-2 py-0.5 rounded-full text-[8px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-1">
+            {BadgeIcon && <BadgeIcon size={8} className="shrink-0" />}
+            <span>{game.badge.label}</span>
+          </span>
+        </div>
+      )}
+    </button>
   );
 }
 

@@ -19,6 +19,7 @@ import {
   GamePrimaryButton,
   StakeField,
 } from '@/components/game/kit';
+import { UserAvatar } from '@/components/ui/user-avatar';
 
 export type MacvpotPhase = 'betting' | 'delay' | 'spinning' | 'completed';
 
@@ -441,20 +442,11 @@ export default function MacvpotPage() {
                     />
 
                     <div className="col-span-5 sm:col-span-6 flex items-center gap-3 z-10">
-                      <div className="w-8 h-8 rounded-full bg-[#121214] border border-white/12 flex items-center justify-center overflow-hidden shrink-0">
-                        {p.user?.photoUrl ? (
-                          <Image
-                            src={p.user.photoUrl}
-                            alt={name}
-                            width={32}
-                            height={32}
-                            className="object-cover w-full h-full"
-                            unoptimized
-                          />
-                        ) : (
-                          <span className="text-white/70 font-roobert text-xs">{initial}</span>
-                        )}
-                      </div>
+                      <UserAvatar
+                        photoUrl={p.user?.photoUrl}
+                        name={name}
+                        size="sm"
+                      />
                       <span className="font-roobert text-xs sm:text-sm text-frost-white truncate max-w-[110px] sm:max-w-[200px]">
                         {name}
                       </span>
