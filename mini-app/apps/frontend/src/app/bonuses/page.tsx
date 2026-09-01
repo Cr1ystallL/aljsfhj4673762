@@ -736,6 +736,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           );
         }
         spinRef.current = null;
+        setBusy(false);
         forceTick((n) => n + 1);
         const cur = useBalanceStore.getState().balance;
         if (cur) useBalanceStore.getState().updateBalance(Number(json.balance ?? cur.amount));
@@ -743,9 +744,8 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         void load();
       }, 6000);
     } catch {
-      toast.error(t('errors.network'));
-    } finally {
       setBusy(false);
+      toast.error(t('errors.network'));
     }
   };
 

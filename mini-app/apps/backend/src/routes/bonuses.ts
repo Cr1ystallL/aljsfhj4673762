@@ -672,10 +672,9 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
         return { amount, index, balance: after, usedToday: usedToday + 1 };
       });
 
-      // Push fresh balance to the WS subscriber so the home pill and
-      // the bonuses page header update without polling.
+      // Invalidate balance cache so server state is fresh,
+      // but do NOT push immediate WS update before the wheel animation finishes on the client.
       await balanceService.invalidateCache(userId);
-      await balanceService.syncBalance(userId);
 
       return reply.send({
         ok: true,

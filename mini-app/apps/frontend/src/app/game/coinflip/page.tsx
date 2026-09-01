@@ -352,20 +352,22 @@ export default function CoinflipGamePage() {
           onHowToPlay={() => setRulesOpen(true)}
         />
 
-        {/* Hero — coin centre stage, then round/multiplier plate, then side picks */}
-        <section className="relative rounded-[20px] border border-white/12 bg-white/[0.03] px-4 pt-7 pb-4 flex flex-col items-center gap-4 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
-          {/* Atmospheric backdrop */}
+        {/* Hero — 3D coin arena stage, round/multiplier plate, side picks */}
+        <section className="relative rounded-[24px] border border-white/10 bg-gradient-to-b from-[#161922]/80 via-[#0e1017]/90 to-[#090b0f] px-4 pt-4 pb-4 flex flex-col items-center gap-3 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
+          {/* Dynamic Ambient Background Glow */}
           <div
             aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-60"
+            className="absolute inset-0 pointer-events-none transition-all duration-700 opacity-70"
             style={{
               background:
-                'radial-gradient(80% 60% at 50% 20%, rgba(255, 172, 46, 0.15) 0%, rgba(165, 45, 37, 0.08) 35%, transparent 75%)',
+                coinFace === 'heads'
+                  ? 'radial-gradient(90% 70% at 50% 25%, rgba(251, 191, 36, 0.14) 0%, rgba(180, 83, 9, 0.05) 40%, transparent 80%)'
+                  : 'radial-gradient(90% 70% at 50% 25%, rgba(56, 189, 248, 0.14) 0%, rgba(14, 116, 144, 0.05) 40%, transparent 80%)',
             }}
           />
 
           {/* The coin itself — front and centre */}
-          <div className="relative">
+          <div className="relative z-10 my-1">
             <CoinflipCoin
               face={coinFace}
               flipKey={flipKey}
