@@ -1301,18 +1301,12 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
               multiplier: mult,
               payout: Number(b.payout ?? 0),
               timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
-              caseId: meta?.caseId,
+              caseId: meta?.caseId || 'case_1',
               caseName: caseData?.name,
               casePrice: caseData?.price,
               prizeId: meta?.prizeId,
-              prizeColor: prizeData?.color
+              prizeColor: prizeData?.color || '#ffffff'
             };
-          })
-          .filter(entry => {
-            // Only output large wins from x2 and higher
-            const multFromPrize = typeof entry.prizeId === 'string' ? parseFloat(entry.prizeId) : NaN;
-            const effectiveMult = Number.isFinite(multFromPrize) ? multFromPrize : entry.multiplier;
-            return effectiveMult >= 2.0;
           })
           .slice(0, limit);
         return reply.send({ success: true, history });
