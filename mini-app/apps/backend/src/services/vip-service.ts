@@ -326,7 +326,14 @@ export class VipService {
       let available = false;
       let nextClaimAvailableAt: string | null = null;
 
-      if (!lastClaimedAt) {
+      // Start date check — launch on next week Monday 7 September 2026
+      const startDate = new Date('2026-09-07T00:00:00.000Z');
+      const isBeforeLaunch = Date.now() < startDate.getTime();
+
+      if (isBeforeLaunch) {
+        available = false;
+        nextClaimAvailableAt = startDate.toISOString();
+      } else if (!lastClaimedAt) {
         available = amount >= 0.50;
       } else {
         const nextTime = lastClaimedAt.getTime() + cooldownMs;
@@ -357,10 +364,45 @@ export class VipService {
         netLoss: 0,
         totalWagered: 0,
         totalWon: 0,
-        nextClaimAvailableAt: null,
+        nextClaimAvailableAt: '2026-09-07T00:00:00.000Z',
         lastClaimedAt: null,
         rankName: 'Без ранга',
       };
+    }
+  }
+
+  /**
+   * Retrieves dynamic VIP & Cashback admin configuration.
+   */
+  async getAdminConfig() {
+    await this.ensureTables();
+    try {
+      const redis = (await import('../lib/redis.js')).redisClient.getClient();
+      const raw = await redis.get('vip:admin_config');
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // fallback
+    }
+    return {
+      xpPerZl: VIP_XP_PER_ZL,
+      cashbackStartDate: '2026-09-07T00:00:00.000Z',
+      tiers: VIP_RANKS,
+    };
+  }
+
+  /**
+   * Updates dynamic VIP & Cashback admin configuration.
+   */
+  async updateAdminConfig(configData: any) {
+    await this.ensureTables();
+    try {
+      const redis = (await import('../lib/redis.js')).redisClient.getClient();
+      await redis.set('vip:admin_config', JSON.stringify(configData));
+      logger.info({ configData }, 'Admin updated VIP & Cashback configuration');
+      return { ok: true, config: configData };
+    } catch (err) {
+      logger.error({ err }, 'Failed to save VIP admin config');
+      throw err;
     }
   }
 
@@ -371,7 +413,7 @@ export class VipService {
     await this.ensureTables();
     const status = await this.getCashbackStatus(userId);
     if (!status.available || status.amount <= 0) {
-      throw new Error('Кэшбэк пока недоступен для получения (минимальная сумма 0.50 zł или ещё не истёк срок)');
+      throw new Error('Кэшбэк пока недоступен для получения (старт программы с 7 сентября, либо минимальная сумма 0.50 zł)');
     }
 
     const claimAmount = status.amount;
@@ -436,3 +478,4 @@ export class VipService {
 }
 
 export const vipService = new VipService();
+

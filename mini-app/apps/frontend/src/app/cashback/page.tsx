@@ -6,12 +6,11 @@ import {
   Percent,
   Sparkles,
   Clock,
-  Crown,
   Info,
-  ChevronRight,
-  TrendingDown,
-  ShieldCheck,
-  Zap,
+  RotateCcw,
+  Wallet,
+  Trophy,
+  CheckCircle2,
 } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
@@ -45,37 +44,46 @@ export default function CashbackPage() {
   const totalWon = cashback?.totalWon || 0;
   const percent = cashback?.cashbackPercent || rank.cashbackPercent;
 
+  // Check launch date — 7 September 2026
+  const launchDate = new Date('2026-09-07T00:00:00.000Z');
+  const isBeforeLaunch = Date.now() < launchDate.getTime();
+
   return (
-    <main className="min-h-screen w-full bg-black text-frost-white flex flex-col pb-36 font-roobert">
+    <main className="min-h-screen w-full bg-black text-frost-white flex flex-col pb-36 font-roobert select-none">
       {/* Top Bar */}
       <GameTopBar title="Кэшбэк" Icon={Percent} width="wide" />
 
       <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-3.5 pt-4 flex flex-col gap-4`}>
         {/* ========================================================================= */}
-        {/* HERO CASHBACK CARD                                                        */}
+        {/* MAIN CASHBACK CARD (Design matching user screenshot)                      */}
         {/* ========================================================================= */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-[24px] border border-emerald-500/30 bg-gradient-to-b from-emerald-950/30 via-[#0e1310] to-[#070908] p-5 sm:p-6 shadow-[0_12px_40px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(16,185,129,0.15)] flex flex-col gap-5"
-        >
-          {/* Ambient Glow */}
-          <div
+        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#0d0f13] p-5 sm:p-6 shadow-2xl flex flex-col gap-4">
+          {/* Animated Soft Green Gradient Background Glow */}
+          <motion.div
+            animate={{
+              opacity: [0.15, 0.28, 0.15],
+              scale: [1, 1.05, 1],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
             aria-hidden
-            className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-emerald-500/15 blur-3xl"
+            className="pointer-events-none absolute -top-24 -left-24 w-80 h-80 rounded-full bg-emerald-500 blur-3xl -z-0"
           />
 
-          {/* Top Rank Badge & Info */}
-          <div className="flex items-center justify-between">
+          {/* TOP ROW: Rank Badge, Name, Cashback % and Table Button */}
+          <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <VipBadge rankId={rank.id} size="md" showGlow={true} />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-roobert text-lg font-extrabold text-white">
+                  <span className="font-roobert text-[17px] font-black text-white tracking-tight">
                     {rank.nameRu}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-extrabold text-[11px] border border-emerald-500/30">
-                    {percent}% кэшбэк
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-[#00e87b] font-extrabold text-[11px] border border-emerald-500/30">
+                    {percent}% кешбэк
                   </span>
                 </div>
                 <p className="text-[11.5px] text-white/50 mt-0.5">
@@ -87,135 +95,112 @@ export default function CashbackPage() {
             <button
               type="button"
               onClick={() => setFaqOpen(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[11px] font-bold"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[11.5px] font-medium"
             >
-              <Info size={13} />
-              <span>Таблица</span>
+              <Info size={13} className="text-white/60" />
+              <span>Таблице</span>
             </button>
           </div>
 
-          {/* Amount Box */}
-          <div className="p-4 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* MIDDLE ROW: Accumulated Amount Box & Claim Button */}
+          <div className="relative z-10 p-4 sm:p-5 rounded-[20px] border border-white/10 bg-black/50 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <span className="block text-[11px] font-bold uppercase tracking-wider text-white/50">
+              <span className="block text-[12px] font-medium text-white/50">
                 Накоплено к выплате
               </span>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="font-roobert text-3xl sm:text-4xl font-black text-emerald-400 tabular-nums tracking-tight drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]">
-                  +{amount.toFixed(2)}
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <span className="font-roobert text-3xl sm:text-4xl font-black text-[#00e87b] tabular-nums tracking-tight drop-shadow-[0_0_20px_rgba(0,232,123,0.3)]">
+                  {amount.toFixed(2)}
                 </span>
-                <span className="text-lg font-extrabold text-white/80 uppercase">
+                <span className="text-xl font-extrabold text-white/90">
                   zł
                 </span>
               </div>
             </div>
 
-            {isAvailable ? (
+            {isBeforeLaunch ? (
+              <div className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs font-semibold">
+                <Clock size={15} className="text-emerald-400 shrink-0" />
+                <span>Старт выплат с 7 сентября</span>
+              </div>
+            ) : isAvailable ? (
               <Pressable
                 onClick={handleClaim}
                 disabled={claiming}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 hover:brightness-110 text-black font-extrabold text-[14px] transition-all shadow-xl shadow-emerald-500/25 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-[#00e87b] hover:bg-[#00d670] active:scale-95 text-black font-extrabold text-[13.5px] transition-all shadow-[0_0_25px_rgba(0,232,123,0.3)] flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Sparkles size={16} />
-                <span>{claiming ? 'Зачисление...' : 'Забрать кэшбэк'}</span>
+                <span>{claiming ? 'Зачисление...' : 'Забрать кешбэк'}</span>
               </Pressable>
             ) : (
-              <div className="flex items-center gap-2 text-[12px] font-medium text-white/50 bg-white/5 px-4 py-3 rounded-xl border border-white/5">
+              <div className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs font-medium">
                 <Clock size={15} className="text-emerald-400 shrink-0" />
                 <span>
                   {amount <= 0
-                    ? 'Нет чистого проигрыша за период'
+                    ? 'Нет проигрыша за период'
                     : cashback?.nextClaimAvailableAt
                     ? `Доступно ${new Date(cashback.nextClaimAvailableAt).toLocaleDateString()}`
-                    : 'Мин. сумма к выплате: 0.50 zł'}
+                    : 'Мин. сумма: 0.50 zł'}
                 </span>
               </div>
             )}
           </div>
 
-          {/* 7-Day Stats Overview */}
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/10 text-center">
-            <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-              <span className="block text-[10px] uppercase font-bold text-white/40">Оборот (7д)</span>
-              <span className="font-roobert text-[13px] font-bold text-white tabular-nums mt-0.5 block">
-                {totalWagered.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł
-              </span>
+          {/* BOTTOM ROW: 3 Distinct Stats Cards with Monochrome SVG Icons */}
+          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {/* 1. Оборот */}
+            <div className="p-3 rounded-[16px] border border-white/10 bg-white/[0.02] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-white shrink-0">
+                <RotateCcw size={18} strokeWidth={2} />
+              </div>
+              <div>
+                <span className="block text-[11px] font-medium text-white/50">Оборот (7д)</span>
+                <span className="font-roobert text-[15px] font-extrabold text-white tabular-nums">
+                  {totalWagered.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł
+                </span>
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-              <span className="block text-[10px] uppercase font-bold text-white/40">Выигрыши</span>
-              <span className="font-roobert text-[13px] font-bold text-white tabular-nums mt-0.5 block">
-                {totalWon.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł
-              </span>
+
+            {/* 2. Выигрыш */}
+            <div className="p-3 rounded-[16px] border border-white/10 bg-white/[0.02] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-white shrink-0">
+                <Wallet size={18} strokeWidth={2} />
+              </div>
+              <div>
+                <span className="block text-[11px] font-medium text-white/50">Выигрыш</span>
+                <span className="font-roobert text-[15px] font-extrabold text-white tabular-nums">
+                  {totalWon.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł
+                </span>
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-              <span className="block text-[10px] uppercase font-bold text-white/40">Проигрыш</span>
-              <span className="font-roobert text-[13px] font-bold text-emerald-400 tabular-nums mt-0.5 block">
-                {netLoss.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł
-              </span>
+
+            {/* 3. Проигрыш */}
+            <div className="p-3 rounded-[16px] border border-white/10 bg-white/[0.02] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-white shrink-0">
+                <Trophy size={18} strokeWidth={2} />
+              </div>
+              <div>
+                <span className="block text-[11px] font-medium text-white/50">Проигрыш</span>
+                <span className="font-roobert text-[15px] font-extrabold text-[#00e87b] tabular-nums">
+                  {netLoss.toLocaleString(localeTag, { maximumFractionDigits: 0 })} zł
+                </span>
+              </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* ========================================================================= */}
-        {/* HOW CASHBACK WORKS & VIP TIERS                                            */}
-        {/* ========================================================================= */}
-        <div className="rounded-[20px] border border-white/10 bg-[#101216] p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-roobert text-[15px] font-bold text-white flex items-center gap-2">
-              <Percent size={16} className="text-emerald-400" />
-              <span>Шкала кэшбэка по VIP Рангам</span>
-            </h3>
-            <button
-              onClick={() => setFaqOpen(true)}
-              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
-            >
-              Все привилегии →
-            </button>
+        {/* Informational rules card */}
+        <div className="rounded-[20px] border border-white/10 bg-[#0d0f13] p-5 flex flex-col gap-3 text-xs text-white/60 leading-relaxed">
+          <div className="font-bold text-white text-sm flex items-center gap-2">
+            <span>ℹ️ Как работает еженедельный кэшбэк:</span>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {VIP_RANKS.map((t) => {
-              const isCurrent = rank.level === t.level;
-              return (
-                <div
-                  key={t.id}
-                  className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
-                    isCurrent
-                      ? 'border-emerald-500/50 bg-emerald-950/20'
-                      : 'border-white/5 bg-white/[0.02]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <VipBadge rankId={t.id} size="sm" />
-                    <div>
-                      <div className="font-roobert text-[12.5px] font-bold text-white">
-                        {t.nameRu}
-                      </div>
-                      <div className="text-[10px] text-white/50">
-                        Оборот от {t.wagerZl.toLocaleString('ru-RU')} zł
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="font-roobert text-[13.5px] font-extrabold text-emerald-400">
-                      {t.cashbackPercent}%
-                    </span>
-                    {isCurrent && (
-                      <span className="block text-[8.5px] uppercase font-bold text-emerald-300 tracking-wider">
-                        Текущий
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="p-3.5 rounded-xl border border-white/5 bg-black/40 text-[11.5px] text-white/60 leading-relaxed">
-            💡 Кэшбэк начисляется автоматически каждый понедельник и рассчитывается по формуле: <br />
-            <b className="text-white">Кэшбэк = (Сумма ставок − Сумма выигрышей) × Ваш % ранга</b>.
-          </div>
+          <p>
+            • Расчет производится от суммы чистого проигрыша за последние 7 дней: <br />
+            <b className="text-white font-mono text-[11px]">Кэшбэк = (Ставки − Выигрыши) × % вашего ранга</b>.
+          </p>
+          <p>
+            • Накопленные средства становятся доступны к выплате каждый понедельник (старт программы с <b>7 сентября 2026</b>).
+          </p>
         </div>
       </div>
 

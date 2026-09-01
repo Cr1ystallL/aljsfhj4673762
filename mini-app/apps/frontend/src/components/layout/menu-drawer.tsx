@@ -279,63 +279,63 @@ export function MenuDrawer({
                   })}
                 </div>
               </div>
-
-              {/* Completely Redesigned "Разделы" (Sections) Section */}
+              {/* Completely Redesigned "Разделы" (Sections) in Mobile Grid */}
               <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
                 <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
                   {t('nav.sections')}
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <SectionCard
+                <div className="grid grid-cols-2 gap-2">
+                  <MobileSectionTile
                     icon={<SoccerBallIcon size={18} className="text-frost-white" />}
                     title={t('nav.sportsTitle')}
-                    description={t('nav.sportsDesc')}
+                    subtitle="Ставки на спорт"
                     onClick={() => {
                       onClose();
                       router.push('/sport');
                     }}
                   />
-                  <SectionCard
+                  <MobileSectionTile
                     icon={<Wallet size={18} className="text-frost-white" />}
                     title={t('nav.walletTitle')}
-                    description={t('nav.walletDesc')}
+                    subtitle="Баланс и касса"
                     onClick={() => {
                       onClose();
                       router.push('/balance');
                     }}
                   />
-                  <SectionCard
+                  <MobileSectionTile
                     icon={<Sparkles size={18} className="text-frost-white" />}
                     title={t('nav.bonusesTitle')}
-                    description={t('nav.bonusesDesc')}
+                    subtitle="Промо и колесо"
                     onClick={() => {
                       onClose();
                       router.push('/bonuses');
                     }}
                   />
-                  <SectionCard
+                  <MobileSectionTile
                     icon={<Percent size={18} className="text-emerald-400" />}
                     title="Кэшбэк"
-                    description="Еженедельный возврат от проигрыша"
+                    subtitle="Возврат до 10%"
+                    badge="VIP"
                     onClick={() => {
                       onClose();
                       router.push('/cashback');
                     }}
                   />
-                  <SectionCard
+                  <MobileSectionTile
                     icon={<BookOpen size={18} className="text-frost-white" />}
                     title={t('nav.faqTitle')}
-                    description={t('nav.faqDesc')}
+                    subtitle="FAQ & Правила"
                     onClick={() => {
                       onClose();
                       router.push('/info');
                     }}
                   />
-                  <SectionCard
+                  <MobileSectionTile
                     icon={<Headphones size={18} className="text-frost-white" />}
                     title={t('nav.supportTitle')}
-                    description={t('nav.supportDesc')}
+                    subtitle="24/7 Саппорт"
                     onClick={() => {
                       onClose();
                       window.open('https://t.me/MacvBetSupport', '_blank');
@@ -359,36 +359,43 @@ export function MenuDrawer({
   );
 }
 
-function SectionCard({
+function MobileSectionTile({
   icon,
   title,
-  description,
+  subtitle,
+  badge,
   onClick,
 }: {
   icon: React.ReactNode;
   title: string;
-  description: string;
+  subtitle: string;
+  badge?: string;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className="p-3 rounded-2xl border border-white/10 bg-white/[0.03] hover:border-white/20 active:scale-[0.97] transition-all flex items-center justify-between gap-3 text-left group"
+      className="p-3 rounded-2xl border border-white/10 bg-[#12141a] hover:border-white/20 active:scale-[0.96] transition-all flex flex-col justify-between gap-2 text-left group overflow-hidden"
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="w-9 h-9 rounded-xl border border-white/15 bg-white/[0.05] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+      <div className="flex items-center justify-between w-full">
+        <span className="w-8 h-8 rounded-xl border border-white/15 bg-white/[0.06] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform text-frost-white">
           {icon}
         </span>
-        <div className="min-w-0">
-          <div className="font-roobert text-[13px] font-semibold text-frost-white group-hover:text-amber-200 transition-colors">
-            {title}
-          </div>
-          <div className="font-roobert text-[10px] text-whisper-gray truncate">
-            {description}
-          </div>
+        {badge && (
+          <span className="px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            {badge}
+          </span>
+        )}
+      </div>
+
+      <div>
+        <div className="font-roobert text-[13px] font-bold text-frost-white group-hover:text-amber-200 transition-colors">
+          {title}
+        </div>
+        <div className="font-roobert text-[10px] text-whisper-gray truncate mt-0.5">
+          {subtitle}
         </div>
       </div>
-      <ChevronRight size={16} className="text-whisper-gray shrink-0 group-hover:text-frost-white transition-colors" />
     </button>
   );
 }

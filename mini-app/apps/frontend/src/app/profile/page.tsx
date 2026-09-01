@@ -31,9 +31,11 @@ import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
 import { useWinStreak } from '@/hooks/use-win-streak';
 import { useT } from '@/i18n/use-t';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
-import { VipRankCard } from '@/components/vip/vip-rank-card';
 import { VipBadge } from '@/components/vip/vip-badge';
+import { VipFaqModal } from '@/components/vip/vip-faq-modal';
+import { RankUpModal } from '@/components/vip/rank-up-modal';
 import { useVip } from '@/hooks/use-vip';
+import { Sparkles } from 'lucide-react';
 
 /**
  * Profile Page — Pure Black Obsidian & Apple Design System
@@ -48,11 +50,12 @@ export default function ProfilePage() {
   const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const { streak } = useWinStreak();
-  const { status: vipStatus } = useVip();
+  const { status: vipStatus, claiming, claimReward } = useVip();
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
   const [copied, setCopied] = useState(false);
   const [isWagerModalOpen, setIsWagerModalOpen] = useState(false);
+  const [isVipModalOpen, setIsVipModalOpen] = useState(false);
   const [historyTab, setHistoryTab] = useState<'games' | 'sports'>('games');
   const isAdmin = useIsAdmin();
 
@@ -215,6 +218,62 @@ export default function ProfilePage() {
                 </div>
               </Pressable>
 
+              {/* Integrated VIP Rank Bar inside Hero Card */}
+              {vipStatus?.currentTier && (
+                <div className="mt-4 w-full p-3.5 rounded-[16px] border border-white/10 bg-white/[0.03] flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <VipBadge rankId={vipStatus.currentTier.id} size="sm" showGlow={true} />
+                      <div className="text-left">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-roobert text-[13.5px] font-extrabold text-white">
+                            {vipStatus.currentTier.nameRu}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-white/80 font-bold text-[9.5px]">
+                            Lvl {vipStatus.currentTier.level}
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-white/50 block mt-0.5">
+                          {vipStatus.nextTier
+                            ? `${vipStatus.xp.toLocaleString('ru-RU')} / ${vipStatus.nextTier.minXp.toLocaleString('ru-RU')} XP`
+                            : `${vipStatus.xp.toLocaleString('ru-RU')} XP (MAX)`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsVipModalOpen(true)}
+                      className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[10.5px] font-bold"
+                    >
+                      Ранги
+                    </button>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden p-0.5 border border-white/5">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-200 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.4)]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${vipStatus.progressPercent}%` }}
+                      transition={{ type: 'spring', duration: 0.8, bounce: 0.1 }}
+                    />
+                  </div>
+
+                  {/* Claim reward if available */}
+                  {vipStatus.unclaimedLevels.length > 0 && (
+                    <Pressable
+                      onClick={() => claimReward(vipStatus.unclaimedLevels[0])}
+                      disabled={claiming}
+                      className="mt-0.5 w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 text-black font-extrabold text-[11.5px] transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 disabled:opacity-50"
+                    >
+                      <Sparkles size={13} />
+                      <span>{claiming ? 'Зачисление...' : `Забрать награду за Lvl ${vipStatus.unclaimedLevels[0]}`}</span>
+                    </Pressable>
+                  )}
+                </div>
+              )}
+
               {/* Active Wager Progress Section */}
               {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
                 <div className="w-full mt-3 p-4 rounded-2xl border border-white/10 bg-white/[0.02] flex flex-col gap-2.5">
@@ -251,9 +310,6 @@ export default function ProfilePage() {
 
             </div>
           </motion.section>
-
-          {/* VIP Rank Loyalty Card */}
-          <VipRankCard />
 
           <ProfileTrophyShelf
             stats={{
@@ -366,6 +422,20 @@ export default function ProfilePage() {
 
         </div>
       </main>
+
+      {/* VIP FAQ Ranks Modal */}
+      <VipFaqModal
+        isOpen={isVipModalOpen}
+        onClose={() => setIsVipModalOpen(false)}
+        currentLevel={vipStatus?.currentTier?.level || 0}
+      />
+
+      {/* Rank Up Celebration Modal */}
+      <RankUpModal
+        currentTier={vipStatus?.currentTier}
+        onClaim={claimReward}
+        unclaimedLevels={vipStatus?.unclaimedLevels}
+      />
 
       {/* Wager Explanation Modal */}
       <AnimatePresence>

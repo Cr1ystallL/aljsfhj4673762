@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Crown,
   Cpu,
   Gamepad2,
   Gauge,
@@ -98,6 +99,12 @@ const links: AdminLink[] = [
     label: 'Бонусы',
     Icon: Sparkles,
     href: '/system/console/bonuses',
+  },
+  {
+    id: 'vip',
+    label: 'VIP & Кэшбэк',
+    Icon: Crown,
+    href: '/system/console/vip',
   },
   {
     id: 'partners',

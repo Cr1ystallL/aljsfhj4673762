@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticate, adminOnly, type AuthenticatedRequest } from '../middleware/auth.js';
 import { vipService } from '../services/vip-service.js';
 import { logger } from '../utils/logger.js';
 
@@ -70,6 +70,33 @@ export async function vipRoutes(app: FastifyInstance): Promise<void> {
     } catch (err: any) {
       logger.warn({ err, userId }, 'Failed to claim cashback');
       return reply.status(400).send({ ok: false, error: err.message || 'Не удалось забрать кэшбэк' });
+    }
+  });
+
+  /**
+   * GET /api/vip/admin/config
+   * Admin-only: get full VIP & cashback settings
+   */
+  app.get('/admin/config', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const config = await vipService.getAdminConfig();
+      return reply.send({ ok: true, config });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/vip/admin/config
+   * Admin-only: update VIP & cashback settings
+   */
+  app.post('/admin/config', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const body = request.body as any;
+      const res = await vipService.updateAdminConfig(body);
+      return reply.send(res);
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
     }
   });
 }
