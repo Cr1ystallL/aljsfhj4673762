@@ -18,9 +18,11 @@ import { useCashback, useVip } from '@/hooks/use-vip';
 import { useBalance } from '@/hooks/use-balance';
 import { VipBadge } from '@/components/vip/vip-badge';
 import { VipFaqModal } from '@/components/vip/vip-faq-modal';
+import { CashbackCalendarModal } from '@/components/vip/cashback-calendar-modal';
 import { Pressable } from '@/components/ui/pressable';
 import { VIP_RANKS } from '@/lib/vip';
 import { useT } from '@/i18n/use-t';
+import { Calendar } from 'lucide-react';
 
 export default function CashbackPage() {
   const { t, localeTag } = useT();
@@ -28,6 +30,7 @@ export default function CashbackPage() {
   const { status: vipStatus } = useVip();
   const { refetch: fetchBalance } = useBalance();
   const [faqOpen, setFaqOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const handleClaim = async () => {
     const ok = await claimCashback();
@@ -73,7 +76,7 @@ export default function CashbackPage() {
             className="pointer-events-none absolute -top-24 -left-24 w-80 h-80 rounded-full bg-emerald-500 blur-3xl -z-0"
           />
 
-          {/* TOP ROW: Rank Badge, Name, Cashback % and Table Button */}
+          {/* TOP ROW: Rank Badge, Name, Cashback % and Calendar Button */}
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <VipBadge rankId={rank.id} size="md" showGlow={true} />
@@ -94,11 +97,11 @@ export default function CashbackPage() {
 
             <button
               type="button"
-              onClick={() => setFaqOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[11.5px] font-medium"
+              onClick={() => setCalendarOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-[#00e87b] hover:text-[#00ff87] border border-emerald-500/30 transition-colors text-[11.5px] font-bold shadow-[0_0_10px_rgba(0,232,123,0.12)]"
             >
-              <Info size={13} className="text-white/60" />
-              <span>Таблице</span>
+              <Calendar size={13} className="text-[#00e87b]" />
+              <span>Календарь выплат</span>
             </button>
           </div>
 
@@ -254,6 +257,11 @@ export default function CashbackPage() {
           </div>
         </div>
       </div>
+
+      <CashbackCalendarModal
+        isOpen={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+      />
 
       <VipFaqModal
         isOpen={faqOpen}
