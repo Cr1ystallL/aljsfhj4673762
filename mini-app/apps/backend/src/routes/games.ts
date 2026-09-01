@@ -1268,9 +1268,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             resolvedAt: { lte: new Date(Date.now() - 6000) }
           },
           orderBy: [{ resolvedAt: 'desc' }, { placedAt: 'desc' }],
-          take: limit,
+          take: limit * 2,
           select: {
             id: true, amount: true, payout: true, placedAt: true, resolvedAt: true,
+            multiplier: true,
             metadata: true,
             user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true } },
           },
@@ -1284,25 +1285,36 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
           cfg.extras?.casesPrices as number[] | undefined
         );
 
-        const history = bets.map(b => {
-          const meta = b.metadata as any;
-          const caseData = cases.find(c => c.id === meta?.caseId);
-          const prizeData = caseData?.prizes.find(p => p.id === meta?.prizeId);
+        const history = bets
+          .map(b => {
+            const meta = b.metadata as any;
+            const caseData = cases.find(c => c.id === meta?.caseId);
+            const prizeData = caseData?.prizes.find(p => p.id === meta?.prizeId);
+            const casePrice = caseData?.price || Number(b.amount) || 1;
+            const mult = Number(b.multiplier ?? (Number(b.payout) / casePrice));
 
-          return {
-            id: b.id,
-            name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
-            photoUrl: b.user.photoUrl ?? null,
-            betAmount: Number(b.amount),
-            payout: Number(b.payout ?? 0),
-            timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
-            caseId: meta?.caseId,
-            caseName: caseData?.name,
-            casePrice: caseData?.price,
-            prizeId: meta?.prizeId,
-            prizeColor: prizeData?.color
-          };
-        });
+            return {
+              id: b.id,
+              name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
+              photoUrl: b.user.photoUrl ?? null,
+              betAmount: Number(b.amount),
+              multiplier: mult,
+              payout: Number(b.payout ?? 0),
+              timestamp: (b.resolvedAt ?? b.placedAt).getTime(),
+              caseId: meta?.caseId,
+              caseName: caseData?.name,
+              casePrice: caseData?.price,
+              prizeId: meta?.prizeId,
+              prizeColor: prizeData?.color
+            };
+          })
+          .filter(entry => {
+            // Only output large wins from x2 and higher
+            const multFromPrize = typeof entry.prizeId === 'string' ? parseFloat(entry.prizeId) : NaN;
+            const effectiveMult = Number.isFinite(multFromPrize) ? multFromPrize : entry.multiplier;
+            return effectiveMult >= 2.0;
+          })
+          .slice(0, limit);
         return reply.send({ success: true, history });
       } catch (error) {
         logger.error(error, 'Failed to fetch cases history');

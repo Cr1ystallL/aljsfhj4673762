@@ -1088,9 +1088,14 @@ export class BettingPipeline {
           data: { lastActivityAt: now }
         });
 
-        // Check if balance exceeded 2x
-        if (balanceAfter > Number(session.startBalance) * 2 && Number(session.startBalance) > 0) {
-          // They doubled their money! Update startBalance to prevent spam
+        // Check if balance exceeded 2x AND reached at least 60 PLN threshold
+        const MIN_ALERT_BALANCE = 60.0;
+        if (
+          balanceAfter >= MIN_ALERT_BALANCE &&
+          balanceAfter >= Number(session.startBalance) * 2 &&
+          Number(session.startBalance) > 0
+        ) {
+          // They doubled their money above major threshold! Update startBalance to prevent spam
           const oldStartBalance = Number(session.startBalance);
           session = await prisma.gameSession.update({
             where: { id: session.id },

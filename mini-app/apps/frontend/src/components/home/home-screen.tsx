@@ -459,25 +459,25 @@ export function HomeScreen() {
             <CategoryTab
               active={activeCategory === 'all'}
               onClick={() => setActiveCategory('all')}
-              icon={<Gamepad2 size={14} />}
+              icon={<Gamepad2 size={14} className="text-frost-white" />}
               label={t('home.filterAll')}
             />
             <CategoryTab
               active={activeCategory === 'popular'}
               onClick={() => setActiveCategory('popular')}
-              icon={<Flame size={14} className="text-amber-400" />}
+              icon={<Flame size={14} className="text-frost-white" />}
               label={t('home.filterTop')}
             />
             <CategoryTab
               active={activeCategory === 'fast'}
               onClick={() => setActiveCategory('fast')}
-              icon={<Zap size={14} className="text-cyan-400" />}
+              icon={<Zap size={14} className="text-frost-white" />}
               label={t('home.filterFast')}
             />
             <CategoryTab
               active={activeCategory === 'table'}
               onClick={() => setActiveCategory('table')}
-              icon={<Layers size={14} className="text-purple-400" />}
+              icon={<Layers size={14} className="text-frost-white" />}
               label={t('home.filterArcade')}
             />
           </div>

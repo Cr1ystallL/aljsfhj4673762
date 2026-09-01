@@ -711,13 +711,22 @@ class SportsEngine {
           await this.settleLiveSpecials(feed, lastEvent);
           await this.notifyBettorsGoal(feed, lastEvent);
         }
-        if (prev && prev.feed.status !== 'finished' && feed.status === 'finished') {
+        if (feed.status === 'finished' && this.byEvent.has(targetId)) {
           await this.settleEvent(feed);
         }
       }
 
       for (const [id, ev] of this.events) {
         if (seen.has(id)) continue;
+        if (this.byEvent.has(id)) {
+          // If match elapsed by more than 2.5 hours, consider it finished
+          const elapsed = Date.now() - ev.feed.startTime;
+          const maxMatchDuration = ev.feed.sport === 'football' ? 130 * 60_000 : 180 * 60_000;
+          if (ev.feed.status === 'finished' || elapsed > maxMatchDuration) {
+            ev.feed.status = 'finished';
+            await this.settleEvent(ev.feed);
+          }
+        }
         if (ev.feed.status === 'finished' || !this.byEvent.has(id)) {
           this.events.delete(id);
         }

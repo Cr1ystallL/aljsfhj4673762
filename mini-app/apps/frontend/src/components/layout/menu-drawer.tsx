@@ -296,7 +296,7 @@ export function MenuDrawer({
                     }}
                   />
                   <SectionCard
-                    icon={<Wallet size={18} className="text-emerald-400" />}
+                    icon={<Wallet size={18} className="text-frost-white" />}
                     title={t('nav.walletTitle')}
                     description={t('nav.walletDesc')}
                     onClick={() => {
@@ -305,7 +305,7 @@ export function MenuDrawer({
                     }}
                   />
                   <SectionCard
-                    icon={<Sparkles size={18} className="text-amber-400" />}
+                    icon={<Sparkles size={18} className="text-frost-white" />}
                     title={t('nav.bonusesTitle')}
                     description={t('nav.bonusesDesc')}
                     onClick={() => {
@@ -314,7 +314,7 @@ export function MenuDrawer({
                     }}
                   />
                   <SectionCard
-                    icon={<BookOpen size={18} className="text-sky-400" />}
+                    icon={<BookOpen size={18} className="text-frost-white" />}
                     title={t('nav.faqTitle')}
                     description={t('nav.faqDesc')}
                     onClick={() => {
@@ -323,7 +323,7 @@ export function MenuDrawer({
                     }}
                   />
                   <SectionCard
-                    icon={<Headphones size={18} className="text-cyan-400" />}
+                    icon={<Headphones size={18} className="text-frost-white" />}
                     title={t('nav.supportTitle')}
                     description={t('nav.supportDesc')}
                     onClick={() => {
