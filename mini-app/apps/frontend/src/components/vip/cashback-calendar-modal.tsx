@@ -1,8 +1,16 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, X, Sparkles, Clock, CheckCircle2 } from 'lucide-react';
+import {
+  Calendar,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  CheckCircle2,
+  HelpCircle,
+} from 'lucide-react';
 
 interface CashbackCalendarModalProps {
   isOpen: boolean;
@@ -10,21 +18,20 @@ interface CashbackCalendarModalProps {
 }
 
 export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModalProps) {
-  // Days of week in Russian (Monday to Sunday)
+  const [accordionOpen, setAccordionOpen] = useState(true);
+
+  // Weekdays (Monday to Sunday)
   const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
   // September 2026 starts on Tuesday (offset 1 in 0-indexed Mon-Sun grid)
-  // Total days in September: 30
   const daysInMonth = 30;
-  const startOffset = 1; // Tuesday is index 1
+  const startOffset = 1;
 
   // Payout Mondays in September 2026: 7, 14, 21, 28
   const payoutDays = [7, 14, 21, 28];
-  const launchDay = 7;
   const todayDay = 2; // 2 September
 
   const cells = [];
-  // Empty leading cells
   for (let i = 0; i < startOffset; i++) {
     cells.push({ day: null });
   }
@@ -32,7 +39,6 @@ export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModal
     cells.push({
       day: d,
       isPayout: payoutDays.includes(d),
-      isLaunch: d === launchDay,
       isToday: d === todayDay,
     });
   }
@@ -40,7 +46,7 @@ export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModal
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -50,51 +56,107 @@ export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModal
             className="fixed inset-0 bg-black/80 backdrop-blur-md"
           />
 
-          {/* Modal Card */}
+          {/* Modal Container */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.94, y: 20 }}
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 20 }}
+            exit={{ opacity: 0, scale: 0.94, y: 16 }}
             transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-            className="relative w-full max-w-md rounded-[28px] border border-white/15 bg-[#0f1115] p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden font-roobert select-none"
+            className="relative w-full max-w-[440px] my-auto rounded-[28px] border border-white/10 bg-[#0d1014] p-4 sm:p-5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden font-roobert select-none"
           >
             {/* Background Ambient Glow */}
-            <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
 
-            {/* Header */}
-            <div className="relative z-10 flex items-center justify-between pb-4 border-b border-white/10">
+            {/* 1. Header */}
+            <div className="relative z-10 flex items-center justify-between pb-3.5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-[#00e87b] shadow-[0_0_15px_rgba(0,232,123,0.2)]">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-[#00e87b] shadow-[0_0_12px_rgba(0,232,123,0.15)]">
                   <Calendar size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-lg text-white tracking-tight flex items-center gap-2">
-                    <span>Календарь выплат</span>
+                  <h3 className="font-extrabold text-[16.5px] text-white tracking-tight">
+                    Выплаты кэшбэка
                   </h3>
-                  <p className="text-xs text-white/50">Сентябрь 2026 • Еженедельный кэшбэк</p>
+                  <p className="text-[11.5px] text-white/50">Каждый понедельник • 00:00 UTC</p>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Calendar Grid Container */}
-            <div className="relative z-10 mt-5 p-4 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-3 px-1">
-                <span className="font-extrabold text-sm text-white">Сентябрь 2026</span>
-                <span className="text-[11px] font-bold text-[#00e87b] bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 rounded-full">
-                  Каждый понедельник 💸
-                </span>
+            {/* 2. Top Card (Следующая выплата & Расчет за период) */}
+            <div className="relative z-10 mt-1 rounded-[20px] border border-white/10 bg-[#12161b]/90 p-4 flex flex-col sm:flex-row gap-4 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
+              {/* Left Column */}
+              <div className="flex-1 flex flex-col justify-between">
+                <div>
+                  <span className="block text-[11px] font-medium text-white/50">
+                    Следующая выплата
+                  </span>
+                  <span className="block text-2xl font-black text-[#00e87b] tracking-tight mt-1">
+                    7 сентября
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-500/25 text-[11px] font-bold text-[#00e87b] w-fit">
+                    <Calendar size={12} />
+                    <span>Понедельник • 00:00 UTC</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[11px] text-[#00e87b] font-medium">
+                    <CheckCircle2 size={13} className="text-[#00e87b]" />
+                    <span>Доступно к выводу</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Day Headers */}
+              {/* Right Column */}
+              <div className="flex-1 pt-3 sm:pt-0 sm:pl-4 flex flex-col justify-between">
+                <div>
+                  <span className="block text-[11px] font-medium text-white/50">
+                    Расчёт за период
+                  </span>
+                  <span className="block text-[13px] font-bold text-white mt-1">
+                    31 августа — 6 сентября
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-white/50 leading-relaxed mt-2.5">
+                  Кэшбэк за последние 7 дней станет доступен к выводу 7 сентября в 00:00 UTC.
+                </p>
+              </div>
+            </div>
+
+            {/* 3. Calendar Grid Card */}
+            <div className="relative z-10 mt-3 rounded-[20px] border border-white/10 bg-[#12161b]/90 p-4">
+              {/* Month Header & Legend */}
+              <div className="flex items-center justify-between pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-sm text-white">Сентябрь 2026</span>
+                  <div className="flex items-center gap-1 text-white/40">
+                    <button type="button" className="p-0.5 hover:text-white transition-colors">
+                      <ChevronLeft size={15} />
+                    </button>
+                    <button type="button" className="p-0.5 hover:text-white transition-colors">
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-[11px] text-white/60 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00e87b]" />
+                  <span>День выплаты</span>
+                </div>
+              </div>
+
+              {/* Day-of-week headers */}
               <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-white/40 pb-2">
                 {weekDays.map((wd, i) => (
                   <div key={wd} className={i === 0 ? 'text-[#00e87b]' : ''}>
@@ -103,70 +165,86 @@ export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModal
                 ))}
               </div>
 
-              {/* Days Grid */}
+              {/* Days grid */}
               <div className="grid grid-cols-7 gap-1.5 text-center">
                 {cells.map((cell, idx) => {
                   if (!cell.day) {
-                    return <div key={'empty-' + idx} className="h-9" />;
+                    return <div key={'empty-' + idx} className="h-10" />;
                   }
 
                   const isPayout = cell.isPayout;
-                  const isLaunch = cell.isLaunch;
                   const isToday = cell.isToday;
+
+                  if (isToday && !isPayout) {
+                    return (
+                      <div
+                        key={'day-' + cell.day}
+                        className="relative h-10 rounded-xl border border-white/20 bg-white/5 flex flex-col items-center justify-center"
+                      >
+                        <span className="text-xs font-bold text-white leading-none">{cell.day}</span>
+                        <span className="text-[8px] text-white/60 leading-none mt-0.5 font-medium">
+                          Сегодня
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (isPayout) {
+                    return (
+                      <div
+                        key={'day-' + cell.day}
+                        className="relative h-10 rounded-xl border border-[#00e87b] bg-emerald-500/10 flex flex-col items-center justify-center text-[#00e87b] font-black shadow-[0_0_10px_rgba(0,232,123,0.2)]"
+                      >
+                        <span className="text-xs font-extrabold leading-none">{cell.day}</span>
+                        <span className="w-1 h-1 rounded-full bg-[#00e87b] mt-0.5" />
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
                       key={'day-' + cell.day}
-                      className={`relative h-9 rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all ${
-                        isLaunch
-                          ? 'bg-gradient-to-b from-emerald-500/30 to-emerald-600/40 border border-[#00e87b] text-white shadow-[0_0_12px_rgba(0,232,123,0.35)]'
-                          : isPayout
-                          ? 'bg-emerald-500/20 border border-emerald-500/40 text-[#00e87b] shadow-[0_0_8px_rgba(0,232,123,0.2)]'
-                          : isToday
-                          ? 'bg-white/10 border border-white/30 text-white'
-                          : 'text-white/60 hover:bg-white/5'
-                      }`}
+                      className="h-10 rounded-xl flex items-center justify-center text-xs font-medium text-white/60 hover:bg-white/5 transition-colors"
                     >
                       <span>{cell.day}</span>
-                      {isPayout && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#00e87b] mt-0.5 shadow-[0_0_4px_#00e87b]" />
-                      )}
-                      {isToday && !isPayout && (
-                        <span className="w-1 h-1 rounded-full bg-white/70 mt-0.5" />
-                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Payout Details Cards */}
-            <div className="relative z-10 mt-4 flex flex-col gap-2.5">
-              {/* Upcoming Payout Card */}
-              <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Sparkles size={16} className="text-[#00e87b]" />
-                  <div>
-                    <span className="block font-bold text-xs text-white">
-                      Ближайшая выплата: 7 сентября
-                    </span>
-                    <span className="text-[11px] text-white/50">
-                      Официальный старт выплат кэшбэка
-                    </span>
-                  </div>
+            {/* 4. Bottom Collapsible Info Card (Как работает выплата?) */}
+            <div className="relative z-10 mt-3 rounded-[18px] border border-white/10 bg-[#12161b]/90 p-3.5">
+              <button
+                type="button"
+                onClick={() => setAccordionOpen(!accordionOpen)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <HelpCircle size={15} className="text-[#00e87b] shrink-0" />
+                  <span className="font-bold text-xs text-white">Как работает выплата?</span>
                 </div>
-                <span className="px-2 py-1 rounded-lg bg-emerald-500/20 text-[#00e87b] font-extrabold text-[11px]">
-                  Понедельник
-                </span>
-              </div>
+                <ChevronDown
+                  size={15}
+                  className={`text-white/40 transition-transform ${accordionOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
 
-              {/* Rules summary note */}
-              <div className="p-3 rounded-xl border border-white/10 bg-white/[0.03] text-[11.5px] text-white/60 leading-relaxed flex items-start gap-2">
-                <Clock size={14} className="text-white/40 shrink-0 mt-0.5" />
-                <p>
-                  Кэшбэк накапливается от чистого проигрыша за 7 дней и становится доступен к выводу каждый <b>понедельник в 00:00 UTC</b> без вейджера.
-                </p>
-              </div>
+              <AnimatePresence initial={false}>
+                {accordionOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <p className="text-[11px] text-white/50 leading-relaxed pt-2.5">
+                      Кэшбэк рассчитывается за предыдущие 7 дней (от чистого проигрыша) и становится доступен к выводу каждый <b className="text-white font-semibold">понедельник в 00:00 UTC</b>.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         </div>
