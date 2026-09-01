@@ -12,6 +12,9 @@ import {
   type VipTierConfig,
 } from '@casino/shared';
 
+// System launch date epoch: all past historical stats before this moment are strictly ignored (fresh start)
+export const VIP_FRESH_START_EPOCH = new Date('2026-09-02T00:00:00.000Z');
+
 export class VipService {
   private tablesEnsured = false;
 
@@ -36,18 +39,18 @@ export class VipService {
       `;
       this.tablesEnsured = true;
 
-      // Auto-run one-time recalculation of VIP XP and reset premature cashback claims
+      // Auto-run fresh start wipe of all past XP and cashback claims
       try {
         const redis = (await import('../lib/redis.js')).redisClient.getClient();
         if (redis) {
-          const done = await redis.get('vip:recalculated_v4');
+          const done = await redis.get('vip:fresh_start_clean_v6');
           if (!done) {
             await this.recalculateAllUsersVipAndResetCashback();
-            await redis.set('vip:recalculated_v4', '1');
+            await redis.set('vip:fresh_start_clean_v6', '1');
           }
         }
       } catch (e) {
-        logger.warn({ e }, 'VIP one-time auto recalculation skipped / failed in Redis');
+        logger.warn({ e }, 'VIP fresh start auto reset in Redis');
       }
     } catch (err) {
       logger.error({ err }, 'Failed to ensure VIP columns in users table');
@@ -55,54 +58,50 @@ export class VipService {
   }
 
   /**
-   * Resets invalid premature cashback claims and recalculates true XP & VIP levels from real bets.
+   * Resets all users to 0 XP, Level 0, empty claimed rewards, and clears past cashback claims.
+   * Only bets placed after VIP_FRESH_START_EPOCH will count towards XP.
    */
   async recalculateAllUsersVipAndResetCashback(): Promise<{ updatedUsers: number }> {
     await this.ensureTables();
     try {
-      logger.info('Starting full VIP XP recalculation and cashback reset...');
+      logger.info('Performing fresh start reset for VIP XP, ranks, and cashback...');
 
-      // 1. Reset all premature cashback claims
-      await prisma.$executeRaw`
+      // 1. Reset all users to 0 XP, Rank 0, empty claimed rewards, null cashback claim
+      const res = await prisma.$executeRaw`
         UPDATE users 
-        SET last_cashback_claimed_at = NULL;
+        SET xp = 0,
+            vip_level = 0,
+            claimed_vip_rewards = '{}',
+            last_cashback_claimed_at = NULL;
       `;
 
-      // 2. Fetch real bet amounts grouped by user
+      // 2. Fetch only new bets placed on or after the fresh start epoch
       const betTotals = await prisma.$queryRaw<Array<{ user_id: string; total_wager: number | string }>>`
         SELECT user_id, COALESCE(SUM(amount), 0) as total_wager
         FROM bets
         WHERE state != 'cancelled' 
           AND (metadata->>'demoMode')::boolean IS NOT TRUE 
           AND metadata->>'tournamentId' IS NULL
+          AND placed_at >= ${VIP_FRESH_START_EPOCH}
         GROUP BY user_id
       `;
 
-      const wagerMap = new Map<string, number>();
-      for (const row of betTotals) {
-        wagerMap.set(row.user_id, Number(row.total_wager || 0));
+      if (betTotals.length > 0) {
+        for (const row of betTotals) {
+          const wager = Number(row.total_wager || 0);
+          const xp = Math.floor(wager * VIP_XP_PER_ZL);
+          const tier = getVipTierByXp(xp);
+          await prisma.$executeRaw`
+            UPDATE users
+            SET xp = ${xp},
+                vip_level = ${tier.level}
+            WHERE id = ${row.user_id}
+          `;
+        }
       }
 
-      // 3. Update all users
-      const allUsers = await prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT id FROM users
-      `;
-
-      for (const u of allUsers) {
-        const wager = wagerMap.get(u.id) || 0;
-        const xp = Math.floor(wager * VIP_XP_PER_ZL);
-        const tier = getVipTierByXp(xp);
-
-        await prisma.$executeRaw`
-          UPDATE users
-          SET xp = ${xp},
-              vip_level = ${tier.level}
-          WHERE id = ${u.id}
-        `;
-      }
-
-      logger.info({ totalUsers: allUsers.length }, 'VIP XP recalculation and cashback reset completed successfully');
-      return { updatedUsers: allUsers.length };
+      logger.info({ affectedUsers: Number(res || 0) }, 'Fresh start VIP reset and recalculation completed');
+      return { updatedUsers: Number(res || 0) };
     } catch (err) {
       logger.error({ err }, 'Failed to recalculate VIP XP and reset cashback');
       throw err;
@@ -376,10 +375,10 @@ export class VipService {
       const tier = getVipTierByXp(xp);
       const lastClaimedAt = userRows[0]?.last_cashback_claimed_at ? new Date(userRows[0].last_cashback_claimed_at) : null;
 
-      // Calculation window: last 7 days or since last claimed cashback
+      // Calculation window: strictly on or after VIP_FRESH_START_EPOCH (ignoring past history)
       const sinceDate = lastClaimedAt
-        ? new Date(Math.max(lastClaimedAt.getTime(), Date.now() - 7 * 24 * 3600 * 1000))
-        : new Date(Date.now() - 7 * 24 * 3600 * 1000);
+        ? new Date(Math.max(lastClaimedAt.getTime(), VIP_FRESH_START_EPOCH.getTime(), Date.now() - 7 * 24 * 3600 * 1000))
+        : new Date(Math.max(VIP_FRESH_START_EPOCH.getTime(), Date.now() - 7 * 24 * 3600 * 1000));
 
       // Check stats for the window
       const statsRows = await prisma.$queryRaw<
