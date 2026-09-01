@@ -3,6 +3,7 @@ import { balanceService } from '../services/balance-service.js';
 import { transactionService } from '../services/transaction-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { rtpEngine } from '../services/rtp-engine.js';
+import { vipService } from '../services/vip-service.js';
 import { logger } from '../utils/logger.js';
 import { isAdminTelegramIdAsync } from '../middleware/auth.js';
 import type { Bet, BetState } from './types.js';
@@ -433,6 +434,10 @@ export class BettingPipeline {
             },
           },
         });
+
+        if (!demoMode) {
+          await vipService.addXp(bet.userId, amount, tx);
+        }
 
         return updated;
       });

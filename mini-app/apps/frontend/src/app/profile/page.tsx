@@ -31,6 +31,10 @@ import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
 import { useWinStreak } from '@/hooks/use-win-streak';
 import { useT } from '@/i18n/use-t';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { VipRankCard } from '@/components/vip/vip-rank-card';
+import { CashbackCard } from '@/components/vip/cashback-card';
+import { VipBadge } from '@/components/vip/vip-badge';
+import { useVip } from '@/hooks/use-vip';
 
 /**
  * Profile Page — Pure Black Obsidian & Apple Design System
@@ -45,6 +49,7 @@ export default function ProfilePage() {
   const { t, localeTag } = useT();
   const { user } = useAuthStore();
   const { streak } = useWinStreak();
+  const { status: vipStatus } = useVip();
   const { balance, fetchBalance } = useBalance();
   const { transactions, isLoading: txLoading, fetchTransactions } = useTransactions();
   const [copied, setCopied] = useState(false);
@@ -131,6 +136,13 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
+
+                {/* VIP Rank Badge Pin */}
+                {vipStatus?.currentTier && (
+                  <div className="absolute -bottom-1 -right-1 z-20">
+                    <VipBadge rankId={vipStatus.currentTier.id} size="sm" showGlow={true} />
+                  </div>
+                )}
               </motion.div>
 
               {/* User Full Name & Streak Flame Badge */}
@@ -240,6 +252,12 @@ export default function ProfilePage() {
 
             </div>
           </motion.section>
+
+          {/* VIP Rank Loyalty Card */}
+          <VipRankCard />
+
+          {/* Weekly Cashback Card */}
+          <CashbackCard />
 
           <ProfileTrophyShelf
             stats={{

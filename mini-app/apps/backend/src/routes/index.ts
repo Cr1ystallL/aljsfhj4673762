@@ -16,6 +16,7 @@ import { partnerRoutes } from './partner.js';
 import { cryptoDepositRoutes } from './crypto-deposit.js';
 import { cryptoWorker } from '../services/crypto-worker.js';
 import { sportsRoutes } from '../games/sports/routes.js';
+import { vipRoutes } from './vip.js';
 
 let luckFeedCache: {
   at: number;
@@ -159,6 +160,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Bonuses (promo codes, lucky wheel, contests)
   await app.register(bonusesRoutes, { prefix: '/api/bonuses' });
+
+  // VIP Ranks & Loyalty Cashback
+  await app.register(vipRoutes, { prefix: '/api/vip' });
 
   // Tournaments (experimental)
   await app.register(tournamentRoutes, { prefix: '/api' });

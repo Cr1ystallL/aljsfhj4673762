@@ -22,6 +22,27 @@ export const APP_CONFIG = {
   DEMO_INITIAL_BALANCE: 10000,
 } as const;
 
+export const WS_EVENTS = {
+  // Connection
+  CONNECTED: 'connected',
+  DISCONNECTED: 'disconnected',
+  PING: 'ping',
+  PONG: 'pong',
+  
+  // Game events
+  GAME_STATE_UPDATE: 'game_state_update',
+  BET_PLACED: 'bet_placed',
+  BET_RESOLVED: 'bet_resolved',
+  
+  // Balance events
+  BALANCE_UPDATED: 'balance_updated',
+  
+  // Error events
+  ERROR: 'error',
+} as const;
+
+export * from './vip';
+
 export const GAME_TYPES = {
   CRASH: 'crash',
   MINES: 'mines',
