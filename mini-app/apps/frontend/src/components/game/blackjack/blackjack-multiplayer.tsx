@@ -33,6 +33,7 @@ import { GameTopBar } from '@/components/game/game-top-bar';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { toast } from '@/store/toast-store';
+import { haptics } from '@/lib/haptics';
 
 export interface BJCard {
   suit: Suit;
@@ -1320,6 +1321,7 @@ export function BlackjackMultiplayer() {
 
     if (action === 'hit') {
       soundManager.play('bj.card_slide');
+      haptics.impact('medium');
     } else if (action === 'double') {
       const doubleAmount = myPlayer?.bet || selectedBet || 0;
       if (doubleAmount <= 0 || activeBalance < doubleAmount) {
@@ -1329,10 +1331,12 @@ export function BlackjackMultiplayer() {
       }
       soundManager.play('bj.chip_click');
       soundManager.play('bj.card_slide');
+      haptics.impact('heavy');
       // Instant optimistic deduction of the double bet
       optimisticUpdate(-doubleAmount);
     } else {
       soundManager.play('ui.click');
+      haptics.impact('light');
     }
 
     const effectiveUserId = myPlayer?.userId || user?.id || wsUserId;

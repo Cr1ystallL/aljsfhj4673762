@@ -16,6 +16,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { useT } from '@/i18n/use-t';
+import { haptics } from '@/lib/haptics';
 import type {
   CoinSide,
   CoinflipMode,
@@ -134,6 +135,7 @@ export default function CoinflipGamePage() {
     setFlipping(true);
     setCoinFace(outcome);
     setFlipKey((k) => k + 1);
+    haptics.impact('medium');
 
     // After the animation duration, reveal.
     setTimeout(() => {
@@ -145,15 +147,23 @@ export default function CoinflipGamePage() {
       if (pending.quick) {
         setLastQuick(pending.quick);
         soundManager.play(pending.quick.won ? 'game.win' : 'game.lose');
+        if (pending.quick.won) {
+          haptics.notification('success');
+        } else {
+          haptics.notification('error');
+        }
       }
       if (pending.state) {
         setMulti(pending.state);
         if (pending.state.status === 'busted') {
           soundManager.play('game.lose');
+          haptics.notification('error');
         } else if (pending.state.status === 'cashed') {
           soundManager.play('game.cashout');
+          haptics.notification('success');
         } else {
           soundManager.play('game.bet_placed');
+          haptics.impact('light');
         }
       }
       void fetchBalance();

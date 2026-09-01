@@ -24,6 +24,7 @@ import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
+import { haptics } from '@/lib/haptics';
 
 /**
  * Mines Game Page — Monopo Saigon Theme
@@ -159,8 +160,14 @@ export default function MinesGamePage() {
       setHitPosition(null);
     }
 
-    if (next.state === 'cashed') soundManager.play('game.cashout');
-    if (next.state === 'busted') soundManager.play('game.lose');
+    if (next.state === 'cashed') {
+      soundManager.play('game.cashout');
+      haptics.notification('success');
+    }
+    if (next.state === 'busted') {
+      soundManager.play('game.lose');
+      haptics.notification('error');
+    }
 
     // Whenever the authoritative state changes — round started (stake
     // debited), busted (stake forfeit), or cashed (winnings credited) —
@@ -192,6 +199,7 @@ export default function MinesGamePage() {
       );
       return;
     }
+    haptics.impact('medium');
     setBusy(true);
     try {
       const res = await fetch('/api/games/mines/start', {
@@ -217,6 +225,7 @@ export default function MinesGamePage() {
   async function reveal(position: number) {
     if (busy) return;
     if (server?.state !== 'active') return;
+    haptics.impact('medium');
     setBusy(true);
     try {
       const res = await fetch('/api/games/mines/reveal', {
@@ -247,6 +256,7 @@ export default function MinesGamePage() {
       toast.warn('Сначала откройте хотя бы одну ячейку');
       return;
     }
+    haptics.impact('heavy');
     setBusy(true);
     try {
       const res = await fetch('/api/games/mines/cashout', {

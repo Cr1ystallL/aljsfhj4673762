@@ -25,6 +25,7 @@ import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
 import { Pressable } from '@/components/ui/pressable';
 import { BetPanelShell, GamePrimaryButton } from '@/components/game/kit';
+import { haptics } from '@/lib/haptics';
 
 type TFn = (key: TxKey, vars?: Record<string, string | number>) => string;
 
@@ -700,6 +701,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
 
   const spin = async () => {
     if (!canSpin) return;
+    haptics.impact('heavy');
     setBusy(true);
     try {
       const res = await fetch('/api/bonuses/wheel/spin', {
@@ -727,6 +729,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       };
       forceTick((n) => n + 1);
       setTimeout(() => {
+        haptics.notification('success');
         if (sectorAmount === 10.0) {
           toast.success(t('bonuses.wheelCase'), { title: t('bonuses.wheel') });
         } else {

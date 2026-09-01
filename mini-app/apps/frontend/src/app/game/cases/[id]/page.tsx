@@ -17,6 +17,7 @@ import { distributePercentages } from '@casino/shared';
 import type { CaseTier, CasePrize } from '../page';
 import { useT } from '@/i18n/use-t';
 import { GamePrimaryButton } from '@/components/game/kit';
+import { haptics } from '@/lib/haptics';
 
 function Confetti({ active }: { active: boolean }) {
   useEffect(() => {
@@ -138,6 +139,7 @@ export default function CaseOpeningPage() {
     }
 
     try {
+      haptics.impact('heavy');
       setIsSpinning(true);
       setShowConfetti(false);
       setWinningIds([]); 
@@ -180,6 +182,7 @@ export default function CaseOpeningPage() {
       
       if (totalWon > 0) {
         setShowConfetti(true);
+        haptics.notification('success');
       }
     }
     

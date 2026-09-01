@@ -20,6 +20,7 @@ import { useCrashLive } from '@/hooks/use-crash-live';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
+import { haptics } from '@/lib/haptics';
 
 /**
  * Crash Game Page — Live Multiplayer
@@ -162,6 +163,7 @@ export default function CrashGamePage() {
       return;
     }
 
+    haptics.impact('medium');
     setRuntime((prev) => {
       const out = [...prev] as [SlotRuntime, SlotRuntime];
       out[slot] = { phase: 'queued', busy: true };
@@ -198,6 +200,7 @@ export default function CrashGamePage() {
   }
 
   async function cancelSlot(slot: 0 | 1) {
+    haptics.impact('light');
     setRuntime((prev) => {
       const out = [...prev] as [SlotRuntime, SlotRuntime];
       out[slot] = { ...out[slot], busy: true };
@@ -228,6 +231,7 @@ export default function CrashGamePage() {
   }
 
   async function cashoutSlot(slot: 0 | 1) {
+    haptics.impact('heavy');
     setRuntime((prev) => {
       const out = [...prev] as [SlotRuntime, SlotRuntime];
       out[slot] = { ...out[slot], busy: true };
@@ -247,6 +251,7 @@ export default function CrashGamePage() {
         throw new Error(data.message || 'Cashout failed');
       }
       soundManager.play('game.cashout');
+      haptics.notification('success');
       toast.cashout(snapshot.serverMultiplier, 'Выигрыш забран');
     } catch (err) {
       console.error('Cashout failed:', err);

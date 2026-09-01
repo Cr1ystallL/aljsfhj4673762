@@ -16,6 +16,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { useT } from '@/i18n/use-t';
+import { haptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import {
   KENO_BOARD_SIZE,
@@ -151,6 +152,7 @@ export default function KenoGamePage() {
 
   const handleClear = () => {
     if (phase !== 'idle') return;
+    haptics.selection();
     setPicks([]);
     clearDraw();
     soundManager.play('ui.click');
@@ -168,6 +170,7 @@ export default function KenoGamePage() {
       return;
     }
 
+    haptics.impact('medium');
     setBusy(true);
     setFrozenBalance(activeBalance - amount);
     clearDraw();
@@ -220,6 +223,7 @@ export default function KenoGamePage() {
       
       if (picks.includes(num)) {
         soundManager.play('win');
+        haptics.impact('medium');
       } else {
         soundManager.play('tick');
       }
@@ -241,9 +245,11 @@ export default function KenoGamePage() {
     if (resolvedMult > 0) {
       soundManager.play('win');
       soundManager.play('game.win');
+      haptics.notification('success');
     } else {
       soundManager.play('lose');
       soundManager.play('game.lose');
+      haptics.notification('error');
     }
     
     fetchBalance();

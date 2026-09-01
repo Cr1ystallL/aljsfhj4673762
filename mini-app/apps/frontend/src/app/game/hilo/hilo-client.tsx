@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/api/client';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { soundManager } from '@/lib/sound/sound-manager';
+import { haptics } from '@/lib/haptics';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { CardData, PlayingCard, SuitMark, getRankName } from '@/components/game/hilo/playing-card';
@@ -119,13 +120,16 @@ export function HiloClient() {
     };
   }, [user, fetchBalance]);
 
-  const handleSwap = async () => {
-    if (state?.status === 'playing' || loading) return;
+  const handleSkip = async () => {
+    if (!isPlaying || loading) return;
+    haptics.selection();
     try {
       setLoading(true);
-      const res: any = await apiClient.post('/api/games/hilo/swap', {});
-      if (res.state) setState(res.state);
-      soundManager.play('game.click');
+      const res: any = await apiClient.post('/api/games/hilo/skip', {});
+      if (res.state) {
+        setState(res.state);
+        soundManager.play('ui.click');
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.error || err?.message || 'Failed to skip card');
       refreshState();
@@ -153,6 +157,7 @@ export function HiloClient() {
       );
       return;
     }
+    haptics.impact('medium');
     try {
       setLoading(true);
       const res: any = await apiClient.post('/api/games/hilo/start', { amount });
@@ -178,6 +183,7 @@ export function HiloClient() {
 
   const handleGuess = async (choice: 'higher' | 'lower') => {
     if (state?.status !== 'playing' || loading) return;
+    haptics.impact('medium');
     try {
       setLoading(true);
       const res: any = await apiClient.post('/api/games/hilo/guess', { choice });
@@ -185,10 +191,12 @@ export function HiloClient() {
         setState(res.state);
         if (res.state.status === 'busted') {
           soundManager.play('game.lose');
+          haptics.notification('error');
           fetchBalance();
           refreshHistory();
         } else {
           soundManager.play('game.win');
+          haptics.notification('success');
         }
       }
     } catch (err: any) {
@@ -211,12 +219,14 @@ export function HiloClient() {
       toast.warn('Сначала выиграйте хотя бы один раунд');
       return;
     }
+    haptics.impact('heavy');
     try {
       setLoading(true);
       const res: any = await apiClient.post('/api/games/hilo/cashout', {});
       if (res.state) {
         setState(res.state);
         soundManager.play('game.cashout');
+        haptics.notification('success');
         fetchBalance();
         refreshHistory();
       }
