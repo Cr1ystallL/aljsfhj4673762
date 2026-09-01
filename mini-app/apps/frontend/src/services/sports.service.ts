@@ -68,7 +68,13 @@ async function parseJson<T>(res: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error(text || `HTTP ${res.status}`);
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('Сервер временно недоступен. Попробуйте снова через несколько секунд.');
+    }
+    if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html')) {
+      throw new Error(`Ошибка связи с сервером (${res.status})`);
+    }
+    throw new Error(text && text.length < 120 ? text : `Ошибка сервера (${res.status})`);
   }
 }
 

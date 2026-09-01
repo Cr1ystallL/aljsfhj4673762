@@ -184,7 +184,11 @@ export function SportsBetslipDrawer({
         setError(t('sports.oddsChanged'));
         return;
       }
-      const message = err instanceof Error ? err.message : t('sports.betFailed');
+      const rawMessage = err instanceof Error ? err.message : t('sports.betFailed');
+      const message =
+        rawMessage.startsWith('<') || rawMessage.includes('<!DOCTYPE') || rawMessage.length > 200
+          ? 'Ошибка сервера. Попробуйте позже.'
+          : rawMessage;
       setError(
         message === 'Insufficient balance' || message.includes('Недостаточно')
           ? t('common.insufficientFunds')

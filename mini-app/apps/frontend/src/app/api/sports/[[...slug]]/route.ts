@@ -30,14 +30,28 @@ async function proxy(
     body = await request.text();
   }
 
-  const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
-  const text = await res.text();
-  return new NextResponse(text, {
-    status: res.status,
-    headers: {
-      'content-type': res.headers.get('content-type') || 'application/json',
-    },
-  });
+  try {
+    const res = await fetch(fullUrl, { method, headers, body, cache: 'no-store' });
+    const text = await res.text();
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json') || text.trim().startsWith('<')) {
+      return NextResponse.json(
+        { ok: false, error: 'Сервис временно недоступен. Попробуйте снова.' },
+        { status: res.status >= 400 ? res.status : 502 }
+      );
+    }
+    return new NextResponse(text, {
+      status: res.status,
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: 'Сервер недоступен. Попробуйте позже.' },
+      { status: 502 }
+    );
+  }
 }
 
 export async function GET(
