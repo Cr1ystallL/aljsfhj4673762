@@ -493,22 +493,33 @@ class RtpEngine {
 
   /**
    * Per-bet payout cap for `give` mode.
-   *
-   * Returns a possibly-reduced gross payout. Engines should use the
-   * return value as the actual credit, and may downgrade the displayed
-   * multiplier accordingly. In `off` and `earn` modes this is a pass-
-   * through.
-   *
-   * Cap formula (give mode):
-   *   remaining = target - alreadyGiven
-   *   maxPayout = max(stake, remaining / expectedPlayers)
-   *
-   * Where `expectedPlayers` is a soft estimate: the number of distinct
-   * users seen in the current window so far, floored at 5 so a quiet
-   * window doesn't let the first big winner take everything. This is a
-   * conservative cap that limits a single payout to at most 1/5 of the
-   * remaining budget while still letting the player walk with at least
-   * their stake back (so they don't see a "win" turn into    // Handle Hidden Debt
+   */
+  async capPayoutForGive(
+    userId: string,
+    stake: number,
+    grossPayout: number
+  ): Promise<number> {
+    return grossPayout;
+  }
+
+  /* -----------------------------------------------------------------
+   * Outcome reporting (called from BettingPipeline)
+   * ---------------------------------------------------------------- */
+
+  /**
+   * Record the casino-side P&L of one settled bet.
+   */
+  async recordOutcome(
+    userId: string,
+    stake: number,
+    grossPayout: number,
+    isTournament: boolean = false
+  ): Promise<void> {
+    if (isTournament) return;
+
+    const profitDelta = stake - grossPayout;
+
+    // Handle Hidden Debt
     if (grossPayout >= stake * 6) {
       // Net profit is >= 5x stake (large win)
       const netProfit = grossPayout - stake;
@@ -797,45 +808,6 @@ class RtpEngine {
           rounds,
           durationMs: 45 * 60 * 1000,
           reason: `auto_profit_${Math.round(newSessionProfit)}pln_streak_${streak}`,
-        });
-      }
-    } catch (err) {
-      logger.warn({ err, userId }, 'Failed to record round for drain');
-    }
-  }
-
-  /**
-   * Determines if a forced loss should be applied to the next round outcome.
-   */
-  async shouldForceLoss(
-    userId: string,
-    betAmount: number,
-    potentialMultiplier: number,
-    isTournament: boolean = false
-  ): Promise<boolean> {
-    if (isTournament) {
-      return false; // 100% Pure RNG for tournament bets
-    }
-    try {
-      // 1. Check SmartDrain (active слив)
-      const drain = await this.isDrainActive(userId, isTournament);
-      if (drain) {
-        return true;
-      }
-
-      // 2. Check Hidden Debt
-      const debt = await this.getHiddenDebt(userId);
-      if (debt > 0) {
-        return true;
-      }
-
-      return false;
-    } catch (err) {
-      logger.warn({ err, userId }, 'Failed to check force loss condition');
-      return false;
-    }
-  }
-}eak}`,
         });
       }
     } catch (err) {
