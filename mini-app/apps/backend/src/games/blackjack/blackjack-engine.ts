@@ -1178,47 +1178,46 @@ export class BlackjackEngine extends EventEmitter {
             if (simTotal > 21) {
               // Target dealer bust rate is ~28.5%
               w = 0.285;
-              // If dealer hasn't busted recently, boost bust probability so history looks natural
-              if (hist.consecutiveNoBust >= 4 || (hist.totalRounds >= 5 && hist.recentBustRate < 0.20)) {
-                w *= 2.8;
-              } else if (hist.consecutiveNoBust >= 2) {
-                w *= 1.6;
+              if (hist.consecutiveNoBust >= 5 || (hist.totalRounds >= 6 && hist.recentBustRate < 0.18)) {
+                w *= 1.45;
+              } else if (hist.consecutiveNoBust >= 3) {
+                w *= 1.2;
               }
               if (hist.consecutive20_21 >= 1) {
-                w *= 1.8;
+                w *= 1.25;
               }
               if (globalBias < 0) {
                 w *= 1 + Math.abs(globalBias) * 1.5;
               }
-              if (hist.totalRounds >= 5 && hist.recentBustRate > 0.38) {
-                w *= 0.55; // Prevent over-busting if dealer already busted a lot
+              if (hist.totalRounds >= 6 && hist.recentBustRate > 0.34) {
+                w *= 0.7; // Prevent over-busting if dealer already busted a lot
               }
             } else if (simTotal === 17) {
               w = 0.145;
-              if (hist.consecutive20_21 >= 2) w *= 1.6;
+              if (hist.consecutive20_21 >= 1) w *= 1.2;
             } else if (simTotal === 18) {
               w = 0.138;
-              if (hist.consecutive20_21 >= 2) w *= 1.5;
+              if (hist.consecutive20_21 >= 1) w *= 1.2;
             } else if (simTotal === 19) {
               w = 0.132;
-              if (hist.consecutive20_21 >= 2) w *= 1.4;
+              if (hist.consecutive20_21 >= 1) w *= 1.15;
             } else if (simTotal === 20) {
               w = 0.175;
-              if (hist.consecutive20_21 >= 1) w *= 0.30;
-              if (hist.consecutive20_21 >= 2 || (hist.totalRounds >= 5 && hist.recent20_21Rate > 0.32)) {
-                w *= 0.12;
+              if (hist.consecutive20_21 >= 1) w *= 0.45;
+              if (hist.consecutive20_21 >= 2 || (hist.totalRounds >= 5 && hist.recent20_21Rate > 0.34)) {
+                w *= 0.22;
+              }
+              if (globalBias < 0) w *= 0.4;
+            } else if (simTotal === 21) {
+              w = 0.122;
+              if (hist.consecutive20_21 >= 1) w *= 0.40;
+              if (hist.consecutive20_21 >= 2 || (hist.totalRounds >= 5 && hist.recent20_21Rate > 0.34)) {
+                w *= 0.18;
               }
               if (globalBias < 0) w *= 0.35;
-            } else if (simTotal === 21) {
-              w = 0.125;
-              if (hist.consecutive20_21 >= 1) w *= 0.25;
-              if (hist.consecutive20_21 >= 2 || (hist.totalRounds >= 5 && hist.recent20_21Rate > 0.32)) {
-                w *= 0.08;
-              }
-              if (globalBias < 0) w *= 0.30;
             } else {
               // simTotal < 17 (Dealer will draw again)
-              w = 0.25;
+              w = 0.22;
             }
 
             weights.push(Math.max(0.001, w));
