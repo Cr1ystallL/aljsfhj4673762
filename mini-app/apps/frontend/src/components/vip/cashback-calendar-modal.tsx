@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ChevronDown,
   CheckCircle2,
+  Clock,
   HelpCircle,
 } from 'lucide-react';
 
@@ -17,29 +18,72 @@ interface CashbackCalendarModalProps {
   onClose: () => void;
 }
 
+const MONTH_NAMES_RU = [
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь',
+];
+
 export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModalProps) {
   const [accordionOpen, setAccordionOpen] = useState(true);
+
+  // Default month: September 2026
+  const [viewDate, setViewDate] = useState(() => new Date(2026, 8, 1));
 
   // Weekdays (Monday to Sunday)
   const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-  // September 2026 starts on Tuesday (offset 1 in 0-indexed Mon-Sun grid)
-  const daysInMonth = 30;
-  const startOffset = 1;
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const monthTitle = `${MONTH_NAMES_RU[month]} ${year}`;
 
-  // Payout Mondays in September 2026: 7, 14, 21, 28
-  const payoutDays = [7, 14, 21, 28];
-  const todayDay = 2; // 2 September
+  const handlePrevMonth = () => {
+    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  // Month geometry
+  const firstDay = new Date(year, month, 1);
+  // (getDay() + 6) % 7 gives Monday = 0, Sunday = 6
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Current system / real date (2 September 2026 context)
+  const now = new Date();
+  // Check if today is a payout day (Monday = day 1 in JS)
+  const isTodayPayoutDay = now.getDay() === 1;
 
   const cells = [];
   for (let i = 0; i < startOffset; i++) {
     cells.push({ day: null });
   }
+
   for (let d = 1; d <= daysInMonth; d++) {
+    const dayDate = new Date(year, month, d);
+    // Every Monday is a payout day
+    const isPayout = (dayDate.getDay() + 6) % 7 === 0;
+    // Check if this cell is today
+    const isToday =
+      now.getFullYear() === year &&
+      now.getMonth() === month &&
+      now.getDate() === d;
+
     cells.push({
       day: d,
-      isPayout: payoutDays.includes(d),
-      isToday: d === todayDay,
+      isPayout,
+      isToday,
     });
   }
 
@@ -105,15 +149,30 @@ export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModal
                 </div>
 
                 <div className="mt-3 flex flex-col gap-2">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-500/25 text-[11px] font-bold text-[#00e87b] w-fit">
-                    <Calendar size={12} />
+                  {/* Badge: Dark gray if not payout day today, emerald green if payout day */}
+                  <div
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold w-fit ${
+                      isTodayPayoutDay
+                        ? 'bg-emerald-950/40 border border-emerald-500/25 text-[#00e87b]'
+                        : 'bg-white/5 border border-white/10 text-white/50'
+                    }`}
+                  >
+                    <Calendar size={12} className={isTodayPayoutDay ? 'text-[#00e87b]' : 'text-white/40'} />
                     <span>Понедельник • 00:00 UTC</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#00e87b] font-medium">
-                    <CheckCircle2 size={13} className="text-[#00e87b]" />
-                    <span>Доступно к выводу</span>
-                  </div>
+                  {/* Status: Only show "Доступно к выводу" when today is payout day */}
+                  {isTodayPayoutDay ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#00e87b] font-medium">
+                      <CheckCircle2 size={13} className="text-[#00e87b]" />
+                      <span>Доступно к выводу</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-[11px] text-white/40 font-medium">
+                      <Clock size={12} className="text-white/30" />
+                      <span>Выплата в понедельник</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -139,13 +198,23 @@ export function CashbackCalendarModal({ isOpen, onClose }: CashbackCalendarModal
               {/* Month Header & Legend */}
               <div className="flex items-center justify-between pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-sm text-white">Сентябрь 2026</span>
-                  <div className="flex items-center gap-1 text-white/40">
-                    <button type="button" className="p-0.5 hover:text-white transition-colors">
-                      <ChevronLeft size={15} />
+                  <span className="font-extrabold text-sm text-white">{monthTitle}</span>
+                  <div className="flex items-center gap-1 text-white/50">
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      className="p-1 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
+                      title="Предыдущий месяц"
+                    >
+                      <ChevronLeft size={16} />
                     </button>
-                    <button type="button" className="p-0.5 hover:text-white transition-colors">
-                      <ChevronRight size={15} />
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      className="p-1 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
+                      title="Следующий месяц"
+                    >
+                      <ChevronRight size={16} />
                     </button>
                   </div>
                 </div>
