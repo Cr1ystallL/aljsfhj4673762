@@ -80,6 +80,31 @@ export default function AdminVipPage() {
     });
   };
 
+  const [recalculating, setRecalculating] = useState(false);
+
+  const handleResetAndRecalc = async () => {
+    if (!confirm('Вы уверены? Это сбросит преждевременные клеймы кэшбэка и точно пересчитает XP и ранги всех игроков по их реальным ставкам.')) {
+      return;
+    }
+    setRecalculating(true);
+    try {
+      const res = await fetch('/api/vip/admin/reset-and-recalc', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const j = await res.json();
+      if (res.ok) {
+        alert(j.message || 'Пересчет успешно выполнен!');
+      } else {
+        alert(j.error || 'Ошибка пересчета');
+      }
+    } catch {
+      alert('Ошибка сети');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto flex flex-col gap-6 text-frost-white font-roobert">
       {/* Header */}
@@ -94,7 +119,15 @@ export default function AdminVipPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={handleResetAndRecalc}
+            disabled={loading || saving || recalculating}
+            className="px-3.5 py-2.5 rounded-xl border border-red-500/40 bg-red-950/20 hover:bg-red-900/30 text-red-300 font-bold text-xs transition-colors disabled:opacity-50"
+          >
+            {recalculating ? 'Пересчет...' : '🔄 Сброс кэшбэка & пересчет XP'}
+          </button>
           <button
             type="button"
             onClick={loadConfig}

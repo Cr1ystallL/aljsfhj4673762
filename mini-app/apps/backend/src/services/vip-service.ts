@@ -35,8 +35,76 @@ export class VipService {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_cashback_claimed_at TIMESTAMP WITH TIME ZONE;
       `;
       this.tablesEnsured = true;
+
+      // Auto-run one-time recalculation of VIP XP and reset premature cashback claims
+      try {
+        const redis = (await import('../lib/redis.js')).redisClient.getClient();
+        if (redis) {
+          const done = await redis.get('vip:recalculated_v2');
+          if (!done) {
+            await this.recalculateAllUsersVipAndResetCashback();
+            await redis.set('vip:recalculated_v2', '1');
+          }
+        }
+      } catch (e) {
+        logger.warn({ e }, 'VIP one-time auto recalculation skipped / failed in Redis');
+      }
     } catch (err) {
       logger.error({ err }, 'Failed to ensure VIP columns in users table');
+    }
+  }
+
+  /**
+   * Resets invalid premature cashback claims and recalculates true XP & VIP levels from real bets.
+   */
+  async recalculateAllUsersVipAndResetCashback(): Promise<{ updatedUsers: number }> {
+    await this.ensureTables();
+    try {
+      logger.info('Starting full VIP XP recalculation and cashback reset...');
+
+      // 1. Reset all premature cashback claims
+      await prisma.$executeRaw`
+        UPDATE users SET last_cashback_claimed_at = NULL;
+      `;
+
+      // 2. Fetch all real bet amounts grouped by user
+      const betTotals = await prisma.$queryRaw<Array<{ user_id: string; total_wager: number | string }>>`
+        SELECT user_id, COALESCE(SUM(amount), 0) as total_wager
+        FROM bets
+        WHERE state != 'cancelled' 
+          AND (metadata->>'demoMode')::boolean IS NOT TRUE 
+          AND metadata->>'tournamentId' IS NULL
+        GROUP BY user_id
+      `;
+
+      const wagerMap = new Map<string, number>();
+      for (const row of betTotals) {
+        wagerMap.set(row.user_id, Number(row.total_wager || 0));
+      }
+
+      // 3. Fetch all users
+      const allUsers = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM users
+      `;
+
+      for (const u of allUsers) {
+        const wager = wagerMap.get(u.id) || 0;
+        const xp = Math.floor(wager * VIP_XP_PER_ZL);
+        const tier = getVipTierByXp(xp);
+
+        await prisma.$executeRaw`
+          UPDATE users
+          SET xp = ${xp},
+              vip_level = ${tier.level}
+          WHERE id = ${u.id}
+        `;
+      }
+
+      logger.info({ totalUsers: allUsers.length }, 'VIP XP recalculation and cashback reset completed successfully');
+      return { updatedUsers: allUsers.length };
+    } catch (err) {
+      logger.error({ err }, 'Failed to recalculate VIP XP and reset cashback');
+      throw err;
     }
   }
 

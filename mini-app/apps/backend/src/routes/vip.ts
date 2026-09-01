@@ -99,4 +99,17 @@ export async function vipRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(500).send({ ok: false, error: err.message });
     }
   });
+
+  /**
+   * POST /api/vip/admin/reset-and-recalc
+   * Admin-only: force recalculation of VIP XP and reset premature cashback claims
+   */
+  app.post('/admin/reset-and-recalc', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const res = await vipService.recalculateAllUsersVipAndResetCashback();
+      return reply.send({ ok: true, message: `Пересчитано пользователей: ${res.updatedUsers}` });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
+  });
 }
