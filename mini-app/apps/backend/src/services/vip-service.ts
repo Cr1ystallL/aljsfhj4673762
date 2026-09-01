@@ -81,7 +81,9 @@ export class VipService {
         FROM bets
         WHERE state != 'cancelled' 
           AND (metadata->>'demoMode')::boolean IS NOT TRUE 
+          AND (metadata->>'isTournament')::boolean IS NOT TRUE
           AND metadata->>'tournamentId' IS NULL
+          AND metadata->>'freebetId' IS NULL
           AND placed_at >= ${VIP_FRESH_START_EPOCH}
         GROUP BY user_id
       `;
@@ -380,13 +382,27 @@ export class VipService {
         ? new Date(Math.max(lastClaimedAt.getTime(), VIP_FRESH_START_EPOCH.getTime(), Date.now() - 7 * 24 * 3600 * 1000))
         : new Date(Math.max(VIP_FRESH_START_EPOCH.getTime(), Date.now() - 7 * 24 * 3600 * 1000));
 
-      // Check stats for the window
+      // Check stats for the window strictly for real-money non-tournament bets and wins
       const statsRows = await prisma.$queryRaw<
         Array<{ total_wagered: string | null; total_won: string | null }>
       >`
         SELECT 
-          (SELECT COALESCE(SUM(amount), 0) FROM bets WHERE user_id = ${userId} AND state != 'cancelled' AND placed_at >= ${sinceDate}) as total_wagered,
-          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = ${userId} AND type IN ('win', 'payout') AND created_at >= ${sinceDate}) as total_won
+          (SELECT COALESCE(SUM(amount), 0) FROM bets 
+           WHERE user_id = ${userId} 
+             AND state != 'cancelled' 
+             AND (metadata->>'demoMode')::boolean IS NOT TRUE
+             AND (metadata->>'isTournament')::boolean IS NOT TRUE
+             AND metadata->>'tournamentId' IS NULL
+             AND metadata->>'freebetId' IS NULL
+             AND placed_at >= ${sinceDate}) as total_wagered,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions 
+           WHERE user_id = ${userId} 
+             AND type IN ('win', 'payout') 
+             AND (metadata->>'demoMode')::boolean IS NOT TRUE
+             AND (metadata->>'isTournament')::boolean IS NOT TRUE
+             AND metadata->>'tournamentId' IS NULL
+             AND metadata->>'freebetId' IS NULL
+             AND created_at >= ${sinceDate}) as total_won
       `;
 
       const totalWagered = Number(statsRows[0]?.total_wagered || 0);

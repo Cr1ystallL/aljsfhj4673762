@@ -435,7 +435,9 @@ export class BettingPipeline {
           },
         });
 
-        if (!demoMode) {
+        const isTourn = !!(bet.isTournament || bet.metadata?.isTournament || bet.metadata?.tournamentId);
+        const isFreebet = !!bet.metadata?.freebetId;
+        if (!demoMode && !isTourn && !isFreebet) {
           await vipService.addXp(bet.userId, amount, tx);
         }
 
