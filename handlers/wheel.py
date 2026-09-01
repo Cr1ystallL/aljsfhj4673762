@@ -34,10 +34,12 @@ async def cmd_mb_wheel(message: Message):
                         minutes = max(1, round(seconds / 60))
                         msg = await message.answer(f"⏳ Ещё раз прокрутить можно через: {minutes} минут(ы)")
                         asyncio.create_task(delete_message_later(msg, 15))
+                        asyncio.create_task(delete_message_later(message, 15))
                         return
                     elif data.get('error') == 'DAILY_CAP':
                         msg = await message.answer("❌ У вас закончились вращения на сегодня. Возвращайтесь завтра!")
                         asyncio.create_task(delete_message_later(msg, 15))
+                        asyncio.create_task(delete_message_later(message, 15))
                         return
                 
                 if resp.status == 404:
@@ -46,11 +48,13 @@ async def cmd_mb_wheel(message: Message):
                         "Перейдите в личные сообщения @MacvBet_bot и отправьте команду /start"
                     )
                     asyncio.create_task(delete_message_later(msg, 15))
+                    asyncio.create_task(delete_message_later(message, 15))
                     return
                     
                 if resp.status != 200:
                     msg = await message.answer("❌ Произошла ошибка при вращении колеса. Попробуйте позже.")
                     asyncio.create_task(delete_message_later(msg, 15))
+                    asyncio.create_task(delete_message_later(message, 15))
                     return
                 
                 # Успешное вращение
@@ -122,7 +126,9 @@ async def cmd_mb_wheel(message: Message):
                             parse_mode="HTML"
                         )
                     
-                    # Запускаем задачу на удаление через 2 минуты
+                    # Запускаем задачу на удаление сообщений через 2 минуты
+                    asyncio.create_task(delete_message_later(result_msg, 120))
+                    asyncio.create_task(delete_message_later(message, 120))
                 except Exception as e:
                     # Если отправка с картинкой упала, пытаемся отправить текстом
                     try:
@@ -132,6 +138,7 @@ async def cmd_mb_wheel(message: Message):
                             parse_mode="HTML"
                         )
                         asyncio.create_task(delete_message_later(result_msg, 120))
+                        asyncio.create_task(delete_message_later(message, 120))
                     except Exception:
                         pass
                     
@@ -139,6 +146,7 @@ async def cmd_mb_wheel(message: Message):
             try:
                 msg = await message.answer("❌ Сервер временно недоступен.")
                 asyncio.create_task(delete_message_later(msg, 15))
+                asyncio.create_task(delete_message_later(message, 15))
             except Exception:
                 pass
         except Exception:
@@ -147,8 +155,9 @@ async def cmd_mb_wheel(message: Message):
 
 async def delete_message_later(message: Message, delay_seconds: int):
     """Фоновая задача для удаления сообщения через заданное время"""
-    await asyncio.sleep(delay_seconds)
     try:
-        await message.delete()
+        await asyncio.sleep(delay_seconds)
+        if message:
+            await message.delete()
     except Exception:
         pass
