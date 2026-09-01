@@ -6,8 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy,
   Check,
+  Crown,
   Lock,
+  Percent,
+  RefreshCw,
   ShieldAlert,
+  Sparkles,
   Wallet,
   ChevronRight,
   X,
@@ -17,6 +21,8 @@ import {
 } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
+import { VipBadge } from '@/components/vip/vip-badge';
+import { VIP_RANKS, type VipStatusDto, type CashbackStatusDto } from '@/lib/vip';
 
 /**
  * Admin → User detail page.
@@ -58,7 +64,11 @@ interface UserDetail {
     currency: string;
     wagerTarget: number;
     wagerProgress: number;
+    xp?: number;
+    vipLevel?: number;
   };
+  vip?: VipStatusDto | null;
+  cashback?: CashbackStatusDto | null;
   drain?: {
     active: boolean;
     roundsLeft: number;
@@ -180,13 +190,17 @@ export default function UserDetailPage() {
   const [betFilter, setBetFilter] = useState<'all' | 'real' | 'tournament' | 'script'>('all');
   const [drainBusy, setDrainBusy] = useState(false);
 
-  // Action modal state — single modal driven by `action`.
-  type Action = null | 'balance' | 'block' | 'lock' | 'whitelist';
   const [action, setAction] = useState<Action>(null);
   const [delta, setDelta] = useState<string>('');
   const [txType, setTxType] = useState<string>('admin_adjustment');
   const [reason, setReason] = useState<string>('');
   const [busy, setBusy] = useState(false);
+  const [vipLevel, setVipLevel] = useState<number>(0);
+  const [vipXp, setVipXp] = useState<string>('0');
+  const [vipBusy, setVipBusy] = useState(false);
+  const [cbManualAmount, setCbManualAmount] = useState<string>('');
+  const [cbReason, setCbReason] = useState<string>('');
+  const [cbBusy, setCbBusy] = useState(false);
 
   const toggleDrain = async (enable: boolean, rounds = 30) => {
     const reason = prompt(
@@ -289,6 +303,78 @@ export default function UserDetailPage() {
   useEffect(() => {
     void loadWagerHistory();
   }, [loadWagerHistory]);
+
+  useEffect(() => {
+    if (data?.vip) {
+      setVipLevel(data.vip.currentTier.level);
+      setVipXp(String(data.vip.xp));
+    } else if (data?.user) {
+      setVipLevel(data.user.vipLevel ?? 0);
+      setVipXp(String(data.user.xp ?? 0));
+    }
+  }, [data]);
+
+  const submitVip = async () => {
+    setVipBusy(true);
+    try {
+      const res = await fetch(`/api/_x/users/${userId}/vip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          vipLevel: Number(vipLevel),
+          xp: Number(vipXp) || 0,
+          reason: 'Admin panel update',
+        }),
+      });
+      if (!res.ok) {
+        alert('Не удалось обновить VIP ранг');
+        return;
+      }
+      await reload();
+      alert('VIP ранг и XP успешно обновлены!');
+    } catch {
+      alert('Ошибка сети');
+    } finally {
+      setVipBusy(false);
+    }
+  };
+
+  const submitCashback = async (action: 'reset_cooldown' | 'credit') => {
+    setCbBusy(true);
+    try {
+      const body: any = { action, reason: cbReason || 'Admin action' };
+      if (action === 'credit') {
+        const amt = parseFloat(cbManualAmount);
+        if (!amt || amt <= 0) {
+          alert('Укажите корректную сумму');
+          setCbBusy(false);
+          return;
+        }
+        body.amount = amt;
+      }
+
+      const res = await fetch(`/api/_x/users/${userId}/cashback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        alert(j?.error || 'Не удалось обновить кэшбэк');
+        return;
+      }
+      setCbManualAmount('');
+      setCbReason('');
+      await reload();
+      alert(action === 'reset_cooldown' ? 'Кулдаун кэшбэка сброшен!' : 'Кэшбэк успешно начислен!');
+    } catch {
+      alert('Ошибка сети');
+    } finally {
+      setCbBusy(false);
+    }
+  };
 
   const handleCopyId = async () => {
     if (!data) return;
@@ -569,23 +655,155 @@ export default function UserDetailPage() {
                   })}
                 </span>
               </div>
-              <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04]">
-                <Wallet size={13} className="text-frost-white/70" strokeWidth={1.7} />
-                <span className="font-roobert text-frost-white text-[14px] tabular-nums">
-                  {u.balance.toLocaleString('ru-RU', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-                <span className="font-roobert text-whisper-gray text-[11px]">
-                  {u.currency}
-                </span>
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-white/15 bg-white/[0.04]">
+                  <Wallet size={13} className="text-frost-white/70" strokeWidth={1.7} />
+                  <span className="font-roobert text-frost-white text-[14px] tabular-nums font-bold">
+                    {u.balance.toLocaleString('ru-RU', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="font-roobert text-whisper-gray text-[11px]">
+                    {u.currency}
+                  </span>
+                </div>
+
+                {data.vip && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-pill border border-amber-400/30 bg-amber-950/20">
+                    <VipBadge rankId={data.vip.currentTier.id} size="sm" />
+                    <span className="font-roobert text-white text-[12px] font-extrabold">
+                      {data.vip.currentTier.nameRu} (Lvl {data.vip.currentTier.level})
+                    </span>
+                    <span className="text-amber-300 text-[11px] font-mono">
+                      {data.vip.xp.toLocaleString('ru-RU')} XP
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </section>
 
+        {/* VIP & Cashback Management Section */}
+        <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+            <div className="flex items-center gap-2">
+              <Crown size={15} className="text-amber-400" />
+              <span className="font-roobert text-[12px] uppercase tracking-[0.1em] text-white font-bold">
+                Управление VIP Рангом & Кэшбэком
+              </span>
+            </div>
+          </div>
 
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* 1. VIP Rank Editor */}
+            <div className="p-4 rounded-2xl border border-white/10 bg-black/40 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="font-roobert text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <Crown size={14} /> VIP Ранг и Опыт (XP)
+                </span>
+                {data?.vip && (
+                  <span className="text-[11px] text-white/50">
+                    Текущий: <b className="text-white">{data.vip.currentTier.nameRu}</b>
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] text-whisper-gray">Уровень ранга</label>
+                  <select
+                    value={vipLevel}
+                    onChange={(e) => setVipLevel(Number(e.target.value))}
+                    className="rounded-xl border border-white/10 bg-[#14161c] px-3 py-2 text-white text-xs"
+                  >
+                    {VIP_RANKS.map((r) => (
+                      <option key={r.id} value={r.level}>
+                        Lvl {r.level} — {r.nameRu} ({r.cashbackPercent}% кэшбэк)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] text-whisper-gray">XP (Опыт)</label>
+                  <input
+                    type="number"
+                    value={vipXp}
+                    onChange={(e) => setVipXp(e.target.value)}
+                    className="rounded-xl border border-white/10 bg-[#14161c] px-3 py-2 text-white text-xs font-mono"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={submitVip}
+                disabled={vipBusy}
+                className="w-full mt-1 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-extrabold text-xs transition-colors shadow-md disabled:opacity-50"
+              >
+                {vipBusy ? 'Сохраняю…' : '💾 Сохранить VIP Ранг и XP'}
+              </button>
+            </div>
+
+            {/* 2. Cashback Management */}
+            <div className="p-4 rounded-2xl border border-white/10 bg-black/40 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="font-roobert text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                  <Percent size={14} /> Еженедельный Кэшбэк
+                </span>
+                <span className="text-[11px] text-white/50">
+                  Ставка: <b className="text-emerald-400">{data?.cashback?.cashbackPercent ?? 2}%</b>
+                </span>
+              </div>
+
+              {data?.cashback && (
+                <div className="grid grid-cols-3 gap-1.5 text-center bg-white/[0.03] p-2.5 rounded-xl border border-white/5 text-[10.5px]">
+                  <div>
+                    <span className="text-white/40 block">Оборот</span>
+                    <span className="font-bold text-white">{data.cashback.totalWagered.toFixed(0)} zł</span>
+                  </div>
+                  <div>
+                    <span className="text-white/40 block">Проигрыш</span>
+                    <span className="font-bold text-white">{data.cashback.netLoss.toFixed(0)} zł</span>
+                  </div>
+                  <div>
+                    <span className="text-white/40 block">К выплате</span>
+                    <span className="font-bold text-emerald-400">{data.cashback.amount.toFixed(2)} zł</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => submitCashback('reset_cooldown')}
+                  disabled={cbBusy}
+                  className="flex-1 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  🔄 Сбросить кулдаун
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+                <input
+                  type="number"
+                  value={cbManualAmount}
+                  onChange={(e) => setCbManualAmount(e.target.value)}
+                  placeholder="Сумма (zł)"
+                  className="w-28 rounded-xl border border-white/10 bg-[#14161c] px-3 py-2 text-white text-xs font-mono"
+                />
+                <button
+                  onClick={() => submitCashback('credit')}
+                  disabled={cbBusy || !cbManualAmount}
+                  className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs transition-colors disabled:opacity-50"
+                >
+                  {cbBusy ? '...' : '✨ Начислить вручную'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Wager Controls */}
         <section className="rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-sm overflow-hidden">

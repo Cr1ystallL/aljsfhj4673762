@@ -159,24 +159,26 @@ export function MenuDrawer({
                 <button
                   onClick={onClose}
                   aria-label={t('nav.closeMenu')}
-                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] text-whisper-gray hover:text-frost-white flex items-center justify-center active:scale-95 transition-all"
+                  className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray hover:text-frost-white active:scale-95 transition-transform"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
 
-              {/* User Quick Profile Card */}
-              <div className="rounded-2xl border border-white/15 bg-gradient-to-r from-white/[0.05] via-white/[0.03] to-white/[0.05] p-3 flex items-center justify-between gap-3 shadow-inner">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-10 h-10 rounded-full border border-amber-400/40 bg-amber-400/10 flex items-center justify-center shrink-0">
+              {/* User Mini Card */}
+              <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full border border-white/15 bg-white/5 flex items-center justify-center overflow-hidden shrink-0">
                     {user?.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={user.photoUrl}
-                        alt=""
-                        className="w-full h-full object-cover rounded-full"
+                        alt="User"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <span className="font-roobert font-bold text-[14px] text-frost-white">
+                      <span className="font-roobert font-medium text-sm text-frost-white">
                         {initials}
                       </span>
                     )}
@@ -206,8 +208,8 @@ export function MenuDrawer({
             </div>
 
             {/* Main Content Area */}
-            <div className="p-4 flex flex-col gap-6 flex-1">
-              {/* Games Grid following 2 - 1 - 2 - 1 pattern with photo backgrounds */}
+            <div className="p-4 flex flex-col gap-5 flex-1">
+              {/* Games Grid in Mobile Style (3 Columns) */}
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-baseline justify-between">
                   <span className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
@@ -218,7 +220,7 @@ export function MenuDrawer({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {visibleGames.map((g) => {
                     const BadgeIcon = g.badge?.Icon;
 
@@ -229,13 +231,13 @@ export function MenuDrawer({
                           onClose();
                           router.push(`/game/${g.id}`);
                         }}
-                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-canvas text-left active:scale-[0.96] hover:border-amber-400/40 transition-all duration-200 shadow-md aspect-[16/11] flex flex-col justify-between p-2.5"
+                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#12141a] text-center active:scale-[0.95] hover:border-amber-400/40 transition-all duration-200 shadow-md aspect-square flex flex-col items-center justify-between p-2"
                       >
                         {/* Background photo artwork */}
                         {g.bg && (
                           <div
                             aria-hidden
-                            className="absolute inset-0 opacity-55 group-hover:opacity-75 transition-opacity duration-300"
+                            className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity duration-300"
                             style={{
                               backgroundImage: `url(${g.bg})`,
                               backgroundSize: 'cover',
@@ -248,30 +250,30 @@ export function MenuDrawer({
                         {/* Vignette */}
                         <div
                           aria-hidden
-                          className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/55 to-black/25"
+                          className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20"
                         />
 
-                        {/* Card Top: Icon & Badge */}
-                        <div className="relative z-10 flex items-start justify-between gap-1">
-                          <span className="w-8 h-8 rounded-xl border border-white/20 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
-                            <GameIcon game={g.id} size={18} strokeWidth={2} />
-                          </span>
-
-                          {g.badge && (
-                            <span className="px-1.5 py-0.5 rounded-full text-[8px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-0.5">
-                              {BadgeIcon && <BadgeIcon size={8} className="shrink-0" />}
+                        {/* Card Top: Badge if present */}
+                        <div className="relative z-10 w-full flex justify-end">
+                          {g.badge ? (
+                            <span className="px-1 py-0.2 rounded-full text-[7.5px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-0.5">
+                              {BadgeIcon && <BadgeIcon size={7} className="shrink-0" />}
                               <span>{g.badge.label}</span>
                             </span>
+                          ) : (
+                            <span className="h-3" />
                           )}
                         </div>
 
-                        {/* Card Bottom: Name & Play */}
-                        <div className="relative z-10">
-                          <div className="font-roobert text-[13px] font-bold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors">
+                        {/* Card Center: Icon */}
+                        <div className="relative z-10 w-8 h-8 rounded-xl border border-white/15 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shadow-md group-hover:scale-110 transition-transform">
+                          <GameIcon game={g.id} size={18} strokeWidth={2} />
+                        </div>
+
+                        {/* Card Bottom: Name */}
+                        <div className="relative z-10 w-full truncate">
+                          <div className="font-roobert text-[11px] font-bold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors truncate">
                             {g.name}
-                          </div>
-                          <div className="text-[9px] font-roobert text-whisper-gray/80 uppercase tracking-wider">
-                            {t('common.play')}
                           </div>
                         </div>
                       </button>
@@ -279,7 +281,8 @@ export function MenuDrawer({
                   })}
                 </div>
               </div>
-              {/* Completely Redesigned "Разделы" (Sections) in Mobile Grid */}
+
+              {/* Sections in Mobile 2-col Grid */}
               <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
                 <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
                   {t('nav.sections')}
@@ -317,7 +320,6 @@ export function MenuDrawer({
                     icon={<Percent size={18} className="text-emerald-400" />}
                     title="Кэшбэк"
                     subtitle="Возврат до 10%"
-                    badge="VIP"
                     onClick={() => {
                       onClose();
                       router.push('/cashback');

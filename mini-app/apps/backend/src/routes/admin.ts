@@ -24,6 +24,7 @@ import { rtpEngine } from '../services/rtp-engine.js';
 import { config } from '../config/index.js';
 import { sportsEngine } from '../games/sports/engine.js';
 import { freebetService } from '../services/freebet-service.js';
+import { vipService } from '../services/vip-service.js';
 
 /**
  * Admin Routes — covert.
@@ -910,11 +911,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const betLimit = Math.min(500, Math.max(10, parseInt(request.query?.betLimit ?? '100', 10)));
       const txLimit = Math.min(500, Math.max(10, parseInt(request.query?.txLimit ?? '100', 10)));
       try {
-        const userRows = await app.prisma.$queryRaw<RawUserRow[]>(
+        const userRows = await app.prisma.$queryRaw<any[]>(
           Prisma.sql`
             SELECT id, telegram_id, username, first_name, last_name,
                    language_code, photo_url, is_premium,
                    is_blocked, ignore_ip_collision, withdrawal_locked, admin_note,
+                   xp, vip_level, last_cashback_claimed_at,
                    created_at, updated_at
             FROM users WHERE id = ${id} LIMIT 1
           `
@@ -924,7 +926,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
         }
 
-        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog, securityAlerts, drain] = await Promise.all([
+        const [balance, betsAgg, bets, txAgg, txs, sessions, adminLog, securityAlerts, drain, vipStatus, cashbackStatus] = await Promise.all([
           app.prisma.balance.findUnique({
             where: { userId: id },
             select: { amount: true, currency: true, lastSyncedAt: true, wagerTarget: true, wagerProgress: true },
@@ -982,6 +984,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             take: 30,
           }),
           rtpEngine.getDrainInfo(id).catch(() => ({ active: false, roundsLeft: 0, expiresAt: 0, reason: null })),
+          vipService.getVipStatus(id).catch(() => null),
+          vipService.getCashbackStatus(id).catch(() => null),
         ]);
 
         const betsAggRaw = (betsAgg as any)[0] || {};
@@ -1026,7 +1030,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             currency: balance?.currency ?? 'PLN',
             wagerTarget: balance ? Number(balance.wagerTarget) : 0,
             wagerProgress: balance ? Number(balance.wagerProgress) : 0,
+            xp: u.xp ? Number(u.xp) : 0,
+            vipLevel: u.vip_level ? Number(u.vip_level) : 0,
           },
+          vip: vipStatus,
+          cashback: cashbackStatus,
           drain,
           stats: {
             totalBets: betsAggObj._count._all,
@@ -1479,6 +1487,105 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         logger.error(error, 'Admin flag update failed');
         return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+      }
+    }
+  );
+
+  /**
+   * POST /_x/users/:id/vip
+   * Manage user's VIP Level and XP
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { vipLevel?: number; xp?: number; reason?: string };
+  }>(
+    '/_x/users/:id/vip',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { vipLevel, xp, reason } = request.body || {};
+
+      try {
+        if (vipLevel !== undefined) {
+          const lvl = Number(vipLevel);
+          await app.prisma.$executeRaw`
+            UPDATE users SET vip_level = ${lvl} WHERE id = ${id}
+          `;
+        }
+        if (xp !== undefined) {
+          const newXp = Number(xp);
+          await app.prisma.$executeRaw`
+            UPDATE users SET xp = ${newXp} WHERE id = ${id}
+          `;
+        }
+
+        const updatedVip = await vipService.getVipStatus(id);
+        return reply.send({ ok: true, vip: updatedVip });
+      } catch (err: any) {
+        return reply.code(400).send({ error: err.message || 'Failed to update VIP' });
+      }
+    }
+  );
+
+  /**
+   * POST /_x/users/:id/cashback
+   * Manage user's cashback (reset cooldown or credit manually)
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { action: 'reset_cooldown' | 'credit'; amount?: number; reason?: string };
+  }>(
+    '/_x/users/:id/cashback',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { action, amount, reason } = request.body || {};
+
+      try {
+        if (action === 'reset_cooldown') {
+          await app.prisma.$executeRaw`
+            UPDATE users SET last_cashback_claimed_at = NULL WHERE id = ${id}
+          `;
+          const updatedCb = await vipService.getCashbackStatus(id);
+          return reply.send({ ok: true, cashback: updatedCb });
+        }
+
+        if (action === 'credit') {
+          const creditAmt = Number(amount);
+          if (!creditAmt || creditAmt <= 0) {
+            return reply.code(400).send({ error: 'Укажите корректную сумму кэшбэка' });
+          }
+
+          await app.prisma.$transaction(async (tx) => {
+            const curBal = await tx.balance.findUnique({ where: { userId: id } });
+            const before = Number(curBal?.amount || 0);
+            await tx.$executeRaw`
+              UPDATE balances
+              SET amount = amount + ${creditAmt}::numeric, updated_at = NOW()
+              WHERE user_id = ${id} AND demo_mode = false
+            `;
+            await tx.$executeRaw`
+              UPDATE users SET last_cashback_claimed_at = NOW() WHERE id = ${id}
+            `;
+            await tx.transaction.create({
+              data: {
+                userId: id,
+                type: 'bonus',
+                amount: creditAmt,
+                balanceBefore: before,
+                balanceAfter: before + creditAmt,
+                metadata: { reason: `Admin Manual Cashback: ${reason || 'Manual credit'}` },
+              },
+            });
+          });
+
+          const updatedCb = await vipService.getCashbackStatus(id);
+          return reply.send({ ok: true, cashback: updatedCb });
+        }
+
+        return reply.code(400).send({ error: 'Неизвестное действие' });
+      } catch (err: any) {
+        return reply.code(400).send({ error: err.message || 'Failed to update cashback' });
       }
     }
   );

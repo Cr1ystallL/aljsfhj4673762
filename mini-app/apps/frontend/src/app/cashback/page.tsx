@@ -189,6 +189,71 @@ export default function CashbackPage() {
           </div>
         </div>
 
+        {/* ========================================================================= */}
+        {/* VIP RANKS CASHBACK BREAKDOWN TABLE                                        */}
+        {/* ========================================================================= */}
+        <div className="rounded-[24px] border border-white/10 bg-[#0d0f13] p-5 sm:p-6 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Percent size={17} className="text-[#00e87b]" />
+              <span className="font-roobert text-[15.5px] font-extrabold text-white">
+                Шкала кэшбэка по VIP Рангам
+              </span>
+            </div>
+
+            <button
+              onClick={() => setFaqOpen(true)}
+              className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              Все награды →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {VIP_RANKS.map((t) => {
+              const isCurrent = rank.level === t.level;
+              return (
+                <div
+                  key={t.id}
+                  className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                    isCurrent
+                      ? 'border-emerald-500/60 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                      : 'border-white/8 bg-white/[0.02]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <VipBadge rankId={t.id} size="sm" showGlow={isCurrent} />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-roobert text-[13.5px] font-extrabold text-white">
+                          {t.nameRu}
+                        </span>
+                        {isCurrent && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-[#00e87b] font-extrabold text-[9px] border border-emerald-500/30">
+                            Ваш ранг
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10.5px] text-white/50 block mt-0.5">
+                        Оборот от {t.wagerZl.toLocaleString('ru-RU')} zł ({t.minXp.toLocaleString('ru-RU')} XP)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="font-roobert text-[16px] font-black text-[#00e87b] tabular-nums">
+                      {t.cashbackPercent}%
+                    </span>
+                    <span className="block text-[9.5px] text-white/40 uppercase font-bold tracking-wider">
+                      кэшбэк
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Informational rules card */}
         <div className="rounded-[20px] border border-white/10 bg-[#0d0f13] p-5 flex flex-col gap-3 text-xs text-white/60 leading-relaxed">
           <div className="font-bold text-white text-sm flex items-center gap-2">

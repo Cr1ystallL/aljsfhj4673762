@@ -186,10 +186,94 @@ export default function ProfilePage() {
                 </Pressable>
               )}
 
+              {/* VIP Rank Progress Element — Full structure above balance, transparent background */}
+              {vipStatus?.currentTier && (
+                <div className="mt-5 w-full flex flex-col gap-3.5 text-left">
+                  {/* Top row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <VipBadge rankId={vipStatus.currentTier.id} size="md" showGlow={true} />
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-roobert text-[17px] font-extrabold text-white tracking-tight">
+                            {vipStatus.currentTier.nameRu}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/80 font-bold text-[10px] tracking-wide">
+                            Lvl {vipStatus.currentTier.level}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/50 mt-0.5">
+                          Кэшбэк <b className="text-emerald-400">{vipStatus.currentTier.cashbackPercent}%</b>
+                          {vipStatus.nextTier && ` · Следующий: ${vipStatus.nextTier.nameRu}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsVipModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[11px] font-bold"
+                    >
+                      <Sparkles size={12} className="text-amber-400" />
+                      <span>Ранги</span>
+                    </button>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between text-[11.5px]">
+                      <span className="font-medium text-white/60">
+                        Прогресс XP: <b className="text-white">{vipStatus.xp.toLocaleString('ru-RU')} XP</b>
+                      </span>
+                      {vipStatus.nextTier ? (
+                        <span className="text-white/50 text-[11px]">
+                          До {vipStatus.nextTier.nameRu}: <b className="text-amber-300">{(vipStatus.nextTier.minXp - vipStatus.xp).toLocaleString('ru-RU')} XP</b>
+                        </span>
+                      ) : (
+                        <span className="text-amber-300 font-bold text-[11px]">Максимальный ранг! 👑</span>
+                      )}
+                    </div>
+
+                    <div className="h-2.5 w-full bg-white/10 rounded-full overflow-hidden p-0.5 border border-white/5">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-200 rounded-full shadow-[0_0_12px_rgba(245,158,11,0.5)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${vipStatus.progressPercent}%` }}
+                        transition={{ type: 'spring', duration: 0.8, bounce: 0.1 }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Claim reward alert banner */}
+                  {vipStatus.unclaimedLevels.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 rounded-xl border border-amber-400/40 bg-gradient-to-r from-amber-950/40 via-black/60 to-black/80 flex items-center justify-between gap-3 shadow-lg shadow-amber-500/10"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-amber-300 font-extrabold text-[12px]">
+                          <Sparkles size={14} />
+                          <span>Доступна награда за уровень {vipStatus.unclaimedLevels[0]}!</span>
+                        </div>
+                      </div>
+
+                      <Pressable
+                        onClick={() => claimReward(vipStatus.unclaimedLevels[0])}
+                        disabled={claiming}
+                        className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-black font-extrabold text-[11.5px] transition-all shrink-0 shadow-md shadow-amber-500/20 active:scale-95 disabled:opacity-50"
+                      >
+                        {claiming ? 'Зачисление...' : 'Забрать'}
+                      </Pressable>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
               {/* Elevated Obsidian Balance Card */}
               <Pressable
                 onClick={() => router.push('/balance')}
-                className="mt-5 w-full p-4 rounded-[16px] border border-white/12 bg-white/[0.04] flex items-center justify-between shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                className="mt-4 w-full p-4 rounded-[16px] border border-white/12 bg-white/[0.04] flex items-center justify-between shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-inner">
@@ -217,62 +301,6 @@ export default function ProfilePage() {
                   <ChevronRight size={22} strokeWidth={2.2} />
                 </div>
               </Pressable>
-
-              {/* Integrated VIP Rank Bar inside Hero Card */}
-              {vipStatus?.currentTier && (
-                <div className="mt-4 w-full p-3.5 rounded-[16px] border border-white/10 bg-white/[0.03] flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <VipBadge rankId={vipStatus.currentTier.id} size="sm" showGlow={true} />
-                      <div className="text-left">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-roobert text-[13.5px] font-extrabold text-white">
-                            {vipStatus.currentTier.nameRu}
-                          </span>
-                          <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-white/80 font-bold text-[9.5px]">
-                            Lvl {vipStatus.currentTier.level}
-                          </span>
-                        </div>
-                        <span className="text-[10.5px] text-white/50 block mt-0.5">
-                          {vipStatus.nextTier
-                            ? `${vipStatus.xp.toLocaleString('ru-RU')} / ${vipStatus.nextTier.minXp.toLocaleString('ru-RU')} XP`
-                            : `${vipStatus.xp.toLocaleString('ru-RU')} XP (MAX)`}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsVipModalOpen(true)}
-                      className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors text-[10.5px] font-bold"
-                    >
-                      Ранги
-                    </button>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden p-0.5 border border-white/5">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-200 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.4)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${vipStatus.progressPercent}%` }}
-                      transition={{ type: 'spring', duration: 0.8, bounce: 0.1 }}
-                    />
-                  </div>
-
-                  {/* Claim reward if available */}
-                  {vipStatus.unclaimedLevels.length > 0 && (
-                    <Pressable
-                      onClick={() => claimReward(vipStatus.unclaimedLevels[0])}
-                      disabled={claiming}
-                      className="mt-0.5 w-full py-2 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 text-black font-extrabold text-[11.5px] transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 disabled:opacity-50"
-                    >
-                      <Sparkles size={13} />
-                      <span>{claiming ? 'Зачисление...' : `Забрать награду за Lvl ${vipStatus.unclaimedLevels[0]}`}</span>
-                    </Pressable>
-                  )}
-                </div>
-              )}
 
               {/* Active Wager Progress Section */}
               {balance?.wagerTarget && balance.wagerTarget > 0 && balance.wagerProgress !== undefined && balance.wagerProgress < balance.wagerTarget ? (
