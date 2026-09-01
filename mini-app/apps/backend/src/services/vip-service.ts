@@ -40,10 +40,10 @@ export class VipService {
       try {
         const redis = (await import('../lib/redis.js')).redisClient.getClient();
         if (redis) {
-          const done = await redis.get('vip:recalculated_v2');
+          const done = await redis.get('vip:recalculated_v3');
           if (!done) {
             await this.recalculateAllUsersVipAndResetCashback();
-            await redis.set('vip:recalculated_v2', '1');
+            await redis.set('vip:recalculated_v3', '1');
           }
         }
       } catch (e) {
@@ -55,25 +55,43 @@ export class VipService {
   }
 
   /**
-   * Resets invalid premature cashback claims and recalculates true XP & VIP levels from real bets.
+   * Resets invalid premature cashback claims and recalculates true XP & VIP levels from real bets
+   * placed strictly on or after September 7, 2026 launch date.
    */
   async recalculateAllUsersVipAndResetCashback(): Promise<{ updatedUsers: number }> {
     await this.ensureTables();
     try {
-      logger.info('Starting full VIP XP recalculation and cashback reset...');
+      logger.info('Starting full VIP XP recalculation and cashback reset (launch date: 2026-09-07)...');
+      const startDate = new Date('2026-09-07T00:00:00.000Z');
+      const isBeforeLaunch = Date.now() < startDate.getTime();
 
-      // 1. Reset all premature cashback claims
+      // 1. Reset all premature cashback claims and reward claims
       await prisma.$executeRaw`
-        UPDATE users SET last_cashback_claimed_at = NULL;
+        UPDATE users 
+        SET last_cashback_claimed_at = NULL,
+            claimed_vip_rewards = '{}';
       `;
 
-      // 2. Fetch all real bet amounts grouped by user
+      if (isBeforeLaunch) {
+        // Before 7 September 2026: Everyone starts fresh at 0 XP / Level 0
+        const res = await prisma.$executeRaw`
+          UPDATE users
+          SET xp = 0,
+              vip_level = 0,
+              claimed_vip_rewards = '{}';
+        `;
+        logger.info({ affected: res }, 'Reset all users to 0 XP / Rank 0 before launch date');
+        return { updatedUsers: Number(res || 0) };
+      }
+
+      // 2. If after launch date: Fetch real bet amounts placed ON OR AFTER September 7, 2026
       const betTotals = await prisma.$queryRaw<Array<{ user_id: string; total_wager: number | string }>>`
         SELECT user_id, COALESCE(SUM(amount), 0) as total_wager
         FROM bets
         WHERE state != 'cancelled' 
           AND (metadata->>'demoMode')::boolean IS NOT TRUE 
           AND metadata->>'tournamentId' IS NULL
+          AND placed_at >= ${startDate}
         GROUP BY user_id
       `;
 
@@ -82,7 +100,7 @@ export class VipService {
         wagerMap.set(row.user_id, Number(row.total_wager || 0));
       }
 
-      // 3. Fetch all users
+      // 3. Update all users
       const allUsers = await prisma.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM users
       `;
@@ -109,10 +127,15 @@ export class VipService {
   }
 
   /**
-   * Adds XP when a real-money bet is placed.
+   * Adds XP when a real-money bet is placed (only on or after September 7, 2026 launch date).
    */
   async addXp(userId: string, betAmountZl: number, txClient?: PrismaClient | Prisma.TransactionClient): Promise<void> {
     if (betAmountZl <= 0) return;
+    const startDate = new Date('2026-09-07T00:00:00.000Z');
+    if (Date.now() < startDate.getTime()) {
+      return; // VIP program starts on 7 September 2026
+    }
+
     await this.ensureTables();
     const db = txClient || prisma;
     const gainedXp = Math.max(1, Math.floor(betAmountZl * VIP_XP_PER_ZL));
