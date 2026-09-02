@@ -37,6 +37,7 @@ let luckFeedCache: {
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Health check & stats
   await app.register(healthRoutes, { prefix: '/health' });
+  await app.register(healthRoutes, { prefix: '/api/health' });
 
   /**
    * Public lobby stats for the home ticker.
