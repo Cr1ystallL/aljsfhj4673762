@@ -148,9 +148,26 @@ export async function apiAction<T = unknown>(
 ): Promise<T> {
   let res: Response;
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((init.headers as Record<string, string>) ?? {}),
+    };
+    if (!headers['Authorization'] && !headers['authorization']) {
+      let token: string | null = null;
+      try {
+        const { useAuthStore } = await import('@/store/auth-store');
+        token = useAuthStore.getState().token;
+      } catch {}
+      if (!token && typeof window !== 'undefined') {
+        token = localStorage.getItem('macvbet_token') || sessionStorage.getItem('macvbet_token');
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
     res = await fetch(url, {
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+      headers,
       ...init,
     });
   } catch {

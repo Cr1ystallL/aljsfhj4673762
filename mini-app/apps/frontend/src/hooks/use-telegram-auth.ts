@@ -54,9 +54,18 @@ export function useTelegramAuth() {
         const photoUrl = tg.initDataUnsafe?.user?.photo_url || undefined;
         console.log('[AUTH] Photo URL:', photoUrl);
 
-        // Cookie remains the primary session. Keep the access token in
-        // memory (not persisted) so same-origin /api/balance can send Bearer
-        // when the httpOnly cookie is missing in Telegram WebView.
+        // Save token to localStorage for apiClient and fetchWithAuth fallback
+        if (typeof window !== 'undefined') {
+          try {
+            if (response.accessToken) {
+              localStorage.setItem('macvbet_token', response.accessToken);
+            }
+            if (response.sessionId) {
+              localStorage.setItem('macvbet_sessionId', response.sessionId);
+            }
+          } catch {}
+        }
+
         setAuth(
           {
             id: response.user.id,

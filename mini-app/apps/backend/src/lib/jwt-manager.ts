@@ -21,8 +21,8 @@ export interface JWTPayload {
 export class JWTManager {
   private app: FastifyInstance;
 
-  // Access token duration: 15 minutes
-  private readonly ACCESS_TOKEN_TTL = 15 * 60; // seconds
+  // Access token duration: 7 days (prevents mid-session expiration in Telegram Mini App)
+  private readonly ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60; // seconds
 
   // Refresh token duration: 30 days
   private readonly REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // seconds
@@ -82,7 +82,7 @@ export class JWTManager {
     reply.setCookie('access_token', token, {
       httpOnly: true,
       secure: config.isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: this.ACCESS_TOKEN_TTL,
     });
@@ -95,7 +95,7 @@ export class JWTManager {
     reply.setCookie('refresh_token', token, {
       httpOnly: true,
       secure: config.isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge: this.REFRESH_TOKEN_TTL,
     });

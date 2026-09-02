@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const headers: Record<string, string> = {};
     const cookie = request.headers.get('cookie');
     if (cookie) headers['cookie'] = cookie;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader) headers['authorization'] = authHeader;
     const res = await fetch(`${backendBaseUrl()}/api/stats`, {
       method: 'GET',
       headers,

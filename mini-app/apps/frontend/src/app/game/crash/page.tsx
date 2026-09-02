@@ -20,6 +20,7 @@ import { useCrashLive } from '@/hooks/use-crash-live';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
+import { useAuthStore } from '@/store/auth-store';
 import { haptics } from '@/lib/haptics';
 
 /**
@@ -63,6 +64,7 @@ export default function CrashGamePage() {
     currencyLabel,
   } = useActiveBalance('crash');
   const { snapshot, stream, userId } = useCrashLive();
+  const token = useAuthStore((s) => s.token);
 
   const [slots, setSlots] = useState<[SlotConfig, SlotConfig]>([
     { ...DEFAULT_SLOT },
@@ -171,9 +173,11 @@ export default function CrashGamePage() {
     });
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/games/crash/bet', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           slot,
@@ -208,9 +212,11 @@ export default function CrashGamePage() {
     });
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/games/crash/cancel', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ slot }),
       });
@@ -239,9 +245,11 @@ export default function CrashGamePage() {
     });
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/games/crash/cashout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ slot }),
       });

@@ -60,10 +60,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      // SECURITY: Only persist user data, NOT the token or sessionId
-      // Token and sessionId should be stored in httpOnly cookie (Phase 2)
+      // Persist user, token, and sessionId so WebView reloads retain Bearer auth
       partialize: (state) => ({
         user: state.user,
+        token: state.token,
+        sessionId: state.sessionId,
         isAuthenticated: state.isAuthenticated,
       }),
       // Skip hydration on server to prevent SSR mismatch

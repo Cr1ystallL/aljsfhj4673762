@@ -10,7 +10,13 @@ import { MaintenanceGuard } from './maintenance-guard';
 import { ToastHost } from '@/components/ui/toast-host';
 import { LocaleSync } from './locale-sync';
 import { TournamentRebuyGlobalModal } from '@/components/tournament/tournament-rebuy-global-modal';
+import { installFetchInterceptor } from '@/lib/api/fetch-interceptor';
 import { useState } from 'react';
+
+// Install fetch interceptor early on the client
+if (typeof window !== 'undefined') {
+  installFetchInterceptor();
+}
 
 /**
  * Root providers wrapper
