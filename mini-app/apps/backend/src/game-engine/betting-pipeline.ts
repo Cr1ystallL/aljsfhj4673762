@@ -625,7 +625,7 @@ export class BettingPipeline {
 
       // Tell the auto-RTP controller about the outcome so it can
       // tighten / loosen the next bias.
-      await rtpEngine.recordOutcome(bet.userId, stake, credit);
+      await rtpEngine.recordOutcome(bet.userId, stake, credit, false, gt);
 
       // Handle Win Streak and Session Tracking
       await this.handleWinStreakAndSession(
@@ -747,7 +747,7 @@ export class BettingPipeline {
       // but only if it's real money.
       if (!meta.demoMode) {
         await balanceService.syncBalance(bet.userId);
-        await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0);
+        await rtpEngine.recordOutcome(bet.userId, Number(bet.amount), 0, false, gt);
         
         // Handle Win Streak and Session Tracking
         await this.handleWinStreakAndSession(
@@ -835,6 +835,7 @@ export class BettingPipeline {
     );
     const credit = TWO_DP(capped);
 
+    const gt = getGameTypeFromBet(bet);
     try {
       const newBalance = await prisma.$transaction(async (tx) => {
         let balanceAfter = await this.creditBalance(tx, bet.userId, credit, demoMode);
@@ -914,7 +915,17 @@ export class BettingPipeline {
       await balanceService.invalidateCache(bet.userId);
       await balanceService.syncBalance(bet.userId);
 
-      await rtpEngine.recordOutcome(bet.userId, stake, credit);
+      await rtpEngine.recordOutcome(bet.userId, stake, credit, false, gt);
+
+      // Handle Win Streak and Session Tracking
+      await this.handleWinStreakAndSession(
+        bet.userId,
+        stake,
+        credit,
+        newBalance,
+        demoMode,
+        gt
+      );
 
       logger.info(
         {

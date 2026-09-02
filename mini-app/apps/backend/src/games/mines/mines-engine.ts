@@ -219,17 +219,35 @@ class MinesEngine {
       if (config.houseEdge >= 1.0) {
         forceBust = true;
       } else if (isForcedLoss || isDrain) {
-        // Under active drain: immediately terminate winning runs
-        if (clickNumber >= 2) {
-          forceBust = true;
-        } else if (clickNumber === 1 && (g.bet.amount >= 15 || Math.random() < 0.80)) {
-          forceBust = true;
+        // Natural, realistic drain intervention curve:
+        // Click 1: NEVER force bust (0% artificial intervention). 100% natural provably-fair RNG.
+        // Click 2: Very gentle (10% max chance). Players easily open 2 cells without suspicion.
+        // Click 3: ~20% intervention chance.
+        // Click 4: ~35% intervention chance.
+        // Click 5+: Scaled dynamically by multiplier and stake, max 60%.
+        if (clickNumber === 1) {
+          forceBust = false; // 100% natural board RNG on first click!
+        } else if (clickNumber === 2) {
+          forceBust = Math.random() < 0.10;
+        } else if (clickNumber === 3) {
+          forceBust = Math.random() < 0.22;
+        } else if (clickNumber === 4) {
+          forceBust = Math.random() < 0.35;
+        } else {
+          // Click 5+
+          const riskFactor = Math.min(0.60, 0.35 + (nextMult / 15) * 0.25);
+          forceBust = Math.random() < riskFactor;
         }
       } else if (bias > 0) {
-        const riskDepth = clickNumber;
-        const teleportChance = Math.min(0.95, bias * (riskDepth * 0.40));
-        if (Math.random() < teleportChance) {
-          forceBust = true;
+        // Normal house RTP bias: gentle, only applies on deeper clicks (3+)
+        if (clickNumber <= 2) {
+          forceBust = false;
+        } else {
+          const riskDepth = clickNumber - 2;
+          const teleportChance = Math.min(0.35, bias * riskDepth * 0.08);
+          if (Math.random() < teleportChance) {
+            forceBust = true;
+          }
         }
       }
     }

