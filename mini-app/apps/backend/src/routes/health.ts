@@ -10,7 +10,6 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     uptime: process.uptime(),
   });
 
-  app.get('', handler);
   app.get('/', handler);
 
   app.get('/ready', async () => {
