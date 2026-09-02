@@ -253,9 +253,7 @@ export function HiloClient() {
   const parsedBet = parseFloat(betAmount);
   const isBetValid = Number.isFinite(parsedBet) && parsedBet > 0;
   const canAfford = isBalanceReady && isBetValid && parsedBet <= activeBalance;
-  // Only the fresh-round button depends on funds; "Новая игра" just resets.
-  const isStartingRound = !isPlaying && !isBusted && !isCashed;
-  const isShortOnFunds = isStartingRound && isBalanceReady && isBetValid && !canAfford;
+  const isShortOnFunds = !isPlaying && isBalanceReady && isBetValid && !canAfford;
 
   const currentRank = state?.currentCard?.rank || 1;
   const higherProb = ((14 - currentRank) / 13) * 100;
@@ -444,24 +442,21 @@ export function HiloClient() {
             <BetPanelCtaRow>
               {!isPlaying ? (
                 <GamePrimaryButton
-                  onClick={isBusted || isCashed ? handleSkip : handleStart}
+                  onClick={handleStart}
                   disabled={
                     !isStateLoaded ||
                     loading ||
-                    (isStartingRound && (!isBalanceReady || !canAfford))
+                    !isBalanceReady ||
+                    !canAfford
                   }
-                  tone={
-                    isBusted || isCashed || (isBalanceReady && canAfford)
-                      ? 'solid'
-                      : 'muted'
-                  }
+                  tone={isBalanceReady && canAfford ? 'solid' : 'muted'}
                 >
-                  {isBusted || isCashed
-                    ? t('common.newGame')
-                    : !isBalanceReady
-                      ? t('common.loadingBalance')
-                      : isShortOnFunds
-                        ? t('common.insufficientFunds')
+                  {!isBalanceReady
+                    ? t('common.loadingBalance')
+                    : isShortOnFunds
+                      ? t('common.insufficientFunds')
+                      : isBusted || isCashed
+                        ? t('common.newGame')
                         : t('common.bet')}
                 </GamePrimaryButton>
               ) : (

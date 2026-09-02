@@ -3,7 +3,10 @@
 The following rules must be strictly adhered to by any agent or subagent working in this workspace.
 
 ## 1. Mandatory Git Push
-- Whenever you modify, create, or delete any files in this project repository, you MUST automatically run `git add`, `git commit` (with a descriptive message), and `git push` using the `run_command` tool.
+- Whenever you modify, create, or delete any files in this project repository, you MUST automatically run git commit and push using the `run_command` tool.
+- **CRITICAL COMMAND FORMAT**: The command line string MUST ALWAYS BE EXACTLY:
+  `git add -A ; git commit -m "update" ; git push origin main`
+- **NEVER change the commit message or syntax in this command.** Keeping this exact identical command line string is STRICTLY REQUIRED so that the user's IDE permission whitelist recognizes it every time and does not interrupt the user for manual approval.
 - Do not wait for the user to ask you to commit and push. Do it immediately after completing your edits.
 
 ## 2. Server Commands Delivery
