@@ -24,6 +24,9 @@ export function CoinflipCoin({
   const prevFlipKeyRef = useRef(flipKey);
   const isFirstRender = useRef(true);
 
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const shadowRef = useRef<HTMLDivElement>(null);
+
   // Sync initial / idle state if face changes from outside while not flipping
   useEffect(() => {
     if (!flipping && !isSpinning) {
@@ -48,6 +51,18 @@ export function CoinflipCoin({
       prevFlipKeyRef.current = flipKey;
       setIsSpinning(true);
 
+      // Trigger bounce and shadow animations with DOM reflow so it restarts cleanly every time
+      if (sceneRef.current) {
+        sceneRef.current.classList.remove('animate-coin-bounce');
+        void sceneRef.current.offsetWidth;
+        sceneRef.current.classList.add('animate-coin-bounce');
+      }
+      if (shadowRef.current) {
+        shadowRef.current.classList.remove('animate-coin-shadow');
+        void shadowRef.current.offsetWidth;
+        shadowRef.current.classList.add('animate-coin-shadow');
+      }
+
       setRotation((prev) => {
         const targetMod = face === 'heads' ? 0 : 180;
         const currentMod = ((prev % 360) + 360) % 360;
@@ -68,25 +83,21 @@ export function CoinflipCoin({
     <div className={cn('relative flex flex-col items-center justify-center select-none my-3 py-3', className)}>
       {/* 3D Scene Wrapper with Bounce Animation */}
       <div
-        className={cn(
-          'w-[155px] h-[155px] sm:w-[170px] sm:h-[170px]',
-          isSpinning && 'animate-coin-bounce'
-        )}
+        ref={sceneRef}
+        className="w-[155px] h-[155px] sm:w-[170px] sm:h-[170px]"
         style={{
           perspective: 1200,
           WebkitPerspective: 1200,
         }}
       >
-        {/* Rotating Coin Container */}
+        {/* Rotating Coin Container - Permanent transition ensures Chromium on PC animates reliably */}
         <div
           className="relative w-full h-full"
           style={{
             transformStyle: 'preserve-3d',
             WebkitTransformStyle: 'preserve-3d',
-            transition: isSpinning
-              ? 'transform 2.4s cubic-bezier(0.16, 0.84, 0.28, 1)'
-              : 'none',
-            transform: `rotateX(12deg) rotateY(${rotation}deg)`,
+            transition: 'transform 2.4s cubic-bezier(0.16, 0.84, 0.28, 1)',
+            transform: `rotateX(12deg) rotateY(${rotation}deg) translateZ(0)`,
             willChange: 'transform',
           }}
         >
@@ -130,10 +141,8 @@ export function CoinflipCoin({
 
       {/* Dynamic floor shadow that expands/contracts with coin jump */}
       <div
-        className={cn(
-          'w-28 h-5 rounded-[100%] bg-black/45 blur-sm mt-3 transition-opacity pointer-events-none',
-          isSpinning && 'animate-coin-shadow'
-        )}
+        ref={shadowRef}
+        className="w-28 h-5 rounded-[100%] bg-black/45 blur-sm mt-3 transition-opacity pointer-events-none"
       />
     </div>
   );
