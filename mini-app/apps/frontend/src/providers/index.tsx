@@ -13,9 +13,32 @@ import { TournamentRebuyGlobalModal } from '@/components/tournament/tournament-r
 import { installFetchInterceptor } from '@/lib/api/fetch-interceptor';
 import { useState } from 'react';
 
-// Install fetch interceptor early on the client
+// Install fetch interceptor and chunk error recovery on the client
 if (typeof window !== 'undefined') {
   installFetchInterceptor();
+
+  // Auto-recover if the user's browser has stale cached chunks after a deploy
+  window.addEventListener('error', (e) => {
+    const msg = e.message || '';
+    if (
+      msg.includes('Loading chunk') ||
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('Server Reference ID')
+    ) {
+      window.location.reload();
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (e) => {
+    const reason = e.reason?.message || String(e.reason || '');
+    if (
+      reason.includes('Loading chunk') ||
+      reason.includes('Failed to fetch dynamically imported module') ||
+      reason.includes('Server Reference ID')
+    ) {
+      window.location.reload();
+    }
+  });
 }
 
 /**

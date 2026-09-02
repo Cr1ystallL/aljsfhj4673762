@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronUp, Menu, Sparkles, User } from 'lucide-react';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BrandMark } from '@/components/ui/brand-mark';
@@ -107,12 +108,15 @@ export const BottomNavigation = memo(function BottomNavigation({
 
             <NavItem
               active={isBonusesActive}
+              href="/bonuses"
               onClick={onBonusesClick}
               label={t('nav.bonuses')}
               icon={<Sparkles size={19} className="stroke-[2]" />}
             />
 
-            <button
+            <Link
+              href="/"
+              prefetch
               onClick={onPlayClick}
               aria-label={t('nav.home')}
               className="relative -top-3.5 flex flex-col items-center justify-center group active:scale-[0.92] transition-transform duration-150 z-10 shrink-0"
@@ -138,10 +142,11 @@ export const BottomNavigation = memo(function BottomNavigation({
               <span className="mt-0.5 font-roobert text-[10px] font-bold text-frost-white tracking-tight opacity-90">
                 {t('nav.games')}
               </span>
-            </button>
+            </Link>
 
             <NavItem
               active={isSportActive}
+              href="/sport"
               onClick={onSportClick}
               label={t('nav.sport')}
               badge={t('sports.beta')}
@@ -150,6 +155,7 @@ export const BottomNavigation = memo(function BottomNavigation({
 
             <NavItem
               active={isProfileActive}
+              href="/profile"
               onClick={onProfileClick}
               label={t('nav.profile')}
               icon={<User size={19} className="stroke-[2]" />}
@@ -163,22 +169,21 @@ export const BottomNavigation = memo(function BottomNavigation({
 
 function NavItem({
   active,
+  href,
   onClick,
   label,
   icon,
   badge,
 }: {
   active: boolean;
-  onClick: () => void;
+  href?: string;
+  onClick?: () => void;
   label: string;
   icon: React.ReactElement;
   badge?: string;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      className="relative flex-1 py-0.5 flex flex-col items-center justify-center gap-0.5 rounded-full transition-all active:scale-[0.92] duration-150"
-    >
+  const content = (
+    <>
       <div
         className={cn(
           'relative flex items-center justify-center transition-colors duration-150',
@@ -200,6 +205,23 @@ function NavItem({
       >
         {label}
       </span>
+    </>
+  );
+
+  const className =
+    'relative flex-1 py-0.5 flex flex-col items-center justify-center gap-0.5 rounded-full transition-all active:scale-[0.92] duration-150';
+
+  if (href) {
+    return (
+      <Link href={href} prefetch onClick={onClick} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button onClick={onClick} className={className}>
+      {content}
     </button>
   );
 }
