@@ -865,7 +865,9 @@ export async function bonusesRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post('/_bot/wheel/spin', async (request: any, reply: any) => {
     // Only allow localhost
-    if (request.ip !== '127.0.0.1' && request.ip !== '::1') {
+    const ip = request.ip || '';
+    const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.endsWith('127.0.0.1');
+    if (!isLocal) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 

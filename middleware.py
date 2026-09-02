@@ -82,14 +82,31 @@ class UserActivityMiddleware(BaseMiddleware):
                     )
                 return
         
-        # Игнорируем любые сообщения в группах, кроме /mb_wheel
+        # Игнорируем любые сообщения в группах, кроме команд вызова колеса фортуны
         chat = getattr(event, "chat", None)
         if not chat and hasattr(event, "message") and event.message:
             chat = event.message.chat
 
         if chat and chat.type in ('group', 'supergroup'):
             if isinstance(event, Message):
-                if not event.text or not event.text.startswith('/mb_wheel'):
+                raw_text = (event.text or event.caption or "").strip().lower()
+                if not raw_text:
+                    return
+
+                parts = raw_text.split()
+                first = parts[0].split('@')[0]
+                if first.startswith('@') and len(parts) > 1:
+                    first = parts[1].split('@')[0]
+
+                wheel_triggers = (
+                    '/mb_wheel', 'mb_wheel',
+                    '/wheel', 'wheel',
+                    '!mb_wheel', '.mb_wheel',
+                    '!wheel', '.wheel',
+                    'колесо', '/колесо',
+                    'рулетка', '/рулетка'
+                )
+                if first not in wheel_triggers:
                     return
             else:
                 return
