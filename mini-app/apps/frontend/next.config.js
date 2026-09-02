@@ -20,7 +20,7 @@ const nextConfig = {
   // Production performance flags.
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
-  compress: true, // Enable Gzip compression to drastically reduce transfer size
+  compress: false, // Cloudflare edge proxies handle compression; disabling here saves VPS CPU
   reactProductionProfiling: false,
 
   // Modular imports — drops Lucide / framer-motion bundle weight by
