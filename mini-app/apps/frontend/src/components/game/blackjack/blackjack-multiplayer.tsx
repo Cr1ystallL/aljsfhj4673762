@@ -31,7 +31,6 @@ import { BlackjackRulesModal } from './blackjack-rules-modal';
 import { VipBadge } from '@/components/vip/vip-badge';
 import { calculateHandValue } from '@/hooks/useBlackjackGame';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { GameAuraWrapper, useGameAura } from '@/components/game/game-aura';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { toast } from '@/store/toast-store';
@@ -359,7 +358,6 @@ export function BlackjackMultiplayer() {
   // Minimalist table list popover state
   const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const { auraClass } = useGameAura();
   const [tableHistory, setTableHistory] = useState<any[]>([]);
   const [availableTables, setAvailableTables] = useState<TableListItem[]>([
     { roomId: 'bj_table_1', phase: 'waiting', playersCount: 0, maxSeats: 5, countdown: 12 },
@@ -1432,10 +1430,7 @@ export function BlackjackMultiplayer() {
         {/* =========================================================================
             THE GAME TABLE: Responsive Background (TableMobile.png & TablePC.png)
            ========================================================================= */}
-        <section className={cn(
-          "relative w-full rounded-[20px] sm:rounded-[36px] overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,0.95)] aspect-[1/1.9] sm:aspect-[2/1] min-h-[580px] sm:min-h-[500px] max-h-[85vh] sm:max-h-[720px] p-3 sm:p-5 transition-all duration-500",
-          auraClass
-        )}>
+        <section className="relative w-full rounded-[20px] sm:rounded-[36px] overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,0.95)] aspect-[1/1.9] sm:aspect-[2/1] min-h-[580px] sm:min-h-[500px] max-h-[85vh] sm:max-h-[720px] p-3 sm:p-5">
           
           {/* Responsive Casino Table Background: Mobile / Desktop */}
           <div className="absolute inset-0 pointer-events-none z-0">

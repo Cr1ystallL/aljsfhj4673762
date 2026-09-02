@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Rocket } from 'lucide-react';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { GameAuraWrapper } from '@/components/game/game-aura';
 import { CrashHistoryStrip } from '@/components/game/crash/crash-history-strip';
 import { CrashStage } from '@/components/game/crash/crash-stage';
 import {
@@ -311,19 +310,17 @@ export default function CrashGamePage() {
 
         <CrashHistoryStrip history={snapshot.history} />
 
-        <GameAuraWrapper className="rounded-[20px]">
-          <CrashStage
-            stream={stream}
-            phase={snapshot.phase}
-            countdown={snapshot.countdown}
-            waitingEndsAt={snapshot.waitingEndsAt}
-            serverSeedHash={snapshot.serverSeedHash}
-            latencyMs={snapshot.latencyMs}
-            connected={snapshot.connected}
-            lastCrashPoint={snapshot.lastCrashPoint}
-            cashouts={cashouts}
-          />
-        </GameAuraWrapper>
+        <CrashStage
+          stream={stream}
+          phase={snapshot.phase}
+          countdown={snapshot.countdown}
+          waitingEndsAt={snapshot.waitingEndsAt}
+          serverSeedHash={snapshot.serverSeedHash}
+          latencyMs={snapshot.latencyMs}
+          connected={snapshot.connected}
+          lastCrashPoint={snapshot.lastCrashPoint}
+          cashouts={cashouts}
+        />
 
         <div className="flex flex-col gap-2.5">
           {([0, 1] as const).map((slot) => (

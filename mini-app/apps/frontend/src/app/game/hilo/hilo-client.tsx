@@ -15,7 +15,6 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { haptics } from '@/lib/haptics';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { useGameAura } from '@/components/game/game-aura';
 import { CardData, PlayingCard, SuitMark, getRankName } from '@/components/game/hilo/playing-card';
 import { HiloHistory, type HiloHistoryEntry } from '@/components/game/hilo/hilo-history';
 import { useT } from '@/i18n/use-t';
@@ -54,7 +53,6 @@ export function HiloClient() {
   const [loading, setLoading] = useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [history, setHistory] = useState<HiloHistoryEntry[]>([]);
-  const { auraClass } = useGameAura();
   
   const refreshHistory = async () => {
     try {
@@ -277,10 +275,7 @@ export function HiloClient() {
         <GameTopBar title="Hi-Lo" Icon={ChevronUp} onHowToPlay={() => setRulesOpen(true)} />
 
         {/* Play Area */}
-        <section className={cn(
-          "relative rounded-[20px] border border-white/12 bg-white/[0.03] p-4 flex flex-col items-center gap-6 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition-all duration-500",
-          auraClass
-        )}>
+        <section className="relative rounded-[20px] border border-white/12 bg-white/[0.03] p-4 flex flex-col items-center gap-6 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
           
           {/* Status Message */}
           {(isBusted || isCashed) && (

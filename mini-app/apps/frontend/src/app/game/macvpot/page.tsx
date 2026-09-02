@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { GameAuraWrapper } from '@/components/game/game-aura';
 import { Trophy, Users, RotateCcw } from 'lucide-react';
 import { Pressable } from '@/components/ui/pressable';
 import { MacvpotRoulette } from '@/components/game/macvpot/macvpot-roulette';
@@ -302,19 +301,17 @@ export default function MacvpotPage() {
         <MacvpotHistory history={state?.history || []} />
 
         {/* 3. РУЛЕТКА */}
-        <GameAuraWrapper className="rounded-[24px]">
-          <MacvpotRoulette
-            roundId={state?.roundId || 'init'}
-            bets={state?.bets || []}
-            winningTicket={state?.winningTicket || null}
-            winnerUserId={state?.winner?.userId || null}
-            isSpinning={state?.phase === 'spinning'}
-            spinDurationMs={state?.spinDurationMs || 12000}
-            onSpinComplete={() => {
-              setShowWinnerBanner(true);
-            }}
-          />
-        </GameAuraWrapper>
+        <MacvpotRoulette
+          roundId={state?.roundId || 'init'}
+          bets={state?.bets || []}
+          winningTicket={state?.winningTicket || null}
+          winnerUserId={state?.winner?.userId || null}
+          isSpinning={state?.phase === 'spinning'}
+          spinDurationMs={state?.spinDurationMs || 12000}
+          onSpinComplete={() => {
+            setShowWinnerBanner(true);
+          }}
+        />
 
         <BetPanelShell>
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 relative">

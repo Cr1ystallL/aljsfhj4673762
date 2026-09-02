@@ -7,7 +7,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import gsap from 'gsap';
 import { Disc3, ChevronDown, Trophy } from 'lucide-react';
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { GameAuraWrapper } from '@/components/game/game-aura';
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -358,21 +357,19 @@ export default function WheelPage() {
         {snap && <HistoryStrip history={snap.history.slice(0, 12)} />}
 
         {/* ---- Wheel Stage (Dark Immersive Frame) ---- */}
-        <GameAuraWrapper className="rounded-[24px]">
-          <div className="relative overflow-hidden rounded-[24px] border border-white/10">
-            {/* Atmospheric radial wash — achromatic only */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  'radial-gradient(70% 60% at 50% 45%, rgba(255,255,255,0.03) 0%, transparent 70%)',
-              }}
-            />
-            <div className="relative aspect-square flex items-center justify-center">
-              <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} clockSkew={clockSkew} />
-            </div>
+        <div className="relative overflow-hidden" style={{ borderRadius: 0 }}>
+          {/* Atmospheric radial wash — achromatic only */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(70% 60% at 50% 45%, rgba(255,255,255,0.03) 0%, transparent 70%)',
+            }}
+          />
+          <div className="relative aspect-square flex items-center justify-center">
+            <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} clockSkew={clockSkew} />
           </div>
-        </GameAuraWrapper>
+        </div>
 
         {/* Phase + Hash */}
         <PhaseBar snap={snap} uiPhase={uiPhase} />

@@ -78,24 +78,6 @@ export class SoundManager {
    * Play sound
    */
   play(id: string, options?: { volume?: number; loop?: boolean }): void {
-    // Fire visual win/loss halo event across game arenas even if audio is muted
-    if (typeof window !== 'undefined') {
-      if (
-        id === 'game.win' ||
-        id === 'game.cashout' ||
-        id === 'bj.win' ||
-        id === 'win'
-      ) {
-        window.dispatchEvent(
-          new CustomEvent('casino:game-aura', { detail: { type: 'win' } })
-        );
-      } else if (id === 'game.lose' || id === 'lose') {
-        window.dispatchEvent(
-          new CustomEvent('casino:game-aura', { detail: { type: 'lose' } })
-        );
-      }
-    }
-
     if (!this.initialized || this.muted) {
       return;
     }

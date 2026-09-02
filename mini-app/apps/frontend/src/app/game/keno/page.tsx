@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Dice5 } from 'lucide-react';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
-import { GameAuraWrapper } from '@/components/game/game-aura';
 import { KenoBoard } from '@/components/game/keno/keno-board';
 import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-panel';
 import { KenoDrawTray } from '@/components/game/keno/keno-draw-tray';
@@ -323,16 +322,14 @@ export default function KenoGamePage() {
           )}
         </AnimatePresence>
 
-        <GameAuraWrapper className="rounded-[24px]">
-          <KenoBoard
-            picks={picks}
-            onTogglePick={handlePick}
-            drawnNumbers={drawnNumbers}
-            lastDrawnNumber={lastDrawnNumber}
-            phase={phase}
-            maxPick={KENO_MAX_PICKS}
-          />
-        </GameAuraWrapper>
+        <KenoBoard
+          picks={picks}
+          onTogglePick={handlePick}
+          drawnNumbers={drawnNumbers}
+          lastDrawnNumber={lastDrawnNumber}
+          phase={phase}
+          maxPick={KENO_MAX_PICKS}
+        />
 
         <KenoBetPanel
           amount={amount}
