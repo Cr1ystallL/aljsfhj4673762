@@ -20,7 +20,7 @@ const nextConfig = {
   // Production performance flags.
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
-  compress: false, // Disabling compression reduces memory during build/runtime
+  compress: true, // Enable Gzip compression to drastically reduce transfer size
   reactProductionProfiling: false,
 
   // Modular imports — drops Lucide / framer-motion bundle weight by
@@ -45,10 +45,9 @@ const nextConfig = {
     memoryBasedWorkersCount: false,
   },
 
-  // Image optimization
+  // Image optimization - unoptimized serves images directly without heavy CPU encoding on VPS
   images: {
-    formats: ['image/avif', 'image/webp'],
-    deviceSizes: [640, 750, 828, 1080, 1200],
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -84,6 +83,16 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // Cache static media and assets (images, audio, fonts) for 7 days
+      {
+        source: '/:path*\\.(png|jpg|jpeg|gif|webp|svg|ico|mp3|wav|ogg|woff2)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=604800, stale-while-revalidate=86400',
           },
         ],
       },
