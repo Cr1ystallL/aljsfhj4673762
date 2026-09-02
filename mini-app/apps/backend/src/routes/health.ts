@@ -4,13 +4,14 @@ import type { FastifyInstance } from 'fastify';
  * Health check routes
  */
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/', async () => {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    };
+  const handler = async () => ({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
   });
+
+  app.get('', handler);
+  app.get('/', handler);
 
   app.get('/ready', async () => {
     // Check database, redis, etc.
