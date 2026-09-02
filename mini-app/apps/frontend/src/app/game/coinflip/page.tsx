@@ -167,7 +167,7 @@ export default function CoinflipGamePage() {
         }
       }
       void fetchBalance();
-    }, 2600);
+    }, 2400);
   }
 
   /* ------------------------------------------------------- actions */
