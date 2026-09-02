@@ -5,6 +5,7 @@ import { Bomb, ShieldCheck, Copy, Check, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { GameTopBar } from '@/components/game/game-top-bar';
+import { GameAuraWrapper } from '@/components/game/game-aura';
 import { MinesGrid } from '@/components/game/mines/mines-grid';
 import {
   MinesBetPanel,
@@ -373,18 +374,20 @@ export default function MinesGamePage() {
           </div>
         </div>
 
-        {/* Grid */}
-        <MinesGrid
-          revealed={server?.revealed ?? []}
-          minePositions={
-            phase === 'busted' || phase === 'cashed'
-              ? server?.minePositions
-              : undefined
-          }
-          hitPosition={hitPosition}
-          disabled={phase !== 'active' || busy}
-          onCellClick={reveal}
-        />
+        {/* Grid with ambient win/lose halo */}
+        <GameAuraWrapper className="rounded-[22px]">
+          <MinesGrid
+            revealed={server?.revealed ?? []}
+            minePositions={
+              phase === 'busted' || phase === 'cashed'
+                ? server?.minePositions
+                : undefined
+            }
+            hitPosition={hitPosition}
+            disabled={phase !== 'active' || busy}
+            onCellClick={reveal}
+          />
+        </GameAuraWrapper>
 
         {/* Bet controls */}
         <MinesBetPanel

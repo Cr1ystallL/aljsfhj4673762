@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameTopBar } from '@/components/game/game-top-bar';
+import { GameAuraWrapper } from '@/components/game/game-aura';
 import { Box } from 'lucide-react';
 import { CasesRoulette } from '@/components/game/cases/cases-roulette';
 import { CasesHistory } from '@/components/game/cases/cases-history';
@@ -261,16 +262,18 @@ export default function CaseOpeningPage() {
            extraAction={muteButton}
         />
 
-        {/* Roulette Area */}
-        <div className="w-full relative mt-4">
-          <CasesRoulette 
-            count={count}
-            prizes={caseTier.prizes}
-            winningPrizeIds={winningIds}
-            isSpinning={isSpinning}
-            isTurbo={isTurbo}
-            onSpinComplete={handleSpinComplete}
-          />
+        {/* Roulette Carousel */}
+        <div className="w-full relative z-10">
+          <GameAuraWrapper className="rounded-[24px]">
+            <CasesRoulette 
+              count={count}
+              prizes={caseTier.prizes}
+              winningPrizeIds={winningIds}
+              isSpinning={isSpinning}
+              isTurbo={isTurbo}
+              onSpinComplete={handleSpinComplete}
+            />
+          </GameAuraWrapper>
         </div>
         
         {/* Controls Panel - Liquid Glass */}

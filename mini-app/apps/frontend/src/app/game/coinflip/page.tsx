@@ -12,11 +12,13 @@ import { CoinflipRulesModal } from '@/components/game/coinflip/coinflip-rules-mo
 
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
+import { useGameAura } from '@/components/game/game-aura';
 import { soundManager } from '@/lib/sound/sound-manager';
 import { reportApiError } from '@/lib/api/errors';
 import { toast } from '@/store/toast-store';
 import { useT } from '@/i18n/use-t';
 import { haptics } from '@/lib/haptics';
+import { cn } from '@/lib/utils';
 import type {
   CoinSide,
   CoinflipMode,
@@ -55,6 +57,7 @@ export default function CoinflipGamePage() {
     isReady: isBalanceReady,
     currencyLabel,
   } = useActiveBalance('coinflip');
+  const { auraClass } = useGameAura();
 
   const [mode, setMode] = useState<CoinflipMode>('multiply');
   const [amount, setAmount] = useState(10);
@@ -363,7 +366,10 @@ export default function CoinflipGamePage() {
         />
 
         {/* Hero — 3D coin arena stage, round/multiplier plate, side picks */}
-        <section className="relative rounded-[24px] border border-white/10 bg-gradient-to-b from-[#161922]/80 via-[#0e1017]/90 to-[#090b0f] px-4 pt-4 pb-4 flex flex-col items-center gap-3 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
+        <section className={cn(
+          "relative rounded-[24px] border border-white/10 bg-gradient-to-b from-[#161922]/80 via-[#0e1017]/90 to-[#090b0f] px-4 pt-4 pb-4 flex flex-col items-center gap-3 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl transition-all duration-500",
+          auraClass
+        )}>
           {/* Static Ambient Background Glow */}
           <div
             aria-hidden

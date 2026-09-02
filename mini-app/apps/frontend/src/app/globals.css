@@ -432,3 +432,47 @@ option:hover {
   animation: coin-shadow 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
+/* Game Result Aura (Win / Lose) */
+@keyframes auraPulseWin {
+  0% {
+    box-shadow: 0 0 0px rgba(34, 197, 94, 0), inset 0 0 0px rgba(34, 197, 94, 0);
+  }
+  15% {
+    box-shadow: 0 0 35px rgba(34, 197, 94, 0.55), 0 0 14px rgba(34, 197, 94, 0.35), inset 0 0 20px rgba(34, 197, 94, 0.18);
+    border-color: rgba(34, 197, 94, 0.7) !important;
+  }
+  60% {
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.38), 0 0 10px rgba(34, 197, 94, 0.22), inset 0 0 14px rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.5) !important;
+  }
+  100% {
+    box-shadow: 0 0 0px rgba(34, 197, 94, 0), inset 0 0 0px rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes auraPulseLose {
+  0% {
+    box-shadow: 0 0 0px rgba(239, 68, 68, 0), inset 0 0 0px rgba(239, 68, 68, 0);
+  }
+  15% {
+    box-shadow: 0 0 35px rgba(239, 68, 68, 0.55), 0 0 14px rgba(239, 68, 68, 0.35), inset 0 0 20px rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.7) !important;
+  }
+  60% {
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.38), 0 0 10px rgba(239, 68, 68, 0.22), inset 0 0 14px rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.5) !important;
+  }
+  100% {
+    box-shadow: 0 0 0px rgba(239, 68, 68, 0), inset 0 0 0px rgba(239, 68, 68, 0);
+  }
+}
+
+.aura-glow-win {
+  animation: auraPulseWin 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+}
+
+.aura-glow-lose {
+  animation: auraPulseLose 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+}
+
+
