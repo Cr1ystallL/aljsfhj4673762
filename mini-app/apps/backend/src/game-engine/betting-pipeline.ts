@@ -541,6 +541,16 @@ export class BettingPipeline {
     try {
       const gt = getGameTypeFromBet(bet);
       const newBalance = await prisma.$transaction(async (tx) => {
+        // Atomic DB lock: verify bet is active or pending before paying out
+        const betRows = await tx.$queryRaw<Array<{ state: string }>>`
+          SELECT state FROM bets WHERE id::text = ${bet.id}::text FOR UPDATE
+        `;
+        if (betRows.length > 0 && betRows[0].state !== 'pending' && betRows[0].state !== 'active') {
+          logger.warn({ betId: bet.id, state: betRows[0].state }, 'Blocked duplicate payout attempt: bet already settled');
+          const curRows = await tx.$queryRaw<Array<{ amount: string }>>`SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = ${demoMode} LIMIT 1`;
+          return curRows[0] ? Number(curRows[0].amount) : 0;
+        }
+
         let balanceAfter = 0;
 
         if (credit > 0) {
@@ -838,6 +848,16 @@ export class BettingPipeline {
     const gt = getGameTypeFromBet(bet);
     try {
       const newBalance = await prisma.$transaction(async (tx) => {
+        // Atomic DB lock: verify bet is active or pending before cashout
+        const betRows = await tx.$queryRaw<Array<{ state: string }>>`
+          SELECT state FROM bets WHERE id::text = ${bet.id}::text FOR UPDATE
+        `;
+        if (betRows.length > 0 && betRows[0].state !== 'pending' && betRows[0].state !== 'active') {
+          logger.warn({ betId: bet.id, state: betRows[0].state }, 'Blocked duplicate cashout attempt: bet already settled');
+          const curRows = await tx.$queryRaw<Array<{ amount: string }>>`SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = ${demoMode} LIMIT 1`;
+          return curRows[0] ? Number(curRows[0].amount) : 0;
+        }
+
         let balanceAfter = await this.creditBalance(tx, bet.userId, credit, demoMode);
 
         await tx.transaction.create({

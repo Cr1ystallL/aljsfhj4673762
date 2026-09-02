@@ -111,6 +111,8 @@ export interface CoinflipMultiplyState {
 class CoinflipEngine {
   /** Active multiply sessions per user. */
   private rooms = new Map<string, MultiplyState>();
+  /** User-level mutex to serialize operations per user. */
+  private userLocks = new Set<string>();
 
   hasActive(userId: string): boolean {
     const g = this.rooms.get(userId);
@@ -233,171 +235,203 @@ class CoinflipEngine {
     amount: number,
     firstChoice: CoinSide
   ): Promise<{ state: CoinflipMultiplyState; outcome: CoinSide; won: boolean }> {
-    // Sweep any residual finished session from a previous round so the
-    // user can start fresh without explicitly hitting /dismiss first.
-    const existing = this.rooms.get(userId);
-    if (existing) {
-      const status = (existing as unknown as { _status?: 'cashed' | 'busted' })
-        ._status;
-      if (status !== undefined) {
-        this.rooms.delete(userId);
-      } else {
-        throw new Error('У вас уже идёт раунд — закончите его сначала');
+    if (this.userLocks.has(userId)) {
+      throw new Error('Операция уже выполняется, подождите');
+    }
+    this.userLocks.add(userId);
+    try {
+      // Sweep any residual finished session from a previous round so the
+      // user can start fresh without explicitly hitting /dismiss first.
+      const existing = this.rooms.get(userId);
+      if (existing) {
+        const status = (existing as unknown as { _status?: 'cashed' | 'busted' })
+          ._status;
+        if (status !== undefined) {
+          this.rooms.delete(userId);
+        } else {
+          throw new Error('У вас уже идёт раунд — закончите его сначала');
+        }
       }
-    }
-    if (!Number.isFinite(amount) || amount < MIN_BET || amount > MAX_BET) {
-      throw new Error(`Ставка должна быть от ${MIN_BET} до ${MAX_BET}`);
-    }
-    if (firstChoice !== 'heads' && firstChoice !== 'tails') {
-      throw new Error('Неверная сторона');
-    }
-
-    const serverSeed = provablyFair.generateServerSeed();
-    const clientSeed = provablyFair.generateClientSeed();
-    const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
-    const roundId = `coinflip_${Date.now()}_${randomUUID()}`;
-
-    const bet: Bet = {
-      id: `bet_${Date.now()}_${randomUUID()}`,
-      userId,
-      gameId: roundId,
-      roundId,
-      amount,
-      state: 'pending',
-      placedAt: Date.now(),
-      metadata: { mode: 'multiply', gameType: 'coinflip' },
-    };
-
-    // Debit the stake atomically.
-    const isTournament = await bettingPipeline.processBet(bet, false);
-    bet.state = 'active';
-    bet.metadata = { ...(bet.metadata as object), isTournament: Boolean(isTournament) };
-
-    // Persist the round shell — it'll be marked completed on cashout/bust.
-    await prisma.gameRound
-      .create({
-        data: {
-          id: roundId,
-          gameType: 'coinflip',
-          state: 'active',
-          serverSeedHash,
-          clientSeed,
-          nonce: 0,
-          startedAt: new Date(),
-          metadata: { mode: 'multiply', betAmount: amount, isTournament: Boolean(isTournament) },
-        },
-      })
-      .catch((err) => logger.warn(err, 'Failed to record coinflip multiply round'));
-
-    const state: MultiplyState = {
-      userId,
-      bet,
-      isTournament: Boolean(isTournament),
-      round: 1,
-      betAmount: amount,
-      currentMultiplier: 1, // before first toss
-      awaiting: 'flipResult',
-      pendingChoice: firstChoice,
-      serverSeed,
-      serverSeedHash,
-      clientSeed,
-    };
-    this.rooms.set(userId, state);
-
-    // Resolve the first toss (Pure RNG on 1st toss)
-    let outcome = this.resolveRoundOutcome(state, firstChoice, 0);
-    let won = outcome === firstChoice;
-
-    if (!state.isTournament) {
-      const config = await gameConfig.get('coinflip').catch(() => null);
-      if (config && config.houseEdge >= 1.0) {
-        won = false;
-        outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
+      if (!Number.isFinite(amount) || amount < MIN_BET || amount > MAX_BET) {
+        throw new Error(`Ставка должна быть от ${MIN_BET} до ${MAX_BET}`);
       }
-    }
-    if (won) {
-      state.currentMultiplier = +(STEP_MULTIPLIER ** state.round).toFixed(2);
-      state.round += 1;
-      state.awaiting = 'sideChoice';
-      state.pendingChoice = undefined;
-    }
-    state.bet.metadata = { ...(state.bet.metadata as object), lastChoice: firstChoice, lastOutcome: outcome };
+      if (firstChoice !== 'heads' && firstChoice !== 'tails') {
+        throw new Error('Неверная сторона');
+      }
 
-    if (!won) {
-      // Bust on first toss.
-      await this.finalize(state, 'busted');
-    }
+      const serverSeed = provablyFair.generateServerSeed();
+      const clientSeed = provablyFair.generateClientSeed();
+      const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
+      const roundId = `coinflip_${Date.now()}_${randomUUID()}`;
 
-    return { state: this.toPublic(state), outcome, won };
+      const bet: Bet = {
+        id: `bet_${Date.now()}_${randomUUID()}`,
+        userId,
+        gameId: roundId,
+        roundId,
+        amount,
+        state: 'pending',
+        placedAt: Date.now(),
+        metadata: { mode: 'multiply', gameType: 'coinflip' },
+      };
+
+      // Debit the stake atomically.
+      const isTournament = await bettingPipeline.processBet(bet, false);
+      bet.state = 'active';
+      bet.metadata = { ...(bet.metadata as object), isTournament: Boolean(isTournament) };
+
+      // Persist the round shell — it'll be marked completed on cashout/bust.
+      await prisma.gameRound
+        .create({
+          data: {
+            id: roundId,
+            gameType: 'coinflip',
+            state: 'active',
+            serverSeedHash,
+            clientSeed,
+            nonce: 0,
+            startedAt: new Date(),
+            metadata: { mode: 'multiply', betAmount: amount, isTournament: Boolean(isTournament) },
+          },
+        })
+        .catch((err) => logger.warn(err, 'Failed to record coinflip multiply round'));
+
+      const state: MultiplyState = {
+        userId,
+        bet,
+        isTournament: Boolean(isTournament),
+        round: 1,
+        betAmount: amount,
+        currentMultiplier: 1, // before first toss
+        awaiting: 'flipResult',
+        pendingChoice: firstChoice,
+        serverSeed,
+        serverSeedHash,
+        clientSeed,
+      };
+      this.rooms.set(userId, state);
+
+      // Resolve the first toss (Pure RNG on 1st toss)
+      let outcome = this.resolveRoundOutcome(state, firstChoice, 0);
+      let won = outcome === firstChoice;
+
+      if (!state.isTournament) {
+        const config = await gameConfig.get('coinflip').catch(() => null);
+        if (config && config.houseEdge >= 1.0) {
+          won = false;
+          outcome = (firstChoice === 'heads' ? 'tails' : 'heads');
+        }
+      }
+      if (won) {
+        state.currentMultiplier = +(STEP_MULTIPLIER ** state.round).toFixed(2);
+        state.round += 1;
+        state.awaiting = 'sideChoice';
+        state.pendingChoice = undefined;
+      }
+      state.bet.metadata = { ...(state.bet.metadata as object), lastChoice: firstChoice, lastOutcome: outcome };
+
+      if (!won) {
+        // Bust on first toss.
+        await this.finalize(state, 'busted');
+      }
+
+      return { state: this.toPublic(state), outcome, won };
+    } finally {
+      this.userLocks.delete(userId);
+    }
   }
 
   async flip(
     userId: string,
     choice: CoinSide
   ): Promise<{ state: CoinflipMultiplyState; outcome: CoinSide; won: boolean }> {
-    const g = this.rooms.get(userId);
-    if (!g) throw new Error('Нет активного раунда');
-    if (g.awaiting !== 'sideChoice') {
-      throw new Error('Сейчас не время выбирать сторону');
+    if (this.userLocks.has(userId)) {
+      throw new Error('Операция уже выполняется, подождите');
     }
-    if (choice !== 'heads' && choice !== 'tails') {
-      throw new Error('Неверная сторона');
-    }
-    if (g.round > MAX_ROUNDS) {
-      throw new Error('Достигнут лимит раундов');
-    }
-
-    g.pendingChoice = choice;
-    g.awaiting = 'flipResult';
-
-    let bias = 0;
-    if (!g.isTournament) {
-      const baseBias = await rtpEngine.getBiasFor(g.userId, false).catch(() => 0);
-      const isDrain = await rtpEngine.isDrainActive(g.userId, false).catch(() => false);
-      const nextMult = +(STEP_MULTIPLIER ** g.round).toFixed(2);
-      const shouldForceLoss = await rtpEngine.shouldForceLoss(g.userId, g.betAmount, nextMult, false).catch(() => false);
-
-      if (shouldForceLoss || isDrain) {
-        bias = Math.min(0.85, 0.45 + g.round * 0.08);
-      } else if (baseBias > 0) {
-        bias = Math.min(0.75, baseBias + (g.round >= 3 ? (g.round - 2) * 0.12 : 0));
-      } else if (g.round >= 4) {
-        // Natural casino ladder progression for escalating multipliers (14x, 27x, 53x, 103x)
-        bias = Math.min(0.65, (g.round - 3) * 0.12);
+    this.userLocks.add(userId);
+    try {
+      const g = this.rooms.get(userId);
+      if (!g) throw new Error('Нет активного раунда');
+      const status = (g as unknown as { _status?: 'cashed' | 'busted' })._status;
+      if (status !== undefined || g.awaiting !== 'sideChoice') {
+        throw new Error('Сейчас не время выбирать сторону');
       }
-    }
-
-    // Provably Fair outcome with progressive RTP bias
-    const outcome = this.resolveRoundOutcome(g, choice, bias);
-    const won = outcome === choice;
-
-    g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
-
-    if (won) {
-      g.currentMultiplier = +(STEP_MULTIPLIER ** g.round).toFixed(2);
-      g.round += 1;
-      g.awaiting = 'sideChoice';
-      g.pendingChoice = undefined;
-
+      if (choice !== 'heads' && choice !== 'tails') {
+        throw new Error('Неверная сторона');
+      }
       if (g.round > MAX_ROUNDS) {
-        // Auto-cashout at the ceiling.
-        await this.finalize(g, 'cashed');
+        throw new Error('Достигнут лимит раундов');
       }
-    } else {
-      await this.finalize(g, 'busted');
-    }
 
-    return { state: this.toPublic(g), outcome, won };
+      // Synchronously lock state in memory before any async awaits!
+      g.pendingChoice = choice;
+      g.awaiting = 'flipResult';
+
+      let bias = 0;
+      if (!g.isTournament) {
+        const baseBias = await rtpEngine.getBiasFor(g.userId, false).catch(() => 0);
+        const isDrain = await rtpEngine.isDrainActive(g.userId, false).catch(() => false);
+        const nextMult = +(STEP_MULTIPLIER ** g.round).toFixed(2);
+        const shouldForceLoss = await rtpEngine.shouldForceLoss(g.userId, g.betAmount, nextMult, false).catch(() => false);
+
+        if (shouldForceLoss || isDrain) {
+          bias = Math.min(0.85, 0.45 + g.round * 0.08);
+        } else if (baseBias > 0) {
+          bias = Math.min(0.75, baseBias + (g.round >= 3 ? (g.round - 2) * 0.12 : 0));
+        } else if (g.round >= 4) {
+          // Natural casino ladder progression for escalating multipliers (14x, 27x, 53x, 103x)
+          bias = Math.min(0.65, (g.round - 3) * 0.12);
+        }
+      }
+
+      // Provably Fair outcome with progressive RTP bias
+      const outcome = this.resolveRoundOutcome(g, choice, bias);
+      const won = outcome === choice;
+
+      g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
+
+      if (won) {
+        g.currentMultiplier = +(STEP_MULTIPLIER ** g.round).toFixed(2);
+        g.round += 1;
+        g.awaiting = 'sideChoice';
+        g.pendingChoice = undefined;
+
+        if (g.round > MAX_ROUNDS) {
+          // Auto-cashout at the ceiling.
+          await this.finalize(g, 'cashed');
+        }
+      } else {
+        await this.finalize(g, 'busted');
+      }
+
+      return { state: this.toPublic(g), outcome, won };
+    } finally {
+      this.userLocks.delete(userId);
+    }
   }
 
   async cashout(userId: string): Promise<CoinflipMultiplyState> {
-    const g = this.rooms.get(userId);
-    if (!g) throw new Error('Нет активного раунда');
-    if (g.awaiting !== 'sideChoice' || g.currentMultiplier <= 1) {
-      throw new Error('Сначала выиграйте хотя бы один раунд');
+    if (this.userLocks.has(userId)) {
+      throw new Error('Операция уже выполняется, подождите');
     }
-    await this.finalize(g, 'cashed');
-    return this.toPublic(g);
+    this.userLocks.add(userId);
+    try {
+      const g = this.rooms.get(userId);
+      if (!g) throw new Error('Нет активного раунда');
+      const status = (g as unknown as { _status?: 'cashed' | 'busted' })._status;
+      if (status !== undefined || g.awaiting !== 'sideChoice' || g.currentMultiplier <= 1) {
+        throw new Error('Сначала выиграйте хотя бы один раунд или раунд уже завершён');
+      }
+
+      // Synchronously mark as cashed immediately to block any race condition!
+      (g as unknown as { _status: 'cashed' | 'busted' })._status = 'cashed';
+      g.awaiting = 'flipResult';
+
+      await this.finalize(g, 'cashed');
+      return this.toPublic(g);
+    } finally {
+      this.userLocks.delete(userId);
+    }
   }
 
   forget(userId: string): void {
