@@ -123,17 +123,19 @@ async def cmd_mb_wheel(message: Message):
                 # Отправляем результат с картинкой
                 root_dir = Path(__file__).resolve().parent.parent
                 photo_candidates = [
+                    root_dir / "image" / "luckywheel.png",
+                    Path("/var/www/MACVBET/image/luckywheel.png"),
+                    Path("image/luckywheel.png"),
+                    Path(r"D:\Codes\4\112\nehuy\macvbet\image\luckywheel.png"),
                     root_dir / "images" / "luckywheel.png",
-                    root_dir / "images" / "luckywheel.jpg",
-                    root_dir / "images" / "photo_2026-07-28_04-23-37.jpg",
                     Path("/var/www/MACVBET/images/luckywheel.png"),
-                    Path("/var/www/MACVBET/images/luckywheel.jpg"),
-                    Path("/var/www/MACVBET/images/photo_2026-07-28_04-23-37.jpg"),
+                    Path("images/luckywheel.png"),
+                    Path(r"D:\Codes\4\112\nehuy\macvbet\images\luckywheel.png"),
                 ]
                 photo_file = None
                 for p in photo_candidates:
                     if p.exists():
-                        photo_file = FSInputFile(str(p))
+                        photo_file = FSInputFile(str(p.resolve()))
                         break
 
                 amount_f = float(amount)
@@ -155,30 +157,35 @@ async def cmd_mb_wheel(message: Message):
                     )
 
                 result_msg = None
-                try:
-                    if photo_file:
+                if photo_file:
+                    try:
                         result_msg = await message.reply_photo(
                             photo=photo_file,
                             caption=text,
                             reply_markup=keyboard,
                             parse_mode="HTML"
                         )
-                    else:
-                        result_msg = await message.reply(
-                            text=text,
-                            reply_markup=keyboard,
-                            parse_mode="HTML"
-                        )
-                except Exception as e:
-                    logger.warning(f"Failed to send wheel photo, sending text: {e}")
+                    except Exception as e:
+                        logger.warning(f"reply_photo failed: {e}, attempting answer_photo")
+                        try:
+                            result_msg = await message.answer_photo(
+                                photo=photo_file,
+                                caption=text,
+                                reply_markup=keyboard,
+                                parse_mode="HTML"
+                            )
+                        except Exception as e2:
+                            logger.error(f"answer_photo also failed: {e2}")
+
+                if not result_msg:
                     try:
                         result_msg = await message.reply(
                             text=text,
                             reply_markup=keyboard,
                             parse_mode="HTML"
                         )
-                    except Exception as e2:
-                        logger.error(f"Failed to send wheel text message: {e2}")
+                    except Exception as e:
+                        logger.error(f"Failed to send wheel text message: {e}")
 
                 if result_msg:
                     # Удаляем результат через 3 минуты для чистоты группы
