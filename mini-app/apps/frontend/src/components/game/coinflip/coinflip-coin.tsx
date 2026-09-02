@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CoinSide } from '@/lib/games/coinflip/types';
 import { cn } from '@/lib/utils';
 
@@ -18,131 +18,174 @@ export function CoinflipCoin({
   flipping = false,
   className,
 }: CoinflipCoinProps) {
-  // Accumulated rotation in degrees. Monotonic growth guarantees the coin always spins forward without rewinding.
-  const [rotation, setRotation] = useState<number>(() => (face === 'tails' ? 180 : 0));
-  const [isSpinning, setIsSpinning] = useState(false);
-  const prevFlipKeyRef = useRef(flipKey);
-  const isFirstRender = useRef(true);
-
   const sceneRef = useRef<HTMLDivElement>(null);
+  const coinRef = useRef<HTMLDivElement>(null);
   const shadowRef = useRef<HTMLDivElement>(null);
+  const currentRotationRef = useRef<number>(face === 'tails' ? 180 : 0);
+  const prevFlipKeyRef = useRef(flipKey);
 
-  // Sync initial / idle state if face changes from outside while not flipping
+  // Sync if face is updated when idle (e.g. loaded from server state)
   useEffect(() => {
-    if (!flipping && !isSpinning) {
+    if (!flipping && coinRef.current) {
       const targetMod = face === 'tails' ? 180 : 0;
-      setRotation((prev) => {
-        const currentMod = ((prev % 360) + 360) % 360;
-        if (currentMod === targetMod) return prev;
-        const diff = (targetMod - currentMod + 360) % 360;
-        return prev + diff;
-      });
+      const currentMod = ((currentRotationRef.current % 360) + 360) % 360;
+      if (currentMod !== targetMod) {
+        currentRotationRef.current = targetMod;
+        coinRef.current.style.transform = `rotateY(${targetMod}deg)`;
+      }
     }
-  }, [face, flipping, isSpinning]);
+  }, [face, flipping]);
 
-  // Handle spin trigger
+  // Trigger spin animation whenever flipKey changes or flipping becomes true
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+    if (flipKey === 0 && !flipping) return;
+    if (flipKey === prevFlipKeyRef.current && !flipping) return;
+    prevFlipKeyRef.current = flipKey;
+
+    const coinEl = coinRef.current;
+    const sceneEl = sceneRef.current;
+    const shadowEl = shadowRef.current;
+    if (!coinEl) return;
+
+    const startAngle = currentRotationRef.current;
+    const targetMod = face === 'heads' ? 0 : 180;
+    const currentMod = ((startAngle % 360) + 360) % 360;
+    const diff = (targetMod - currentMod + 360) % 360;
+    // 6 full revolutions (2160 deg) + exact delta to land on target face
+    const endAngle = startAngle + 2160 + diff;
+    currentRotationRef.current = endAngle;
+
+    // 1. Spin Animation via Web Animations API (Native GPU execution, no CSS matrix glitch)
+    const anim = coinEl.animate(
+      [
+        { transform: `rotateY(${startAngle}deg)` },
+        { transform: `rotateY(${endAngle}deg)` },
+      ],
+      {
+        duration: 2400,
+        easing: 'cubic-bezier(0.16, 0.84, 0.28, 1)',
+        fill: 'forwards',
+      }
+    );
+
+    anim.onfinish = () => {
+      coinEl.style.transform = `rotateY(${endAngle}deg)`;
+    };
+
+    // 2. Vertical Jump (Bounce) Animation
+    if (sceneEl) {
+      sceneEl.animate(
+        [
+          { transform: 'translateY(0px) scale(1)' },
+          { transform: 'translateY(-75px) scale(1.14)', offset: 0.25 },
+          { transform: 'translateY(0px) scale(1)', offset: 0.55 },
+          { transform: 'translateY(-18px) scale(1.04)', offset: 0.7 },
+          { transform: 'translateY(0px) scale(1)', offset: 0.85 },
+          { transform: 'translateY(-5px) scale(1.01)', offset: 0.92 },
+          { transform: 'translateY(0px) scale(1)' },
+        ],
+        {
+          duration: 2400,
+          easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          fill: 'forwards',
+        }
+      );
     }
 
-    if (flipKey !== prevFlipKeyRef.current || flipping) {
-      prevFlipKeyRef.current = flipKey;
-      setIsSpinning(true);
-
-      // Trigger bounce and shadow animations with DOM reflow so it restarts cleanly every time
-      if (sceneRef.current) {
-        sceneRef.current.classList.remove('animate-coin-bounce');
-        void sceneRef.current.offsetWidth;
-        sceneRef.current.classList.add('animate-coin-bounce');
-      }
-      if (shadowRef.current) {
-        shadowRef.current.classList.remove('animate-coin-shadow');
-        void shadowRef.current.offsetWidth;
-        shadowRef.current.classList.add('animate-coin-shadow');
-      }
-
-      setRotation((prev) => {
-        const targetMod = face === 'heads' ? 0 : 180;
-        const currentMod = ((prev % 360) + 360) % 360;
-        const diff = (targetMod - currentMod + 360) % 360;
-        // 6 full revolutions (2160 deg) + exact delta to land on target face
-        return prev + 2160 + diff;
-      });
-
-      const timer = setTimeout(() => {
-        setIsSpinning(false);
-      }, 2400);
-
-      return () => clearTimeout(timer);
+    // 3. Dynamic Floor Shadow Animation
+    if (shadowEl) {
+      shadowEl.animate(
+        [
+          { transform: 'scale(1)', opacity: '0.6', filter: 'blur(4px)' },
+          { transform: 'scale(0.55)', opacity: '0.15', filter: 'blur(14px)', offset: 0.25 },
+          { transform: 'scale(1.08)', opacity: '0.7', filter: 'blur(3px)', offset: 0.55 },
+          { transform: 'scale(0.85)', opacity: '0.4', filter: 'blur(7px)', offset: 0.7 },
+          { transform: 'scale(1.02)', opacity: '0.65', filter: 'blur(3.5px)', offset: 0.85 },
+          { transform: 'scale(1)', opacity: '0.6', filter: 'blur(4px)' },
+        ],
+        {
+          duration: 2400,
+          easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          fill: 'forwards',
+        }
+      );
     }
   }, [flipKey, face, flipping]);
 
   return (
     <div className={cn('relative flex flex-col items-center justify-center select-none my-3 py-3', className)}>
-      {/* 3D Scene Wrapper with Bounce Animation */}
+      {/* 3D Scene Wrapper with Perspective */}
       <div
         ref={sceneRef}
         className="w-[155px] h-[155px] sm:w-[170px] sm:h-[170px]"
         style={{
-          perspective: 1200,
-          WebkitPerspective: 1200,
+          perspective: '1200px',
+          WebkitPerspective: '1200px',
         }}
       >
-        {/* Rotating Coin Container - Permanent transition ensures Chromium on PC animates reliably */}
+        {/* Tilting container for natural table angle */}
         <div
-          className="relative w-full h-full"
+          className="w-full h-full"
           style={{
             transformStyle: 'preserve-3d',
             WebkitTransformStyle: 'preserve-3d',
-            transition: 'transform 2.4s cubic-bezier(0.16, 0.84, 0.28, 1)',
-            transform: `rotateX(12deg) rotateY(${rotation}deg) translateZ(0)`,
-            willChange: 'transform',
+            transform: 'rotateX(12deg)',
           }}
         >
-          {/* Front: ОРЁЛ (0deg) */}
+          {/* Rotating Coin Container */}
           <div
-            className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]"
+            ref={coinRef}
+            className="relative w-full h-full"
             style={{
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-              transform: 'rotateY(0deg) translateZ(2px)',
+              transformStyle: 'preserve-3d',
+              WebkitTransformStyle: 'preserve-3d',
+              transform: `rotateY(${face === 'tails' ? 180 : 0}deg)`,
+              willChange: 'transform',
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/CoinFlip_Desert.png"
-              alt="Орёл"
-              className="w-full h-full object-contain pointer-events-none select-none"
-              draggable={false}
-            />
-          </div>
+            {/* Front: ОРЁЛ (0deg) */}
+            <div
+              className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]"
+              style={{
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                transform: 'rotateY(0deg) translateZ(2px)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/CoinFlip_Desert.png"
+                alt="Орёл"
+                className="w-full h-full object-contain pointer-events-none select-none"
+                draggable={false}
+              />
+            </div>
 
-          {/* Back: РЕШКА (180deg) */}
-          <div
-            className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]"
-            style={{
-              transform: 'rotateY(180deg) translateZ(2px)',
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/CoinFlip_Reshka.png"
-              alt="Решка"
-              className="w-full h-full object-contain pointer-events-none select-none"
-              draggable={false}
-            />
+            {/* Back: РЕШКА (180deg) */}
+            <div
+              className="absolute inset-0 rounded-full flex items-center justify-center overflow-hidden drop-shadow-[0_12px_28px_rgba(0,0,0,0.65)]"
+              style={{
+                transform: 'rotateY(180deg) translateZ(2px)',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/CoinFlip_Reshka.png"
+                alt="Решка"
+                className="w-full h-full object-contain pointer-events-none select-none"
+                draggable={false}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Dynamic floor shadow that expands/contracts with coin jump */}
+      {/* Dynamic floor shadow */}
       <div
         ref={shadowRef}
-        className="w-28 h-5 rounded-[100%] bg-black/45 blur-sm mt-3 transition-opacity pointer-events-none"
+        className="w-28 h-5 rounded-[100%] bg-black/45 blur-sm mt-3 pointer-events-none"
       />
     </div>
   );
