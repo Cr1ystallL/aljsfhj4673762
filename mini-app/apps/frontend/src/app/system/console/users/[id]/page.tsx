@@ -190,6 +190,7 @@ export default function UserDetailPage() {
   const [betFilter, setBetFilter] = useState<'all' | 'real' | 'tournament' | 'script'>('all');
   const [drainBusy, setDrainBusy] = useState(false);
 
+  type Action = 'balance' | 'block' | 'lock' | 'whitelist' | null;
   const [action, setAction] = useState<Action>(null);
   const [delta, setDelta] = useState<string>('');
   const [txType, setTxType] = useState<string>('admin_adjustment');

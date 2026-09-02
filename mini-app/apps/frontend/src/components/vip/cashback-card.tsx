@@ -8,7 +8,7 @@ import { Pressable } from '@/components/ui/pressable';
 
 export function CashbackCard({ className }: { className?: string }) {
   const { cashback, loading, claiming, claimCashback } = useCashback();
-  const { refetch: fetchBalance } = useBalance();
+  const { fetchBalance } = useBalance();
 
   if (loading || !cashback) {
     return (

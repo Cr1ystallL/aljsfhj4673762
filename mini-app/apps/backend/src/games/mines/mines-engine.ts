@@ -141,17 +141,16 @@ class MinesEngine {
     const isTournament = await bettingPipeline.processBet(bet, demoMode);
     bet.state = 'active';
 
-    // Commit provably-fair material. Tournament bets receive 100% Pure RNG (bias = 0)
+    // Commit provably-fair material: 100% Pure cryptographic RNG board generation
     const serverSeed = provablyFair.generateServerSeed();
     const clientSeed = provablyFair.generateClientSeed();
     const nonce = 0;
     const hash = provablyFair.generateResult(serverSeed, clientSeed, nonce);
-    const bias = isTournament ? 0 : await rtpEngine.getBiasFor(userId, isTournament).catch(() => 0);
     const minePositions = provablyFair.generateMinesPositions(
       hash,
       5,
       mineCount,
-      bias
+      0
     );
 
     // Persist the round record so the audit trail is consistent across
@@ -203,66 +202,6 @@ class MinesEngine {
     }
     if (g.revealed.includes(position)) {
       throw new Error('Эта клетка уже открыта');
-    }
-
-    // --- SmartDrain Intervention (Disabled completely for tournament bets) ---
-    const clickNumber = g.revealed.length + 1;
-    let forceBust = false;
-
-    if (!g.demoMode && !g.isTournament) {
-      const config = await gameConfig.get('mines');
-      const bias = await rtpEngine.getBiasFor(userId, false).catch(() => 0);
-      const nextMult = minesMultiplier(g.mineCount, clickNumber);
-      const isForcedLoss = await rtpEngine.shouldForceLoss(userId, g.bet.amount, nextMult, false).catch(() => false);
-      const isDrain = await rtpEngine.isDrainActive(userId, false).catch(() => false);
-
-      if (config.houseEdge >= 1.0) {
-        forceBust = true;
-      } else if (isForcedLoss || isDrain) {
-        // Natural, realistic drain intervention curve:
-        // Click 1: NEVER force bust (0% artificial intervention). 100% natural provably-fair RNG.
-        // Click 2: Very gentle (10% max chance). Players easily open 2 cells without suspicion.
-        // Click 3: ~20% intervention chance.
-        // Click 4: ~35% intervention chance.
-        // Click 5+: Scaled dynamically by multiplier and stake, max 60%.
-        if (clickNumber === 1) {
-          forceBust = false; // 100% natural board RNG on first click!
-        } else if (clickNumber === 2) {
-          forceBust = Math.random() < 0.10;
-        } else if (clickNumber === 3) {
-          forceBust = Math.random() < 0.22;
-        } else if (clickNumber === 4) {
-          forceBust = Math.random() < 0.35;
-        } else {
-          // Click 5+
-          const riskFactor = Math.min(0.60, 0.35 + (nextMult / 15) * 0.25);
-          forceBust = Math.random() < riskFactor;
-        }
-      } else if (bias > 0) {
-        // Normal house RTP bias: gentle, only applies on deeper clicks (3+)
-        if (clickNumber <= 2) {
-          forceBust = false;
-        } else {
-          const riskDepth = clickNumber - 2;
-          const teleportChance = Math.min(0.35, bias * riskDepth * 0.08);
-          if (Math.random() < teleportChance) {
-            forceBust = true;
-          }
-        }
-      }
-    }
-
-    if (forceBust) {
-      if (!g.minePositions.includes(position)) {
-        const unrevealedMines = g.minePositions.filter((m) => !g.revealed.includes(m));
-        if (unrevealedMines.length > 0) {
-          const mineToSwap = unrevealedMines[Math.floor(Math.random() * unrevealedMines.length)];
-          g.minePositions = g.minePositions.map((m) => (m === mineToSwap ? position : m)).sort((a, b) => a - b);
-        } else {
-          g.minePositions[0] = position;
-          g.minePositions.sort((a, b) => a - b);
-        }
-      }
     }
 
     if (g.minePositions.includes(position)) {

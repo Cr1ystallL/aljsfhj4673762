@@ -43,7 +43,9 @@ interface InAppGame {
   badge?: { label: string; color: string; Icon: LucideIcon };
 }
 
-const GAME_BY_ID: Record<GameKey, InAppGame> = {
+type SupportedDrawerGame = 'crash' | 'mines' | 'blackjack' | 'coinflip' | 'wheel' | 'hilo' | 'macvpot' | 'keno' | 'cases';
+
+const GAME_BY_ID: Record<SupportedDrawerGame, InAppGame> = {
   crash: { id: 'crash', name: 'MacvJet', bg: '/tiles/macvjet.webp', badge: { label: 'TOP', color: 'red', Icon: Flame } },
   mines: { id: 'mines', name: 'Mines', bg: '/tiles/mines.webp', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
   blackjack: { id: 'blackjack', name: 'BlackJack', bg: '/tiles/bj.webp', badge: { label: 'PRO', color: 'gold', Icon: Crown } },

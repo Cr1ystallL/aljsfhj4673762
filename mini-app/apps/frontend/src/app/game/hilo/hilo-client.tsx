@@ -444,7 +444,7 @@ export function HiloClient() {
             <BetPanelCtaRow>
               {!isPlaying ? (
                 <GamePrimaryButton
-                  onClick={isBusted || isCashed ? handleSwap : handleStart}
+                  onClick={isBusted || isCashed ? handleSkip : handleStart}
                   disabled={
                     !isStateLoaded ||
                     loading ||
@@ -480,7 +480,7 @@ export function HiloClient() {
 
           {!isPlaying && !isBusted && !isCashed && (
             <GamePrimaryButton
-              onClick={handleSwap}
+              onClick={handleSkip}
               disabled={!isStateLoaded || loading}
               tone="muted"
             >

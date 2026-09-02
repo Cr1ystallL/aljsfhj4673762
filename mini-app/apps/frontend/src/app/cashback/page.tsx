@@ -28,7 +28,7 @@ export default function CashbackPage() {
   const { t, localeTag } = useT();
   const { cashback, loading: cbLoading, claiming, claimCashback } = useCashback();
   const { status: vipStatus } = useVip();
-  const { refetch: fetchBalance } = useBalance();
+  const { fetchBalance } = useBalance();
   const [faqOpen, setFaqOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
 

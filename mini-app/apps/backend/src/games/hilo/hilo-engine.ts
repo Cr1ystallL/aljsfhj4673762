@@ -81,10 +81,16 @@ export const hiloEngine = {
 
   generateCard(): Card {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
-    // Random 0-3
+    // Random 0-3 (256 is cleanly divisible by 4, so no modulo bias)
     const suitIdx = randomBytes(1)[0] % 4;
-    // Random 1-13
-    const rank = (randomBytes(1)[0] % 13) + 1;
+
+    // 13 does not divide 256 evenly (256 = 19 * 13 + 9). Rejection threshold: 247.
+    // This eliminates modulo bias entirely so each rank 1..13 has exact equal probability.
+    let b: number;
+    do {
+      b = randomBytes(1)[0];
+    } while (b >= 247);
+    const rank = (b % 13) + 1;
     return { suit: suits[suitIdx], rank };
   },
 
@@ -148,26 +154,11 @@ export const hiloEngine = {
     if (!state.currentCard) throw new Error('No current card');
 
     const cfg = await gameConfig.get('hilo');
-    let shouldWin: boolean | null = null;
-
-    // SmartDrain & house edge only apply to real balance bets
-    if (!state.isTournament) {
-      const bias = await rtpEngine.getBiasFor(userId, false).catch(() => 0);
-      const localBias = cfg.houseEdge >= 1 ? cfg.houseEdge / 100 : cfg.houseEdge;
-      const totalBias = Math.max(bias, localBias);
-
-      if (totalBias > 0 && Math.random() < totalBias) shouldWin = false; // Casino favours, player loses
-      else if (totalBias < 0 && Math.random() < -totalBias) shouldWin = true; // Player favours, player wins
-    }
-    
-    let nextCard = this.generateCard();
+    const nextCard = this.generateCard();
     const currentCard = state.currentCard;
     
-    let won = false;
-    let stepMultiplier = 0;
     const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, state.isTournament ? 0.04 : cfg.houseEdge);
-
-    // Calculate potential step multiplier first
+    let stepMultiplier = 0;
     switch (choice) {
       case 'red': stepMultiplier = mults.red; break;
       case 'black': stepMultiplier = mults.black; break;
@@ -175,40 +166,15 @@ export const hiloEngine = {
       case 'lower': stepMultiplier = mults.lower; break;
     }
 
-    // --- Forced Loss / SmartDrain (Completely bypassed for tournament bets) ---
-    if (!state.isTournament) {
-      const potentialMultiplier = +(state.currentMultiplier === 1.0 ? stepMultiplier : state.currentMultiplier * stepMultiplier).toFixed(2);
-      if (await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialMultiplier, false)) {
-        shouldWin = false;
-      }
-    }
+    const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
+    const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
+    let won = false;
 
-    if (shouldWin !== null) {
-      // Regenerate up to 50 times if we need to force an outcome
-      for (let loop = 0; loop < 50; loop++) {
-        const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
-        const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
-
-        switch (choice) {
-          case 'red': won = isRed; stepMultiplier = mults.red; break;
-          case 'black': won = isBlack; stepMultiplier = mults.black; break;
-          case 'higher': won = nextCard.rank >= currentCard.rank; stepMultiplier = mults.higher; break;
-          case 'lower': won = nextCard.rank <= currentCard.rank; stepMultiplier = mults.lower; break;
-        }
-        
-        if (won === shouldWin) break;
-        nextCard = this.generateCard();
-      }
-    } else {
-      // Pure 100% RNG
-      const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
-      const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';
-      switch (choice) {
-        case 'red': won = isRed; stepMultiplier = mults.red; break;
-        case 'black': won = isBlack; stepMultiplier = mults.black; break;
-        case 'higher': won = nextCard.rank >= currentCard.rank; stepMultiplier = mults.higher; break;
-        case 'lower': won = nextCard.rank <= currentCard.rank; stepMultiplier = mults.lower; break;
-      }
+    switch (choice) {
+      case 'red': won = isRed; break;
+      case 'black': won = isBlack; break;
+      case 'higher': won = nextCard.rank >= currentCard.rank; break;
+      case 'lower': won = nextCard.rank <= currentCard.rank; break;
     }
 
     state.currentCard = nextCard;

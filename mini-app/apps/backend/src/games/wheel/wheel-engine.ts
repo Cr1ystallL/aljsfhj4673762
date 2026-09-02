@@ -559,6 +559,13 @@ class WheelEngine extends EventEmitter {
   }
 }
 
+const SEGMENT_COUNTS: Record<WheelMultiplier, number> = {
+  2: 6,
+  3: 5,
+  5: 3,
+  30: 1,
+};
+
 /**
  * Pick a segment 0..14 from the seed, biased by the rtp controller.
  * Bias mechanism:
@@ -566,23 +573,27 @@ class WheelEngine extends EventEmitter {
  *     mass into 2x and 3x.
  *   bias < 0 (player-favouring) → boost 30x and 5x probability.
  *
- * Implementation: we apply a per-multiplier weight perturbation, then
- * sample by cumulative weight from the hash uniform.
+ * Implementation: we apply a per-multiplier aggregate category weight,
+ * normalize by the number of segments for each multiplier in SLOT_LAYOUT,
+ * then sample by cumulative weight from the hash uniform.
  */
 function pickSegment(hash: string, bias: number): number {
   const b = Math.max(-1, Math.min(1, bias));
-  // Weighted distribution for realistic casino odds:
-  // 2x:  weight 6.0 (prob ~47.6%) -> RTP ~95%
-  // 3x:  weight 4.0 (prob ~31.7%) -> RTP ~95%
-  // 5x:  weight 2.4 (prob ~19.0%) -> RTP ~95%
-  // 30x: weight 0.2 (prob ~1.6%)  -> 30x drops very rarely (~1 in 63 spins)
-  const baseScaler: Record<WheelMultiplier, number> = {
+  // Total category weights summing to 12.6:
+  // 2x:  weight 6.0 (prob 6.0/12.6 = 47.62%) -> 2 * 47.62% = 95.24% RTP
+  // 3x:  weight 4.0 (prob 4.0/12.6 = 31.75%) -> 3 * 31.75% = 95.24% RTP
+  // 5x:  weight 2.4 (prob 2.4/12.6 = 19.05%) -> 5 * 19.05% = 95.24% RTP
+  // 30x: weight 0.2 (prob 0.2/12.6 = 1.587%) -> ~1 in 63 spins
+  const baseCategoryWeight: Record<WheelMultiplier, number> = {
     2: 6.0 * (1 + b * 0.15),
     3: 4.0 * (1 + b * 0.05),
     5: 2.4 * (1 - b * 0.2),
     30: 0.2 * (1 - b * 0.6),
   };
-  const weights = SLOT_LAYOUT.map((m) => Math.max(0.01, baseScaler[m]));
+  // Each individual segment gets its fair share of the category's weight:
+  const weights = SLOT_LAYOUT.map((m) =>
+    Math.max(0.001, baseCategoryWeight[m] / SEGMENT_COUNTS[m])
+  );
   const total = weights.reduce((a, x) => a + x, 0);
 
   // Uniform sample from a fresh hash slice (independent of curve U).

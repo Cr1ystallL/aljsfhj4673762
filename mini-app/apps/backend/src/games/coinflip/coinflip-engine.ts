@@ -168,24 +168,9 @@ class CoinflipEngine {
     const hash = provablyFair.generateResult(serverSeed, clientSeed, 0);
     const serverSeedHash = provablyFair.hashServerSeed(serverSeed);
 
-    // Pre-fact tilt: Tournament bets get 100% pure RNG (bias = 0)
-    const bias = isTournament ? 0 : await rtpEngine.getBiasFor(userId, false).catch(() => 0);
-    let outcome = provablyFair.coinflipOutcome(hash, choice, bias);
-    let won = outcome === choice;
-
-    // --- Forced Loss / SmartDrain (Completely bypassed for tournament bets) ---
-    if (!isTournament) {
-      if (await rtpEngine.shouldForceLoss(userId, amount, STEP_MULTIPLIER, false)) {
-        won = false;
-        outcome = (choice === 'heads' ? 'tails' : 'heads');
-      }
-
-      const config = await gameConfig.get('coinflip').catch(() => null);
-      if (config && config.houseEdge >= 1.0) {
-        won = false; // Guaranteed loss mode
-        outcome = (choice === 'heads' ? 'tails' : 'heads');
-      }
-    }
+    // 100% Provably Fair: outcome is strictly derived from the cryptographic seed hash
+    const outcome = provablyFair.coinflipOutcome(hash, choice, 0);
+    const won = outcome === choice;
 
     const multiplier = won ? STEP_MULTIPLIER : 0;
     const payout = won ? +(amount * multiplier).toFixed(2) : 0;
@@ -365,25 +350,9 @@ class CoinflipEngine {
     g.pendingChoice = choice;
     g.awaiting = 'flipResult';
 
-    // 100% Pure RNG for tournament bets
-    const bias = g.isTournament ? 0 : await rtpEngine.getBiasFor(g.userId, false).catch(() => 0);
-    let outcome = this.resolveRoundOutcome(g, choice, bias);
-    let won = outcome === choice;
-
-    // --- Forced Loss / SmartDrain (Completely bypassed for tournament bets) ---
-    if (!g.isTournament) {
-      const potentialMultiplier = +(g.currentMultiplier * STEP_MULTIPLIER).toFixed(2);
-      if (await rtpEngine.shouldForceLoss(g.userId, g.betAmount, potentialMultiplier, false)) {
-        won = false;
-        outcome = (choice === 'heads' ? 'tails' : 'heads');
-      }
-
-      const config = await gameConfig.get('coinflip').catch(() => null);
-      if (config && config.houseEdge >= 1.0) {
-        won = false;
-        outcome = (choice === 'heads' ? 'tails' : 'heads');
-      }
-    }
+    // 100% Provably Fair: outcome is strictly derived from the cryptographic seed hash for this round
+    const outcome = this.resolveRoundOutcome(g, choice, 0);
+    const won = outcome === choice;
 
     g.bet.metadata = { ...(g.bet.metadata as object), lastChoice: choice, lastOutcome: outcome };
 
