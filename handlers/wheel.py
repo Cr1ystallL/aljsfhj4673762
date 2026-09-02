@@ -115,7 +115,7 @@ async def cmd_mb_wheel(message: Message):
                 # Клавиатура
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="🎰 Играть в казино", url="https://t.me/MacvBet_bot"),
+                        InlineKeyboardButton(text="Играть", url="https://t.me/MacvBet_bot"),
                         InlineKeyboardButton(text="📢 Наш канал", url="https://t.me/+m9rl_ptr8fZiNzcy")
                     ]
                 ])
@@ -139,7 +139,7 @@ async def cmd_mb_wheel(message: Message):
                 amount_f = float(amount)
                 if amount_f == 10.0:
                     text = (
-                        f"🎰 <b>LUCKY WHEEL</b>\n"
+                        f"🎰 <b>Колесо фортуны</b>\n"
                         f"👤 Игрок: {user_mention}\n\n"
                         f"🎉 <b>Выпало:</b> Бесплатное вращение в Обычном кейсе (10 zł)!\n\n"
                         f"📊 Осталось вращений сегодня: <b>{remaining}</b>\n"
@@ -147,7 +147,7 @@ async def cmd_mb_wheel(message: Message):
                     )
                 else:
                     text = (
-                        f"🎰 <b>LUCKY WHEEL</b>\n"
+                        f"🎰 <b>Колесо фортуны</b>\n"
                         f"👤 Игрок: {user_mention}\n\n"
                         f"🎉 <b>Выигрыш:</b> +{amount} zł на баланс!\n\n"
                         f"📊 Осталось вращений сегодня: <b>{remaining}</b>\n"
