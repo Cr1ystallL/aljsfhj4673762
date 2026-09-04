@@ -6,7 +6,7 @@ import { z } from 'zod';
 export const BalanceSchema = z.object({
     userId: z.string().uuid(),
     amount: z.number().nonnegative(),
-    currency: z.string().default('USD'),
+    currency: z.string().default('PLN'),
     demoMode: z.boolean().default(false),
     lastSyncedAt: z.date(),
 });

@@ -8,7 +8,7 @@ import { z } from 'zod';
 export const BalanceSchema = z.object({
   userId: z.string().uuid(),
   amount: z.number().nonnegative(),
-  currency: z.string().default('USD'),
+  currency: z.string().default('PLN'),
   freeCases: z.number().optional(),
   freeCasesJson: z.record(z.unknown()).optional(),
   demoMode: z.boolean().default(false),

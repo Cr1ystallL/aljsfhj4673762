@@ -36,7 +36,7 @@ export class BalanceService {
           data: {
             userId,
             amount: 0,
-            currency: 'USD',
+            currency: 'PLN',
             demoMode: false,
           },
         });

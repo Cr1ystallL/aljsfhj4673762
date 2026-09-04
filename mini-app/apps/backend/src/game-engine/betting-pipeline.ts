@@ -1108,7 +1108,7 @@ export class BettingPipeline {
         select: { amount: true, currency: true },
       });
       const currentLiveBalance = liveBalRow ? Number(liveBalRow.amount) : balanceAfter;
-      const curSymbol = liveBalRow?.currency === 'USD' ? '$' : 'zł';
+      const curSymbol = 'zł';
       const formattedBalance = `${currentLiveBalance.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curSymbol}`;
       const formattedCredit = `${credit.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curSymbol}`;
 

@@ -16,7 +16,7 @@ interface BalanceDisplayProps {
  */
 export function BalanceDisplay({ 
   amount, 
-  currency = 'USD',
+  currency = 'PLN',
   demoMode = false 
 }: BalanceDisplayProps) {
   return (
@@ -37,7 +37,7 @@ export function BalanceDisplay({
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              ${amount.toFixed(2)}
+              {amount.toFixed(2)} {currency === 'PLN' ? 'zł' : currency}
             </motion.div>
           </div>
         </div>
