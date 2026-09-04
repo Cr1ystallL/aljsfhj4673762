@@ -44,6 +44,13 @@ model User {
   hardwareHash     String?  @map("hardware_hash")
   deviceSpecs      Json?    @map("device_specs")
 
+  // VIP System & Loyalty Cashback
+  xp                    Int       @default(0)
+  vipLevel              Int       @default(0) @map("vip_level")
+  claimedVipRewards     Int[]     @default([]) @map("claimed_vip_rewards")
+  lastCashbackClaimedAt DateTime? @map("last_cashback_claimed_at")
+  sportsAccess          Boolean   @default(false) @map("sports_access")
+
   // Affiliate & RevShare
   referrerTelegramId BigInt?  @map("referrer_telegram_id")
   revshareBalance    Decimal  @default(0) @map("revshare_balance") @db.Decimal(20, 2)
@@ -238,6 +245,41 @@ model WithdrawalRequest {
   @@index([status])
   @@index([destination])
   @@map("withdrawal_requests")
+}
+
+model DirectCryptoDeposit {
+  id             String    @id @db.VarChar(64)
+  userId         String    @map("user_id") @db.VarChar(64)
+  telegramId     BigInt    @map("telegram_id")
+  network        String    @db.VarChar(32)
+  requestedPln   Decimal   @map("requested_pln") @db.Decimal(20, 2)
+  uniqueUsdt     Decimal   @map("unique_usdt") @db.Decimal(20, 4)
+  fxRate         Decimal   @map("fx_rate") @db.Decimal(10, 4)
+  depositAddress String    @map("deposit_address") @db.Text
+  status         String    @default("pending") @db.VarChar(32)
+  txHash         String?   @map("tx_hash") @db.Text
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  paidAt         DateTime? @map("paid_at") @db.Timestamptz
+  creditTxId     String?   @map("credit_tx_id") @db.VarChar(64)
+
+  @@index([userId, status], map: "idx_direct_crypto_user_status")
+  @@index([network, status], map: "idx_direct_crypto_network_status")
+  @@index([uniqueUsdt, status], map: "idx_direct_crypto_unique_usdt")
+  @@map("direct_crypto_deposits")
+}
+
+model UserDepositBonus {
+  id             String    @id @default(uuid())
+  depositBonusId String    @map("deposit_bonus_id")
+  userId         String    @map("user_id")
+  status         String    @default("active")
+  usedAt         DateTime? @map("used_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, status])
+  @@map("user_deposit_bonuses")
 }
 
 // Transaction model
