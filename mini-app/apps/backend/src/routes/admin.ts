@@ -25,6 +25,7 @@ import { config } from '../config/index.js';
 import { sportsEngine } from '../games/sports/engine.js';
 import { freebetService } from '../services/freebet-service.js';
 import { vipService } from '../services/vip-service.js';
+import { securityService } from '../services/security-service.js';
 
 /**
  * Admin Routes — covert.
@@ -5948,6 +5949,231 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ ok: true, total, page, limit, ips: grouped });
       } catch (error) {
         logger.error(error, 'Admin security ips fetch failed');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  /* ---------------------------------------------------------------- cybersec & anti-fraud */
+
+  app.get('/_x/security/stats', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const stats = await securityService.getSecurityStats();
+      return reply.send({ ok: true, stats });
+    } catch (error) {
+      logger.error({ error }, 'Failed to get security stats');
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.get<{ Querystring: { type?: string; page?: string; limit?: string } }>(
+    '/_x/security/clusters',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const type = (request.query.type || 'hardware') as 'hardware' | 'wallet' | 'ip';
+      const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+      const limit = Math.min(100, Math.max(5, parseInt(request.query.limit ?? '20', 10)));
+
+      try {
+        if (type === 'hardware') {
+          const res = await securityService.getHardwareClusters(page, limit);
+          return reply.send({ ok: true, type, ...res });
+        } else if (type === 'wallet') {
+          const res = await securityService.getFinancialClusters(page, limit);
+          return reply.send({ ok: true, type, ...res });
+        } else {
+          // IP fallback
+          const skip = (page - 1) * limit;
+          const ipsWithMulti = await app.prisma.$queryRaw<Array<{ ip_address: string; accounts: bigint }>>`
+            SELECT ip_address, COUNT(DISTINCT user_id) as accounts
+            FROM user_ip_addresses
+            GROUP BY ip_address
+            HAVING COUNT(DISTINCT user_id) > 1
+            ORDER BY accounts DESC
+            LIMIT ${limit} OFFSET ${skip}
+          `;
+          const totalRows = await app.prisma.$queryRaw<Array<{ c: bigint }>>`
+            SELECT COUNT(*) as c FROM (
+              SELECT ip_address FROM user_ip_addresses GROUP BY ip_address HAVING COUNT(DISTINCT user_id) > 1
+            ) t
+          `;
+          const total = Number(totalRows[0]?.c ?? 0);
+          if (ipsWithMulti.length === 0) {
+            return reply.send({ ok: true, type: 'ip', total, page, limit, clusters: [] });
+          }
+          const ipStrings = ipsWithMulti.map((x) => x.ip_address);
+          const related = await app.prisma.userIpAddress.findMany({
+            where: { ipAddress: { in: ipStrings } },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  telegramId: true,
+                  username: true,
+                  firstName: true,
+                  lastName: true,
+                  isBlocked: true,
+                  withdrawalLocked: true,
+                  trustScore: true,
+                  hardwareHash: true,
+                  adminNote: true,
+                  createdAt: true,
+                },
+              },
+            },
+            orderBy: { firstSeen: 'asc' },
+          });
+          const clusters = ipsWithMulti.map((row) => ({
+            ipAddress: row.ip_address,
+            accountsCount: Number(row.accounts),
+            users: related
+              .filter((r) => r.ipAddress === row.ip_address)
+              .map((r, i) => ({
+                ...r.user,
+                telegramId: Number(r.user.telegramId),
+                createdAt: r.user.createdAt.getTime(),
+                firstSeen: r.firstSeen.getTime(),
+                lastSeen: r.lastSeen.getTime(),
+                isMain: i === 0,
+              })),
+          }));
+          return reply.send({ ok: true, type: 'ip', total, page, limit, clusters });
+        }
+      } catch (error) {
+        logger.error({ error, type }, 'Failed to fetch security clusters');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/_x/security/users/:id/dossier',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      try {
+        const dossier = await securityService.getUserSecurityDossier(request.params.id);
+        if (!dossier) {
+          return reply.code(404).send({ error: 'Пользователь не найден' });
+        }
+        return reply.send({ ok: true, dossier });
+      } catch (error) {
+        logger.error({ error, id: request.params.id }, 'Failed to get security dossier');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/_x/security/users/:id/whitelist',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const authReq = request as AuthenticatedRequest;
+      const adminId = String(authReq.user?.telegramId || 'admin');
+      try {
+        const ok = await securityService.whitelistAndUnblock(request.params.id, adminId);
+        if (!ok) {
+          return reply.code(500).send({ error: 'Не удалось разблокировать пользователя' });
+        }
+        return reply.send({ ok: true, message: 'Пользователь успешно разблокирован и добавлен в белый список' });
+      } catch (error) {
+        logger.error({ error, id: request.params.id }, 'Failed to whitelist user');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  app.post<{ Body: { type: 'hardware' | 'wallet' | 'ip'; value: string } }>(
+    '/_x/security/clusters/ban',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const authReq = request as AuthenticatedRequest;
+      const adminId = String(authReq.user?.telegramId || 'admin');
+      const { type, value } = request.body;
+      if (!type || !value) {
+        return reply.code(400).send({ error: 'Не указан тип или значение кластера' });
+      }
+      try {
+        const count = await securityService.banCluster(type, value, adminId);
+        return reply.send({ ok: true, bannedCount: count });
+      } catch (error) {
+        logger.error({ error, type, value }, 'Failed to ban cluster');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  app.get<{ Querystring: { page?: string; limit?: string; unresolved?: string } }>(
+    '/_x/security/alerts',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+      const limit = Math.min(100, Math.max(5, parseInt(request.query.limit ?? '20', 10)));
+      const skip = (page - 1) * limit;
+      const unresolvedOnly = request.query.unresolved === 'true';
+
+      try {
+        const where: Prisma.SecurityAlertWhereInput = unresolvedOnly ? { resolved: false } : {};
+        const [total, alerts] = await Promise.all([
+          app.prisma.securityAlert.count({ where }),
+          app.prisma.securityAlert.findMany({
+            where,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  telegramId: true,
+                  username: true,
+                  firstName: true,
+                  isBlocked: true,
+                  withdrawalLocked: true,
+                  trustScore: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+        ]);
+
+        return reply.send({
+          ok: true,
+          total,
+          page,
+          limit,
+          alerts: alerts.map((a) => ({
+            id: a.id,
+            userId: a.userId,
+            user: {
+              ...a.user,
+              telegramId: Number(a.user.telegramId),
+            },
+            type: a.type,
+            severity: a.severity,
+            description: a.description,
+            resolved: a.resolved,
+            createdAt: a.createdAt.getTime(),
+          })),
+        });
+      } catch (error) {
+        logger.error({ error }, 'Failed to fetch security alerts');
+        return reply.code(500).send({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/_x/security/alerts/:id/resolve',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      try {
+        await app.prisma.securityAlert.update({
+          where: { id: request.params.id },
+          data: { resolved: true },
+        });
+        return reply.send({ ok: true });
+      } catch (error) {
+        logger.error({ error, id: request.params.id }, 'Failed to resolve alert');
         return reply.code(500).send({ error: 'Internal Server Error' });
       }
     }

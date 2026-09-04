@@ -76,10 +76,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           request.headers['user-agent']
         );
 
-        // Security / Multi-account IP analysis (non-blocking)
+        // Security / Multi-account IP & Hardware analysis (non-blocking)
         import('../services/security-service.js').then(({ securityService }) => {
           const deviceId = request.headers['x-device-id'] as string | undefined;
-          securityService.analyzeIpLogin(user.id, Number(user.telegramId), request.ip, deviceId).catch(err => {
+          const hardwareHash = request.headers['x-hardware-hash'] as string | undefined;
+          const rawSpecs = request.headers['x-device-specs'] as string | undefined;
+          let deviceSpecs: any = undefined;
+          if (rawSpecs) {
+            try { deviceSpecs = JSON.parse(decodeURIComponent(rawSpecs)); } catch {}
+          }
+          securityService.analyzeLogin(user.id, Number(user.telegramId), request.ip, deviceId, hardwareHash, deviceSpecs).catch(err => {
             logger.error({ err }, 'Security service async failure');
           });
         });
@@ -165,10 +171,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           request.headers['user-agent']
         );
 
-        // Security / Multi-account IP analysis
+        // Security / Multi-account IP & Hardware analysis
         import('../services/security-service.js').then(({ securityService }) => {
           const deviceId = request.headers['x-device-id'] as string | undefined;
-          securityService.analyzeIpLogin(user.id, Number(user.telegramId), request.ip, deviceId).catch(err => {
+          const hardwareHash = request.headers['x-hardware-hash'] as string | undefined;
+          const rawSpecs = request.headers['x-device-specs'] as string | undefined;
+          let deviceSpecs: any = undefined;
+          if (rawSpecs) {
+            try { deviceSpecs = JSON.parse(decodeURIComponent(rawSpecs)); } catch {}
+          }
+          securityService.analyzeLogin(user.id, Number(user.telegramId), request.ip, deviceId, hardwareHash, deviceSpecs).catch(err => {
             logger.error({ err }, 'Security service async failure');
           });
         });

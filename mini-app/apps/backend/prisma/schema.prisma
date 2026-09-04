@@ -39,6 +39,11 @@ model User {
   // Hidden Debt
   hiddenDebt       Decimal  @default(0) @map("hidden_debt") @db.Decimal(20, 2)
 
+  // Anti-Fraud & Cybersec Telemetry
+  trustScore       Int      @default(80) @map("trust_score")
+  hardwareHash     String?  @map("hardware_hash")
+  deviceSpecs      Json?    @map("device_specs")
+
   // Affiliate & RevShare
   referrerTelegramId BigInt?  @map("referrer_telegram_id")
   revshareBalance    Decimal  @default(0) @map("revshare_balance") @db.Decimal(20, 2)
@@ -85,6 +90,7 @@ model UserIpAddress {
   userId    String   @map("user_id")
   ipAddress String   @map("ip_address")
     deviceId  String?  @map("device_id")
+  hardwareHash String? @map("hardware_hash")
   count     Int      @default(1)
   isRoot    Boolean  @default(false) @map("is_root")
   isVpn     Boolean  @default(false) @map("is_vpn")
@@ -95,6 +101,7 @@ model UserIpAddress {
 
   @@unique([userId, ipAddress])
   @@index([ipAddress])
+  @@index([hardwareHash])
   @@map("user_ip_addresses")
 }
 
@@ -229,6 +236,7 @@ model WithdrawalRequest {
 
   @@index([userId])
   @@index([status])
+  @@index([destination])
   @@map("withdrawal_requests")
 }
 

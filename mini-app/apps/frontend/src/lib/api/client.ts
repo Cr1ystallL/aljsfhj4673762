@@ -81,6 +81,22 @@ export class APIClient {
         localStorage.setItem('macvbet_deviceId', deviceId);
       }
       headers['x-device-id'] = deviceId;
+
+      const hwHash = localStorage.getItem('macvbet_hw_hash');
+      if (hwHash) {
+        headers['x-hardware-hash'] = hwHash;
+      }
+      const specs = localStorage.getItem('macvbet_device_specs');
+      if (specs) {
+        headers['x-device-specs'] = encodeURIComponent(specs);
+      }
+
+      // Proactively ensure fingerprint is generated
+      if (!hwHash) {
+        import('../security/hardware-fingerprint').then(({ getHardwareHash }) => {
+          void getHardwareHash();
+        }).catch(() => {});
+      }
     }
 
     // Create abort controller for timeout

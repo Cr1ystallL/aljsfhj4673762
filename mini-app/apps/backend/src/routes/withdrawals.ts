@@ -116,6 +116,20 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
       // Column missing — older deployment. Skip the check.
     }
 
+    // ---- Financial destination anti-abuse check ------------------
+    try {
+      const { securityService } = await import('../services/security-service.js');
+      const finCheck = await securityService.checkWithdrawalCollision(userId, destination);
+      if (finCheck.collision) {
+        return reply.code(403).send({
+          ok: false,
+          error: 'Ошибка верификации платежных реквизитов: данные реквизиты уже используются на платформе. Вывод заморожен администрацией.',
+        });
+      }
+    } catch (finErr) {
+      logger.error({ finErr, userId, destination }, 'Financial collision check error');
+    }
+
     // ---- Atomic debit + request insert ----------------------------
     try {
       const requestId = `wd_${Date.now()}_${randomUUID().slice(0, 8)}`;

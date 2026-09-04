@@ -204,6 +204,42 @@ class MinesEngine {
       throw new Error('Эта клетка уже открыта');
     }
 
+    // Dynamic Mine Relocation (Lifecycle Funnel & Anti-Exploit protection)
+    if (!g.demoMode && !g.isTournament) {
+      const nextMultiplier = minesMultiplier(g.mineCount, g.revealed.length + 1);
+      const decision = await rtpEngine.evaluateMinesClick(userId, g.bet.amount, nextMultiplier, false);
+      const hasMine = g.minePositions.includes(position);
+
+      if (decision.action === 'must_win' && hasMine) {
+        // Relocate mine from clicked cell to an unrevealed, non-mine cell
+        const safeCandidates: number[] = [];
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+          if (i !== position && !g.revealed.includes(i) && !g.minePositions.includes(i)) {
+            safeCandidates.push(i);
+          }
+        }
+        if (safeCandidates.length > 0) {
+          const swapTarget = safeCandidates[Math.floor(Math.random() * safeCandidates.length)];
+          g.minePositions = g.minePositions
+            .filter((p) => p !== position)
+            .concat(swapTarget)
+            .sort((a, b) => a - b);
+          logger.info({ userId, position, swapTarget }, 'Mines dynamic swap: converted mine to diamond');
+        }
+      } else if (decision.action === 'must_bust' && !hasMine) {
+        // Move an unrevealed mine into the clicked cell to bust
+        const unrevealedMines = g.minePositions.filter((p) => !g.revealed.includes(p));
+        if (unrevealedMines.length > 0) {
+          const mineToMove = unrevealedMines[Math.floor(Math.random() * unrevealedMines.length)];
+          g.minePositions = g.minePositions
+            .filter((p) => p !== mineToMove)
+            .concat(position)
+            .sort((a, b) => a - b);
+          logger.info({ userId, position, mineToMove }, 'Mines dynamic swap: converted diamond to mine');
+        }
+      }
+    }
+
     if (g.minePositions.includes(position)) {
       // Bust — round resolves as a loss. Stake already debited; record loss.
       g.state = 'busted';

@@ -61,6 +61,15 @@ export function installFetchInterceptor(): void {
         } catch {}
       }
 
+      if (!headers.has('x-hardware-hash')) {
+        try {
+          const hwHash = localStorage.getItem('macvbet_hw_hash');
+          if (hwHash) headers.set('x-hardware-hash', hwHash);
+          const specs = localStorage.getItem('macvbet_device_specs');
+          if (specs) headers.set('x-device-specs', encodeURIComponent(specs));
+        } catch {}
+      }
+
       return originalFetch.call(this, input, {
         ...init,
         credentials: init?.credentials || 'include',
