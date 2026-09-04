@@ -732,6 +732,40 @@ class SportsEngine {
         }
       }
 
+      // Comprehensive Bet Watchdog: Settle any tracked bets that are finished or missing
+      const now = Date.now();
+      for (const [betId, tracked] of this.bets) {
+        for (const leg of tracked.legs) {
+          if (leg.result !== 'pending') continue;
+
+          const ev = this.events.get(leg.eventId);
+          if (ev) {
+            const elapsed = now - ev.feed.startTime;
+            const maxDuration = ev.feed.sport === 'football' ? 130 * 60_000 : 150 * 60_000;
+            if (ev.feed.status === 'finished' || elapsed > maxDuration) {
+              ev.feed.status = 'finished';
+              const s1 = ev.feed.team1.score ?? 0;
+              const s2 = ev.feed.team2.score ?? 0;
+              const res = settleLeg(leg.marketKind, leg.outcomeKey, leg.line, s1, s2, ev.feed.threeWay, {
+                stats: ev.feed.stats,
+                finished: true,
+              });
+              leg.result = res;
+              await this.finishTracked(tracked, betId, res);
+            }
+          } else {
+            // Missing from live board and memory
+            const betAge = now - tracked.bet.placedAt;
+            // If bet was placed more than 90 minutes ago and event has vanished from live feed:
+            if (betAge > 90 * 60_000) {
+              logger.info({ betId, eventId: leg.eventId, betAge }, 'Missing sports event timed out — voiding leg');
+              leg.result = 'void';
+              await this.finishTracked(tracked, betId, 'void');
+            }
+          }
+        }
+      }
+
       this.pickFeatured();
     } catch (err) {
       logger.warn({ err }, 'Sports live sync failed');
@@ -820,6 +854,22 @@ class SportsEngine {
     const freebetId = meta.freebetId as string | undefined;
     const freebetPayoutType = meta.freebetPayoutType as string | undefined;
     const freebetAmount = Number(meta.freebetAmount || tracked.bet.amount);
+
+    // Persist updated leg results to DB so server restarts don't revert progress
+    const rawLegs = Array.isArray(meta.legs) ? meta.legs : [];
+    const updatedRawLegs = rawLegs.map((l: any) => {
+      const found = tracked.legs.find(
+        (tl) => tl.eventId === l.eventId && tl.marketKind === l.marketKind && tl.outcomeKey === l.outcomeKey
+      );
+      return found ? { ...l, result: found.result } : l;
+    });
+    tracked.bet.metadata = { ...meta, legs: updatedRawLegs };
+    await prisma.bet
+      .update({
+        where: { id: betId },
+        data: { metadata: tracked.bet.metadata as any },
+      })
+      .catch((err) => logger.warn({ err, betId }, 'Failed to persist leg result'));
 
     if (lastResult === 'lost') {
       tracked.bet.multiplier = 0;
@@ -968,6 +1018,28 @@ class SportsEngine {
 
       const legs = parseStoredLegs(meta);
       if (legs.length === 0) continue;
+
+      // Settle immediately if legs already determined from prior run
+      if (legs.some((l) => l.result === 'lost')) {
+        void this.finishTracked({ bet, legs, combinedOdds: Number(meta.odds ?? 0) }, bet.id, 'lost');
+        continue;
+      }
+      if (legs.every((l) => l.result === 'won' || l.result === 'void')) {
+        void this.finishTracked({ bet, legs, combinedOdds: Number(meta.odds ?? 0) }, bet.id, 'won');
+        continue;
+      }
+
+      // If bet was placed more than 12 hours ago and still unresolved, safely refund
+      if (now - row.placedAt.getTime() > 12 * 60 * 60 * 1000) {
+        try {
+          await bettingPipeline.rollbackBet(bet, false);
+          logger.info({ betId: bet.id }, 'Sports stale bet refunded (>12h)');
+        } catch (err) {
+          logger.warn({ err, betId: bet.id }, 'Sports stale bet refund failed');
+        }
+        continue;
+      }
+
       this.indexBet({
         bet,
         legs,
@@ -1012,6 +1084,7 @@ function formatCombined(n: number): number {
 }
 
 function parseStoredLegs(meta: Record<string, unknown>): TrackedLeg[] {
+  const validResults = new Set(['won', 'lost', 'void', 'pending']);
   if (Array.isArray(meta.legs) && meta.legs.length > 0) {
     return meta.legs.flatMap((raw) => {
       if (!raw || typeof raw !== 'object') return [];
@@ -1020,6 +1093,8 @@ function parseStoredLegs(meta: Record<string, unknown>): TrackedLeg[] {
       const marketKind = String(row.marketKind ?? '1x2') as MarketKind;
       const outcomeKey = String(row.outcomeKey ?? '');
       if (!eventId || !outcomeKey) return [];
+      const stored = String(row.result ?? 'pending');
+      const result = validResults.has(stored) ? (stored as SettleResult | 'pending') : 'pending';
       return [
         {
           eventId,
@@ -1027,7 +1102,7 @@ function parseStoredLegs(meta: Record<string, unknown>): TrackedLeg[] {
           outcomeKey,
           line: typeof row.line === 'number' ? row.line : undefined,
           odds: Number(row.odds ?? 0),
-          result: 'pending' as const,
+          result,
         },
       ];
     });
@@ -1036,13 +1111,15 @@ function parseStoredLegs(meta: Record<string, unknown>): TrackedLeg[] {
   const eventId = String(meta.eventId ?? '');
   const outcome = String(meta.outcome ?? '');
   if (!eventId || (outcome !== 'p1' && outcome !== 'x' && outcome !== 'p2')) return [];
+  const stored = String(meta.result ?? 'pending');
+  const result = validResults.has(stored) ? (stored as SettleResult | 'pending') : 'pending';
   return [
     {
       eventId,
       marketKind: '1x2',
       outcomeKey: outcome,
       odds: Number(meta.odds ?? 0),
-      result: 'pending',
+      result,
     },
   ];
 }

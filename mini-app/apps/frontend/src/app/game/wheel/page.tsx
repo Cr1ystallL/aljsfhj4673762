@@ -157,6 +157,10 @@ export default function WheelPage() {
   } | null>(null);
   const [phaseTick, setPhaseTick] = useState(0);
 
+  useEffect(() => {
+    soundManager.register('cases.tick', { src: '/audio/tick.mp3', category: 'sfx' });
+  }, []);
+
   /* ----- Data fetching --------------------------------------------------- */
 
   const load = useCallback(async () => {
@@ -724,6 +728,7 @@ function WheelCanvas({
   const rotRef = useRef({ angle: -Math.PI / 2 });
   const idleTweenRef = useRef<gsap.core.Tween | null>(null);
   const spinTweenRef = useRef<gsap.core.Tween | null>(null);
+  const lastSectorRef = useRef<number | null>(null);
 
   /* Timer for center overlay */
   const [now, setNow] = useState(() => Date.now());
@@ -1088,10 +1093,21 @@ function WheelCanvas({
 
       if (uiPhase === 'spinning') {
         diff -= Math.PI * 2 * 6;
+        lastSectorRef.current = null;
         spinTweenRef.current = gsap.to(rotRef.current, {
           angle: rotRef.current.angle + diff,
           duration: (snap.spinDurationMs || 5000) / 1000,
           ease: 'power4.out',
+          onUpdate: () => {
+            if (!layout || layout.length === 0) return;
+            const currentSector = pointerSegmentIndex(rotRef.current.angle, layout.length);
+            if (lastSectorRef.current === null) {
+              lastSectorRef.current = currentSector;
+            } else if (currentSector !== lastSectorRef.current) {
+              soundManager.play('cases.tick');
+              lastSectorRef.current = currentSector;
+            }
+          },
         });
       } else {
         rotRef.current.angle = targetAngle;
