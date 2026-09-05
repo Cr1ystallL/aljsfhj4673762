@@ -164,21 +164,19 @@ class KenoEngine {
         const isDrain = await rtpEngine.isDrainActive(userId, false).catch(() => false);
         const shouldForceLoss = await rtpEngine.shouldForceLoss(userId, params.amount, rawMultiplier, false).catch(() => false);
 
-        if ((isDrain || shouldForceLoss || (bias > 0 && Math.random() < bias * 0.6)) && rawMultiplier >= 2.0) {
-          // Re-draw numbers to prevent unmanaged casino drain
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const candidate = this.generateDraw(crypto.randomBytes(32).toString('hex'));
-            let cHits = 0;
-            for (const pick of params.picks) {
-              if (candidate.includes(pick)) cHits++;
-            }
-            const cMult = KENO_MULTIPLIERS[params.risk][pickCount][cHits];
-            if (cMult < rawMultiplier) {
-              drawnNumbers = candidate;
-              hits = cHits;
-              rawMultiplier = cMult;
-              if (rawMultiplier === 0) break;
-            }
+        // Only re-roll on active drain, or large multiplier spikes (>= 6x) under positive house bias
+        if ((isDrain || (shouldForceLoss && rawMultiplier >= 4.0) || (bias > 0.25 && rawMultiplier >= 6.0 && Math.random() < bias * 0.5)) && rawMultiplier >= 2.5) {
+          // Gentle single re-draw to regulate payout without crushing regular 2x-4x wins
+          const candidate = this.generateDraw(crypto.randomBytes(32).toString('hex'));
+          let cHits = 0;
+          for (const pick of params.picks) {
+            if (candidate.includes(pick)) cHits++;
+          }
+          const cMult = KENO_MULTIPLIERS[params.risk][pickCount][cHits];
+          if (cMult < rawMultiplier) {
+            drawnNumbers = candidate;
+            hits = cHits;
+            rawMultiplier = cMult;
           }
         }
       }

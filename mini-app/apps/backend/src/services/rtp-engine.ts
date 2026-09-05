@@ -930,37 +930,48 @@ class RtpEngine {
 
         if (currentBalance < targetPeakBalance && wagerProgress < depositAmount * 2.5) {
           phase = 'hook';
-          bias = -0.35; // gentle push to win and reach target 1.5x-1.8x
-        } else if (currentBalance >= targetPeakBalance && currentBalance <= ceilingBalance && wagerProgress < depositAmount * 3.0) {
+          bias = -0.30; // gentle onboarding push
+        } else if (currentBalance >= targetPeakBalance && currentBalance <= ceilingBalance) {
           phase = 'plateau';
-          bias = 0.08; // swings back and forth around the peak
-        } else {
-          // Greed / prolonged play: transition to gentle drain
+          bias = 0.05; // natural swings around the peak
+        } else if (currentBalance > ceilingBalance) {
+          // Greed / prolonged play above ceiling: transition to gentle drain
           phase = 'drain';
-          bias = 0.45;
+          bias = 0.40;
+        } else {
+          // Balance dropped below target (player is down or at breakeven):
+          // Return to normal organic RTP so player is NOT permanently shaved in a drain trap!
+          phase = 'normal';
+          bias = 0;
         }
       } else if (depositIndex === 2 && depositAmount > 0) {
         if (completedWdCount > 0) {
-          // Player previously withdrew profit: soft recapture phase
+          // Player previously withdrew profit: soft recapture only if balance climbs above deposit
           targetPeakMultiplier = 1.15;
           maxMultiplierCap = 3.5;
-          if (currentBalance < depositAmount * 1.08 && wagerProgress < depositAmount * 0.8) {
+          if (currentBalance > depositAmount * 1.20) {
             phase = 'recapture';
+            bias = 0.35;
+          } else if (currentBalance < depositAmount * 1.05 && wagerProgress < depositAmount * 0.8) {
+            phase = 'hook';
             bias = -0.15; // small teaser
           } else {
-            phase = 'recapture';
-            bias = 0.45; // recover previous withdrawal
+            phase = 'normal';
+            bias = 0;
           }
         } else {
           // Player busted on dep 1: second chance curve
           targetPeakMultiplier = 1.35;
           maxMultiplierCap = 3.5;
-          if (currentBalance < depositAmount * 1.30 && wagerProgress < depositAmount * 2.0) {
+          if (currentBalance < depositAmount * 1.25 && wagerProgress < depositAmount * 2.0) {
             phase = 'hook';
-            bias = -0.25;
-          } else {
+            bias = -0.20;
+          } else if (currentBalance > depositAmount * 1.40) {
             phase = 'drain';
-            bias = 0.45;
+            bias = 0.40;
+          } else {
+            phase = 'normal';
+            bias = 0;
           }
         }
       } else {

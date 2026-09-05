@@ -216,7 +216,7 @@ export class ProvablyFairSystem {
     bias: number = 0
   ): 'heads' | 'tails' {
     const b = clampBias(bias);
-    const winChance = Math.max(0.2, Math.min(0.8, 0.5 - b * TILT.coinflip));
+    const winChance = Math.max(0.38, Math.min(0.62, 0.5 - b * TILT.coinflip));
     const u = this.hashToFloat(hash);
     const playerWins = u < winChance;
     if (playerWins) return choice;
