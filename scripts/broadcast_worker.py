@@ -253,7 +253,7 @@ async def _send_one(
         if media_url:
             url = f"https://macvbet.nl{media_url}" if media_url.startswith("/") else media_url
             try:
-                # If text fits in 1024, send photo with caption
+                # If text fits in 1024, send photo with caption (preserving all tg-emoji tags)
                 if len(payload_text) <= 1024:
                     msg = await bot.send_photo(
                         chat_id=chat_id,
@@ -264,19 +264,7 @@ async def _send_one(
                     )
                     return msg.message_id
 
-                # If text > 1024, try stripping <tg-emoji> to fallback to save ~50 chars per emoji
-                cleaned = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', payload_text)
-                if len(cleaned) <= 1024:
-                    msg = await bot.send_photo(
-                        chat_id=chat_id,
-                        photo=url,
-                        caption=cleaned,
-                        parse_mode=p_mode,
-                        reply_markup=keyboard,
-                    )
-                    return msg.message_id
-
-                # If still over 1024, send photo first, then full text without truncating
+                # If text > 1024, send photo first, then full text without truncating and without stripping tg-emoji
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=url,

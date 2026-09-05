@@ -21,8 +21,10 @@ import {
   ChevronDown,
   RotateCcw,
   Trash2,
+  Copy,
 } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
+import { toast } from '@/store/toast-store';
 
 type InactiveReason = 'bot_blocked' | 'deactivated' | 'never_played' | 'dormant';
 
@@ -43,6 +45,7 @@ interface Broadcast {
   text: string;
   parseMode: string;
   mediaUrl: string | null;
+  buttons?: unknown;
   audience: BroadcastAudience | unknown;
   scheduledAt: number | null;
   totalTargets: number;
@@ -436,6 +439,26 @@ export default function BroadcastsListPage() {
       alert('Ошибка при выполнении запроса');
     } finally {
       setBusy(null);
+    }
+  };
+
+  const copyTemplate = (b: Broadcast) => {
+    try {
+      const templateData = {
+        text: b.text || '',
+        parseMode: b.parseMode || 'HTML',
+        mediaUrl: b.mediaUrl || '',
+        buttons: b.buttons || null,
+        broadcastType: b.broadcastType || 'single',
+        intervalStr: b.intervalStr || '01:00:00',
+        untilDate: b.untilDate ? new Date(b.untilDate).toISOString().slice(0, 16) : '',
+        hasUntilDate: Boolean(b.untilDate),
+        reason: `Копия рассылки #${b.id.slice(0, 8)}`,
+      };
+      localStorage.setItem('macvbet_broadcast_template', JSON.stringify(templateData));
+      toast.success('Шаблон скопирован! Нажмите «Создать рассылку» и вставьте его кнопкой');
+    } catch {
+      alert('Не удалось скопировать шаблон');
     }
   };
 
@@ -874,6 +897,14 @@ export default function BroadcastsListPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => copyTemplate(b)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20 transition-colors font-roobert text-[11px]"
+                      title="Скопировать текст, кнопки и параметры этой рассылки для создания новой"
+                    >
+                      <Copy size={12} />
+                      Скопировать шаблон
+                    </button>
                     <button
                       onClick={() => toggleExpanded(b.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/15 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] font-roobert text-[11px]"

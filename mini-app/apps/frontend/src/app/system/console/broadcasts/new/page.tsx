@@ -11,6 +11,7 @@ import {
   Trophy,
   ArrowDown,
   ArrowUp,
+  ClipboardCopy,
 } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 
@@ -454,6 +455,67 @@ export default function NewBroadcastPage() {
     ]);
   };
 
+  // Paste Copied Template from localStorage
+  const pasteCopiedTemplate = () => {
+    try {
+      const raw = localStorage.getItem('macvbet_broadcast_template');
+      if (!raw) {
+        alert(
+          'В памяти нет скопированного шаблона.\nСначала нажмите «Скопировать шаблон» на карточке нужной рассылки в списке рассылок.'
+        );
+        return;
+      }
+      const data = JSON.parse(raw);
+      if (typeof data.text === 'string') setText(data.text);
+      if (data.parseMode && ['HTML', 'Markdown', 'none'].includes(data.parseMode)) {
+        setParseMode(data.parseMode);
+      }
+      if (typeof data.mediaUrl === 'string') setMediaUrl(data.mediaUrl);
+      if (data.broadcastType === 'single' || data.broadcastType === 'cyclical') {
+        setBroadcastType(data.broadcastType);
+      }
+      if (typeof data.intervalStr === 'string' && data.intervalStr) {
+        setIntervalStr(data.intervalStr);
+      }
+      if (typeof data.hasUntilDate === 'boolean') {
+        setHasUntilDate(data.hasUntilDate);
+      }
+      if (typeof data.untilDate === 'string') {
+        setUntilDate(data.untilDate);
+      }
+      if (typeof data.reason === 'string') {
+        setReason(data.reason);
+      }
+
+      if (data.buttons) {
+        if (Array.isArray(data.buttons)) {
+          if (data.buttons.length > 0 && Array.isArray(data.buttons[0])) {
+            const rows: ComposerButton[][] = (data.buttons as any[][]).map((row, rIdx) =>
+              row.map((btn, bIdx) => ({
+                id: `pasted_${rIdx}_${bIdx}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                text: String(btn.text || ''),
+                url: String(btn.url || ''),
+                color: (btn.color || 'default') as ButtonColor,
+              }))
+            );
+            setButtonRows(rows);
+          } else {
+            const flat: ComposerButton[] = (data.buttons as any[]).map((btn, bIdx) => ({
+              id: `pasted_0_${bIdx}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              text: String(btn.text || ''),
+              url: String(btn.url || ''),
+              color: (btn.color || 'default') as ButtonColor,
+            }));
+            setButtonRows([flat]);
+          }
+        }
+      }
+      alert('Скопированный шаблон успешно вставлен!');
+    } catch {
+      alert('Не удалось применить скопированный шаблон');
+    }
+  };
+
   // Submit broadcast
   const submit = async () => {
     if (text.trim().length < 1) {
@@ -594,6 +656,15 @@ export default function NewBroadcastPage() {
             </span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={pasteCopiedTemplate}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-emerald-400/40 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/25 font-roobert text-[11.5px] font-medium transition-all shadow-[0_0_15px_rgba(52,211,153,0.15)]"
+              title="Вставить скопированный ранее шаблон (текст, кнопки, медиа, тип)"
+            >
+              <ClipboardCopy size={13} />
+              📋 Вставить скопированный шаблон
+            </button>
             <button
               type="button"
               onClick={applyWheelTournamentPreset}
