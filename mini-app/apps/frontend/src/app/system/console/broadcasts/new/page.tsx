@@ -32,11 +32,10 @@ interface ComposerButton {
 
 const BUTTON_COLOR_CONFIG: Record<
   ButtonColor,
-  { label: string; icon: string; bgClass: string; borderClass: string; textClass: string; badge: string }
+  { label: string; bgClass: string; borderClass: string; textClass: string; badge: string }
 > = {
   default: {
     label: 'Стандартная',
-    icon: '⚪',
     bgClass: 'bg-white/[0.06]',
     borderClass: 'border-white/20',
     textClass: 'text-white/80',
@@ -44,7 +43,6 @@ const BUTTON_COLOR_CONFIG: Record<
   },
   green: {
     label: 'Изумрудный',
-    icon: '🟢',
     bgClass: 'bg-emerald-500/15',
     borderClass: 'border-emerald-500/40',
     textClass: 'text-emerald-400',
@@ -52,7 +50,6 @@ const BUTTON_COLOR_CONFIG: Record<
   },
   blue: {
     label: 'Синий',
-    icon: '🔵',
     bgClass: 'bg-sky-500/15',
     borderClass: 'border-sky-500/40',
     textClass: 'text-sky-400',
@@ -60,7 +57,6 @@ const BUTTON_COLOR_CONFIG: Record<
   },
   yellow: {
     label: 'Золотой',
-    icon: '🟡',
     bgClass: 'bg-amber-500/15',
     borderClass: 'border-amber-500/40',
     textClass: 'text-amber-400',
@@ -68,7 +64,6 @@ const BUTTON_COLOR_CONFIG: Record<
   },
   red: {
     label: 'Красный',
-    icon: '🔴',
     bgClass: 'bg-rose-500/15',
     borderClass: 'border-rose-500/40',
     textClass: 'text-rose-400',
@@ -76,7 +71,6 @@ const BUTTON_COLOR_CONFIG: Record<
   },
   purple: {
     label: 'Фиолетовый',
-    icon: '🟣',
     bgClass: 'bg-purple-500/15',
     borderClass: 'border-purple-500/40',
     textClass: 'text-purple-400',
@@ -84,7 +78,6 @@ const BUTTON_COLOR_CONFIG: Record<
   },
   orange: {
     label: 'Оранжевый',
-    icon: '🟠',
     bgClass: 'bg-orange-500/15',
     borderClass: 'border-orange-500/40',
     textClass: 'text-orange-400',
@@ -92,27 +85,31 @@ const BUTTON_COLOR_CONFIG: Record<
   },
 };
 
-const DEFAULT_WHEEL_TEMPLATE = `🎡 <b>ОСЕННИЙ ТУРНИР ПО WHEEL В САМОМ РАЗГАРЕ!</b>
+const DEFAULT_WHEEL_TEMPLATE = `🍁 <b>ОСЕННИЙ ТУРНИР ПО WHEEL В MACVBET!</b> 🍁
 
-Борьба за призовой фонд <b>555 zł</b> накаляется с каждым вращением! Колесо фортуны не ждет — залетай в турнир и забирай свою часть куша 💰
+Первый осенний турнир по игре Wheel уже в самом разгаре! Вращай колесо фортуны, выбивай максимальные коэффициенты и забирай свой куш из призового фонда! 🎡🚀
 
-🏆 <b>Актуальная таблица лидеров:</b>
-<blockquote>{wheel_leaders}</blockquote>
+<blockquote>🏆 <b>ПРИЗОВОЙ ФОНД — 555 ZŁ:</b>
 
-ℹ️ <b>Условия турнира:</b>
-• <b>Призовой фонд:</b> 555 zł (Топ-5 победителей)
-• <b>Входной билет:</b> 1 zł (дается 10 000 очков)
-• <b>Ребай (перезапуск):</b> 0.50 zł при обнулении очков
-• <b>Призы для Топ-5:</b>
-  🥇 1 место — <b>111 zł</b> (20%)
-  🥈 2 место — <b>89 zł</b> (16%)
-  🥉 3 место — <b>72 zł</b> (13%)
-  4️⃣ 4 место — <b>61 zł</b> (11%)
-  5️⃣ 5 место — <b>50 zł</b> (9%)
+🥇 <b>1 место</b> ➔ 🎁 <b>200 zł</b> на баланс
+🥈 <b>2 место</b> ➔ 🎁 <b>125 zł</b> на баланс
+🥉 <b>3 место</b> ➔ 🎁 <b>100 zł</b> на баланс
+<b>4 место</b> ➔ 🎁 <b>75 zł</b> на баланс
+<b>5 место</b> ➔ 🎁 <b>55 zł</b> на баланс
 
-⚡️ Крути Wheel, поднимай турнирный баланс и выбивай соперников из Топ-5!
+⚡️ <b>Формат: 5 победителей</b></blockquote>
 
-👇 <i>Жми кнопку ниже, чтобы перейти в колесо и сделать спин:</i>`;
+<blockquote>🔥 <b>АКТУАЛЬНЫЙ ТОП-5 ЛИДЕРОВ:</b>
+{wheel_leaders}</blockquote>
+
+⚠️ <b>Анти-AFK правило:</b>
+Для участия в распределении призов необходимо сделать <b>минимум 5 ставок</b> в колесе! Участники с 0–4 ставками считаются неквалифицированными и не претендуют на призовые.
+
+🎫 <b>Вход:</b> Бесплатный (200 TM на старте)
+🔄 <b>Ребай:</b> Доступен при обнулении очков
+⚡️ Крути Wheel прямо сейчас, поднимай очки и занимай призовые места!
+
+👇 <i>Жми кнопку ниже и залетай в турнир:</i>`;
 
 interface AudienceFilter {
   all?: boolean;
@@ -439,23 +436,23 @@ export default function NewBroadcastPage() {
       [
         {
           id: 'btn_wheel_play',
-          text: 'Крутить Wheel',
+          text: '🎡 Крутить Wheel',
           url: 'https://t.me/macvbet_bot/app?startapp=wheel',
-          color: 'green',
+          color: 'default',
         },
       ],
       [
         {
           id: 'btn_wheel_leaders',
-          text: 'Таблица лидеров',
+          text: '🏆 Таблица лидеров',
           url: 'https://t.me/macvbet_bot/app?startapp=tournaments',
-          color: 'yellow',
+          color: 'default',
         },
         {
           id: 'btn_wheel_chat',
-          text: 'Чат турнира',
+          text: '💬 Чат игроков',
           url: 'https://t.me/macvbet_chat',
-          color: 'blue',
+          color: 'default',
         },
       ],
     ]);
@@ -558,13 +555,13 @@ export default function NewBroadcastPage() {
 
     let processed = raw;
 
-    // Leaderboard preview simulation
+    // Leaderboard preview simulation (555 zł pool: 200, 125, 100, 75, 55 zł)
     const mockLeadersHtml =
-      `🥇 <b>@crypto_king</b> — <code>24 500 pts</code> (~111 zł)\n` +
-      `🥈 <b>@fortune_spin</b> — <code>18 200 pts</code> (~89 zł)\n` +
-      `🥉 <b>@lucky_strike</b> — <code>14 000 pts</code> (~72 zł)\n` +
-      `4️⃣ <b>@spin_master</b> — <code>9 800 pts</code> (~61 zł)\n` +
-      `5️⃣ <b>@jackpot_hunt</b> — <code>6 400 pts</code> (~50 zł)`;
+      `🥇 <b>@crypto_king</b> — <code>24 500 pts</code> (~200 zł)\n` +
+      `🥈 <b>@fortune_spin</b> — <code>18 200 pts</code> (~125 zł)\n` +
+      `🥉 <b>@lucky_strike</b> — <code>14 000 pts</code> (~100 zł)\n` +
+      `4️⃣ <b>@spin_master</b> — <code>9 800 pts</code> (~75 zł)\n` +
+      `5️⃣ <b>@jackpot_hunt</b> — <code>6 400 pts</code> (~55 zł)`;
 
     processed = processed
       .replace(/{wheel_leaders}|{leaders}|{wheel_top5}|{top5}/g, mockLeadersHtml);
@@ -841,7 +838,7 @@ export default function NewBroadcastPage() {
                                 >
                                   {Object.entries(BUTTON_COLOR_CONFIG).map(([cKey, cVal]) => (
                                     <option key={cKey} value={cKey}>
-                                      {cVal.icon} {cVal.label}
+                                      {cVal.label}
                                     </option>
                                   ))}
                                 </select>
@@ -994,14 +991,16 @@ export default function NewBroadcastPage() {
                         }}
                       >
                         {validRowBtns.map((btn) => {
-                          const cfg = BUTTON_COLOR_CONFIG[btn.color] || BUTTON_COLOR_CONFIG.default;
+                          const displayBtnText = btn.text.replace(
+                            /\{(?:emoji:|tg-emoji:)?(\d{6,25})(?::([^}\n]+))?\}/g,
+                            (_m, _id, fb) => fb || '✨'
+                          );
                           return (
                             <div
                               key={btn.id}
-                              className={`py-2 px-2 text-center rounded-xl border font-roobert text-[12px] font-medium transition-all shadow-sm ${cfg.badge} truncate`}
+                              className="py-2 px-2 text-center rounded-xl border border-white/20 bg-white/10 text-white/90 font-roobert text-[12px] font-medium transition-all shadow-sm truncate hover:bg-white/15"
                             >
-                              <span className="mr-1">{cfg.icon}</span>
-                              {btn.text}
+                              {displayBtnText}
                             </div>
                           );
                         })}

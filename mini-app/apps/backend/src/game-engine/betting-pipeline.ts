@@ -295,6 +295,8 @@ export class BettingPipeline {
           const updatedRows = await tx.$queryRaw<Array<{ balance: string | number }>>`
             UPDATE tournament_participants
             SET balance = balance - ${amount}::numeric,
+                bets_count = COALESCE(bets_count, 0) + 1,
+                turnover = COALESCE(turnover, 0) + ${amount}::numeric,
                 reached_at = NOW()
             WHERE id::text = ${tournamentCtx.participant.id}::text
               AND balance >= ${amount}::numeric

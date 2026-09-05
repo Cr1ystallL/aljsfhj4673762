@@ -89,23 +89,6 @@ def _audience_sql_where(audience: dict[str, Any]) -> tuple[str, list[Any]]:
 
 import re
 
-COLOR_EMOJIS: dict[str, str] = {
-    "green": "🟢",
-    "emerald": "🟢",
-    "blue": "🔵",
-    "sky": "🔵",
-    "yellow": "🟡",
-    "amber": "🟡",
-    "gold": "🟡",
-    "red": "🔴",
-    "rose": "🔴",
-    "purple": "🟣",
-    "violet": "🟣",
-    "orange": "🟠",
-    "white": "⚪",
-    "black": "⚫",
-}
-
 
 def _replace_custom_emojis(text: str) -> str:
     """
@@ -128,7 +111,7 @@ def _replace_custom_emojis(text: str) -> str:
 
 
 def _format_wheel_leaders(cur: Any) -> str:
-    """Fetch top-5 participants for the active Wheel tournament and format as HTML for blockquote."""
+    """Fetch top-5 qualified participants for the active Wheel tournament and format as HTML for blockquote."""
     try:
         cur.execute(
             """
@@ -144,7 +127,7 @@ def _format_wheel_leaders(cur: Any) -> str:
         t_row = cur.fetchone()
         if not t_row:
             return (
-                "🥇 1. <i>Место свободно — сделай ставку!</i>\n"
+                "🥇 1. <i>Место свободно — сделай 5 ставок!</i>\n"
                 "🥈 2. <i>Место свободно</i>\n"
                 "🥉 3. <i>Место свободно</i>\n"
                 "4️⃣ 4. <i>Место свободно</i>\n"
@@ -156,22 +139,43 @@ def _format_wheel_leaders(cur: Any) -> str:
         prize_mode = t_row.get("prize_mode") or "percent"
         fixed_prize = float(t_row.get("fixed_prize") or 0) if t_row.get("fixed_prize") else None
 
-        percent_shares = [0.20, 0.16, 0.13, 0.11, 0.09]
+        # Exact prize amounts for 555 zł pool (1st: 200, 2nd: 125, 3rd: 100, 4th: 75, 5th: 55)
+        percent_shares_5 = [0.3604, 0.2252, 0.1802, 0.1351, 0.0991]
 
+        # Only select QUALIFIED players (at least 5 bets, or refresh_count > 0, or at least 1 bet with balance <= 0)
+        # AFK players with 0 bets are excluded!
         cur.execute(
             """
-            SELECT p.balance, u.username, u.first_name, u.telegram_id
+            SELECT p.balance, u.username, u.first_name, u.telegram_id,
+                   COALESCE(p.refresh_count, 0) as refresh_count,
+                   GREATEST(
+                     COALESCE(p.bets_count, 0),
+                     COALESCE(bc.cnt, 0)
+                   ) AS bets_count
             FROM tournament_participants p
             JOIN users u ON u.id = p.user_id
+            LEFT JOIN (
+              SELECT user_id, COUNT(*)::int AS cnt
+              FROM bets
+              WHERE metadata->>'tournamentCycleId' = %s
+              GROUP BY user_id
+            ) bc ON bc.user_id = p.user_id
             WHERE p.cycle_id = %s
+              AND (
+                COALESCE(p.refresh_count, 0) > 0
+                OR COALESCE(p.bets_count, 0) >= 5
+                OR COALESCE(bc.cnt, 0) >= 5
+                OR (COALESCE(bc.cnt, 0) >= 1 AND p.balance <= 0)
+              )
             ORDER BY p.balance DESC, p.reached_at ASC
             LIMIT 5
             """,
-            (cycle_id,),
+            (cycle_id, cycle_id),
         )
         rows = cur.fetchall()
 
         medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        default_fixed_prizes = [200, 125, 100, 75, 55]
         lines = []
         for idx in range(5):
             medal = medals[idx]
@@ -180,8 +184,11 @@ def _format_wheel_leaders(cur: Any) -> str:
             prize_str = ""
             if prize_mode == "fixed" and fixed_prize:
                 prize_str = f" (~{fixed_prize:,.0f} zł)".replace(",", " ")
-            elif prize_pool > 0 and idx < len(percent_shares):
-                p_amt = round(prize_pool * percent_shares[idx])
+            elif prize_pool > 0 and idx < len(percent_shares_5):
+                if abs(prize_pool - 555) < 5:
+                    p_amt = default_fixed_prizes[idx]
+                else:
+                    p_amt = round(prize_pool * percent_shares_5[idx])
                 prize_str = f" (~{p_amt:,.0f} zł)".replace(",", " ")
 
             if idx < len(rows):
@@ -192,7 +199,6 @@ def _format_wheel_leaders(cur: Any) -> str:
                 else:
                     first = (r.get("first_name") or "Игрок").strip()
                     display = first[:14]
-                # Escape html characters
                 display = (
                     display.replace("&", "&amp;")
                     .replace("<", "&lt;")
@@ -201,13 +207,13 @@ def _format_wheel_leaders(cur: Any) -> str:
                 bal = float(r.get("balance") or 0)
                 lines.append(f"{medal} <b>{display}</b> — <code>{bal:,.0f} pts</code>{prize_str}".replace(",", " "))
             else:
-                lines.append(f"{medal} <i>Свободно — сделай ставку!</i>{prize_str}".replace(",", " "))
+                lines.append(f"{medal} <i>Место свободно — сделай 5 ставок!</i>{prize_str}".replace(",", " "))
 
         return "\n".join(lines)
     except Exception as e:
         logger.warning("Failed to format wheel leaders: %s", e)
         return (
-            "🥇 1. <i>Место свободно</i>\n"
+            "🥇 1. <i>Место свободно — сделай 5 ставок!</i>\n"
             "🥈 2. <i>Место свободно</i>\n"
             "🥉 3. <i>Место свободно</i>\n"
             "4️⃣ 4. <i>Место свободно</i>\n"
@@ -304,16 +310,19 @@ async def _send_one(
         return "error", f"{type(e).__name__}: {e}"[:500], None
 
 
-def _format_btn_text(text: Any, color: Any) -> str:
+def _format_btn_text(text: Any, _color: Any = None) -> str:
+    """Format button text for Telegram inline keyboard.
+    
+    Extracts emoji from custom emoji patterns like {5366316836101038579:😄} -> 😄
+    No colored circle emojis are added.
+    """
     t = str(text or "").strip()
     if not t:
         return ""
-    if color and isinstance(color, str):
-        c_lower = color.lower().strip()
-        icon = COLOR_EMOJIS.get(c_lower)
-        if icon and not t.startswith(icon):
-            t = f"{icon} {t}"
-    return t
+    # Replace {custom_emoji_id:fallback} with fallback (e.g. {5366316836101038579:😄} -> 😄)
+    pattern = re.compile(r'\{(?:emoji:|tg-emoji:)?(\d{6,25})(?::([^}\n]+))?\}')
+    t = pattern.sub(lambda m: m.group(2) if m.group(2) else "✨", t)
+    return t.strip()
 
 
 def _build_keyboard(buttons: Any) -> InlineKeyboardMarkup | None:

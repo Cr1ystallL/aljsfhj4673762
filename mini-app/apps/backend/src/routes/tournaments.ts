@@ -7,7 +7,11 @@ import { logger } from '../utils/logger.js';
 import { rtpEngine } from '../services/rtp-engine.js';
 
 type PrizeMode = 'percent' | 'fixed';
-const PERCENT_PAYOUTS = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
+export const MIN_TOURNAMENT_BETS_FOR_QUALIFICATION = 5;
+
+// Payouts for 5 winners on 555 zł (1st: 200, 2nd: 125, 3rd: 100, 4th: 75, 5th: 55)
+const PERCENT_PAYOUTS_5 = [36.04, 22.52, 18.02, 13.51, 9.91];
+const PERCENT_PAYOUTS_DEFAULT = [20, 16, 13, 11, 9, 8, 7, 6, 5, 5];
 
 const toNumber = (v: Prisma.Decimal | number | null | undefined) => Number(v ?? 0);
 
@@ -173,13 +177,52 @@ export async function payoutCycle(t: any, cycle: any) {
     ],
   });
 
+  // Fetch actual bets count from bets table
+  let betCounts: Array<{ user_id: string; cnt: string }> = [];
+  try {
+    betCounts = await (prisma as any).$queryRaw`
+      SELECT user_id, COUNT(*)::text as cnt
+      FROM bets
+      WHERE metadata->>'tournamentCycleId' = ${cycle.id}
+      GROUP BY user_id
+    `;
+  } catch (e) {
+    logger.warn({ e, cycleId: cycle.id }, 'Failed to query tournament bet counts for payout');
+  }
+
+  const betCountMap = new Map<string, number>();
+  for (const b of betCounts) {
+    betCountMap.set(b.user_id, Number(b.cnt));
+  }
+
+  const enrichedParticipants = participants.map((p: any) => {
+    const betsCount = Math.max(Number(p.betsCount || 0), betCountMap.get(p.userId) || 0);
+    const isQualified =
+      betsCount >= MIN_TOURNAMENT_BETS_FOR_QUALIFICATION ||
+      p.refreshCount > 0 ||
+      toNumber(p.balance) <= 0;
+    return { ...p, betsCount, isQualified };
+  });
+
+  // Qualified participants rank first, then by balance desc, reachedAt asc
+  enrichedParticipants.sort((a: any, b: any) => {
+    if (a.isQualified !== b.isQualified) {
+      return a.isQualified ? -1 : 1;
+    }
+    const balDiff = toNumber(b.balance) - toNumber(a.balance);
+    if (balDiff !== 0) return balDiff;
+    return new Date(a.reachedAt).getTime() - new Date(b.reachedAt).getTime();
+  });
+
+  const qualifiedParticipants = enrichedParticipants.filter((p: any) => p.isQualified);
+
   const winnerIds: string[] = [];
   const pool = toNumber(cycle.prizePool);
   const fixedPrize = t.fixedPrize ? toNumber(t.fixedPrize) : null;
 
   await prisma.$transaction(async (tx) => {
-    for (let idx = 0; idx < Math.min(t.winnersCount, participants.length); idx += 1) {
-      const p = participants[idx];
+    for (let idx = 0; idx < Math.min(t.winnersCount, qualifiedParticipants.length); idx += 1) {
+      const p = qualifiedParticipants[idx];
       const prize = computePrize(pool, t.prizeMode as PrizeMode, idx, t.winnersCount, fixedPrize);
       if (prize <= 0) continue;
       await creditRealBalance(tx, p.userId, prize, {
@@ -206,10 +249,8 @@ export async function payoutCycle(t: any, cycle: any) {
   });
 
   for (const userId of winnerIds) {
-      await balanceService.syncBalance(userId);
+    await balanceService.syncBalance(userId);
     try {
-      // Just applying a general earn target for tournament wins. Wait, we don't have the exact prize amount here easily unless we store it.
-      // We can just rely on the wager_target and autoRtpTarget incremented in creditRealBalance.
       await rtpEngine.getUserStatus(userId);
     } catch (e) {
       logger.error(e, 'Failed to update rtp status for tournament winner');
@@ -222,13 +263,23 @@ export async function payoutCycle(t: any, cycle: any) {
 function computePrize(pool: number, mode: PrizeMode, idx: number, winnersCount: number, fixedPrize: number | null) {
   if (idx >= winnersCount) return 0;
   if (mode === 'percent') {
-    return +(pool * (PERCENT_PAYOUTS[idx] ? PERCENT_PAYOUTS[idx] / 100 : 0)).toFixed(2);
+    const table = winnersCount === 5 ? PERCENT_PAYOUTS_5 : PERCENT_PAYOUTS_DEFAULT;
+    return +(pool * (table[idx] ? table[idx] / 100 : 0)).toFixed(2);
   }
   if (mode === 'fixed') return fixedPrize ?? 0;
   return 0;
 }
 
 export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
+  try {
+    await (prisma as any).$executeRawUnsafe(`
+      ALTER TABLE tournament_participants ADD COLUMN IF NOT EXISTS bets_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE tournament_participants ADD COLUMN IF NOT EXISTS turnover NUMERIC(20, 2) NOT NULL DEFAULT 0;
+    `);
+  } catch (e) {
+    logger.warn({ e }, 'Failed to run tournament participant migrations');
+  }
+
   /* ----------------------------- admin CRUD ----------------------------- */
   app.get('/_x/tournaments', { preHandler: adminOnly }, async (_req, reply) => {
     const items = await (prisma as any).tournament.findMany({ orderBy: { createdAt: 'desc' } });
@@ -782,17 +833,66 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         ],
         take: 200,
       });
-      const top = rows.slice(0, 50).map((p: any, idx: number) => ({
+      // Fetch actual bets count from bets table for current cycle
+      let betCounts: Array<{ user_id: string; cnt: string }> = [];
+      try {
+        betCounts = await (prisma as any).$queryRaw`
+          SELECT user_id, COUNT(*)::text as cnt
+          FROM bets
+          WHERE metadata->>'tournamentCycleId' = ${targetCycle.id}
+          GROUP BY user_id
+        `;
+      } catch (e) {
+        logger.warn({ e, cycleId: targetCycle.id }, 'Failed to query tournament bet counts for leaderboard');
+      }
+
+      const betCountMap = new Map<string, number>();
+      for (const b of betCounts) {
+        betCountMap.set(b.user_id, Number(b.cnt));
+      }
+
+      const enrichedRows = rows.map((p: any) => {
+        const betsCount = Math.max(Number(p.betsCount || 0), betCountMap.get(p.userId) || 0);
+        const isQualified =
+          betsCount >= MIN_TOURNAMENT_BETS_FOR_QUALIFICATION ||
+          p.refreshCount > 0 ||
+          toNumber(p.balance) <= 0;
+        return {
+          ...p,
+          betsCount,
+          isQualified,
+        };
+      });
+
+      // Sort qualified first, then by balance desc, reachedAt asc
+      enrichedRows.sort((a: any, b: any) => {
+        if (a.isQualified !== b.isQualified) {
+          return a.isQualified ? -1 : 1;
+        }
+        const balDiff = toNumber(b.balance) - toNumber(a.balance);
+        if (balDiff !== 0) return balDiff;
+        return new Date(a.reachedAt).getTime() - new Date(b.reachedAt).getTime();
+      });
+
+      const top = enrichedRows.slice(0, 50).map((p: any, idx: number) => ({
         place: idx + 1,
         userId: p.userId,
         user: p.user,
         balance: toNumber(p.balance),
-        prize: computePrize(toNumber(cycle.prizePool), t.prizeMode as PrizeMode, idx, t.winnersCount, t.fixedPrize ? toNumber(t.fixedPrize) : null),
+        betsCount: p.betsCount,
+        isQualified: p.isQualified,
+        prize: p.isQualified
+          ? computePrize(toNumber(cycle.prizePool), t.prizeMode as PrizeMode, idx, t.winnersCount, t.fixedPrize ? toNumber(t.fixedPrize) : null)
+          : 0,
       }));
-      const selfIndex = rows.findIndex((p: any) => p.userId === userId);
+      const selfItem = enrichedRows.find((p: any) => p.userId === userId);
+      const selfIndex = selfItem ? enrichedRows.indexOf(selfItem) : -1;
       const self = selfIndex === -1 ? null : {
         place: selfIndex + 1,
-        balance: toNumber(rows[selfIndex].balance),
+        balance: toNumber(selfItem.balance),
+        betsCount: selfItem.betsCount,
+        isQualified: selfItem.isQualified,
+        minBetsRequired: MIN_TOURNAMENT_BETS_FOR_QUALIFICATION,
       };
       const enrichedTournament = {
         id: t.id,
@@ -813,6 +913,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         cycleState: cycle.state,
         joined: Boolean(participant),
         tournamentBalance: participant ? toNumber(participant.balance) : null,
+        minBetsRequired: MIN_TOURNAMENT_BETS_FOR_QUALIFICATION,
       };
       return reply.send({ ok: true, leaderboard: top, self, tournament: enrichedTournament, isPreviousCycle });
     }

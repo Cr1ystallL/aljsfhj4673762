@@ -591,6 +591,8 @@ model TournamentParticipant {
   reachedAt     DateTime  @map("reached_at")
   refreshCount  Int       @default(0) @map("refresh_count")
   lastRefreshAt DateTime? @map("last_refresh_at")
+  betsCount     Int       @default(0) @map("bets_count")
+  turnover      Decimal   @default(0) @db.Decimal(20, 2)
 
   cycle TournamentCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)

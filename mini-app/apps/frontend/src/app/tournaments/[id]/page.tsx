@@ -12,6 +12,16 @@ interface LeaderboardUser {
   user: { username?: string | null; firstName?: string | null; photoUrl?: string | null } | null;
   balance: number;
   prize: number;
+  betsCount?: number;
+  isQualified?: boolean;
+}
+
+interface SelfStatus {
+  place: number;
+  balance: number;
+  betsCount?: number;
+  isQualified?: boolean;
+  minBetsRequired?: number;
 }
 
 interface Tournament {
@@ -286,12 +296,33 @@ export default function TournamentPage() {
           {data.isPreviousCycle ? 'Результаты прошлого турнира' : 'Таблица лидеров'}
         </h2>
         {self && (
-          <div className="rounded-[16px] border border-[#a0e0ab]/30 bg-[#a0e0ab]/5 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-[14px] font-roobert text-[#a0e0ab]">#{self.place}</span>
-              <span className="text-[14px] font-roobert text-frost-white">Вы (Ваш результат)</span>
+          <div className="rounded-[16px] border border-[#a0e0ab]/30 bg-[#a0e0ab]/5 p-4 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-[14px] font-roobert text-[#a0e0ab] font-bold">#{self.place}</span>
+                <span className="text-[14px] font-roobert text-frost-white font-medium">Вы (Ваш результат)</span>
+              </div>
+              <span className="text-[14px] font-roobert text-[#ffac2e] tabular-nums font-semibold">
+                {self.balance.toFixed(0)} TM
+              </span>
             </div>
-            <span className="text-[14px] font-roobert text-[#ffac2e] tabular-nums">{self.balance.toFixed(0)} TM</span>
+
+            <div className="flex items-center justify-between border-t border-white/5 pt-2 text-[12px]">
+              <div className="flex items-center gap-1.5">
+                {self.isQualified ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-medium text-[11px]">
+                    ✓ Квалифицирован ({self.betsCount || 0} ставок)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium text-[11px]">
+                    ⚠️ Сделайте еще {Math.max(1, (self.minBetsRequired || 5) - (self.betsCount || 0))} ставок для квалификации
+                  </span>
+                )}
+              </div>
+              <span className="text-white/40 text-[11px]">
+                Анти-AFK: мин. 5 ставок
+              </span>
+            </div>
           </div>
         )}
         
@@ -317,7 +348,14 @@ export default function TournamentPage() {
                         {uName.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="text-[14px] font-roobert text-frost-white max-w-[120px] sm:max-w-[200px] truncate">{uName}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[14px] font-roobert text-frost-white max-w-[120px] sm:max-w-[200px] truncate">{uName}</span>
+                      {user.isQualified === false && (
+                        <span className="text-[10px] text-amber-400/80 font-mono">
+                          Не квалифицирован (&lt;5 ставок)
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-[14px] font-roobert text-[#ffac2e] tabular-nums flex items-center gap-1">
