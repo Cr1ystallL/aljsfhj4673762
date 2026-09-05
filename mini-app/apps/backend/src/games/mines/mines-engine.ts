@@ -266,9 +266,6 @@ class MinesEngine {
       } catch (err) {
         logger.error(err, 'Failed to finalise mines bust');
       }
-      if (!g.demoMode && !g.isTournament) {
-        void rtpEngine.recordRoundForDrain(userId, g.bet.amount, 0, false, false);
-      }
       logger.info({ userId, position }, 'Mines bust');
       return this.toPublic(g, true);
     }
@@ -314,10 +311,6 @@ class MinesEngine {
       });
     } catch (err) {
       logger.error(err, 'Failed to finalise mines cashout');
-    }
-
-    if (!g.demoMode && !g.isTournament) {
-      void rtpEngine.recordRoundForDrain(userId, g.bet.amount, payout, true, false);
     }
 
     logger.info(

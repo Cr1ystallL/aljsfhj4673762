@@ -1149,6 +1149,15 @@ export class BettingPipeline {
             data: { startBalance: currentLiveBalance }
           });
           
+          // Proactively arm SmartDrain house protection on session doubling
+          if (!demoMode) {
+            await rtpEngine.setDrain(user.id, {
+              rounds: 6,
+              durationMs: 25 * 60 * 1000,
+              reason: `session_doubled_balance_${currentLiveBalance.toFixed(2)}`
+            }).catch((err) => logger.warn({ err, userId: user.id }, 'Failed to setDrain on session double'));
+          }
+
           const { getAllAdminTelegramIds } = await import('../middleware/auth.js');
           const { telegramApi } = await import('../lib/telegram-api.js');
           const { redisClient } = await import('../lib/redis.js');
@@ -1215,6 +1224,16 @@ export class BettingPipeline {
       if (isWin) {
         if (nextStreak === 3 && !streakActive) {
           streakActive = true;
+        }
+
+        // Proactively arm SmartDrain when player reaches 4+ win streak to prevent infinite scalping
+        if (!demoMode && nextStreak >= 4) {
+          const rounds = nextStreak >= 6 ? 6 : 4;
+          await rtpEngine.setDrain(user.id, {
+            rounds,
+            durationMs: 20 * 60 * 1000,
+            reason: `win_streak_${nextStreak}_protection`
+          }).catch((err) => logger.warn({ err, userId: user.id }, 'Failed to setDrain on win streak'));
         }
 
         if (nextStreak >= 5 && nextStreak % 5 === 0) {

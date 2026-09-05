@@ -775,11 +775,12 @@ class RtpEngine {
       const roundsLeft = await r.hincrby(`rtp:drain:${userId}`, 'roundsLeft', -1);
       if (roundsLeft <= 0) {
         await r.del(`rtp:drain:${userId}`);
-        // Set a 20-minute cooldown so drain doesn't immediately re-arm in a vicious loop
-        await r.set(`rtp:drain_cooldown:${userId}`, '1', 'EX', 1200);
-        // Clear session profit counter so it doesn't re-trigger instantly
-        await r.del(`rtp:session_profit:${userId}`);
-        logger.info({ userId }, 'SmartDrain completed, 20m cooldown set, session profit reset');
+        // Short 2-minute cooldown so drain does not lock out protection indefinitely
+        await r.set(`rtp:drain_cooldown:${userId}`, '1', 'EX', 120);
+        // Damp session profit instead of full wipe so continued winning triggers drain again
+        const sessionProfit = Number(await r.get(`rtp:session_profit:${userId}`)) || 0;
+        await r.set(`rtp:session_profit:${userId}`, String(Math.max(0, sessionProfit * 0.25)), 'EX', 3600);
+        logger.info({ userId }, 'SmartDrain completed, short cooldown set, session profit damped');
       }
     } catch (err) {
       logger.warn({ err, userId }, 'Failed to consume drain round');
@@ -826,26 +827,26 @@ class RtpEngine {
         return;
       }
 
-      // Check cooldown - after drain completes, give player 20m grace period before any new auto-drain can trigger
+      // Check cooldown - if player is already profitable, do NOT grant immunity
       const cooldown = await r.get(`rtp:drain_cooldown:${userId}`);
-      if (cooldown) {
+      if (cooldown && newSessionProfit < 40) {
         return;
       }
 
       // AUTO-TRIGGER CONDITIONS:
-      // Must be substantial to avoid nuisance false-positives on small play:
-      // 1. Long win streak: >= 7 wins in a row
-      // 2. High session profit: >= +350 PLN
-      // 3. Massive single hit: >= +300 PLN
-      if (streak >= 7 || newSessionProfit >= 350 || netProfit >= 300) {
-        const rounds = newSessionProfit > 800 ? 8 : newSessionProfit > 400 ? 6 : 4;
+      // Catch scalpers and runaway profits early:
+      // 1. Win streak >= 4 wins
+      // 2. Session profit >= +75 PLN
+      // 3. Single hit profit >= +80 PLN
+      if (streak >= 4 || newSessionProfit >= 75 || netProfit >= 80) {
+        const rounds = newSessionProfit > 250 ? 8 : newSessionProfit > 120 ? 6 : 4;
         await this.setDrain(userId, {
           rounds,
           durationMs: 20 * 60 * 1000, // 20 minutes max
           reason: `auto_profit_${Math.round(newSessionProfit)}pln_streak_${streak}`,
         });
-        // Damp the session profit tracker so it doesn't immediately re-trigger after rounds finish
-        await r.set(sessionKey, String(Math.max(0, newSessionProfit * 0.3)));
+        // Damp the session profit tracker
+        await r.set(sessionKey, String(Math.max(0, newSessionProfit * 0.4)));
       }
     } catch (err) {
       logger.warn({ err, userId }, 'Failed to record round for drain');
@@ -1003,8 +1004,8 @@ class RtpEngine {
 
   /**
    * Evaluates a click in Mines for Dynamic Mine Relocation.
-   * Completely solves the "corners/edges" exploit and guarantees seamless,
-   * natural-looking outcomes with exact invariant mine counts!
+   * Completely solves the "corners/edges" exploit, eliminates low-multiplier scalping,
+   * and guarantees seamless, natural-looking outcomes with exact invariant mine counts!
    */
   async evaluateMinesClick(
     userId: string,
@@ -1015,24 +1016,50 @@ class RtpEngine {
     if (isTournament) return { action: 'neutral' };
 
     try {
+      const r = redisClient.getClient();
       const funnel = await this.getFunnelState(userId);
       const drainActive = await this.isDrainActive(userId, isTournament);
 
-      // 1. Hard Multiplier Cap on Deposit 1: Prevent freak outliers > 3.5x
+      // Real-time tracking of streak and profit to detect scalpers
+      const [streakRaw, sessionProfitRaw] = await Promise.all([
+        r.get(`rtp:win_streak:${userId}`),
+        r.get(`rtp:session_profit:${userId}`),
+      ]);
+      const streak = Number(streakRaw || 0);
+      const sessionProfit = Number(sessionProfitRaw || 0);
+
+      // 1. Anti-Scalping & Win Streak Resistance:
+      // Prevent consecutive cashouts at low multipliers (1.2x - 1.8x)
+      if (streak >= 3) {
+        let streakBustChance = 0.50;
+        if (streak >= 5) streakBustChance = 0.85;
+        else if (streak >= 4) streakBustChance = 0.70;
+
+        if (potentialMultiplier >= 1.20 && Math.random() < streakBustChance) {
+          logger.info({ userId, streak, potentialMultiplier, streakBustChance }, 'Mines Anti-Scalper: forced bust on streak');
+          return { action: 'must_bust' };
+        }
+      }
+
+      // 2. Hard Multiplier Cap on Deposit 1: Prevent freak outliers > 3.5x
       if (funnel.depositIndex === 1 && potentialMultiplier > funnel.maxMultiplierCap) {
         if (Math.random() < 0.85) {
           return { action: 'must_bust' };
         }
       }
 
-      // 2. Active Drain / Funnel Drain / Recapture:
+      // 3. Active Drain / Funnel Drain / Recapture:
       if (drainActive || funnel.phase === 'drain' || funnel.phase === 'recapture') {
-        let bustChance = 0.45;
-        if (potentialMultiplier >= 3.0) bustChance = 0.70;
-        else if (potentialMultiplier >= 2.0) bustChance = 0.55;
-        else if (potentialMultiplier < 1.35) bustChance = 0.20;
+        let bustChance = 0.65;
+        if (potentialMultiplier >= 2.5) bustChance = 0.85;
+        else if (potentialMultiplier >= 1.6) bustChance = 0.75;
+        else if (potentialMultiplier >= 1.25) bustChance = 0.60;
+        else bustChance = 0.45;
 
-        if (betAmount >= 50) bustChance = Math.min(0.80, bustChance + 0.10);
+        // Extra pressure on streaks or profitable players
+        if (streak >= 2) bustChance = Math.min(0.90, bustChance + 0.15);
+        if (sessionProfit >= 40) bustChance = Math.min(0.90, bustChance + 0.10);
+        if (betAmount >= 50) bustChance = Math.min(0.90, bustChance + 0.10);
 
         if (Math.random() < bustChance) {
           return { action: 'must_bust' };
@@ -1040,21 +1067,29 @@ class RtpEngine {
         return { action: 'neutral' };
       }
 
-      // 3. Hook phase (First deposit onboarding up to 1.5x - 1.8x):
-      if (funnel.phase === 'hook') {
-        if (potentialMultiplier <= 2.2) {
-          // If the clicked cell naturally has a mine, 80% chance to relocate it!
-          if (Math.random() < 0.80) {
-            return { action: 'must_win' };
-          }
+      // 4. Plateau phase (swings):
+      // When player reached 1.5x-1.8x deposit target, balance must plateau with real swings!
+      if (funnel.phase === 'plateau') {
+        let plateauBustChance = 0.40;
+        if (potentialMultiplier >= 2.0) plateauBustChance = 0.65;
+        else if (potentialMultiplier >= 1.3) plateauBustChance = 0.50;
+
+        if (streak >= 2) plateauBustChance = Math.min(0.80, plateauBustChance + 0.20);
+
+        if (Math.random() < plateauBustChance) {
+          return { action: 'must_bust' };
         }
         return { action: 'neutral' };
       }
 
-      // 4. Plateau phase (swings):
-      if (funnel.phase === 'plateau') {
-        if (potentialMultiplier > 2.5) {
-          if (Math.random() < 0.60) return { action: 'must_bust' };
+      // 5. Hook phase (First deposit onboarding up to 1.5x):
+      // Only assist new players if they are NOT already scalping or on a streak!
+      if (funnel.phase === 'hook') {
+        if (streak < 2 && sessionProfit < 35 && potentialMultiplier <= 2.0) {
+          // Moderate chance to relocate mine (was 80%, now 35%)
+          if (Math.random() < 0.35) {
+            return { action: 'must_win' };
+          }
         }
         return { action: 'neutral' };
       }
@@ -1109,21 +1144,17 @@ class RtpEngine {
       // 1. Check SmartDrain (active слив) or Funnel Drain
       const drain = (await this.isDrainActive(userId, isTournament)) || funnel.phase === 'drain' || funnel.phase === 'recapture';
       if (drain) {
-        // Smart Drain is PROBABILISTIC, NEVER 100%!
-        // The player must still win ~35-50% of rounds so the game feels authentic and natural.
-        // We scale the resistance dynamically by potential multiplier and stake:
-        let forceChance = 0.45;
+        let forceChance = 0.60;
         if (potentialMultiplier >= 3.0) {
-          forceChance = 0.65; // higher multiplier has more natural house resistance
+          forceChance = 0.80;
         } else if (potentialMultiplier >= 2.0) {
-          forceChance = 0.50; // around 50/50 for 2x
+          forceChance = 0.70;
         } else if (potentialMultiplier < 1.4) {
-          forceChance = 0.25; // low risk almost always safe
+          forceChance = 0.50;
         }
 
-        // For larger bets, slight gentle adjustment
         if (betAmount >= 50) {
-          forceChance = Math.min(0.70, forceChance + 0.10);
+          forceChance = Math.min(0.85, forceChance + 0.10);
         }
 
         return Math.random() < forceChance;
@@ -1132,7 +1163,7 @@ class RtpEngine {
       // 2. Check Hidden Debt (soft resistance, never 100%)
       const debt = await this.getHiddenDebt(userId);
       if (debt > 0) {
-        return Math.random() < 0.40;
+        return Math.random() < 0.50;
       }
 
       return false;
