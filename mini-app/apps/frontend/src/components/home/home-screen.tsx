@@ -383,31 +383,6 @@ export function HomeScreen() {
           },
         }}
       >
-        <EntranceBlock>
-        {/* Presence ticker — real counts, glass chrome */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-[#0a0c10] px-4 py-3 flex items-center justify-between gap-2 text-[12px] font-roobert shadow-[0_8px_25px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]">
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            <span className="text-frost-white/90 font-medium tracking-tight">
-              {(crashLobby?.playerCount ?? 0) > 0
-                ? t('home.jetPlaying', { n: crashLobby!.playerCount })
-                : online > 0
-                  ? t('home.online', { n: online })
-                  : t('home.livePulse')}
-            </span>
-          </div>
-          {payouts24h > 0 && (
-            <div className="flex items-center gap-1.5 text-white/55 font-medium tracking-tight">
-              <TrendingUp size={13} strokeWidth={2} className="text-white/40" />
-              <span>
-                {t('home.payouts24h', {
-                  amount: payouts24h.toLocaleString(localeTag),
-                })}
-              </span>
-            </div>
-          )}
-        </div>
-        </EntranceBlock>
 
         {/* Featured Events Showcase (Tournaments, Contests, or Hero Game) */}
         <ActiveEventsShowcase

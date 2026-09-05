@@ -139,10 +139,10 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* VIP Rank Badge Pin */}
+                {/* VIP Rank Badge Pin (clean on avatar) */}
                 {vipStatus?.currentTier && (
                   <div className="absolute -bottom-1 -right-1 z-20">
-                    <VipBadge rankId={vipStatus.currentTier.id} size="sm" showGlow={true} />
+                    <VipBadge rankId={vipStatus.currentTier.id} size="sm" showGlow={false} />
                   </div>
                 )}
               </motion.div>
@@ -191,8 +191,10 @@ export default function ProfilePage() {
                 <div className="mt-5 w-full flex flex-col gap-3.5 text-left">
                   {/* Top row */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <VipBadge rankId={vipStatus.currentTier.id} size="md" showGlow={true} />
+                    <div className="flex items-center gap-3.5">
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <VipBadge rankId={vipStatus.currentTier.id} size="lg" showGlow={true} />
+                      </div>
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-roobert text-[17px] font-extrabold text-white tracking-tight">
@@ -588,11 +590,14 @@ function deriveStats(transactions: Array<any>): DerivedStats {
       if (betId) creditsByBetId.set(betId, tx);
       else if (tx.gameRoundId) creditsByRoundId.set(tx.gameRoundId, tx);
 
-      const amt = Math.abs(Number(tx.amount));
-      totalWon += amt;
-      if (amt > maxWin) maxWin = amt;
-      const mult = Number(tx.metadata?.multiplier);
-      if (Number.isFinite(mult) && mult > maxMultiplier) maxMultiplier = mult;
+      const isCase = tx.metadata?.gameType === 'cases' || tx.gameType === 'cases';
+      if (!isCase) {
+        const amt = Math.abs(Number(tx.amount));
+        totalWon += amt;
+        if (amt > maxWin) maxWin = amt;
+        const mult = Number(tx.metadata?.multiplier);
+        if (Number.isFinite(mult) && mult > maxMultiplier) maxMultiplier = mult;
+      }
     }
   }
 
@@ -611,15 +616,19 @@ function deriveStats(transactions: Array<any>): DerivedStats {
         ? Number(credit.metadata.multiplier)
         : null;
 
-    const outcome: BetRowData['outcome'] = credit
+    const game = resolveGameKey(
+      tx.metadata?.gameType ?? tx.gameType ?? tx.metadata?.gameId
+    );
+
+    const isCase = game === 'cases';
+
+    const outcome: BetRowData['outcome'] = isCase
+      ? 'pending'
+      : credit
       ? payout > 0
         ? 'won'
         : 'lost'
       : 'pending';
-
-    const game = resolveGameKey(
-      tx.metadata?.gameType ?? tx.gameType ?? tx.metadata?.gameId
-    );
 
     bets.push({
       id: tx.id,
@@ -628,7 +637,7 @@ function deriveStats(transactions: Array<any>): DerivedStats {
       date: new Date(tx.createdAt),
       stake,
       payout,
-      net: outcome === 'won' ? payout - stake : -stake,
+      net: isCase ? payout : outcome === 'won' ? payout - stake : -stake,
       multiplier: Number.isFinite(multiplier as number) ? (multiplier as number) : null,
       outcome,
     });
@@ -673,8 +682,10 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
     maximumFractionDigits: 2,
   });
 
-  const netLabel =
-    row.outcome === 'pending'
+  const isCase = row.game === 'cases';
+  const netLabel = isCase
+    ? `${row.payout.toLocaleString(localeTag, { maximumFractionDigits: 2 })} zł`
+    : row.outcome === 'pending'
       ? '…'
       : `${row.net >= 0 ? '+' : '−'}${Math.abs(row.net).toLocaleString(localeTag, {
           maximumFractionDigits: 2,
@@ -701,7 +712,9 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
       <div className="text-right">
         <div
           className={`font-roobert font-medium text-[14px] tabular-nums ${
-            row.outcome === 'won'
+            isCase
+              ? 'text-white/80 font-normal'
+              : row.outcome === 'won'
               ? 'text-white font-semibold'
               : row.outcome === 'lost'
               ? 'text-[#ff8a76]/80'
@@ -710,7 +723,7 @@ function BetRow({ row, index }: { row: BetRowData; index: number }) {
         >
           {netLabel}
         </div>
-        {row.multiplier !== null && row.outcome === 'won' && (
+        {row.multiplier !== null && !isCase && row.outcome === 'won' && (
           <div className="mt-0.5 font-roobert text-[10px] font-medium text-whisper-gray tabular-nums">
             x{row.multiplier.toFixed(2)}
           </div>

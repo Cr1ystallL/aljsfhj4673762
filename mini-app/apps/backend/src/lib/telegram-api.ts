@@ -187,6 +187,36 @@ export class TelegramApi {
       return false;
     }
   }
+
+  async deleteMessage(chatId: string | number, messageId: number | bigint): Promise<boolean> {
+    try {
+      if (!config.telegramBotToken) {
+        return false;
+      }
+
+      const response = await fetch(`${this.baseUrl}/deleteMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chat_id: String(chatId),
+          message_id: Number(messageId),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        logger.warn({ chatId, messageId, status: response.status, errorData }, 'Failed to delete Telegram message');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error({ chatId, messageId, error }, 'Exception deleting Telegram message');
+      return false;
+    }
+  }
 }
 
 export const telegramApi = new TelegramApi();

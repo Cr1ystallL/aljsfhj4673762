@@ -18,30 +18,36 @@ interface RouletteProps {
 
 function generateSequence(allPrizes: CasePrize[], winningId: string | null, length = 80, winIndex = 70) {
   const seq: CasePrize[] = [];
-  const fatCoins = allPrizes.slice(-3); // last 3 are typically 10x, 25x, 100x
+  const fatCoins = allPrizes.slice(-3); // last 3 are typically large multipliers (10x, 25x, 100x)
+
+  // Controlled teaser chance: ~20% of spins when winning is an ordinary prize
+  const isWinningBig = winningId && fatCoins.some(f => f.id === winningId);
+  const shouldTease = !isWinningBig && Math.random() < 0.20;
+  // Teaser position: недокрут (winIndex + 1) or перекрут (winIndex - 1)
+  const teaseIndex = shouldTease ? (Math.random() < 0.5 ? winIndex - 1 : winIndex + 1) : -1;
 
   for (let i = 0; i < length; i++) {
     if (winningId && i === winIndex) {
       const winner = allPrizes.find(p => p.id === winningId) || allPrizes[0];
       seq.push(winner);
+    } else if (winningId && i === teaseIndex) {
+      // Place the fat coin right next to the winning index as a near-miss tease ("дразнилка")
+      seq.push(fatCoins[Math.floor(Math.random() * fatCoins.length)]);
     } else {
-      // Reduced near-miss teaser frequency from 40% to 8% so it doesn't constantly tease and frustrate
-      if (winningId && (i === winIndex - 1 || i === winIndex + 1) && Math.random() < 0.08) {
-        seq.push(fatCoins[Math.floor(Math.random() * fatCoins.length)]);
-      } else {
-        // Random item based on actual weight logic for visual filler
-        const totalW = allPrizes.reduce((sum, p) => sum + p.weight, 0);
-        let rnd = Math.random() * totalW;
-        let selected = allPrizes[0];
-        for (const p of allPrizes) {
-          rnd -= p.weight;
-          if (rnd <= 0) {
-            selected = p;
-            break;
-          }
+      // Avoid accidental fat coins in the immediate neighborhood unless explicitly teased
+      const isNearTarget = Math.abs(i - winIndex) <= 3;
+      const candidates = isNearTarget ? allPrizes.slice(0, Math.max(1, allPrizes.length - 3)) : allPrizes;
+      const totalW = candidates.reduce((sum, p) => sum + p.weight, 0);
+      let rnd = Math.random() * totalW;
+      let selected = candidates[0];
+      for (const p of candidates) {
+        rnd -= p.weight;
+        if (rnd <= 0) {
+          selected = p;
+          break;
         }
-        seq.push(selected);
       }
+      seq.push(selected);
     }
   }
   return seq;
@@ -63,12 +69,14 @@ export function CasesRoulette({
   const controls = useAnimation();
   const lastPassedRef = useRef<number[]>([]);
   const isSuspenseTriggeredRef = useRef(false);
+  const hasTeaserRef = useRef(false);
 
   // Generate idle tracks
   useEffect(() => {
     if (!isSpinning) {
       setIsSuspenseFocus(false);
       isSuspenseTriggeredRef.current = false;
+      hasTeaserRef.current = false;
       const newTracks = Array.from({ length: count }).map((_, i) => generateSequence(prizes, null, 80, i % 2 !== 0 ? 10 : 70));
       setTracks(newTracks);
       void controls.set((i) => {
@@ -88,6 +96,16 @@ export function CasesRoulette({
       setTracks(newTracks);
       
       const fatCoinIds = new Set(prizes.slice(-3).map(p => p.id));
+      const targetWinIdx = 70;
+      const primaryTrack = newTracks[0] || [];
+
+      // Check if primary track has an actual big win OR an adjacent near-miss teaser ("дразнилка")
+      const hasTeaserOrBigWin = Boolean(
+        primaryTrack[targetWinIdx] && fatCoinIds.has(primaryTrack[targetWinIdx].id) ||
+        primaryTrack[targetWinIdx - 1] && fatCoinIds.has(primaryTrack[targetWinIdx - 1].id) ||
+        primaryTrack[targetWinIdx + 1] && fatCoinIds.has(primaryTrack[targetWinIdx + 1].id)
+      );
+      hasTeaserRef.current = hasTeaserOrBigWin;
 
       // 2. Instantly reset position to start
       void controls.set((i) => {
@@ -120,13 +138,13 @@ export function CasesRoulette({
             setIsSuspenseFocus(false);
           } else {
             haptics.notification('success');
+            soundManager.play('game.win');
           }
-          soundManager.play('game.win');
           onSpinComplete();
         });
       }, 50);
     }
-  }, [isSpinning, winningPrizeIds, isTurbo, controls, prizes]);
+  }, [isSpinning, winningPrizeIds, isTurbo, controls, prizes, count]);
 
   return (
     <>
@@ -201,8 +219,8 @@ export function CasesRoulette({
                   lastPassedRef.current[trackIdx] = currentItemIndex;
                 }
 
-                // Dynamic Suspense Zoom: triggers 3-4 sectors before the target stop
-                if (trackIdx === 0 && !isSuspenseTriggeredRef.current) {
+                // Dynamic Suspense Zoom: ONLY triggers on big wins or near-miss teasers ("дразнилка") 3-4 sectors before the stop
+                if (trackIdx === 0 && !isSuspenseTriggeredRef.current && hasTeaserRef.current) {
                   const targetWinIdx = 70;
                   const dist = Math.abs(currentItemIndex - targetWinIdx);
                   if (dist <= 4 && dist >= 0) {

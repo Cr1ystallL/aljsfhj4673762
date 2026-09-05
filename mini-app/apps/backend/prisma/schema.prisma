@@ -178,6 +178,13 @@ model Broadcast {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
+  broadcastType    String    @default("single") @map("broadcast_type") // 'single' | 'cyclical'
+  intervalSeconds  Int?      @map("interval_seconds")
+  intervalStr      String?   @map("interval_str")
+  untilDate        DateTime? @map("until_date")
+  cycleCount       Int       @default(0) @map("cycle_count")
+  messagesDeleted  Boolean   @default(false) @map("messages_deleted")
+
   recipients BroadcastRecipient[]
   
   @@map("broadcasts")
@@ -189,6 +196,7 @@ model BroadcastRecipient {
   telegramId    BigInt   @map("telegram_id")
   status        String
   error         String?  @db.Text
+  messageId     BigInt?  @map("message_id")
   attemptedAt   DateTime @default(now()) @map("attempted_at")
 
   broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)

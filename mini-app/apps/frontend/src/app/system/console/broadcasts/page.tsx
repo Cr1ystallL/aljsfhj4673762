@@ -19,6 +19,8 @@ import {
   BarChart3,
   TrendingUp,
   ChevronDown,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { HelpButton } from '@/components/admin/help-button';
 
@@ -50,6 +52,12 @@ interface Broadcast {
   startedAt: number | null;
   finishedAt: number | null;
   errorMessage: string | null;
+  broadcastType?: 'single' | 'cyclical';
+  intervalSeconds?: number | null;
+  intervalStr?: string | null;
+  untilDate?: number | null;
+  cycleCount?: number;
+  messagesDeleted?: boolean;
 }
 
 interface ReasonCounts {
@@ -169,7 +177,7 @@ export default function BroadcastsListPage() {
   const router = useRouter();
   const [data, setData] = useState<Broadcast[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [filterTab, setFilterTab] = useState<'all' | 'scheduled' | 'sent' | 'failed'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'scheduled' | 'cyclical' | 'sent' | 'failed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [inactiveDays, setInactiveDays] = useState(3);
@@ -401,6 +409,36 @@ export default function BroadcastsListPage() {
     }
   };
 
+  const stopAndDeleteMessages = async (b: Broadcast) => {
+    const isRunning = b.status === 'scheduled' || b.status === 'sending';
+    const confirmText = isRunning
+      ? 'Остановить эту рассылку и удалить все отправленные сообщения из Telegram чатов пользователей?'
+      : 'Удалить отправленные сообщения этой рассылки из Telegram чатов пользователей?';
+    if (!window.confirm(confirmText)) return;
+
+    setBusy(b.id);
+    try {
+      const res = await fetch(`/api/_x/broadcasts/${b.id}/delete-messages`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Admin stopped and deleted messages' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        alert(err?.error || 'Не удалось удалить сообщения');
+      } else {
+        const j = await res.json().catch(() => null);
+        alert(`Успешно! Удалено сообщений: ${j?.deletedCount ?? 0}`);
+        await reload();
+      }
+    } catch {
+      alert('Ошибка при выполнении запроса');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const statsSummary = useMemo(() => {
     if (!data) return { total: 0, delivered: 0, failed: 0, successRate: 0, activeCount: 0 };
     const total = data.length;
@@ -416,6 +454,7 @@ export default function BroadcastsListPage() {
     if (!data) return [];
     return data.filter((b) => {
       if (filterTab === 'scheduled' && b.status !== 'scheduled' && b.status !== 'sending') return false;
+      if (filterTab === 'cyclical' && b.broadcastType !== 'cyclical') return false;
       if (filterTab === 'sent' && b.status !== 'sent') return false;
       if (filterTab === 'failed' && b.status !== 'failed') return false;
       if (searchQuery.trim().length > 0) {
@@ -742,6 +781,7 @@ export default function BroadcastsListPage() {
             [
               { id: 'all', label: 'Все рассылки' },
               { id: 'scheduled', label: 'Запланированы / Отправляются' },
+              { id: 'cyclical', label: 'Цикличные' },
               { id: 'sent', label: 'Завершенные' },
               { id: 'failed', label: 'С ошибками' },
             ] as const
@@ -808,6 +848,21 @@ export default function BroadcastsListPage() {
                     >
                       {STATUS_LABEL[b.status] ?? b.status}
                     </span>
+                    {b.broadcastType === 'cyclical' && (
+                      <span className="px-2.5 py-0.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 font-roobert text-[10.5px] uppercase tracking-[0.12em] flex items-center gap-1">
+                        <RotateCcw size={10} />
+                        Цикличная ({b.intervalStr || '?'})
+                        {b.cycleCount && b.cycleCount > 0 ? ` • цикл #${b.cycleCount}` : ''}
+                        {b.untilDate
+                          ? ` • до ${new Date(b.untilDate).toLocaleDateString('ru-RU')} ${new Date(b.untilDate).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+                          : ' • бессрочно'}
+                      </span>
+                    )}
+                    {b.messagesDeleted && (
+                      <span className="px-2.5 py-0.5 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300 font-roobert text-[10.5px] uppercase tracking-[0.12em]">
+                        Сообщения удалены
+                      </span>
+                    )}
                     {isReengage && (
                       <span className="px-2.5 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300 font-roobert text-[10.5px] uppercase tracking-[0.12em]">
                         Удержание {audience.promoAmount ? `${audience.promoAmount} PLN` : ''}
@@ -818,7 +873,7 @@ export default function BroadcastsListPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => toggleExpanded(b.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/15 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] font-roobert text-[11px]"
@@ -834,10 +889,27 @@ export default function BroadcastsListPage() {
                       <button
                         onClick={() => cancel(b.id)}
                         disabled={busy === b.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition-colors font-roobert text-[11px]"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/15 bg-white/[0.04] text-whisper-gray hover:text-white hover:bg-white/[0.08] disabled:opacity-50 transition-colors font-roobert text-[11px]"
                       >
                         <X size={12} />
                         Отменить
+                      </button>
+                    )}
+                    {!b.messagesDeleted && (
+                      <button
+                        onClick={() => stopAndDeleteMessages(b)}
+                        disabled={busy === b.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition-colors font-roobert text-[11px]"
+                        title={
+                          b.status === 'scheduled' || b.status === 'sending'
+                            ? 'Остановить рассылку и удалить все отправленные сообщения'
+                            : 'Удалить отправленные сообщения этой рассылки из чатов Telegram'
+                        }
+                      >
+                        <Trash2 size={12} />
+                        {b.status === 'scheduled' || b.status === 'sending'
+                          ? 'Остановить и удалить'
+                          : 'Удалить сообщения'}
                       </button>
                     )}
                   </div>

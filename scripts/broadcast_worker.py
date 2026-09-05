@@ -110,25 +110,25 @@ async def _send_one(
     bc: dict[str, Any],
     keyboard: InlineKeyboardMarkup | None,
     chat_id: int,
-) -> tuple[str, str | None]:
-    """Send a single message. Returns (status, error_or_None)."""
+) -> tuple[str, str | None, int | None]:
+    """Send a single message. Returns (status, error_or_None, message_id_or_None)."""
     parse_mode_raw = bc.get("parse_mode") or "HTML"
     parse_mode = None if parse_mode_raw == "none" else parse_mode_raw
     media_url = bc.get("media_url")
     text = _clean_html_text(bc.get("text") or "")
 
-    async def _try_send(p_mode: str | None, payload_text: str) -> None:
+    async def _try_send(p_mode: str | None, payload_text: str) -> int | None:
         if media_url:
             url = f"https://macvbet.nl{media_url}" if media_url.startswith("/") else media_url
             try:
-                await bot.send_photo(
+                msg = await bot.send_photo(
                     chat_id=chat_id,
                     photo=url,
                     caption=payload_text[:1024],
                     parse_mode=p_mode,
                     reply_markup=keyboard,
                 )
-                return
+                return msg.message_id
             except TelegramAPIError as photo_err:
                 msg = str(photo_err).lower()
                 if (
@@ -140,17 +140,18 @@ async def _send_one(
                     pass
                 else:
                     raise
-        await bot.send_message(
+        msg = await bot.send_message(
             chat_id=chat_id,
             text=payload_text,
             parse_mode=p_mode,
             reply_markup=keyboard,
             disable_web_page_preview=True,
         )
+        return msg.message_id
 
     try:
         try:
-            await _try_send(parse_mode, text)
+            sent_msg_id = await _try_send(parse_mode, text)
         except TelegramAPIError as api_err:
             msg = str(api_err).lower()
             if "can't parse entities" in msg or "entity" in msg or "tag" in msg or "parse" in msg:
@@ -160,21 +161,21 @@ async def _send_one(
                     api_err,
                 )
                 plain = _strip_html(text)
-                await _try_send(None, plain)
+                sent_msg_id = await _try_send(None, plain)
             else:
                 raise
-        return "delivered", None
+        return "delivered", None, sent_msg_id
     except TelegramForbiddenError as e:
         msg = str(e).lower()
         if "deactivat" in msg:
-            return "blocked", "user deactivated"
+            return "blocked", "user deactivated", None
         if "blocked" in msg:
-            return "blocked", "user blocked the bot"
-        return "blocked", str(e)[:200]
+            return "blocked", "user blocked the bot", None
+        return "blocked", str(e)[:200], None
     except TelegramAPIError as e:
-        return "error", str(e)[:500]
+        return "error", str(e)[:500], None
     except Exception as e:
-        return "error", f"{type(e).__name__}: {e}"[:500]
+        return "error", f"{type(e).__name__}: {e}"[:500], None
 
 
 def _build_keyboard(buttons: Any) -> InlineKeyboardMarkup | None:
@@ -205,6 +206,7 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
     conn = _conn()
     conn.autocommit = True
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    run_succeeded = False
     try:
         cur.execute(
             "UPDATE broadcasts SET status = 'sending', "
@@ -242,9 +244,8 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
         last_flush = 0
         try:
             for tg_id in targets:
-                # Cancellation check every 50 messages — keeps Postgres
-                # round-trips low while still being responsive.
-                if delivered + failed - last_flush >= 50:
+                # Fast cancellation check every 5 messages
+                if delivered + failed - last_flush >= 5:
                     cur.execute(
                         "SELECT status FROM broadcasts WHERE id = %s",
                         (bc_id,),
@@ -255,14 +256,12 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
                         break
                     last_flush = delivered + failed
 
-                status, err = await _send_one(bot, bc, keyboard, tg_id)
+                status, err, msg_id = await _send_one(bot, bc, keyboard, tg_id)
                 if status == "delivered":
                     delivered += 1
                 else:
                     failed += 1
                     # Surface the concrete failure reason in the bot log
-                    # so we don't have to dig into broadcast_recipients to
-                    # understand why a whole broadcast came back empty.
                     logger.warning(
                         "Broadcast %s -> %s failed (%s): %s",
                         bc_id,
@@ -272,10 +271,17 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
                     )
 
                 cur.execute(
-                    "INSERT INTO broadcast_recipients "
-                    "(broadcast_id, telegram_id, status, error) "
-                    "VALUES (%s, %s, %s, %s)",
-                    (bc_id, tg_id, status, err),
+                    """
+                    INSERT INTO broadcast_recipients (broadcast_id, telegram_id, status, error, message_id, attempted_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (broadcast_id, telegram_id)
+                    DO UPDATE SET
+                        status = EXCLUDED.status,
+                        error = EXCLUDED.error,
+                        message_id = EXCLUDED.message_id,
+                        attempted_at = EXCLUDED.attempted_at
+                    """,
+                    (bc_id, tg_id, status, err, msg_id),
                 )
                 # Periodic stats update.
                 if (delivered + failed) % 25 == 0:
@@ -286,16 +292,67 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
                         (delivered, failed, bc_id),
                     )
                 await asyncio.sleep(SLEEP_PER_MSG)
+            run_succeeded = True
         finally:
             cur.execute(
-                "UPDATE broadcasts SET status = "
-                "  CASE WHEN status = 'cancelled' THEN 'cancelled' "
-                "       ELSE 'sent' END, "
-                "delivered = %s, failed = %s, "
-                "finished_at = NOW(), updated_at = NOW() "
-                "WHERE id = %s",
-                (delivered, failed, bc_id),
+                "SELECT status, broadcast_type, interval_seconds, until_date, cycle_count "
+                "FROM broadcasts WHERE id = %s",
+                (bc_id,),
             )
+            bc_state = cur.fetchone()
+            if bc_state and bc_state.get("status") == "cancelled":
+                cur.execute(
+                    "UPDATE broadcasts SET delivered = %s, failed = %s, "
+                    "finished_at = COALESCE(finished_at, NOW()), updated_at = NOW() "
+                    "WHERE id = %s",
+                    (delivered, failed, bc_id),
+                )
+            elif (
+                run_succeeded
+                and bc_state
+                and bc_state.get("broadcast_type") == "cyclical"
+                and bc_state.get("interval_seconds")
+            ):
+                now = datetime.now()
+                until_date = bc_state.get("until_date")
+                interval_sec = int(bc_state["interval_seconds"])
+                next_run = datetime.fromtimestamp(now.timestamp() + interval_sec)
+
+                # Check if expiration date has been reached
+                if until_date and (now >= until_date or next_run > until_date):
+                    logger.info(
+                        "Cyclical broadcast %s reached until_date %s; marking sent",
+                        bc_id,
+                        until_date,
+                    )
+                    cur.execute(
+                        "UPDATE broadcasts SET status = 'sent', "
+                        "delivered = %s, failed = %s, cycle_count = cycle_count + 1, "
+                        "finished_at = NOW(), updated_at = NOW() "
+                        "WHERE id = %s",
+                        (delivered, failed, bc_id),
+                    )
+                else:
+                    logger.info(
+                        "Cyclical broadcast %s cycle finished. Rescheduling for %s",
+                        bc_id,
+                        next_run,
+                    )
+                    cur.execute(
+                        "UPDATE broadcasts SET status = 'scheduled', scheduled_at = %s, "
+                        "delivered = %s, failed = %s, cycle_count = cycle_count + 1, "
+                        "updated_at = NOW() "
+                        "WHERE id = %s",
+                        (next_run, delivered, failed, bc_id),
+                    )
+            elif run_succeeded:
+                cur.execute(
+                    "UPDATE broadcasts SET status = 'sent', "
+                    "delivered = %s, failed = %s, cycle_count = GREATEST(cycle_count, 1), "
+                    "finished_at = NOW(), updated_at = NOW() "
+                    "WHERE id = %s",
+                    (delivered, failed, bc_id),
+                )
         logger.info(
             "Broadcast %s done: delivered=%d failed=%d",
             bc_id,

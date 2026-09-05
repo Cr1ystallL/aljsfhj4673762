@@ -180,7 +180,8 @@ export default function CaseOpeningPage() {
         if (prize) totalWon += prize.amount;
       }
       
-      if (totalWon > 0) {
+      const totalCost = caseTier.price * count;
+      if (totalWon >= totalCost * 2) {
         setShowConfetti(true);
         haptics.notification('success');
       }

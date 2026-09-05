@@ -584,7 +584,7 @@ export class BettingPipeline {
         await tx.bet.update({
             where: { id: bet.id },
             data: {
-              state: credit > 0 ? 'won' : 'lost',
+              state: gt === 'cases' ? 'resolved' : credit > 0 ? 'won' : 'lost',
               payout: credit,
               multiplier: bet.multiplier,
               resolvedAt: new Date(),
@@ -1099,6 +1099,11 @@ export class BettingPipeline {
       });
 
       if (!user) return;
+
+      if (gameType === 'cases') {
+        // Case openings are item drops — neither a win nor a loss, win streak is untouched
+        return;
+      }
 
       const isWin = credit > stake;
 

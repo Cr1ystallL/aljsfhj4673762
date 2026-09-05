@@ -55,6 +55,12 @@ export default function NewBroadcastPage() {
   const [sendNow, setSendNow] = useState(true);
   const [scheduledAt, setScheduledAt] = useState<string>('');
 
+  // Type: Single vs Cyclical
+  const [broadcastType, setBroadcastType] = useState<'single' | 'cyclical'>('single');
+  const [intervalStr, setIntervalStr] = useState('01:00:00');
+  const [hasUntilDate, setHasUntilDate] = useState(false);
+  const [untilDate, setUntilDate] = useState<string>('');
+
   // Reason
   const [reason, setReason] = useState('');
 
@@ -137,6 +143,34 @@ export default function NewBroadcastPage() {
       alert('Причина обязательна');
       return;
     }
+
+    if (broadcastType === 'cyclical') {
+      const match = intervalStr.trim().match(/^(\d{1,3}):(\d{2}):(\d{2})$/);
+      if (!match) {
+        alert('Интервал должен быть в формате ЧЧ:ММ:СС (например, 01:00:00)');
+        return;
+      }
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const s = parseInt(match[3], 10);
+      if (m > 59 || s > 59) {
+        alert('Минуты и секунды должны быть от 00 до 59');
+        return;
+      }
+      if (h * 3600 + m * 60 + s < 30) {
+        alert('Интервал повтора должен быть не менее 30 секунд');
+        return;
+      }
+      if (hasUntilDate && untilDate) {
+        const untilTime = new Date(untilDate).getTime();
+        const startTime = sendNow || !scheduledAt ? Date.now() : new Date(scheduledAt).getTime();
+        if (untilTime <= startTime) {
+          alert('Дата окончания рассылки должна быть позже даты её начала');
+          return;
+        }
+      }
+    }
+
     const validButtons = buttons
       .filter((b) => b.text.trim() && b.url.trim())
       .slice(0, 3);
@@ -156,6 +190,12 @@ export default function NewBroadcastPage() {
           scheduledAt:
             sendNow || !scheduledAt ? null : new Date(scheduledAt).getTime(),
           reason: reason.trim(),
+          broadcastType,
+          intervalStr: broadcastType === 'cyclical' ? intervalStr.trim() : null,
+          untilDate:
+            broadcastType === 'cyclical' && hasUntilDate && untilDate
+              ? new Date(untilDate).getTime()
+              : null,
         }),
       });
       if (!res.ok) {
@@ -483,29 +523,139 @@ export default function NewBroadcastPage() {
           )}
         </Section>
 
-        {/* Schedule */}
+        {/* Schedule & Type */}
         <Section
-          title="Расписание"
+          title="Тип и расписание"
           help={{
-            title: 'Когда отправить',
+            title: 'Тип рассылки и расписание',
             body: (
               <>
                 <p>
-                  По умолчанию — «Сейчас». Бот возьмёт задачу из очереди
-                  в течение 10 секунд и начнёт рассылку с темпом
-                  25 сообщений/сек.
+                  <strong>Одноразовая</strong> — отправляется один раз (сейчас или в указанную дату/время).
                 </p>
                 <p>
-                  Запланировать — выберите дату и время. Запись попадёт
-                  в очередь, но обработается только когда время наступит.
+                  <strong>Цикличная</strong> — автоматически повторяется раз в указанный интервал (HH:MM:SS), например, раз в 1 час или 24 часа.
+                </p>
+                <p>
+                  Для цикличной рассылки можно установить дату и время окончания. Если дата окончания не задана, она будет повторяться непрерывно, пока её не остановят вручную.
+                </p>
+                <p>
+                  Любую рассылку можно остановить и удалить её сообщения из Telegram.
                 </p>
               </>
             ),
           }}
         >
-          <Field label="Когда">
+          <Field label="Тип рассылки">
             <div className="flex items-center gap-2 flex-wrap">
               <button
+                type="button"
+                onClick={() => setBroadcastType('single')}
+                className={`px-3 py-1.5 rounded-pill border font-roobert text-[12px] transition-colors ${
+                  broadcastType === 'single'
+                    ? 'border-white/30 bg-white/[0.08] text-frost-white font-medium'
+                    : 'border-white/10 bg-white/[0.03] text-frost-white/65'
+                }`}
+              >
+                Одноразовая (по умолчанию)
+              </button>
+              <button
+                type="button"
+                onClick={() => setBroadcastType('cyclical')}
+                className={`px-3 py-1.5 rounded-pill border font-roobert text-[12px] transition-colors ${
+                  broadcastType === 'cyclical'
+                    ? 'border-amber-400/40 bg-amber-400/10 text-amber-300 font-medium'
+                    : 'border-white/10 bg-white/[0.03] text-frost-white/65'
+                }`}
+              >
+                Цикличная (регулярная)
+              </button>
+            </div>
+          </Field>
+
+          {broadcastType === 'cyclical' && (
+            <div className="rounded-card border border-amber-400/20 bg-amber-400/[0.04] p-3.5 flex flex-col gap-3">
+              <Field label="Интервал повтора (HH:MM:SS)">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={intervalStr}
+                      onChange={(e) => setIntervalStr(e.target.value)}
+                      placeholder="01:00:00"
+                      className="w-36 bg-white/[0.06] border border-white/20 rounded-pill px-3 py-1.5 font-mono text-[13px] text-amber-300 focus:outline-none focus:border-amber-400"
+                    />
+                    <span className="font-roobert text-[11px] text-whisper-gray">
+                      Формат: ЧЧ:ММ:СС (часы : минуты : секунды)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-whisper-gray uppercase tracking-wider mr-1">Быстрый выбор:</span>
+                    {[
+                      { label: '30 мин', val: '00:30:00' },
+                      { label: '1 час', val: '01:00:00' },
+                      { label: '3 часа', val: '03:00:00' },
+                      { label: '6 часов', val: '06:00:00' },
+                      { label: '12 часов', val: '12:00:00' },
+                      { label: '24 часа', val: '24:00:00' },
+                    ].map((p) => (
+                      <button
+                        key={p.val}
+                        type="button"
+                        onClick={() => setIntervalStr(p.val)}
+                        className={`px-2 py-0.5 rounded-pill border text-[10.5px] font-mono transition-colors ${
+                          intervalStr === p.val
+                            ? 'border-amber-400 bg-amber-400/20 text-amber-300'
+                            : 'border-white/10 bg-white/[0.02] text-whisper-gray hover:text-white'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Field>
+
+              <Field label="Ограничение по времени">
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={hasUntilDate}
+                      onChange={(e) => setHasUntilDate(e.target.checked)}
+                      className="rounded border-white/20 bg-white/10 text-amber-400 focus:ring-0 w-4 h-4 cursor-pointer"
+                    />
+                    <span className="font-roobert text-[12px] text-frost-white">
+                      Установить дату и время окончания цикла (опционально)
+                    </span>
+                  </label>
+
+                  {hasUntilDate ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="datetime-local"
+                        value={untilDate}
+                        onChange={(e) => setUntilDate(e.target.value)}
+                        className="bg-white/[0.06] border border-white/20 rounded-pill px-3 py-1.5 font-roobert text-[12px] text-frost-white focus:outline-none focus:border-amber-400"
+                      />
+                      <span className="font-roobert text-[11px] text-whisper-gray">
+                        До этой даты и времени рассылка будет повторяться
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="font-roobert text-[11px] text-amber-300/80">
+                      Рассылка будет повторяться каждые {intervalStr} бессрочно — пока её не остановят вручную.
+                    </p>
+                  )}
+                </div>
+              </Field>
+            </div>
+          )}
+
+          <Field label={broadcastType === 'cyclical' ? 'Первый запуск' : 'Когда отправить'}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
                 onClick={() => setSendNow(true)}
                 className={`px-3 py-1 rounded-pill border font-roobert text-[12px] transition-colors ${
                   sendNow
@@ -516,6 +666,7 @@ export default function NewBroadcastPage() {
                 Сейчас
               </button>
               <button
+                type="button"
                 onClick={() => setSendNow(false)}
                 className={`px-3 py-1 rounded-pill border font-roobert text-[12px] transition-colors ${
                   !sendNow

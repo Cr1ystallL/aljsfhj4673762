@@ -72,16 +72,28 @@ const AURA_STYLES: Record<string, {
   },
 };
 
+export function normalizeRankId(rankId?: VipRankId | string | number): string {
+  if (rankId === undefined || rankId === null) return 'none';
+  const str = String(rankId).toLowerCase().trim();
+  if (str === '0' || str === 'none' || str === 'no_rank') return 'none';
+  if (str === '1' || str === 'bronze') return 'bronze';
+  if (str === '2' || str === 'silver') return 'silver';
+  if (str === '3' || str === 'gold') return 'gold';
+  if (str === '4' || str === 'platinum') return 'platinum';
+  if (str === '5' || str === 'diamond') return 'diamond';
+  return str in RANK_IMAGE_MAP ? str : 'none';
+}
+
 export function RankPulsingAura({
   rankId = 'none',
   size = 'md',
   className = '',
 }: {
-  rankId?: string;
+  rankId?: string | number;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }) {
-  const normId = String(rankId || 'none').toLowerCase();
+  const normId = normalizeRankId(rankId);
   const aura = AURA_STYLES[normId] || AURA_STYLES.none;
   const { aura: sizeClass } = SIZE_MAP[size] || SIZE_MAP.md;
 
@@ -144,7 +156,7 @@ export function VipBadge({
   className,
   showGlow = false,
 }: VipBadgeProps) {
-  const normId = String(rankId || 'none').toLowerCase();
+  const normId = normalizeRankId(rankId);
   const src = RANK_IMAGE_MAP[normId] || RANK_IMAGE_MAP.none;
   const isNoRang = normId === 'none';
   const { box, img } = SIZE_MAP[size] || SIZE_MAP.md;
@@ -152,7 +164,7 @@ export function VipBadge({
   return (
     <div className={cn('relative inline-flex items-center justify-center select-none shrink-0', box, className)}>
       {showGlow && <RankPulsingAura rankId={normId} size={size} />}
-      <div className={cn('relative w-full h-full flex items-center justify-center', isNoRang && 'scale-[0.82]')}>
+      <div className={cn('relative w-full h-full flex items-center justify-center z-10', isNoRang && 'scale-[0.82]')}>
         <Image
           src={src}
           alt={normId}

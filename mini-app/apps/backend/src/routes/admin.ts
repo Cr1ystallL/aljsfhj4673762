@@ -26,6 +26,7 @@ import { sportsEngine } from '../games/sports/engine.js';
 import { freebetService } from '../services/freebet-service.js';
 import { vipService } from '../services/vip-service.js';
 import { securityService } from '../services/security-service.js';
+import { telegramApi } from '../lib/telegram-api.js';
 
 /**
  * Admin Routes — covert.
@@ -3242,6 +3243,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   /* ============================================================== Phase 5 */
   /* ----------------------------------------------------------- broadcasts */
 
+  // Ensure cyclical and delete tracking columns exist in DB
+  app.prisma
+    .$executeRawUnsafe(`
+      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS broadcast_type TEXT DEFAULT 'single';
+      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS interval_seconds INT;
+      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS interval_str TEXT;
+      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS until_date TIMESTAMPTZ;
+      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS cycle_count INT DEFAULT 0;
+      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS messages_deleted BOOLEAN DEFAULT false;
+      ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS message_id BIGINT;
+    `)
+    .catch((err: unknown) => {
+      logger.warn({ err }, 'Failed to run broadcasts schema upgrade');
+    });
+
   type InactiveReason =
     | 'bot_blocked'
     | 'deactivated'
@@ -3969,11 +3985,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             started_at: Date | null;
             finished_at: Date | null;
             error_message: string | null;
+            broadcast_type: string | null;
+            interval_seconds: number | null;
+            interval_str: string | null;
+            until_date: Date | null;
+            cycle_count: number | null;
+            messages_deleted: boolean | null;
           }>
         >(Prisma.sql`
           SELECT id, status, text, parse_mode, media_url, buttons, audience,
                  scheduled_at, total_targets, delivered, failed,
-                 created_by_tg, created_at, started_at, finished_at, error_message
+                 created_by_tg, created_at, started_at, finished_at, error_message,
+                 COALESCE(broadcast_type, 'single') AS broadcast_type,
+                 interval_seconds, interval_str, until_date,
+                 COALESCE(cycle_count, 0) AS cycle_count,
+                 COALESCE(messages_deleted, false) AS messages_deleted
           FROM broadcasts${where}
           ORDER BY created_at DESC
           LIMIT ${limit}
@@ -3998,6 +4024,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             startedAt: r.started_at?.getTime() ?? null,
             finishedAt: r.finished_at?.getTime() ?? null,
             errorMessage: r.error_message,
+            broadcastType: r.broadcast_type ?? 'single',
+            intervalSeconds: r.interval_seconds ?? null,
+            intervalStr: r.interval_str ?? null,
+            untilDate: r.until_date ? r.until_date.getTime() : null,
+            cycleCount: Number(r.cycle_count ?? 0),
+            messagesDeleted: Boolean(r.messages_deleted),
           })),
         });
       } catch (error) {
@@ -4010,7 +4042,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   /**
    * POST /api/_x/broadcasts
    * Creates a broadcast. Body:
-   *   { text, parseMode?, mediaUrl?, buttons?, audience, scheduledAt?, reason }
+   *   { text, parseMode?, mediaUrl?, buttons?, audience, scheduledAt?, reason, broadcastType?, intervalStr?, untilDate? }
    *
    * If `scheduledAt` is omitted or in the past, the broadcast is
    * scheduled for "now" — the python worker polls every 10s and picks
@@ -4025,6 +4057,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       audience: AudienceFilter;
       scheduledAt?: number | null;
       reason: string;
+      broadcastType?: 'single' | 'cyclical';
+      intervalStr?: string | null;
+      untilDate?: number | string | null;
     };
   }>(
     '/_x/broadcasts',
@@ -4054,6 +4089,47 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         ? new Date(body.scheduledAt)
         : new Date();
 
+      const broadcastType = body.broadcastType === 'cyclical' ? 'cyclical' : 'single';
+      let intervalSeconds: number | null = null;
+      let intervalStr: string | null = null;
+      let untilDateObj: Date | null = null;
+
+      if (broadcastType === 'cyclical') {
+        intervalStr = (body.intervalStr || '').trim();
+        const match = intervalStr.match(/^(\d{1,3}):(\d{2}):(\d{2})$/);
+        if (!match) {
+          return reply.code(400).send({
+            error: 'Интервал повтора должен быть в формате ЧЧ:ММ:СС (например, 01:00:00)',
+          });
+        }
+        const hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const seconds = parseInt(match[3], 10);
+        if (minutes > 59 || seconds > 59) {
+          return reply.code(400).send({
+            error: 'Минуты и секунды должны быть от 00 до 59',
+          });
+        }
+        intervalSeconds = hours * 3600 + minutes * 60 + seconds;
+        if (intervalSeconds < 30) {
+          return reply.code(400).send({
+            error: 'Интервал повтора должен быть не менее 30 секунд',
+          });
+        }
+
+        if (body.untilDate) {
+          untilDateObj = new Date(body.untilDate);
+          if (isNaN(untilDateObj.getTime())) {
+            return reply.code(400).send({ error: 'Некорректная дата окончания цикла' });
+          }
+          if (untilDateObj.getTime() <= scheduledAt.getTime()) {
+            return reply.code(400).send({
+              error: 'Дата окончания рассылки должна быть позже даты её начала',
+            });
+          }
+        }
+      }
+
       try {
         // Compute total targets up-front so the UI shows the count.
         let totalTargets = 0;
@@ -4075,7 +4151,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           INSERT INTO broadcasts (
             id, status, text, parse_mode, media_url, buttons, audience,
             scheduled_at, total_targets, created_by, created_by_tg,
-            created_at, updated_at
+            created_at, updated_at,
+            broadcast_type, interval_seconds, interval_str, until_date, cycle_count, messages_deleted
           ) VALUES (
             ${id},
             'scheduled',
@@ -4088,7 +4165,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             ${totalTargets},
             ${(request as AuthenticatedRequest).user.userId},
             ${BigInt((request as AuthenticatedRequest).user.telegramId)},
-            NOW(), NOW()
+            NOW(), NOW(),
+            ${broadcastType},
+            ${intervalSeconds},
+            ${intervalStr},
+            ${untilDateObj},
+            0,
+            false
           )
         `;
 
@@ -4102,6 +4185,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             audience,
             scheduledAt: scheduledAt.getTime(),
             totalTargets,
+            broadcastType,
+            intervalStr,
+            untilDate: untilDateObj?.getTime() ?? null,
           },
           reason,
         });
@@ -4116,9 +4202,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * POST /api/_x/broadcasts/:id/cancel
-   * Marks a not-yet-started broadcast as `cancelled`. If it's already
-   * in `sending`, the worker will see the flag on the next message
-   * and stop early.
+   * Marks a broadcast as `cancelled`.
    */
   app.post<{ Params: { id: string }; Body: { reason: string } }>(
     '/_x/broadcasts/:id/cancel',
@@ -4137,7 +4221,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               updated_at = NOW(),
               finished_at = COALESCE(finished_at, NOW())
           WHERE id = ${id}
-            AND status IN ('scheduled', 'sending')
+            AND status != 'cancelled'
         `;
         await audit({
           request: request as AuthenticatedRequest,
@@ -4150,6 +4234,96 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         logger.error(error, 'Broadcast cancel failed');
         return reply.code(400).send({ error: 'Bad Request' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/broadcasts/:id/delete-messages
+   * Stops the broadcast (if active) and deletes sent messages from Telegram chats.
+   */
+  app.post<{ Params: { id: string }; Body?: { reason?: string } }>(
+    '/_x/broadcasts/:id/delete-messages',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = (request.body?.reason ?? 'Manual delete by admin').trim();
+
+      try {
+        // First cancel to immediately halt any ongoing worker send
+        await app.prisma.$executeRaw`
+          UPDATE broadcasts
+          SET status = 'cancelled',
+              updated_at = NOW(),
+              finished_at = COALESCE(finished_at, NOW())
+          WHERE id = ${id}
+        `;
+
+        // Fetch all recipients with a recorded Telegram message_id
+        const recipients = await app.prisma.$queryRaw<
+          Array<{
+            id: bigint;
+            telegram_id: bigint;
+            message_id: bigint;
+          }>
+        >(Prisma.sql`
+          SELECT id, telegram_id, message_id
+          FROM broadcast_recipients
+          WHERE broadcast_id = ${id}
+            AND message_id IS NOT NULL
+        `);
+
+        // Perform Telegram deletion in batches of 25 with 40ms pause
+        let deletedCount = 0;
+        const chunkSize = 25;
+        for (let i = 0; i < recipients.length; i += chunkSize) {
+          const chunk = recipients.slice(i, i + chunkSize);
+          await Promise.all(
+            chunk.map(async (r) => {
+              try {
+                const ok = await telegramApi.deleteMessage(
+                  Number(r.telegram_id),
+                  Number(r.message_id)
+                );
+                if (ok) deletedCount++;
+              } catch (delErr) {
+                logger.warn({ err: delErr, telegramId: r.telegram_id }, 'Failed to delete message');
+              }
+            })
+          );
+          if (i + chunkSize < recipients.length) {
+            await new Promise((resolve) => setTimeout(resolve, 40));
+          }
+        }
+
+        // Mark broadcast as messages deleted
+        await app.prisma.$executeRaw`
+          UPDATE broadcasts
+          SET messages_deleted = true,
+              updated_at = NOW()
+          WHERE id = ${id}
+        `;
+
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'broadcast.delete_messages',
+          targetType: 'broadcast',
+          targetId: id,
+          payloadAfter: {
+            deletedCount,
+            totalRecipients: recipients.length,
+          },
+          reason,
+        });
+
+        return reply.send({
+          ok: true,
+          deletedCount,
+          totalRecipients: recipients.length,
+        });
+      } catch (error) {
+        logger.error(error, 'Broadcast delete-messages failed');
+        return reply.code(500).send({ error: 'Failed to delete messages' });
       }
     }
   );
@@ -4170,9 +4344,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             telegram_id: bigint;
             status: string;
             error: string | null;
+            message_id: bigint | null;
           }>
         >(Prisma.sql`
-          SELECT telegram_id, status, error
+          SELECT telegram_id, status, error, message_id
           FROM broadcast_recipients
           WHERE broadcast_id = ${id}
           ORDER BY id DESC
@@ -4184,6 +4359,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             telegramId: Number(r.telegram_id),
             status: r.status,
             error: r.error,
+            messageId: r.message_id ? String(r.message_id) : null,
             attemptedAt: null,
           })),
         });
