@@ -15,8 +15,8 @@ async function main() {
   const user = await prisma.user.findUnique({
     where: { id: TARGET_USER_ID },
     include: {
-      balances: true,
-      userIps: { take: 5, orderBy: { lastSeenAt: 'desc' } },
+      balance: true,
+      userIpAddresses: { take: 5, orderBy: { lastSeen: 'desc' } },
     }
   });
 
@@ -39,18 +39,16 @@ async function main() {
   console.log(`   Скрытый долг:  ${Number(user.hiddenDebt).toFixed(2)} PLN`);
   console.log(`   VIP Уровень:   LVL ${user.vipLevel} (${user.xp} XP), забранные награды: [${user.claimedVipRewards.join(', ')}]`);
 
-  if (user.userIps.length > 0) {
-    console.log(`   IP адреса:     ${user.userIps.map(ip => `${ip.ipAddress} (${ip.city || 'unknown'}, ${ip.country || '?'})`).join(', ')}`);
+  if (user.userIpAddresses && user.userIpAddresses.length > 0) {
+    console.log(`   IP адреса:     ${user.userIpAddresses.map(ip => `${ip.ipAddress} (визитов: ${ip.count})`).join(', ')}`);
   }
 
   // 2. Balances & Financials
-  const realBal = user.balances.find(b => !b.demoMode);
-  const demoBal = user.balances.find(b => b.demoMode);
+  const realBal = user.balance;
 
   console.log('\n💰 2. БАЛАНСЫ:');
   console.log(`   Реальный баланс:  ${Number(realBal?.amount ?? 0).toFixed(2)} PLN`);
   console.log(`   Вейджер оборот:   ${Number(realBal?.wagerProgress ?? 0).toFixed(2)} / ${Number(realBal?.wagerTarget ?? 0).toFixed(2)} PLN`);
-  console.log(`   Демо баланс:      ${Number(demoBal?.amount ?? 0).toFixed(2)} PLN`);
 
   // Deposits & Withdrawals
   const [deposits, withdrawals] = await Promise.all([
@@ -83,7 +81,7 @@ async function main() {
   console.log(`   Выводов выплачено:   ${totalWd.toFixed(2)} PLN`);
   console.log(`   Выводов на проверке: ${pendingWd.toFixed(2)} PLN`);
   withdrawals.forEach(w => {
-    console.log(`      • [${w.status.toUpperCase()}] ${w.createdAt.toISOString()} -> ${Number(w.amount).toFixed(2)} PLN (${w.method || 'unknown'} -> ${w.requisites || ''})`);
+    console.log(`      • [${w.status.toUpperCase()}] ${w.createdAt.toISOString()} -> ${Number(w.amount).toFixed(2)} PLN (${w.method || 'unknown'} -> ${w.destination || ''})`);
   });
 
   const netHouseProfit = totalDep - totalWd - Number(realBal?.amount ?? 0);
