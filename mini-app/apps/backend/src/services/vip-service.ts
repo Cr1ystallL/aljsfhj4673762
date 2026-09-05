@@ -102,13 +102,13 @@ export class VipService {
         }
       }
 
-      // 3. Clean up claimed_vip_rewards so nobody keeps claims for ranks higher than their legitimate vip_level
+      // 3. Mark all current levels up to vip_level as already claimed so users cannot claim them again
       await prisma.$executeRaw`
         UPDATE users
-        SET claimed_vip_rewards = ARRAY(
-          SELECT x FROM unnest(claimed_vip_rewards) x WHERE x <= vip_level
-        )
-        WHERE array_length(claimed_vip_rewards, 1) > 0;
+        SET claimed_vip_rewards = CASE 
+          WHEN vip_level > 0 THEN ARRAY(SELECT generate_series(1, vip_level))
+          ELSE '{}'::int[]
+        END;
       `;
 
       logger.info({ affectedUsers: Number(res || 0), updatedWithBets: betTotals.length }, 'Fresh start VIP reset and recalculation completed');
@@ -657,16 +657,31 @@ export class VipService {
 
       const rawClaimed = (user.claimed_vip_rewards || []).map(Number);
 
-      // Also check recent bonus transactions for this user
+      // Check recent VIP bonus transactions for this user (since 2026-09-04 incident)
       const txRows = await prisma.$queryRaw<Array<{ id: string; amount: string; metadata: any }>>`
         SELECT id, amount, metadata
         FROM transactions
         WHERE user_id = ${user.id}
           AND type = 'bonus'
           AND (metadata->>'reason' LIKE 'VIP Rank Reward%' OR (metadata->>'level')::int IN (1, 2, 3, 4, 5))
+          AND created_at >= '2026-09-04 00:00:00Z'
       `;
 
-      // Collect all claimed levels from both column and transactions
+      // Check recent reversal transactions for this user
+      const reversalRows = await prisma.$queryRaw<Array<{ id: string; amount: string; metadata: any }>>`
+        SELECT id, amount, metadata
+        FROM transactions
+        WHERE user_id = ${user.id}
+          AND type = 'correction'
+          AND (metadata->>'reason' LIKE '%VIP%' OR metadata->>'reason' LIKE '%Откат%')
+          AND created_at >= '2026-09-04 00:00:00Z'
+      `;
+
+      const totalBonusCredited = txRows.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const totalBonusReversed = reversalRows.reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
+      let balanceToDeduct = Math.max(0, totalBonusCredited - totalBonusReversed);
+
+      // Collect all claimed levels from column and transactions
       const allClaimedSet = new Set<number>(rawClaimed);
       for (const tx of txRows) {
         const lvl = Number(tx.metadata?.level);
@@ -675,18 +690,17 @@ export class VipService {
         }
       }
       const claimedLevels = Array.from(allClaimedSet).sort((a, b) => a - b);
-      const illegitimateLevels = claimedLevels.filter((lvl) => lvl > legitLevel);
-      const legitimateLevels = claimedLevels.filter((lvl) => lvl <= legitLevel);
 
-      let balanceToDeduct = 0;
+      let claimedBonusSum = 0;
       let casesToDeduct = 0;
       let freebetsToCancel = 0;
 
-      for (const lvl of illegitimateLevels) {
+      // Confiscate ALL rewards claimed during the incident (players already received them previously)
+      for (const lvl of claimedLevels) {
         const tierCfg = VIP_RANKS.find((r) => r.level === lvl);
         if (!tierCfg) continue;
         if (tierCfg.rewardType === 'balance' || tierCfg.rewardType === 'balance_and_case') {
-          balanceToDeduct += (tierCfg.rewardBalance || 0);
+          claimedBonusSum += (tierCfg.rewardBalance || 0);
         }
         if (tierCfg.rewardType === 'free_case' || tierCfg.rewardType === 'balance_and_case') {
           casesToDeduct += 1;
@@ -696,21 +710,29 @@ export class VipService {
         }
       }
 
-      // Check if user also has any active freebet fb_vip_
+      if (claimedBonusSum > balanceToDeduct && totalBonusCredited === 0) {
+        balanceToDeduct = Math.max(0, claimedBonusSum - totalBonusReversed);
+      }
+
+      // Check all active VIP freebets fb_vip_
       const fbRows = await prisma.$queryRaw<Array<{ id: string; status: string; bet_id: string | null }>>`
         SELECT id, status, bet_id
         FROM user_freebets
         WHERE user_id = ${user.id}
-          AND (id LIKE 'fb_vip_%' OR (amount = 50 AND payout_type = 'net_win'))
+          AND (id LIKE 'fb_vip_%' OR (amount = 50 AND payout_type = 'net_win' AND created_at >= '2026-09-04 00:00:00Z'))
       `;
-      const wrongfulFbList = fbRows.filter((fb) => {
-        return legitLevel < 4;
-      });
+      const wrongfulFbList = fbRows;
 
-      const needsRollback = illegitimateLevels.length > 0 || wrongfulFbList.length > 0;
-      const needsXpUpdate = user.xp !== legitXp || user.vip_level !== legitLevel;
+      // Target claimed rewards: ALWAYS mark all levels up to legitLevel as ALREADY CLAIMED
+      const targetClaimed = legitLevel > 0 
+        ? Array.from({ length: legitLevel }, (_, i) => i + 1)
+        : [];
 
-      if (!needsRollback && !needsXpUpdate) {
+      const needsRollback = balanceToDeduct > 0 || casesToDeduct > 0 || wrongfulFbList.length > 0;
+      const needsUserUpdate = user.xp !== legitXp || user.vip_level !== legitLevel || 
+        JSON.stringify(rawClaimed.sort()) !== JSON.stringify(targetClaimed.sort());
+
+      if (!needsRollback && !needsUserUpdate) {
         continue;
       }
 
@@ -760,8 +782,8 @@ export class VipService {
               balanceBefore: currentBal,
               balanceAfter: Math.max(0, currentBal - balanceToDeduct),
               metadata: {
-                reason: 'Откат неправомерной VIP награды (пересчет с 02.09 19:00)',
-                illegitimateLevels,
+                reason: 'Откат повторной VIP награды',
+                claimedLevels,
                 deductedFromBalance: deductedFromBal,
                 addedToHiddenDebt: addedToDebt,
               },
@@ -813,12 +835,12 @@ export class VipService {
           }
         }
 
-        // D. Update user XP, Level, and claimed rewards array
+        // D. Update user XP, Level, and mark all levels up to current level as ALREADY CLAIMED
         await tx.$executeRaw`
           UPDATE users
           SET xp = ${legitXp},
               vip_level = ${legitLevel},
-              claimed_vip_rewards = ${legitimateLevels}
+              claimed_vip_rewards = ${targetClaimed}
           WHERE id = ${user.id}
         `;
       });
@@ -836,7 +858,6 @@ export class VipService {
           legitXp,
           legitLevel,
           claimedLevels,
-          illegitimateLevels,
           balanceDeducted: deductedFromBal,
           hiddenDebtAdded: addedToDebt,
           freebetsCancelled: cancelledFbCount,
@@ -849,7 +870,7 @@ export class VipService {
             username: user.username,
             legitXp,
             legitLevel,
-            illegitimateLevels,
+            claimedLevels,
             balanceDeducted: deductedFromBal,
             hiddenDebtAdded: addedToDebt,
             cancelledFbCount,
@@ -858,6 +879,15 @@ export class VipService {
         );
       }
     }
+
+    // Mark ALL users in the entire database as having claimed all rewards up to their current vip_level
+    await prisma.$executeRaw`
+      UPDATE users
+      SET claimed_vip_rewards = CASE 
+        WHEN vip_level > 0 THEN ARRAY(SELECT generate_series(1, vip_level))
+        ELSE '{}'::int[]
+      END;
+    `;
 
     logger.info(
       {
