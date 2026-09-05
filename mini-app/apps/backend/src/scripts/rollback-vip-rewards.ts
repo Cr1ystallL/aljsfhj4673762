@@ -33,6 +33,7 @@ async function main() {
     // Update Redis flag
     try {
       const { redisClient } = await import('../lib/redis.js');
+      await redisClient.connect();
       const redis = redisClient.getClient();
       if (redis) {
         await redis.set('vip:fresh_start_clean_v10', '1');
