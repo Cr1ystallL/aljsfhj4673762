@@ -4,7 +4,8 @@ dotenv.config();
 import { prisma, disconnectPrisma } from '../lib/prisma.js';
 import { redisClient } from '../lib/redis.js';
 import { gameConfig } from '../services/game-config.js';
-import { wheelEngine, WHEEL_LAYOUT, WHEEL_VALUES } from '../games/wheel/wheel-engine.js';
+import { wheelEngine } from '../games/wheel/wheel-singleton.js';
+import { WHEEL_LAYOUT, WHEEL_VALUES } from '../games/wheel/wheel-engine.js';
 import { getGameTypeFromBet } from '../game-engine/betting-pipeline.js';
 
 async function main() {
@@ -38,6 +39,7 @@ async function main() {
 
     // 2. Check Engine & Multiplayer Singleton
     console.log('\n--- 2. ДВИЖОК МУЛЬТИПЛЕЕРА WHEEL (LIVE SINGLETON) ---');
+    await new Promise((r) => setTimeout(r, 200));
     const snapshot = wheelEngine.getSnapshot();
     console.log(`• Фаза раунда:          ${snapshot.phase}`);
     console.log(`• Длительность спина:   ${snapshot.spinDurationMs / 1000}s`);
@@ -161,7 +163,9 @@ async function main() {
     console.error('Wheel tournament readiness check failed:', err);
     process.exit(1);
   } finally {
+    wheelEngine.stop();
     await disconnectPrisma();
+    await redisClient.disconnect().catch(() => {});
   }
 
   process.exit(0);

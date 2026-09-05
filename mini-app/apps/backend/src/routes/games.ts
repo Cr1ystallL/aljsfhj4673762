@@ -1610,3 +1610,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const success = table.readyToDeal(userId, isReady, typeof bet === 'number' ? bet : undefined);
 
     return reply.send({ success, state: table.getPublicState() });
+  });
+}
+
+

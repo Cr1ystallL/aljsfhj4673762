@@ -1,8 +1,9 @@
-﻿'use client';
+'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/user-avatar';
 
 /**
  * Mines History — Monopo Saigon Style
@@ -15,6 +16,7 @@ export interface MinesHistoryEntry {
   id: string;
   name: string;
   photoUrl: string | null;
+  vipLevel?: number;
   betAmount: number;
   multiplier: number;
   payout: number;
@@ -83,24 +85,12 @@ export function MinesHistory({ entries, currency = 'zł' }: MinesHistoryProps) {
                 transition={{ duration: 0.2 }}
                 className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-4 py-2.5"
               >
-                {row.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={row.photoUrl}
-                    alt=""
-                    className="w-7 h-7 rounded-pill object-cover shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div
-                    className={cn(
-                      'w-7 h-7 rounded-pill flex items-center justify-center text-[11px] font-roobert text-frost-white shrink-0',
-                      tintFor(row.id)
-                    )}
-                  >
-                    {row.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <UserAvatar
+                  photoUrl={row.photoUrl}
+                  name={row.name}
+                  vipLevel={row.vipLevel ?? 0}
+                  size="xs"
+                />
 
                 <div className="min-w-0">
                   <div className="font-roobert text-[13px] text-frost-white truncate">

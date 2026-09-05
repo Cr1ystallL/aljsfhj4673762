@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { prisma, disconnectPrisma } from '../lib/prisma.js';
+import { redisClient } from '../lib/redis.js';
 import { VIP_FRESH_START_EPOCH, vipService } from '../services/vip-service.js';
 import { VIP_RANKS, VIP_XP_PER_ZL, getVipTierByXp } from '@casino/shared';
 
@@ -54,6 +55,7 @@ async function main() {
   console.log('================================================================\n');
 
   try {
+    await redisClient.connect().catch(() => {});
     await vipService.ensureTables();
 
     // 1. Fetch all candidate users with activity since fresh start epoch

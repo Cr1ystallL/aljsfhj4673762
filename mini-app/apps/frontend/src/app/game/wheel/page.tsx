@@ -659,6 +659,7 @@ function BetsFeed({
               <UserAvatar
                 photoUrl={b.photoUrl}
                 name={b.name}
+                vipLevel={(b as any).vipLevel ?? 0}
                 size="xs"
               />
 

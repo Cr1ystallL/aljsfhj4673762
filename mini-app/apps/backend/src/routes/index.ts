@@ -102,6 +102,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
                 username: true,
                 photoUrl: true,
                 telegramId: true,
+                vipLevel: true,
               },
             },
           },
@@ -116,6 +117,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
                 ? `id${b.user.telegramId.toString().slice(-4)}`
                 : 'Игрок'),
             photoUrl: b.user.photoUrl ?? null,
+            vipLevel: b.user.vipLevel ?? 0,
             gameType: b.gameType,
             payout: Math.round(Number(b.payout ?? 0) * 100) / 100,
             multiplier: Math.round(Number(b.multiplier ?? 0) * 100) / 100,

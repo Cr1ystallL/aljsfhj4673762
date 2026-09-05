@@ -81,7 +81,7 @@ export function CoinflipHistory({ entries, currency = 'zł' }: CoinflipHistoryPr
               <UserAvatar
                 photoUrl={row.photoUrl}
                 name={row.name}
-                vipLevel={(row as any).vipLevel || 0}
+                vipLevel={row.vipLevel ?? 0}
                 size="xs"
               />
 

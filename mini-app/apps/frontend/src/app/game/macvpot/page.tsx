@@ -445,6 +445,7 @@ export default function MacvpotPage() {
                       <UserAvatar
                         photoUrl={p.user?.photoUrl}
                         name={name}
+                        vipLevel={(p.user as any)?.vipLevel ?? (p as any).vipLevel ?? 0}
                         size="sm"
                       />
                       <span className="font-roobert text-xs sm:text-sm text-frost-white truncate max-w-[110px] sm:max-w-[200px]">

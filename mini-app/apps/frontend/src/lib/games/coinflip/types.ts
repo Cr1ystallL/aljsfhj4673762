@@ -42,6 +42,7 @@ export interface CoinflipHistoryEntry {
   id: string;
   name: string;
   photoUrl: string | null;
+  vipLevel?: number;
   betAmount: number;
   multiplier: number;
   payout: number;

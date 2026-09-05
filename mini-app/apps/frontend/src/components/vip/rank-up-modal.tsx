@@ -44,18 +44,18 @@ const RANK_THEMES: Record<string, {
     particle: 'from-amber-300 to-yellow-500',
   },
   platinum: {
-    color: 'rgba(6, 182, 212, 0.7)',
-    glow: 'rgba(6, 182, 212, 0.45)',
-    border: 'border-cyan-400/60',
-    pillBg: 'from-cyan-500/30 to-teal-400/20 border-cyan-400/50 text-cyan-200',
-    particle: 'from-cyan-300 to-teal-400',
-  },
-  diamond: {
-    color: 'rgba(168, 85, 247, 0.7)',
+    color: 'rgba(168, 85, 247, 0.75)',
     glow: 'rgba(168, 85, 247, 0.5)',
     border: 'border-purple-400/60',
-    pillBg: 'from-purple-500/30 to-pink-500/20 border-purple-400/50 text-purple-200',
-    particle: 'from-purple-300 to-pink-400',
+    pillBg: 'from-purple-500/30 to-purple-400/20 border-purple-400/50 text-purple-200',
+    particle: 'from-purple-400 to-fuchsia-400',
+  },
+  diamond: {
+    color: 'rgba(192, 132, 252, 0.85)',
+    glow: 'rgba(56, 189, 248, 0.65)',
+    border: 'border-cyan-300/70 shadow-[0_0_25px_rgba(192,132,252,0.6)]',
+    pillBg: 'from-purple-500/35 via-cyan-500/25 to-pink-500/20 border-cyan-300/60 text-cyan-100',
+    particle: 'from-cyan-300 via-purple-300 to-fuchsia-400',
   },
   no_rank: {
     color: 'rgba(148, 163, 184, 0.5)',

@@ -339,17 +339,28 @@ export default function ProfilePage() {
             </div>
           </motion.section>
 
-          <ProfileTrophyShelf
-            stats={{
-              totalBets: stats.totalBets,
-              totalWon: stats.totalWon,
-              maxWin: stats.maxWin,
-              maxMultiplier: stats.maxMultiplier,
-              favorite: stats.favorite,
-            }}
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', duration: 0.5, bounce: 0, delay: 0.08 }}
+          >
+            <ProfileTrophyShelf
+              stats={{
+                totalBets: stats.totalBets,
+                totalWon: stats.totalWon,
+                maxWin: stats.maxWin,
+                maxMultiplier: stats.maxMultiplier,
+                favorite: stats.favorite,
+              }}
+            />
+          </motion.div>
 
-          <section className="mt-1">
+          <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', duration: 0.5, bounce: 0, delay: 0.16 }}
+            className="mt-1"
+          >
             <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl border border-white/10 bg-[#101216] mb-3">
               <button
                 type="button"
@@ -430,7 +441,7 @@ export default function ProfilePage() {
                 <SportsMyBets compact hideHeading />
               </div>
             )}
-          </section>
+          </motion.section>
 
           {/* Admin Console Entry (Only for probe-verified Admins) */}
           {isAdmin && (

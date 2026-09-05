@@ -10,8 +10,9 @@ import { UserAvatar } from '@/components/ui/user-avatar';
 interface CaseHistoryEntry {
   id: string;
   name: string;
-  photoUrl: string | null;
-  betAmount: number;
+  photoUrl?: string | null;
+  vipLevel?: number;
+  betAmount?: number;
   multiplier?: number;
   payout: number;
   timestamp: number;
@@ -99,6 +100,7 @@ export function CasesHistory() {
               <UserAvatar
                 photoUrl={entry.photoUrl}
                 name={entry.name}
+                vipLevel={entry.vipLevel ?? 0}
                 size="xs"
               />
               <span className="text-[10.5px] font-medium text-frost-white/90 truncate leading-none">
