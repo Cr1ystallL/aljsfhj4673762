@@ -253,18 +253,31 @@ async def _send_one(
         if media_url:
             url = f"https://macvbet.nl{media_url}" if media_url.startswith("/") else media_url
             try:
-                # If text fits in 1024, send photo with caption (preserving all tg-emoji tags)
-                if len(payload_text) <= 1024:
-                    msg = await bot.send_photo(
-                        chat_id=chat_id,
-                        photo=url,
-                        caption=payload_text,
-                        parse_mode=p_mode,
-                        reply_markup=keyboard,
-                    )
-                    return msg.message_id
+                # In Telegram, caption length limit (1024) applies AFTER entity parsing.
+                # HTML tags like <tg-emoji emoji-id="..."> and <b> do NOT count towards the 1024 limit!
+                visible_len = len(_strip_html(payload_text)) if p_mode == "HTML" else len(payload_text)
+                if visible_len <= 1024:
+                    try:
+                        msg = await bot.send_photo(
+                            chat_id=chat_id,
+                            photo=url,
+                            caption=payload_text,
+                            parse_mode=p_mode,
+                            reply_markup=keyboard,
+                        )
+                        return msg.message_id
+                    except TelegramAPIError as caption_err:
+                        err_msg = str(caption_err).lower()
+                        if "caption" in err_msg and ("too long" in err_msg or "length" in err_msg):
+                            logger.info(
+                                "Caption length rejected by Telegram for chat %s (%s). Falling back to separate photo + text.",
+                                chat_id,
+                                caption_err,
+                            )
+                        else:
+                            raise
 
-                # If text > 1024, send photo first, then full text without truncating and without stripping tg-emoji
+                # If visible text > 1024 or Telegram rejected caption length: send photo first, then full text
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=url,

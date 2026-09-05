@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Send,
@@ -174,6 +174,14 @@ export default function NewBroadcastPage() {
   const [busy, setBusy] = useState(false);
 
   const totalButtonsCount = buttonRows.reduce((sum, r) => sum + r.length, 0);
+
+  // Telegram caption limit applies after entity parsing (HTML tags do not count)
+  const visibleTextLength = useMemo(() => {
+    const noTags = text
+      .replace(/<[^>]*>/g, '')
+      .replace(/\{(?:emoji:|tg-emoji:)?(\d{6,25})(?::([^}\n]+))?\}/g, (_m, _id, fb) => fb || '✨');
+    return noTags.length;
+  }, [text]);
 
   const buildAudience = (): AudienceFilter => {
     const f: AudienceFilter = {};
@@ -734,7 +742,20 @@ export default function NewBroadcastPage() {
                 <span>
                   Поддерживаются <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;blockquote&gt;</code>, тег <code>{'{wheel_leaders}'}</code> и Premium эмодзи <code>{'{ID_ЭМОДЗИ}'}</code>
                 </span>
-                <span className="tabular-nums">{text.length} / 4000</span>
+                {mediaUrl.trim() ? (
+                  <span
+                    className={`tabular-nums font-mono px-2 py-0.5 rounded text-[11px] ${
+                      visibleTextLength > 1024
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }`}
+                    title="Лимит подписи к фото в Telegram — 1024 видимых символа (HTML-теги не расходуют лимит). Если больше 1024, Telegram отправит фото и текст двумя отдельными сообщениями."
+                  >
+                    {visibleTextLength > 1024 ? '⚠️' : '✓'} Подпись к фото: {visibleTextLength} / 1024
+                  </span>
+                ) : (
+                  <span className="tabular-nums font-mono">{text.length} / 4000</span>
+                )}
               </div>
               <textarea
                 ref={textareaRef}
