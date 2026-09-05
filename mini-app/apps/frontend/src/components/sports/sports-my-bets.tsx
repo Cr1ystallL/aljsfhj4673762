@@ -184,12 +184,15 @@ function BetCouponCard({
               ? 'border-rose-500/30 bg-rose-500/15 text-rose-300'
               : bet.state === 'cashed_out'
               ? 'border-cyan-400/30 bg-cyan-400/15 text-cyan-300'
+              : bet.state === 'cancelled' || bet.state === 'void'
+              ? 'border-amber-400/40 bg-amber-400/15 text-amber-300'
               : 'border-white/10 bg-white/[0.05] text-whisper-gray'
           )}
         >
           {openBet && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
           {bet.state === 'won' && <span>✓</span>}
           {bet.state === 'lost' && <span>✕</span>}
+          {(bet.state === 'cancelled' || bet.state === 'void') && <span>↩</span>}
           <span>
             {openBet
               ? 'В игре'
@@ -199,6 +202,8 @@ function BetCouponCard({
               ? 'Проигрыш'
               : bet.state === 'cashed_out'
               ? 'Выкуплен'
+              : bet.state === 'cancelled' || bet.state === 'void'
+              ? 'Возврат'
               : 'Рассчитан'}
           </span>
         </div>
@@ -240,6 +245,11 @@ function BetCouponCard({
                     {leg.result === 'lost' && (
                       <span className="w-5 h-5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center text-[10px] font-bold">
                         ✕
+                      </span>
+                    )}
+                    {leg.result === 'void' && (
+                      <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center text-[10px] font-bold" title="Возврат (кэф 1.00)">
+                        ↩
                       </span>
                     )}
                     {(!leg.result || leg.result === 'pending') && (
@@ -303,7 +313,13 @@ function BetCouponCard({
           {/* Potential / Actual Payout */}
           <div className="text-right">
             <span className="block text-[10px] uppercase tracking-wider font-semibold text-whisper-gray">
-              {openBet ? 'К выплате' : bet.state === 'won' ? 'Выигрыш' : 'Результат'}
+              {openBet
+                ? 'К выплате'
+                : bet.state === 'won'
+                ? 'Выигрыш'
+                : bet.state === 'cancelled' || bet.state === 'void'
+                ? 'Возврат'
+                : 'Результат'}
             </span>
             <span
               className={cn(
@@ -314,11 +330,18 @@ function BetCouponCard({
                   ? 'text-emerald-400'
                   : bet.state === 'lost'
                   ? 'text-[#ff8a76]'
+                  : bet.state === 'cancelled' || bet.state === 'void'
+                  ? 'text-amber-300'
                   : 'text-white'
               )}
             >
               {openBet
                 ? `${(bet.stake * bet.odds).toLocaleString(localeTag, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} zł`
+                : bet.state === 'cancelled' || bet.state === 'void'
+                ? `${bet.stake.toLocaleString(localeTag, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })} zł`

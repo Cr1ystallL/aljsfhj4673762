@@ -746,14 +746,17 @@ class SportsEngine {
           // Realistic durations for concluding missing matches:
           // Football: 90 mins + 15 min halftime -> regulation done at 105 mins. Settle by 110 mins.
           // Basketball/Hockey: 125 mins.
-          // Esports/Tennis/MMA: 85 mins.
+          // Cybersport (Dota 2 / CS BO3 series): 240 mins (4 hours). Never force finish after 85m!
+          // Tennis / MMA: 180 mins.
           const elapsed = Date.now() - ev.feed.startTime;
           const maxMatchDuration =
             ev.feed.sport === 'football'
               ? 110 * 60_000
               : ev.feed.sport === 'basketball' || ev.feed.sport === 'hockey'
               ? 125 * 60_000
-              : 85 * 60_000;
+              : ev.feed.sport === 'cybersport'
+              ? 240 * 60_000
+              : 180 * 60_000;
 
           const isSoccerFinished =
             ev.feed.sport === 'football' && (ev.feed.liveMinute ?? 0) >= 90 && elapsed > 105 * 60_000;
@@ -782,7 +785,9 @@ class SportsEngine {
                 ? 110 * 60_000
                 : ev.feed.sport === 'basketball' || ev.feed.sport === 'hockey'
                 ? 125 * 60_000
-                : 85 * 60_000;
+                : ev.feed.sport === 'cybersport'
+                ? 240 * 60_000
+                : 180 * 60_000;
 
             const isSoccerFinished =
               ev.feed.sport === 'football' && (ev.feed.liveMinute ?? 0) >= 90 && elapsed > 105 * 60_000;
@@ -947,6 +952,24 @@ class SportsEngine {
       return;
     }
     if (tracked.legs.every((l) => l.result === 'won' || l.result === 'void')) {
+      const allVoid = tracked.legs.every((l) => l.result === 'void');
+      if (allVoid) {
+        tracked.bet.multiplier = 1.0;
+        tracked.bet.payout = tracked.bet.amount;
+        if (freebetId) {
+          await freebetService.settleFreebet(freebetId, betId, 'lost');
+        } else {
+          await bettingPipeline.rollbackBet(tracked.bet, false);
+        }
+        this.unindexBet(betId);
+        this.pushActivity('settle', `Возврат ставки · ${name}`, tracked.legs[0]?.eventId);
+        void notifySportsUser(
+          tracked.bet.userId,
+          sportsSettleText(name, type, 'void', tracked.bet.amount, 1.0, freebetAmount)
+        );
+        return;
+      }
+
       const multiplier = formatCombined(
         tracked.legs.reduce((acc, l) => acc * (l.result === 'void' ? 1 : l.odds), 1)
       );
@@ -1178,7 +1201,8 @@ function featuredScore(feed: FeedEvent): { heat: number; reason: FeaturedReason 
 }
 
 function formatCombined(n: number): number {
-  if (!Number.isFinite(n) || n < 1.01) return 1.01;
+  if (!Number.isFinite(n) || n <= 1.0) return 1.0;
+  if (n < 1.01) return 1.01;
   if (n >= 35) return 35;
   if (n > 20) return Math.round(n * 2) / 2;
   return Math.round(n * 100) / 100;
