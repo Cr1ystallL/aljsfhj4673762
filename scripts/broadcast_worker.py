@@ -253,12 +253,40 @@ async def _send_one(
         if media_url:
             url = f"https://macvbet.nl{media_url}" if media_url.startswith("/") else media_url
             try:
-                msg = await bot.send_photo(
+                # If text fits in 1024, send photo with caption
+                if len(payload_text) <= 1024:
+                    msg = await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=url,
+                        caption=payload_text,
+                        parse_mode=p_mode,
+                        reply_markup=keyboard,
+                    )
+                    return msg.message_id
+
+                # If text > 1024, try stripping <tg-emoji> to fallback to save ~50 chars per emoji
+                cleaned = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', payload_text)
+                if len(cleaned) <= 1024:
+                    msg = await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=url,
+                        caption=cleaned,
+                        parse_mode=p_mode,
+                        reply_markup=keyboard,
+                    )
+                    return msg.message_id
+
+                # If still over 1024, send photo first, then full text without truncating
+                await bot.send_photo(
                     chat_id=chat_id,
                     photo=url,
-                    caption=payload_text[:1024],
+                )
+                msg = await bot.send_message(
+                    chat_id=chat_id,
+                    text=payload_text,
                     parse_mode=p_mode,
                     reply_markup=keyboard,
+                    disable_web_page_preview=True,
                 )
                 return msg.message_id
             except TelegramAPIError as photo_err:
