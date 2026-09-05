@@ -13,7 +13,8 @@ import {
 } from '@casino/shared';
 
 // System launch date epoch: all past historical stats before this moment are strictly ignored (fresh start)
-export const VIP_FRESH_START_EPOCH = new Date('2026-09-02T00:00:00.000Z');
+// Official fresh start launch: 02.09.2026 19:00:00 MSK (UTC+3) -> 2026-09-02T16:00:00.000Z
+export const VIP_FRESH_START_EPOCH = new Date('2026-09-02T16:00:00.000Z');
 
 export class VipService {
   private tablesEnsured = false;
@@ -43,10 +44,10 @@ export class VipService {
       try {
         const redis = (await import('../lib/redis.js')).redisClient.getClient();
         if (redis) {
-          const done = await redis.get('vip:fresh_start_clean_v6');
+          const done = await redis.get('vip:fresh_start_clean_v10');
           if (!done) {
             await this.recalculateAllUsersVipAndResetCashback();
-            await redis.set('vip:fresh_start_clean_v6', '1');
+            await redis.set('vip:fresh_start_clean_v10', '1');
           }
         }
       } catch (e) {
@@ -58,24 +59,23 @@ export class VipService {
   }
 
   /**
-   * Resets all users to 0 XP, Level 0, empty claimed rewards, and clears past cashback claims.
-   * Only bets placed after VIP_FRESH_START_EPOCH will count towards XP.
+   * Recalculates VIP XP and ranks strictly from VIP_FRESH_START_EPOCH (02.09.2026 19:00 MSK).
+   * Filters claimed_vip_rewards so no user retains claims for ranks higher than their legitimate vip_level.
    */
   async recalculateAllUsersVipAndResetCashback(): Promise<{ updatedUsers: number }> {
     await this.ensureTables();
     try {
       logger.info('Performing fresh start reset for VIP XP, ranks, and cashback...');
 
-      // 1. Reset all users to 0 XP, Rank 0, empty claimed rewards, null cashback claim
+      // 1. Reset all users to 0 XP, Rank 0, null cashback claim
       const res = await prisma.$executeRaw`
         UPDATE users 
         SET xp = 0,
             vip_level = 0,
-            claimed_vip_rewards = '{}',
             last_cashback_claimed_at = NULL;
       `;
 
-      // 2. Fetch only new bets placed on or after the fresh start epoch
+      // 2. Fetch only new bets placed on or after the fresh start epoch (02.09.2026 19:00 MSK)
       const betTotals = await prisma.$queryRaw<Array<{ user_id: string; total_wager: number | string }>>`
         SELECT user_id, COALESCE(SUM(amount), 0) as total_wager
         FROM bets
@@ -102,8 +102,17 @@ export class VipService {
         }
       }
 
-      logger.info({ affectedUsers: Number(res || 0) }, 'Fresh start VIP reset and recalculation completed');
-      return { updatedUsers: Number(res || 0) };
+      // 3. Clean up claimed_vip_rewards so nobody keeps claims for ranks higher than their legitimate vip_level
+      await prisma.$executeRaw`
+        UPDATE users
+        SET claimed_vip_rewards = ARRAY(
+          SELECT x FROM unnest(claimed_vip_rewards) x WHERE x <= vip_level
+        )
+        WHERE array_length(claimed_vip_rewards, 1) > 0;
+      `;
+
+      logger.info({ affectedUsers: Number(res || 0), updatedWithBets: betTotals.length }, 'Fresh start VIP reset and recalculation completed');
+      return { updatedUsers: betTotals.length };
     } catch (err) {
       logger.error({ err }, 'Failed to recalculate VIP XP and reset cashback');
       throw err;
@@ -561,6 +570,316 @@ export class VipService {
         message: `Кэшбэк +${claimAmount.toFixed(2)} zł успешно зачислен на баланс!`,
       };
     });
+  }
+
+  /**
+   * Rolls back all VIP rewards that were claimed wrongfully based on inflated ranks.
+   * Ranks and XP are recalculated strictly from VIP_FRESH_START_EPOCH (02.09.2026 19:00 MSK).
+   * Wrongful balance additions are deducted (with shortfalls moved to hiddenDebt).
+   * Wrongful freebets are cancelled or deleted.
+   * Wrongful free cases are deducted.
+   * claimed_vip_rewards is pruned down to legitimate levels.
+   */
+  async rollbackIllegitimateVipRewards(): Promise<{
+    processedUsers: number;
+    usersRolledBack: number;
+    totalBalanceDeducted: number;
+    totalHiddenDebtAdded: number;
+    totalFreebetsCancelled: number;
+    totalCasesDeducted: number;
+    details: Array<{
+      userId: string;
+      username: string | null;
+      legitXp: number;
+      legitLevel: number;
+      claimedLevels: number[];
+      illegitimateLevels: number[];
+      balanceDeducted: number;
+      hiddenDebtAdded: number;
+      freebetsCancelled: number;
+      casesDeducted: number;
+    }>;
+  }> {
+    await this.ensureTables();
+    logger.info({ epoch: VIP_FRESH_START_EPOCH }, 'Starting rollback of illegitimate VIP rewards...');
+
+    // 1. Find all users who have claimed rewards, non-zero XP, non-zero level, or received recent VIP bonuses
+    const candidateUsers = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        telegram_id: bigint;
+        username: string | null;
+        xp: number | null;
+        vip_level: number | null;
+        claimed_vip_rewards: number[] | null;
+        hidden_debt: string | number;
+      }>
+    >`
+      SELECT DISTINCT u.id, u.telegram_id, u.username, u.xp, u.vip_level, u.claimed_vip_rewards, u.hidden_debt
+      FROM users u
+      LEFT JOIN transactions t ON t.user_id = u.id 
+        AND t.type = 'bonus' 
+        AND (t.metadata->>'reason' LIKE 'VIP Rank Reward%' OR (t.metadata->>'level')::int IN (1, 2, 3, 4, 5))
+      LEFT JOIN user_freebets fb ON fb.user_id = u.id AND fb.id LIKE 'fb_vip_%'
+      WHERE (u.claimed_vip_rewards IS NOT NULL AND array_length(u.claimed_vip_rewards, 1) > 0)
+         OR u.xp > 0
+         OR u.vip_level > 0
+         OR t.id IS NOT NULL
+         OR fb.id IS NOT NULL
+    `;
+
+    logger.info({ candidateCount: candidateUsers.length }, 'Candidate users found for VIP inspection');
+
+    let usersRolledBack = 0;
+    let totalBalanceDeducted = 0;
+    let totalHiddenDebtAdded = 0;
+    let totalFreebetsCancelled = 0;
+    let totalCasesDeducted = 0;
+    const details: Array<any> = [];
+
+    for (const user of candidateUsers) {
+      // 2. Calculate legitimate wager and tier since VIP_FRESH_START_EPOCH
+      const wagerRows = await prisma.$queryRaw<Array<{ total_wager: string | number }>>`
+        SELECT COALESCE(SUM(amount), 0) as total_wager
+        FROM bets
+        WHERE user_id = ${user.id}
+          AND state != 'cancelled' 
+          AND (metadata->>'demoMode')::boolean IS NOT TRUE 
+          AND (metadata->>'isTournament')::boolean IS NOT TRUE
+          AND metadata->>'tournamentId' IS NULL
+          AND metadata->>'freebetId' IS NULL
+          AND placed_at >= ${VIP_FRESH_START_EPOCH}
+      `;
+      const legitWager = Number(wagerRows[0]?.total_wager || 0);
+      const legitXp = Math.floor(legitWager * VIP_XP_PER_ZL);
+      const legitTier = getVipTierByXp(legitXp);
+      const legitLevel = legitTier.level;
+
+      const rawClaimed = (user.claimed_vip_rewards || []).map(Number);
+
+      // Also check recent bonus transactions for this user
+      const txRows = await prisma.$queryRaw<Array<{ id: string; amount: string; metadata: any }>>`
+        SELECT id, amount, metadata
+        FROM transactions
+        WHERE user_id = ${user.id}
+          AND type = 'bonus'
+          AND (metadata->>'reason' LIKE 'VIP Rank Reward%' OR (metadata->>'level')::int IN (1, 2, 3, 4, 5))
+      `;
+
+      // Collect all claimed levels from both column and transactions
+      const allClaimedSet = new Set<number>(rawClaimed);
+      for (const tx of txRows) {
+        const lvl = Number(tx.metadata?.level);
+        if (!isNaN(lvl) && lvl > 0) {
+          allClaimedSet.add(lvl);
+        }
+      }
+      const claimedLevels = Array.from(allClaimedSet).sort((a, b) => a - b);
+      const illegitimateLevels = claimedLevels.filter((lvl) => lvl > legitLevel);
+      const legitimateLevels = claimedLevels.filter((lvl) => lvl <= legitLevel);
+
+      let balanceToDeduct = 0;
+      let casesToDeduct = 0;
+      let freebetsToCancel = 0;
+
+      for (const lvl of illegitimateLevels) {
+        const tierCfg = VIP_RANKS.find((r) => r.level === lvl);
+        if (!tierCfg) continue;
+        if (tierCfg.rewardType === 'balance' || tierCfg.rewardType === 'balance_and_case') {
+          balanceToDeduct += (tierCfg.rewardBalance || 0);
+        }
+        if (tierCfg.rewardType === 'free_case' || tierCfg.rewardType === 'balance_and_case') {
+          casesToDeduct += 1;
+        }
+        if (tierCfg.rewardType === 'freebet') {
+          freebetsToCancel += 1;
+        }
+      }
+
+      // Check if user also has any active freebet fb_vip_
+      const fbRows = await prisma.$queryRaw<Array<{ id: string; status: string; bet_id: string | null }>>`
+        SELECT id, status, bet_id
+        FROM user_freebets
+        WHERE user_id = ${user.id}
+          AND (id LIKE 'fb_vip_%' OR (amount = 50 AND payout_type = 'net_win'))
+      `;
+      const wrongfulFbList = fbRows.filter((fb) => {
+        return legitLevel < 4;
+      });
+
+      const needsRollback = illegitimateLevels.length > 0 || wrongfulFbList.length > 0;
+      const needsXpUpdate = user.xp !== legitXp || user.vip_level !== legitLevel;
+
+      if (!needsRollback && !needsXpUpdate) {
+        continue;
+      }
+
+      let deductedFromBal = 0;
+      let addedToDebt = 0;
+      let cancelledFbCount = 0;
+
+      await prisma.$transaction(async (tx) => {
+        // A. Balance rollback
+        if (balanceToDeduct > 0) {
+          const balRows = await tx.$queryRaw<Array<{ amount: string }>>`
+            SELECT amount FROM balances WHERE user_id = ${user.id} AND demo_mode = false FOR UPDATE
+          `;
+          const currentBal = Number(balRows[0]?.amount || 0);
+
+          if (currentBal >= balanceToDeduct) {
+            deductedFromBal = balanceToDeduct;
+            const newBal = currentBal - balanceToDeduct;
+            await tx.$executeRaw`
+              UPDATE balances
+              SET amount = ${newBal}::numeric,
+                  updated_at = NOW()
+              WHERE user_id = ${user.id} AND demo_mode = false
+            `;
+          } else {
+            deductedFromBal = currentBal;
+            addedToDebt = balanceToDeduct - currentBal;
+            await tx.$executeRaw`
+              UPDATE balances
+              SET amount = 0::numeric,
+                  updated_at = NOW()
+              WHERE user_id = ${user.id} AND demo_mode = false
+            `;
+            await tx.$executeRaw`
+              UPDATE users
+              SET hidden_debt = hidden_debt + ${addedToDebt}::numeric
+              WHERE id = ${user.id}
+            `;
+          }
+
+          // Create audit transaction
+          await tx.transaction.create({
+            data: {
+              userId: user.id,
+              type: 'correction',
+              amount: -balanceToDeduct,
+              balanceBefore: currentBal,
+              balanceAfter: Math.max(0, currentBal - balanceToDeduct),
+              metadata: {
+                reason: 'Откат неправомерной VIP награды (пересчет с 02.09 19:00)',
+                illegitimateLevels,
+                deductedFromBalance: deductedFromBal,
+                addedToHiddenDebt: addedToDebt,
+              },
+            },
+          });
+        }
+
+        // B. Free cases rollback
+        if (casesToDeduct > 0) {
+          const caseRows = await tx.$queryRaw<Array<{ free_cases: number; free_cases_json: any }>>`
+            SELECT free_cases, free_cases_json FROM balances WHERE user_id = ${user.id} FOR UPDATE
+          `;
+          const currentCases = Number(caseRows[0]?.free_cases || 0);
+          const newCases = Math.max(0, currentCases - casesToDeduct);
+          const json = (caseRows[0]?.free_cases_json as Record<string, { count: number; wager: number }>) || {};
+          if (json.starter) {
+            json.starter.count = Math.max(0, (json.starter.count || 0) - casesToDeduct);
+          }
+
+          await tx.$executeRaw`
+            UPDATE balances
+            SET free_cases = ${newCases},
+                free_cases_json = ${JSON.stringify(json)}::jsonb,
+                updated_at = NOW()
+            WHERE user_id = ${user.id}
+          `;
+        }
+
+        // C. Freebets rollback
+        for (const fb of wrongfulFbList) {
+          if (fb.status === 'available') {
+            await tx.$executeRaw`
+              DELETE FROM user_freebets WHERE id = ${fb.id}
+            `;
+            cancelledFbCount++;
+          } else if (fb.status === 'locked' || fb.status === 'used') {
+            if (fb.bet_id) {
+              const betRows = await tx.$queryRaw<Array<{ id: string; state: string; payout: string | null }>>`
+                SELECT id, state, payout FROM bets WHERE id = ${fb.bet_id} FOR UPDATE
+              `;
+              const bet = betRows[0];
+              if (bet && (bet.state === 'active' || bet.state === 'pending')) {
+                await tx.$executeRaw`
+                  UPDATE bets SET state = 'cancelled', resolved_at = NOW() WHERE id = ${bet.id}
+                `;
+                cancelledFbCount++;
+              }
+            }
+          }
+        }
+
+        // D. Update user XP, Level, and claimed rewards array
+        await tx.$executeRaw`
+          UPDATE users
+          SET xp = ${legitXp},
+              vip_level = ${legitLevel},
+              claimed_vip_rewards = ${legitimateLevels}
+          WHERE id = ${user.id}
+        `;
+      });
+
+      if (needsRollback) {
+        usersRolledBack++;
+        totalBalanceDeducted += balanceToDeduct;
+        totalHiddenDebtAdded += addedToDebt;
+        totalFreebetsCancelled += cancelledFbCount;
+        totalCasesDeducted += casesToDeduct;
+
+        details.push({
+          userId: user.id,
+          username: user.username,
+          legitXp,
+          legitLevel,
+          claimedLevels,
+          illegitimateLevels,
+          balanceDeducted: deductedFromBal,
+          hiddenDebtAdded: addedToDebt,
+          freebetsCancelled: cancelledFbCount,
+          casesDeducted: casesToDeduct,
+        });
+
+        logger.info(
+          {
+            userId: user.id,
+            username: user.username,
+            legitXp,
+            legitLevel,
+            illegitimateLevels,
+            balanceDeducted: deductedFromBal,
+            hiddenDebtAdded: addedToDebt,
+            cancelledFbCount,
+          },
+          'User VIP rewards rolled back successfully'
+        );
+      }
+    }
+
+    logger.info(
+      {
+        processedUsers: candidateUsers.length,
+        usersRolledBack,
+        totalBalanceDeducted,
+        totalHiddenDebtAdded,
+        totalFreebetsCancelled,
+        totalCasesDeducted,
+      },
+      'VIP Rollback completed successfully'
+    );
+
+    return {
+      processedUsers: candidateUsers.length,
+      usersRolledBack,
+      totalBalanceDeducted,
+      totalHiddenDebtAdded,
+      totalFreebetsCancelled,
+      totalCasesDeducted,
+      details,
+    };
   }
 }
 

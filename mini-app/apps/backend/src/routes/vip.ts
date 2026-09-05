@@ -112,4 +112,17 @@ export async function vipRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(500).send({ ok: false, error: err.message });
     }
   });
+
+  /**
+   * POST /api/vip/admin/rollback-wrongful-rewards
+   * Admin-only: rollback wrongfully claimed VIP rewards, deduct balances, cancel freebets, and recalculate XP strictly from 02.09.2026 19:00 MSK
+   */
+  app.post('/admin/rollback-wrongful-rewards', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const res = await vipService.rollbackIllegitimateVipRewards();
+      return reply.send({ ok: true, ...res });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err.message });
+    }
+  });
 }
