@@ -89,6 +89,132 @@ def _audience_sql_where(audience: dict[str, Any]) -> tuple[str, list[Any]]:
 
 import re
 
+COLOR_EMOJIS: dict[str, str] = {
+    "green": "🟢",
+    "emerald": "🟢",
+    "blue": "🔵",
+    "sky": "🔵",
+    "yellow": "🟡",
+    "amber": "🟡",
+    "gold": "🟡",
+    "red": "🔴",
+    "rose": "🔴",
+    "purple": "🟣",
+    "violet": "🟣",
+    "orange": "🟠",
+    "white": "⚪",
+    "black": "⚫",
+}
+
+
+def _replace_custom_emojis(text: str) -> str:
+    """
+    Replaces {custom_emoji_id} or {custom_emoji_id:fallback} with
+    <tg-emoji emoji-id="custom_emoji_id">fallback</tg-emoji>.
+    
+    Example: {5368324170671202286} -> <tg-emoji emoji-id="5368324170671202286">✨</tg-emoji>
+    Example: {5368324170671202286:🔥} -> <tg-emoji emoji-id="5368324170671202286">🔥</tg-emoji>
+    """
+    if not text:
+        return ""
+    pattern = re.compile(r'\{(?:emoji:|tg-emoji:)?(\d{6,25})(?::([^}\n]+))?\}')
+
+    def _repl(match: re.Match) -> str:
+        emoji_id = match.group(1)
+        fallback = match.group(2) or "✨"
+        return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+
+    return pattern.sub(_repl, text)
+
+
+def _format_wheel_leaders(cur: Any) -> str:
+    """Fetch top-5 participants for the active Wheel tournament and format as HTML for blockquote."""
+    try:
+        cur.execute(
+            """
+            SELECT c.id AS cycle_id, t.title, c.prize_pool, t.prize_mode, t.winners_count, t.fixed_prize
+            FROM tournaments t
+            JOIN tournament_cycles c ON c.tournament_id = t.id
+            WHERE (LOWER(t.game_type) = 'wheel' OR LOWER(t.title) LIKE '%%wheel%%')
+              AND t.active = true
+            ORDER BY (c.state = 'live') DESC, c.starts_at DESC
+            LIMIT 1
+            """
+        )
+        t_row = cur.fetchone()
+        if not t_row:
+            return (
+                "🥇 1. <i>Место свободно — сделай ставку!</i>\n"
+                "🥈 2. <i>Место свободно</i>\n"
+                "🥉 3. <i>Место свободно</i>\n"
+                "4️⃣ 4. <i>Место свободно</i>\n"
+                "5️⃣ 5. <i>Место свободно</i>"
+            )
+
+        cycle_id = t_row["cycle_id"]
+        prize_pool = float(t_row.get("prize_pool") or 0)
+        prize_mode = t_row.get("prize_mode") or "percent"
+        fixed_prize = float(t_row.get("fixed_prize") or 0) if t_row.get("fixed_prize") else None
+
+        percent_shares = [0.20, 0.16, 0.13, 0.11, 0.09]
+
+        cur.execute(
+            """
+            SELECT p.balance, u.username, u.first_name, u.telegram_id
+            FROM tournament_participants p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.cycle_id = %s
+            ORDER BY p.balance DESC, p.reached_at ASC
+            LIMIT 5
+            """,
+            (cycle_id,),
+        )
+        rows = cur.fetchall()
+
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        lines = []
+        for idx in range(5):
+            medal = medals[idx]
+
+            # Compute estimated prize
+            prize_str = ""
+            if prize_mode == "fixed" and fixed_prize:
+                prize_str = f" (~{fixed_prize:,.0f} zł)".replace(",", " ")
+            elif prize_pool > 0 and idx < len(percent_shares):
+                p_amt = round(prize_pool * percent_shares[idx])
+                prize_str = f" (~{p_amt:,.0f} zł)".replace(",", " ")
+
+            if idx < len(rows):
+                r = rows[idx]
+                uname = r.get("username")
+                if uname:
+                    display = f"@{uname}"
+                else:
+                    first = (r.get("first_name") or "Игрок").strip()
+                    display = first[:14]
+                # Escape html characters
+                display = (
+                    display.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
+                bal = float(r.get("balance") or 0)
+                lines.append(f"{medal} <b>{display}</b> — <code>{bal:,.0f} pts</code>{prize_str}".replace(",", " "))
+            else:
+                lines.append(f"{medal} <i>Свободно — сделай ставку!</i>{prize_str}".replace(",", " "))
+
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("Failed to format wheel leaders: %s", e)
+        return (
+            "🥇 1. <i>Место свободно</i>\n"
+            "🥈 2. <i>Место свободно</i>\n"
+            "🥉 3. <i>Место свободно</i>\n"
+            "4️⃣ 4. <i>Место свободно</i>\n"
+            "5️⃣ 5. <i>Место свободно</i>"
+        )
+
+
 def _clean_html_text(text: str) -> str:
     """Fix common typos in HTML markup for Telegram."""
     if not text:
@@ -178,8 +304,26 @@ async def _send_one(
         return "error", f"{type(e).__name__}: {e}"[:500], None
 
 
+def _format_btn_text(text: Any, color: Any) -> str:
+    t = str(text or "").strip()
+    if not t:
+        return ""
+    if color and isinstance(color, str):
+        c_lower = color.lower().strip()
+        icon = COLOR_EMOJIS.get(c_lower)
+        if icon and not t.startswith(icon):
+            t = f"{icon} {t}"
+    return t
+
+
 def _build_keyboard(buttons: Any) -> InlineKeyboardMarkup | None:
-    """Turn the JSONB `buttons` array into an aiogram inline keyboard."""
+    """Turn the JSONB `buttons` structure into an aiogram inline keyboard.
+    
+    Supports:
+      1. 2D list of button dicts: [[btn1, btn2], [btn3]]
+      2. 1D list of button dicts with optional 'row' property (or one per row)
+      3. Button colors (green, blue, yellow/amber, red, purple, orange) via icon badge
+    """
     if not buttons:
         return None
     if isinstance(buttons, str):
@@ -189,15 +333,48 @@ def _build_keyboard(buttons: Any) -> InlineKeyboardMarkup | None:
             return None
     if not isinstance(buttons, list) or not buttons:
         return None
-    rows = []
-    for b in buttons[:3]:
-        if not isinstance(b, dict):
-            continue
-        text = str(b.get("text") or "").strip()
-        url = str(b.get("url") or "").strip()
-        if not text or not url:
-            continue
-        rows.append([InlineKeyboardButton(text=text, url=url)])
+
+    rows: list[list[InlineKeyboardButton]] = []
+
+    # Check if buttons is already 2D (list of lists)
+    if any(isinstance(item, list) for item in buttons):
+        for raw_row in buttons[:6]:  # max 6 rows
+            if not isinstance(raw_row, list):
+                continue
+            btn_row: list[InlineKeyboardButton] = []
+            for b in raw_row[:4]:  # max 4 buttons per row
+                if not isinstance(b, dict):
+                    continue
+                url = str(b.get("url") or "").strip()
+                text = _format_btn_text(b.get("text"), b.get("color"))
+                if text and url:
+                    btn_row.append(InlineKeyboardButton(text=text, url=url))
+            if btn_row:
+                rows.append(btn_row)
+    else:
+        # 1D list: group by 'row' if present, otherwise each on its own row
+        has_row_prop = any(isinstance(b, dict) and "row" in b for b in buttons)
+        if has_row_prop:
+            grouped: dict[int, list[InlineKeyboardButton]] = {}
+            for b in buttons[:10]:
+                if not isinstance(b, dict):
+                    continue
+                r_idx = int(b.get("row", 0))
+                url = str(b.get("url") or "").strip()
+                text = _format_btn_text(b.get("text"), b.get("color"))
+                if text and url:
+                    grouped.setdefault(r_idx, []).append(InlineKeyboardButton(text=text, url=url))
+            for r_key in sorted(grouped.keys()):
+                rows.append(grouped[r_key][:4])
+        else:
+            for b in buttons[:8]:
+                if not isinstance(b, dict):
+                    continue
+                url = str(b.get("url") or "").strip()
+                text = _format_btn_text(b.get("text"), b.get("color"))
+                if text and url:
+                    rows.append([InlineKeyboardButton(text=text, url=url)])
+
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
@@ -221,6 +398,19 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
         if isinstance(audience, str):
             audience = json.loads(audience)
         keyboard = _build_keyboard(bc.get("buttons"))
+
+        # Resolve dynamic variables in text (Wheel tournament leaders, top5)
+        raw_text = bc.get("text") or ""
+        if any(tag in raw_text for tag in ["{wheel_leaders}", "{leaders}", "{wheel_top5}", "{top5}"]):
+            leaders_html = _format_wheel_leaders(cur)
+            for tag in ["{wheel_leaders}", "{leaders}", "{wheel_top5}", "{top5}"]:
+                raw_text = raw_text.replace(tag, leaders_html)
+
+        # Replace custom emojis: {ID} or {ID:fallback} or {emoji:ID}
+        processed_text = _replace_custom_emojis(raw_text)
+
+        bc_to_send = dict(bc)
+        bc_to_send["text"] = processed_text
 
         targets = []
         if audience.get("channelId"):
@@ -256,7 +446,7 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
                         break
                     last_flush = delivered + failed
 
-                status, err, msg_id = await _send_one(bot, bc, keyboard, tg_id)
+                status, err, msg_id = await _send_one(bot, bc_to_send, keyboard, tg_id)
                 if status == "delivered":
                     delivered += 1
                 else:

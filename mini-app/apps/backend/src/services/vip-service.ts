@@ -393,7 +393,15 @@ export class VipService {
 
       // Check stats for the window strictly for real-money non-tournament bets and wins
       const statsRows = await prisma.$queryRaw<
-        Array<{ total_wagered: string | null; total_won: string | null }>
+        Array<{
+          total_wagered: string | null;
+          total_won_tx: string | null;
+          total_won_bets: string | null;
+          period_deposits: string | null;
+          period_withdrawals: string | null;
+          all_time_deposits: string | null;
+          all_time_withdrawals: string | null;
+        }>
       >`
         SELECT 
           (SELECT COALESCE(SUM(amount), 0) FROM bets 
@@ -406,17 +414,72 @@ export class VipService {
              AND placed_at >= ${sinceDate}) as total_wagered,
           (SELECT COALESCE(SUM(amount), 0) FROM transactions 
            WHERE user_id = ${userId} 
-             AND type IN ('win', 'payout') 
+             AND type IN ('win', 'cashout', 'payout') 
              AND (metadata->>'demoMode')::boolean IS NOT TRUE
              AND (metadata->>'isTournament')::boolean IS NOT TRUE
              AND metadata->>'tournamentId' IS NULL
              AND metadata->>'freebetId' IS NULL
-             AND created_at >= ${sinceDate}) as total_won
+             AND created_at >= ${sinceDate}) as total_won_tx,
+          (SELECT COALESCE(SUM(COALESCE(payout, 0)), 0) FROM bets 
+           WHERE user_id = ${userId} 
+             AND state != 'cancelled' 
+             AND (metadata->>'demoMode')::boolean IS NOT TRUE
+             AND (metadata->>'isTournament')::boolean IS NOT TRUE
+             AND metadata->>'tournamentId' IS NULL
+             AND metadata->>'freebetId' IS NULL
+             AND placed_at >= ${sinceDate}) as total_won_bets,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions 
+           WHERE user_id = ${userId} 
+             AND type = 'deposit' 
+             AND created_at >= ${sinceDate}) as period_deposits,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions 
+           WHERE user_id = ${userId} 
+             AND type = 'withdrawal' 
+             AND created_at >= ${sinceDate}) as period_withdrawals,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions 
+           WHERE user_id = ${userId} 
+             AND type = 'deposit') as all_time_deposits,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions 
+           WHERE user_id = ${userId} 
+             AND type = 'withdrawal') as all_time_withdrawals
       `;
 
+      // Live real-money balance
+      const balRow = await prisma.balance.findFirst({
+        where: { userId, demoMode: false },
+        select: { amount: true },
+      });
+      const liveBalance = Math.max(0, Number(balRow?.amount || 0));
+
       const totalWagered = Number(statsRows[0]?.total_wagered || 0);
-      const totalWon = Number(statsRows[0]?.total_won || 0);
-      const netLoss = Math.max(0, totalWagered - totalWon);
+      const totalWon = Math.max(
+        Number(statsRows[0]?.total_won_tx || 0),
+        Number(statsRows[0]?.total_won_bets || 0)
+      );
+
+      const periodDeposits = Number(statsRows[0]?.period_deposits || 0);
+      const periodWithdrawals = Number(statsRows[0]?.period_withdrawals || 0);
+      const allTimeDeposits = Number(statsRows[0]?.all_time_deposits || 0);
+      const allTimeWithdrawals = Number(statsRows[0]?.all_time_withdrawals || 0);
+
+      // 1. Gaming Net Loss: turnover minus all winnings/cashouts
+      const gamingLoss = Math.max(0, totalWagered - totalWon);
+
+      // 2. Real Out-of-Pocket Loss:
+      // Deposits minus Withdrawals minus remaining live balance.
+      // Prioritize the current period's deposits; fallback to all-time if deposits occurred prior to sinceDate
+      const depositBasis = periodDeposits > 0 ? periodDeposits : allTimeDeposits;
+      const withdrawalBasis = periodDeposits > 0 ? periodWithdrawals : allTimeWithdrawals;
+      const realOutOfPocketLoss = Math.max(0, depositBasis - withdrawalBasis - liveBalance);
+
+      // 3. True Net Loss:
+      // A player's loss CANNOT exceed their real out-of-pocket deposit loss.
+      // If the player never made a real deposit (allTimeDeposits === 0), real loss is 0.
+      // If the player is currently in profit (withdrawals + balance >= deposits), real loss is 0.
+      const netLoss = allTimeDeposits > 0
+        ? Math.min(gamingLoss, realOutOfPocketLoss)
+        : 0;
+
       const amount = Math.round(netLoss * (tier.cashbackPercent / 100) * 100) / 100;
 
       // Next claim available: launch date 7 September 2026 or 7 days after last claim

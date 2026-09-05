@@ -3334,6 +3334,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   interface BroadcastButton {
     text: string;
     url: string;
+    color?: string;
+    row?: number;
   }
 
   /**
@@ -4072,7 +4074,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       text: string;
       parseMode?: 'HTML' | 'Markdown' | 'none';
       mediaUrl?: string | null;
-      buttons?: BroadcastButton[];
+      buttons?: BroadcastButton[] | BroadcastButton[][];
       audience: AudienceFilter;
       scheduledAt?: number | null;
       reason: string;
@@ -4101,8 +4103,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       ) {
         return reply.code(400).send({ error: 'Bad parseMode' });
       }
-      if (body.buttons && body.buttons.length > 3) {
-        return reply.code(400).send({ error: 'Max 3 buttons' });
+      if (body.buttons) {
+        const flatButtons = Array.isArray(body.buttons)
+          ? (body.buttons as any[]).flat()
+          : [];
+        if (flatButtons.length > 8) {
+          return reply.code(400).send({ error: 'Максимум 8 кнопок' });
+        }
       }
       const scheduledAt = body.scheduledAt
         ? new Date(body.scheduledAt)

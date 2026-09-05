@@ -115,21 +115,50 @@ async function main() {
       `;
       const legitWager = Number(wagerRows[0]?.total_wager || 0);
 
-      // Legitimate winnings calculation (all win transactions created >= epoch)
+      // Legitimate winnings calculation (all win/cashout transactions and bet payouts created >= epoch)
       const wonRows = await prisma.$queryRaw<Array<{ total_won: string | number }>>`
         SELECT COALESCE(SUM(amount), 0) as total_won
         FROM transactions
         WHERE user_id = ${user.id}
-          AND type IN ('win', 'payout')
+          AND type IN ('win', 'cashout', 'payout')
           AND (metadata->>'demoMode')::boolean IS NOT TRUE
           AND (metadata->>'isTournament')::boolean IS NOT TRUE
           AND metadata->>'tournamentId' IS NULL
           AND metadata->>'freebetId' IS NULL
           AND created_at >= ${VIP_FRESH_START_EPOCH}
       `;
-      const legitWon = Number(wonRows[0]?.total_won || 0);
+      const wonBetRows = await prisma.$queryRaw<Array<{ total_won: string | number }>>`
+        SELECT COALESCE(SUM(COALESCE(payout, 0)), 0) as total_won
+        FROM bets
+        WHERE user_id = ${user.id}
+          AND state != 'cancelled'
+          AND (metadata->>'demoMode')::boolean IS NOT TRUE
+          AND (metadata->>'isTournament')::boolean IS NOT TRUE
+          AND metadata->>'tournamentId' IS NULL
+          AND metadata->>'freebetId' IS NULL
+          AND placed_at >= ${VIP_FRESH_START_EPOCH}
+      `;
+      const legitWon = Math.max(Number(wonRows[0]?.total_won || 0), Number(wonBetRows[0]?.total_won || 0));
 
-      const netLoss = Math.max(0, legitWager - legitWon);
+      // Deposit-based cap check
+      const depRows = await prisma.$queryRaw<Array<{ deposits: string | number; withdrawals: string | number }>>`
+        SELECT 
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = ${user.id} AND type = 'deposit') as deposits,
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = ${user.id} AND type = 'withdrawal') as withdrawals
+      `;
+      const totalDeposits = Number(depRows[0]?.deposits || 0);
+      const totalWithdrawals = Number(depRows[0]?.withdrawals || 0);
+
+      const balRow = await prisma.balance.findFirst({
+        where: { userId: user.id, demoMode: false },
+        select: { amount: true },
+      });
+      const liveBalance = Math.max(0, Number(balRow?.amount || 0));
+
+      const gamingLoss = Math.max(0, legitWager - legitWon);
+      const realOutOfPocketLoss = Math.max(0, totalDeposits - totalWithdrawals - liveBalance);
+      const netLoss = totalDeposits > 0 ? Math.min(gamingLoss, realOutOfPocketLoss) : 0;
+
       const legitXp = Math.floor(legitWager * VIP_XP_PER_ZL);
       const legitTier = getVipTierByXp(legitXp);
       const legitLevel = legitTier.level;
