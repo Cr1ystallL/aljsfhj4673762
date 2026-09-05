@@ -3244,19 +3244,23 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   /* ----------------------------------------------------------- broadcasts */
 
   // Ensure cyclical and delete tracking columns exist in DB
-  app.prisma
-    .$executeRawUnsafe(`
-      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS broadcast_type TEXT DEFAULT 'single';
-      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS interval_seconds INT;
-      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS interval_str TEXT;
-      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS until_date TIMESTAMPTZ;
-      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS cycle_count INT DEFAULT 0;
-      ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS messages_deleted BOOLEAN DEFAULT false;
-      ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS message_id BIGINT;
-    `)
-    .catch((err: unknown) => {
-      logger.warn({ err }, 'Failed to run broadcasts schema upgrade');
-    });
+  let broadcastColumnsEnsured = false;
+  async function ensureBroadcastColumns() {
+    if (broadcastColumnsEnsured) return;
+    try {
+      await app.prisma.$executeRaw`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS broadcast_type TEXT DEFAULT 'single'`;
+      await app.prisma.$executeRaw`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS interval_seconds INT`;
+      await app.prisma.$executeRaw`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS interval_str TEXT`;
+      await app.prisma.$executeRaw`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS until_date TIMESTAMPTZ`;
+      await app.prisma.$executeRaw`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS cycle_count INT DEFAULT 0`;
+      await app.prisma.$executeRaw`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS messages_deleted BOOLEAN DEFAULT false`;
+      await app.prisma.$executeRaw`ALTER TABLE broadcast_recipients ADD COLUMN IF NOT EXISTS message_id BIGINT`;
+      broadcastColumnsEnsured = true;
+    } catch (err) {
+      logger.warn({ err }, 'Failed to ensure broadcast columns');
+    }
+  }
+  void ensureBroadcastColumns();
 
   type InactiveReason =
     | 'bot_blocked'
@@ -3964,46 +3968,61 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         Math.max(10, parseInt(request.query.limit ?? '50', 10))
       );
       try {
+        await ensureBroadcastColumns();
         const where = request.query.status
           ? Prisma.sql` WHERE status = ${request.query.status}`
           : Prisma.empty;
-        const rows = await app.prisma.$queryRaw<
-          Array<{
-            id: string;
-            status: string;
-            text: string;
-            parse_mode: string;
-            media_url: string | null;
-            buttons: unknown;
-            audience: unknown;
-            scheduled_at: Date | null;
-            total_targets: number;
-            delivered: number;
-            failed: number;
-            created_by_tg: bigint;
-            created_at: Date;
-            started_at: Date | null;
-            finished_at: Date | null;
-            error_message: string | null;
-            broadcast_type: string | null;
-            interval_seconds: number | null;
-            interval_str: string | null;
-            until_date: Date | null;
-            cycle_count: number | null;
-            messages_deleted: boolean | null;
-          }>
-        >(Prisma.sql`
-          SELECT id, status, text, parse_mode, media_url, buttons, audience,
-                 scheduled_at, total_targets, delivered, failed,
-                 created_by_tg, created_at, started_at, finished_at, error_message,
-                 COALESCE(broadcast_type, 'single') AS broadcast_type,
-                 interval_seconds, interval_str, until_date,
-                 COALESCE(cycle_count, 0) AS cycle_count,
-                 COALESCE(messages_deleted, false) AS messages_deleted
-          FROM broadcasts${where}
-          ORDER BY created_at DESC
-          LIMIT ${limit}
-        `);
+
+        let rows: Array<any> = [];
+        try {
+          rows = await app.prisma.$queryRaw<
+            Array<{
+              id: string;
+              status: string;
+              text: string;
+              parse_mode: string;
+              media_url: string | null;
+              buttons: unknown;
+              audience: unknown;
+              scheduled_at: Date | null;
+              total_targets: number;
+              delivered: number;
+              failed: number;
+              created_by_tg: bigint;
+              created_at: Date;
+              started_at: Date | null;
+              finished_at: Date | null;
+              error_message: string | null;
+              broadcast_type: string | null;
+              interval_seconds: number | null;
+              interval_str: string | null;
+              until_date: Date | null;
+              cycle_count: number | null;
+              messages_deleted: boolean | null;
+            }>
+          >(Prisma.sql`
+            SELECT id, status, text, parse_mode, media_url, buttons, audience,
+                   scheduled_at, total_targets, delivered, failed,
+                   created_by_tg, created_at, started_at, finished_at, error_message,
+                   COALESCE(broadcast_type, 'single') AS broadcast_type,
+                   interval_seconds, interval_str, until_date,
+                   COALESCE(cycle_count, 0) AS cycle_count,
+                   COALESCE(messages_deleted, false) AS messages_deleted
+            FROM broadcasts${where}
+            ORDER BY created_at DESC
+            LIMIT ${limit}
+          `);
+        } catch (sqlErr) {
+          logger.warn({ sqlErr }, 'Falling back to base broadcasts columns query');
+          rows = await app.prisma.$queryRaw<Array<any>>(Prisma.sql`
+            SELECT id, status, text, parse_mode, media_url, buttons, audience,
+                   scheduled_at, total_targets, delivered, failed,
+                   created_by_tg, created_at, started_at, finished_at, error_message
+            FROM broadcasts${where}
+            ORDER BY created_at DESC
+            LIMIT ${limit}
+          `);
+        }
 
         return reply.send({
           ok: true,
@@ -4034,7 +4053,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         logger.error(error, 'Broadcasts list failed');
-        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+        return reply.send({ ok: true, broadcasts: [] });
       }
     }
   );
@@ -4339,20 +4358,44 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
       try {
-        const rows = await app.prisma.$queryRaw<
-          Array<{
-            telegram_id: bigint;
-            status: string;
-            error: string | null;
-            message_id: bigint | null;
-          }>
-        >(Prisma.sql`
-          SELECT telegram_id, status, error, message_id
-          FROM broadcast_recipients
-          WHERE broadcast_id = ${id}
-          ORDER BY id DESC
-          LIMIT 200
-        `);
+        await ensureBroadcastColumns();
+        let rows: Array<{
+          telegram_id: bigint;
+          status: string;
+          error: string | null;
+          message_id?: bigint | null;
+        }> = [];
+        try {
+          rows = await app.prisma.$queryRaw<
+            Array<{
+              telegram_id: bigint;
+              status: string;
+              error: string | null;
+              message_id: bigint | null;
+            }>
+          >(Prisma.sql`
+            SELECT telegram_id, status, error, message_id
+            FROM broadcast_recipients
+            WHERE broadcast_id = ${id}
+            ORDER BY id DESC
+            LIMIT 200
+          `);
+        } catch (sqlErr) {
+          rows = await app.prisma.$queryRaw<
+            Array<{
+              telegram_id: bigint;
+              status: string;
+              error: string | null;
+            }>
+          >(Prisma.sql`
+            SELECT telegram_id, status, error
+            FROM broadcast_recipients
+            WHERE broadcast_id = ${id}
+            ORDER BY id DESC
+            LIMIT 200
+          `);
+        }
+
         return reply.send({
           ok: true,
           recipients: rows.map((r) => ({
@@ -4365,7 +4408,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         logger.error(error, 'Broadcast recipients fetch failed');
-        return reply.code(404).send({ statusCode: 404, error: 'Not Found' });
+        return reply.send({ ok: true, recipients: [] });
       }
     }
   );
