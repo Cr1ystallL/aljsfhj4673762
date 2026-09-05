@@ -558,6 +558,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
                 username: true,
                 photoUrl: true,
                 telegramId: true,
+                vipLevel: true,
               },
             },
           },
@@ -569,6 +570,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             b.user.username ||
             `id${b.user.telegramId.toString().slice(-4)}`,
           photoUrl: b.user.photoUrl ?? null,
+          vipLevel: b.user.vipLevel ?? 0,
           betAmount: Number(b.amount),
           multiplier: Number(b.multiplier ?? 0),
           payout: Number(b.payout ?? 0),
@@ -841,6 +843,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
                 username: true,
                 photoUrl: true,
                 telegramId: true,
+                vipLevel: true,
               },
             },
           },
@@ -853,6 +856,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             b.user.username ||
             `id${b.user.telegramId.toString().slice(-4)}`,
           photoUrl: b.user.photoUrl ?? null,
+          vipLevel: b.user.vipLevel ?? 0,
           betAmount: Number(b.amount),
           multiplier: Number(b.multiplier ?? 0),
           payout: Number(b.payout ?? 0),
@@ -924,7 +928,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       try {
         const u = await app.prisma.user.findUnique({
           where: { id: userId },
-          select: { firstName: true, username: true, photoUrl: true },
+          select: { firstName: true, username: true, photoUrl: true, vipLevel: true },
         });
         const out = await wheelEngine.placeBet(userId, amount, pick, u);
         return reply.send({ success: true, ...out });
@@ -1043,11 +1047,12 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         take: parsedLimit,
         select: {
           id: true, amount: true, payout: true, multiplier: true, placedAt: true, resolvedAt: true,
-          user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true } }
+          user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true, vipLevel: true } }
         }
       });
       const history = bets.map((b) => ({
         id: b.id, name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`, photoUrl: b.user.photoUrl ?? null,
+        vipLevel: b.user.vipLevel ?? 0,
         betAmount: Number(b.amount), multiplier: Number(b.multiplier ?? 0), payout: Number(b.payout ?? 0), timestamp: (b.resolvedAt ?? b.placedAt).getTime()
       }));
       return reply.send({ success: true, history });
@@ -1123,6 +1128,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
                 username: true,
                 photoUrl: true,
                 telegramId: true,
+                vipLevel: true,
               },
             },
           },
@@ -1135,6 +1141,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             b.user.username ||
             `id${b.user.telegramId.toString().slice(-4)}`,
           photoUrl: b.user.photoUrl ?? null,
+          vipLevel: b.user.vipLevel ?? 0,
           betAmount: Number(b.amount),
           multiplier: Number(b.multiplier ?? 0),
           payout: Number(b.payout ?? 0),
@@ -1273,7 +1280,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
             id: true, amount: true, payout: true, placedAt: true, resolvedAt: true,
             multiplier: true,
             metadata: true,
-            user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true } },
+            user: { select: { firstName: true, username: true, photoUrl: true, telegramId: true, vipLevel: true } },
           },
         });
         
@@ -1297,6 +1304,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
               id: b.id,
               name: b.user.firstName || b.user.username || `id${b.user.telegramId.toString().slice(-4)}`,
               photoUrl: b.user.photoUrl ?? null,
+              vipLevel: b.user.vipLevel ?? 0,
               betAmount: Number(b.amount),
               multiplier: mult,
               payout: Number(b.payout ?? 0),
@@ -1602,7 +1610,3 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const success = table.readyToDeal(userId, isReady, typeof bet === 'number' ? bet : undefined);
 
     return reply.send({ success, state: table.getPublicState() });
-  });
-}
-
-

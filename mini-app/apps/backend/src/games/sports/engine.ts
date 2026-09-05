@@ -19,7 +19,8 @@ import {
   type SportMarket,
 } from './markets.js';
 import { sportEnabled, sportsLimits } from './limits.js';
-import { notifySportsUser, sportsGoalText, sportsSettleText } from './notify.js';
+import { notifySportsUser, sportsGoalText, sportsGoalCancelledText, sportsSettleText } from './notify.js';
+import { telegramApi } from '../../lib/telegram-api.js';
 import { redisClient } from '../../lib/redis.js';
 import { freebetService } from '../../services/freebet-service.js';
 
@@ -66,7 +67,7 @@ export interface PublicOdds {
 }
 
 export interface LastSportsEvent {
-  kind: 'goal' | 'point';
+  kind: 'goal' | 'point' | 'goal_cancelled' | 'point_cancelled';
   team: 1 | 2;
   score1: number;
   score2: number;
@@ -651,7 +652,17 @@ class SportsEngine {
     if (this.syncing) return;
     this.syncing = true;
     try {
-      const board = await fetchLiveBoard();
+      // Gather all event IDs that have active pending legs so the feed provider never drops them
+      const trackedIds = new Set<string>();
+      for (const [_, tracked] of this.bets) {
+        for (const leg of tracked.legs) {
+          if (leg.result === 'pending') {
+            trackedIds.add(leg.eventId);
+          }
+        }
+      }
+
+      const board = await fetchLiveBoard(trackedIds);
       if (board.length === 0 && this.events.size > 0) {
         logger.warn('Sports feed empty — keeping last snapshot');
         return;
@@ -702,15 +713,28 @@ class SportsEngine {
           featured: prev?.featured,
           suspended: this.suspended.has(targetId),
         });
-        if (lastEvent && (lastEvent.kind === 'goal' || lastEvent.kind === 'point')) {
-          this.pushActivity(
-            'goal',
-            `${feed.team1.name} — ${feed.team2.name} ${lastEvent.score1}:${lastEvent.score2}`,
-            targetId
-          );
-          await this.settleLiveSpecials(feed, lastEvent);
-          await this.notifyBettorsGoal(feed, lastEvent);
+
+        if (lastEvent) {
+          if (lastEvent.kind === 'goal' || lastEvent.kind === 'point') {
+            this.pushActivity(
+              'goal',
+              `${feed.team1.name} — ${feed.team2.name} ${lastEvent.score1}:${lastEvent.score2}`,
+              targetId
+            );
+            await this.settleLiveSpecials(feed, lastEvent);
+            await this.notifyBettorsGoal(feed, lastEvent);
+          } else if (lastEvent.kind === 'goal_cancelled') {
+            this.pushActivity(
+              'goal',
+              `VAR Отмена гола: ${feed.team1.name} — ${feed.team2.name} (${lastEvent.score1}:${lastEvent.score2})`,
+              targetId
+            );
+            const p1 = prev?.feed.team1.score ?? (lastEvent.team === 1 ? lastEvent.score1 + 1 : lastEvent.score1);
+            const p2 = prev?.feed.team2.score ?? (lastEvent.team === 2 ? lastEvent.score2 + 1 : lastEvent.score2);
+            await this.notifyGoalCancellation(feed, lastEvent, p1, p2);
+          }
         }
+
         if (feed.status === 'finished' && this.byEvent.has(targetId)) {
           await this.settleEvent(feed);
         }
@@ -719,10 +743,22 @@ class SportsEngine {
       for (const [id, ev] of this.events) {
         if (seen.has(id)) continue;
         if (this.byEvent.has(id)) {
-          // If match elapsed by more than 2.5 hours, consider it finished
+          // Realistic durations for concluding missing matches:
+          // Football: 90 mins + 15 min halftime -> regulation done at 105 mins. Settle by 110 mins.
+          // Basketball/Hockey: 125 mins.
+          // Esports/Tennis/MMA: 85 mins.
           const elapsed = Date.now() - ev.feed.startTime;
-          const maxMatchDuration = ev.feed.sport === 'football' ? 130 * 60_000 : 180 * 60_000;
-          if (ev.feed.status === 'finished' || elapsed > maxMatchDuration) {
+          const maxMatchDuration =
+            ev.feed.sport === 'football'
+              ? 110 * 60_000
+              : ev.feed.sport === 'basketball' || ev.feed.sport === 'hockey'
+              ? 125 * 60_000
+              : 85 * 60_000;
+
+          const isSoccerFinished =
+            ev.feed.sport === 'football' && (ev.feed.liveMinute ?? 0) >= 90 && elapsed > 105 * 60_000;
+
+          if (ev.feed.status === 'finished' || elapsed > maxMatchDuration || isSoccerFinished) {
             ev.feed.status = 'finished';
             await this.settleEvent(ev.feed);
           }
@@ -741,8 +777,17 @@ class SportsEngine {
           const ev = this.events.get(leg.eventId);
           if (ev) {
             const elapsed = now - ev.feed.startTime;
-            const maxDuration = ev.feed.sport === 'football' ? 130 * 60_000 : 150 * 60_000;
-            if (ev.feed.status === 'finished' || elapsed > maxDuration) {
+            const maxDuration =
+              ev.feed.sport === 'football'
+                ? 110 * 60_000
+                : ev.feed.sport === 'basketball' || ev.feed.sport === 'hockey'
+                ? 125 * 60_000
+                : 85 * 60_000;
+
+            const isSoccerFinished =
+              ev.feed.sport === 'football' && (ev.feed.liveMinute ?? 0) >= 90 && elapsed > 105 * 60_000;
+
+            if (ev.feed.status === 'finished' || elapsed > maxDuration || isSoccerFinished) {
               ev.feed.status = 'finished';
               const s1 = ev.feed.team1.score ?? 0;
               const s2 = ev.feed.team2.score ?? 0;
@@ -780,7 +825,22 @@ class SportsEngine {
     const p2 = prev.team2.score ?? 0;
     const n1 = next.team1.score ?? 0;
     const n2 = next.team2.score ?? 0;
-    // Score events must only trigger when score strictly INCREASES (not on 0:0 resets or glitch drops)
+
+    // Detect score decrease (VAR goal cancellation)
+    if (n1 < p1 || n2 < p2) {
+      // Don't trigger if it was a temporary 0:0 glitch reset when match had 2+ goals
+      if (n1 === 0 && n2 === 0 && p1 + p2 >= 2) return undefined;
+      const team: 1 | 2 = n1 < p1 ? 1 : 2;
+      return {
+        kind: 'goal_cancelled',
+        team,
+        score1: n1,
+        score2: n2,
+        at: Date.now(),
+      };
+    }
+
+    // Score events must only trigger when score strictly INCREASES
     if (n1 <= p1 && n2 <= p2) return undefined;
     const team: 1 | 2 = n1 > p1 ? 1 : 2;
     return {
@@ -919,11 +979,13 @@ class SportsEngine {
     if (last.kind !== 'goal') return;
 
     const seen = new Set<string>();
+    const sentMessages: Array<{ chatId: number; messageId: number }> = [];
+
     for (const betId of this.byEvent.get(feed.id) ?? []) {
       const tracked = this.bets.get(betId);
       if (!tracked || seen.has(tracked.bet.userId)) continue;
       seen.add(tracked.bet.userId);
-      void notifySportsUser(
+      const res = await notifySportsUser(
         tracked.bet.userId,
         sportsGoalText(
           `${feed.team1.name} — ${feed.team2.name}`,
@@ -934,6 +996,45 @@ class SportsEngine {
         ),
         { isGoalAlert: true }
       );
+      if (res) sentMessages.push(res);
+    }
+
+    if (sentMessages.length > 0) {
+      try {
+        const key = `sports:goal_msg:${feed.id}:${last.score1}:${last.score2}`;
+        await redisClient.getClient().set(key, JSON.stringify(sentMessages), 'EX', 7200);
+      } catch (err) {
+        logger.warn({ err, eventId: feed.id }, 'Failed to save goal message tracking to Redis');
+      }
+    }
+  }
+
+  private async notifyGoalCancellation(
+    feed: FeedEvent,
+    last: LastSportsEvent,
+    prevScore1: number,
+    prevScore2: number
+  ): Promise<void> {
+    if (feed.sport !== 'football' && feed.sport !== 'hockey') return;
+    const redis = redisClient.getClient();
+    const key = `sports:goal_msg:${feed.id}:${prevScore1}:${prevScore2}`;
+    try {
+      const raw = await redis.get(key);
+      if (!raw) return;
+      const sentMessages = JSON.parse(raw) as Array<{ chatId: number; messageId: number }>;
+      const cancelText = sportsGoalCancelledText(
+        `${feed.team1.name} — ${feed.team2.name}`,
+        last.score1,
+        last.score2,
+        last.team,
+        feed.sport
+      );
+      await Promise.allSettled(
+        sentMessages.map((m) => telegramApi.editMessageText(m.chatId, m.messageId, cancelText))
+      );
+      await redis.del(key);
+    } catch (err) {
+      logger.warn({ err, eventId: feed.id }, 'Failed to process goal cancellation in Telegram');
     }
   }
 

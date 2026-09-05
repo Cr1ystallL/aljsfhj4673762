@@ -158,8 +158,34 @@ function competitorLogo(c: EspnCompetitor): string | undefined {
 }
 
 function mapStatus(raw?: string, completed?: boolean): FeedEvent['status'] {
-  if (completed || raw === 'post') return 'finished';
-  if (raw === 'in') return 'live';
+  if (completed) return 'finished';
+  if (!raw) return 'prematch';
+  const s = String(raw).toLowerCase().trim();
+  if (
+    s === 'post' ||
+    s === 'finished' ||
+    s === 'ended' ||
+    s === 'closed' ||
+    s === 'ft' ||
+    s === 'final' ||
+    s === 'completed' ||
+    s.includes('final') ||
+    s.includes('finish') ||
+    s.includes('ended') ||
+    s.includes('after_overtime') ||
+    s.includes('shootout')
+  ) {
+    return 'finished';
+  }
+  if (
+    s === 'in' ||
+    s.includes('progress') ||
+    s.includes('live') ||
+    s.includes('halftime') ||
+    s.includes('intermission')
+  ) {
+    return 'live';
+  }
   return 'prematch';
 }
 
@@ -557,7 +583,7 @@ async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<Fee
   return out;
 }
 
-export async function fetchLiveBoard(): Promise<FeedEvent[]> {
+export async function fetchLiveBoard(priorityEventIds?: Set<string>): Promise<FeedEvent[]> {
   const chunks = await Promise.allSettled([
     ...FEEDS.map((f) => fetchFeed(f)),
     fetchEsportsBoard(),
@@ -573,10 +599,15 @@ export async function fetchLiveBoard(): Promise<FeedEvent[]> {
   const list = [...merged.values()];
   await attachEspnBoxscores(list);
   list.sort((a, b) => {
+    // If an event has active bets, prioritize it so it is never sliced off
+    const aPri = priorityEventIds?.has(a.id) ? 1 : 0;
+    const bPri = priorityEventIds?.has(b.id) ? 1 : 0;
+    if (aPri !== bPri) return bPri - aPri;
+
     const rank = (s: FeedEvent['status']) => (s === 'live' ? 0 : s === 'prematch' ? 1 : 2);
     const d = rank(a.status) - rank(b.status);
     if (d !== 0) return d;
     return a.startTime - b.startTime;
   });
-  return list.slice(0, 160);
+  return list.slice(0, 260);
 }

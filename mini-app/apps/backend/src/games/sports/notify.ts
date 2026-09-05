@@ -7,12 +7,12 @@ export async function notifySportsUser(
   userId: string,
   text: string,
   options?: { isGoalAlert?: boolean }
-): Promise<void> {
+): Promise<{ chatId: number; messageId: number } | null> {
   try {
     if (options?.isGoalAlert) {
       try {
         const disabled = await redisClient.getClient().get(`user:sports:disable_goals:${userId}`);
-        if (disabled === '1') return;
+        if (disabled === '1') return null;
       } catch {}
     }
 
@@ -21,12 +21,12 @@ export async function notifySportsUser(
       select: { telegramId: true },
     });
     const chatId = user?.telegramId ? Number(user.telegramId) : 0;
-    if (!chatId) return;
+    if (!chatId) return null;
 
     if (options?.isGoalAlert) {
       try {
         const tgDisabled = await redisClient.getClient().get(`user:sports:disable_goals:${chatId}`);
-        if (tgDisabled === '1') return;
+        if (tgDisabled === '1') return null;
       } catch {}
 
       const markup = {
@@ -39,13 +39,15 @@ export async function notifySportsUser(
           ],
         ],
       };
-      await telegramApi.sendMessageWithMarkup(chatId, text, markup);
-      return;
+      const msgId = await telegramApi.sendMessageWithMarkupAndGetId(chatId, text, markup);
+      return msgId ? { chatId, messageId: msgId } : null;
     }
 
-    await telegramApi.sendMessage(chatId, text);
+    const msgId = await telegramApi.sendMessageAndGetId(chatId, text);
+    return msgId ? { chatId, messageId: msgId } : null;
   } catch (err) {
     logger.warn({ err, userId }, 'Sports telegram notify failed');
+    return null;
   }
 }
 
@@ -64,6 +66,25 @@ export function sportsGoalText(
     `${icon} <b>${title}</b>`,
     `<b>${eventName}</b>`,
     `📊 Счёт: <b>${score1} : ${score2}</b> (${side})`,
+  ].join('\n');
+}
+
+export function sportsGoalCancelledText(
+  eventName: string,
+  score1: number,
+  score2: number,
+  team: 1 | 2,
+  sport?: string
+): string {
+  const icon = sport === 'hockey' ? '🏒' : '⚽';
+  const title = sport === 'hockey' ? 'ШАЙБА!' : 'ГОЛ!';
+  const cancelTitle = sport === 'hockey' ? 'ШАЙБА ОТМЕНЕНА (VAR)' : 'ГОЛ ОТМЕНЁН (VAR)';
+
+  return [
+    `<s>${icon} <b>${title}</b></s>`,
+    `❌ <b>${cancelTitle}</b>`,
+    `<b>${eventName}</b>`,
+    `📊 Счёт: <b>${score1} : ${score2}</b>`,
   ].join('\n');
 }
 

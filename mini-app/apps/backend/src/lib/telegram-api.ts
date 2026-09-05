@@ -80,6 +80,49 @@ export class TelegramApi {
       return false;
     }
   }
+
+  async sendMessageWithMarkupAndGetId(
+    chatId: string | number,
+    text: string,
+    replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> }
+  ): Promise<number | null> {
+    try {
+      if (!config.telegramBotToken) {
+        logger.warn('Cannot send Telegram message: Bot token is missing');
+        return null;
+      }
+
+      const body: Record<string, any> = {
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+      };
+      if (replyMarkup) {
+        body.reply_markup = replyMarkup;
+      }
+
+      const response = await fetch(`${this.baseUrl}/sendMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        logger.error({ chatId, status: response.status, errorData }, 'Failed to send Telegram message with markup');
+        return null;
+      }
+
+      const data = (await response.json()) as any;
+      return data.result?.message_id || null;
+    } catch (error) {
+      logger.error({ chatId, error }, 'Exception sending Telegram message with markup');
+      return null;
+    }
+  }
+
   async sendMessageAndGetId(chatId: string | number, text: string): Promise<number | null> {
     try {
       if (!config.telegramBotToken) {

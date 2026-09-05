@@ -62,12 +62,13 @@ export function CasesRoulette({
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
   const lastPassedRef = useRef<number[]>([]);
-  const suspenseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isSuspenseTriggeredRef = useRef(false);
 
   // Generate idle tracks
   useEffect(() => {
     if (!isSpinning) {
       setIsSuspenseFocus(false);
+      isSuspenseTriggeredRef.current = false;
       const newTracks = Array.from({ length: count }).map((_, i) => generateSequence(prizes, null, 80, i % 2 !== 0 ? 10 : 70));
       setTracks(newTracks);
       void controls.set((i) => {
@@ -79,22 +80,16 @@ export function CasesRoulette({
 
   useEffect(() => {
     if (isSpinning && winningPrizeIds.length > 0) {
-      if (suspenseTimerRef.current) clearTimeout(suspenseTimerRef.current);
       setIsSuspenseFocus(false);
+      isSuspenseTriggeredRef.current = false;
 
       // 1. Generate new tracks with winners
       const newTracks = winningPrizeIds.map((winId, i) => generateSequence(prizes, winId, 80, i % 2 !== 0 ? 10 : 70));
       setTracks(newTracks);
       
-      // 2. Check if a high multiplier (fat coin) is landing or in the near-miss window
       const fatCoinIds = new Set(prizes.slice(-3).map(p => p.id));
-      const hasBigXNearby = winningPrizeIds.some(winId => fatCoinIds.has(winId)) ||
-        newTracks.some((track, i) => {
-          const winIdx = i % 2 !== 0 ? 10 : 70;
-          return fatCoinIds.has(track[winIdx - 1]?.id) || fatCoinIds.has(track[winIdx + 1]?.id);
-        });
 
-      // 3. Instantly reset position to start
+      // 2. Instantly reset position to start
       void controls.set((i) => {
         const isReverse = i % 2 !== 0;
         return { x: isReverse ? -(70 * ITEM_WIDTH) : 0 };
@@ -102,7 +97,7 @@ export function CasesRoulette({
       lastPassedRef.current = [];
       soundManager.play('ui.click');
       
-      // 4. Wait for DOM to paint new tracks, then animate
+      // 3. Wait for DOM to paint new tracks, then animate
       setTimeout(() => {
         const containerWidth = containerRef.current?.offsetWidth || 300;
         const centerOffset = containerWidth / 2 - ITEM_WIDTH / 2;
@@ -110,15 +105,6 @@ export function CasesRoulette({
         
         const duration = isTurbo ? 3.5 : 8; // seconds for framer-motion
 
-        // Deceleration Suspense: triggers when roulette enters the final slow rolling phase
-        if (hasBigXNearby) {
-          const suspenseStartMs = (duration * (isTurbo ? 0.65 : 0.70)) * 1000;
-          suspenseTimerRef.current = setTimeout(() => {
-            setIsSuspenseFocus(true);
-            haptics.impact('medium');
-          }, suspenseStartMs);
-        }
-        
         // Start animation
         void controls.start((i) => {
           const isReverse = i % 2 !== 0;
@@ -130,7 +116,7 @@ export function CasesRoulette({
         }).then(() => {
           const hasActualBigWin = winningPrizeIds.some(winId => fatCoinIds.has(winId));
           if (!hasActualBigWin) {
-            // Rapid unblur and scale-down reverse transition when the big X misses
+            // Rapid unblur and scale-down reverse transition when the big X misses or ordinary prize lands
             setIsSuspenseFocus(false);
           } else {
             haptics.notification('success');
@@ -140,10 +126,6 @@ export function CasesRoulette({
         });
       }, 50);
     }
-
-    return () => {
-      if (suspenseTimerRef.current) clearTimeout(suspenseTimerRef.current);
-    };
   }, [isSpinning, winningPrizeIds, isTurbo, controls, prizes]);
 
   return (
@@ -217,6 +199,17 @@ export function CasesRoulette({
                 } else if (currentItemIndex !== lastPassedRef.current[trackIdx]) {
                   soundManager.play('cases.tick');
                   lastPassedRef.current[trackIdx] = currentItemIndex;
+                }
+
+                // Dynamic Suspense Zoom: triggers 3-4 sectors before the target stop
+                if (trackIdx === 0 && !isSuspenseTriggeredRef.current) {
+                  const targetWinIdx = 70;
+                  const dist = Math.abs(currentItemIndex - targetWinIdx);
+                  if (dist <= 4 && dist >= 0) {
+                    isSuspenseTriggeredRef.current = true;
+                    setIsSuspenseFocus(true);
+                    haptics.impact('medium');
+                  }
                 }
               }}
             >
