@@ -1,11 +1,18 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
+import {
+  VIP_RANKS,
+  VIP_ZL_PER_XP,
+  xpFromWagerZl,
+  wagerRemainderAfterXp,
+  getVipTierByXp,
+} from '@casino/shared';
 
 /**
- * Roll Albina back to the instant of her first 100 zł withdrawal.
- * Keeps that request pending, cancels later withdrawals without a
- * refund (balance is overwritten from the snapshot), sets a waterline
+ * Roll Albina back to the instant of her first 100 zł withdrawal:
+ * balance, VIP XP/rank, claimed rank rewards, and cashback clock.
+ * Later withdrawals are rejected without a refund. Waterline is set
  * so she can still win individual rounds but cannot climb the bank.
  *
  *   npx tsx scripts/rollback-albina-first-wd.ts           # preview
@@ -19,6 +26,19 @@ const USER_ID = process.argv.find((a) => /^[0-9a-f-]{36}$/i.test(a))
   || '4045bcb0-753c-4ae9-99cd-d70e2a35b39e';
 const APPLY = process.argv.includes('--apply');
 const FIRST_WD_AMOUNT = 100;
+const VIP_FRESH_START_EPOCH = new Date('2026-09-02T16:00:00.000Z');
+
+function isVipRankRewardTx(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  const reason = String((metadata as { reason?: unknown }).reason || '');
+  return reason.startsWith('VIP Rank Reward');
+}
+
+function isCashbackTx(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  const reason = String((metadata as { reason?: unknown }).reason || '');
+  return reason.startsWith('Weekly Cashback');
+}
 
 async function main() {
   const user = await prisma.user.findUnique({
@@ -71,8 +91,81 @@ async function main() {
     );
   }
 
+  const cutoff = firstWd.createdAt;
   const targetBalance = Number(snapshotTx.balanceAfter);
   const currentBalance = Number(user.balance.amount);
+
+  const wagerRows = await prisma.$queryRaw<Array<{ total_wager: string | number }>>`
+    SELECT COALESCE(SUM(amount), 0) as total_wager
+    FROM bets
+    WHERE user_id = ${USER_ID}
+      AND state != 'cancelled'
+      AND (metadata->>'demoMode')::boolean IS NOT TRUE
+      AND (metadata->>'isTournament')::boolean IS NOT TRUE
+      AND metadata->>'tournamentId' IS NULL
+      AND metadata->>'freebetId' IS NULL
+      AND placed_at >= ${VIP_FRESH_START_EPOCH}
+      AND placed_at < ${cutoff}
+  `;
+  const wagerAtCutoff = Number(wagerRows[0]?.total_wager || 0);
+  const targetXp = xpFromWagerZl(wagerAtCutoff);
+  const targetRemainder = wagerRemainderAfterXp(wagerAtCutoff);
+  const targetTier = getVipTierByXp(targetXp);
+  const targetLevel = targetTier.level;
+
+  const bonusTxs = await prisma.transaction.findMany({
+    where: { userId: USER_ID, type: 'bonus' },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const vipTxs = bonusTxs.filter((tx) => isVipRankRewardTx(tx.metadata));
+  const vipTxsAfter = vipTxs.filter((tx) => tx.createdAt > cutoff);
+  const vipTxsBefore = vipTxs.filter((tx) => tx.createdAt <= cutoff);
+  const cashbackTxs = bonusTxs.filter((tx) => isCashbackTx(tx.metadata));
+  const lastCashbackBefore = [...cashbackTxs].reverse().find((tx) => tx.createdAt <= cutoff) || null;
+  const cashbackAfter = cashbackTxs.filter((tx) => tx.createdAt > cutoff);
+
+  const claimedNow = (user.claimedVipRewards || []).map(Number);
+  const claimedAfterLevels = vipTxsAfter
+    .map((tx) => Number((tx.metadata as { level?: unknown } | null)?.level))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const claimedBeforeLevels = vipTxsBefore
+    .map((tx) => Number((tx.metadata as { level?: unknown } | null)?.level))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  const targetClaimed = Array.from(
+    new Set([
+      ...claimedNow.filter((lvl) => !claimedAfterLevels.includes(lvl)),
+      ...claimedBeforeLevels,
+      ...Array.from({ length: targetLevel }, (_, i) => i + 1),
+    ])
+  ).sort((a, b) => a - b);
+
+  const lastCashbackNow = user.lastCashbackClaimedAt;
+  const targetCashbackAt =
+    lastCashbackNow && lastCashbackNow > cutoff
+      ? lastCashbackBefore?.createdAt || null
+      : lastCashbackNow;
+
+  const casesToDeduct = vipTxsAfter.reduce((sum, tx) => {
+    const lvl = Number((tx.metadata as { level?: unknown } | null)?.level);
+    const tier = VIP_RANKS.find((r) => r.level === lvl);
+    if (!tier) return sum;
+    if (tier.rewardType === 'free_case' || tier.rewardType === 'balance_and_case') {
+      return sum + 1;
+    }
+    return sum;
+  }, 0);
+
+  const freebetsAfter = await prisma.$queryRaw<
+    Array<{ id: string; status: string; created_at: Date; amount: string }>
+  >`
+    SELECT id, status, created_at, amount::text
+    FROM user_freebets
+    WHERE user_id = ${USER_ID}
+      AND created_at > ${cutoff}
+      AND (id LIKE 'fb_vip_%' OR (amount = 50 AND payout_type = 'net_win'))
+  `;
 
   console.log('='.repeat(72));
   console.log(`ROLLBACK ${APPLY ? 'APPLY' : 'PREVIEW'}: ${USER_ID}`);
@@ -87,12 +180,33 @@ async function main() {
     console.log(`    • ${w.id}  ${w.createdAt.toISOString()}  ${Number(w.amount).toFixed(2)} zł`);
   }
   console.log(`  Waterline: ${targetBalance.toFixed(2)} zł (no hard drain)`);
+  console.log('-'.repeat(72));
+  console.log(`  Wager before first WD (since ${VIP_FRESH_START_EPOCH.toISOString()}): ${wagerAtCutoff.toFixed(2)} zł`);
+  console.log(`  XP rate: ${VIP_ZL_PER_XP} zł = 1 XP`);
+  console.log(`  VIP now: LVL ${user.vipLevel} / ${user.xp} XP  claimed=[${claimedNow.join(',')}]`);
+  console.log(`  VIP target: LVL ${targetLevel} ${targetTier.nameRu} / ${targetXp} XP  remainder=${targetRemainder.toFixed(2)}  claimed=[${targetClaimed.join(',')}]`);
+  console.log(`  Rank rewards after cutoff: ${vipTxsAfter.length}`);
+  for (const tx of vipTxsAfter) {
+    console.log(`    • ${tx.createdAt.toISOString()}  +${Number(tx.amount).toFixed(2)}  ${JSON.stringify(tx.metadata)}`);
+  }
+  console.log(`  Free cases to remove (post-cutoff rank rewards): ${casesToDeduct}`);
+  console.log(`  VIP freebets after cutoff: ${freebetsAfter.length}`);
+  for (const fb of freebetsAfter) {
+    console.log(`    • ${fb.id}  ${fb.status}  ${fb.created_at.toISOString()}`);
+  }
+  console.log(`  Cashback now: ${lastCashbackNow ? lastCashbackNow.toISOString() : 'null'}`);
+  console.log(`  Cashback target: ${targetCashbackAt ? targetCashbackAt.toISOString() : 'null'}`);
+  console.log(`  Cashback claims after cutoff: ${cashbackAfter.length}`);
   console.log('='.repeat(72));
 
   if (!APPLY) {
     console.log('Dry run. Re-run with --apply to write.');
     return;
   }
+
+  await prisma.$executeRaw`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS xp_wager_remainder NUMERIC(20, 2) DEFAULT 0;
+  `;
 
   await prisma.$transaction(async (tx) => {
     for (const w of laterPending) {
@@ -117,6 +231,41 @@ async function main() {
       },
     });
 
+    if (casesToDeduct > 0) {
+      const caseRows = await tx.$queryRaw<Array<{ free_cases: number; free_cases_json: unknown }>>`
+        SELECT free_cases, free_cases_json FROM balances WHERE user_id = ${USER_ID} FOR UPDATE
+      `;
+      const currentCases = Number(caseRows[0]?.free_cases || 0);
+      const newCases = Math.max(0, currentCases - casesToDeduct);
+      const json = (caseRows[0]?.free_cases_json as Record<string, { count: number; wager: number }>) || {};
+      if (json.starter) {
+        json.starter.count = Math.max(0, (json.starter.count || 0) - casesToDeduct);
+      }
+      await tx.$executeRaw`
+        UPDATE balances
+        SET free_cases = ${newCases},
+            free_cases_json = ${JSON.stringify(json)}::jsonb,
+            updated_at = NOW()
+        WHERE user_id = ${USER_ID}
+      `;
+    }
+
+    for (const fb of freebetsAfter) {
+      if (fb.status === 'available') {
+        await tx.$executeRaw`DELETE FROM user_freebets WHERE id = ${fb.id}`;
+      }
+    }
+
+    await tx.$executeRaw`
+      UPDATE users
+      SET xp = ${targetXp},
+          vip_level = ${targetLevel},
+          xp_wager_remainder = ${targetRemainder},
+          claimed_vip_rewards = ${targetClaimed},
+          last_cashback_claimed_at = ${targetCashbackAt}
+      WHERE id = ${USER_ID}
+    `;
+
     await tx.transaction.create({
       data: {
         userId: USER_ID,
@@ -129,6 +278,15 @@ async function main() {
           firstWithdrawalId: firstWd.id,
           snapshotTxId: snapshotTx.id,
           cancelledWithdrawalIds: laterPending.map((w) => w.id),
+          vip: {
+            wagerAtCutoff,
+            xp: targetXp,
+            level: targetLevel,
+            claimed: targetClaimed,
+            lastCashbackClaimedAt: targetCashbackAt ? targetCashbackAt.toISOString() : null,
+            casesDeducted: casesToDeduct,
+            freebetsRemoved: freebetsAfter.filter((fb) => fb.status === 'available').map((fb) => fb.id),
+          },
         },
       },
     });
@@ -140,9 +298,23 @@ async function main() {
         action: 'balance.rollback',
         targetType: 'user',
         targetId: USER_ID,
-        payloadBefore: { balance: currentBalance },
-        payloadAfter: { balance: targetBalance, waterline: targetBalance, firstWithdrawalId: firstWd.id },
-        reason: 'Rollback Albina to first 100 zł withdrawal snapshot',
+        payloadBefore: {
+          balance: currentBalance,
+          xp: user.xp,
+          vipLevel: user.vipLevel,
+          claimedVipRewards: claimedNow,
+          lastCashbackClaimedAt: lastCashbackNow,
+        },
+        payloadAfter: {
+          balance: targetBalance,
+          waterline: targetBalance,
+          firstWithdrawalId: firstWd.id,
+          xp: targetXp,
+          vipLevel: targetLevel,
+          claimedVipRewards: targetClaimed,
+          lastCashbackClaimedAt: targetCashbackAt,
+        },
+        reason: 'Rollback Albina to first 100 zł withdrawal snapshot (balance + VIP + cashback)',
       },
     });
   });
@@ -158,7 +330,7 @@ async function main() {
   );
   await redis.set(`rtp:waterline:${USER_ID}`, String(targetBalance), 'EX', 14 * 24 * 3600);
 
-  console.log('Applied. Balance restored, 195 zł cancelled, waterline set, no hard drain.');
+  console.log('Applied. Balance, VIP rank/rewards, and cashback restored to first WD. Waterline set, no hard drain.');
 }
 
 main()

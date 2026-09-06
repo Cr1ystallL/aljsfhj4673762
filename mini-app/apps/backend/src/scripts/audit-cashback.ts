@@ -4,7 +4,7 @@ dotenv.config();
 import { prisma, disconnectPrisma } from '../lib/prisma.js';
 import { redisClient } from '../lib/redis.js';
 import { VIP_FRESH_START_EPOCH, vipService } from '../services/vip-service.js';
-import { VIP_RANKS, VIP_XP_PER_ZL, getVipTierByXp } from '@casino/shared';
+import { VIP_RANKS, xpFromWagerZl, getVipTierByXp } from '@casino/shared';
 
 interface DiscrepancyUser {
   userId: string;
@@ -159,7 +159,7 @@ async function main() {
       const realOutOfPocketLoss = Math.max(0, totalDeposits - totalWithdrawals - liveBalance);
       const netLoss = totalDeposits > 0 ? Math.min(gamingLoss, realOutOfPocketLoss) : 0;
 
-      const legitXp = Math.floor(legitWager * VIP_XP_PER_ZL);
+      const legitXp = xpFromWagerZl(legitWager);
       const legitTier = getVipTierByXp(legitXp);
       const legitLevel = legitTier.level;
       const expectedCashback = Math.round(netLoss * (legitTier.cashbackPercent / 100) * 100) / 100;

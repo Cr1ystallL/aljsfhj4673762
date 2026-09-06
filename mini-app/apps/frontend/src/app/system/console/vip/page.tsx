@@ -20,7 +20,7 @@ import { VipBadge } from '@/components/vip/vip-badge';
 export default function AdminVipPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [xpPerZl, setXpPerZl] = useState<number>(10);
+  const [xpPerZl, setXpPerZl] = useState<number>(0.1);
   const [cashbackStartDate, setCashbackStartDate] = useState<string>('2026-09-07T00:00:00.000Z');
   const [tiers, setTiers] = useState<VipTierConfig[]>([...VIP_RANKS]);
 
@@ -31,7 +31,10 @@ export default function AdminVipPage() {
       if (!res.ok) throw new Error('Failed to load');
       const data = await res.json();
       if (data.ok && data.config) {
-        if (data.config.xpPerZl) setXpPerZl(data.config.xpPerZl);
+        if (data.config.xpPerZl) {
+          const rate = Number(data.config.xpPerZl);
+          setXpPerZl(rate >= 1 ? 0.1 : rate);
+        }
         if (data.config.cashbackStartDate) setCashbackStartDate(data.config.cashbackStartDate);
         if (Array.isArray(data.config.tiers)) setTiers(data.config.tiers);
       }
@@ -157,13 +160,14 @@ export default function AdminVipPage() {
           </label>
           <input
             type="number"
-            min={1}
+            min={0.01}
+            step={0.01}
             value={xpPerZl}
-            onChange={(e) => setXpPerZl(Math.max(1, Number(e.target.value) || 10))}
+            onChange={(e) => setXpPerZl(Math.max(0.01, Number(e.target.value) || 0.1))}
             className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white font-bold text-sm focus:border-amber-400 outline-none"
           />
           <span className="text-[11px] text-white/40">
-            Игрок получает указанное количество XP за каждый 1 zł реальной ставки.
+            По умолчанию 0.1 — то есть 10 zł оборота = 1 XP. Мелкие ставки копятся в остатке.
           </span>
         </div>
 

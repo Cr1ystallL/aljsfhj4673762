@@ -5,6 +5,9 @@ import { telegramApi } from '../lib/telegram-api.js';
 import {
   VIP_RANKS,
   VIP_XP_PER_ZL,
+  VIP_ZL_PER_XP,
+  xpFromWagerZl,
+  wagerRemainderAfterXp,
   getVipTierByXp,
   calculateVipProgress,
   type VipStatusDto,
@@ -38,6 +41,9 @@ export class VipService {
       await prisma.$executeRaw`
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_cashback_claimed_at TIMESTAMP WITH TIME ZONE;
       `;
+      await prisma.$executeRaw`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS xp_wager_remainder NUMERIC(20, 2) DEFAULT 0;
+      `;
       this.tablesEnsured = true;
 
       // Auto-run fresh start wipe of all past XP and cashback claims
@@ -48,6 +54,14 @@ export class VipService {
           if (!done) {
             await this.recalculateAllUsersVipAndResetCashback();
             await redis.set('vip:fresh_start_clean_v10', '1');
+          }
+
+          await this.migrateStaleAdminXpRate(redis);
+
+          const rateDone = await redis.get('vip:xp_rate_v11');
+          if (!rateDone) {
+            await this.recalculateAllUsersXpFromWager();
+            await redis.set('vip:xp_rate_v11', '1');
           }
         }
       } catch (e) {
@@ -91,12 +105,14 @@ export class VipService {
       if (betTotals.length > 0) {
         for (const row of betTotals) {
           const wager = Number(row.total_wager || 0);
-          const xp = Math.floor(wager * VIP_XP_PER_ZL);
+          const xp = xpFromWagerZl(wager);
+          const remainder = wagerRemainderAfterXp(wager);
           const tier = getVipTierByXp(xp);
           await prisma.$executeRaw`
             UPDATE users
             SET xp = ${xp},
-                vip_level = ${tier.level}
+                vip_level = ${tier.level},
+                xp_wager_remainder = ${remainder}
             WHERE id = ${row.user_id}
           `;
         }
@@ -120,18 +136,95 @@ export class VipService {
   }
 
   /**
+   * If an old admin config still stores 10 XP per zł, rewrite it to 10 zł = 1 XP
+   * and scale displayed wager requirements. Does not touch claimed rewards.
+   */
+  private async migrateStaleAdminXpRate(redis: { get: (k: string) => Promise<string | null>; set: (k: string, v: string) => Promise<unknown> }): Promise<void> {
+    const raw = await redis.get('vip:admin_config');
+    if (!raw) return;
+    try {
+      const cfg = JSON.parse(raw);
+      const rate = Number(cfg?.xpPerZl);
+      if (!Number.isFinite(rate) || rate < 1) return;
+      cfg.xpPerZl = VIP_XP_PER_ZL;
+      if (Array.isArray(cfg.tiers)) {
+        cfg.tiers = cfg.tiers.map((tier: VipTierConfig) => ({
+          ...tier,
+          wagerZl: Number(tier.minXp || 0) * VIP_ZL_PER_XP,
+        }));
+      }
+      await redis.set('vip:admin_config', JSON.stringify(cfg));
+      logger.info({ from: rate, to: VIP_XP_PER_ZL }, 'Migrated stale VIP admin XP rate to 10 zł = 1 XP');
+    } catch (err) {
+      logger.warn({ err }, 'Failed to migrate stale VIP admin XP rate');
+    }
+  }
+
+  /**
+   * Recomputes XP / rank from real-money wager since the fresh-start epoch
+   * using the current 10 zł = 1 XP rate. Leaves cashback claims and rank
+   * reward claims untouched so nobody can reclaim already-paid bonuses.
+   */
+  async recalculateAllUsersXpFromWager(): Promise<{ updatedUsers: number }> {
+    await this.ensureTables();
+    logger.info({ xpPerZl: VIP_XP_PER_ZL, zlPerXp: VIP_ZL_PER_XP }, 'Recalculating VIP XP from wager at 10 zł = 1 XP');
+
+    await prisma.$executeRaw`
+      UPDATE users
+      SET xp = 0,
+          vip_level = 0,
+          xp_wager_remainder = 0
+    `;
+
+    const betTotals = await prisma.$queryRaw<Array<{ user_id: string; total_wager: number | string }>>`
+      SELECT user_id, COALESCE(SUM(amount), 0) as total_wager
+      FROM bets
+      WHERE state != 'cancelled'
+        AND (metadata->>'demoMode')::boolean IS NOT TRUE
+        AND (metadata->>'isTournament')::boolean IS NOT TRUE
+        AND metadata->>'tournamentId' IS NULL
+        AND metadata->>'freebetId' IS NULL
+        AND placed_at >= ${VIP_FRESH_START_EPOCH}
+      GROUP BY user_id
+    `;
+
+    for (const row of betTotals) {
+      const wager = Number(row.total_wager || 0);
+      const xp = xpFromWagerZl(wager);
+      const remainder = wagerRemainderAfterXp(wager);
+      const tier = getVipTierByXp(xp);
+      await prisma.$executeRaw`
+        UPDATE users
+        SET xp = ${xp},
+            vip_level = ${tier.level},
+            xp_wager_remainder = ${remainder}
+        WHERE id = ${row.user_id}
+      `;
+    }
+
+    logger.info({ updatedWithBets: betTotals.length }, 'VIP XP recalculated at 10 zł = 1 XP');
+    return { updatedUsers: betTotals.length };
+  }
+
+  /**
    * Adds XP when a real-money bet is placed.
+   * Small bets accumulate in xp_wager_remainder until they reach 10 zł = 1 XP.
    */
   async addXp(userId: string, betAmountZl: number, txClient?: PrismaClient | Prisma.TransactionClient): Promise<void> {
     if (betAmountZl <= 0) return;
     await this.ensureTables();
     const db = txClient || prisma;
-    const gainedXp = Math.max(1, Math.floor(betAmountZl * VIP_XP_PER_ZL));
+    const zlPerXp = VIP_ZL_PER_XP;
 
     try {
       const rows = await db.$queryRaw<Array<{ xp: number; vip_level: number }>>`
         UPDATE users
-        SET xp = COALESCE(xp, 0) + ${gainedXp}
+        SET
+          xp = COALESCE(xp, 0) + FLOOR((COALESCE(xp_wager_remainder, 0) + ${betAmountZl}::numeric) / ${zlPerXp}::numeric),
+          xp_wager_remainder = MOD(
+            (COALESCE(xp_wager_remainder, 0) + ${betAmountZl}::numeric),
+            ${zlPerXp}::numeric
+          )
         WHERE id = ${userId}
         RETURNING xp, vip_level
       `;
@@ -714,7 +807,7 @@ export class VipService {
           AND placed_at >= ${VIP_FRESH_START_EPOCH}
       `;
       const legitWager = Number(wagerRows[0]?.total_wager || 0);
-      const legitXp = Math.floor(legitWager * VIP_XP_PER_ZL);
+      const legitXp = xpFromWagerZl(legitWager);
       const legitTier = getVipTierByXp(legitXp);
       const legitLevel = legitTier.level;
 
@@ -899,10 +992,12 @@ export class VipService {
         }
 
         // D. Update user XP, Level, and mark all levels up to current level as ALREADY CLAIMED
+        const legitRemainder = wagerRemainderAfterXp(legitWager);
         await tx.$executeRaw`
           UPDATE users
           SET xp = ${legitXp},
               vip_level = ${legitLevel},
+              xp_wager_remainder = ${legitRemainder},
               claimed_vip_rewards = ${targetClaimed}
           WHERE id = ${user.id}
         `;
