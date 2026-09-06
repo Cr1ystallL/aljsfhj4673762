@@ -205,6 +205,8 @@ export const ru = {
     privacy: 'Политика',
     faq: 'FAQ',
     fairness: 'Честная игра',
+    responsible: 'Ответственная игра',
+    search: 'Поиск по вопросам',
   },
   splash: {
     l1: 'MacvBet — играй красиво.',
@@ -788,6 +790,8 @@ export const en: Messages = {
     privacy: 'Privacy',
     faq: 'FAQ',
     fairness: 'Fair play',
+    responsible: 'Responsible gaming',
+    search: 'Search questions',
   },
   splash: {
     l1: 'MacvBet — play it clean.',
@@ -1369,6 +1373,8 @@ export const pl: Messages = {
     privacy: 'Polityka',
     faq: 'FAQ',
     fairness: 'Uczciwa gra',
+    responsible: 'Odpowiedzialna gra',
+    search: 'Szukaj pytań',
   },
   splash: {
     l1: 'MacvBet — graj czysto.',

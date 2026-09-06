@@ -1,490 +1,404 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ChevronLeft, Shield, CheckCircle2, HelpCircle, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  BookOpen,
+  FileText,
+  HeartHandshake,
+  HelpCircle,
+  Lock,
+  MessageCircle,
+  Search,
+  ShieldCheck,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import { GameTopBar } from '@/components/game/game-top-bar';
+import { PAGE_WIDTH } from '@/components/layout/page-width';
+import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
+import { cn } from '@/lib/utils';
+import { Accordion } from './components/accordion';
+import { LegalDocument } from './components/legal-document';
+import { WagerTable } from './components/wager-table';
+import { FAQ, FAQ_SUPPORT_URL, type FaqCategoryId } from './content/faq';
+import {
+  LEGAL_EFFECTIVE_DATE,
+  LEGAL_VERSION,
+  PRIVACY,
+  RESPONSIBLE,
+  TERMS,
+} from './content/legal';
 
-function Accordion({ question, answer }: { question: string, answer: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
+type TabId = 'rules' | 'privacy' | 'responsible' | 'faq';
+
+interface TabDef {
+  id: TabId;
+  label: string;
+  Icon: LucideIcon;
+  accent: string;
+  chip: string;
+  glow: string;
+  lead: string;
+}
+
+export default function InfoPage() {
+  const { t } = useT();
+  const [tab, setTab] = useState<TabId>('rules');
+
+  const tabs: TabDef[] = useMemo(
+    () => [
+      {
+        id: 'rules',
+        label: t('info.rules'),
+        Icon: FileText,
+        accent: 'text-amber-300',
+        chip: 'border-amber-400/30 bg-amber-400/10 text-amber-200',
+        glow: 'rgba(255,172,46,0.22)',
+        lead: 'Пользовательское соглашение и правила платформы',
+      },
+      {
+        id: 'privacy',
+        label: t('info.privacy'),
+        Icon: Lock,
+        accent: 'text-sky-300',
+        chip: 'border-sky-400/30 bg-sky-400/10 text-sky-200',
+        glow: 'rgba(56,189,248,0.22)',
+        lead: 'Какие данные мы храним, зачем и как долго',
+      },
+      {
+        id: 'responsible',
+        label: t('info.responsible'),
+        Icon: HeartHandshake,
+        accent: 'text-emerald-300',
+        chip: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+        glow: 'rgba(0,232,123,0.2)',
+        lead: 'Лимиты, тайм-аут, самоисключение и где получить помощь',
+      },
+      {
+        id: 'faq',
+        label: t('info.faq'),
+        Icon: HelpCircle,
+        accent: 'text-violet-300',
+        chip: 'border-violet-400/30 bg-violet-400/10 text-violet-200',
+        glow: 'rgba(167,139,250,0.22)',
+        lead: 'Ответы про аккаунт, деньги, вейджер и правила игр',
+      },
+    ],
+    [t]
+  );
+
+  // Deep links (/info#faq, /info#privacy) select a tab. Hash rather than
+  // useSearchParams keeps the route statically rendered.
+  useEffect(() => {
+    const apply = () => {
+      const target = window.location.hash.replace('#', '') as TabId;
+      if (tabs.some((x) => x.id === target)) setTab(target);
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectTab = (id: TabId) => {
+    setTab(id);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${id}`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const active = tabs.find((x) => x.id === tab) ?? tabs[0];
+
   return (
-    <div className="border border-white/5 rounded-2xl bg-white/[0.02] overflow-hidden transition-all duration-300 hover:bg-white/[0.04]">
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-5 text-left focus:outline-none"
-      >
-        <h4 className="font-semibold text-frost-white text-sm sm:text-base pr-4">{question}</h4>
-        <ChevronDown size={18} className={`text-frost-white/50 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180 text-macvbet-red' : ''}`} />
-      </button>
-      <div 
-        className={`overflow-hidden transition-all duration-300 ease-in-out`}
-        style={{ maxHeight: isOpen ? '1000px' : '0px', opacity: isOpen ? 1 : 0 }}
-      >
-        <div className="p-5 pt-0 text-sm text-frost-white/70 leading-relaxed border-t border-white/5 mt-1">
-          {answer}
+    <main className="min-h-screen w-full bg-black text-frost-white flex flex-col pb-36 font-roobert">
+      <GameTopBar title={t('info.title')} Icon={BookOpen} width="wide" />
+
+      <div className={cn('mx-auto w-full px-3.5 pt-4 flex flex-col gap-4', PAGE_WIDTH.wide)}>
+        {/* Hero */}
+        <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#0d0f13] p-5 sm:p-6">
+          <motion.div
+            key={active.id}
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6 }}
+            className="pointer-events-none absolute -top-28 -right-24 w-80 h-80 rounded-full blur-3xl"
+            style={{ background: active.glow }}
+          />
+          <div className="relative z-10 flex items-start gap-4">
+            <div
+              className={cn(
+                'w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0',
+                active.chip
+              )}
+            >
+              <active.Icon size={22} strokeWidth={2} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-roobert text-[20px] sm:text-[22px] font-black text-white tracking-[-0.02em] leading-tight">
+                {active.label}
+              </h1>
+              <p className="mt-1 text-[12.5px] text-white/50 leading-snug">{active.lead}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] text-white/60 tabular-nums">
+                  Редакция {LEGAL_VERSION}
+                </span>
+                <span className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] text-white/60">
+                  Действует с {LEGAL_EFFECTIVE_DATE}
+                </span>
+                <span className="px-2.5 py-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 inline-flex items-center gap-1.5">
+                  <ShieldCheck size={12} strokeWidth={2.4} />
+                  18+
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Tabs */}
+        <div className="sticky top-[52px] z-40 -mx-3.5 px-3.5 py-2 bg-black/85 backdrop-blur-xl">
+          <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl border border-white/10 bg-[#0d0f13]">
+            {tabs.map((x) => {
+              const isActive = x.id === tab;
+              return (
+                <Pressable
+                  key={x.id}
+                  onClick={() => selectTab(x.id)}
+                  aria-pressed={isActive}
+                  className={cn(
+                    'relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-1.5 py-2 rounded-xl text-[11px] sm:text-[12.5px] font-semibold transition-colors',
+                    isActive ? 'text-white' : 'text-white/45 hover:text-white/75'
+                  )}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="info-tab-pill"
+                      className="absolute inset-0 rounded-xl border border-white/15 bg-white/[0.08]"
+                      transition={{ type: 'spring', duration: 0.45, bounce: 0.15 }}
+                    />
+                  )}
+                  <x.Icon size={15} strokeWidth={2.2} className={cn('relative z-10', isActive && x.accent)} />
+                  <span className="relative z-10 leading-none truncate max-w-full">{x.label}</span>
+                </Pressable>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+          >
+            {tab === 'rules' && (
+              <div className="flex flex-col gap-4">
+                <Notice tone="amber">
+                  Депозит, ставка или нажатие «Принимаю» при первом запуске означают согласие с этим Соглашением.
+                  Если вы не согласны — прекратите использование Платформы.
+                </Notice>
+                <LegalDocument sections={TERMS} accent="text-amber-300" />
+              </div>
+            )}
+
+            {tab === 'privacy' && (
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { title: 'Минимум данных', body: 'Telegram-профиль, платежи, технические логи. Карты не храним.' },
+                    { title: 'Никаких продаж', body: 'Данные не уходят рекламным сетям. Только платёжные партнёры и закон.' },
+                    { title: 'Право на удаление', body: 'Профиль удаляется по запросу; финансовая история — 5 лет по AML.' },
+                  ].map((c) => (
+                    <div key={c.title} className="rounded-2xl border border-sky-400/15 bg-sky-400/[0.05] p-4">
+                      <div className="font-roobert text-[13.5px] font-bold text-sky-200">{c.title}</div>
+                      <p className="mt-1 text-[12.5px] text-white/60 leading-snug">{c.body}</p>
+                    </div>
+                  ))}
+                </div>
+                <LegalDocument sections={PRIVACY} accent="text-sky-300" />
+              </div>
+            )}
+
+            {tab === 'responsible' && <ResponsibleTab />}
+
+            {tab === 'faq' && <FaqTab />}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Support */}
+        <section className="rounded-[20px] border border-white/10 bg-white/[0.025] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-11 h-11 rounded-2xl border border-white/10 bg-white/[0.04] flex items-center justify-center text-white shrink-0">
+              <MessageCircle size={20} strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <div className="font-roobert text-[14.5px] font-bold text-white">Не нашли ответ?</div>
+              <p className="text-[12.5px] text-white/50 leading-snug">
+                Поддержка отвечает 24/7. Укажите Telegram ID и время операции.
+              </p>
+            </div>
+          </div>
+          <Pressable
+            onClick={() => window.open(FAQ_SUPPORT_URL, '_blank')}
+            className="px-5 py-3 rounded-xl bg-white text-black font-extrabold text-[13px] hover:bg-white/90 transition-colors"
+          >
+            Написать в поддержку
+          </Pressable>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Notice({ tone, children }: { tone: 'amber' | 'emerald'; children: React.ReactNode }) {
+  const cls =
+    tone === 'amber'
+      ? 'border-amber-400/25 bg-amber-400/[0.08] text-amber-100/90'
+      : 'border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-100/90';
+  return (
+    <div className={cn('rounded-2xl border px-4 py-3.5 text-[13px] leading-relaxed', cls)}>{children}</div>
+  );
+}
+
+function ResponsibleTab() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Notice tone="emerald">
+        Если игра перестала быть развлечением — остановитесь. Все инструменты ниже бесплатны и включаются
+        одним сообщением в поддержку.
+      </Notice>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {RESPONSIBLE.map((b, i) => (
+          <section
+            key={b.id}
+            className={cn(
+              'rounded-[20px] border border-white/10 bg-white/[0.025] p-4 sm:p-5',
+              (i === 0 || b.id === 'help') && 'md:col-span-2'
+            )}
+          >
+            <h3 className="font-roobert text-[15px] font-bold text-white">{b.title}</h3>
+            <p className="mt-1.5 text-[13.5px] text-white/65 leading-relaxed">{b.text}</p>
+            {b.bullets && (
+              <ul className="mt-3 flex flex-col gap-2">
+                {b.bullets.map((line) => (
+                  <li key={line} className="flex gap-2.5 text-[13px] text-white/70 leading-snug">
+                    <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
       </div>
     </div>
   );
 }
 
-export default function InfoPage() {
-  const router = useRouter();
+function FaqTab() {
   const { t } = useT();
-  const [activeTab, setActiveTab] = useState<'rules' | 'privacy' | 'faq'>('rules');
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<FaqCategoryId | 'all'>('all');
 
-  const tabs = [
-    { id: 'rules', label: t('info.rules'), icon: Shield },
-    { id: 'privacy', label: t('info.privacy'), icon: CheckCircle2 },
-    { id: 'faq', label: t('info.faq'), icon: HelpCircle },
-  ] as const;
+  const q = query.trim().toLowerCase();
 
-  // Deep links such as /info#faq open the right tab. Read from the hash rather
-  // than useSearchParams so the route keeps rendering statically.
-  useEffect(() => {
-    const target = window.location.hash.replace('#', '');
-    if (tabs.some((t) => t.id === target)) {
-      setActiveTab(target as typeof activeTab);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const visible = useMemo(() => {
+    return FAQ.map((cat) => {
+      if (category !== 'all' && cat.id !== category) return { ...cat, items: [] };
+      if (!q) return cat;
+      const items = cat.items.filter(
+        (it) =>
+          it.q.toLowerCase().includes(q) ||
+          it.a.toLowerCase().includes(q) ||
+          (it.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
+      );
+      return { ...cat, items };
+    }).filter((cat) => cat.items.length > 0);
+  }, [q, category]);
+
+  const total = visible.reduce((n, c) => n + c.items.length, 0);
 
   return (
-    <main className="min-h-screen bg-midnight-canvas text-frost-white flex flex-col pb-safe selection:bg-macvbet-red/30">
-      <header className="sticky top-0 z-50 bg-midnight-canvas/90 backdrop-blur-xl border-b border-white/5 px-4 py-4 flex flex-col gap-4 shadow-2xl shadow-black/50">
-        <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-4">
+      {/* Search */}
+      <label className="relative block">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('info.search')}
+          className="w-full h-12 pl-10 pr-10 rounded-2xl border border-white/10 bg-[#0d0f13] text-[14px] text-white placeholder:text-white/35 outline-none focus:border-violet-400/40 focus:ring-2 focus:ring-violet-400/15 transition [&::-webkit-search-cancel-button]:appearance-none"
+        />
+        {query && (
           <button
-            onClick={() => router.back()}
-            className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 hover:bg-white/10 transition-all active:scale-95 text-frost-white/80 hover:text-white"
+            type="button"
+            aria-label="Очистить"
+            onClick={() => setQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/60"
           >
-            <ChevronLeft size={24} />
+            <X size={13} strokeWidth={2.4} />
           </button>
-          <h1 className="font-roobert font-bold text-xl tracking-wide uppercase bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-            {t('info.title')}
-          </h1>
-        </div>
-        
-        {/* Scrollable tabs */}
-        <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-1 mask-linear-fade">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all duration-300 border ${
-                activeTab === t.id
-                  ? 'bg-macvbet-red/10 border-macvbet-red/30 text-macvbet-red shadow-[0_0_15px_rgba(255,42,76,0.15)]'
-                  : 'bg-white/5 border-transparent text-frost-white/60 hover:bg-white/10 hover:text-frost-white/90'
-              }`}
-            >
-              <t.icon size={16} className={activeTab === t.id ? 'drop-shadow-glow' : ''} />
-              <span className="font-roobert text-sm font-medium tracking-wide">{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </header>
+        )}
+      </label>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6 pb-32">
-        <div className="max-w-2xl mx-auto">
-          
-          {/* TAB: RULES */}
-          {activeTab === 'rules' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-3 mb-8">
-                <div className="w-16 h-16 rounded-full bg-macvbet-red/10 flex items-center justify-center mx-auto mb-4 border border-macvbet-red/20">
-                  <Shield size={32} className="text-macvbet-red" />
-                </div>
-                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ И ПРАВИЛА ИГРОВОЙ ПЛАТФОРМЫ MACVBET</h2>
-                <p className="text-xs text-frost-white/40 uppercase tracking-widest font-mono">MacvBet | Редакция от 1 Июня 2026</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-200/90 text-sm flex gap-3 items-start">
-                <span className="text-xl">⚠️</span>
-                <p>Регистрация, запуск бота и участие в играх в интерфейсе Telegram Web App означают автоматическое и безоговорочное согласие Пользователя со всеми пунктами данного Соглашения. Если вы не согласны с условиями — немедленно прекратите использование Платформы.</p>
-              </div>
-
-              <div className="text-frost-white/80 space-y-6 text-sm leading-relaxed">
-                <section className="space-y-3">
-                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">1. Специфика использования Telegram Web App (TWA)</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold text-white">1.1. Жёсткая привязка к Telegram ID</h4>
-                      <p>Учётная запись Пользователя на Платформе неразрывно связана с его уникальным цифровым идентификатором Telegram ID. Любые действия, совершённые через данный аккаунт Telegram, признаются действиями самого Пользователя. Перепривязка игрового профиля на другой Telegram ID не допускается ни при каких обстоятельствах.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">1.2. Противодействие Telegram-фермам</h4>
-                      <p>Категорически запрещено использование аккаунтов Telegram, зарегистрированных на виртуальные, временные или арендованные номера телефонов, а также оформленных на подставных лиц (дропов). При обнаружении признаков массовой регистрации или управления сетью аккаунтов вся сеть блокируется навсегда без права вывода средств.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">1.3. Ответственность за безопасность профиля</h4>
-                      <p>Компания не несёт ответственности за сохранность личного Telegram-аккаунта Пользователя. В случае угона, утери, удаления или блокировки аккаунта мессенджером Telegram доступ к игровому балансу теряется безвозвратно.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">1.4. Запрет на парсинг и эмуляцию</h4>
-                      <p>Взаимодействие с Платформой разрешено исключительно через официальный интерфейс Telegram Web App. Использование сторонних клиентов, эмуляторов, скриптов автоматизации, а также прямых API-запросов признаётся несанкционированным доступом. Аккаунт нарушителя ликвидируется мгновенно.</p>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">2. Мультиаккаунтинг, верификация (KYC) и борьба с ИИ</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold text-white">2.1. Правило одного аккаунта</h4>
-                      <p>Одно физическое лицо имеет право владеть только одним игровым счётом. Данное правило распространяется на один IP-адрес/подсеть, одно физическое устройство и одну платёжную карту/кошелёк.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">2.2. Процедура верификации (KYC)</h4>
-                      <p>Компания имеет право в любой момент заморозить вывод средств и потребовать от Пользователя подтверждения личности (фото документов, селфи, видеоинтервью). До успешного завершения верификации все финансовые операции приостанавливаются.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">2.3. Запрет на автоматизацию и ИИ</h4>
-                      <p>Запрещено использование любых подсказчиков, ботов, ИИ-алгоритмов или кликеров. Компания использует внутренние поведенческие маркеры. Любая аномальная сессионная активность ведёт к блокировке.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">2.4. Возраст Пользователя</h4>
-                      <p>Платформа предназначена исключительно для лиц, достигших 18 лет. При обнаружении нарушения аккаунт блокируется, средства замораживаются.</p>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">3. Бонусная политика и технические сбои</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold text-white">3.1. Злоупотребление бонусами</h4>
-                      <p>Запрещены любые стратегии отыгрыша бонусных средств с минимальным риском. Все выигрыши, полученные с использованием уязвимостей бонусной механики, признаются недействительными.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">3.2. Технические сбои («Palpable Errors»)</h4>
-                      <p>В случае программных ошибок, сбоёв ГСЧ, задержек передачи данных или трансляции неверных коэффициентов все затронутые ставки аннулируются с возвратом суммы исходной ставки.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">3.3. Ограничения выплат</h4>
-                      <p>Компания устанавливает максимальные лимиты единовременного вывода. При выигрышах, превышающих стандартные лимиты, проводится дополнительная проверка.</p>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">4. Финансовые правила</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-semibold text-white">4.1. Принципиальный отказ от чарджбэков</h4>
-                      <p>В случае инициации возврата платежей (Chargeback) Платформа немедленно блокирует аккаунт, аннулирует баланс и вправе передать данные в антифрод-системы.</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">4.2. Запрет платёжных средств третьих лиц</h4>
-                      <p>Использование карт и кошельков, принадлежащих третьим лицам, категорически запрещено.</p>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">5. Абсолютное дискреционное право</h3>
-                  <p>Компания оставляет за собой право изменять правила без уведомления, а также закрыть учётную запись любого Пользователя по собственному усмотрению (с возвратом остатка реального депозита, если нет нарушений).</p>
-                </section>
-                
-                <section className="space-y-3">
-                  <h3 className="text-lg font-bold text-macvbet-red font-roobert uppercase tracking-wide">6. Интеллектуальная собственность</h3>
-                  <p>Все объекты интеллектуальной собственности Платформы — торговая марка MacvBet, программный код, дизайн, контент и игровые механики — являются собственностью Компании. Использование без разрешения запрещено.</p>
-                </section>
-
-              </div>
-            </div>
-          )}
-
-          {/* TAB: PRIVACY */}
-          {activeTab === 'privacy' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-3 mb-8">
-                <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
-                  <CheckCircle2 size={32} className="text-blue-400" />
-                </div>
-                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">Политика Конфиденциальности</h2>
-              </div>
-
-              <div className="text-frost-white/80 space-y-6 text-sm leading-relaxed bg-white/[0.02] p-6 rounded-3xl border border-white/5">
-                <p>Мы в MACVBET серьезно относимся к защите ваших персональных данных. Данная политика описывает, как мы собираем, используем и защищаем вашу информацию в рамках Telegram Web App.</p>
-                
-                <h3 className="text-lg font-semibold text-white mt-6 mb-3">1. Какую информацию мы собираем?</h3>
-                <ul className="list-disc pl-5 space-y-2 text-frost-white/70">
-                  <li><strong>Данные профиля Telegram:</strong> Ваш уникальный Telegram ID, публичное имя (First Name / Last Name), username и URL аватара. Эти данные передаются нам самим мессенджером при запуске бота.</li>
-                  <li><strong>Финансовая информация:</strong> История транзакций, депозитов, выводов и игровых ставок, совершенных на платформе. Реквизиты банковских карт мы не храним — все платежи обрабатываются через защищенные шлюзы партнеров.</li>
-                  <li><strong>Технические данные:</strong> IP-адреса, метаданные устройства, User-Agent и история сессий в целях предотвращения мошенничества и мультиаккаунтинга.</li>
-                </ul>
-
-                <h3 className="text-lg font-semibold text-white mt-6 mb-3">2. Как мы используем ваши данные?</h3>
-                <ul className="list-disc pl-5 space-y-2 text-frost-white/70">
-                  <li>Для создания и управления вашей игровой учетной записью.</li>
-                  <li>Для проведения платежей и вывода выигрышей.</li>
-                  <li>Для обеспечения безопасности платформы: выявления ботов, ферм и нарушений пользовательского соглашения.</li>
-                  <li>Для составления публичных таблиц лидеров (в публичном доступе может отображаться ваше имя Telegram и часть баланса/выигрыша).</li>
-                </ul>
-
-                <h3 className="text-lg font-semibold text-white mt-6 mb-3">3. Передача данных третьим лицам</h3>
-                <p>Мы не продаем и не передаем ваши данные третьим лицам в маркетинговых целях. Данные могут быть раскрыты только по официальному запросу правоохранительных органов или переданы провайдерам антифрод-защиты для проверки платежей.</p>
-
-                <h3 className="text-lg font-semibold text-white mt-6 mb-3">4. Хранение и безопасность</h3>
-                <p>Все данные передаются по защищенному протоколу TLS и хранятся в зашифрованных базах данных с ограниченным доступом сотрудников. В случае прекращения использования сервиса, мы храним финансовую историю в течение 5 лет в соответствии с правилами AML (противодействие отмыванию денег).</p>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: FAQ */}
-          {activeTab === 'faq' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-3 mb-8">
-                <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-4 border border-purple-500/20">
-                  <HelpCircle size={32} className="text-purple-400" />
-                </div>
-                <h2 className="text-2xl font-bold font-roobert text-white tracking-wide">База Знаний & FAQ</h2>
-                <p className="text-sm text-frost-white/50">Ответы на все ваши вопросы об играх и платформе.</p>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Общие вопросы и Аккаунт</h3>
-                <Accordion 
-                  question="Как пополнить баланс и как долго идет вывод?" 
-                  answer="Вы можете пополнить баланс в разделе &quot;Кошелёк&quot;. Мы поддерживаем криптовалюты и банковские карты. Пополнение криптой происходит после 1-го подтверждения сети. Выводы в криптовалюте автоматизированы и занимают 5-15 минут. Выводы на банковские карты могут занимать от нескольких часов до 1 суток." 
-                />
-                <Accordion 
-                  question="Разрешено ли создавать несколько аккаунтов (мультиаккаунты)?" 
-                  answer="Категорически нет. Это прямое нарушение Пользовательского соглашения. Наша антифрод-система анализирует IP-адреса, отпечатки устройств и поведенческие факторы. При обнаружении фермы или мультиаккаунта все средства конфискуются, а профили блокируются." 
-                />
-                <Accordion 
-                  question="Можно ли удалить аккаунт?" 
-                  answer="Да, вы можете отправить запрос в службу поддержки. Однако по правилам AML мы обязаны хранить историю финансовых транзакций в течение 5 лет." 
-                />
-                <Accordion 
-                  question="Могу ли я передать аккаунт другу?" 
-                  answer="Нет. Передача аккаунта третьим лицам строго запрещена и приравнивается к мошенничеству." 
-                />
-                <Accordion 
-                  question="Что делать, если я забыл пароль?" 
-                  answer="Ваш аккаунт жестко привязан к вашему Telegram ID. У нас нет паролей. Пока у вас есть доступ к вашему Telegram, у вас есть доступ к профилю." 
-                />
-                <Accordion 
-                  question="Есть ли у вас мобильное приложение?" 
-                  answer="MacvBet работает как Telegram Web App, что позволяет вам играть прямо из мессенджера на любом устройстве без необходимости скачивать отдельные приложения." 
-                />
-                <Accordion 
-                  question="Как связаться со службой поддержки?" 
-                  answer="Вы можете обратиться в саппорт через главное меню бота, выбрав раздел &quot;Поддержка&quot;. Мы работаем 24/7." 
-                />
-                <Accordion 
-                  question="Нужно ли проходить верификацию (KYC)?" 
-                  answer="Мы можем запросить KYC (фото документа, селфи) в любой момент при подозрительной активности или при выводе крупных сумм." 
-                />
-                <Accordion 
-                  question="Можно ли поменять валюту счета?" 
-                  answer="На данный момент валюта счета устанавливается при регистрации автоматически. Основная валюта платформы - PLN/RUB/USD в зависимости от региона." 
-                />
-                <Accordion 
-                  question="Защищены ли мои персональные данные?" 
-                  answer="Да, все данные передаются по защищенному протоколу TLS и хранятся в зашифрованных базах данных с ограниченным доступом." 
-                />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Финансы: Пополнение и Вывод</h3>
-                <Accordion 
-                  question="Взимается ли комиссия за вывод средств?" 
-                  answer="Платформа не берет свою комиссию, однако комиссия сети блокчейна или банка-эмитента вычитается из суммы вывода." 
-                />
-                <Accordion 
-                  question="Какая минимальная сумма депозита?" 
-                  answer="Минимальная сумма депозита зависит от выбранного метода оплаты. Для криптовалют это обычно эквивалент $1-5." 
-                />
-                <Accordion 
-                  question="Какая минимальная сумма на вывод?" 
-                  answer="Минимальный вывод также зависит от метода. Актуальные лимиты всегда отображаются в разделе кассы перед созданием заявки." 
-                />
-                <Accordion 
-                  question="Можно ли вывести средства на чужую карту?" 
-                  answer="Категорически запрещено. Использование платёжных средств, принадлежащих третьим лицам, ведёт к блокировке." 
-                />
-                <Accordion 
-                  question="Что такое Чарджбэк (Chargeback)?" 
-                  answer="Это отзыв платежа через банк. В случае инициации чарджбэка аккаунт немедленно блокируется." 
-                />
-                <Accordion 
-                  question="Мой депозит не пришел, что делать?" 
-                  answer="Подождите 15-30 минут. Для крипты проверьте количество подтверждений сети. Если деньги не поступили, обратитесь в поддержку, предоставив TXID или чек." 
-                />
-                <Accordion 
-                  question="Почему мой вывод отменен?" 
-                  answer="Возможно, вы не отыграли обязательный вейджер на депозит, или служба безопасности запросила верификацию. Проверьте уведомления от бота." 
-                />
-                <Accordion 
-                  question="Можно ли отменить заявку на вывод?" 
-                  answer="Пока заявка находится в статусе &quot;В обработке&quot;, вы можете отменить её через личный кабинет." 
-                />
-                <Accordion 
-                  question="Сколько подтверждений сети нужно для крипты?" 
-                  answer="Обычно достаточно 1 подтверждения для большинства сетей (TRC20, BEP20, Polygon)." 
-                />
-                <Accordion 
-                  question="Нужно ли отыгрывать депозит перед выводом?" 
-                  answer="Да, в целях противодействия отмыванию денег (AML) любой депозит должен быть проставлен с вейджером x1 перед выводом." 
-                />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Бонусы и Промоакции</h3>
-                <Accordion 
-                  question="Как работают бонусы?" 
-                  answer="Бонусы зачисляются на бонусный счет и имеют требование по отыгрышу (вейджеру). Пока вейджер не выполнен, вывод бонусных средств невозможен." 
-                />
-                <Accordion 
-                  question="Что такое вейджер (Wager)?" 
-                  answer="Вейджер — это сумма ставок, которую необходимо сделать, чтобы бонусные деньги перешли на реальный баланс (например, x30 от суммы бонуса)." 
-                />
-                <Accordion 
-                  question="Где найти промокоды?" 
-                  answer="Мы регулярно публикуем промокоды в нашем официальном Telegram-канале." 
-                />
-                <Accordion 
-                  question="Как активировать промокод?" 
-                  answer="Перейдите в раздел &quot;Бонусы&quot; или &quot;Профиль&quot; и введите код в соответствующее поле." 
-                />
-                <Accordion 
-                  question="Можно ли вывести бездепозитный бонус?" 
-                  answer="Только после выполнения условий отыгрыша (вейджера) и, в некоторых случаях, минимального депозита для привязки платежного метода." 
-                />
-                <Accordion 
-                  question="Есть ли кэшбэк (Cashback)?" 
-                  answer="Да, кэшбэк начисляется еженедельно или ежедневно в зависимости от вашего VIP-уровня." 
-                />
-                <Accordion 
-                  question="Могу ли я отменить бонус?" 
-                  answer="Вы можете отменить активный бонус, но при этом сгорят все бонусные средства и выигрыши с них." 
-                />
-                <Accordion 
-                  question="Что такое рейкбек (Rakeback)?" 
-                  answer="Это возврат части преимущества казино с каждой вашей ставки, независимо от того, выиграла она или проиграла." 
-                />
-                <Accordion 
-                  question="Учитываются ли все игры в отыгрыше бонуса?" 
-                  answer="Нет, некоторые игры (например, рулетка или карточные игры) могут давать меньший процент в зачет вейджера по сравнению со слотами." 
-                />
-                <Accordion 
-                  question="Можно ли злоупотреблять бонусами?" 
-                  answer="Любые стратегии игры с минимальным риском на бонусные деньги признаются абузом. Выигрыши будут аннулированы." 
-                />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Безопасность и надежность</h3>
-                <Accordion 
-                  question="Как обеспечивается безопасность аккаунта?" 
-                  answer="Все данные передаются по защищенному SSL-каналу. Доступ к аккаунту привязан к вашему Telegram ID, что исключает несанкционированный вход." 
-                />
-                <Accordion 
-                  question="Что делать, если я нашел ошибку/баг?" 
-                  answer="Сообщите в поддержку. У нас действует программа Bug Bounty — за критические уязвимости мы выплачиваем вознаграждение." 
-                />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Правила Игр (In-House)</h3>
-                <Accordion 
-                  question="🚀 Как играть в MacvJet (Crash)?" 
-                  answer="MacvJet — наша фирменная краш-игра. Ракета взлетает, и множитель начинает расти от 1.00x. Ваша задача — нажать кнопку &quot;Забрать&quot;, прежде чем ракета улетит. Если вы успеете, ставка умножится на коэффициент. Если нет — сгорает." 
-                />
-                <Accordion 
-                  question="🚀 Есть ли авто-кэшаут в MacvJet?" 
-                  answer="Да, вы можете заранее установить желаемый множитель в поле Auto Cashout. Если ракета достигнет этого значения, выигрыш заберется автоматически." 
-                />
-                <Accordion 
-                  question="💣 В чем суть игры Mines?" 
-                  answer="Перед вами поле 5x5. Под некоторыми ячейками спрятаны мины (от 1 до 24). Открывая алмазы, ваш множитель растет. Вы можете забрать выигрыш в любой момент. Если попадаете на мину — раунд окончен, ставка проиграна." 
-                />
-                <Accordion 
-                  question="💣 Что будет, если я открою все алмазы в Mines?" 
-                  answer="Вы получите максимальный джекпот для данного количества мин и раунд автоматически завершится победой." 
-                />
-                <Accordion 
-                  question="🪙 Правила игры Coinflip?" 
-                  answer="Классический бросок монеты. Вы выбираете Орла (Heads) или Решку (Tails). Шанс выигрыша 50%. В случае победы ставка удваивается (с учетом минимальной комиссии платформы 1-4%)." 
-                />
-                <Accordion 
-                  question="🎡 Что такое Wheel (Колесо)?" 
-                  answer="Колесо фортуны, разделенное на цветные сектора с разными множителями. Вы выбираете уровень риска. Чем выше риск, тем выше потенциальные множители, но меньше шансов на их выпадение." 
-                />
-                <Accordion 
-                  question="🃏 Как играть в Hi Lo?" 
-                  answer="В Hi Lo вам предстоит угадать, будет ли следующая карта старше (Hi) или младше (Lo) текущей. Чем меньше вероятность события, тем выше множитель выигрыша. Вы можете забрать выигрыш после любого успешного шага!" 
-                />
-                <Accordion
-                  question="🎁 Как устроены Кейсы?"
-                  answer="Вы выбираете кейс и открываете его за фиксированную цену. Внутри девять призов — от 0.1x до 100x от цены кейса. Шанс каждого приза указан прямо на его карточке в списке «Содержимое кейса», и сумма всех шансов всегда равна ровно 100.00%. Можно открывать до трёх кейсов за раз. Бесплатные открытия, полученные в бонусах, тратятся раньше баланса."
-                />
-                <Accordion
-                  question="🎁 Почему в бесплатном кейсе не выпадают крупные призы?"
-                  answer="У бесплатных открытий действует ограничение максимального выигрыша — не выше 2.5x от цены кейса. Это касается только бесплатных прокрутов; при открытии за собственные средства доступны все призы, вплоть до 100x."
-                />
-                <Accordion
-                  question="🔢 Как играть в Keno?"
-                  answer="Вы отмечаете числа на поле, после чего система случайным образом вытягивает свою серию. Выигрыш зависит от того, сколько ваших чисел совпало, и от выбранного уровня риска: чем выше риск, тем больше совпадений нужно, но и множители выше."
-                />
-                <Accordion
-                  question="🏆 Что такое MacvPot?"
-                  answer="Многопользовательский джекпот-раунд. Игроки делают ставки в общий банк в течение фазы приёма ставок, затем разыгрывается победитель. Чем больше ваша доля в банке, тем выше шанс на победу."
-                />
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Отыгрыш по играм</h3>
-                <div className="border border-white/5 rounded-2xl bg-white/[0.02] overflow-hidden mb-3">
-                  <div className="p-5 text-sm text-frost-white/70 leading-relaxed">
-                    <p className="mb-4">
-                      Не каждая игра засчитывается в отыгрыш полностью. Ставка в 100 zł
-                      с вкладом 30% добавит к прогрессу 30 zł. Актуальные значения:
-                    </p>
-                    <div className="flex flex-col gap-1.5">
-                      {[
-                        { game: 'MacvJet (Crash)', value: '100%' },
-                        { game: 'Coinflip', value: '100%' },
-                        { game: 'Wheel', value: '100%' },
-                        { game: 'Hi-Lo', value: '100%' },
-                        { game: 'Keno', value: '100%' },
-                        { game: 'Кейсы', value: '100%' },
-                        { game: 'MacvPot', value: '100%' },
-                        { game: 'Blackjack', value: '100%' },
-                        { game: 'Mines', value: '30%' },
-                      ].map((row) => (
-                        <div
-                          key={row.game}
-                          className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-b-0"
-                        >
-                          <span className="text-frost-white/85">{row.game}</span>
-                          <span
-                            className={`font-roobert font-semibold tabular-nums ${
-                              row.value === '100%' ? 'text-emerald-400/90' : 'text-amber-300'
-                            }`}
-                          >
-                            {row.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-4 text-frost-white/50 text-xs">
-                      Значения настраиваются администрацией и могут меняться. Текущий
-                      прогресс отыгрыша виден в профиле.
-                    </p>
-                  </div>
-                </div>
-                <h3 className="font-roobert font-bold text-macvbet-red uppercase tracking-wider text-sm mt-8 mb-4 px-2">Технические Вопросы</h3>
-                <Accordion 
-                  question="Почему игра тормозит?" 
-                  answer="Убедитесь, что у вас стабильное интернет-соединение. Если проблема сохраняется, попробуйте очистить кэш Telegram или перезапустить приложение." 
-                />
-                <Accordion 
-                  question="Что произойдет, если оборвется связь во время ставки?" 
-                  answer="В одиночных играх (Mines, Coinflip) результат генерируется сразу, деньги зачисляются на баланс автоматически при выигрыше. В MacvJet, если вы не успели нажать &quot;Кэшаут&quot; до обрыва связи и не настроили авто-вывод, ставка проиграет, если ракета взорвется до вашего переподключения." 
-                />
-                <Accordion 
-                  question="Бот не открывает приложение (Web App), что делать?" 
-                  answer="Убедитесь, что вы используете последнюю версию Telegram. Также попробуйте зайти с другого устройства (ПК/телефон)." 
-                />
-                <Accordion 
-                  question="Куда пропадают деньги с баланса?" 
-                  answer="Вся история ваших транзакций и ставок доступна в профиле. Если вы считаете, что произошла ошибка, напишите в службу поддержки с указанием примерного времени." 
-                />
-                <Accordion 
-                  question="Как обновить приложение до последней версии?" 
-                  answer="Telegram Web App обновляется автоматически. Достаточно закрыть его свайпом вниз и открыть заново из меню бота." 
-                />
-              </div>
-            </div>
-          )}
+      {/* Category chips */}
+      <div className="-mx-3.5 px-3.5 overflow-x-auto no-scrollbar">
+        <div className="flex gap-2 w-max pb-0.5">
+          {[{ id: 'all' as const, short: 'Все' }, ...FAQ.map((c) => ({ id: c.id, short: c.short }))].map((c) => {
+            const on = category === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCategory(c.id)}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-full border text-[12.5px] font-semibold whitespace-nowrap transition-colors',
+                  on
+                    ? 'border-violet-400/40 bg-violet-400/15 text-violet-100'
+                    : 'border-white/10 bg-white/[0.03] text-white/60 hover:text-white hover:bg-white/[0.07]'
+                )}
+              >
+                {c.short}
+              </button>
+            );
+          })}
         </div>
       </div>
-    </main>
+
+      {total === 0 ? (
+        <div className="rounded-[20px] border border-white/10 bg-white/[0.025] p-8 text-center">
+          <div className="font-roobert text-[15px] font-bold text-white">Ничего не найдено</div>
+          <p className="mt-1 text-[12.5px] text-white/50">
+            Попробуйте другое слово или напишите в поддержку — ответим и добавим вопрос сюда.
+          </p>
+        </div>
+      ) : (
+        visible.map((cat) => (
+          <section key={cat.id} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between px-1 pt-1">
+              <h3 className="font-roobert text-[11px] font-bold uppercase tracking-[0.16em] text-white/45">
+                {cat.title}
+              </h3>
+              <span className="text-[11px] tabular-nums text-white/30">{cat.items.length}</span>
+            </div>
+            {cat.items.map((item) => (
+              <Accordion key={item.q} question={item.q} accent="text-violet-300" defaultOpen={!!q}>
+                <p>{item.a}</p>
+                {item.widget === 'wager-table' && <WagerTable />}
+              </Accordion>
+            ))}
+          </section>
+        ))
+      )}
+    </div>
   );
 }

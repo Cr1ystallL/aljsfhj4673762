@@ -42,6 +42,7 @@ export const WS_EVENTS = {
 } as const;
 
 export * from './vip';
+export * from './wager';
 
 export const GAME_TYPES = {
   CRASH: 'crash',

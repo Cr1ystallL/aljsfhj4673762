@@ -106,6 +106,28 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
+   * GET /api/games/wager-contribution
+   * Public: live per-game wager contribution for the Info/FAQ page.
+   * Hidden games are omitted so the FAQ does not leak admin-only titles.
+   */
+  app.get('/wager-contribution', async (_request, reply) => {
+    const all: GameType[] = [...gameTypes, 'keno'];
+    const rows = await Promise.all(
+      all.map(async (t) => {
+        const cfg = await gameConfig.get(t);
+        return { gameType: t, contribution: cfg.wagerContribution ?? 1, hidden: !!cfg.hidden };
+      })
+    );
+    const games: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.hidden) continue;
+      games[r.gameType] = Math.max(0, Math.min(1, Number(r.contribution) || 0));
+    }
+    reply.header('Cache-Control', 'public, max-age=60');
+    return reply.send({ ok: true, games });
+  });
+
+  /**
    * Helper: ensure the engine knows display info for the current user.
    * This populates avatar/name fields embedded in player feed events.
    */

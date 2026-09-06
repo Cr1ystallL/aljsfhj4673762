@@ -1,3 +1,4 @@
+import { WAGER_CONTRIBUTION_DEFAULTS } from '@casino/shared';
 import { redisClient } from '../lib/redis.js';
 import { logger } from '../utils/logger.js';
 
@@ -52,6 +53,12 @@ export interface GameConfig {
   extras?: Record<string, unknown>;
 }
 
+/**
+ * Wager contribution defaults live in `@casino/shared` so the FAQ shows
+ * the same numbers the pipeline applies.
+ */
+const WC = WAGER_CONTRIBUTION_DEFAULTS;
+
 /** Defaults. Used when Redis has no value yet for a game. */
 const DEFAULTS: Record<GameType, GameConfig> = {
   crash: {
@@ -60,7 +67,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 500,
     houseEdge: 0.05,
-    wagerContribution: 1.0,
+    wagerContribution: WC.crash,
     extras: {
       waitingPhaseSeconds: 15,
       countdownSeconds: 0,
@@ -72,7 +79,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 500,
     houseEdge: 0.05,
-    wagerContribution: 0.3, // Mines default to 30% contribution
+    wagerContribution: WC.mines,
     extras: {
       minMines: 1,
       maxMines: 24,
@@ -85,7 +92,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 500,
     houseEdge: 0.05,
-    wagerContribution: 1.0,
+    wagerContribution: WC.coinflip,
     extras: {
       stepMultiplier: 1.90,
       maxRounds: 20,
@@ -97,7 +104,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 500,
     houseEdge: 0.05,
-    wagerContribution: 1.0,
+    wagerContribution: WC.wheel,
     extras: {
       waitingPhaseSeconds: 9,
     },
@@ -108,7 +115,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 10,
     maxBet: 500,
     houseEdge: 0.04,
-    wagerContribution: 1.0,
+    wagerContribution: WC.blackjack,
     extras: {
       countdownSeconds: 12,
       turnCountdownSeconds: 30,
@@ -121,7 +128,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 500,
     houseEdge: 0.05,
-    wagerContribution: 1.0,
+    wagerContribution: WC.hilo,
     extras: {},
   },
   cases: {
@@ -130,7 +137,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 1000,
     houseEdge: 0.05, // 95% RTP
-    wagerContribution: 1.0,
+    wagerContribution: WC.cases,
     extras: {
       casesWeights: {}
     },
@@ -141,7 +148,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 1,
     maxBet: 500,
     houseEdge: 0.05,
-    wagerContribution: 1.0,
+    wagerContribution: WC.keno,
     extras: {},
   },
   macvpot: {
@@ -150,7 +157,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     minBet: 10,
     maxBet: 1000,
     houseEdge: 0.05, // 95% RTP
-    wagerContribution: 1.0,
+    wagerContribution: WC.macvpot,
     extras: {
       bettingDuration: 25,
       rollDelay: 3,
@@ -165,7 +172,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     maxBet: 500,
     // Margin is already inside the posted odds (~5.5%).
     houseEdge: 0,
-    wagerContribution: 1.0,
+    wagerContribution: WC.sports,
     extras: {
       maxPayout: 50_000,
       maxCombinedOdds: 35,
