@@ -19,7 +19,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import timedelta
 from typing import Any
 
 import psycopg2
@@ -28,6 +28,14 @@ from psycopg2.extras import RealDictCursor
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramAPIError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from broadcast_time import (
+    as_utc,
+    cycle_reached_until,
+    from_unix_ms,
+    next_cycle_at,
+    utc_now,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +73,13 @@ def _audience_sql_where(audience: dict[str, Any]) -> tuple[str, list[Any]]:
 
     if audience.get("regAfter"):
         parts.append("created_at >= %s")
-        params.append(datetime.fromtimestamp(audience["regAfter"] / 1000))
+        params.append(from_unix_ms(audience["regAfter"]))
     if audience.get("regBefore"):
         parts.append("created_at <= %s")
-        params.append(datetime.fromtimestamp(audience["regBefore"] / 1000))
+        params.append(from_unix_ms(audience["regBefore"]))
 
     if audience.get("inactiveDays") and audience["inactiveDays"] > 0:
-        cutoff = datetime.fromtimestamp(
-            datetime.now().timestamp() - audience["inactiveDays"] * 86400
-        )
+        cutoff = utc_now() - timedelta(days=int(audience["inactiveDays"]))
         parts.append("id NOT IN (SELECT user_id FROM bets WHERE placed_at >= %s)")
         params.append(cutoff)
 
@@ -541,13 +547,13 @@ async def _process_one(bot: Bot, bc_id: str) -> None:
                 and bc_state.get("broadcast_type") == "cyclical"
                 and bc_state.get("interval_seconds")
             ):
-                now = datetime.now()
-                until_date = bc_state.get("until_date")
+                now = utc_now()
+                until_date = as_utc(bc_state.get("until_date"))
                 interval_sec = int(bc_state["interval_seconds"])
-                next_run = datetime.fromtimestamp(now.timestamp() + interval_sec)
+                next_run = next_cycle_at(now, interval_sec)
 
                 # Check if expiration date has been reached
-                if until_date and (now >= until_date or next_run > until_date):
+                if cycle_reached_until(now, next_run, until_date):
                     logger.info(
                         "Cyclical broadcast %s reached until_date %s; marking sent",
                         bc_id,
