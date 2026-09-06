@@ -1,37 +1,13 @@
 /** @type {import('next').NextConfig} */
 
-const path = require('path');
-
-function addAtAlias(config) {
-  const src = path.resolve(__dirname, 'src');
-  const srcSlash = src.endsWith(path.sep) ? src : `${src}${path.sep}`;
-  const alias = config.resolve.alias;
-  // Only map `@/` → src/. A bare `@` alias also matches CSS at-rules
-  // (`@tailwind`, `@apply`, `@layer`) and crashes css-loader on globals.css.
-  if (Array.isArray(alias)) {
-    const kept = alias.filter((entry) => entry && entry.name !== '@');
-    alias.length = 0;
-    alias.push(...kept);
-    if (!alias.some((entry) => entry && entry.name === '@/')) {
-      alias.push({ name: '@/', alias: srcSlash });
-    }
-    return;
-  }
-  if (alias && typeof alias === 'object') {
-    delete alias['@'];
-    if (!alias['@/']) alias['@/'] = srcSlash;
-    return;
-  }
-  config.resolve.alias = { '@/': srcSlash };
-}
-
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
 
+  // Disable webpack filesystem cache — Cache.store crashes on this VPS
+  // when a previous failed build left a half-written .next.
   webpack: (config) => {
     config.cache = false;
-    addAtAlias(config);
     return config;
   },
 
