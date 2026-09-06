@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "test": "tsx --test src/services/mines-click-decision.test.ts src/services/collision-policy.test.ts src/services/vip-xp-rate.test.ts src/services/funnel-decision.test.ts src/services/blackjack-player-draw.test.ts",
+    "test": "tsx --test src/services/mines-click-decision.test.ts src/services/collision-policy.test.ts src/services/vip-xp-rate.test.ts src/services/funnel-decision.test.ts src/services/blackjack-player-draw.test.ts src/games/sports/odds.test.ts",
     "clean": "rm -rf dist",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

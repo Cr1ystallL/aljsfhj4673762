@@ -1,8 +1,10 @@
 /**
- * Virtual-sports odds. Same math as the old client engine — Poisson
- * football/hockey, strength-weighted tennis / basketball / esports —
- * so the line the player sees is the line the server locks on bet.
- * Margin is baked in here; game-config houseEdge for sports is 0.
+ * Virtual-sports odds. Same line the player sees is the line the server locks.
+ *
+ * Book-like constraints (not a soft 35.00 dump):
+ *  - live 1X2 uses current score + remaining time + team strength
+ *  - outcomes below ~6.5% are suspended instead of priced at the cap
+ *  - team names match on whole tokens ("villarreal" ≠ "real madrid")
  */
 
 export interface TeamStrength {
@@ -29,14 +31,82 @@ function poissonPmf(k: number, lambda: number): number {
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial;
 }
 
-export const MAX_SPORTS_ODDS = 35;
+/** Single-outcome cap. Real BKs suspend before dumping 25–35 on a dead 1X2. */
+export const MAX_SPORTS_ODDS = 15;
+
+/** Below this fair probability the outcome is taken off the board. */
+export const MIN_OUTCOME_PROB = 0.065;
+
+const MARGIN = 1.055;
 
 export function formatOdds(odds: number): number {
-  if (odds < 1.01) return 1.01;
+  if (!Number.isFinite(odds) || odds < 1.01) return 1.01;
   if (odds >= MAX_SPORTS_ODDS) return MAX_SPORTS_ODDS;
-  if (odds > 20) return Math.round(odds * 2) / 2;
   if (odds > 10) return Math.round(odds * 10) / 10;
   return Math.round(odds * 100) / 100;
+}
+
+export function priceOutcome(p: number, margin = MARGIN): { odds: number; open: boolean } {
+  if (!Number.isFinite(p) || p < MIN_OUTCOME_PROB) {
+    return { odds: 1.01, open: false };
+  }
+  return { odds: formatOdds(1 / (p * margin)), open: true };
+}
+
+/**
+ * Expected minutes still to play. Stoppage is phased in near full time
+ * so 90:00 2-2 is ~4 minutes of football, not 9 seconds (old 0.15 floor).
+ */
+export function footballRemainingMinutes(minute: number, matchMinutes = 90): number {
+  const m = Math.min(Math.max(minute, 0), matchMinutes + 15);
+  if (m <= matchMinutes) {
+    const raw = matchMinutes - m;
+    const intoWindow = Math.max(0, m - (matchMinutes - 8));
+    const stoppage = 4.0 * (intoWindow / 8);
+    return Math.max(raw + stoppage, 1);
+  }
+  return Math.max(1.15, 4.2 - (m - matchMinutes) * 0.42);
+}
+
+/**
+ * If ESPN clock is missing or stuck, fall back to kickoff elapsed.
+ * Also reject a 90' clock when the match has only been running ~50 minutes.
+ */
+export function resolveFootballLiveMinute(
+  clockMinute: number | undefined | null,
+  startTime: number,
+  now: number,
+  status: 'prematch' | 'live' | 'finished'
+): number {
+  if (status !== 'live') return 0;
+  const elapsed = Math.max(0, (now - startTime) / 60_000);
+  const clock =
+    clockMinute != null && Number.isFinite(clockMinute) ? Number(clockMinute) : null;
+
+  if (clock != null && clock > 0) {
+    if (clock >= 80 && elapsed >= 8 && elapsed < 68) {
+      return Math.min(89, Math.round(elapsed));
+    }
+    if (clock <= 2 && elapsed > 15) {
+      return Math.min(89, Math.round(elapsed));
+    }
+    return clock;
+  }
+  if (elapsed > 2) return Math.min(95, Math.round(elapsed));
+  return 0;
+}
+
+export function strengthFromRating(rating: number): TeamStrength {
+  const r = Math.max(60, Math.min(99, rating));
+  const t = (r - 72) / 24;
+  return {
+    attack: 0.95 + t * 0.95,
+    defense: 1.18 - t * 0.38,
+  };
+}
+
+export function teamStrength(name: string): TeamStrength {
+  return strengthFromRating(getTeamPowerRating(name));
 }
 
 function footballLikeOdds(
@@ -49,19 +119,18 @@ function footballLikeOdds(
   redCards1 = 0,
   redCards2 = 0
 ): LiveOddsResult {
-  const clampedMinute = Math.min(Math.max(minute, 0), matchMinutes + 5);
-  const remainingMinutes = Math.max(matchMinutes - clampedMinute, 0);
-  const timeFactor = Math.max(remainingMinutes, 0.15) / matchMinutes;
+  const remainingMinutes = footballRemainingMinutes(minute, matchMinutes);
+  const timeFactor = remainingMinutes / matchMinutes;
 
   const redPenalty1 = Math.max(0.4, 1 - redCards1 * 0.25);
   const redPenalty2 = Math.max(0.4, 1 - redCards2 * 0.25);
 
   const lambda1 = Math.max(
-    0.01,
+    0.02,
     strength1.attack * strength2.defense * timeFactor * redPenalty1
   );
   const lambda2 = Math.max(
-    0.01,
+    0.02,
     strength2.attack * strength1.defense * timeFactor * redPenalty2
   );
 
@@ -86,18 +155,16 @@ function footballLikeOdds(
   let normP1 = prob1Wins / totalProb;
   let normPX = probDraw / totalProb;
   let normP2 = prob2Wins / totalProb;
-  const margin = 1.055;
-  const toBook = (p: number) => formatOdds(1 / (Math.max(0.008, p) * margin));
 
   const lead = score1 - score2;
   const remainMin = remainingMinutes;
   const pUnder = lead > 0 ? normP2 : lead < 0 ? normP1 : 0;
   const lockUnderdogWin =
     lead !== 0 &&
-    (pUnder < 0.05 ||
-      (Math.abs(lead) >= 1 && remainMin <= 5) ||
-      (Math.abs(lead) >= 2 && remainMin <= 12));
-  const lockDraw = lead !== 0 && normPX < 0.04 && remainMin <= 3 && Math.abs(lead) >= 2;
+    (pUnder < MIN_OUTCOME_PROB ||
+      (Math.abs(lead) >= 1 && remainMin <= 4) ||
+      (Math.abs(lead) >= 2 && remainMin <= 10));
+  const lockDraw = lead !== 0 && normPX < MIN_OUTCOME_PROB && remainMin <= 3 && Math.abs(lead) >= 2;
 
   if (lockUnderdogWin) {
     if (lead > 0) {
@@ -120,17 +187,21 @@ function footballLikeOdds(
       }
     }
   }
-  const normUnder = Math.min(Math.max(probUnder / totalProb, 0.05), 0.95);
+  const normUnder = Math.min(Math.max(probUnder / totalProb, MIN_OUTCOME_PROB), 1 - MIN_OUTCOME_PROB);
   const normOver = 1 - normUnder;
 
-  const p1Open = !(lockUnderdogWin && lead < 0);
-  const p2Open = !(lockUnderdogWin && lead > 0);
-  const xOpen = !lockDraw;
+  const priced1 = priceOutcome(normP1);
+  const pricedX = priceOutcome(normPX);
+  const priced2 = priceOutcome(normP2);
+
+  const p1Open = priced1.open && !(lockUnderdogWin && lead < 0);
+  const p2Open = priced2.open && !(lockUnderdogWin && lead > 0);
+  const xOpen = pricedX.open && !lockDraw;
 
   return {
-    p1: p1Open ? (lockUnderdogWin && lead > 0 ? 1.01 : toBook(normP1)) : 1.01,
-    x: xOpen ? toBook(normPX) : 1.01,
-    p2: p2Open ? (lockUnderdogWin && lead < 0 ? 1.01 : toBook(normP2)) : 1.01,
+    p1: p1Open ? (lockUnderdogWin && lead > 0 ? 1.01 : priced1.odds) : 1.01,
+    x: xOpen ? pricedX.odds : 1.01,
+    p2: p2Open ? (lockUnderdogWin && lead < 0 ? 1.01 : priced2.odds) : 1.01,
     available: { p1: p1Open, x: xOpen, p2: p2Open },
     total: {
       threshold,
@@ -186,10 +257,12 @@ export function calculateTennisLiveOdds(
   let p2Weight = strength2;
   const totalWeight = Math.max(0.1, p1Weight) + Math.max(0.1, p2Weight);
   const prob1 = Math.max(0.01, Math.min(0.99, Math.max(0.1, p1Weight) / totalWeight));
-  const margin = 1.05;
+  const a = priceOutcome(prob1);
+  const b = priceOutcome(1 - prob1);
   return {
-    p1: formatOdds(1 / (prob1 * margin)),
-    p2: formatOdds(1 / ((1 - prob1) * margin)),
+    p1: a.odds,
+    p2: b.odds,
+    available: { p1: a.open, p2: b.open },
   };
 }
 
@@ -208,10 +281,12 @@ export function calculateBasketballLiveOdds(
   const zScore =
     (diff + (strength1 - strength2) * 4 * remainingFraction) / Math.max(1, volatility);
   const prob1 = 1 / (1 + Math.exp(-1.7 * zScore));
-  const margin = 1.05;
+  const a = priceOutcome(Math.max(0.01, prob1));
+  const b = priceOutcome(Math.max(0.01, 1 - prob1));
   return {
-    p1: formatOdds(1 / (Math.max(0.01, prob1) * margin)),
-    p2: formatOdds(1 / (Math.max(0.01, 1 - prob1) * margin)),
+    p1: a.odds,
+    p2: b.odds,
+    available: { p1: a.open, p2: b.open },
   };
 }
 
@@ -230,22 +305,27 @@ export function calculateEsportsLiveOdds(
   const scoreDiff =
     (mapsWon1 - mapsWon2) * 6.5 + (rounds1 - rounds2) * 0.35 + ratingDiff;
   const prob1 = 1 / (1 + Math.exp(-0.35 * scoreDiff));
-  const margin = 1.055;
+  const a = priceOutcome(Math.max(0.01, prob1));
+  const b = priceOutcome(Math.max(0.01, 1 - prob1));
   return {
-    p1: formatOdds(1 / (Math.max(0.01, prob1) * margin)),
-    p2: formatOdds(1 / (Math.max(0.01, 1 - prob1) * margin)),
+    p1: a.odds,
+    p2: b.odds,
+    available: { p1: a.open, p2: b.open },
   };
 }
 
 const POWER_RANKINGS: Record<string, number> = {
-  // Football Top Clubs
   'real madrid': 96, 'manchester city': 96, 'bayern': 94, 'arsenal': 93, 'liverpool': 94,
   'barcelona': 92, 'inter': 90, 'psg': 91, 'juventus': 86, 'chelsea': 88, 'atletico': 88,
   'bayer leverkusen': 90, 'borussia dortmund': 87, 'ac milan': 86, 'aston villa': 85,
   'tottenham': 85, 'manchester united': 84, 'newcastle': 84, 'sporting': 86, 'benfica': 84,
   'porto': 83, 'ajax': 80, 'roma': 83, 'feyenoord': 82, 'psv': 83,
+  'villarreal': 82, 'real sociedad': 85, 'real betis': 83, 'sevilla': 83, 'athletic': 84,
+  'girona': 84, 'valencia': 80, 'celta': 78, 'rayo vallecano': 77, 'osasuna': 77,
+  'getafe': 76, 'espanyol': 76, 'mallorca': 76, 'las palmas': 74, 'deportivo': 74,
+  'almeria': 73, 'cadiz': 72, 'leganes': 72, 'eibar': 70, 'valladolid': 71,
+  'lokomotiv': 80, 'baltika': 70, 'zenit': 86, 'cska': 81, 'spartak': 82, 'krasnodar': 83,
 
-  // CS2 Teams
   'natus vincere': 96, 'navi': 96, 'team vitality': 95, 'vitality': 95, 'spirit': 95,
   'faze clan': 93, 'faze': 93, 'g2 esports': 93, 'g2': 93, 'mouz': 92, 'mousesports': 92,
   'the mongolz': 90, 'mongolz': 90, 'eternal fire': 89, 'astralis': 88, 'virtus.pro': 88, 'vp': 88,
@@ -254,19 +334,16 @@ const POWER_RANKINGS: Record<string, number> = {
   'gamerlegion': 84, 'nemiga': 80, 'parivision': 84, 'betboom': 90, 'passion ua': 81,
   'flyquest': 83, 'imperial': 83, 'monte': 82, '1win': 81, '9pandas': 82,
 
-  // Dota 2 Teams
   'team falcons': 96, 'team spirit': 95, 'gaimin gladiators': 94, 'gladiators': 94,
   'betboom team': 93, 'xtreme gaming': 93, 'tundra esports': 93, 'tundra': 93,
   'team liquid': 94, 'liquid dota': 94, 'og': 88, 'aurora': 88, 'psg quest': 86,
   'heroic dota': 86, 'beastcoast': 83, 'nouns': 83, 'nigma galaxy': 84, 'nigma': 84,
   'azure ray': 87, 'secret': 85, 'team secret': 85, 'talon': 84, '1win dota': 83,
 
-  // Basketball (NBA)
   'celtics': 96, 'boston celtics': 96, 'nuggets': 94, 'denver nuggets': 94, 'thunder': 94,
   'timberwolves': 92, 'mavericks': 93, 'dallas mavericks': 93, 'bucks': 90, 'knicks': 90,
   '76ers': 88, 'lakers': 89, 'la lakers': 89, 'warriors': 88, 'suns': 87, 'heat': 86,
 
-  // Tennis
   'jannik sinner': 97, 'sinner': 97, 'carlos alcaraz': 96, 'alcaraz': 96, 'novak djokovic': 95, 'djokovic': 95,
   'alexander zverev': 93, 'zverev': 93, 'daniil medvedev': 91, 'medvedev': 91, 'andrey rublev': 88,
   'taylor fritz': 89, 'casper ruud': 87, 'grigor dimitrov': 86, 'stefanos tsitsipas': 86,
@@ -274,21 +351,36 @@ const POWER_RANKINGS: Record<string, number> = {
   'elena rybakina': 91, 'jessica pegula': 89, 'mirra andreeva': 86,
 };
 
+function nameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
 export function getTeamPowerRating(name: string): number {
-  if (!name) return 72;
-  const norm = name.toLowerCase().replace(/[^a-z0-9а-яё]/g, '');
-  for (const [k, v] of Object.entries(POWER_RANKINGS)) {
-    const kNorm = k.replace(/[^a-z0-9а-яё]/g, '');
-    if (norm.includes(kNorm) || kNorm.includes(norm)) {
-      return v;
-    }
+  if (!name) return 74;
+  const tokens = nameTokens(name);
+  const compact = tokens.join('');
+  if (!compact) return 74;
+
+  const entries = Object.entries(POWER_RANKINGS).sort((a, b) => b[0].length - a[0].length);
+  for (const [key, rating] of entries) {
+    const kTokens = nameTokens(key);
+    const kCompact = kTokens.join('');
+    if (!kCompact) continue;
+    if (compact === kCompact) return rating;
+    if (kTokens.length >= 2 && kTokens.every((t) => tokens.includes(t))) return rating;
+    if (kTokens.length === 1 && tokens.includes(kTokens[0])) return rating;
   }
+
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash << 5) - hash + name.charCodeAt(i);
+  for (let i = 0; i < compact.length; i++) {
+    hash = (hash << 5) - hash + compact.charCodeAt(i);
     hash |= 0;
   }
-  return 68 + (Math.abs(hash) % 20);
+  return 72 + (Math.abs(hash) % 9);
 }
 
 export function calculatePrematchOdds(
@@ -302,30 +394,32 @@ export function calculatePrematchOdds(
   const diff = r1 - r2;
 
   const homeBonus = threeWay ? 2.2 : 1.2;
-  const effectiveDiff = diff + homeBonus;
+  const effectiveDiff = Math.max(-20, Math.min(20, diff + homeBonus));
 
-  const scale = sport === 'cybersport' || sport === 'tennis' ? 0.085 : 0.068;
+  const scale = sport === 'cybersport' || sport === 'tennis' ? 0.09 : 0.082;
   const rawProb1 = 1 / (1 + Math.exp(-scale * effectiveDiff));
   const rawProb2 = 1 - rawProb1;
 
-  const margin = 1.055;
-
   if (threeWay) {
-    const maxDraw = sport === 'hockey' ? 0.23 : 0.27;
-    const drawFactor = Math.max(0.08, maxDraw - Math.abs(diff) * 0.005);
+    const maxDraw = sport === 'hockey' ? 0.23 : 0.28;
+    const drawFactor = Math.max(0.16, maxDraw - Math.abs(diff) * 0.004);
     const p1Adj = rawProb1 * (1 - drawFactor);
     const p2Adj = rawProb2 * (1 - drawFactor);
     const pxAdj = drawFactor;
-
+    const a = priceOutcome(p1Adj);
+    const x = priceOutcome(pxAdj);
+    const b = priceOutcome(p2Adj);
     return {
-      p1: formatOdds(1 / (Math.max(0.02, p1Adj) * margin)),
-      x: formatOdds(1 / (Math.max(0.02, pxAdj) * margin)),
-      p2: formatOdds(1 / (Math.max(0.02, p2Adj) * margin)),
+      p1: a.open ? a.odds : 1.01,
+      x: x.open ? x.odds : 1.01,
+      p2: b.open ? b.odds : 1.01,
     };
   }
 
+  const a = priceOutcome(rawProb1);
+  const b = priceOutcome(rawProb2);
   return {
-    p1: formatOdds(1 / (Math.max(0.02, rawProb1) * margin)),
-    p2: formatOdds(1 / (Math.max(0.02, rawProb2) * margin)),
+    p1: a.open ? a.odds : 1.01,
+    p2: b.open ? b.odds : 1.01,
   };
 }

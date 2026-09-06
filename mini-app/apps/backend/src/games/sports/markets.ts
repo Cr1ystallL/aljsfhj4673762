@@ -1,4 +1,4 @@
-import { formatOdds } from './odds.js';
+import { formatOdds, MIN_OUTCOME_PROB, footballRemainingMinutes } from './odds.js';
 import type { SportKind } from './catalog.js';
 
 export type MarketKind =
@@ -46,7 +46,7 @@ const MARGIN = 1.055;
 const MAX_K = 12;
 
 function book(p: number): number {
-  const clamped = Math.min(0.97, Math.max(0.02, p));
+  const clamped = Math.min(0.94, Math.max(MIN_OUTCOME_PROB, p));
   return formatOdds(1 / (clamped * MARGIN));
 }
 
@@ -74,7 +74,7 @@ export function remainingLambdas(
   minute: number
 ): { rem1: number; rem2: number } {
   if (sport === 'football') {
-    const t = Math.max(90 - Math.min(Math.max(minute, 0), 90), 1) / 90;
+    const t = footballRemainingMinutes(minute, 90) / 90;
     return { rem1: 1.45 * t, rem2: 1.25 * t };
   }
   if (sport === 'hockey') {
@@ -180,9 +180,9 @@ export function buildMarkets(input: {
       id: 'dc',
       kind: 'double_chance',
       outcomes: [
-        oc('dc1x', '1X', book(p1 + px), undefined, p1 + px > 0.04),
-        oc('dc12', '12', book(p1 + p2), undefined, p1 + p2 > 0.04),
-        oc('dcx2', 'X2', book(px + p2), undefined, px + p2 > 0.04),
+        oc('dc1x', '1X', book(p1 + px), undefined, p1 + px > MIN_OUTCOME_PROB),
+        oc('dc12', '12', book(p1 + p2), undefined, p1 + p2 > MIN_OUTCOME_PROB),
+        oc('dcx2', 'X2', book(px + p2), undefined, px + p2 > MIN_OUTCOME_PROB),
       ],
     });
   }
@@ -321,8 +321,8 @@ function priceTotal(current: number, rem: number, line: number): MarketOutcome[]
     ];
   }
   return [
-    oc('over', 'over', book(pOver / live), line, pOver / live > 0.04),
-    oc('under', 'under', book(pUnder / live), line, pUnder / live > 0.04),
+    oc('over', 'over', book(pOver / live), line, pOver / live > MIN_OUTCOME_PROB),
+    oc('under', 'under', book(pUnder / live), line, pUnder / live > MIN_OUTCOME_PROB),
   ];
 }
 

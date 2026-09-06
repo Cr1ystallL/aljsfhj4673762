@@ -1203,7 +1203,7 @@ function featuredScore(feed: FeedEvent): { heat: number; reason: FeaturedReason 
 function formatCombined(n: number): number {
   if (!Number.isFinite(n) || n <= 1.0) return 1.0;
   if (n < 1.01) return 1.01;
-  if (n >= 35) return 35;
+  if (n >= 25) return 25;
   if (n > 20) return Math.round(n * 2) / 2;
   return Math.round(n * 100) / 100;
 }

@@ -6,6 +6,8 @@ import {
   calculateHockeyLiveOdds,
   calculateTennisLiveOdds,
   calculatePrematchOdds,
+  resolveFootballLiveMinute,
+  teamStrength,
 } from './odds.js';
 import { threeWaySport, type SportKind } from './catalog.js';
 import {
@@ -218,7 +220,8 @@ function fallbackOdds(
   status: FeedEvent['status'],
   t1: FeedTeam,
   t2: FeedTeam,
-  minute: number
+  minute: number,
+  stats?: MatchStats
 ): { odds: FeedEvent['odds']; available?: { p1?: boolean; x?: boolean; p2?: boolean } } {
   if (status === 'prematch') {
     const pm = calculatePrematchOdds(sport, t1.name, t2.name, threeWaySport(sport));
@@ -228,20 +231,36 @@ function fallbackOdds(
   const s1 = t1.score ?? 0;
   const s2 = t2.score ?? 0;
   const liveMinute = status === 'live' ? minute : 0;
+  const red1 = stats?.red1 ?? 0;
+  const red2 = stats?.red2 ?? 0;
   if (sport === 'football') {
-    const o = calculateFootballLiveOdds(liveMinute, s1, s2);
+    const o = calculateFootballLiveOdds(
+      liveMinute,
+      s1,
+      s2,
+      teamStrength(t1.name),
+      teamStrength(t2.name),
+      red1,
+      red2
+    );
     return { odds: { p1: o.p1, x: o.x, p2: o.p2 }, available: o.available };
   }
   if (sport === 'hockey') {
-    const o = calculateHockeyLiveOdds(liveMinute, s1, s2);
+    const o = calculateHockeyLiveOdds(
+      liveMinute,
+      s1,
+      s2,
+      teamStrength(t1.name),
+      teamStrength(t2.name)
+    );
     return { odds: { p1: o.p1, x: o.x, p2: o.p2 }, available: o.available };
   }
   if (sport === 'basketball') {
     const o = calculateBasketballLiveOdds(s1, s2, 2, 300);
-    return { odds: { p1: o.p1, p2: o.p2 } };
+    return { odds: { p1: o.p1, p2: o.p2 }, available: o.available };
   }
   const o = calculateTennisLiveOdds([s1], [s2], 0, 0);
-  return { odds: { p1: o.p1, p2: o.p2 } };
+  return { odds: { p1: o.p1, p2: o.p2 }, available: o.available };
 }
 
 function parseDisplaySeconds(display: string, sport: SportKind): number | null {
@@ -347,21 +366,27 @@ function parseEvent(
   const threeWay = threeWaySport(sport);
 
   const clock = parseEspnClock(sport, ev, status);
-  const minute = clock.liveMinute ?? 0;
-  const liveLine = fallbackOdds(sport, status, team1, team2, minute);
+  const rawMinute = clock.liveMinute ?? 0;
+  const minute =
+    sport === 'football'
+      ? resolveFootballLiveMinute(clock.liveMinute, startTime, now, status)
+      : rawMinute;
+  const stats = parseCompetitorStats(pair.home, pair.away);
+  const liveLine = fallbackOdds(sport, status, team1, team2, minute, stats);
   const p1 = americanToDecimal(ev.odds?.home?.moneyLine);
   const p2 = americanToDecimal(ev.odds?.away?.moneyLine);
   const x = americanToDecimal(ev.odds?.draw?.moneyLine);
   const espnOk = !!(p1 && p2 && (!threeWay || x));
+  const scoreAlreadyOn = (team1.score ?? 0) + (team2.score ?? 0) > 0;
+  // Never keep ESPN prematch moneyline once the match is live or already has a score.
   const odds: FeedEvent['odds'] =
-    status === 'live' || !espnOk
+    status === 'live' || scoreAlreadyOn || !espnOk
       ? liveLine.odds
       : threeWay
         ? { p1: p1 as number, x, p2: p2 as number }
         : { p1: p1 as number, p2: p2 as number };
   const available = status === 'live' ? liveLine.available : undefined;
 
-  const stats = parseCompetitorStats(pair.home, pair.away);
   const markets = buildMarkets({
     sport,
     score1: team1.score ?? 0,
@@ -383,8 +408,11 @@ function parseEvent(
     status,
     liveTime: clock.liveTime,
     livePeriod: clock.livePeriod,
-    liveMinute: clock.liveMinute,
-    clockSeconds: clock.clockSeconds,
+    liveMinute: status === 'live' ? minute : clock.liveMinute,
+    clockSeconds:
+      sport === 'football' && status === 'live' && minute !== rawMinute
+        ? minute * 60
+        : clock.clockSeconds,
     clockSyncedAt: now,
     clockDirection: clock.clockDirection,
     lastPlay: ev.situation?.lastPlay?.text,
@@ -537,7 +565,14 @@ async function attachEspnBoxscores(events: FeedEvent[]): Promise<void> {
       const stats = await fetchSoccerBoxscore(ev.espnLeague, id);
       if (!stats) return;
       ev.stats = { ...ev.stats, ...stats };
-      const live = fallbackOdds(ev.sport, ev.status, ev.team1, ev.team2, ev.liveMinute ?? 0);
+      const live = fallbackOdds(
+        ev.sport,
+        ev.status,
+        ev.team1,
+        ev.team2,
+        ev.liveMinute ?? 0,
+        ev.stats
+      );
       if (ev.status === 'live') ev.odds = live.odds;
       ev.markets = buildMarkets({
         sport: ev.sport,
