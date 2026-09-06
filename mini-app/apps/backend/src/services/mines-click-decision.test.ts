@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   decideMinesClick,
   isMinesScalpCashout,
+  scalpBustChance,
   shouldResetWinStreak,
   type MinesClickContext,
 } from './mines-click-decision.js';
@@ -11,7 +12,8 @@ function base(over: Partial<MinesClickContext> = {}): MinesClickContext {
   return {
     drainActive: false,
     streak: 0,
-    sessionProfit: -49,
+    sessionProfit: 0,
+    bankExcess: 0,
     scalpCashouts: 0,
     betAmount: 1,
     potentialMultiplier: 1.9917,
@@ -23,39 +25,55 @@ function base(over: Partial<MinesClickContext> = {}): MinesClickContext {
   };
 }
 
+describe('scalpBustChance', () => {
+  it('stays near a live field when the player is flat or red', () => {
+    const flat = scalpBustChance(base({ sessionProfit: -5, bankExcess: 0, betAmount: 1 }));
+    const red = scalpBustChance(base({ sessionProfit: -30, bankExcess: -25, betAmount: 1 }));
+    assert.ok(flat >= 0.42 && flat <= 0.58, `flat=${flat}`);
+    assert.ok(red < flat, `red=${red} flat=${flat}`);
+  });
+
+  it('squeezes size-ups once the bank is green, but never to 100%', () => {
+    const p = scalpBustChance(
+      base({ sessionProfit: 25, bankExcess: 25, betAmount: 16 })
+    );
+    assert.ok(p >= 0.7, `green size-up p=${p}`);
+    assert.ok(p <= 0.86, `must not be a hard-rig p=${p}`);
+  });
+});
+
 describe('decideMinesClick', () => {
-  it('hard-busts every click while SmartDrain is active', () => {
-    const click = decideMinesClick(
-      base({ drainActive: true, betAmount: 1, rng: () => 0.99 })
-    );
-    assert.equal(click.action, 'must_bust');
-    assert.equal(click.reason, 'smartdrain');
+  it('lets a drain click survive sometimes so it does not look scripted', () => {
+    const live = decideMinesClick(base({ drainActive: true, rng: () => 0.99 }));
+    const bust = decideMinesClick(base({ drainActive: true, rng: () => 0.1 }));
+    assert.equal(live.action, 'neutral');
+    assert.equal(bust.action, 'must_bust');
   });
 
-  it('hard-busts a 16zł size-up after two 1.99x scalp cashouts', () => {
-    const click = decideMinesClick(
-      base({
-        betAmount: 16,
-        scalpCashouts: 2,
-        potentialMultiplier: 1.9917,
-        rng: () => 0.99,
-      })
-    );
-    assert.equal(click.action, 'must_bust');
-    assert.equal(click.reason, 'mines_sizeup_after_scalp');
-  });
-
-  it('lets a lone 1zł probe through when there is no drain or scalp history', () => {
+  it('lets a flat 1zł first-click through when the roll misses', () => {
     const click = decideMinesClick(base({ betAmount: 1, rng: () => 0.99 }));
     assert.equal(click.action, 'neutral');
   });
 
-  it('does not grant hook must_win after repeated scalp cashouts', () => {
+  it('busts a green 16zł 1.99x size-up on a mid roll', () => {
+    const click = decideMinesClick(
+      base({
+        betAmount: 16,
+        sessionProfit: 20,
+        bankExcess: 20,
+        rng: () => 0.55,
+      })
+    );
+    assert.equal(click.action, 'must_bust');
+    assert.equal(click.reason, 'mines_scalp_pressure');
+  });
+
+  it('does not grant hook must_win when the player is already green', () => {
     const click = decideMinesClick(
       base({
         funnelPhase: 'hook',
-        scalpCashouts: 3,
-        sessionProfit: 10,
+        sessionProfit: 20,
+        bankExcess: 20,
         rng: () => 0.01,
       })
     );
@@ -81,9 +99,5 @@ describe('shouldResetWinStreak', () => {
 
   it('resets the streak after a real-size loss', () => {
     assert.equal(shouldResetWinStreak(false, 16), true);
-  });
-
-  it('never resets on a win', () => {
-    assert.equal(shouldResetWinStreak(true, 1), false);
   });
 });

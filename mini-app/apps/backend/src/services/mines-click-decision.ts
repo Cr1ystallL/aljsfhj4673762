@@ -1,12 +1,13 @@
 /**
- * Pure Mines click decision — kept free of Redis/Prisma so the
- * drain / anti-scalp rules can be unit-tested without a live stack.
+ * Mines click policy.
  *
- * Production context (Albina / 13-mine 1-click 1.99x martingale):
- *   - Admin SmartDrain used to be a coin-flip and burned 30 rounds
- *     on 1 zł probe losses in ~2 minutes.
- *   - Win-streak anti-scalp never fired because every probe loss
- *     reset the streak to 0.
+ * Must look like a real field, not a hard-rig:
+ *   - first cells still win sometimes
+ *   - other games are not "always lose"
+ *   - a 13-mine / 1-click grinder cannot climb the bank
+ *
+ * Fair 13-mine first click already busts ~52%. We start near that and
+ * only squeeze when the player is green vs session / waterline.
  */
 
 export const MINES_PROBE_STAKE = 5;
@@ -20,7 +21,8 @@ export interface MinesClickContext {
   drainActive: boolean;
   streak: number;
   sessionProfit: number;
-  /** Recent 1-click / low-mult mines cashouts (rolling window). */
+  /** Balance minus admin waterline. 0 when no waterline is set. */
+  bankExcess?: number;
   scalpCashouts: number;
   betAmount: number;
   potentialMultiplier: number;
@@ -35,90 +37,101 @@ export interface MinesClickDecision {
   reason: string;
 }
 
-function isScalpClick(mult: number): boolean {
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+export function greenPressure(sessionProfit: number, bankExcess = 0): number {
+  return Math.max(sessionProfit, bankExcess);
+}
+
+export function isScalpClick(mult: number): boolean {
   return mult >= MINES_SCALP_MULT_MIN && mult <= MINES_SCALP_MULT_MAX;
+}
+
+/**
+ * Bust probability for a 1-click / low-mult cashout attempt.
+ * Never 0, never 1 — the board still "breathes".
+ */
+export function scalpBustChance(ctx: MinesClickContext): number {
+  const green = greenPressure(ctx.sessionProfit, ctx.bankExcess ?? 0);
+  let p = 0.5;
+
+  if (green > 0) p += Math.min(0.24, green / 90);
+  if (ctx.betAmount >= MINES_SIZEUP_STAKE && green >= 0) p += 0.08;
+  if (ctx.betAmount >= 16 && green > 5) p += 0.08;
+  if (ctx.scalpCashouts >= 3) p += 0.06;
+  if (green < -20) p -= 0.08;
+
+  return clamp(p, 0.42, 0.86);
 }
 
 export function decideMinesClick(ctx: MinesClickContext): MinesClickDecision {
   const rng = ctx.rng ?? Math.random;
+  const green = greenPressure(ctx.sessionProfit, ctx.bankExcess ?? 0);
 
-  // 1. Admin / auto SmartDrain: hard bust. No coin-flip, no 1zł escape.
+  // Admin drain: heavy tilt, not a 100% mine on every cell.
   if (ctx.drainActive) {
-    return { action: 'must_bust', reason: 'smartdrain' };
+    if (rng() < 0.78) {
+      return { action: 'must_bust', reason: 'smartdrain' };
+    }
+    return { action: 'neutral', reason: 'smartdrain_pass' };
   }
 
-  // 2. One-click scalp (13 mines → 1.99x, 10 mines → 1.59x, …).
-  //    Probe 1zł then size up to 8/16/32 — the size-up must die.
   if (isScalpClick(ctx.potentialMultiplier)) {
-    if (ctx.betAmount >= MINES_SIZEUP_STAKE && ctx.scalpCashouts >= 2) {
-      return { action: 'must_bust', reason: 'mines_sizeup_after_scalp' };
+    const p = scalpBustChance(ctx);
+    if (rng() < p) {
+      return { action: 'must_bust', reason: 'mines_scalp_pressure' };
     }
-    if (ctx.scalpCashouts >= 4) {
-      return { action: 'must_bust', reason: 'mines_scalp_repeat' };
-    }
-    if (ctx.betAmount >= MINES_SIZEUP_STAKE && rng() < 0.8) {
-      return { action: 'must_bust', reason: 'mines_sizeup' };
-    }
+    return { action: 'neutral', reason: 'mines_scalp_live' };
   }
 
-  // 3. Cashout-streak resistance (streak ignores 1zł probe losses).
   if (ctx.streak >= 3) {
-    let streakBustChance = 0.5;
-    if (ctx.streak >= 5) streakBustChance = 0.85;
-    else if (ctx.streak >= 4) streakBustChance = 0.7;
+    let streakBustChance = 0.45;
+    if (ctx.streak >= 5) streakBustChance = 0.7;
+    else if (ctx.streak >= 4) streakBustChance = 0.58;
+    if (green > 15) streakBustChance = Math.min(0.8, streakBustChance + 0.1);
 
     if (ctx.potentialMultiplier >= 1.2 && rng() < streakBustChance) {
       return { action: 'must_bust', reason: 'anti_scalper_streak' };
     }
   }
 
-  // 4. Hard multiplier cap on first deposit.
   if (ctx.depositIndex === 1 && ctx.potentialMultiplier > ctx.maxMultiplierCap) {
     if (rng() < 0.85) {
       return { action: 'must_bust', reason: 'dep1_mult_cap' };
     }
   }
 
-  // 5. Funnel drain / recapture — still probabilistic, not admin drain.
   if (ctx.funnelPhase === 'drain' || ctx.funnelPhase === 'recapture') {
-    let bustChance = 0.65;
-    if (ctx.potentialMultiplier >= 2.5) bustChance = 0.85;
-    else if (ctx.potentialMultiplier >= 1.6) bustChance = 0.75;
-    else if (ctx.potentialMultiplier >= 1.25) bustChance = 0.6;
-    else bustChance = 0.45;
-
-    if (ctx.streak >= 2) bustChance = Math.min(0.9, bustChance + 0.15);
-    if (ctx.sessionProfit >= 40) bustChance = Math.min(0.9, bustChance + 0.1);
-    if (ctx.betAmount >= 50) bustChance = Math.min(0.9, bustChance + 0.1);
-
+    let bustChance = 0.58;
+    if (ctx.potentialMultiplier >= 2.5) bustChance = 0.78;
+    else if (ctx.potentialMultiplier >= 1.6) bustChance = 0.68;
+    if (green > 20) bustChance = Math.min(0.84, bustChance + 0.1);
     if (rng() < bustChance) {
       return { action: 'must_bust', reason: 'funnel_drain' };
     }
     return { action: 'neutral', reason: 'funnel_drain_pass' };
   }
 
-  // 6. Plateau swings around the first-deposit peak.
   if (ctx.funnelPhase === 'plateau') {
     let plateauBustChance = 0.4;
-    if (ctx.potentialMultiplier >= 2.0) plateauBustChance = 0.65;
-    else if (ctx.potentialMultiplier >= 1.3) plateauBustChance = 0.5;
-
-    if (ctx.streak >= 2) plateauBustChance = Math.min(0.8, plateauBustChance + 0.2);
-
+    if (ctx.potentialMultiplier >= 2.0) plateauBustChance = 0.58;
+    else if (ctx.potentialMultiplier >= 1.3) plateauBustChance = 0.48;
+    if (green > 15) plateauBustChance = Math.min(0.72, plateauBustChance + 0.12);
     if (rng() < plateauBustChance) {
       return { action: 'must_bust', reason: 'funnel_plateau' };
     }
     return { action: 'neutral', reason: 'funnel_plateau_pass' };
   }
 
-  // 7. Hook: only help if they are not already scalping.
   if (ctx.funnelPhase === 'hook') {
     if (
+      green < 10 &&
       ctx.streak < 2 &&
-      ctx.sessionProfit < 35 &&
       ctx.scalpCashouts < 2 &&
       ctx.potentialMultiplier <= 2.0 &&
-      rng() < 0.35
+      rng() < 0.28
     ) {
       return { action: 'must_win', reason: 'funnel_hook' };
     }
