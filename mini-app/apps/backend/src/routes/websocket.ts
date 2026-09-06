@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { WebSocket } from 'ws';
+import type { WsSocket } from '../lib/ws-socket.js';
 import { randomUUID } from 'crypto';
 import { wsManager } from '../lib/websocket-manager.js';
 import { sessionManager } from '../lib/session-manager.js';
@@ -29,7 +29,7 @@ import { logger } from '../utils/logger.js';
  * - Support for reconnection with existing session
  */
 
-interface AuthenticatedWebSocket extends WebSocket {
+interface AuthenticatedWebSocket extends WsSocket {
   userId?: string;
   sessionId?: string;
   isAuthenticated?: boolean;

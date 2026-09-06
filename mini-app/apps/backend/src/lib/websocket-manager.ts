@@ -1,4 +1,4 @@
-import type { WebSocket } from 'ws';
+import type { WsSocket } from './ws-socket.js';
 import { logger } from '../utils/logger.js';
 import { redisClient } from './redis.js';
 
@@ -8,7 +8,7 @@ import { redisClient } from './redis.js';
  */
 
 interface Connection {
-  socket: WebSocket;
+  socket: WsSocket;
   userId: string | null;
   sessionId: string | null;
   gameRooms: Set<string>; // Track which game rooms user is in
@@ -87,7 +87,7 @@ export class WebSocketManager {
   /**
    * Add new connection
    */
-  addConnection(connectionId: string, socket: WebSocket): boolean {
+  addConnection(connectionId: string, socket: WsSocket): boolean {
     if (this.connections.has(connectionId)) {
       logger.warn({ connectionId }, 'Connection already exists');
       return false;
