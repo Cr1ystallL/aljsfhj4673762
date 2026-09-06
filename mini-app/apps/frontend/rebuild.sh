@@ -35,7 +35,7 @@ test -e src/lib/vip.ts
 test -e src/components/vip/vip-faq-modal.tsx
 
 export NEXT_TELEMETRY_DISABLED=1
-export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}"
 
 if [ -d .next ]; then
   rm -rf .next.bak
