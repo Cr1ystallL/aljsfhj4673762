@@ -1,13 +1,44 @@
 /** @type {import('next').NextConfig} */
 
+const path = require('path');
+
+const SRC_FOLDERS = [
+  'app',
+  'components',
+  'hooks',
+  'i18n',
+  'lib',
+  'providers',
+  'services',
+  'store',
+  'types',
+];
+
+function addFolderAliases(config) {
+  const src = path.resolve(__dirname, 'src');
+  const alias = config.resolve.alias;
+  for (const folder of SRC_FOLDERS) {
+    const name = `@/${folder}`;
+    const target = path.join(src, folder);
+    if (Array.isArray(alias)) {
+      if (!alias.some((entry) => entry && entry.name === name)) {
+        alias.push({ name, alias: target });
+      }
+    } else if (alias && typeof alias === 'object') {
+      alias[name] = target;
+    }
+  }
+}
+
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
 
-  // Disable webpack filesystem cache — Cache.store crashes on this VPS
-  // when a previous failed build left a half-written .next.
+  // Folder aliases only (`@/lib`, `@/store`, …). A bare `@` steals
+  // CSS at-rules; tsconfig paths without a working Next plugin are ignored.
   webpack: (config) => {
     config.cache = false;
+    addFolderAliases(config);
     return config;
   },
 
