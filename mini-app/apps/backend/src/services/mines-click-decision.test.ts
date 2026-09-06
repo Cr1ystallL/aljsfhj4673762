@@ -32,17 +32,30 @@ describe('decideMinesClick', () => {
     assert.equal(click.reason, 'smartdrain');
   });
 
-  it('hard-busts a 16zł size-up after two 1.99x scalp cashouts', () => {
+  it('hard-busts a 16zł 1.99x size-up even on the first click', () => {
     const click = decideMinesClick(
       base({
         betAmount: 16,
-        scalpCashouts: 2,
+        scalpCashouts: 0,
         potentialMultiplier: 1.9917,
         rng: () => 0.99,
       })
     );
     assert.equal(click.action, 'must_bust');
-    assert.equal(click.reason, 'mines_sizeup_after_scalp');
+    assert.equal(click.reason, 'mines_sizeup');
+  });
+
+  it('hard-busts a 1zł probe after one successful scalp cashout', () => {
+    const click = decideMinesClick(
+      base({
+        betAmount: 1,
+        scalpCashouts: 1,
+        potentialMultiplier: 1.9917,
+        rng: () => 0.99,
+      })
+    );
+    assert.equal(click.action, 'must_bust');
+    assert.equal(click.reason, 'mines_scalp_repeat');
   });
 
   it('lets a lone 1zł probe through when there is no drain or scalp history', () => {

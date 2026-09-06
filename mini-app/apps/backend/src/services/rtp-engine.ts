@@ -832,7 +832,7 @@ class RtpEngine {
       if (gameType === 'mines' && isMinesScalpCashout(betAmount, payout)) {
         const scalpKey = `rtp:mines_scalp:${userId}`;
         await r.incr(scalpKey);
-        await r.expire(scalpKey, 20 * 60);
+        await r.expire(scalpKey, 2 * 60 * 60);
       }
 
       // Drain rounds are a budget of *wins that slipped through*, not every

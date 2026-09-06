@@ -48,16 +48,14 @@ export function decideMinesClick(ctx: MinesClickContext): MinesClickDecision {
   }
 
   // 2. One-click scalp (13 mines → 1.99x, 10 mines → 1.59x, …).
-  //    Probe 1zł then size up to 8/16/32 — the size-up must die.
+  //    Size-up is never allowed. After the first cheap 1.99x cashout,
+  //    even 1zł probes in this band are mines for the rest of the window.
   if (isScalpClick(ctx.potentialMultiplier)) {
-    if (ctx.betAmount >= MINES_SIZEUP_STAKE && ctx.scalpCashouts >= 2) {
-      return { action: 'must_bust', reason: 'mines_sizeup_after_scalp' };
-    }
-    if (ctx.scalpCashouts >= 4) {
-      return { action: 'must_bust', reason: 'mines_scalp_repeat' };
-    }
-    if (ctx.betAmount >= MINES_SIZEUP_STAKE && rng() < 0.8) {
+    if (ctx.betAmount >= MINES_SIZEUP_STAKE) {
       return { action: 'must_bust', reason: 'mines_sizeup' };
+    }
+    if (ctx.scalpCashouts >= 1) {
+      return { action: 'must_bust', reason: 'mines_scalp_repeat' };
     }
   }
 
