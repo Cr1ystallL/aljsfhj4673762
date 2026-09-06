@@ -4,20 +4,25 @@ const path = require('path');
 
 function addAtAlias(config) {
   const src = path.resolve(__dirname, 'src');
+  const srcSlash = src.endsWith(path.sep) ? src : `${src}${path.sep}`;
   const alias = config.resolve.alias;
-  // Next 15 uses an array of { name, alias } entries. Mutate in place —
-  // never replace the whole value or css-loader / PostCSS break.
+  // Only map `@/` → src/. A bare `@` alias also matches CSS at-rules
+  // (`@tailwind`, `@apply`, `@layer`) and crashes css-loader on globals.css.
   if (Array.isArray(alias)) {
-    if (!alias.some((entry) => entry && (entry.name === '@' || entry.name === '@/'))) {
-      alias.push({ name: '@', alias: src });
+    const kept = alias.filter((entry) => entry && entry.name !== '@');
+    alias.length = 0;
+    alias.push(...kept);
+    if (!alias.some((entry) => entry && entry.name === '@/')) {
+      alias.push({ name: '@/', alias: srcSlash });
     }
     return;
   }
   if (alias && typeof alias === 'object') {
-    if (!alias['@']) alias['@'] = src;
+    delete alias['@'];
+    if (!alias['@/']) alias['@/'] = srcSlash;
     return;
   }
-  config.resolve.alias = { '@': src };
+  config.resolve.alias = { '@/': srcSlash };
 }
 
 const nextConfig = {
