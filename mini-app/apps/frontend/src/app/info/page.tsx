@@ -190,27 +190,15 @@ export default function InfoPage() {
         </div>
 
         {/* Content */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <motion.div
             key={tab}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
           >
-            {tab === 'rules' && (
-              <div className="flex flex-col gap-4">
-                <Notice tone="amber">
-                  Депозит, ставка или нажатие «Принимаю» при первом запуске означают согласие с этим Соглашением.
-                  Если вы не согласны — прекратите использование Платформы.
-                </Notice>
-                <SectionedDocument
-                  sections={legalToDoc(TERMS)}
-                  accent="text-amber-300"
-                  activeChip="border-amber-400/30 bg-amber-400/15 text-amber-200"
-                />
-              </div>
-            )}
+            {tab === 'rules' && <RulesTab />}
 
             {tab === 'privacy' && (
               <div className="flex flex-col gap-4">
@@ -229,7 +217,8 @@ export default function InfoPage() {
                 <SectionedDocument
                   sections={legalToDoc(PRIVACY)}
                   accent="text-sky-300"
-                  activeChip="border-sky-400/30 bg-sky-400/15 text-sky-200"
+                  activeChip="border-sky-400/40 bg-sky-400/20 text-sky-100"
+                  glow="rgba(56,189,248,0.5)"
                 />
               </div>
             )}
@@ -276,6 +265,24 @@ function legalToDoc(sections: LegalSection[]): DocSection[] {
   }));
 }
 
+function RulesTab() {
+  const sections = useMemo(() => legalToDoc(TERMS), []);
+  return (
+    <div className="flex flex-col gap-4">
+      <Notice tone="amber">
+        Депозит, ставка или нажатие «Принимаю» при первом запуске означают согласие с этим Соглашением.
+        Если вы не согласны — прекратите использование Платформы.
+      </Notice>
+      <SectionedDocument
+        sections={sections}
+        accent="text-amber-300"
+        activeChip="border-amber-400/40 bg-amber-400/20 text-amber-100"
+        glow="rgba(251,191,36,0.5)"
+      />
+    </div>
+  );
+}
+
 function Notice({ tone, children }: { tone: 'amber' | 'emerald'; children: React.ReactNode }) {
   const cls =
     tone === 'amber'
@@ -295,14 +302,15 @@ function ResponsibleTab() {
       </Notice>
       <SectionedDocument
         accent="text-emerald-300"
-        activeChip="border-emerald-400/30 bg-emerald-400/15 text-emerald-200"
+        activeChip="border-emerald-400/40 bg-emerald-400/20 text-emerald-100"
+        glow="rgba(16,185,129,0.5)"
         sections={RESPONSIBLE.map((b, i) => ({
           id: b.id,
           n: String(i + 1),
           title: b.title,
           content: (
-            <div className="pt-3">
-              <p className="text-[13.5px] text-white/65 leading-relaxed">{b.text}</p>
+            <div>
+              <p className="text-[13.5px] text-white/68 leading-[1.65]">{b.text}</p>
               {b.bullets && (
                 <ul className="mt-3 flex flex-col gap-2">
                   {b.bullets.map((line) => (
@@ -347,7 +355,7 @@ function FaqTab() {
     n: String(i + 1),
     title: `${cat.title} · ${cat.items.length}`,
     content: (
-      <div className="flex flex-col gap-2 pt-3">
+      <div className="flex flex-col gap-2">
         {cat.items.map((item) => (
           <Accordion key={item.q} question={item.q} accent="text-violet-300" defaultOpen={!!q}>
             <p>{item.a}</p>
@@ -393,8 +401,8 @@ function FaqTab() {
         <SectionedDocument
           sections={sections}
           accent="text-violet-300"
-          activeChip="border-violet-400/30 bg-violet-400/15 text-violet-200"
-          expandAll={!!q}
+          activeChip="border-violet-400/40 bg-violet-400/20 text-violet-100"
+          glow="rgba(167,139,250,0.5)"
         />
       )}
     </div>
