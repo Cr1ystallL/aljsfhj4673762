@@ -93,6 +93,25 @@ export function minesMultiplier(mines: number, safeReveals: number): number {
 
 class MinesEngine {
   private rooms = new Map<string, MinesGameState>(); // userId -> active game
+  /** Serialize start/reveal/cashout per user so cashout cannot sneak in during Redis awaits. */
+  private locks = new Map<string, Promise<void>>();
+
+  private async withLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.locks.get(userId) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chained = prev.then(() => gate);
+    this.locks.set(userId, chained);
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (this.locks.get(userId) === chained) this.locks.delete(userId);
+    }
+  }
 
   /** True if user has an active game. */
   hasActive(userId: string): boolean {
@@ -107,6 +126,15 @@ class MinesEngine {
   }
 
   async start(
+    userId: string,
+    amount: number,
+    mineCount: number,
+    demoMode: boolean
+  ): Promise<MinesPublicState> {
+    return this.withLock(userId, () => this.startLocked(userId, amount, mineCount, demoMode));
+  }
+
+  private async startLocked(
     userId: string,
     amount: number,
     mineCount: number,
@@ -194,6 +222,10 @@ class MinesEngine {
   }
 
   async reveal(userId: string, position: number): Promise<MinesPublicState> {
+    return this.withLock(userId, () => this.revealLocked(userId, position));
+  }
+
+  private async revealLocked(userId: string, position: number): Promise<MinesPublicState> {
     const g = this.rooms.get(userId);
     if (!g) throw new Error('Нет активного раунда');
     if (g.state !== 'active') throw new Error('Раунд уже завершён');
@@ -208,6 +240,9 @@ class MinesEngine {
     if (!g.demoMode && !g.isTournament) {
       const nextMultiplier = minesMultiplier(g.mineCount, g.revealed.length + 1);
       const decision = await rtpEngine.evaluateMinesClick(userId, g.bet.amount, nextMultiplier, false);
+      if (g.state !== 'active') {
+        throw new Error('Раунд уже завершён');
+      }
       const hasMine = g.minePositions.includes(position);
 
       if (decision.action === 'must_win' && hasMine) {
@@ -275,6 +310,10 @@ class MinesEngine {
   }
 
   async cashout(userId: string): Promise<MinesPublicState> {
+    return this.withLock(userId, () => this.cashoutLocked(userId));
+  }
+
+  private async cashoutLocked(userId: string): Promise<MinesPublicState> {
     const g = this.rooms.get(userId);
     if (!g) throw new Error('Нет активного раунда');
     if (g.state !== 'active') throw new Error('Раунд уже завершён');

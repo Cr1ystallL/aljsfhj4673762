@@ -189,7 +189,12 @@ class CryptoWorkerService {
               WHERE id = ${dep.id} AND status = 'pending'
             `;
 
-            // Upsert User Balance
+            const beforeRows = await tx.$queryRaw<Array<{ amount: string }>>`
+              SELECT amount::text FROM balances WHERE user_id = ${userId} LIMIT 1
+            `;
+            const before = Number(beforeRows[0]?.amount ?? 0);
+            const after = Math.round((before + plnAmount) * 100) / 100;
+
             await tx.$executeRaw`
               INSERT INTO balances (id, user_id, amount, currency, created_at, updated_at)
               VALUES (gen_random_uuid()::text, ${userId}, ${plnAmount}::numeric, 'PLN', NOW(), NOW())
@@ -197,17 +202,18 @@ class CryptoWorkerService {
               DO UPDATE SET amount = balances.amount + ${plnAmount}::numeric, updated_at = NOW()
             `;
 
-            // Create Transaction record
             const txId = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
             await tx.$executeRaw`
               INSERT INTO transactions (
-                id, user_id, type, amount, status, created_at
+                id, user_id, type, amount, balance_before, balance_after, metadata, created_at
               ) VALUES (
-                ${txId}, ${userId}, 'deposit', ${plnAmount}::numeric, 'completed', NOW()
+                ${txId}, ${userId}, 'deposit', ${plnAmount}::numeric,
+                ${before}::numeric, ${after}::numeric,
+                ${JSON.stringify({ kind: 'direct_crypto', depositId: dep.id, network, txHash })}::jsonb,
+                NOW()
               )
             `;
 
-            // Link credit transaction id
             await tx.$executeRaw`
               UPDATE direct_crypto_deposits
               SET credit_tx_id = ${txId}
