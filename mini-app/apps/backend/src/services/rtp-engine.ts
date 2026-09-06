@@ -5,6 +5,7 @@ import {
   isMinesScalpCashout,
   shouldResetWinStreak,
 } from './mines-click-decision.js';
+import { FUNNEL_WINDOW_MS, resolveFunnelPhase } from './funnel-decision.js';
 
 /**
  * Auto-RTP Engine — pre-fact outcome bias controller.
@@ -890,6 +891,7 @@ class RtpEngine {
 
   /**
    * Retrieves or computes the player's dynamic retention funnel state.
+   * Hook/plateau/drain only apply for 32 minutes after a real deposit.
    */
   async getFunnelState(userId: string): Promise<PlayerFunnelState> {
     try {
@@ -928,103 +930,37 @@ class RtpEngine {
       const wagerTarget = Number(balanceRow?.wagerTarget ?? 0);
       const trustScore = userRow?.trustScore ?? 80;
 
-      let targetPeakMultiplier = 1.65;
-      let maxMultiplierCap = 3.5;
-      let phase: PlayerFunnelState['phase'] = 'normal';
-      let bias = 0;
-
-      // Anti-Fraud check: if trust score is below 50, do not enable the hook/retention boost!
-      if (trustScore < 50) {
-        const state: PlayerFunnelState = {
-          depositIndex,
-          depositAmount,
-          targetPeakMultiplier: 1.0,
-          maxMultiplierCap: 3.5,
-          currentBalance,
-          peakBalance: currentBalance,
-          wagerProgress,
-          wagerTarget,
-          phase: 'normal',
-          bias: 0.05,
-          trustScore,
-        };
-        await r.set(`rtp:funnel:${userId}`, JSON.stringify(state), 'EX', 30);
-        return state;
-      }
-
-      if (depositIndex === 1 && depositAmount > 0) {
-        targetPeakMultiplier = 1.65;
-        maxMultiplierCap = 3.5;
-
-        const targetPeakBalance = depositAmount * 1.50;
-        const ceilingBalance = depositAmount * 1.85;
-
-        if (currentBalance < targetPeakBalance && wagerProgress < depositAmount * 2.5) {
-          phase = 'hook';
-          bias = -0.30; // gentle onboarding push
-        } else if (currentBalance >= targetPeakBalance && currentBalance <= ceilingBalance) {
-          phase = 'plateau';
-          bias = 0.05; // natural swings around the peak
-        } else if (currentBalance > ceilingBalance) {
-          // Greed / prolonged play above ceiling: transition to gentle drain
-          phase = 'drain';
-          bias = 0.40;
-        } else {
-          // Balance dropped below target (player is down or at breakeven):
-          // Return to normal organic RTP so player is NOT permanently shaved in a drain trap!
-          phase = 'normal';
-          bias = 0;
-        }
-      } else if (depositIndex === 2 && depositAmount > 0) {
-        if (completedWdCount > 0) {
-          // Player previously withdrew profit: soft recapture only if balance climbs above deposit
-          targetPeakMultiplier = 1.15;
-          maxMultiplierCap = 3.5;
-          if (currentBalance > depositAmount * 1.20) {
-            phase = 'recapture';
-            bias = 0.35;
-          } else if (currentBalance < depositAmount * 1.05 && wagerProgress < depositAmount * 0.8) {
-            phase = 'hook';
-            bias = -0.15; // small teaser
-          } else {
-            phase = 'normal';
-            bias = 0;
-          }
-        } else {
-          // Player busted on dep 1: second chance curve
-          targetPeakMultiplier = 1.35;
-          maxMultiplierCap = 3.5;
-          if (currentBalance < depositAmount * 1.25 && wagerProgress < depositAmount * 2.0) {
-            phase = 'hook';
-            bias = -0.20;
-          } else if (currentBalance > depositAmount * 1.40) {
-            phase = 'drain';
-            bias = 0.40;
-          } else {
-            phase = 'normal';
-            bias = 0;
-          }
-        }
-      } else {
-        phase = 'normal';
-        bias = 0;
-      }
+      const decided = resolveFunnelPhase({
+        depositIndex,
+        depositAmount,
+        lastDepositAt: latestDep?.createdAt ?? null,
+        currentBalance,
+        wagerProgress,
+        completedWdCount,
+        trustScore,
+      });
 
       const state: PlayerFunnelState = {
         depositIndex,
         depositAmount,
-        targetPeakMultiplier,
-        maxMultiplierCap,
+        targetPeakMultiplier: decided.targetPeakMultiplier,
+        maxMultiplierCap: decided.maxMultiplierCap,
         currentBalance,
-        peakBalance: Math.max(currentBalance, depositAmount * targetPeakMultiplier),
+        peakBalance: Math.max(currentBalance, depositAmount * decided.targetPeakMultiplier),
         wagerProgress,
         wagerTarget,
-        phase,
-        bias,
+        phase: decided.phase,
+        bias: decided.bias,
         trustScore,
       };
 
-      await r.set(`rtp:funnel:${userId}`, JSON.stringify(state), 'EX', 30);
+      // Do not keep a hook snapshot past the 32-minute after-dep window.
+      let cacheSec = 30;
+      if (decided.windowActive && decided.msSinceDeposit !== null) {
+        const remainSec = Math.ceil((FUNNEL_WINDOW_MS - decided.msSinceDeposit) / 1000);
+        cacheSec = Math.max(1, Math.min(30, remainSec));
+      }
+      await r.set(`rtp:funnel:${userId}`, JSON.stringify(state), 'EX', cacheSec);
       return state;
     } catch (err) {
       logger.warn({ err, userId }, 'Failed to compute funnel state');
