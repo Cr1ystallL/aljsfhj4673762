@@ -1,19 +1,14 @@
 /** @type {import('next').NextConfig} */
 
-const path = require('path');
-
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
 
-  // Explicit alias so production `next build` does not depend only on
-  // tsconfig paths. A mismatched npx-next previously failed with
-  // "Can't resolve '@/lib/vip'" even though the files were on disk.
+  // Do not replace resolve.alias — Next 15 keeps it as an array of
+  // objects. Spreading that into a plain map breaks css-loader / PostCSS
+  // and crashes the production build on globals.css.
   webpack: (config) => {
-    config.resolve.alias = {
-      ...(config.resolve.alias || {}),
-      '@': path.resolve(__dirname, 'src'),
-    };
+    config.cache = false;
     return config;
   },
 
