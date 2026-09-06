@@ -15,6 +15,7 @@ import {
 } from './table-directory.js';
 import { gameConfig } from '../../services/game-config.js';
 import { rtpEngine } from '../../services/rtp-engine.js';
+import { playerCardWeight, playerWinStreak } from '../../services/blackjack-player-draw.js';
 
 export const BJ_MAX_SEATS = 5;
 
@@ -1230,7 +1231,7 @@ export class BlackjackEngine extends EventEmitter {
         return this.deck.pop()!;
       }
 
-      // Recipient is a Player
+      // Recipient is a Player — tilt the player's cards, not the dealer's 19/20/21.
       const isGuest = recipient.startsWith('guest_') || recipient.startsWith('anon_');
       let playerBias = 0;
       if (!isGuest) {
@@ -1241,48 +1242,33 @@ export class BlackjackEngine extends EventEmitter {
         }
       }
 
-      // Player hitting or doubling
-      if ((context === 'player_hit' || context === 'player_double') && currentHand) {
+      if (
+        (context === 'player_hit' || context === 'player_double' || context === 'deal_player') &&
+        currentHand
+      ) {
         const curVal = this.calculateHandValue(currentHand).total;
+        const winStreak = playerWinStreak(this.history, recipient);
         const weights: number[] = [];
 
         for (const card of this.deck) {
-          const simHand = [...currentHand, card];
-          const simTotal = this.calculateHandValue(simHand).total;
-          let w = 1.0;
-
-          if (context === 'player_double' && (curVal === 10 || curVal === 11)) {
-            // Player doubled on 10/11 -> standard ~60% chance of 19, 20, 21
-            if (simTotal === 20 || simTotal === 21) {
-              w = 0.40;
-              if (playerBias < 0) w *= 1.6;
-            } else if (simTotal === 19) {
-              w = 0.25;
-              if (playerBias < 0) w *= 1.3;
-            } else {
-              w = 0.35;
-              if (playerBias > 0) w *= 1.3;
-            }
-          } else if (curVal >= 12 && curVal <= 16) {
-            // Stiff hand hit
-            if (simTotal <= 21) {
-              w = 0.50;
-              if (playerBias < 0) w *= 1 + Math.abs(playerBias) * 1.5;
-            } else {
-              // Bust card
-              w = 0.50;
-              if (playerBias < 0) w *= Math.max(0.2, 1 - Math.abs(playerBias) * 0.7);
-              if (playerBias > 0) w *= 1 + playerBias * 0.5;
-            }
-          }
-
-          weights.push(Math.max(0.001, w));
+          const simTotal = this.calculateHandValue([...currentHand, card]).total;
+          weights.push(
+            Math.max(
+              0.001,
+              playerCardWeight(simTotal, {
+                context,
+                currentTotal: curVal,
+                currentCards: currentHand.length,
+                winStreak,
+                bias: playerBias,
+              })
+            )
+          );
         }
 
         return this.pickWeightedFromDeck(weights);
       }
 
-      // Default deal card
       return this.deck.pop()!;
     } catch (err) {
       logger.warn({ err }, 'Error in smart drawCard, falling back to top of deck');
