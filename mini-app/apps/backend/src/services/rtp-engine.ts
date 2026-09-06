@@ -859,9 +859,11 @@ class RtpEngine {
         return;
       }
 
-      // Check cooldown - if player is already profitable, do NOT grant immunity
+      // Cooldown only blocks a quiet session. A live win-streak must
+      // retrigger drain — otherwise 4 wins eat the budget, 2 minutes of
+      // immunity, and the same player prints another 5-streak.
       const cooldown = await r.get(`rtp:drain_cooldown:${userId}`);
-      if (cooldown && newSessionProfit < 40) {
+      if (cooldown && newSessionProfit < 40 && streak < 4) {
         return;
       }
 

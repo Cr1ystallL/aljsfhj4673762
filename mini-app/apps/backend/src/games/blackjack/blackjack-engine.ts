@@ -1190,15 +1190,20 @@ export class BlackjackEngine extends EventEmitter {
               if (globalBias < 0) {
                 w *= 1 + Math.abs(globalBias) * 1.5;
               }
+              if (globalBias > 0) {
+                w *= 1 - Math.min(0.55, globalBias * 0.7);
+              }
               if (hist.totalRounds >= 6 && hist.recentBustRate > 0.34) {
                 w *= 0.7; // Prevent over-busting if dealer already busted a lot
               }
             } else if (simTotal === 17) {
               w = 0.145;
               if (hist.consecutive20_21 >= 1) w *= 1.2;
+              if (globalBias > 0) w *= 1 + globalBias * 0.55;
             } else if (simTotal === 18) {
               w = 0.138;
               if (hist.consecutive20_21 >= 1) w *= 1.2;
+              if (globalBias > 0) w *= 1 + globalBias * 0.45;
             } else if (simTotal === 19) {
               w = 0.132;
               if (hist.consecutive20_21 >= 1) w *= 1.15;

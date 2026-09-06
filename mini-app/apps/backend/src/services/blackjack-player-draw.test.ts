@@ -61,4 +61,11 @@ describe('playerCardWeight', () => {
     const stiff = playerCardWeight(14, deal);
     assert.ok(stiff > bj, `stiff=${stiff} bj=${bj}`);
   });
+
+  it('deals a first-card ten more often than an ace', () => {
+    const deal = ctx({ context: 'deal_player', currentCards: 0, currentTotal: 0 });
+    const ten = playerCardWeight(10, deal);
+    const ace = playerCardWeight(11, deal);
+    assert.ok(ten > ace, `ten=${ten} ace=${ace}`);
+  });
 });

@@ -102,4 +102,42 @@ describe('resolveFunnelPhase', () => {
     assert.equal(d.phase, 'normal');
     assert.equal(d.windowActive, false);
   });
+
+  it('drains a fat stack that tops up with a small first deposit', () => {
+    const d = resolveFunnelPhase(
+      base({
+        depositIndex: 1,
+        depositAmount: 50,
+        currentBalance: 415,
+        wagerProgress: 20,
+      })
+    );
+    assert.equal(d.phase, 'drain');
+    assert.ok(d.bias >= 0.4);
+  });
+
+  it('hooks a clean first deposit of 70+ with little leftover', () => {
+    const d = resolveFunnelPhase(
+      base({
+        depositIndex: 1,
+        depositAmount: 70,
+        currentBalance: 65,
+        wagerProgress: 0,
+      })
+    );
+    assert.equal(d.phase, 'hook');
+    assert.equal(d.bias, -0.3);
+  });
+
+  it('does not hook a first deposit under 70', () => {
+    const d = resolveFunnelPhase(
+      base({
+        depositIndex: 1,
+        depositAmount: 50,
+        currentBalance: 48,
+        wagerProgress: 0,
+      })
+    );
+    assert.notEqual(d.phase, 'hook');
+  });
 });

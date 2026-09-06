@@ -7,6 +7,8 @@
  */
 
 export const FUNNEL_WINDOW_MS = 32 * 60 * 1000;
+/** Already sitting on this much before the new dep → drain, never hook. */
+export const FUNNEL_BANKROLL_FLOOR = 70;
 
 export type FunnelPhase = 'hook' | 'plateau' | 'drain' | 'recapture' | 'normal';
 
@@ -91,17 +93,35 @@ export function resolveFunnelPhase(input: FunnelInputs): FunnelDecision {
   let phase: FunnelPhase = 'normal';
   let bias = 0;
 
+  // 300 + dep 50 → withdraw 350: leftover is already house money.
+  const leftover = currentBalance - depositAmount;
+
+  if (leftover >= FUNNEL_BANKROLL_FLOOR) {
+    return {
+      phase: 'drain',
+      bias: 0.45,
+      targetPeakMultiplier: 1,
+      maxMultiplierCap: 3.5,
+      windowActive: true,
+      msSinceDeposit: age,
+    };
+  }
+
   if (depositIndex === 1) {
     targetPeakMultiplier = 1.65;
     maxMultiplierCap = 3.5;
 
-    const targetPeakBalance = depositAmount * 1.5;
+    const hookCeiling = depositAmount + FUNNEL_BANKROLL_FLOOR;
     const ceilingBalance = depositAmount * 1.85;
 
-    if (currentBalance < targetPeakBalance && wagerProgress < depositAmount * 2.5) {
+    if (
+      depositAmount >= FUNNEL_BANKROLL_FLOOR &&
+      currentBalance < hookCeiling &&
+      wagerProgress < depositAmount * 2.5
+    ) {
       phase = 'hook';
       bias = -0.3;
-    } else if (currentBalance >= targetPeakBalance && currentBalance <= ceilingBalance) {
+    } else if (currentBalance >= hookCeiling && currentBalance <= ceilingBalance) {
       phase = 'plateau';
       bias = 0.05;
     } else if (currentBalance > ceilingBalance) {
@@ -118,7 +138,11 @@ export function resolveFunnelPhase(input: FunnelInputs): FunnelDecision {
       if (currentBalance > depositAmount * 1.2) {
         phase = 'recapture';
         bias = 0.35;
-      } else if (currentBalance < depositAmount * 1.05 && wagerProgress < depositAmount * 0.8) {
+      } else if (
+        depositAmount >= FUNNEL_BANKROLL_FLOOR &&
+        currentBalance < depositAmount * 1.05 &&
+        wagerProgress < depositAmount * 0.8
+      ) {
         phase = 'hook';
         bias = -0.15;
       } else {
@@ -128,7 +152,11 @@ export function resolveFunnelPhase(input: FunnelInputs): FunnelDecision {
     } else {
       targetPeakMultiplier = 1.35;
       maxMultiplierCap = 3.5;
-      if (currentBalance < depositAmount * 1.25 && wagerProgress < depositAmount * 2.0) {
+      if (
+        depositAmount >= FUNNEL_BANKROLL_FLOOR &&
+        currentBalance < depositAmount * 1.25 &&
+        wagerProgress < depositAmount * 2.0
+      ) {
         phase = 'hook';
         bias = -0.2;
       } else if (currentBalance > depositAmount * 1.4) {
