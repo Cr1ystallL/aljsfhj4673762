@@ -1,14 +1,32 @@
 /** @type {import('next').NextConfig} */
 
+const path = require('path');
+
+function addAtAlias(config) {
+  const src = path.resolve(__dirname, 'src');
+  const alias = config.resolve.alias;
+  // Next 15 uses an array of { name, alias } entries. Mutate in place —
+  // never replace the whole value or css-loader / PostCSS break.
+  if (Array.isArray(alias)) {
+    if (!alias.some((entry) => entry && (entry.name === '@' || entry.name === '@/'))) {
+      alias.push({ name: '@', alias: src });
+    }
+    return;
+  }
+  if (alias && typeof alias === 'object') {
+    if (!alias['@']) alias['@'] = src;
+    return;
+  }
+  config.resolve.alias = { '@': src };
+}
+
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
 
-  // Do not replace resolve.alias — Next 15 keeps it as an array of
-  // objects. Spreading that into a plain map breaks css-loader / PostCSS
-  // and crashes the production build on globals.css.
   webpack: (config) => {
     config.cache = false;
+    addAtAlias(config);
     return config;
   },
 
