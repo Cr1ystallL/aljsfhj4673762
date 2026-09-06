@@ -28,6 +28,7 @@ interface WithdrawBody {
 
 const MIN_AMOUNT = 50;
 const MAX_AMOUNT = 25000;
+const MIN_LIFETIME_DEPOSITS = 100;
 
 export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
   const handleCreateWithdrawal = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -157,8 +158,8 @@ export async function withdrawalRoutes(app: FastifyInstance): Promise<void> {
         if (totalDeposits === 0) {
           return { ok: false as const, error: 'Вы ни разу не пополняли баланс. Вывод заблокирован до первого депозита.' };
         }
-        if (totalDeposits < 50) {
-          return { ok: false as const, error: `Для вывода необходимо пополнить счет минимум на 50 PLN. (Ваши депозиты: ${totalDeposits.toFixed(2)} PLN)` };
+        if (totalDeposits < MIN_LIFETIME_DEPOSITS) {
+          return { ok: false as const, error: `Для вывода необходимо пополнить счет минимум на ${MIN_LIFETIME_DEPOSITS} PLN. (Ваши депозиты: ${totalDeposits.toFixed(2)} PLN)` };
         }
 
         const recentDepRow = await tx.$queryRaw<{ id: string }[]>`
