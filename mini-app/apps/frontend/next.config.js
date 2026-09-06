@@ -1,10 +1,21 @@
 /** @type {import('next').NextConfig} */
 
-
+const path = require('path');
 
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@casino/shared'],
+
+  // Explicit alias so production `next build` does not depend only on
+  // tsconfig paths. A mismatched npx-next previously failed with
+  // "Can't resolve '@/lib/vip'" even though the files were on disk.
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@': path.resolve(__dirname, 'src'),
+    };
+    return config;
+  },
 
   // Build-time memory savings: skip type-check + lint inside Next's
   // bundler. Both are already enforced by `tsc --noEmit` in CI / locally,
