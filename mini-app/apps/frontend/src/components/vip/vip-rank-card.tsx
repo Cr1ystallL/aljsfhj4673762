@@ -27,7 +27,7 @@ export function VipRankCard({ className }: { className?: string }) {
   return (
     <>
       <div
-        className={`relative overflow-hidden rounded-[20px] border border-white/12 bg-gradient-to-b from-[#13151b] to-[#0c0e12] p-4 sm:p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] flex flex-col gap-3.5 ${
+        className={`relative overflow-visible rounded-[20px] border border-white/12 bg-gradient-to-b from-[#13151b] to-[#0c0e12] p-4 sm:p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] flex flex-col gap-3.5 ${
           className || ''
         }`}
       >

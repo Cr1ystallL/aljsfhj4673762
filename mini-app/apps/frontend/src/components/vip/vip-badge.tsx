@@ -100,7 +100,12 @@ export function RankPulsingAura({
   if (normId === 'none') return null;
 
   return (
-    <div className={cn('absolute inset-0 flex items-center justify-center pointer-events-none -z-10', className)}>
+    <div
+      className={cn(
+        'absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-visible',
+        className
+      )}
+    >
       {/* Outer pulsating radial aura */}
       <motion.div
         animate={{
@@ -159,12 +164,18 @@ export function VipBadge({
   const normId = normalizeRankId(rankId);
   const src = RANK_IMAGE_MAP[normId] || RANK_IMAGE_MAP.none;
   const isNoRang = normId === 'none';
-  const { box, img } = SIZE_MAP[size] || SIZE_MAP.md;
+  const { box, img, aura: auraBox } = SIZE_MAP[size] || SIZE_MAP.md;
 
   return (
-    <div className={cn('relative inline-flex items-center justify-center select-none shrink-0', box, className)}>
+    <div
+      className={cn(
+        'relative inline-flex items-center justify-center select-none shrink-0 overflow-visible',
+        showGlow ? auraBox : box,
+        className
+      )}
+    >
       {showGlow && <RankPulsingAura rankId={normId} size={size} />}
-      <div className={cn('relative w-full h-full flex items-center justify-center z-10', isNoRang && 'scale-[0.82]')}>
+      <div className={cn('relative z-[1] flex items-center justify-center', box, isNoRang && 'scale-[0.82]')}>
         <Image
           src={src}
           alt={normId}

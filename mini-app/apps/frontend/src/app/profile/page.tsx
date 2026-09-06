@@ -105,7 +105,7 @@ export default function ProfilePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
-            className="relative overflow-hidden rounded-[20px] border border-white/12 bg-[#101216] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+            className="relative overflow-visible rounded-[20px] border border-white/12 bg-[#101216] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
           >
             <LanguageSwitcher className="absolute top-3 right-3 z-10" />
             <div

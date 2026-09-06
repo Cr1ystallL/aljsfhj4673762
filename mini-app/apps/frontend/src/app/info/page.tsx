@@ -20,15 +20,16 @@ import { Pressable } from '@/components/ui/pressable';
 import { useT } from '@/i18n/use-t';
 import { cn } from '@/lib/utils';
 import { Accordion } from './components/accordion';
-import { LegalDocument } from './components/legal-document';
+import { ClauseList, SectionedDocument, type DocSection } from './components/sectioned-document';
 import { WagerTable } from './components/wager-table';
-import { FAQ, FAQ_SUPPORT_URL, type FaqCategoryId } from './content/faq';
+import { FAQ, FAQ_SUPPORT_URL } from './content/faq';
 import {
   LEGAL_EFFECTIVE_DATE,
   LEGAL_VERSION,
   PRIVACY,
   RESPONSIBLE,
   TERMS,
+  type LegalSection,
 } from './content/legal';
 
 type TabId = 'rules' | 'privacy' | 'responsible' | 'faq';
@@ -203,7 +204,11 @@ export default function InfoPage() {
                   Депозит, ставка или нажатие «Принимаю» при первом запуске означают согласие с этим Соглашением.
                   Если вы не согласны — прекратите использование Платформы.
                 </Notice>
-                <LegalDocument sections={TERMS} accent="text-amber-300" />
+                <SectionedDocument
+                  sections={legalToDoc(TERMS)}
+                  accent="text-amber-300"
+                  activeChip="border-amber-400/30 bg-amber-400/15 text-amber-200"
+                />
               </div>
             )}
 
@@ -221,7 +226,11 @@ export default function InfoPage() {
                     </div>
                   ))}
                 </div>
-                <LegalDocument sections={PRIVACY} accent="text-sky-300" />
+                <SectionedDocument
+                  sections={legalToDoc(PRIVACY)}
+                  accent="text-sky-300"
+                  activeChip="border-sky-400/30 bg-sky-400/15 text-sky-200"
+                />
               </div>
             )}
 
@@ -258,6 +267,15 @@ export default function InfoPage() {
 
 /* ------------------------------------------------------------------ */
 
+function legalToDoc(sections: LegalSection[]): DocSection[] {
+  return sections.map((s) => ({
+    id: s.id,
+    n: s.n,
+    title: s.title,
+    content: <ClauseList clauses={s.clauses} />,
+  }));
+}
+
 function Notice({ tone, children }: { tone: 'amber' | 'emerald'; children: React.ReactNode }) {
   const cls =
     tone === 'amber'
@@ -275,30 +293,30 @@ function ResponsibleTab() {
         Если игра перестала быть развлечением — остановитесь. Все инструменты ниже бесплатны и включаются
         одним сообщением в поддержку.
       </Notice>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {RESPONSIBLE.map((b, i) => (
-          <section
-            key={b.id}
-            className={cn(
-              'rounded-[20px] border border-white/10 bg-white/[0.025] p-4 sm:p-5',
-              (i === 0 || b.id === 'help') && 'md:col-span-2'
-            )}
-          >
-            <h3 className="font-roobert text-[15px] font-bold text-white">{b.title}</h3>
-            <p className="mt-1.5 text-[13.5px] text-white/65 leading-relaxed">{b.text}</p>
-            {b.bullets && (
-              <ul className="mt-3 flex flex-col gap-2">
-                {b.bullets.map((line) => (
-                  <li key={line} className="flex gap-2.5 text-[13px] text-white/70 leading-snug">
-                    <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" />
-                    <span>{line}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
-      </div>
+      <SectionedDocument
+        accent="text-emerald-300"
+        activeChip="border-emerald-400/30 bg-emerald-400/15 text-emerald-200"
+        sections={RESPONSIBLE.map((b, i) => ({
+          id: b.id,
+          n: String(i + 1),
+          title: b.title,
+          content: (
+            <div className="pt-3">
+              <p className="text-[13.5px] text-white/65 leading-relaxed">{b.text}</p>
+              {b.bullets && (
+                <ul className="mt-3 flex flex-col gap-2">
+                  {b.bullets.map((line) => (
+                    <li key={line} className="flex gap-2.5 text-[13px] text-white/70 leading-snug">
+                      <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ),
+        }))}
+      />
     </div>
   );
 }
@@ -306,13 +324,11 @@ function ResponsibleTab() {
 function FaqTab() {
   const { t } = useT();
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<FaqCategoryId | 'all'>('all');
 
   const q = query.trim().toLowerCase();
 
   const visible = useMemo(() => {
     return FAQ.map((cat) => {
-      if (category !== 'all' && cat.id !== category) return { ...cat, items: [] };
       if (!q) return cat;
       const items = cat.items.filter(
         (it) =>
@@ -322,9 +338,25 @@ function FaqTab() {
       );
       return { ...cat, items };
     }).filter((cat) => cat.items.length > 0);
-  }, [q, category]);
+  }, [q]);
 
   const total = visible.reduce((n, c) => n + c.items.length, 0);
+
+  const sections: DocSection[] = visible.map((cat, i) => ({
+    id: cat.id,
+    n: String(i + 1),
+    title: `${cat.title} · ${cat.items.length}`,
+    content: (
+      <div className="flex flex-col gap-2 pt-3">
+        {cat.items.map((item) => (
+          <Accordion key={item.q} question={item.q} accent="text-violet-300" defaultOpen={!!q}>
+            <p>{item.a}</p>
+            {item.widget === 'wager-table' && <WagerTable />}
+          </Accordion>
+        ))}
+      </div>
+    ),
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -350,30 +382,6 @@ function FaqTab() {
         )}
       </label>
 
-      {/* Category chips */}
-      <div className="-mx-3.5 px-3.5 overflow-x-auto no-scrollbar">
-        <div className="flex gap-2 w-max pb-0.5">
-          {[{ id: 'all' as const, short: 'Все' }, ...FAQ.map((c) => ({ id: c.id, short: c.short }))].map((c) => {
-            const on = category === c.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCategory(c.id)}
-                className={cn(
-                  'px-3.5 py-1.5 rounded-full border text-[12.5px] font-semibold whitespace-nowrap transition-colors',
-                  on
-                    ? 'border-violet-400/40 bg-violet-400/15 text-violet-100'
-                    : 'border-white/10 bg-white/[0.03] text-white/60 hover:text-white hover:bg-white/[0.07]'
-                )}
-              >
-                {c.short}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {total === 0 ? (
         <div className="rounded-[20px] border border-white/10 bg-white/[0.025] p-8 text-center">
           <div className="font-roobert text-[15px] font-bold text-white">Ничего не найдено</div>
@@ -382,22 +390,12 @@ function FaqTab() {
           </p>
         </div>
       ) : (
-        visible.map((cat) => (
-          <section key={cat.id} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between px-1 pt-1">
-              <h3 className="font-roobert text-[11px] font-bold uppercase tracking-[0.16em] text-white/45">
-                {cat.title}
-              </h3>
-              <span className="text-[11px] tabular-nums text-white/30">{cat.items.length}</span>
-            </div>
-            {cat.items.map((item) => (
-              <Accordion key={item.q} question={item.q} accent="text-violet-300" defaultOpen={!!q}>
-                <p>{item.a}</p>
-                {item.widget === 'wager-table' && <WagerTable />}
-              </Accordion>
-            ))}
-          </section>
-        ))
+        <SectionedDocument
+          sections={sections}
+          accent="text-violet-300"
+          activeChip="border-violet-400/30 bg-violet-400/15 text-violet-200"
+          expandAll={!!q}
+        />
       )}
     </div>
   );

@@ -60,7 +60,7 @@ export default function CashbackPage() {
         {/* ========================================================================= */}
         {/* MAIN CASHBACK CARD (Design matching user screenshot)                      */}
         {/* ========================================================================= */}
-        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#0d0f13] p-5 sm:p-6 shadow-2xl flex flex-col gap-4">
+        <div className="relative overflow-visible rounded-[24px] border border-white/10 bg-[#0d0f13] p-5 sm:p-6 shadow-2xl flex flex-col gap-4">
           {/* Animated Soft Green Gradient Background Glow */}
           <motion.div
             animate={{
