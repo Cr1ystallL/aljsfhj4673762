@@ -44,7 +44,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       },
       config: {
         rateLimit: {
-          max: 10,
+          // Mini App remounts on every WebView resume / failed chunk reload.
+          // 10/min is easy to burn while the page is broken.
+          max: 40,
           timeWindow: '1 minute',
         },
       },
