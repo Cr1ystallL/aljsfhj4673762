@@ -46,6 +46,7 @@ model User {
 
   // VIP System & Loyalty Cashback
   xp                    Int       @default(0)
+  xpWagerRemainder      Decimal   @default(0) @map("xp_wager_remainder") @db.Decimal(20, 2)
   vipLevel              Int       @default(0) @map("vip_level")
   claimedVipRewards     Int[]     @default([]) @map("claimed_vip_rewards")
   lastCashbackClaimedAt DateTime? @map("last_cashback_claimed_at")

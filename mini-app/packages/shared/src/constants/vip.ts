@@ -1,6 +1,23 @@
 import type { VipTierConfig } from '../types/vip.js';
 
-export const VIP_XP_PER_ZL = 10;
+/** Real-money turnover required for 1 XP. */
+export const VIP_ZL_PER_XP = 10;
+
+/** XP granted per 1 zł of real-money wager. 10 zł = 1 XP. */
+export const VIP_XP_PER_ZL = 1 / VIP_ZL_PER_XP;
+
+export function xpFromWagerZl(wagerZl: number, xpPerZl: number = VIP_XP_PER_ZL): number {
+  if (!Number.isFinite(wagerZl) || wagerZl <= 0 || !Number.isFinite(xpPerZl) || xpPerZl <= 0) {
+    return 0;
+  }
+  return Math.floor(wagerZl * xpPerZl);
+}
+
+export function wagerRemainderAfterXp(wagerZl: number, xpPerZl: number = VIP_XP_PER_ZL): number {
+  const xp = xpFromWagerZl(wagerZl, xpPerZl);
+  const consumed = xpPerZl > 0 ? xp / xpPerZl : 0;
+  return Math.round((Math.max(0, wagerZl) - consumed) * 100) / 100;
+}
 
 export const VIP_RANKS: readonly VipTierConfig[] = [
   {
@@ -21,7 +38,7 @@ export const VIP_RANKS: readonly VipTierConfig[] = [
     name: 'Bronze',
     nameRu: 'Бронза',
     minXp: 500,
-    wagerZl: 50,
+    wagerZl: 500 * VIP_ZL_PER_XP,
     cashbackPercent: 3,
     icon: '/Rangs/Bronze.png',
     rewardDescription: 'Бесплатный обычный кейс',
@@ -34,7 +51,7 @@ export const VIP_RANKS: readonly VipTierConfig[] = [
     name: 'Silver',
     nameRu: 'Серебро',
     minXp: 1000,
-    wagerZl: 100,
+    wagerZl: 1000 * VIP_ZL_PER_XP,
     cashbackPercent: 4,
     icon: '/Rangs/Silver.png',
     rewardDescription: '+30 zł на баланс',
@@ -47,7 +64,7 @@ export const VIP_RANKS: readonly VipTierConfig[] = [
     name: 'Gold',
     nameRu: 'Золото',
     minXp: 5000,
-    wagerZl: 500,
+    wagerZl: 5000 * VIP_ZL_PER_XP,
     cashbackPercent: 5,
     icon: '/Rangs/Gold.png',
     rewardDescription: '+50 zł бонус + Стартовый кейс',
@@ -61,7 +78,7 @@ export const VIP_RANKS: readonly VipTierConfig[] = [
     name: 'Platinum',
     nameRu: 'Platinum',
     minXp: 25000,
-    wagerZl: 2500,
+    wagerZl: 25000 * VIP_ZL_PER_XP,
     cashbackPercent: 7,
     icon: '/Rangs/Platinum.png',
     rewardDescription: '50 zł фрибет на ставки + Приоритет при выводах',
@@ -74,7 +91,7 @@ export const VIP_RANKS: readonly VipTierConfig[] = [
     name: 'Diamond',
     nameRu: 'Diamond',
     minXp: 100000,
-    wagerZl: 10000,
+    wagerZl: 100000 * VIP_ZL_PER_XP,
     cashbackPercent: 10,
     icon: '/Rangs/Diamond.png',
     rewardDescription: '200 zł бонус + Повышенный кэшбэк 10%',

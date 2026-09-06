@@ -56,7 +56,7 @@ export function VipFaqModal({
                 <span>Система VIP Рангов</span>
               </h2>
               <p className="text-[11.5px] text-white/60 mt-0.5">
-                Ставьте в любых играх: <b className="text-amber-300">1 zł = 10 XP</b>. Повышайте ранг, забирайте награды и увеличивайте кэшбэк!
+                Ставьте в любых играх: <b className="text-amber-300">10 zł = 1 XP</b>. Повышайте ранг, забирайте награды и увеличивайте кэшбэк!
               </p>
             </div>
           </div>
