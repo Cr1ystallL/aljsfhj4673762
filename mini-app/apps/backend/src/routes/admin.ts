@@ -872,12 +872,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
       }
       try {
-        await rtpEngine.setDrain(id, {
-          rounds: request.body?.rounds ?? 25,
-          durationMs: request.body?.durationMs ?? 3600 * 1000,
+        const rounds = request.body?.rounds ?? 200;
+        const durationMs = request.body?.durationMs ?? 2 * 3600 * 1000;
+        await rtpEngine.setDrain(id, { rounds, durationMs, reason });
+        const drain = await rtpEngine.getDrainInfo(id);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'user.drain.set',
+          targetType: 'user',
+          targetId: id,
+          payloadAfter: { rounds, durationMs, reason, drain },
           reason,
         });
-        const drain = await rtpEngine.getDrainInfo(id);
         return reply.send({ ok: true, drain });
       } catch (error) {
         logger.error(error, 'Admin user drain set failed');
@@ -894,6 +900,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       try {
         await rtpEngine.removeDrain(id);
         const drain = await rtpEngine.getDrainInfo(id);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'user.drain.remove',
+          targetType: 'user',
+          targetId: id,
+          payloadAfter: { drain },
+          reason: 'admin_clear',
+        });
         return reply.send({ ok: true, drain });
       } catch (error) {
         logger.error(error, 'Admin user drain remove failed');

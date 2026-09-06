@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { telegramApi } from '../lib/telegram-api.js';
+import { decideCollisionAction } from './collision-policy.js';
 
 const ROOT_IP_THRESHOLD = 3;
 const ROOT_IP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -269,38 +270,54 @@ export class SecurityService {
 
     if (matchingAccounts.length > 0) {
       const mainAccount = matchingAccounts[0];
+      const action = decideCollisionAction({
+        ignoreIpCollision: Boolean(user.ignoreIpCollision),
+        hardwareMatch: true,
+        sameIp: false,
+        sameDeviceId: false,
+        financialMatch: false,
+      });
 
-      // Check if already blocked to prevent spamming
-      if (!user.isBlocked) {
+      await prisma.securityAlert.create({
+        data: {
+          userId,
+          type: 'multi_account_hardware',
+          severity: action.ban ? 'critical' : 'medium',
+          description: `Совпадение железа с ${matchingAccounts.length} аккаунтами. Основной: ${mainAccount.id}. Действие: ${action.reason}`,
+        },
+      });
+
+      if (user.isBlocked) return;
+
+      if (action.lockNewWithdrawals && !user.withdrawalLocked) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            withdrawalLocked: true,
+            adminNote: `Заморозка вывода: совпадение TMA железа с аккаунтом ${mainAccount.id} (TG: ${mainAccount.telegramId})`,
+          },
+        });
+      }
+
+      if (action.ban) {
         await prisma.user.update({
           where: { id: userId },
           data: {
             isBlocked: true,
-            adminNote: `Авто-блокировка: 100% совпадение TMA железа с аккаунтом ${mainAccount.id} (TG: ${mainAccount.telegramId})`,
+            adminNote: `Авто-блокировка: железо + второй сигнал с аккаунтом ${mainAccount.id} (TG: ${mainAccount.telegramId})`,
           },
         });
+      }
 
-        // Lock withdrawals on main account
+      if (action.lockMainWithdrawals) {
         await prisma.user.update({
           where: { id: mainAccount.id },
           data: {
             withdrawalLocked: true,
-            adminNote: `Заморозка вывода: обнаружен дублирующий аккаунт на том же железе (${userId})`,
+            adminNote: `Заморозка вывода: дубль на том же железе (${userId})`,
           },
         });
-
-        // Create alert
-        await prisma.securityAlert.create({
-          data: {
-            userId,
-            type: 'multi_account_hardware',
-            severity: 'critical',
-            description: `Критическое совпадение железа: устройство разделено с ${matchingAccounts.length} аккаунтами. Основной: ${mainAccount.id}`,
-          },
-        });
-
-        // Send TG alert to main account
-        const messageText = `⚠️ Предупреждение о безопасности MacvBet\n\nСистема безопасности зафиксировала попытку входа во второй аккаунт с вашего физического устройства.\n\nПользовательское соглашение (п. 2.1) строго запрещает мультиаккаунтинг.\nДублирующий аккаунт заблокирован, вывод на основном аккаунте временно заморожен. Свяжитесь с поддержкой, если считаете это ошибкой.`;
+        const messageText = `⚠️ Предупреждение о безопасности MacvBet\n\nСистема безопасности зафиксировала попытку входа во второй аккаунт с вашего физического устройства.\n\nПользовательское соглашение (п. 2.1) строго запрещает мультиаккаунтинг.\nВывод временно заморожен. Свяжитесь с поддержкой, если считаете это ошибкой.`;
         await telegramApi.sendMessage(Number(mainAccount.telegramId), messageText).catch(() => {});
       }
     }
@@ -325,46 +342,61 @@ export class SecurityService {
     if (allAccountsOnIp.length > 1) {
       const mainIpRecord = allAccountsOnIp[0];
       if (mainIpRecord.userId !== userId) {
-        const isVpnContext = ipRecord.isVpn || allAccountsOnIp.some((a: any) => a.isVpn);
-        const hasSameDevice =
-          deviceId && allAccountsOnIp.some((a: any) => a.userId !== userId && a.deviceId === deviceId);
+        const hasSameDevice = Boolean(
+          deviceId && allAccountsOnIp.some((a: any) => a.userId !== userId && a.deviceId === deviceId)
+        );
+        const hardwareMatch = Boolean(
+          user.hardwareHash &&
+            allAccountsOnIp.some(
+              (a: any) => a.userId !== userId && a.user?.hardwareHash && a.user.hardwareHash === user.hardwareHash
+            )
+        );
+        const action = decideCollisionAction({
+          ignoreIpCollision: Boolean(user.ignoreIpCollision),
+          hardwareMatch,
+          sameIp: true,
+          sameDeviceId: hasSameDevice,
+          financialMatch: false,
+        });
 
-        if (isVpnContext && !hasSameDevice) {
-          await prisma.securityAlert.create({
+        await prisma.securityAlert.create({
+          data: {
+            userId,
+            type: action.ban ? 'multi_account_ip' : 'multi_account_suspicion',
+            severity: action.ban ? 'high' : 'medium',
+            description: `Shared IP ${ipAddress} with ${allAccountsOnIp.length - 1} others. Действие: ${action.reason}`,
+          },
+        });
+
+        if (user.isBlocked) return;
+
+        const mainAccount = mainIpRecord.user;
+        if (action.lockNewWithdrawals && !user.withdrawalLocked) {
+          await prisma.user.update({
+            where: { id: userId },
             data: {
-              userId,
-              type: 'multi_account_suspicion',
-              severity: 'medium',
-              description: `Shared VPN IP detected: ${ipAddress} (shared with ${allAccountsOnIp.length - 1} others)`,
+              withdrawalLocked: true,
+              adminNote: `Заморозка вывода: совпадение IP ${ipAddress} с аккаунтом ${mainAccount.id}`,
             },
           });
-        } else {
-          // Exact home IP match
-          if (!user.isBlocked) {
-            const mainAccount = mainIpRecord.user;
-            await prisma.user.update({
-              where: { id: userId },
-              data: {
-                isBlocked: true,
-                adminNote: `Авто-блокировка: совпадение IP ${ipAddress} с основным аккаунтом ${mainAccount.id}`,
-              },
-            });
-            await prisma.user.update({
-              where: { id: mainAccount.id },
-              data: {
-                withdrawalLocked: true,
-                adminNote: `Заморозка вывода: обнаружен мульт на том же IP (${ipAddress})`,
-              },
-            });
-            await prisma.securityAlert.create({
-              data: {
-                userId,
-                type: 'multi_account_ip',
-                severity: 'high',
-                description: `Совпадение IP адреса ${ipAddress} с основным аккаунтом ${mainAccount.id}`,
-              },
-            });
-          }
+        }
+        if (action.ban) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              isBlocked: true,
+              adminNote: `Авто-блокировка: IP ${ipAddress} + второй сигнал с аккаунтом ${mainAccount.id}`,
+            },
+          });
+        }
+        if (action.lockMainWithdrawals) {
+          await prisma.user.update({
+            where: { id: mainAccount.id },
+            data: {
+              withdrawalLocked: true,
+              adminNote: `Заморозка вывода: мульт на том же IP/устройстве (${ipAddress})`,
+            },
+          });
         }
       }
     }
