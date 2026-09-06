@@ -1,6 +1,6 @@
 #!/bin/bash
-# Safe production rebuild: use the local Next binary (never `npx next`),
-# keep a copy of `.next` so a failed build does not take the site down.
+# Safe production rebuild: local Next only (never `npx next`).
+# Move `.next` aside instead of copying it — a full copy freezes SSH/disk.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -14,17 +14,17 @@ test -f src/lib/vip.ts
 test -f src/components/vip/vip-faq-modal.tsx
 
 export NEXT_TELEMETRY_DISABLED=1
-export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
 
 if [ -d .next ]; then
   rm -rf .next.bak
-  cp -a .next .next.bak
+  mv .next .next.bak
 fi
 
 if ! node "$NEXT_BIN" build; then
   echo "next build failed — restoring previous .next"
+  rm -rf .next
   if [ -d .next.bak ]; then
-    rm -rf .next
     mv .next.bak .next
   fi
   exit 1
