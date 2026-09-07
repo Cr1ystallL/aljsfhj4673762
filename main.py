@@ -14,7 +14,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ErrorEvent
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
 
-from handlers import basic, dice, bowling, darts, basketball, football, mines, rps, spider, payment, admin, referral
+from handlers import basic, dice, bowling, darts, basketball, football, mines, rps, spider, payment, admin, referral, emergency
 from config import config
 from middleware import UserActivityMiddleware
 
@@ -51,6 +51,7 @@ async def main():
     dp.callback_query.middleware(UserActivityMiddleware())
     
     # Регистрация роутеров
+    dp.include_router(emergency.router)
     dp.include_router(admin.router)
     dp.include_router(payment.router)
     dp.include_router(dice.router)
