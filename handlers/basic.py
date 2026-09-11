@@ -1,18 +1,64 @@
 """
 Обработчики базовых команд бота
 """
+import random
+import logging
+from pathlib import Path
 from typing import Union
 from aiogram import Router, F
 from aiogram.filters import Command, CommandObject
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
+    FSInputFile, WebAppInfo
+)
 from aiogram.fsm.context import FSMContext
-
-from aiogram.types import WebAppInfo
 
 from database.db import db
 from config import config
 from keyboards.reply import get_main_keyboard
 from locales.translations import get_text, format_amount
+
+logger = logging.getLogger(__name__)
+
+HEARTS = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🖤", "🤍", "🩷", "🩵", "🩶"]
+
+MOTIVATIONAL_QUOTES = {
+    'ru': [
+        "Удача сопутствует смелым!",
+        "Твой главный соперник — ты вчерашний.",
+        "Победа начинается с первого шага.",
+        "Большой куш любит уверенность и хладнокровие.",
+        "Фортуна всегда на стороне решительных.",
+        "Успех — это сумма маленьких шагов каждый день.",
+        "Верь в свою победу, и она не заставит себя ждать.",
+        "Каждый день открывает новые возможности для триумфа.",
+        "Смелость побеждает любые сомнения.",
+        "Кто рискует, тот пишет свою историю побед."
+    ],
+    'pl': [
+        "Szczęście sprzyja odważnym!",
+        "Twój największy rywal to ty z wczoraj.",
+        "Zwycięstwo zaczyna się od pierwszego kroku.",
+        "Wielka wygrana lubi pewność siebie i spokój.",
+        "Fortuna sprzyja zdeterminowanym.",
+        "Sukces to suma małych kroków każdego dnia.",
+        "Uwierz w wygraną, a przyjdzie szybciej niż myślisz.",
+        "Każdy dzień to nowa szansa na triumf."
+    ]
+}
+
+
+def get_fallback_avatar() -> Union[FSInputFile, None]:
+    paths = [
+        Path('/var/www/MACVBET/mini-app/apps/frontend/public/SmallLogo.png'),
+        Path('mini-app/apps/frontend/public/SmallLogo.png'),
+        Path('/var/www/MACVBET/mini-app/apps/frontend/public/MenuLogo.png'),
+        Path('mini-app/apps/frontend/public/MenuLogo.png'),
+    ]
+    for p in paths:
+        if p.is_file():
+            return FSInputFile(str(p))
+    return None
 
 router = Router()
 
@@ -194,29 +240,115 @@ async def slots_region(callback: CallbackQuery):
 
 @router.message(F.text.in_(["Профиль", "Profil", "🔵 Профиль", "🔵 Profil", "👤 Профиль", "👤 Profil"]))
 async def show_profile(event: Union[Message, CallbackQuery]):
-    """Показать профиль пользователя"""
+    """Показать профиль пользователя с аватаркой и прикрепленным сообщением"""
+    bot = event.bot
     user = event.from_user
     user_id = user.id
     lang = db.get_user_language(user_id)
     
     balance = db.get_balance(user_id)
-    profile_text = get_text(lang, 'profile_balance', balance=format_amount(balance))
-        
-    amount_to_lose = db.get_amount_to_lose(user_id)
-    if amount_to_lose > 0:
-        profile_text += f"\n{get_text(lang, 'profile_to_lose', amount=f'{amount_to_lose:.2f}')}"
-    
+    username_display = f"@{user.username}" if user.username else (user.first_name or ("Gracz" if lang == 'pl' else "Игрок"))
+
+    # Вейджер: прогресс\цель(если есть)
+    w_curr, w_req = 0.0, 0.0
+    try:
+        w_curr, w_req = db.get_wager_info(user_id)
+    except Exception:
+        pass
+
+    amount_to_lose = 0.0
+    try:
+        amount_to_lose = db.get_amount_to_lose(user_id)
+    except Exception:
+        pass
+
+    heart = random.choice(HEARTS)
+    quote = random.choice(MOTIVATIONAL_QUOTES.get(lang, MOTIVATIONAL_QUOTES['ru']))
+
+    if lang == 'pl':
+        lines = [
+            f"👤 <b>Nick:</b> {username_display}",
+            f"💰 <b>Saldo:</b> {format_amount(balance)}",
+        ]
+        if w_req > 0:
+            lines.append("")
+            lines.append(f"📊 <b>Wager:</b> {w_curr:.2f}\\{w_req:.2f}")
+        elif amount_to_lose > 0:
+            lines.append("")
+            lines.append(f"📊 <b>Obrót:</b> {amount_to_lose:.2f} zł")
+        lines.append("")
+        lines.append(f"{heart} <i>{quote}</i>")
+    else:
+        lines = [
+            f"👤 <b>Ник:</b> {username_display}",
+            f"💰 <b>Баланс:</b> {format_amount(balance)}",
+        ]
+        if w_req > 0:
+            lines.append("")
+            lines.append(f"📊 <b>Вейджер:</b> {w_curr:.2f}\\{w_req:.2f}")
+        elif amount_to_lose > 0:
+            lines.append("")
+            lines.append(f"📊 <b>Отыгрыш:</b> {amount_to_lose:.2f} zł")
+        lines.append("")
+        lines.append(f"{heart} <i>{quote}</i>")
+
+    caption = "\n".join(lines)
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance", style="primary"),
+            InlineKeyboardButton(
+                text=get_text(lang, 'btn_deposit'),
+                callback_data="deposit_balance",
+                style="success"
+            ),
         ],
-        [InlineKeyboardButton(text=get_text(lang, 'btn_change_language'), callback_data="change_language")]
+        [
+            InlineKeyboardButton(
+                text=get_text(lang, 'btn_change_language'),
+                callback_data="change_language"
+            ),
+            InlineKeyboardButton(
+                text=get_text(lang, 'btn_back'),
+                callback_data="back_to_main_menu"
+            )
+        ]
     ])
-    
+
+    photo_file_id = None
+    try:
+        user_photos = await bot.get_user_profile_photos(user_id, limit=1)
+        if user_photos and user_photos.total_count > 0:
+            photo_file_id = user_photos.photos[0][-1].file_id
+    except Exception as e:
+        logger.warning(f"Could not get profile photo for {user_id}: {e}")
+
+    fallback_photo = get_fallback_avatar()
+
     if isinstance(event, Message):
-        await event.answer(text=profile_text, reply_markup=keyboard)
+        if photo_file_id:
+            await event.answer_photo(photo=photo_file_id, caption=caption, reply_markup=keyboard)
+        elif fallback_photo:
+            await event.answer_photo(photo=fallback_photo, caption=caption, reply_markup=keyboard)
+        else:
+            await event.answer(text=caption, reply_markup=keyboard)
     else:
-        await event.message.edit_text(text=profile_text, reply_markup=keyboard)
+        # CallbackQuery
+        if event.message and event.message.photo:
+            try:
+                await event.message.edit_caption(caption=caption, reply_markup=keyboard)
+                return
+            except Exception:
+                pass
+        try:
+            await event.message.delete()
+        except Exception:
+            pass
+        if photo_file_id:
+            await bot.send_photo(chat_id=user_id, photo=photo_file_id, caption=caption, reply_markup=keyboard)
+        elif fallback_photo:
+            await bot.send_photo(chat_id=user_id, photo=fallback_photo, caption=caption, reply_markup=keyboard)
+        else:
+            await bot.send_message(chat_id=user_id, text=caption, reply_markup=keyboard)
 
 
 @router.callback_query(F.data == "change_language")
@@ -227,7 +359,14 @@ async def change_language_menu(callback: CallbackQuery):
         [InlineKeyboardButton(text="🇵🇱 Polski", callback_data="set_lang:pl")],
         [InlineKeyboardButton(text="‹ Назад", callback_data="back_to_profile_from_lang")]
     ])
-    await callback.message.edit_text(get_text('ru', 'choose_language'), reply_markup=keyboard)
+    if callback.message.photo:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(get_text('ru', 'choose_language'), reply_markup=keyboard)
+    else:
+        await callback.message.edit_text(get_text('ru', 'choose_language'), reply_markup=keyboard)
     await callback.answer()
 
 
@@ -235,6 +374,18 @@ async def change_language_menu(callback: CallbackQuery):
 async def back_to_profile_from_lang(callback: CallbackQuery):
     """Вернуться к профилю из меню языка"""
     await show_profile(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_main_menu")
+async def back_to_main_menu(callback: CallbackQuery):
+    """Вернуться в главное меню из профиля"""
+    lang = db.get_user_language(callback.from_user.id)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(get_text(lang, 'main_menu'), reply_markup=get_main_keyboard(lang))
     await callback.answer()
 
 

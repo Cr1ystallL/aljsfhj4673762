@@ -16,8 +16,7 @@ def get_main_keyboard(lang: str = 'ru') -> ReplyKeyboardMarkup:
         [
             KeyboardButton(
                 text=get_text(lang, 'btn_miniapp'),
-                style='danger',
-                web_app=WebAppInfo(url=miniapp_url) if miniapp_url else None
+                style='danger'
             )
         ],
         [

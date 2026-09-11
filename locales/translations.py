@@ -6,15 +6,15 @@ TRANSLATIONS = {
     'ru': {
         # Основные кнопки
         'btn_slots': 'Слоты',  # legacy — больше не отображается, оставлен для старых хэндлеров
-        'btn_miniapp': 'Mini-App',
+        'btn_miniapp': '🔴 Mini-App',
         'btn_games': 'Игры TG',
-        'btn_profile': 'Профиль',
-        'btn_info': 'Информация',
+        'btn_profile': '🔵 Профиль',
+        'btn_info': '🔵 Информация',
         'btn_back': '‹ Назад',
         'miniapp_intro': '<b>MacvBet</b>\n\nНажмите кнопку ниже, чтобы открыть Mini-App:',
-        'btn_open_miniapp': 'Играть в Mini-App',
+        'btn_open_miniapp': '🔴 Играть в Mini-App',
         'start_miniapp_prompt': '🎰 <b>Добро пожаловать в MacvBet!</b>\n\nНажмите кнопку ниже, чтобы открыть Mini-App и начать игру:',
-        'btn_start_miniapp': 'Играть в Mini-App',
+        'btn_start_miniapp': '🔴 Играть в Mini-App',
         
         # Приветствие
         'welcome': '{name}. MacvJet на главной — живой раунд, не постер.',
@@ -148,15 +148,15 @@ TRANSLATIONS = {
     'pl': {
         # Podstawowe przyciski
         'btn_slots': 'Sloty',  # legacy — już nie wyświetlane, zostawione dla starych handlerów
-        'btn_miniapp': 'Mini-App',
+        'btn_miniapp': '🔴 Mini-App',
         'btn_games': 'Gry TG',
-        'btn_profile': 'Profil',
-        'btn_info': 'Informacje',
+        'btn_profile': '🔵 Profil',
+        'btn_info': '🔵 Informacje',
         'btn_back': '‹ Wstecz',
         'miniapp_intro': '<b>MacvBet</b>\n\nKliknij poniższy przycisk, aby otworzyć Mini-App:',
-        'btn_open_miniapp': 'Graj w Mini-App',
+        'btn_open_miniapp': '🔴 Graj w Mini-App',
         'start_miniapp_prompt': '🎰 <b>Witamy w MacvBet!</b>\n\nKliknij poniższy przycisk, aby otworzyć Mini-App i rozpocząć grę:',
-        'btn_start_miniapp': 'Graj w Mini-App',
+        'btn_start_miniapp': '🔴 Graj w Mini-App',
         
         # Powitanie
         'welcome': '{name}. MacvJet na głównej — żywa runda, nie plakat.',

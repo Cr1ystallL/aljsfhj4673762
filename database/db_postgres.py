@@ -218,6 +218,44 @@ class DatabasePostgres:
             # Prisma хранит Decimal, конвертируем в float
             return float(result[0])
         return 0.0
+
+    def get_wager_info(self, user_id: int) -> Tuple[float, float]:
+        """Получить информацию о вейджере пользователя (wager_current, wager_required)"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT wager_current, wager_required 
+                FROM users 
+                WHERE telegram_id = %s
+            ''', (user_id,))
+            result = cursor.fetchone()
+            if result and result[0] is not None and result[1] is not None:
+                return float(result[0]), float(result[1])
+        except Exception:
+            pass
+        finally:
+            conn.close()
+        return 0.0, 0.0
+
+    def get_amount_to_lose(self, user_id: int) -> float:
+        """Получить сумму, которую осталось отыграть"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT amount_to_lose 
+                FROM users 
+                WHERE telegram_id = %s
+            ''', (user_id,))
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                return float(result[0])
+        except Exception:
+            pass
+        finally:
+            conn.close()
+        return 0.0
     
     def set_balance(self, user_id: int, amount: float) -> None:
         """

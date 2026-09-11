@@ -144,19 +144,8 @@ async def deposit_balance(callback: CallbackQuery):
 @router.callback_query(F.data == "back_to_profile")
 async def back_to_profile(callback: CallbackQuery):
     """Вернуться к профилю"""
-    user_id = callback.from_user.id
-    lang = db.get_user_language(user_id)
-    balance = db.get_balance(user_id)
-    
-    profile_text = get_text(lang, 'profile_balance', balance=format_amount(balance))
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance"),
-        ]
-    ])
-    
-    await callback.message.edit_text(profile_text, reply_markup=keyboard)
+    from handlers.basic import show_profile
+    await show_profile(callback)
     await callback.answer()
 
 
