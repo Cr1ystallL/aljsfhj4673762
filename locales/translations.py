@@ -6,15 +6,15 @@ TRANSLATIONS = {
     'ru': {
         # Основные кнопки
         'btn_slots': 'Слоты',  # legacy — больше не отображается, оставлен для старых хэндлеров
-        'btn_miniapp': '🔴 Mini-App',
+        'btn_miniapp': 'Mini-App',
         'btn_games': 'Игры TG',
-        'btn_profile': '🔵 Профиль',
-        'btn_info': '🔵 Информация',
+        'btn_profile': 'Профиль',
+        'btn_info': 'Информация',
         'btn_back': '‹ Назад',
         'miniapp_intro': '<b>MacvBet</b>\n\nНажмите кнопку ниже, чтобы открыть Mini-App:',
-        'btn_open_miniapp': '🔴 Играть в Mini-App',
+        'btn_open_miniapp': 'Играть в Mini-App',
         'start_miniapp_prompt': '🎰 <b>Добро пожаловать в MacvBet!</b>\n\nНажмите кнопку ниже, чтобы открыть Mini-App и начать игру:',
-        'btn_start_miniapp': '🔴 Играть в Mini-App',
+        'btn_start_miniapp': 'Играть в Mini-App',
         
         # Приветствие
         'welcome': '{name}. MacvJet на главной — живой раунд, не постер.',
@@ -31,10 +31,10 @@ TRANSLATIONS = {
         'balance_bonus': 'Бонусный 🎁',
         'btn_deposit': 'Пополнить',
         'btn_withdraw': 'Вывести',
-        'btn_withdraw_cancel': '❌ Отмена',
-        'btn_referral': '👥 Реферальная программа',
-        'btn_switch_balance': '🔄 Сменить счет',
-        'btn_change_language': '🌐 Сменить язык',
+        'btn_withdraw_cancel': 'Отмена',
+        'btn_referral': 'Реферальная программа',
+        'btn_switch_balance': 'Сменить счет',
+        'btn_change_language': 'Сменить язык',
         'balance_switched': 'Активный счет изменен!',
         
         # Пополнение
@@ -67,7 +67,7 @@ TRANSLATIONS = {
         'withdraw_blocked': 'Вывод Заблокирован.',
         'withdraw_rejected': '❌ <b>Заявка на вывод отклонена</b>\n\n💰 Сумма: {amount} USDT\n\nСредства возвращены на баланс',
         'withdraw_approved': '✅ <b>Вывод одобрен!</b>\n\n💰 Сумма: {amount} USDT\n🌐 Метод: CryptoBot\n\nЧтобы получить средства, нажмите на кнопку ниже:',
-        'btn_get_funds': '💎 Получить средства',
+        'btn_get_funds': 'Получить средства',
         
         # Игры
         'games_title': '🎮 <b>Выберите игру из списка ниже:</b>',
@@ -88,8 +88,8 @@ TRANSLATIONS = {
         
         # Информация
         'info_title': 'ℹ️ <b>Информация о MacvBet</b>\n\nВыберите раздел:',
-        'btn_agreement': '📄 Пользовательское соглашение',
-        'btn_support': '💬 Поддержка',
+        'btn_agreement': 'Пользовательское соглашение',
+        'btn_support': 'Поддержка',
         
         # Ошибки
         'error_insufficient_balance': '❌ <b>Не хватает баланса</b>\n\n<i>Ваш баланс:</i> {balance}\n<i>Требуется:</i> {required}',
@@ -148,15 +148,15 @@ TRANSLATIONS = {
     'pl': {
         # Podstawowe przyciski
         'btn_slots': 'Sloty',  # legacy — już nie wyświetlane, zostawione dla starych handlerów
-        'btn_miniapp': '🔴 Mini-App',
+        'btn_miniapp': 'Mini-App',
         'btn_games': 'Gry TG',
-        'btn_profile': '🔵 Profil',
-        'btn_info': '🔵 Informacje',
+        'btn_profile': 'Profil',
+        'btn_info': 'Informacje',
         'btn_back': '‹ Wstecz',
         'miniapp_intro': '<b>MacvBet</b>\n\nKliknij poniższy przycisk, aby otworzyć Mini-App:',
-        'btn_open_miniapp': '🔴 Graj w Mini-App',
+        'btn_open_miniapp': 'Graj w Mini-App',
         'start_miniapp_prompt': '🎰 <b>Witamy w MacvBet!</b>\n\nKliknij poniższy przycisk, aby otworzyć Mini-App i rozpocząć grę:',
-        'btn_start_miniapp': '🔴 Graj w Mini-App',
+        'btn_start_miniapp': 'Graj w Mini-App',
         
         # Powitanie
         'welcome': '{name}. MacvJet na głównej — żywa runda, nie plakat.',
@@ -173,10 +173,10 @@ TRANSLATIONS = {
         'balance_bonus': 'Bonusowe 🎁',
         'btn_deposit': 'Wpłać',
         'btn_withdraw': 'Wypłać',
-        'btn_withdraw_cancel': '❌ Anuluj',
-        'btn_referral': '👥 Program partnerski',
-        'btn_switch_balance': '🔄 Zmień konto',
-        'btn_change_language': '🌐 Zmień język',
+        'btn_withdraw_cancel': 'Anuluj',
+        'btn_referral': 'Program partnerski',
+        'btn_switch_balance': 'Zmień konto',
+        'btn_change_language': 'Zmień język',
         'balance_switched': 'Aktywne konto zmienione!',
         
         # Wpłata
@@ -209,7 +209,7 @@ TRANSLATIONS = {
         'withdraw_blocked': 'Wypłata Zablokowana.',
         'withdraw_rejected': '❌ <b>Zlecenie wypłaty odrzucone</b>\n\n💰 Kwota: {amount} USDT\n\nŚrodki zwrócone na saldo',
         'withdraw_approved': '✅ <b>Wypłata zatwierdzona!</b>\n\n💰 Kwota: {amount} USDT\n🌐 Metoda: CryptoBot\n\nAby otrzymać środki, kliknij przycisk poniżej:',
-        'btn_get_funds': '💎 Odbierz środki',
+        'btn_get_funds': 'Odbierz środki',
         
         # Gry
         'games_title': '🎮 <b>Wybierz grę z listy poniżej:</b>',
@@ -230,8 +230,8 @@ TRANSLATIONS = {
         
         # Informacje
         'info_title': 'ℹ️ <b>Informacje o MacvBet</b>\n\nWybierz sekcję:',
-        'btn_agreement': '📄 Regulamin',
-        'btn_support': '💬 Wsparcie',
+        'btn_agreement': 'Regulamin',
+        'btn_support': 'Wsparcie',
         
         # Błędy
         'error_insufficient_balance': '❌ <b>Niewystarczające saldo</b>\n\n<i>Twoje saldo:</i> {balance}\n<i>Wymagane:</i> {required}',

@@ -2,7 +2,7 @@
 Обработчики пополнения баланса через CryptoPay
 """
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import asyncio
@@ -109,13 +109,13 @@ def fetch_usdt_pln_rate() -> float:
 
 def get_deposit_methods_keyboard(lang: str) -> InlineKeyboardMarkup:
     """Клавиатура выбора способа пополнения"""
+    crypto_title = "Крипта (Прямой перевод)" if lang == 'ru' else "Krypto (Przelew bezpośredni)"
     keyboard = [
-        [InlineKeyboardButton(text="Крипта (Прямой перевод)", callback_data="deposit_direct_crypto")],
+        [InlineKeyboardButton(text=crypto_title, callback_data="deposit_direct_crypto")],
         [InlineKeyboardButton(text=get_text(lang, 'deposit_cryptobot'), callback_data="deposit_cryptobot")],
         [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="back_to_profile")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
 
 
 def get_invoice_keyboard(lang: str, pay_url: str, invoice_id: int) -> InlineKeyboardMarkup:
@@ -131,21 +131,70 @@ def get_invoice_keyboard(lang: str, pay_url: str, invoice_id: int) -> InlineKeyb
 
 
 @router.callback_query(F.data == "deposit_balance")
-async def deposit_balance(callback: CallbackQuery):
+async def deposit_balance(callback: CallbackQuery, state: FSMContext = None):
     """Показать способы пополнения"""
+    if state:
+        await state.clear()
     user_id = callback.from_user.id
     lang = db.get_user_language(user_id)
     text = get_text(lang, 'deposit_title')
+    kb = get_deposit_methods_keyboard(lang)
     
-    await callback.message.edit_text(text, reply_markup=get_deposit_methods_keyboard(lang))
+    if callback.message and callback.message.photo:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
     await callback.answer()
 
 
 @router.callback_query(F.data == "back_to_profile")
-async def back_to_profile(callback: CallbackQuery):
+async def back_to_profile(callback: CallbackQuery, state: FSMContext = None):
     """Вернуться к профилю"""
+    if state:
+        await state.clear()
     from handlers.basic import show_profile
     await show_profile(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "deposit_direct_crypto")
+async def deposit_direct_crypto(callback: CallbackQuery):
+    """Информация и переход к прямому переводу криптовалюты"""
+    user_id = callback.from_user.id
+    lang = db.get_user_language(user_id)
+    miniapp_url = f"{config.MINI_APP_URL.rstrip('/')}/balance"
+    
+    text = (
+        "💎 <b>Прямой перевод криптовалюты</b>\n\n"
+        "Пополнение через блокчейн (USDT TRC20, TON, BEP20 и др.) доступно в нашем Mini-App с автоматическим зачислением.\n\n"
+        "Нажмите кнопку ниже, чтобы открыть кассу в Mini-App:"
+        if lang == 'ru' else
+        "💎 <b>Bezpośredni transfer krypto</b>\n\n"
+        "Wpłata przez blockchain (USDT TRC20, TON, BEP20 itp.) jest dostępna w naszym Mini-App z automatycznym księgowaniem.\n\n"
+        "Kliknij poniższy przycisk, aby otworzyć kasę w Mini-App:"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Открыть кассу" if lang == 'ru' else "Otwórz kasę", web_app=WebAppInfo(url=miniapp_url))],
+        [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="deposit_balance")]
+    ])
+    if callback.message and callback.message.photo:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
     await callback.answer()
 
 
@@ -165,7 +214,21 @@ async def deposit_cryptobot(callback: CallbackQuery, state: FSMContext):
         min_amount=f"{min_usdt:.2f}",
         min_pln=f"{min_pln:.2f}",
     )
-    msg = await callback.message.edit_text(text)
+    cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="deposit_balance")]
+    ])
+    if callback.message and callback.message.photo:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        msg = await callback.message.answer(text, reply_markup=cancel_kb)
+    else:
+        try:
+            msg = await callback.message.edit_text(text, reply_markup=cancel_kb)
+        except Exception:
+            msg = await callback.message.answer(text, reply_markup=cancel_kb)
+
     await state.update_data(
         prompt_message_id=msg.message_id,
         min_usdt=min_usdt,
@@ -182,6 +245,23 @@ async def process_deposit_amount(message: Message, state: FSMContext):
     user_id = message.from_user.id
     lang = db.get_user_language(user_id)
     
+    raw_text = (message.text or "").strip()
+    # Если пользователь нажал кнопку меню бота вместо ввода суммы
+    if raw_text in ["Mini-App", "🔴 Mini-App", "Профиль", "Profil", "🔵 Профиль", "🔵 Profil", "Информация", "Informacje", "🔵 Информация", "🔵 Informacje"]:
+        await state.clear()
+        if "Mini-App" in raw_text:
+            from handlers.basic import open_miniapp
+            await open_miniapp(message)
+            return
+        elif "Профиль" in raw_text or "Profil" in raw_text:
+            from handlers.basic import show_profile
+            await show_profile(message)
+            return
+        elif "Информация" in raw_text or "Informacje" in raw_text:
+            from handlers.basic import show_info
+            await show_info(message)
+            return
+
     try:
         amount = float(message.text)
         

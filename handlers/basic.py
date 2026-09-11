@@ -185,7 +185,17 @@ async def set_language(callback: CallbackQuery):
     lang = callback.data.split(":")[1]
     
     db.set_user_language(user_id, lang)
-    await callback.message.edit_text(get_text(lang, 'language_set'))
+    if callback.message and callback.message.photo:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(get_text(lang, 'language_set'))
+    else:
+        try:
+            await callback.message.edit_text(get_text(lang, 'language_set'))
+        except Exception:
+            await callback.message.answer(get_text(lang, 'language_set'))
     
     username = callback.from_user.first_name
     welcome_text = get_text(lang, 'welcome', name=username)
@@ -326,11 +336,18 @@ async def show_profile(event: Union[Message, CallbackQuery]):
 
     if isinstance(event, Message):
         if photo_file_id:
-            await event.answer_photo(photo=photo_file_id, caption=caption, reply_markup=keyboard)
-        elif fallback_photo:
-            await event.answer_photo(photo=fallback_photo, caption=caption, reply_markup=keyboard)
-        else:
-            await event.answer(text=caption, reply_markup=keyboard)
+            try:
+                await event.answer_photo(photo=photo_file_id, caption=caption, reply_markup=keyboard)
+                return
+            except Exception as e:
+                logger.warning(f"Failed to send user photo: {e}")
+        if fallback_photo:
+            try:
+                await event.answer_photo(photo=fallback_photo, caption=caption, reply_markup=keyboard)
+                return
+            except Exception as e:
+                logger.warning(f"Failed to send fallback photo: {e}")
+        await event.answer(text=caption, reply_markup=keyboard)
     else:
         # CallbackQuery
         if event.message and event.message.photo:
@@ -344,11 +361,18 @@ async def show_profile(event: Union[Message, CallbackQuery]):
         except Exception:
             pass
         if photo_file_id:
-            await bot.send_photo(chat_id=user_id, photo=photo_file_id, caption=caption, reply_markup=keyboard)
-        elif fallback_photo:
-            await bot.send_photo(chat_id=user_id, photo=fallback_photo, caption=caption, reply_markup=keyboard)
-        else:
-            await bot.send_message(chat_id=user_id, text=caption, reply_markup=keyboard)
+            try:
+                await bot.send_photo(chat_id=user_id, photo=photo_file_id, caption=caption, reply_markup=keyboard)
+                return
+            except Exception as e:
+                logger.warning(f"Failed to send user photo in callback: {e}")
+        if fallback_photo:
+            try:
+                await bot.send_photo(chat_id=user_id, photo=fallback_photo, caption=caption, reply_markup=keyboard)
+                return
+            except Exception as e:
+                logger.warning(f"Failed to send fallback photo in callback: {e}")
+        await bot.send_message(chat_id=user_id, text=caption, reply_markup=keyboard)
 
 
 @router.callback_query(F.data == "change_language")

@@ -21,9 +21,9 @@ def get_referral_keyboard(has_promo: bool) -> InlineKeyboardMarkup:
     """Клавиатура для реферального меню"""
     keyboard = []
     if not has_promo:
-        keyboard.append([InlineKeyboardButton(text="🎁 Создать промокод", callback_data="ref_create_promo")])
+        keyboard.append([InlineKeyboardButton(text="Создать промокод", callback_data="ref_create_promo")])
         
-    keyboard.append([InlineKeyboardButton(text="📥 Вывести средства", callback_data="ref_claim_all")])
+    keyboard.append([InlineKeyboardButton(text="Вывести средства", callback_data="ref_claim_all")])
     keyboard.append([InlineKeyboardButton(text="‹ Назад", callback_data="back_to_profile_ref")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
