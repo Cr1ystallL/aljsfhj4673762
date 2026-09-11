@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
+  Crown,
   Flame,
   Gamepad2,
   Gift,
+  Headphones,
   Layers,
+  Lock,
+  ShieldCheck,
   Sparkles,
+  Star,
   TrendingUp,
   Trophy,
   Wallet,
@@ -31,12 +36,12 @@ import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
 
 /**
- * Home Screen — cinematic Mini App lobby.
- * Live MacvJet hero stays the door into the flagship; contest is a strip under it.
- * Online/payouts come from real presence + paid withdrawals — no random walk.
+ * Home Screen — Luxury Obsidian & Gold Cyber-Casino Lobby (PC & Mobile).
+ * Flagship Hero Banner, Responsive 3-col PC / 2-col Mobile Grid,
+ * Gold hairline borders, Provably Fair badges, and instant balance controls.
  */
 
-type CategoryKey = 'all' | 'popular' | 'fast' | 'table';
+type CategoryKey = 'all' | 'slots' | 'live' | 'table' | 'fast' | 'favorites';
 
 interface GameBadge {
   label: string;
@@ -70,6 +75,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Mines',
     href: '/game/mines',
     bg: '/tiles/mines.webp',
+    badge: { label: 'MINES', color: 'cyan', Icon: Zap },
     isPopular: true,
     category: 'fast',
   },
@@ -78,8 +84,8 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Blackjack',
     href: '/game/blackjack',
     bg: '/tiles/bj.webp',
-    wide: true,
-    badge: { label: 'NEW', color: 'gold', Icon: Sparkles },
+    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
+    isPopular: true,
     category: 'table',
   },
   {
@@ -87,6 +93,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Coinflip',
     href: '/game/coinflip',
     bg: '/tiles/coinflip.webp',
+    badge: { label: 'PVP', color: 'gold', Icon: Zap },
     category: 'fast',
   },
   {
@@ -103,7 +110,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Case',
     href: '/game/cases',
     bg: '/tiles/case.webp',
-    wide: true,
+    badge: { label: 'CASES', color: 'green', Icon: Sparkles },
     category: 'fast',
   },
   {
@@ -111,6 +118,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Keno',
     href: '/game/keno',
     bg: '/tiles/keno.webp',
+    badge: { label: 'KENO', color: 'purple', Icon: Sparkles },
     category: 'table',
   },
   {
@@ -127,7 +135,7 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Hi-Lo',
     href: '/game/hilo',
     bg: '/tiles/hilo.webp',
-    wide: true,
+    badge: { label: 'HI-LO', color: 'cyan', Icon: Zap },
     category: 'fast',
   },
 ];
@@ -349,12 +357,16 @@ export function HomeScreen() {
   const filteredGames = useMemo(() => {
     let list = IN_APP_GAMES.filter((g) => isGameVisible(g.id));
 
-    if (activeCategory === 'popular') {
-      list = list.filter((g) => g.isPopular);
+    if (activeCategory === 'slots') {
+      list = list.filter((g) => g.id === 'wheel' || g.id === 'cases' || g.category === 'fast');
+    } else if (activeCategory === 'live') {
+      list = list.filter((g) => g.id === 'crash' || g.id === 'blackjack' || g.id === 'macvpot');
+    } else if (activeCategory === 'table') {
+      list = list.filter((g) => g.category === 'table');
     } else if (activeCategory === 'fast') {
       list = list.filter((g) => g.category === 'fast');
-    } else if (activeCategory === 'table') {
-      list = list.filter((g) => g.category === 'table' || g.category === 'instant');
+    } else if (activeCategory === 'favorites') {
+      list = list.filter((g) => g.isPopular);
     }
 
     if (searchQuery.trim()) {
@@ -366,11 +378,16 @@ export function HomeScreen() {
   }, [availability, activeCategory, searchQuery]);
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white selection:bg-white/20">
-      <GameTopBar title={t('nav.home')} width="wide" />
+    <main className="min-h-screen w-full bg-[#09090b] text-frost-white selection:bg-amber-500/30 selection:text-amber-200">
+      <GameTopBar
+        title={t('nav.home')}
+        width="wide"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
 
       <motion.div
-        className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-3 pb-32 flex flex-col gap-5`}
+        className={`mx-auto w-full ${PAGE_WIDTH.wide} px-3.5 sm:px-6 pt-4 pb-32 flex flex-col gap-6`}
         initial={skipEntrance ? false : 'hidden'}
         animate={lobbyReady ? 'show' : 'hidden'}
         variants={{
@@ -383,156 +400,253 @@ export function HomeScreen() {
           },
         }}
       >
-
-        {/* Featured Events Showcase (Tournaments, Contests, or Hero Game) */}
-        <ActiveEventsShowcase
-          tournaments={activeTournaments}
-          contests={activeContests}
-          router={router}
-          showMacvJet={isGameVisible('crash')}
-        />
-
-        {/* Search & Category Filter Section */}
+        {/* Luxury Gold Welcome Banner matching mockup */}
         <EntranceBlock>
-        <div className="flex flex-col gap-3">
-          {/* Search bar with HIGH-CONTRAST amber SVG icon */}
-          <div className="relative w-full">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('home.searchPlaceholder')}
-              className="w-full h-11 pl-11 pr-9 rounded-2xl border border-white/12 bg-black/55 text-[13px] font-roobert text-frost-white placeholder:text-white/35 focus:outline-none focus:border-white/25 focus:bg-black/70 transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 text-whisper-gray transition-colors"
+          <div className="relative w-full rounded-3xl overflow-hidden p-6 sm:p-8 bg-gradient-to-r from-[#181308] via-[#241a08] to-[#121118] border border-amber-500/30 shadow-[0_15px_40px_rgba(0,0,0,0.6)]">
+            <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -left-10 -bottom-10 w-72 h-72 bg-amber-600/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="max-w-xl space-y-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  БОНУС НА ПЕРВЫЙ ДЕПОЗИТ
+                </div>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight gold-text-gradient font-brand">
+                  До 150% + 250 FS
+                </h1>
+                <p className="text-xs sm:text-sm text-zinc-300/90 leading-relaxed max-w-md">
+                  Увеличьте свой первый депозит и заберите бесплатные вращения в эксклюзивных играх клуба MACVJET
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => router.push('/bonuses')}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-extrabold text-sm shadow-[0_10px_25px_rgba(212,175,55,0.4)] hover:shadow-[0_15px_35px_rgba(212,175,55,0.6)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+                  >
+                    <span>Получить бонус</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Luxury 3D Card / Badge Graphic */}
+              <div className="hidden sm:flex relative shrink-0 items-center justify-center pr-6">
+                <div className="relative w-44 h-36 flex items-center justify-center">
+                  <div className="absolute w-36 h-36 rounded-full bg-amber-500/20 blur-2xl animate-pulse" />
+                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-amber-400/30 to-amber-700/10 border border-amber-400/40 transform rotate-12 shadow-2xl flex items-center justify-center backdrop-blur-sm">
+                    <Crown className="w-12 h-12 text-amber-300 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
+                  </div>
+                  <div className="absolute -bottom-1 -left-1 w-24 h-24 rounded-2xl bg-gradient-to-tr from-amber-600/40 to-amber-300/20 border border-amber-300/50 transform -rotate-6 shadow-2xl flex items-center justify-center backdrop-blur-sm">
+                    <Flame className="w-10 h-10 text-amber-200 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </EntranceBlock>
+
+        {/* Featured Events Showcase (Tournaments or Contests if active) */}
+        {(activeTournaments.length > 0 || activeContests.length > 0) && (
+          <ActiveEventsShowcase
+            tournaments={activeTournaments}
+            contests={activeContests}
+            router={router}
+            showMacvJet={false}
+          />
+        )}
+
+        {/* Search (Mobile Only) & Category Navigation Pills */}
+        <EntranceBlock>
+          <div className="flex flex-col gap-3">
+            {/* Mobile Search Input */}
+            <div className="relative w-full lg:hidden">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400/60 pointer-events-none"
               >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск игр, провайдеров..."
+                className="w-full h-11 pl-11 pr-9 rounded-2xl border border-amber-500/20 bg-black/60 text-[13px] font-roobert text-frost-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-400/60 focus:bg-black/80 transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 text-whisper-gray transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
 
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-            <CategoryTab
-              active={activeCategory === 'all'}
-              onClick={() => setActiveCategory('all')}
-              icon={<Gamepad2 size={14} className="text-frost-white" />}
-              label={t('home.filterAll')}
-            />
-            <CategoryTab
-              active={activeCategory === 'popular'}
-              onClick={() => setActiveCategory('popular')}
-              icon={<Flame size={14} className="text-frost-white" />}
-              label={t('home.filterTop')}
-            />
-            <CategoryTab
-              active={activeCategory === 'fast'}
-              onClick={() => setActiveCategory('fast')}
-              icon={<Zap size={14} className="text-frost-white" />}
-              label={t('home.filterFast')}
-            />
-            <CategoryTab
-              active={activeCategory === 'table'}
-              onClick={() => setActiveCategory('table')}
-              icon={<Layers size={14} className="text-frost-white" />}
-              label={t('home.filterArcade')}
-            />
+            {/* Category Navigation Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <CategoryTab
+                active={activeCategory === 'all'}
+                onClick={() => setActiveCategory('all')}
+                icon={<Sparkles size={14} className={activeCategory === 'all' ? 'text-black' : 'text-amber-400'} />}
+                label="Все игры"
+              />
+              <CategoryTab
+                active={activeCategory === 'slots'}
+                onClick={() => setActiveCategory('slots')}
+                icon={<Layers size={14} className={activeCategory === 'slots' ? 'text-black' : 'text-amber-400'} />}
+                label="Слоты"
+              />
+              <CategoryTab
+                active={activeCategory === 'live'}
+                onClick={() => setActiveCategory('live')}
+                icon={<Flame size={14} className={activeCategory === 'live' ? 'text-black' : 'text-orange-400'} />}
+                label="Live Казино"
+              />
+              <CategoryTab
+                active={activeCategory === 'table'}
+                onClick={() => setActiveCategory('table')}
+                icon={<Gamepad2 size={14} className={activeCategory === 'table' ? 'text-black' : 'text-amber-400'} />}
+                label="Настольные"
+              />
+              <CategoryTab
+                active={activeCategory === 'fast'}
+                onClick={() => setActiveCategory('fast')}
+                icon={<Zap size={14} className={activeCategory === 'fast' ? 'text-black' : 'text-amber-400'} />}
+                label="Лайв игры"
+              />
+              <CategoryTab
+                active={activeCategory === 'favorites'}
+                onClick={() => setActiveCategory('favorites')}
+                icon={<Star size={14} className={activeCategory === 'favorites' ? 'text-black' : 'text-amber-400'} />}
+                label="Избранное"
+              />
+            </div>
           </div>
-        </div>
         </EntranceBlock>
 
-        {/* Section Label */}
+        {/* Section Header: Crown + "Все доступные игры" + "Показать все →" */}
         <EntranceBlock>
-        <div className="flex items-baseline justify-between px-1">
-          <span className="font-roobert text-[10px] uppercase tracking-[0.22em] text-white/45">
-            {activeCategory === 'all'
-              ? t('home.sectionAll')
-              : activeCategory === 'popular'
-              ? t('home.sectionPopular')
-              : activeCategory === 'fast'
-              ? t('home.sectionFast')
-              : t('home.sectionArcade')}
-          </span>
-          <span className="font-roobert text-[11px] text-whisper-gray">
-            {t('home.gamesCount', { n: filteredGames.length })}
-          </span>
-        </div>
-        </EntranceBlock>
-
-        <EntranceBlock>
-        {/* In-App Games Grid: [Square] [Rectangle (2 cols)] [Square] per row */}
-        {filteredGames.length === 0 ? (
-          <div className="py-12 text-center rounded-2xl border border-white/5 bg-white/[0.02]">
-            <p className="font-roobert text-[14px] text-whisper-gray">
-              {t('home.empty')}
-            </p>
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-400" />
+              <h2 className="font-brand font-bold text-lg sm:text-xl text-white tracking-wide">
+                Все доступные игры
+              </h2>
+            </div>
             <button
-              onClick={() => {
-                setSearchQuery('');
-                setActiveCategory('all');
-              }}
-              className="mt-3 text-[12px] text-frost-white underline hover:opacity-80 font-roobert"
+              onClick={() => setActiveCategory('all')}
+              className="font-roobert text-[12px] text-amber-400/90 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer"
             >
-              {t('home.resetFilters')}
+              <span>Все игры ({filteredGames.length})</span>
+              <ArrowRight size={13} />
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
-            {filteredGames.map((g, i) => {
-              const isRectangle = !!g.wide;
-              return (
+        </EntranceBlock>
+
+        {/* 3-col PC / 2-col Mobile Games Grid */}
+        <EntranceBlock>
+          {filteredGames.length === 0 ? (
+            <div className="py-12 text-center rounded-2xl border border-amber-500/20 bg-[#121217]">
+              <p className="font-roobert text-[14px] text-zinc-400">
+                Игры не найдены
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveCategory('all');
+                }}
+                className="mt-3 text-[12px] text-amber-300 underline hover:opacity-80 font-roobert"
+              >
+                Сбросить фильтры
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3.5 sm:gap-4">
+              {filteredGames.map((g) => (
                 <GameTile
                   key={g.id}
                   game={g}
-                  index={i}
-                  isRectangle={isRectangle}
                   router={router}
                 />
-              );
-            })}
+              ))}
+            </div>
+          )}
+        </EntranceBlock>
+
+        {/* Quick Action Utility Cards (Balance & Bonuses) */}
+        <EntranceBlock>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+            <QuickAction
+              icon={<Wallet size={20} strokeWidth={1.8} />}
+              label="Управление балансом"
+              sublabel="Пополнение счета и быстрый вывод средств"
+              onClick={() => router.push('/balance')}
+            />
+            <QuickAction
+              icon={<Gift size={20} strokeWidth={1.8} />}
+              label="Бонусы и акции"
+              sublabel="Активируйте промокоды, кэшбэк и призы"
+              onClick={() => router.push('/bonuses')}
+            />
           </div>
-        )}
         </EntranceBlock>
 
+        {/* Footer Guarantee Badges & Slogan */}
         <EntranceBlock>
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          <QuickAction
-            icon={<Wallet size={18} strokeWidth={1.5} />}
-            label={t('home.wallet')}
-            sublabel={t('home.walletSub')}
-            onClick={() => router.push('/balance')}
-          />
-          <QuickAction
-            icon={<Sparkles size={18} strokeWidth={1.5} />}
-            label={t('home.bonuses')}
-            sublabel={t('home.bonusesSub')}
-            onClick={() => router.push('/bonuses')}
-          />
-        </div>
-        </EntranceBlock>
+          <div className="pt-6 pb-2 space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <div className="text-[12px] font-bold text-zinc-200">100% Честная игра</div>
+                  <div className="text-[10px] text-zinc-500">Provably Fair</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
+                <Zap className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <div className="text-[12px] font-bold text-zinc-200">Мгновенный вывод</div>
+                  <div className="text-[10px] text-zinc-500">Без задержек</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
+                <Lock className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <div className="text-[12px] font-bold text-zinc-200">SSL Защита</div>
+                  <div className="text-[10px] text-zinc-500">Шифрование данных</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
+                <Headphones className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <div className="text-[12px] font-bold text-zinc-200">Поддержка 24/7</div>
+                  <div className="text-[10px] text-zinc-500">Всегда на связи</div>
+                </div>
+              </div>
+            </div>
 
-        <EntranceBlock>
-        <div className="pt-6 flex items-center justify-center">
-          <BrandLockup size={64} />
-        </div>
+            <div className="text-center pt-4 border-t border-amber-500/10 space-y-1">
+              <div className="flex items-center justify-center gap-2">
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span className="font-brand font-black text-sm tracking-widest gold-text-gradient">
+                  MACVJET CASINO
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                Официальный клуб • Играйте ответственно • 18+
+              </p>
+            </div>
+          </div>
         </EntranceBlock>
       </motion.div>
     </main>
@@ -591,127 +705,97 @@ const GAME_GLOW: Record<string, string> = {
 
 function GameTile({
   game,
-  index,
-  isRectangle,
   router,
 }: {
   game: InAppGame;
-  index: number;
-  isRectangle: boolean;
   router: ReturnType<typeof useRouter>;
 }) {
   const { t } = useT();
   const BadgeIcon = game.badge?.Icon;
-  const tag = GAME_TAG[game.id];
 
   return (
     <Pressable
       onClick={() => router.push(game.href)}
-      className={`group relative overflow-hidden rounded-2xl ${
-        game.id === 'blackjack'
-          ? 'border-2 border-amber-400/80 shadow-[0_0_30px_rgba(251,191,36,0.35)] ring-1 ring-amber-400/60'
-          : 'border border-white/10'
-      } bg-midnight-canvas ${
-        isRectangle ? 'col-span-2 aspect-[2.1/1]' : 'col-span-1 aspect-square'
-      } text-left active:scale-[0.97] hover:border-amber-400/90 transition-all duration-200 shadow-lg`}
+      className="group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] aspect-[1.15/1] sm:aspect-[1.25/1] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_25px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-xl"
     >
-      {game.id === 'blackjack' && (
-        <div
-          aria-hidden
-          className="absolute -inset-[100%] animate-[spin_5s_linear_infinite] opacity-40 pointer-events-none z-0"
-          style={{
-            background:
-              'conic-gradient(from 0deg, transparent 0deg, rgba(251,191,36,0.8) 60deg, transparent 120deg, rgba(16,185,129,0.8) 240deg, transparent 300deg)',
-          }}
-        />
-      )}
+      {/* Background artwork */}
       {game.bg && (
         <div
           aria-hidden
-          className="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
+          className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
           style={{
             backgroundImage: `url(${game.bg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
-            opacity: 1,
           }}
         />
       )}
 
+      {/* Dark gradient overlay */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: isRectangle
-            ? 'linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.20) 50%, rgba(0,0,0,0.35) 100%)'
-            : 'linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.92) 100%)',
+          background:
+            'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(10,10,14,0.65) 60%, rgba(10,10,14,0.95) 100%)',
         }}
       />
 
+      {/* Ambient color glow on hover */}
       <div
         aria-hidden
-        className="absolute inset-0 opacity-35 group-hover:opacity-55 transition-opacity mix-blend-screen"
+        className="absolute inset-0 opacity-20 group-hover:opacity-45 transition-opacity pointer-events-none"
         style={{
           background:
             GAME_GLOW[game.id] ??
-            'radial-gradient(110% 90% at 100% 100%, rgba(160, 224, 171, 0.18) 0%, transparent 70%)',
+            'radial-gradient(110% 90% at 100% 100%, rgba(212, 175, 55, 0.25) 0%, transparent 70%)',
         }}
       />
 
-      <div className={`relative h-full w-full ${isRectangle ? 'p-3.5 sm:p-5 flex items-center justify-between' : 'p-3 sm:p-3.5 flex flex-col justify-between'} z-10`}>
-        <div className={`flex ${isRectangle ? 'flex-col justify-center' : 'items-start justify-between w-full'} gap-1.5`}>
-          {!isRectangle && (
-            <span className="w-8 h-8 sm:w-8 sm:h-8 rounded-xl border border-white/15 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white shadow-inner group-hover:scale-105 transition-transform duration-200">
-              <GameIcon game={game.id} size={17} strokeWidth={1.5} />
-            </span>
-          )}
-
-          {game.badge && (
+      {/* Card Content */}
+      <div className="relative h-full w-full p-3 sm:p-4 flex flex-col justify-between z-10">
+        {/* Top bar: Badge & Arrow */}
+        <div className="flex items-center justify-between">
+          {game.badge ? (
             <span
-              className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 self-start ${
+              className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 ${
                 game.badge.color === 'red'
-                  ? 'border-red-500/30 bg-red-500/20 text-red-300'
+                  ? 'border-red-500/40 bg-red-500/25 text-red-300'
                   : game.badge.color === 'gold'
-                  ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
+                  ? 'border-amber-500/40 bg-amber-500/25 text-amber-300'
                   : game.badge.color === 'cyan'
-                  ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-300'
+                  ? 'border-cyan-500/40 bg-cyan-500/25 text-cyan-300'
                   : game.badge.color === 'purple'
-                  ? 'border-purple-500/30 bg-purple-500/20 text-purple-300'
-                  : 'border-emerald-500/30 bg-emerald-500/20 text-emerald-300'
+                  ? 'border-purple-500/40 bg-purple-500/25 text-purple-300'
+                  : 'border-emerald-500/40 bg-emerald-500/25 text-emerald-300'
               }`}
             >
-              {BadgeIcon && <BadgeIcon size={10} className="shrink-0 stroke-[2]" />}
+              {BadgeIcon && <BadgeIcon size={10} className="shrink-0 stroke-[2.2]" />}
               <span>{game.badge.label}</span>
             </span>
-          )}
+          ) : <div />}
 
-          {isRectangle && (
-            <div className="mt-0.5">
-              <div className="font-roobert text-[19px] sm:text-[23px] font-medium leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
-                {game.name}
-              </div>
-              <div className="mt-1 font-roobert text-[10px] sm:text-[11px] text-whisper-gray/90 tracking-wider uppercase">
-                Фирменная игра · Играть
-              </div>
-            </div>
-          )}
+          <span className="w-7 h-7 rounded-lg border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-zinc-400 group-hover:text-amber-300 group-hover:border-amber-400/40 transition-all opacity-0 group-hover:opacity-100 sm:opacity-100">
+            <ArrowRight size={13} strokeWidth={2.2} />
+          </span>
         </div>
 
-        {!isRectangle ? (
-          <div>
-            <div className="font-roobert text-[14px] sm:text-[14px] font-semibold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors truncate">
-              {game.name}
-            </div>
-            <div className="mt-0.5 font-roobert text-[9px] sm:text-[9px] text-whisper-gray/90 tracking-wide uppercase">
-              Mini App
-            </div>
+        {/* Bottom bar: Title & Subtitle */}
+        <div>
+          <div className="font-roobert text-[15px] sm:text-[17px] font-bold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-300 transition-colors truncate">
+            {game.name}
           </div>
-        ) : (
-          <span className="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md flex items-center justify-center text-frost-white group-hover:border-amber-400/40 group-hover:text-amber-300 transition-colors shadow-lg">
-            <ArrowRight size={17} strokeWidth={2} />
-          </span>
-        )}
+          <div className="mt-0.5 font-roobert text-[10px] sm:text-[11px] text-zinc-400 tracking-wide">
+            {game.id === 'crash'
+              ? 'Crash Game'
+              : game.id === 'blackjack'
+              ? 'Live Table'
+              : game.id === 'macvpot'
+              ? 'Jackpot Game'
+              : 'Фирменная игра'}
+          </div>
+        </div>
       </div>
     </Pressable>
   );
@@ -729,17 +813,17 @@ function CategoryTab({
   label: string;
 }) {
   return (
-    <Pressable
+    <button
       onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-xl text-[12px] font-roobert flex items-center gap-1.5 shrink-0 ${
+      className={`px-3.5 sm:px-4 py-2 rounded-xl text-[12px] sm:text-[13px] font-roobert flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
         active
-          ? 'bg-white text-black font-semibold shadow-md'
-          : 'bg-white/[0.04] text-whisper-gray hover:bg-white/[0.08] hover:text-frost-white border border-white/10'
+          ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-bold shadow-md shadow-amber-500/20 scale-[1.02]'
+          : 'bg-[#121217] text-zinc-300 hover:bg-[#181820] hover:text-white border border-amber-500/15'
       }`}
     >
       {icon}
       <span>{label}</span>
-    </Pressable>
+    </button>
   );
 }
 
@@ -757,18 +841,23 @@ function QuickAction({
   return (
     <Pressable
       onClick={onClick}
-      className="rounded-2xl border border-white/12 bg-white/[0.05] hover:border-white/20 px-4 py-4 text-left flex items-start gap-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      className="group rounded-2xl border border-amber-500/20 bg-[#121217] hover:border-amber-400/50 hover:bg-[#16161d] px-4 py-4 sm:px-5 sm:py-5 text-left flex items-center justify-between gap-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition-all cursor-pointer"
     >
-      <span className="w-9 h-9 rounded-xl border border-white/15 bg-white/[0.05] flex items-center justify-center text-frost-white/90 shrink-0">
-        {icon}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="font-roobert text-[14px] leading-tight text-frost-white font-medium">
-          {label}
+      <div className="flex items-center gap-3.5 min-w-0">
+        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+          {icon}
         </div>
-        <div className="mt-1 font-roobert text-[11px] text-whisper-gray">
-          {sublabel}
+        <div className="min-w-0">
+          <div className="font-roobert text-[14px] sm:text-[15px] leading-tight text-frost-white font-bold group-hover:text-amber-300 transition-colors">
+            {label}
+          </div>
+          <div className="mt-1 font-roobert text-[11px] text-zinc-400 truncate">
+            {sublabel}
+          </div>
         </div>
+      </div>
+      <div className="w-8 h-8 rounded-full border border-amber-500/30 bg-white/[0.04] flex items-center justify-center text-amber-300 group-hover:border-amber-400 group-hover:scale-105 transition-all shrink-0">
+        <ArrowRight size={14} strokeWidth={2.2} />
       </div>
     </Pressable>
   );

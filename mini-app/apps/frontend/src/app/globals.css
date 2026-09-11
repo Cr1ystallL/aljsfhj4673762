@@ -432,4 +432,35 @@ option:hover {
   animation: coin-shadow 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
+/* Luxury Obsidian & Gold Utility Classes */
+.gold-text-gradient {
+  background: linear-gradient(135deg, #fff2be 0%, #dfb547 50%, #9a731d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-border-glow {
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  box-shadow: 0 0 20px -5px rgba(212, 175, 55, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.gold-card-active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.18) 0%, rgba(212, 175, 55, 0.04) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  box-shadow: 0 0 25px -4px rgba(212, 175, 55, 0.22);
+}
+
+.hero-gold-glow {
+  background: radial-gradient(circle at 75% 30%, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.05) 50%, transparent 75%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
 

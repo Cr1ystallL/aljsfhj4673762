@@ -18,6 +18,14 @@ const config: Config = {
         'deep-ocean': '#a0e0ab',
         'macvbet-yellow': '#ffac2e',
         
+        // Luxury Obsidian & Gold tokens
+        'gold-primary': '#d4af37',
+        'gold-light': '#f7d070',
+        'gold-dark': '#8a6414',
+        'obsidian': '#09090b',
+        'obsidian-card': '#121217',
+        'obsidian-hover': '#17171e',
+        
         // Legacy aliases for compatibility
         background: '#000000',
         foreground: '#ffffff',
