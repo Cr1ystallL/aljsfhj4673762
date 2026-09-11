@@ -17,7 +17,7 @@ TRANSLATIONS = {
         'btn_start_miniapp': 'Играть в Mini-App',
         
         # Приветствие
-        'welcome': '{name}. MacvJet на главной — живой раунд, не постер.',
+        'welcome': '🎰 <b>Добро пожаловать в MacvBet!</b>',
         'choose_language': '🌐 Выберите язык / Wybierz język:',
         'language_set': '✅ Язык установлен: Русский',
         
@@ -159,7 +159,7 @@ TRANSLATIONS = {
         'btn_start_miniapp': 'Graj w Mini-App',
         
         # Powitanie
-        'welcome': '{name}. MacvJet na głównej — żywa runda, nie plakat.',
+        'welcome': '🎰 <b>Witamy w MacvBet!</b>',
         'choose_language': '🌐 Выберите язык / Wybierz język:',
         'language_set': '✅ Język ustawiony: Polski',
         

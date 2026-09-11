@@ -158,12 +158,17 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         await state.set_state(DepositStates.waiting_for_amount)
         return
 
-    # Язык установлен - показываем приветствие и сразу предлагаем открыть MiniApp
+    # Язык установлен - сразу предлагаем открыть MiniApp
     lang = current_lang
-    welcome_text = get_text(lang, 'welcome', name=username)
-    await message.answer(welcome_text, reply_markup=get_main_keyboard(lang))
-
     miniapp_url = config.MINI_APP_URL.strip()
+
+    # Активируем нижнюю клавиатуру меню без вывода лишних приветствий
+    kb_msg = await message.answer("🎰", reply_markup=get_main_keyboard(lang))
+    try:
+        await kb_msg.delete()
+    except Exception:
+        pass
+
     if miniapp_url:
         miniapp_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
@@ -175,6 +180,11 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         await message.answer(
             get_text(lang, 'start_miniapp_prompt'),
             reply_markup=miniapp_keyboard,
+        )
+    else:
+        await message.answer(
+            get_text(lang, 'start_miniapp_prompt'),
+            reply_markup=get_main_keyboard(lang),
         )
 
 
@@ -197,9 +207,11 @@ async def set_language(callback: CallbackQuery):
         except Exception:
             await callback.message.answer(get_text(lang, 'language_set'))
     
-    username = callback.from_user.first_name
-    welcome_text = get_text(lang, 'welcome', name=username)
-    await callback.message.answer(welcome_text, reply_markup=get_main_keyboard(lang))
+    kb_msg = await callback.message.answer("🎰", reply_markup=get_main_keyboard(lang))
+    try:
+        await kb_msg.delete()
+    except Exception:
+        pass
 
     miniapp_url = config.MINI_APP_URL.strip()
     if miniapp_url:
@@ -213,6 +225,11 @@ async def set_language(callback: CallbackQuery):
         await callback.message.answer(
             get_text(lang, 'start_miniapp_prompt'),
             reply_markup=miniapp_keyboard,
+        )
+    else:
+        await callback.message.answer(
+            get_text(lang, 'start_miniapp_prompt'),
+            reply_markup=get_main_keyboard(lang),
         )
     await callback.answer()
 
