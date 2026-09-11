@@ -3,6 +3,7 @@ import { balanceService } from '../services/balance-service.js';
 import { transactionService } from '../services/transaction-service.js';
 import { gameConfig, type GameType } from '../services/game-config.js';
 import { rtpEngine } from '../services/rtp-engine.js';
+import { launchVaultGuard } from '../services/launch-vault-guard.js';
 import { vipService } from '../services/vip-service.js';
 import { logger } from '../utils/logger.js';
 import { isAdminTelegramIdAsync } from '../middleware/auth.js';
@@ -474,8 +475,8 @@ export class BettingPipeline {
    * payout in here. This second call is a defensive belt-and-braces.
    */
   async processPayout(bet: Bet, payout: number, demoMode = false, wagerQualifying = true): Promise<void> {
-    const MAX_CASINO_PAYOUT = 50_000;
-    const grossCredit = Math.min(TWO_DP(payout), MAX_CASINO_PAYOUT);
+    const dynamicCap = await launchVaultGuard.getDynamicMaxPayout(bet.amount).catch(() => 50_000);
+    const grossCredit = Math.min(TWO_DP(payout), dynamicCap);
     const stake = TWO_DP(bet.amount);
 
     const meta = (bet.metadata || {}) as Record<string, any>;
@@ -800,8 +801,8 @@ export class BettingPipeline {
     demoMode = false,
     wagerQualifying = true
   ): Promise<void> {
-    const MAX_CASINO_PAYOUT = 50_000;
-    const grossCredit = Math.min(TWO_DP(cashoutAmount), MAX_CASINO_PAYOUT);
+    const dynamicCap = await launchVaultGuard.getDynamicMaxPayout(bet.amount).catch(() => 50_000);
+    const grossCredit = Math.min(TWO_DP(cashoutAmount), dynamicCap);
     const stake = TWO_DP(bet.amount);
 
     const meta = (bet.metadata || {}) as Record<string, any>;

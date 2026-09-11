@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { BaseGameEngine } from '../../game-engine/base-game-engine.js';
 import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { provablyFair } from '../../game-engine/provably-fair.js';
-// import { rtpEngine } from '../../services/rtp-engine.js';
+import { launchVaultGuard } from '../../services/launch-vault-guard.js';
 import { gameConfig } from '../../services/game-config.js';
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
@@ -384,29 +384,14 @@ export class CrashGameEngine extends BaseGameEngine {
       120 + ((ceilingInt >>> 0) / 0xffffffff) * (184 - 120);
     crashPoint = Math.min(crashPoint, +ceiling.toFixed(2));
 
-    // ---- Budget-aware further cap ------------------------------------
-    // If everyone in the room held until `crashPoint`, total payout
-    // would be `sum(stake_i) * crashPoint`. We don't want a single
-    // round to liquidate a meaningful chunk of the casino's bankroll,
-    // so we shrink the crashPoint until that scenario stays under
-    // `BUDGET_FRACTION` of the rolling 24h profit. This is a soft
-    // safety net — the controller (rtp-engine) already does the
-    // primary smoothing.
-    /* 
-    // RTP Engine logic commented out to enforce 100% pure RNG
+    // ---- Launch Vault budget-aware multiplier protection ----------------
     try {
-      const status = await rtpEngine.getStatus();
-      const totalStake = Array.from(this.crashState.slotBets.values()).reduce(
-        (sum, b) => sum + b.amount,
+      const totalRealStake = Array.from(this.crashState.slotBets.values()).reduce(
+        (sum, b) => (b.metadata?.demoMode || b.isTournament || b.metadata?.isTournament ? sum : sum + b.amount),
         0
       );
-      // Bankroll proxy: 10x today's actual profit so target=0 doesn't
-      // trip every round. Floor at 1000 PLN so empty windows still
-      // allow some payout.
-      const bankroll = Math.max(1000, status.windowProfit * 10);
-      const BUDGET_FRACTION = 0.6;
-      if (totalStake > 0) {
-        const maxAffordableMult = (bankroll * BUDGET_FRACTION) / totalStake;
+      if (totalRealStake > 0) {
+        const maxAffordableMult = await launchVaultGuard.getAffordableCrashMultiplier(totalRealStake);
         if (Number.isFinite(maxAffordableMult) && maxAffordableMult >= 1.5) {
           crashPoint = Math.min(crashPoint, +maxAffordableMult.toFixed(2));
         }
@@ -414,7 +399,6 @@ export class CrashGameEngine extends BaseGameEngine {
     } catch {
       // best-effort, fall through
     }
-    */
 
     // Final floor so we never produce a sub-1.01 crash, UNLESS loss mode (houseEdge >= 1.0) is active
     // If loss mode is active and there are real bets, force crashPoint to 1.00.

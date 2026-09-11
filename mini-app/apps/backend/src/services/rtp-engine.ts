@@ -6,6 +6,7 @@ import {
   shouldResetWinStreak,
 } from './mines-click-decision.js';
 import { FUNNEL_WINDOW_MS, resolveFunnelPhase } from './funnel-decision.js';
+import { launchVaultGuard } from './launch-vault-guard.js';
 
 /**
  * Auto-RTP Engine — pre-fact outcome bias controller.
@@ -93,7 +94,6 @@ import { FUNNEL_WINDOW_MS, resolveFunnelPhase } from './funnel-decision.js';
  */
 
 export type RtpMode = 'off' | 'earn' | 'give';
-export type CasinoEngineMode = 'script' | 'real';
 
 export interface RtpConfig {
   mode: RtpMode;
@@ -230,43 +230,6 @@ class RtpEngine {
       logger.error({ err }, 'Failed to set global RTP config');
     }
     return next;
-  }
-
-  async getEngineMode(): Promise<CasinoEngineMode> {
-    try {
-      const r = redisClient.getClient();
-      const cached = await r.get('casino:engine_mode');
-      if (cached === 'real' || cached === 'script') {
-        return cached;
-      }
-      const { prisma } = await import('../lib/prisma.js');
-      const cfg = await prisma.systemConfig.findUnique({
-        where: { key: 'casino_engine_mode' },
-      });
-      const mode = (cfg?.value as any)?.mode === 'real' ? 'real' : 'script';
-      await r.set('casino:engine_mode', mode, 'EX', 3600);
-      return mode;
-    } catch {
-      return 'script';
-    }
-  }
-
-  async setEngineMode(mode: CasinoEngineMode, reason: string): Promise<CasinoEngineMode> {
-    const nextMode = mode === 'real' ? 'real' : 'script';
-    try {
-      const { prisma } = await import('../lib/prisma.js');
-      await prisma.systemConfig.upsert({
-        where: { key: 'casino_engine_mode' },
-        update: { value: { mode: nextMode, updated_at: new Date().toISOString(), reason } },
-        create: { key: 'casino_engine_mode', value: { mode: nextMode, updated_at: new Date().toISOString(), reason } },
-      });
-      const r = redisClient.getClient();
-      await r.set('casino:engine_mode', nextMode, 'EX', 86400);
-      logger.info({ mode: nextMode, reason }, 'Casino engine mode updated');
-    } catch (err) {
-      logger.error({ err, mode: nextMode }, 'Failed to set casino engine mode');
-    }
-    return nextMode;
   }
 
   private buildUserDefaults(globalCfg: RtpConfig): RtpConfig {
@@ -491,8 +454,8 @@ class RtpEngine {
    * and clamped to [-1, +1].
    */
   async getBiasFor(userId: string, isTournament: boolean = false): Promise<number> {
-    if (isTournament || (await this.getEngineMode()) === 'real') {
-      return 0; // 100% Pure RNG for tournament bets or Real RTP mode
+    if (isTournament) {
+      return 0; // 100% Pure RNG for tournament bets
     }
 
     // 1. Priority check: SmartDrain active on this user (realistic, natural tilt)
@@ -555,9 +518,6 @@ class RtpEngine {
    * personalised.
    */
   async getGlobalBias(): Promise<number> {
-    if ((await this.getEngineMode()) === 'real') {
-      return 0; // 100% Pure RNG in Real RTP mode
-    }
     const cfg = await this.getConfig();
     if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
     const status = await this.getStatus();
@@ -806,7 +766,7 @@ class RtpEngine {
    * Checks if SmartDrain is currently active for user.
    */
   async isDrainActive(userId: string, isTournament: boolean = false): Promise<boolean> {
-    if (isTournament || (await this.getEngineMode()) === 'real') return false;
+    if (isTournament) return false;
     try {
       const r = redisClient.getClient();
       const data = await r.hgetall(`rtp:drain:${userId}`);
@@ -860,6 +820,10 @@ class RtpEngine {
   ): Promise<void> {
     if (isTournament) return;
     try {
+      void launchVaultGuard.recordFinancialEvent('turnover', betAmount);
+      if (won && payout > 0) {
+        void launchVaultGuard.recordFinancialEvent('payout', payout);
+      }
       const r = redisClient.getClient();
       const netProfit = payout - betAmount;
 
@@ -1032,12 +996,17 @@ class RtpEngine {
     potentialMultiplier: number,
     isTournament: boolean = false
   ): Promise<{ action: 'must_win' | 'must_bust' | 'neutral' }> {
-    if (isTournament || (await this.getEngineMode()) === 'real') return { action: 'neutral' };
+    if (isTournament) return { action: 'neutral' };
 
     try {
       const r = redisClient.getClient();
       const funnel = await this.getFunnelState(userId);
       const drainActive = await this.isDrainActive(userId, isTournament);
+
+      // Launch Reputation Booster: Guarantee first diamond win for new/early players
+      if (!drainActive && (funnel.phase === 'hook' || funnel.depositIndex <= 1) && potentialMultiplier <= 1.45) {
+        return { action: 'must_win' };
+      }
 
       const [streakRaw, sessionProfitRaw, scalpRaw, waterlineRaw] = await Promise.all([
         r.get(`rtp:win_streak:${userId}`),
@@ -1102,11 +1071,33 @@ class RtpEngine {
     potentialMultiplier: number,
     isTournament: boolean = false
   ): Promise<boolean> {
-    if (isTournament || (await this.getEngineMode()) === 'real') {
-      return false; // 100% Pure RNG for tournament bets or Real RTP mode
+    if (isTournament) {
+      return false; // 100% Pure RNG for tournament bets
     }
     try {
       const funnel = await this.getFunnelState(userId);
+
+      // LaunchVaultGuard: Reputation & Solvency evaluation
+      const vaultDecision = await launchVaultGuard.evaluateReputationOutcome(
+        userId,
+        betAmount,
+        potentialMultiplier,
+        funnel.currentBalance,
+        funnel.depositAmount,
+        funnel.wagerProgress
+      );
+      if (vaultDecision.action === 'boost_dopamine') {
+        return false; // NEVER force loss on dopamine micro-wins (1.15x - 1.85x)
+      }
+      if (
+        vaultDecision.action === 'dampen_risk' &&
+        vaultDecision.maxSafeMultiplier &&
+        potentialMultiplier > vaultDecision.maxSafeMultiplier
+      ) {
+        if (Math.random() < 0.78) {
+          return true;
+        }
+      }
 
       // 0. Hard Multiplier Cap on Deposit 1: Prevent freak outliers > 3.5x
       if (funnel.depositIndex === 1 && potentialMultiplier > funnel.maxMultiplierCap) {
