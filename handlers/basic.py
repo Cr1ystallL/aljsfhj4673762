@@ -123,6 +123,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             InlineKeyboardButton(
                 text=get_text(lang, 'btn_start_miniapp'),
                 web_app=WebAppInfo(url=miniapp_url),
+                style="danger",
             )
         ]])
         await message.answer(
@@ -150,6 +151,7 @@ async def set_language(callback: CallbackQuery):
             InlineKeyboardButton(
                 text=get_text(lang, 'btn_start_miniapp'),
                 web_app=WebAppInfo(url=miniapp_url),
+                style="danger",
             )
         ]])
         await callback.message.answer(
@@ -159,7 +161,7 @@ async def set_language(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message(F.text.in_(["🔴 Mini-App", "🎰 Mini-App", "🎰 Слоты", "🎰 Sloty", "🎲 Игры TG", "🎲 Gry TG"]))
+@router.message(F.text.in_(["Mini-App", "🔴 Mini-App", "🎰 Mini-App", "🎰 Слоты", "🎰 Sloty", "🎲 Игры TG", "🎲 Gry TG"]))
 async def open_miniapp(message: Message):
     """Открыть Mini-App."""
     lang = db.get_user_language(message.from_user.id)
@@ -173,6 +175,7 @@ async def open_miniapp(message: Message):
         InlineKeyboardButton(
             text=get_text(lang, 'btn_open_miniapp'),
             web_app=WebAppInfo(url=miniapp_url),
+            style="danger",
         )
     ]])
 
@@ -189,7 +192,7 @@ async def slots_region(callback: CallbackQuery):
     await callback.answer(get_text(lang, 'game_in_dev'), show_alert=True)
 
 
-@router.message(F.text.in_(["🔵 Профиль", "🔵 Profil", "👤 Профиль", "👤 Profil"]))
+@router.message(F.text.in_(["Профиль", "Profil", "🔵 Профиль", "🔵 Profil", "👤 Профиль", "👤 Profil"]))
 async def show_profile(event: Union[Message, CallbackQuery]):
     """Показать профиль пользователя"""
     user = event.from_user
@@ -205,7 +208,7 @@ async def show_profile(event: Union[Message, CallbackQuery]):
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance"),
+            InlineKeyboardButton(text=get_text(lang, 'btn_deposit'), callback_data="deposit_balance", style="primary"),
         ],
         [InlineKeyboardButton(text=get_text(lang, 'btn_change_language'), callback_data="change_language")]
     ])
@@ -235,7 +238,7 @@ async def back_to_profile_from_lang(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message(F.text.in_(["🔵 Информация", "🔵 Informacje", "❔ Информация", "❔ Informacje"]))
+@router.message(F.text.in_(["Информация", "Informacje", "🔵 Информация", "🔵 Informacje", "❔ Информация", "❔ Informacje"]))
 async def show_info(message: Message):
     """Показать информацию о боте"""
     lang = db.get_user_language(message.from_user.id)
@@ -275,6 +278,7 @@ async def game_handler(callback: CallbackQuery):
         InlineKeyboardButton(
             text=get_text(lang, 'btn_start_miniapp'),
             web_app=WebAppInfo(url=miniapp_url),
+            style="danger",
         )
     ]]) if miniapp_url else None
     await callback.answer()
