@@ -356,178 +356,185 @@ export default function CoinflipGamePage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-3">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-3">
         <GameTopBar
           title="Coinflip"
           Icon={CoinflipIcon}
           onHowToPlay={() => setRulesOpen(true)}
         />
 
-        {/* Hero — 3D coin arena stage, round/multiplier plate, side picks */}
-        <section className="relative rounded-[24px] border border-white/10 bg-gradient-to-b from-[#161922]/80 via-[#0e1017]/90 to-[#090b0f] px-4 pt-4 pb-4 flex flex-col items-center gap-3 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-          {/* Static Ambient Background Glow */}
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-50"
-            style={{
-              background:
-                'radial-gradient(90% 70% at 50% 25%, rgba(255, 255, 255, 0.05) 0%, rgba(255, 172, 46, 0.02) 40%, transparent 80%)',
-            }}
-          />
-
-          {/* The coin itself — front and centre */}
-          <div className="relative z-10 my-1">
-            <CoinflipCoin
-              face={coinFace}
-              flipKey={flipKey}
-              flipping={flipping}
-            />
-          </div>
-
-          {/* Round / multiplier plate */}
-          <div className="relative w-full grid grid-cols-2 gap-2 items-stretch">
-            <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5">
-              <span className="font-roobert text-frost-white text-[18px] font-light tabular-nums leading-none">
-                {mode === 'multiply'
-                  ? `${Math.max(0, currentRound - 1)} of ${maxRounds}`
-                  : '—'}
-              </span>
-              <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-                {t('coinflip.round')}
-              </div>
-            </div>
-            <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5 text-right">
-              <span
-                className={`font-roobert text-[18px] font-light tabular-nums leading-none ${
-                  currentMultiplier > 0 ? 'text-frost-white' : 'text-whisper-gray'
-                }`}
-              >
-                x{currentMultiplier.toFixed(2)}
-              </span>
-              <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
-                {t('coinflip.multiplier')}
-              </div>
-            </div>
-          </div>
-
-          {/* Side buttons */}
-          <div className="relative w-full">
-            <CoinflipSideButtons
-              onPick={pickSide}
-              disabled={busy || flipping || sessionFinished || (!sessionActive && !canAfford)}
-              captions={{ heads: headsCaption, tails: tailsCaption }}
-            />
-          </div>
-
-          {/* Insufficient-balance hint */}
-          {!sessionActive && !canAfford && (
-            <span
-              className={`relative font-roobert text-[11px] ${
-                isBalanceReady ? 'text-[#ff8a76]/85' : 'text-whisper-gray'
-              }`}
-            >
-              {isBalanceReady
-                ? 'Недостаточно средств для ставки'
-                : 'Баланс загружается'}
-            </span>
-          )}
-
-          {/* Multiplier dot strip — only shown in multiply mode */}
-          {mode === 'multiply' && (
-            <div className="relative w-full">
-              <CoinflipMultiplierStrip
-                multipliers={stripMultipliers}
-                round={currentRound}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column: Coin Arena Stage */}
+          <div className="lg:col-span-8 flex flex-col gap-3">
+            <section className="relative rounded-[24px] border border-white/10 bg-gradient-to-b from-[#161922]/80 via-[#0e1017]/90 to-[#090b0f] px-4 pt-6 pb-6 flex flex-col items-center gap-4 overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl min-h-[340px] justify-center">
+              {/* Static Ambient Background Glow */}
+              <div
+                aria-hidden
+                className="absolute inset-0 pointer-events-none opacity-50"
+                style={{
+                  background:
+                    'radial-gradient(90% 70% at 50% 25%, rgba(255, 255, 255, 0.05) 0%, rgba(255, 172, 46, 0.02) 40%, transparent 80%)',
+                }}
               />
-            </div>
-          )}
-        </section>
 
-        {/* Bet + mode */}
-        <CoinflipBetPanel
-          amount={amount}
-          onAmountChange={setAmount}
-          mode={mode}
-          onModeChange={(next) => {
-            // Don't let the user switch modes while a multiply session
-            // is mid-flight — they'd lose their stake.
-            if (sessionActive) return;
-            setMode(next);
-          }}
-          minBet={minBet}
-          maxBet={maxBet}
-          locked={sessionActive || flipping || busy}
-          balanceAmount={activeBalance}
-          balanceReady={isBalanceReady}
-          currencyLabel={currencyLabel}
-          shortOnFunds={!sessionActive && isBalanceReady && !canAfford}
-        />
+              {/* The coin itself — front and centre */}
+              <div className="relative z-10 my-2">
+                <CoinflipCoin
+                  face={coinFace}
+                  flipKey={flipKey}
+                  flipping={flipping}
+                />
+              </div>
 
-        {/* Quick-mode result reveal */}
-        {mode === 'quick' && lastQuick && !flipping && (
-          <div
-            className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3 flex items-center justify-between"
-            style={{
-              borderColor: lastQuick.won
-                ? 'rgba(160,224,171,0.45)'
-                : 'rgba(165,45,37,0.45)',
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <span className="font-roobert text-[12px] uppercase tracking-[0.2em] text-whisper-gray">
-                {t('coinflip.result')}
-              </span>
-              <span
-                className={`font-roobert text-[14px] tabular-nums ${
-                  lastQuick.won ? 'text-frost-white' : 'text-[#ff8a76]'
-                }`}
+              {/* Round / multiplier plate */}
+              <div className="relative w-full grid grid-cols-2 gap-2 items-stretch max-w-[480px]">
+                <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5">
+                  <span className="font-roobert text-frost-white text-[18px] font-light tabular-nums leading-none">
+                    {mode === 'multiply'
+                      ? `${Math.max(0, currentRound - 1)} of ${maxRounds}`
+                      : '—'}
+                  </span>
+                  <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+                    {t('coinflip.round')}
+                  </div>
+                </div>
+                <div className="rounded-card border border-white/10 bg-white/[0.04] px-4 py-2.5 text-right">
+                  <span
+                    className={`font-roobert text-[18px] font-light tabular-nums leading-none ${
+                      currentMultiplier > 0 ? 'text-frost-white' : 'text-whisper-gray'
+                    }`}
+                  >
+                    x{currentMultiplier.toFixed(2)}
+                  </span>
+                  <div className="mt-1 font-roobert text-[10px] uppercase tracking-[0.2em] text-whisper-gray">
+                    {t('coinflip.multiplier')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Side buttons */}
+              <div className="relative w-full max-w-[480px]">
+                <CoinflipSideButtons
+                  onPick={pickSide}
+                  disabled={busy || flipping || sessionFinished || (!sessionActive && !canAfford)}
+                  captions={{ heads: headsCaption, tails: tailsCaption }}
+                />
+              </div>
+
+              {/* Insufficient-balance hint */}
+              {!sessionActive && !canAfford && (
+                <span
+                  className={`relative font-roobert text-[11px] ${
+                    isBalanceReady ? 'text-[#ff8a76]/85' : 'text-whisper-gray'
+                  }`}
+                >
+                  {isBalanceReady
+                    ? 'Недостаточно средств для ставки'
+                    : 'Баланс загружается'}
+                </span>
+              )}
+
+              {/* Multiplier dot strip — only shown in multiply mode */}
+              {mode === 'multiply' && (
+                <div className="relative w-full max-w-[540px]">
+                  <CoinflipMultiplierStrip
+                    multipliers={stripMultipliers}
+                    round={currentRound}
+                  />
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Right Column: Bet & Actions */}
+          <div className="lg:col-span-4 flex flex-col gap-3">
+            {/* Bet + mode */}
+            <CoinflipBetPanel
+              amount={amount}
+              onAmountChange={setAmount}
+              mode={mode}
+              onModeChange={(next) => {
+                // Don't let the user switch modes while a multiply session
+                // is mid-flight — they'd lose their stake.
+                if (sessionActive) return;
+                setMode(next);
+              }}
+              minBet={minBet}
+              maxBet={maxBet}
+              locked={sessionActive || flipping || busy}
+              balanceAmount={activeBalance}
+              balanceReady={isBalanceReady}
+              currencyLabel={currencyLabel}
+              shortOnFunds={!sessionActive && isBalanceReady && !canAfford}
+            />
+
+            {/* Quick-mode result reveal */}
+            {mode === 'quick' && lastQuick && !flipping && (
+              <div
+                className="rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl px-4 py-3 flex items-center justify-between"
+                style={{
+                  borderColor: lastQuick.won
+                    ? 'rgba(160,224,171,0.45)'
+                    : 'rgba(165,45,37,0.45)',
+                }}
               >
-                {lastQuick.outcome === 'heads' ? t('coinflip.heads') : t('coinflip.tails')}
-              </span>
-            </div>
-            <span
-              className={`font-roobert text-[14px] tabular-nums ${
-                lastQuick.won ? 'text-frost-white' : 'text-[#ff8a76]/80'
-              }`}
-            >
-              {lastQuick.won ? '+' : '−'}
-              {(lastQuick.won
-                ? lastQuick.payout
-                : lastQuick.betAmount
-              ).toLocaleString(localeTag)}{' '}
-              zł
-            </span>
-          </div>
-        )}
+                <div className="flex items-center gap-2">
+                  <span className="font-roobert text-[12px] uppercase tracking-[0.2em] text-whisper-gray">
+                    {t('coinflip.result')}
+                  </span>
+                  <span
+                    className={`font-roobert text-[14px] tabular-nums ${
+                      lastQuick.won ? 'text-frost-white' : 'text-[#ff8a76]'
+                    }`}
+                  >
+                    {lastQuick.outcome === 'heads' ? t('coinflip.heads') : t('coinflip.tails')}
+                  </span>
+                </div>
+                <span
+                  className={`font-roobert text-[14px] tabular-nums ${
+                    lastQuick.won ? 'text-frost-white' : 'text-[#ff8a76]/80'
+                  }`}
+                >
+                  {lastQuick.won ? '+' : '−'}
+                  {(lastQuick.won
+                    ? lastQuick.payout
+                    : lastQuick.betAmount
+                  ).toLocaleString(localeTag)}{' '}
+                  zł
+                </span>
+              </div>
+            )}
 
-        {/* Multiply round CTA — cashout / new round */}
-        {mode === 'multiply' && multi && (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={cashout}
-              disabled={
-                busy || flipping || multi.status !== 'awaiting' || multi.currentMultiplier <= 1
-              }
-              className="h-11 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] uppercase tracking-[0.2em] text-frost-white hover:border-white/30 disabled:opacity-50 transition-colors"
-            >
-              {t('coinflip.cashOut')}
-              {multi.currentMultiplier > 1 ? ` · x${multi.currentMultiplier.toFixed(2)}` : ''}
-            </button>
-            <button
-              onClick={dismiss}
-              disabled={multi.status === 'awaiting'}
-              className="h-11 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {multi.status === 'busted'
-                ? t('coinflip.newBet')
-                : multi.status === 'cashed'
-                ? t('coinflip.cashedOutPlus', {
-                    amount: (multi.payout ?? 0).toLocaleString(localeTag),
-                  })
-                : t('coinflip.streakRunning')}
-            </button>
+            {/* Multiply round CTA — cashout / new round */}
+            {mode === 'multiply' && multi && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={cashout}
+                  disabled={
+                    busy || flipping || multi.status !== 'awaiting' || multi.currentMultiplier <= 1
+                  }
+                  className="h-11 rounded-pill border border-white/15 bg-white/[0.04] font-roobert text-[12px] uppercase tracking-[0.2em] text-frost-white hover:border-white/30 disabled:opacity-50 transition-colors"
+                >
+                  {t('coinflip.cashOut')}
+                  {multi.currentMultiplier > 1 ? ` · x${multi.currentMultiplier.toFixed(2)}` : ''}
+                </button>
+                <button
+                  onClick={dismiss}
+                  disabled={multi.status === 'awaiting'}
+                  className="h-11 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[12px] uppercase tracking-[0.2em] hover:bg-frost-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {multi.status === 'busted'
+                    ? t('coinflip.newBet')
+                    : multi.status === 'cashed'
+                    ? t('coinflip.cashedOutPlus', {
+                        amount: (multi.payout ?? 0).toLocaleString(localeTag),
+                      })
+                    : t('coinflip.streakRunning')}
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Live history */}
         <CoinflipHistory entries={history} />

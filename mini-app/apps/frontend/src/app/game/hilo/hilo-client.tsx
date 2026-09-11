@@ -271,252 +271,256 @@ export function HiloClient() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-3 pb-28 flex flex-col gap-3">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-3">
         <GameTopBar title="Hi-Lo" Icon={ChevronUp} onHowToPlay={() => setRulesOpen(true)} />
 
-        {/* Play Area */}
-        <section className="relative rounded-[20px] border border-white/12 bg-white/[0.03] p-4 flex flex-col items-center gap-6 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
-          
-          {/* Status Message */}
-          {(isBusted || isCashed) && (
-            <div className={`w-full text-center py-2 rounded-lg bg-black/30 backdrop-blur-md border ${isBusted ? 'border-[#ff4949]/30 text-[#ff4949]' : 'border-emerald-500/30 text-emerald-400'}`}>
-              <span className="font-roobert font-medium text-sm tracking-wide uppercase">
-                {isBusted
-                  ? t('hilo.lost')
-                  : t('hilo.wonPlus', {
-                      amount: (currentBet * state!.currentMultiplier).toFixed(2),
-                    })}
-              </span>
-            </div>
-          )}
-
-          {/* Backdrop Glow */}
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-40"
-            style={{
-              background: isBusted 
-                ? 'radial-gradient(50% 50% at 50% 50%, rgba(255, 73, 73, 0.15) 0%, transparent 100%)'
-                : 'radial-gradient(50% 50% at 50% 50%, rgba(133, 150, 255, 0.1) 0%, transparent 100%)',
-            }}
-          />
-
-          {/* Cards Display */}
-          <div className="relative flex items-center justify-center w-full h-[220px] sm:h-[260px]">
-            <AnimatePresence mode="popLayout">
-              {/* Previous Card (Faded on Left) */}
-              {prevCard && (
-                <PlayingCard 
-                  key={`prev-${prevCard.rank}-${prevCard.suit}-${state?.history?.length}`}
-                  card={prevCard} 
-                  faded 
-                  className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute left-2 sm:left-6 z-0" 
-                  direction="right-to-left"
-                />
-              )}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column: Play Area */}
+          <div className="lg:col-span-8 flex flex-col gap-3">
+            <section className="relative rounded-[20px] border border-white/12 bg-white/[0.03] p-4 sm:p-6 flex flex-col items-center gap-6 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl min-h-[380px] justify-center">
               
-              {/* Current Card (Center - Full Size) */}
-              <PlayingCard 
-                key={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
-                card={state?.currentCard || null} 
-                animateKey={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
-                className="w-[145px] h-[210px] sm:w-[170px] sm:h-[245px] absolute z-10" 
-                direction="right-to-left"
+              {/* Status Message */}
+              {(isBusted || isCashed) && (
+                <div className={`w-full text-center py-2 rounded-lg bg-black/30 backdrop-blur-md border ${isBusted ? 'border-[#ff4949]/30 text-[#ff4949]' : 'border-emerald-500/30 text-emerald-400'}`}>
+                  <span className="font-roobert font-medium text-sm tracking-wide uppercase">
+                    {isBusted
+                      ? t('hilo.lost')
+                      : t('hilo.wonPlus', {
+                          amount: (currentBet * state!.currentMultiplier).toFixed(2),
+                        })}
+                  </span>
+                </div>
+              )}
+
+              {/* Backdrop Glow */}
+              <div
+                aria-hidden
+                className="absolute inset-0 pointer-events-none opacity-40"
+                style={{
+                  background: isBusted 
+                    ? 'radial-gradient(50% 50% at 50% 50%, rgba(255, 73, 73, 0.15) 0%, transparent 100%)'
+                    : 'radial-gradient(50% 50% at 50% 50%, rgba(133, 150, 255, 0.1) 0%, transparent 100%)',
+                }}
               />
-              
-              {/* Next Card Deck Placeholder (Right - Crimson Gold BlackJack Style) */}
-              <div className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute right-2 sm:right-6 z-0">
-                {/* Stack effect layers */}
-                <div className="absolute top-2.5 left-2.5 w-full h-full rounded-[10px] sm:rounded-[14px] bg-[#3a0709]/80 border border-black/40 shadow-md" />
-                <div className="absolute top-1.5 left-1.5 w-full h-full rounded-[10px] sm:rounded-[14px] bg-[#550f10]/90 border border-[rgba(230,196,130,0.2)] shadow-md" />
-                {/* Top deck card */}
-                <PlayingCard card={null} isFaceDown className="w-full h-full" />
-              </div>
-            </AnimatePresence>
-          </div>
 
-          {/* Profit Indicators */}
-          <div className="grid grid-cols-2 gap-3 w-full relative z-10 mt-2">
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
-              <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
-                {t('hilo.profitHigher')} ({higherMult > 0 ? `${higherMult.toFixed(2)}×` : '—'})
-              </div>
-              <div className="text-sm font-roobert text-frost-white font-medium">
-                {higherMult > 0 ? profitHigher.toFixed(2) + ' zł' : '--'}
-              </div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
-              <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
-                {t('hilo.profitLower')} ({lowerMult > 0 ? `${lowerMult.toFixed(2)}×` : '—'})
-              </div>
-              <div className="text-sm font-roobert text-frost-white font-medium">
-                {lowerMult > 0 ? profitLower.toFixed(2) + ' zł' : '--'}
-              </div>
-            </div>
-          </div>
-
-          {/* History Strip */}
-          <div className="w-full flex flex-col gap-1.5 pt-1">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] uppercase tracking-wider text-white/50 font-roobert">
-                История раунда {state?.history && state.history.length > 0 ? `(${state.history.length})` : ''}
-              </span>
-            </div>
-            <div
-              ref={scrollRef}
-              className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4.5rem] px-2 rounded-xl bg-black/30 border border-white/5 no-scrollbar scroll-smooth"
-            >
-              {(!state?.history || state.history.length === 0) ? (
-                <div className="w-full text-center text-[11px] text-white/30 font-roobert py-2">
-                  Сыгранные карты раунда появятся здесь
-                </div>
-              ) : (
-                <AnimatePresence initial={false}>
-                  {state.history.map((card, idx) => (
-                    <motion.div
-                      key={`${idx}-${card.rank}-${card.suit}`}
-                      initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                      animate={{ opacity: 1, x: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-                      className="shrink-0"
-                    >
-                      <div
-                        className={cn(
-                          'flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-[8px] border border-black/25 shadow-md select-none',
-                          card.suit === 'hearts' || card.suit === 'diamonds'
-                            ? 'text-[#9c1f24]'
-                            : 'text-[#161512]'
-                        )}
-                        style={{
-                          background: 'linear-gradient(160deg, #fbf7ee 0%, #efe7d3 100%)',
-                        }}
-                      >
-                        <span className="text-[13px] font-black font-serif leading-none tracking-tighter">
-                          {getRankName(card.rank)}
-                        </span>
-                        <SuitMark suit={card.suit} className="text-xs mt-0.5" />
-                      </div>
-                    </motion.div>
-                  ))}
+              {/* Cards Display */}
+              <div className="relative flex items-center justify-center w-full h-[220px] sm:h-[260px]">
+                <AnimatePresence mode="popLayout">
+                  {/* Previous Card (Faded on Left) */}
+                  {prevCard && (
+                    <PlayingCard 
+                      key={`prev-${prevCard.rank}-${prevCard.suit}-${state?.history?.length}`}
+                      card={prevCard} 
+                      faded 
+                      className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute left-2 sm:left-6 z-0" 
+                      direction="right-to-left"
+                    />
+                  )}
+                  
+                  {/* Current Card (Center - Full Size) */}
+                  <PlayingCard 
+                    key={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
+                    card={state?.currentCard || null} 
+                    animateKey={`current-${state?.currentCard?.rank}-${state?.currentCard?.suit}-${state?.history?.length || 0}`}
+                    className="w-[145px] h-[210px] sm:w-[170px] sm:h-[245px] absolute z-10" 
+                    direction="right-to-left"
+                  />
+                  
+                  {/* Next Card Deck Placeholder (Right - Crimson Gold BlackJack Style) */}
+                  <div className="w-[100px] h-[145px] sm:w-[120px] sm:h-[170px] absolute right-2 sm:right-6 z-0">
+                    {/* Stack effect layers */}
+                    <div className="absolute top-2.5 left-2.5 w-full h-full rounded-[10px] sm:rounded-[14px] bg-[#3a0709]/80 border border-black/40 shadow-md" />
+                    <div className="absolute top-1.5 left-1.5 w-full h-full rounded-[10px] sm:rounded-[14px] bg-[#550f10]/90 border border-[rgba(230,196,130,0.2)] shadow-md" />
+                    {/* Top deck card */}
+                    <PlayingCard card={null} isFaceDown className="w-full h-full" />
+                  </div>
                 </AnimatePresence>
-              )}
-              <div className="w-1 shrink-0" />
-            </div>
-          </div>
-        </section>
-
-        {/* Controls Area */}
-        <section className="flex flex-col gap-3">
-          <BetPanelShell>
-            <div className="grid grid-cols-2 items-stretch">
-              <div className="px-4 py-3 border-r border-white/10">
-                <StakeField
-                  amount={isPlaying ? currentBet : parsedBet || 1}
-                  onAmountChange={(next) => setBetAmount(String(next))}
-                  minBet={1}
-                  maxBet={Math.max(1, Math.floor(activeBalance) || 1)}
-                  disabled={!isStateLoaded || isPlaying || loading}
-                  label={t('common.bet')}
-                  decreaseLabel={t('common.decreaseBet')}
-                  increaseLabel={t('common.increaseBet')}
-                />
               </div>
-              <div className="px-4 py-3">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                  {isPlaying ? t('crash.multiplier') : t('nav.wallet')}
-                </span>
-                <div
-                  className={`mt-2 font-roobert text-[22px] font-light tabular-nums ${
-                    isShortOnFunds ? 'text-[#ff8a76]' : 'text-frost-white'
-                  }`}
-                >
-                  {isPlaying
-                    ? `x${(state?.currentMultiplier ?? 1).toFixed(2)}`
-                    : !isBalanceReady
-                      ? t('common.loading')
-                      : `${activeBalance.toFixed(2)}`}
+
+              {/* Profit Indicators */}
+              <div className="grid grid-cols-2 gap-3 w-full relative z-10 mt-2 max-w-[500px]">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
+                  <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
+                    {t('hilo.profitHigher')} ({higherMult > 0 ? `${higherMult.toFixed(2)}×` : '—'})
+                  </div>
+                  <div className="text-sm font-roobert text-frost-white font-medium">
+                    {higherMult > 0 ? profitHigher.toFixed(2) + ' zł' : '--'}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center transition-colors">
+                  <div className="text-[10px] text-white/50 uppercase tracking-widest font-roobert mb-1">
+                    {t('hilo.profitLower')} ({lowerMult > 0 ? `${lowerMult.toFixed(2)}×` : '—'})
+                  </div>
+                  <div className="text-sm font-roobert text-frost-white font-medium">
+                    {lowerMult > 0 ? profitLower.toFixed(2) + ' zł' : '--'}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <BetPanelCtaRow>
-              {!isPlaying ? (
-                <GamePrimaryButton
-                  onClick={handleStart}
-                  disabled={
-                    !isStateLoaded ||
-                    loading ||
-                    !isBalanceReady ||
-                    !canAfford
-                  }
-                  tone={isBalanceReady && canAfford ? 'solid' : 'muted'}
+              {/* History Strip */}
+              <div className="w-full flex flex-col gap-1.5 pt-1 max-w-[500px]">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] uppercase tracking-wider text-white/50 font-roobert">
+                    История раунда {state?.history && state.history.length > 0 ? `(${state.history.length})` : ''}
+                  </span>
+                </div>
+                <div
+                  ref={scrollRef}
+                  className="flex gap-2 w-full overflow-x-auto items-center py-2 relative z-10 min-h-[4.5rem] px-2 rounded-xl bg-black/30 border border-white/5 no-scrollbar scroll-smooth"
                 >
-                  {!isBalanceReady
-                    ? t('common.loadingBalance')
-                    : isShortOnFunds
-                      ? t('common.insufficientFunds')
-                      : isBusted || isCashed
-                        ? t('common.newGame')
-                        : t('common.bet')}
-                </GamePrimaryButton>
-              ) : (
-                <GamePrimaryButton
-                  onClick={handleCashout}
-                  disabled={loading}
-                  tone="solid"
-                >
-                  {t('common.cashOutWithAmount', {
-                    amount: (currentBet * (state?.currentMultiplier ?? 1)).toFixed(2),
-                  })}
-                </GamePrimaryButton>
-              )}
-            </BetPanelCtaRow>
-          </BetPanelShell>
-
-          {!isPlaying && !isBusted && !isCashed && (
-            <GamePrimaryButton
-              onClick={handleSkip}
-              disabled={!isStateLoaded || loading}
-              tone="muted"
-            >
-              {t('common.skipCard')}
-              <ChevronsRight size={14} />
-            </GamePrimaryButton>
-          )}
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => handleGuess('higher')}
-              disabled={!isStateLoaded || !isPlaying || loading}
-              className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
-            >
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#8596ff]/30 group-hover:bg-[#8596ff]/50 transition-colors" />
-              <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
-                {t('hilo.higher')}
-                <ChevronUp size={16} className="text-[#8596ff]" />
+                  {(!state?.history || state.history.length === 0) ? (
+                    <div className="w-full text-center text-[11px] text-white/30 font-roobert py-2">
+                      Сыгранные карты раунда появятся здесь
+                    </div>
+                  ) : (
+                    <AnimatePresence initial={false}>
+                      {state.history.map((card, idx) => (
+                        <motion.div
+                          key={`${idx}-${card.rank}-${card.suit}`}
+                          initial={{ opacity: 0, x: -20, scale: 0.8 }}
+                          animate={{ opacity: 1, x: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+                          className="shrink-0"
+                        >
+                          <div
+                            className={cn(
+                              'flex h-14 w-10 shrink-0 flex-col items-center justify-center rounded-[8px] border border-black/25 shadow-md select-none',
+                              card.suit === 'hearts' || card.suit === 'diamonds'
+                                ? 'text-[#9c1f24]'
+                                : 'text-[#161512]'
+                            )}
+                            style={{
+                              background: 'linear-gradient(160deg, #fbf7ee 0%, #efe7d3 100%)',
+                            }}
+                          >
+                            <span className="text-[13px] font-black font-serif leading-none tracking-tighter">
+                              {getRankName(card.rank)}
+                            </span>
+                            <SuitMark suit={card.suit} className="text-xs mt-0.5" />
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  )}
+                  <div className="w-1 shrink-0" />
+                </div>
               </div>
-              <div className="text-[11px] text-[#8596ff] font-roobert mt-0.5 tracking-wider">
-                {higherProb.toFixed(2)}%
-              </div>
-            </button>
-            
-            <button
-              onClick={() => handleGuess('lower')}
-              disabled={!isStateLoaded || !isPlaying || loading}
-              className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
-            >
-              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff8a76]/30 group-hover:bg-[#ff8a76]/50 transition-colors" />
-              <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
-                {t('hilo.lower')}
-                <ChevronDown size={16} className="text-[#ff8a76]" />
-              </div>
-              <div className="text-[11px] text-[#ff8a76] font-roobert mt-0.5 tracking-wider">
-                {lowerProb.toFixed(2)}%
-              </div>
-            </button>
+            </section>
           </div>
-        </section>
+
+          {/* Right Column: Controls Area */}
+          <div className="lg:col-span-4 flex flex-col gap-3">
+            <BetPanelShell>
+              <div className="grid grid-cols-2 items-stretch">
+                <div className="px-4 py-3 border-r border-white/10">
+                  <StakeField
+                    amount={isPlaying ? currentBet : parsedBet || 1}
+                    onAmountChange={(next) => setBetAmount(String(next))}
+                    minBet={1}
+                    maxBet={Math.max(1, Math.floor(activeBalance) || 1)}
+                    disabled={!isStateLoaded || isPlaying || loading}
+                    label={t('common.bet')}
+                    decreaseLabel={t('common.decreaseBet')}
+                    increaseLabel={t('common.increaseBet')}
+                  />
+                </div>
+                <div className="px-4 py-3">
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
+                    {isPlaying ? t('crash.multiplier') : t('nav.wallet')}
+                  </span>
+                  <div
+                    className={`mt-2 font-roobert text-[22px] font-light tabular-nums ${
+                      isShortOnFunds ? 'text-[#ff8a76]' : 'text-frost-white'
+                    }`}
+                  >
+                    {isPlaying
+                      ? `x${(state?.currentMultiplier ?? 1).toFixed(2)}`
+                      : !isBalanceReady
+                        ? t('common.loading')
+                        : `${activeBalance.toFixed(2)}`}
+                  </div>
+                </div>
+              </div>
+
+              <BetPanelCtaRow>
+                {!isPlaying ? (
+                  <GamePrimaryButton
+                    onClick={handleStart}
+                    disabled={
+                      !isStateLoaded ||
+                      loading ||
+                      !isBalanceReady ||
+                      !canAfford
+                    }
+                    tone={isBalanceReady && canAfford ? 'solid' : 'muted'}
+                  >
+                    {!isBalanceReady
+                      ? t('common.loadingBalance')
+                      : isShortOnFunds
+                        ? t('common.insufficientFunds')
+                        : isBusted || isCashed
+                          ? t('common.newGame')
+                          : t('common.bet')}
+                  </GamePrimaryButton>
+                ) : (
+                  <GamePrimaryButton
+                    onClick={handleCashout}
+                    disabled={loading}
+                    tone="solid"
+                  >
+                    {t('common.cashOutWithAmount', {
+                      amount: (currentBet * (state?.currentMultiplier ?? 1)).toFixed(2),
+                    })}
+                  </GamePrimaryButton>
+                )}
+              </BetPanelCtaRow>
+            </BetPanelShell>
+
+            {!isPlaying && !isBusted && !isCashed && (
+              <GamePrimaryButton
+                onClick={handleSkip}
+                disabled={!isStateLoaded || loading}
+                tone="muted"
+              >
+                {t('common.skipCard')}
+                <ChevronsRight size={14} />
+              </GamePrimaryButton>
+            )}
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleGuess('higher')}
+                disabled={!isStateLoaded || !isPlaying || loading}
+                className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
+              >
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-[#8596ff]/30 group-hover:bg-[#8596ff]/50 transition-colors" />
+                <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
+                  {t('hilo.higher')}
+                  <ChevronUp size={16} className="text-[#8596ff]" />
+                </div>
+                <div className="text-[11px] text-[#8596ff] font-roobert mt-0.5 tracking-wider">
+                  {higherProb.toFixed(2)}%
+                </div>
+              </button>
+              
+              <button
+                onClick={() => handleGuess('lower')}
+                disabled={!isStateLoaded || !isPlaying || loading}
+                className="relative overflow-hidden h-14 rounded-xl border border-white/10 bg-white/[0.04] flex flex-col items-center justify-center hover:bg-white/[0.08] active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 group"
+              >
+                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#ff8a76]/30 group-hover:bg-[#ff8a76]/50 transition-colors" />
+                <div className="flex items-center gap-2 text-frost-white font-roobert text-[13px]">
+                  {t('hilo.lower')}
+                  <ChevronDown size={16} className="text-[#ff8a76]" />
+                </div>
+                <div className="text-[11px] text-[#ff8a76] font-roobert mt-0.5 tracking-wider">
+                  {lowerProb.toFixed(2)}%
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Live History Ticker */}
         <HiloHistory entries={history} currency={currencyLabel} />

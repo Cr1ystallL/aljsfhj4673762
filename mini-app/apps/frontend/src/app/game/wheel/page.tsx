@@ -349,105 +349,113 @@ export default function WheelPage() {
   /* ----- Render ---------------------------------------------------------- */
 
   return (
-    <main className="min-h-screen w-full bg-[#000000] text-[#ffffff]">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-5">
-        <GameTopBar
-          title="Wheel"
-          Icon={Disc3}
-          onHowToPlay={() => router.push('/info#faq')}
-        />
+    <main className="min-h-screen w-full bg-[#09090b] text-[#ffffff]">
+      <GameTopBar
+        title="Wheel"
+        Icon={Disc3}
+        onHowToPlay={() => router.push('/info#faq')}
+      />
 
+      <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-6 pt-3 pb-32 lg:pb-16 flex flex-col gap-4">
         {/* History */}
-        {snap && <HistoryStrip history={snap.history.slice(0, 12)} />}
+        {snap && <HistoryStrip history={snap.history.slice(0, 16)} />}
 
-        {/* ---- Wheel Stage (Dark Immersive Frame) ---- */}
-        <div className="relative overflow-hidden" style={{ borderRadius: 0 }}>
-          {/* Atmospheric radial wash — achromatic only */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(70% 60% at 50% 45%, rgba(255,255,255,0.03) 0%, transparent 70%)',
-            }}
-          />
-          <div className="relative aspect-square flex items-center justify-center">
-            <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} clockSkew={clockSkew} />
-          </div>
-        </div>
-
-        {/* Phase + Hash */}
-        <PhaseBar snap={snap} uiPhase={uiPhase} />
-
-        {/* ---- Multiplier Picks (Pill Buttons) ---- */}
-        <div className="flex items-center justify-center gap-2">
-          {PICKS.map((p) => {
-            const active = pick === p;
-            return (
-              <Pressable
-                key={p}
-                onClick={() => setPick(p)}
-                className={cn(
-                  'inline-flex items-center justify-center h-10 px-5',
-                  'font-sans text-[13px] tracking-[0.08em] uppercase tabular-nums'
-                )}
+        {/* PC Two-Column Grid / Mobile Single Column */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          {/* Left Column: Wheel Canvas Stage */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-3 items-center justify-center min-w-0">
+            <div className="relative overflow-hidden w-full max-w-[560px] aspect-square flex items-center justify-center rounded-3xl border border-amber-500/15 bg-[#121217] p-4 shadow-2xl">
+              <div
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                  borderRadius: 75,
-                  background: active ? '#ffffff' : 'transparent',
-                  color: active ? '#000000' : '#9a9a9a',
-                  border: active ? '1px solid #ffffff' : '1px solid #3a3a3a',
-                  fontWeight: active ? 600 : 300,
+                  background:
+                    'radial-gradient(70% 60% at 50% 45%, rgba(212,175,55,0.06) 0%, transparent 70%)',
                 }}
-              >
-                ×{p}
-              </Pressable>
-            );
-          })}
-        </div>
-
-        {/* ---- Bet Panel ---- */}
-        <BetPanelShell>
-          <div className="grid grid-cols-2 items-stretch">
-            <div className="px-4 py-3 border-r border-white/10">
-              <StakeField
-                amount={amount || minBet}
-                onAmountChange={(next) => setAmountInput(String(next))}
-                minBet={minBet}
-                maxBet={maxBet}
-                disabled={busy || uiPhase !== 'waiting'}
-                label={t('common.bet')}
-                decreaseLabel={t('common.decreaseBet')}
-                increaseLabel={t('common.increaseBet')}
               />
-            </div>
-            <div className="px-4 py-3">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                {t('common.payout')}
-              </span>
-              <div className="mt-2 font-roobert text-[22px] font-light tabular-nums text-frost-white">
-                {(amount * pick).toLocaleString(localeTag, {
-                  maximumFractionDigits: 2,
-                })}
+              <div className="relative w-full h-full flex items-center justify-center">
+                <WheelCanvas layout={layout} snap={snap} uiPhase={uiPhase} clockSkew={clockSkew} />
               </div>
             </div>
-          </div>
-          <BetPanelCtaRow>
-            <GamePrimaryButton
-              onClick={placeBet}
-              disabled={busy || uiPhase !== 'waiting'}
-              tone={uiPhase === 'waiting' && !busy ? 'solid' : 'muted'}
-            >
-              {uiPhase === 'waiting'
-                ? t('wheel.placeWithMult', { x: pick })
-                : uiPhase === 'spinning'
-                  ? t('common.spinning')
-                  : t('common.roundOver')}
-            </GamePrimaryButton>
-          </BetPanelCtaRow>
-        </BetPanelShell>
 
-        {/* Quick bet presets */}
-        <div className="flex items-center justify-center gap-2">
-          {[10, 50, 100, 500].map((v) => (
+            {/* Phase + Hash */}
+            <div className="w-full max-w-[560px]">
+              <PhaseBar snap={snap} uiPhase={uiPhase} />
+            </div>
+          </div>
+
+          {/* Right Column: Multipliers & Bet Controls */}
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4">
+            {/* Multiplier Picks */}
+            <div className="flex items-center justify-center lg:justify-start gap-2 flex-wrap">
+              {PICKS.map((p) => {
+                const active = pick === p;
+                return (
+                  <Pressable
+                    key={p}
+                    onClick={() => setPick(p)}
+                    className={cn(
+                      'inline-flex items-center justify-center h-10 px-5 transition-all',
+                      'font-sans text-[13px] tracking-[0.08em] uppercase tabular-nums cursor-pointer'
+                    )}
+                    style={{
+                      borderRadius: 75,
+                      background: active ? 'linear-gradient(to right, #fbbf24, #d97706)' : '#121217',
+                      color: active ? '#000000' : '#d4d4d8',
+                      border: active ? '1px solid #fbbf24' : '1px solid rgba(212,175,55,0.2)',
+                      fontWeight: active ? 700 : 400,
+                    }}
+                  >
+                    ×{p}
+                  </Pressable>
+                );
+              })}
+            </div>
+
+            {/* Bet Panel */}
+            <BetPanelShell>
+              <div className="grid grid-cols-2 items-stretch">
+                <div className="px-4 py-3 border-r border-white/10">
+                  <StakeField
+                    amount={amount || minBet}
+                    onAmountChange={(next) => setAmountInput(String(next))}
+                    minBet={minBet}
+                    maxBet={maxBet}
+                    disabled={busy || uiPhase !== 'waiting'}
+                    label={t('common.bet')}
+                    decreaseLabel={t('common.decreaseBet')}
+                    increaseLabel={t('common.increaseBet')}
+                  />
+                </div>
+                <div className="px-4 py-3">
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
+                    {t('common.payout')}
+                  </span>
+                  <div className="mt-2 font-roobert text-[22px] font-bold tabular-nums text-amber-300">
+                    {(amount * pick).toLocaleString(localeTag, {
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    ₽
+                  </div>
+                </div>
+              </div>
+              <BetPanelCtaRow>
+                <GamePrimaryButton
+                  onClick={placeBet}
+                  disabled={busy || uiPhase !== 'waiting'}
+                  tone={uiPhase === 'waiting' && !busy ? 'solid' : 'muted'}
+                >
+                  {uiPhase === 'waiting'
+                    ? t('wheel.placeWithMult', { x: pick })
+                    : uiPhase === 'spinning'
+                      ? t('common.spinning')
+                      : t('common.roundOver')}
+                </GamePrimaryButton>
+              </BetPanelCtaRow>
+            </BetPanelShell>
+
+            {/* Quick bet presets */}
+            <div className="flex items-center justify-center lg:justify-start gap-2">
+              {[10, 50, 100, 500].map((v) => (
             <button
               key={v}
               onClick={() => setAmountInput(Math.min(v, maxBet).toString())}
@@ -461,12 +469,14 @@ export default function WheelPage() {
               {v}
             </button>
           ))}
-          <button
-            onClick={() => setAmountInput(maxBet.toString())}
-            className="font-roobert text-[11px] px-3 py-1.5 rounded-pill text-whisper-gray uppercase tracking-[0.16em]"
-          >
-            {t('common.max')}
-          </button>
+              <button
+                onClick={() => setAmountInput(maxBet.toString())}
+                className="font-roobert text-[11px] px-3 py-1.5 rounded-pill text-whisper-gray uppercase tracking-[0.16em]"
+              >
+                {t('common.max')}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* ---- Bets Feed ---- */}

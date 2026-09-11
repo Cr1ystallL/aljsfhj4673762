@@ -49,10 +49,11 @@ export function BrandMark({
     >
       {variant === 'gradient' && (
         <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgb(160, 224, 171)" />
-            <stop offset="50%" stopColor="rgb(255, 172, 46)" />
-            <stop offset="100%" stopColor="rgb(165, 45, 37)" />
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fff8db" />
+            <stop offset="30%" stopColor="#fbbf24" />
+            <stop offset="65%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#92400e" />
           </linearGradient>
         </defs>
       )}

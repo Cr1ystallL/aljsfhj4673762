@@ -299,73 +299,82 @@ export default function CrashGamePage() {
   );
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <GameTopBar
-          title="MacvJet"
-          Icon={Rocket}
-          iconRotate={-30}
-          onHowToPlay={() => setRulesOpen(true)}
-        />
+    <main className="min-h-screen w-full bg-[#09090b] text-frost-white">
+      <GameTopBar
+        title="MacvJet"
+        Icon={Rocket}
+        iconRotate={-30}
+        onHowToPlay={() => setRulesOpen(true)}
+      />
 
+      <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-6 pt-3 pb-32 lg:pb-16 flex flex-col gap-4">
+        {/* Top: Crash Multiplier History Strip */}
         <CrashHistoryStrip history={snapshot.history} />
 
-        <CrashStage
-          stream={stream}
-          phase={snapshot.phase}
-          countdown={snapshot.countdown}
-          waitingEndsAt={snapshot.waitingEndsAt}
-          serverSeedHash={snapshot.serverSeedHash}
-          latencyMs={snapshot.latencyMs}
-          connected={snapshot.connected}
-          lastCrashPoint={snapshot.lastCrashPoint}
-          cashouts={cashouts}
-        />
-
-        <div className="flex flex-col gap-2.5">
-          {([0, 1] as const).map((slot) => (
-            <CrashBetPanel
-              key={slot}
-              amount={slots[slot].amount}
-              onAmountChange={(v) =>
-                setSlots((prev) => {
-                  const out = [...prev] as [SlotConfig, SlotConfig];
-                  out[slot] = { ...out[slot], amount: v };
-                  return out;
-                })
-              }
-              autoCashoutEnabled={slots[slot].autoCashoutEnabled}
-              onAutoCashoutToggle={(v) =>
-                setSlots((prev) => {
-                  const out = [...prev] as [SlotConfig, SlotConfig];
-                  out[slot] = { ...out[slot], autoCashoutEnabled: v };
-                  return out;
-                })
-              }
-              autoCashoutMultiplier={slots[slot].autoCashoutMultiplier}
-              onAutoCashoutChange={(v) =>
-                setSlots((prev) => {
-                  const out = [...prev] as [SlotConfig, SlotConfig];
-                  out[slot] = { ...out[slot], autoCashoutMultiplier: v };
-                  return out;
-                })
-              }
-              slotPhase={runtime[slot].phase}
-              multiplier={snapshot.serverMultiplier}
-              bettingClosed={bettingClosed}
-              minBet={minBet}
-              maxBet={maxBet}
-              onPrimary={() => handlePrimary(slot)}
-              busy={runtime[slot].busy}
+        {/* PC Two-Column Grid / Mobile Single Column */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column (Stage Canvas & Stats): col-span-12 lg:col-span-8 */}
+          <div className="lg:col-span-8 flex flex-col gap-3 min-w-0">
+            <CrashStage
+              stream={stream}
+              phase={snapshot.phase}
+              countdown={snapshot.countdown}
+              waitingEndsAt={snapshot.waitingEndsAt}
+              serverSeedHash={snapshot.serverSeedHash}
+              latencyMs={snapshot.latencyMs}
+              connected={snapshot.connected}
+              lastCrashPoint={snapshot.lastCrashPoint}
+              cashouts={cashouts}
             />
-          ))}
+
+            <CrashStatsBar
+              playerCount={snapshot.stats.playerCount}
+              totalBets={snapshot.stats.totalWagered}
+            />
+          </div>
+
+          {/* Right Column (Bet Controls): col-span-12 lg:col-span-4 */}
+          <div className="lg:col-span-4 flex flex-col gap-2.5">
+            {([0, 1] as const).map((slot) => (
+              <CrashBetPanel
+                key={slot}
+                amount={slots[slot].amount}
+                onAmountChange={(v) =>
+                  setSlots((prev) => {
+                    const out = [...prev] as [SlotConfig, SlotConfig];
+                    out[slot] = { ...out[slot], amount: v };
+                    return out;
+                  })
+                }
+                autoCashoutEnabled={slots[slot].autoCashoutEnabled}
+                onAutoCashoutToggle={(v) =>
+                  setSlots((prev) => {
+                    const out = [...prev] as [SlotConfig, SlotConfig];
+                    out[slot] = { ...out[slot], autoCashoutEnabled: v };
+                    return out;
+                  })
+                }
+                autoCashoutMultiplier={slots[slot].autoCashoutMultiplier}
+                onAutoCashoutChange={(v) =>
+                  setSlots((prev) => {
+                    const out = [...prev] as [SlotConfig, SlotConfig];
+                    out[slot] = { ...out[slot], autoCashoutMultiplier: v };
+                    return out;
+                  })
+                }
+                slotPhase={runtime[slot].phase}
+                multiplier={snapshot.serverMultiplier}
+                bettingClosed={bettingClosed}
+                minBet={minBet}
+                maxBet={maxBet}
+                onPrimary={() => handlePrimary(slot)}
+                busy={runtime[slot].busy}
+              />
+            ))}
+          </div>
         </div>
 
-        <CrashStatsBar
-          playerCount={snapshot.stats.playerCount}
-          totalBets={snapshot.stats.totalWagered}
-        />
-
+        {/* Bottom across full width: Multiplayer Player Feed */}
         <CrashPlayerFeed players={snapshot.players} currentUserId={userId} />
       </div>
 

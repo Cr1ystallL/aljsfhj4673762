@@ -334,78 +334,92 @@ export default function MinesGamePage() {
   const canCashout = phase === 'active' && revealedCount > 0;
 
   return (
-    <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-3.5">
-        <GameTopBar
-          title="Mines"
-          Icon={Bomb}
-          onHowToPlay={() => setRulesOpen(true)}
-        />
+    <main className="min-h-screen w-full bg-[#09090b] text-frost-white">
+      <GameTopBar
+        title="Mines"
+        Icon={Bomb}
+        onHowToPlay={() => setRulesOpen(true)}
+      />
 
-        {/* Status strip — current and next multiplier preview */}
-        <div className="relative rounded-card border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-3 grid grid-cols-3 gap-3 items-center overflow-hidden">
-          {/* Soft brand-coloured wash that strengthens as the round progresses */}
-          {phase === 'active' && (
-            <div
-              aria-hidden
-              className="absolute inset-0 opacity-40 pointer-events-none"
-              style={{
-                background:
-                  'linear-gradient(90deg, rgba(160, 224, 171, 0.10) 0%, rgba(255, 172, 46, 0.08) 55%, rgba(165, 45, 37, 0.06) 100%)',
-              }}
-            />
-          )}
-          <div className="relative">
-            <Stat
-              label="Revealed"
-              value={`${safeRevealed} / ${25 - displayMineCount}`}
-            />
+      <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-6 pt-3 pb-32 lg:pb-16 flex flex-col gap-5">
+        {/* PC Two-Column Grid / Mobile Single Column */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Game Area (Status & Mines Grid) */}
+          <div className="lg:col-span-8 flex flex-col gap-3.5 min-w-0">
+            {/* Status strip — current and next multiplier preview */}
+            <div className="relative rounded-2xl border border-amber-500/20 bg-[#121217] backdrop-blur-xl px-4 py-3 grid grid-cols-3 gap-3 items-center overflow-hidden shadow-lg">
+              {phase === 'active' && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 opacity-40 pointer-events-none"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, rgba(212, 175, 55, 0.15) 0%, rgba(251, 191, 36, 0.1) 55%, transparent 100%)',
+                  }}
+                />
+              )}
+              <div className="relative">
+                <Stat
+                  label="Открыто"
+                  value={`${safeRevealed} / ${25 - displayMineCount}`}
+                />
+              </div>
+              <div className="relative">
+                <Stat
+                  label="Множитель"
+                  value={`x${currentMult.toFixed(2)}`}
+                  emphasis
+                />
+              </div>
+              <div className="relative">
+                <Stat label="Следующий" value={`x${nextMult.toFixed(2)}`} muted />
+              </div>
+            </div>
+
+            {/* Grid */}
+            <div className="p-3 sm:p-6 rounded-3xl border border-amber-500/15 bg-[#121217] shadow-xl flex items-center justify-center">
+              <div className="w-full max-w-[520px]">
+                <MinesGrid
+                  revealed={server?.revealed ?? []}
+                  minePositions={
+                    phase === 'busted' || phase === 'cashed'
+                      ? server?.minePositions
+                      : undefined
+                  }
+                  hitPosition={hitPosition}
+                  disabled={phase !== 'active' || busy}
+                  onCellClick={reveal}
+                />
+              </div>
+            </div>
           </div>
-          <div className="relative">
-            <Stat
-              label="Current"
-              value={`x${currentMult.toFixed(2)}`}
-              emphasis
+
+          {/* Right Column: Bet controls */}
+          <div className="lg:col-span-4 flex flex-col gap-3.5">
+            <MinesBetPanel
+              amount={displayAmount}
+              onAmountChange={setAmount}
+              mineCount={displayMineCount}
+              onMineCountChange={setMineCount}
+              phase={phase}
+              currentMultiplier={currentMult}
+              busy={busy}
+              minBet={minBet}
+              maxBet={maxBet}
+              canCashout={canCashout}
+              onPrimary={handlePrimary}
             />
-          </div>
-          <div className="relative">
-            <Stat label="Next" value={`x${nextMult.toFixed(2)}`} muted />
           </div>
         </div>
 
-        {/* Grid */}
-        <MinesGrid
-          revealed={server?.revealed ?? []}
-          minePositions={
-            phase === 'busted' || phase === 'cashed'
-              ? server?.minePositions
-              : undefined
-          }
-          hitPosition={hitPosition}
-          disabled={phase !== 'active' || busy}
-          onCellClick={reveal}
-        />
+        {/* Bottom Section: History and Recent Bets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+          {/* Player's last 5 completed rounds */}
+          <MinesRecentBets bets={recentBets} />
 
-        {/* Bet controls */}
-        <MinesBetPanel
-          amount={displayAmount}
-          onAmountChange={setAmount}
-          mineCount={displayMineCount}
-          onMineCountChange={setMineCount}
-          phase={phase}
-          currentMultiplier={currentMult}
-          busy={busy}
-          minBet={minBet}
-          maxBet={maxBet}
-          canCashout={canCashout}
-          onPrimary={handlePrimary}
-        />
-
-        {/* Player's last 5 completed rounds */}
-        <MinesRecentBets bets={recentBets} />
-
-        {/* Live ticker — recent mines bets across all players */}
-        <MinesHistory entries={history} />
+          {/* Live ticker — recent mines bets across all players */}
+          <MinesHistory entries={history} />
+        </div>
       </div>
 
       <MinesRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />

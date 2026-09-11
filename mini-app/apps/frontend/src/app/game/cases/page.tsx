@@ -49,14 +49,14 @@ export default function CasesPage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
-      <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
+      <div className="mx-auto w-full max-w-[800px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-4">
         <GameTopBar
           title={t('cases.title')}
           Icon={Box}
           onHowToPlay={() => router.push('/info#faq')}
         />
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
           {cases.map((c) => {
             const caseColors: Record<string, string> = {
               case_1: '#9e9e9e',

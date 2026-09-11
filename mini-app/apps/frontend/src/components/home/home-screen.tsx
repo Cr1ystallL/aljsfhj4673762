@@ -400,60 +400,13 @@ export function HomeScreen() {
           },
         }}
       >
-        {/* Luxury Gold Welcome Banner matching mockup */}
-        <EntranceBlock>
-          <div className="relative w-full rounded-3xl overflow-hidden p-6 sm:p-8 bg-gradient-to-r from-[#181308] via-[#241a08] to-[#121118] border border-amber-500/30 shadow-[0_15px_40px_rgba(0,0,0,0.6)]">
-            <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -left-10 -bottom-10 w-72 h-72 bg-amber-600/10 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div className="max-w-xl space-y-3">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  БОНУС НА ПЕРВЫЙ ДЕПОЗИТ
-                </div>
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight gold-text-gradient font-brand">
-                  До 150% + 250 FS
-                </h1>
-                <p className="text-xs sm:text-sm text-zinc-300/90 leading-relaxed max-w-md">
-                  Увеличьте свой первый депозит и заберите бесплатные вращения в эксклюзивных играх клуба MACVJET
-                </p>
-                <div className="pt-2">
-                  <button
-                    onClick={() => router.push('/bonuses')}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-extrabold text-sm shadow-[0_10px_25px_rgba(212,175,55,0.4)] hover:shadow-[0_15px_35px_rgba(212,175,55,0.6)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
-                  >
-                    <span>Получить бонус</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Luxury 3D Card / Badge Graphic */}
-              <div className="hidden sm:flex relative shrink-0 items-center justify-center pr-6">
-                <div className="relative w-44 h-36 flex items-center justify-center">
-                  <div className="absolute w-36 h-36 rounded-full bg-amber-500/20 blur-2xl animate-pulse" />
-                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-amber-400/30 to-amber-700/10 border border-amber-400/40 transform rotate-12 shadow-2xl flex items-center justify-center backdrop-blur-sm">
-                    <Crown className="w-12 h-12 text-amber-300 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
-                  </div>
-                  <div className="absolute -bottom-1 -left-1 w-24 h-24 rounded-2xl bg-gradient-to-tr from-amber-600/40 to-amber-300/20 border border-amber-300/50 transform -rotate-6 shadow-2xl flex items-center justify-center backdrop-blur-sm">
-                    <Flame className="w-10 h-10 text-amber-200 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </EntranceBlock>
-
-        {/* Featured Events Showcase (Tournaments or Contests if active) */}
-        {(activeTournaments.length > 0 || activeContests.length > 0) && (
-          <ActiveEventsShowcase
-            tournaments={activeTournaments}
-            contests={activeContests}
-            router={router}
-            showMacvJet={false}
-          />
-        )}
+        {/* Featured Events Showcase (Tournaments, Contests, or Hero Game - previous mechanics restored) */}
+        <ActiveEventsShowcase
+          tournaments={activeTournaments}
+          contests={activeContests}
+          router={router}
+          showMacvJet={isGameVisible('crash')}
+        />
 
         {/* Search (Mobile Only) & Category Navigation Pills */}
         <EntranceBlock>
@@ -553,7 +506,7 @@ export function HomeScreen() {
           </div>
         </EntranceBlock>
 
-        {/* 3-col PC / 2-col Mobile Games Grid */}
+        {/* 3-col PC / 2-col Mobile Compact Games Grid */}
         <EntranceBlock>
           {filteredGames.length === 0 ? (
             <div className="py-12 text-center rounded-2xl border border-amber-500/20 bg-[#121217]">
@@ -571,7 +524,7 @@ export function HomeScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3.5 sm:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-3.5">
               {filteredGames.map((g) => (
                 <GameTile
                   key={g.id}
@@ -601,51 +554,18 @@ export function HomeScreen() {
           </div>
         </EntranceBlock>
 
-        {/* Footer Guarantee Badges & Slogan */}
+        {/* Minimal Footer (Guarantee badges removed as requested) */}
         <EntranceBlock>
-          <div className="pt-6 pb-2 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <div className="text-[12px] font-bold text-zinc-200">100% Честная игра</div>
-                  <div className="text-[10px] text-zinc-500">Provably Fair</div>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
-                <Zap className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <div className="text-[12px] font-bold text-zinc-200">Мгновенный вывод</div>
-                  <div className="text-[10px] text-zinc-500">Без задержек</div>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
-                <Lock className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <div className="text-[12px] font-bold text-zinc-200">SSL Защита</div>
-                  <div className="text-[10px] text-zinc-500">Шифрование данных</div>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl border border-amber-500/15 bg-[#121217]/60 flex items-center gap-2.5">
-                <Headphones className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <div className="text-[12px] font-bold text-zinc-200">Поддержка 24/7</div>
-                  <div className="text-[10px] text-zinc-500">Всегда на связи</div>
-                </div>
-              </div>
+          <div className="pt-4 pb-2 text-center border-t border-amber-500/10 space-y-1">
+            <div className="flex items-center justify-center gap-2">
+              <Crown className="w-4 h-4 text-amber-400" />
+              <span className="font-brand font-black text-sm tracking-widest gold-text-gradient">
+                MACVJET CASINO
+              </span>
             </div>
-
-            <div className="text-center pt-4 border-t border-amber-500/10 space-y-1">
-              <div className="flex items-center justify-center gap-2">
-                <Crown className="w-4 h-4 text-amber-400" />
-                <span className="font-brand font-black text-sm tracking-widest gold-text-gradient">
-                  MACVJET CASINO
-                </span>
-              </div>
-              <p className="text-[11px] text-zinc-500">
-                Официальный клуб • Играйте ответственно • 18+
-              </p>
-            </div>
+            <p className="text-[11px] text-zinc-500">
+              Официальный клуб • Играйте ответственно • 18+
+            </p>
           </div>
         </EntranceBlock>
       </motion.div>
@@ -716,7 +636,7 @@ function GameTile({
   return (
     <Pressable
       onClick={() => router.push(game.href)}
-      className="group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] aspect-[1.15/1] sm:aspect-[1.25/1] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_25px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-xl"
+      className="group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] aspect-[1.4/1] sm:aspect-[1.5/1] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg"
     >
       {/* Background artwork */}
       {game.bg && (

@@ -266,7 +266,7 @@ export default function KenoGamePage() {
 
   return (
     <main className="min-h-screen w-full bg-[#000000] text-frost-white">
-      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] px-3 pt-4 pb-32 flex flex-col gap-5">
+      <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] lg:max-w-[1400px] px-3 pt-4 pb-32 flex flex-col gap-5">
         <GameTopBar
           title="Keno"
           Icon={Dice5}
@@ -275,81 +275,89 @@ export default function KenoGamePage() {
           serverSeedHash={serverSeedHash ?? undefined}
         />
 
-        {/* Multiplier Strip */}
-        {picks.length > 0 && (
-          <div className="w-full flex flex-wrap justify-center gap-1.5 pb-2">
-            {KENO_MULTIPLIERS[risk as KenoRisk]?.[picks.length]?.map((mult, idx) => (
-              <div 
-                key={idx} 
-                className={cn(
-                  "flex-1 min-w-[3.2rem] max-w-[4.2rem] py-1.5 px-1 rounded-lg flex flex-col items-center justify-center border transition-all",
-                  phase !== 'idle' && hitsCount === idx && drawnNumbers.length >= 1
-                    ? "bg-emerald-500/30 border-emerald-400 text-white shadow-[0_0_15px_rgba(52,211,153,0.5)] scale-105" 
-                    : "bg-black/40 border-white/5 text-white/60 hover:bg-white/5",
-                  mult === 0 && "opacity-40"
-                )}
-              >
-                <span className="text-[8px] uppercase font-bold leading-none mb-1 opacity-70 tracking-widest">{idx} ПОПАД.</span>
-                <span className="text-[13px] font-black leading-none">x{mult}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Board & Multipliers */}
+          <div className="lg:col-span-8 flex flex-col gap-4">
+            {/* Multiplier Strip */}
+            {picks.length > 0 && (
+              <div className="w-full flex flex-wrap justify-center gap-1.5 pb-2">
+                {KENO_MULTIPLIERS[risk as KenoRisk]?.[picks.length]?.map((mult, idx) => (
+                  <div 
+                    key={idx} 
+                    className={cn(
+                      "flex-1 min-w-[3.2rem] max-w-[4.2rem] py-1.5 px-1 rounded-lg flex flex-col items-center justify-center border transition-all",
+                      phase !== 'idle' && hitsCount === idx && drawnNumbers.length >= 1
+                        ? "bg-emerald-500/30 border-emerald-400 text-white shadow-[0_0_15px_rgba(52,211,153,0.5)] scale-105" 
+                        : "bg-black/40 border-white/5 text-white/60 hover:bg-white/5",
+                      mult === 0 && "opacity-40"
+                    )}
+                  >
+                    <span className="text-[8px] uppercase font-bold leading-none mb-1 opacity-70 tracking-widest">{idx} ПОПАД.</span>
+                    <span className="text-[13px] font-black leading-none">x{mult}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
+            {/* Multiplier Big Display */}
+            <AnimatePresence>
+              {(phase === 'revealing' || finalMultiplier !== null) && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="relative z-30 flex items-center justify-center"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, y: 10 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.8, y: -10 }}
+                    className={cn(
+                      "px-8 py-2.5 rounded-2xl font-black text-3xl shadow-2xl border-2 transition-all duration-300",
+                      (finalMultiplier !== null ? finalMultiplier : liveMultiplier) > 0 
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]" 
+                        : "bg-black/60 text-white/40 border-white/10"
+                    )}
+                  >
+                    x{(finalMultiplier !== null ? finalMultiplier : liveMultiplier).toFixed(2)}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <KenoBoard
+              picks={picks}
+              onTogglePick={handlePick}
+              drawnNumbers={drawnNumbers}
+              lastDrawnNumber={lastDrawnNumber}
+              phase={phase}
+              maxPick={KENO_MAX_PICKS}
+            />
           </div>
-        )}
 
-        {/* Multiplier Big Display */}
-        <AnimatePresence>
-          {(phase === 'revealing' || finalMultiplier !== null) && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="relative z-30 flex items-center justify-center"
-            >
-              <motion.div
-                initial={{ scale: 0.8, y: 10 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.8, y: -10 }}
-                className={cn(
-                  "px-8 py-2.5 rounded-2xl font-black text-3xl shadow-2xl border-2 transition-all duration-300",
-                  (finalMultiplier !== null ? finalMultiplier : liveMultiplier) > 0 
-                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]" 
-                    : "bg-black/60 text-white/40 border-white/10"
-                )}
-              >
-                x{(finalMultiplier !== null ? finalMultiplier : liveMultiplier).toFixed(2)}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <KenoBoard
-          picks={picks}
-          onTogglePick={handlePick}
-          drawnNumbers={drawnNumbers}
-          lastDrawnNumber={lastDrawnNumber}
-          phase={phase}
-          maxPick={KENO_MAX_PICKS}
-        />
-
-        <KenoBetPanel
-          amount={amount}
-          onAmountChange={setAmount}
-          risk={risk}
-          onRiskChange={setRisk}
-          picks={picks}
-          onAutoPick={() => {
-            void handleAutoPick();
-          }}
-          onClear={handleClear}
-          phase={phase}
-          onBet={() => {
-            void handleBet();
-          }}
-          busy={busy}
-          maxPick={KENO_MAX_PICKS}
-          activeBalance={displayBalance}
-          currency={isTournament ? 'T-COIN' : 'zł'}
-        />
+          {/* Right Column: Bet Panel */}
+          <div className="lg:col-span-4 flex flex-col gap-4">
+            <KenoBetPanel
+              amount={amount}
+              onAmountChange={setAmount}
+              risk={risk}
+              onRiskChange={setRisk}
+              picks={picks}
+              onAutoPick={() => {
+                void handleAutoPick();
+              }}
+              onClear={handleClear}
+              phase={phase}
+              onBet={() => {
+                void handleBet();
+              }}
+              busy={busy}
+              maxPick={KENO_MAX_PICKS}
+              activeBalance={displayBalance}
+              currency={isTournament ? 'T-COIN' : 'zł'}
+            />
+          </div>
+        </div>
 
         <KenoLiveBets
           entries={history}

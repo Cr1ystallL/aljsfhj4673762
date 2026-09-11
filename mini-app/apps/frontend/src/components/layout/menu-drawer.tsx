@@ -166,45 +166,69 @@ export function MenuDrawer({
                 </button>
               </div>
 
-              {/* User Mini Card */}
-              <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-full border border-white/15 bg-white/5 flex items-center justify-center overflow-hidden shrink-0">
-                    {user?.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={user.photoUrl}
-                        alt="User"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <span className="font-roobert font-medium text-sm text-frost-white">
-                        {initials}
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-roobert font-medium text-[14px] text-frost-white truncate">
-                        {user?.firstName || t('profile.player')}
-                      </span>
-                      {streak >= 2 && <StreakFlameBadge streak={streak} size="sm" />}
+              {/* User Header Card */}
+              <div className="p-3 rounded-2xl border border-amber-500/25 bg-gradient-to-b from-[#16151c] to-[#0f0e13] flex flex-col gap-2.5 shadow-md">
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-full border border-amber-400/40 bg-amber-500/10 flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-amber-400/20">
+                      {user?.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={user.photoUrl}
+                          alt="User"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="font-roobert font-bold text-sm text-amber-200">
+                          {initials}
+                        </span>
+                      )}
                     </div>
-                    <div className="font-roobert text-[11px] text-amber-300 font-bold tracking-tight">
-                      {(balanceStore?.amount ?? 0).toLocaleString(localeTag)} zł
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-roobert font-bold text-[14px] text-frost-white truncate">
+                          {user?.firstName || t('profile.player')}
+                        </span>
+                        {streak >= 2 && <StreakFlameBadge streak={streak} size="sm" />}
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-amber-300/90 font-medium">
+                        <Crown size={11} className="text-amber-400" />
+                        <span>VIP Игрок</span>
+                      </div>
                     </div>
                   </div>
+
+                  <button
+                    onClick={() => {
+                      onClose();
+                      router.push('/profile');
+                    }}
+                    title="Профиль"
+                    className="p-1.5 rounded-xl border border-amber-500/20 bg-white/[0.04] text-zinc-400 hover:text-white shrink-0 active:scale-95 transition-transform cursor-pointer"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    onClose();
-                    router.push('/profile');
-                  }}
-                  className="p-1.5 rounded-xl border border-white/10 bg-white/[0.06] text-whisper-gray hover:text-frost-white shrink-0 active:scale-95 transition-transform"
-                >
-                  <ChevronRight size={16} />
-                </button>
+
+                <div className="pt-2 border-t border-amber-500/15 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-medium">Баланс</div>
+                    <div className="font-roobert text-[14px] font-extrabold gold-text-gradient tabular-nums truncate">
+                      {(balanceStore?.amount ?? 0).toLocaleString(localeTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                      ₽
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onClose();
+                      router.push('/balance');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-extrabold text-[11px] shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
+                  >
+                    + Пополнить
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -293,188 +293,195 @@ export default function MacvpotPage() {
         onClose={() => setShowWinnerBanner(false)}
       />
 
-      <div className="mx-auto w-full max-w-[800px] px-3 pt-3 pb-28 flex flex-col gap-4">
+      <div className="mx-auto w-full max-w-[800px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-4">
         {/* 1. TOP BAR */}
         <GameTopBar title="MacvPot" Icon={Trophy} />
 
         {/* 2. ИСТОРИЯ ПРОШЛЫХ РАУНДОВ */}
         <MacvpotHistory history={state?.history || []} />
 
-        {/* 3. РУЛЕТКА */}
-        <MacvpotRoulette
-          roundId={state?.roundId || 'init'}
-          bets={state?.bets || []}
-          winningTicket={state?.winningTicket || null}
-          winnerUserId={state?.winner?.userId || null}
-          isSpinning={state?.phase === 'spinning'}
-          spinDurationMs={state?.spinDurationMs || 12000}
-          onSpinComplete={() => {
-            setShowWinnerBanner(true);
-          }}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column: Roulette & Bets Table */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
+            {/* 3. РУЛЕТКА */}
+            <MacvpotRoulette
+              roundId={state?.roundId || 'init'}
+              bets={state?.bets || []}
+              winningTicket={state?.winningTicket || null}
+              winnerUserId={state?.winner?.userId || null}
+              isSpinning={state?.phase === 'spinning'}
+              spinDurationMs={state?.spinDurationMs || 12000}
+              onSpinComplete={() => {
+                setShowWinnerBanner(true);
+              }}
+            />
 
-        <BetPanelShell>
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 relative">
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
-                {t('macvpot.pot')}
-              </span>
-              <span className="mt-1 font-roobert text-[22px] font-light tabular-nums text-frost-white tracking-tight">
-                {(state?.totalPot || 0).toLocaleString(localeTag)}{' '}
-                <span className="text-xs text-white/45 font-normal">zł</span>
-              </span>
-            </div>
-
-            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
-              {state?.phase === 'spinning' ? (
-                <span className="text-[#F4E8C8]/80 text-[11px] uppercase tracking-[0.28em] font-roobert">
-                  {t('macvpot.spinning')}
-                </span>
-              ) : !state?.bets || state.bets.length < 2 ? (
-                <span className="text-[11px] text-white/45 text-center tracking-wide max-w-[140px] sm:max-w-[200px] font-roobert">
-                  {t('macvpot.minPlayers')}
-                </span>
-              ) : (
-                <span
-                  className={
-                    timeLeft <= 3
-                      ? 'text-frost-white text-[28px] sm:text-[34px] font-roobert font-light tabular-nums tracking-tight'
-                      : 'text-frost-white/80 text-[24px] sm:text-[30px] font-roobert font-light tabular-nums tracking-tight'
-                  }
-                >
-                  {timeLeft}
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-white/10 text-xs text-white/65 font-roobert">
-              <Users size={13} className="text-white/35" />
-              <span className="tabular-nums">{state?.playerCount || 0}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-whisper-gray font-roobert px-4 pt-3">
-            <span>{t('macvpot.yourStake')}</span>
-            {userBet && (
-              <span className="text-[#F4E8C8]/80 normal-case tracking-normal text-xs">
-                {t('macvpot.yourBet', { amount: userBet.amount, chance: userBet.chance })}
-              </span>
-            )}
-          </div>
-
-          {!userBet ? (
-            <>
-              <div className="px-4 py-3">
-                <StakeField
-                  amount={parseFloat(betAmount) || 10}
-                  onAmountChange={(next) => setBetAmount(String(Math.max(10, Math.round(next))))}
-                  minBet={10}
-                  maxBet={Math.max(10, Math.floor(balance?.amount ?? 10))}
-                  disabled={!isBettingPhase || isSubmitting}
-                  label={t('common.bet')}
-                  decreaseLabel={t('common.decreaseBet')}
-                  increaseLabel={t('common.increaseBet')}
-                />
-              </div>
-              <BetPanelCtaRow>
-                <GamePrimaryButton
-                  onClick={handlePlaceBet}
-                  disabled={!isBettingPhase || isSubmitting}
-                  tone={isBettingPhase && !isSubmitting ? 'solid' : 'muted'}
-                >
-                  {t('common.placeBet')}
-                </GamePrimaryButton>
-              </BetPanelCtaRow>
-            </>
-          ) : (
-            <div className="w-full flex items-center justify-between px-4 py-3.5">
-              <div className="flex flex-col">
-                <span className="text-xs text-white/50">{t('macvpot.accepted')}</span>
-                <span className="text-base font-roobert font-light tabular-nums text-frost-white">
-                  {userBet.amount} zł{' '}
-                  <span className="text-xs text-white/55">({userBet.chance}%)</span>
-                </span>
+            <div className="w-full flex flex-col gap-2.5 mt-1">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-[10px] uppercase tracking-[0.16em] text-whisper-gray font-roobert flex items-center gap-1.5">
+                  <Users size={13} className="text-white/35" />
+                  {t('macvpot.allBets', { n: state?.bets.length || 0 })}
+                </h3>
+                <span className="text-[11px] text-white/35 font-roobert">{t('macvpot.chancesLive')}</span>
               </div>
 
-              {isBettingPhase && (
-                <Pressable
-                  disabled={isSubmitting}
-                  onClick={handleCancelBet}
-                  className="px-4 py-2.5 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.16em] inline-flex items-center gap-1.5 disabled:opacity-40"
-                >
-                  <RotateCcw size={14} />
-                  {t('macvpot.cancel')}
-                </Pressable>
-              )}
-            </div>
-          )}
-        </BetPanelShell>
-
-        <div className="w-full flex flex-col gap-2.5 mt-1">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-[10px] uppercase tracking-[0.16em] text-whisper-gray font-roobert flex items-center gap-1.5">
-              <Users size={13} className="text-white/35" />
-              {t('macvpot.allBets', { n: state?.bets.length || 0 })}
-            </h3>
-            <span className="text-[11px] text-white/35 font-roobert">{t('macvpot.chancesLive')}</span>
-          </div>
-
-          {state?.bets && state.bets.length > 0 ? (
-            <BetPanelShell>
-              <div className="grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.16em] text-whisper-gray font-roobert">
-                <div className="col-span-5 sm:col-span-6">{t('macvpot.participant')}</div>
-                <div className="col-span-4 sm:col-span-3 text-right">{t('macvpot.stake')}</div>
-                <div className="col-span-3 text-right">{t('macvpot.chance')}</div>
-              </div>
-
-              {state.bets.map((p) => {
-                const name = p.user?.firstName || p.user?.username || t('macvpot.player');
-                const initial = name.charAt(0).toUpperCase();
-
-                return (
-                  <div
-                    key={p.betId}
-                    className="grid grid-cols-12 px-4 py-3.5 items-center relative overflow-hidden border-t border-white/5 first:border-t-0"
-                  >
-                    <div
-                      className="absolute top-0 bottom-0 left-0 bg-white/[0.03] pointer-events-none"
-                      style={{ width: `${Math.min(100, p.chance)}%` }}
-                    />
-
-                    <div className="col-span-5 sm:col-span-6 flex items-center gap-3 z-10">
-                      <UserAvatar
-                        photoUrl={p.user?.photoUrl}
-                        name={name}
-                        vipLevel={(p.user as any)?.vipLevel ?? (p as any).vipLevel ?? 0}
-                        size="sm"
-                      />
-                      <span className="font-roobert text-xs sm:text-sm text-frost-white truncate max-w-[110px] sm:max-w-[200px]">
-                        {name}
-                      </span>
-                    </div>
-
-                    <div className="col-span-4 sm:col-span-3 text-right font-roobert tabular-nums text-frost-white text-xs sm:text-sm z-10">
-                      {p.amount.toLocaleString(localeTag)}{' '}
-                      <span className="text-[10px] font-normal text-white/45">zł</span>
-                    </div>
-
-                    <div className="col-span-3 text-right z-10">
-                      <span className="font-roobert tabular-nums text-xs sm:text-sm text-frost-white/90 bg-white/[0.05] px-2.5 py-1 rounded-pill border border-white/10">
-                        {p.chance}%
-                      </span>
-                    </div>
+              {state?.bets && state.bets.length > 0 ? (
+                <BetPanelShell>
+                  <div className="grid grid-cols-12 px-4 py-3 border-b border-white/10 text-[10px] uppercase tracking-[0.16em] text-whisper-gray font-roobert">
+                    <div className="col-span-5 sm:col-span-6">{t('macvpot.participant')}</div>
+                    <div className="col-span-4 sm:col-span-3 text-right">{t('macvpot.stake')}</div>
+                    <div className="col-span-3 text-right">{t('macvpot.chance')}</div>
                   </div>
-                );
-              })}
-            </BetPanelShell>
-          ) : (
+
+                  {state.bets.map((p) => {
+                    const name = p.user?.firstName || p.user?.username || t('macvpot.player');
+
+                    return (
+                      <div
+                        key={p.betId}
+                        className="grid grid-cols-12 px-4 py-3.5 items-center relative overflow-hidden border-t border-white/5 first:border-t-0"
+                      >
+                        <div
+                          className="absolute top-0 bottom-0 left-0 bg-white/[0.03] pointer-events-none"
+                          style={{ width: `${Math.min(100, p.chance)}%` }}
+                        />
+
+                        <div className="col-span-5 sm:col-span-6 flex items-center gap-3 z-10">
+                          <UserAvatar
+                            photoUrl={p.user?.photoUrl}
+                            name={name}
+                            vipLevel={(p.user as any)?.vipLevel ?? (p as any).vipLevel ?? 0}
+                            size="sm"
+                          />
+                          <span className="font-roobert text-xs sm:text-sm text-frost-white truncate max-w-[110px] sm:max-w-[200px]">
+                            {name}
+                          </span>
+                        </div>
+
+                        <div className="col-span-4 sm:col-span-3 text-right font-roobert tabular-nums text-frost-white text-xs sm:text-sm z-10">
+                          {p.amount.toLocaleString(localeTag)}{' '}
+                          <span className="text-[10px] font-normal text-white/45">zł</span>
+                        </div>
+
+                        <div className="col-span-3 text-right z-10">
+                          <span className="font-roobert tabular-nums text-xs sm:text-sm text-frost-white/90 bg-white/[0.05] px-2.5 py-1 rounded-pill border border-white/10">
+                            {p.chance}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </BetPanelShell>
+              ) : (
+                <BetPanelShell>
+                  <div className="w-full py-10 text-center text-xs text-white/40 flex flex-col items-center gap-2">
+                    <Trophy size={22} className="text-white/20" />
+                    <span>{t('macvpot.noBets')}</span>
+                  </div>
+                </BetPanelShell>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Pot Info & Controls */}
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4">
             <BetPanelShell>
-              <div className="w-full py-10 text-center text-xs text-white/40 flex flex-col items-center gap-2">
-                <Trophy size={22} className="text-white/20" />
-                <span>{t('macvpot.noBets')}</span>
+              <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 relative">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-whisper-gray font-roobert">
+                    {t('macvpot.pot')}
+                  </span>
+                  <span className="mt-1 font-roobert text-[22px] font-light tabular-nums text-frost-white tracking-tight">
+                    {(state?.totalPot || 0).toLocaleString(localeTag)}{' '}
+                    <span className="text-xs text-white/45 font-normal">zł</span>
+                  </span>
+                </div>
+
+                <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                  {state?.phase === 'spinning' ? (
+                    <span className="text-[#F4E8C8]/80 text-[11px] uppercase tracking-[0.28em] font-roobert">
+                      {t('macvpot.spinning')}
+                    </span>
+                  ) : !state?.bets || state.bets.length < 2 ? (
+                    <span className="text-[11px] text-white/45 text-center tracking-wide max-w-[140px] sm:max-w-[200px] font-roobert">
+                      {t('macvpot.minPlayers')}
+                    </span>
+                  ) : (
+                    <span
+                      className={
+                        timeLeft <= 3
+                          ? 'text-frost-white text-[28px] sm:text-[34px] font-roobert font-light tabular-nums tracking-tight'
+                          : 'text-frost-white/80 text-[24px] sm:text-[30px] font-roobert font-light tabular-nums tracking-tight'
+                      }
+                    >
+                      {timeLeft}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-white/10 text-xs text-white/65 font-roobert">
+                  <Users size={13} className="text-white/35" />
+                  <span className="tabular-nums">{state?.playerCount || 0}</span>
+                </div>
               </div>
+
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-whisper-gray font-roobert px-4 pt-3">
+                <span>{t('macvpot.yourStake')}</span>
+                {userBet && (
+                  <span className="text-[#F4E8C8]/80 normal-case tracking-normal text-xs">
+                    {t('macvpot.yourBet', { amount: userBet.amount, chance: userBet.chance })}
+                  </span>
+                )}
+              </div>
+
+              {!userBet ? (
+                <>
+                  <div className="px-4 py-3">
+                    <StakeField
+                      amount={parseFloat(betAmount) || 10}
+                      onAmountChange={(next) => setBetAmount(String(Math.max(10, Math.round(next))))}
+                      minBet={10}
+                      maxBet={Math.max(10, Math.floor(balance?.amount ?? 10))}
+                      disabled={!isBettingPhase || isSubmitting}
+                      label={t('common.bet')}
+                      decreaseLabel={t('common.decreaseBet')}
+                      increaseLabel={t('common.increaseBet')}
+                    />
+                  </div>
+                  <BetPanelCtaRow>
+                    <GamePrimaryButton
+                      onClick={handlePlaceBet}
+                      disabled={!isBettingPhase || isSubmitting}
+                      tone={isBettingPhase && !isSubmitting ? 'solid' : 'muted'}
+                    >
+                      {t('common.placeBet')}
+                    </GamePrimaryButton>
+                  </BetPanelCtaRow>
+                </>
+              ) : (
+                <div className="w-full flex items-center justify-between px-4 py-3.5">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-white/50">{t('macvpot.accepted')}</span>
+                    <span className="text-base font-roobert font-light tabular-nums text-frost-white">
+                      {userBet.amount} zł{' '}
+                      <span className="text-xs text-white/55">({userBet.chance}%)</span>
+                    </span>
+                  </div>
+
+                  {isBettingPhase && (
+                    <Pressable
+                      disabled={isSubmitting}
+                      onClick={handleCancelBet}
+                      className="px-4 py-2.5 rounded-pill bg-frost-white text-midnight-canvas font-roobert text-[11px] uppercase tracking-[0.16em] inline-flex items-center gap-1.5 disabled:opacity-40"
+                    >
+                      <RotateCcw size={14} />
+                      {t('macvpot.cancel')}
+                    </Pressable>
+                  )}
+                </div>
+              )}
             </BetPanelShell>
-          )}
+          </div>
         </div>
       </div>
     </main>
