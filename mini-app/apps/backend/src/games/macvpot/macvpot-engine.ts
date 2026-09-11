@@ -322,11 +322,14 @@ export class MacvpotEngine extends EventEmitter {
     if (this.timer) clearTimeout(this.timer);
     this.phase = 'completed';
 
-    // Credit winner 100% of the pot
+    // Credit winner 96% of the pot (4% casino rake)
     try {
       const winnerDbBet = await bettingPipeline.getBet(winningParticipant.betId);
       if (winnerDbBet) {
-        await bettingPipeline.processPayout(winnerDbBet, this.totalPot, false, true);
+        const rake = +(this.totalPot * 0.04).toFixed(2);
+        const netPot = +(this.totalPot - rake).toFixed(2);
+        await bettingPipeline.processPayout(winnerDbBet, netPot, false, true);
+        logger.info({ totalPot: this.totalPot, rake, netPot, winnerId: winningParticipant.userId }, 'MacvPot pot paid with 4% rake');
       }
     } catch (err) {
       logger.error({ err, winningParticipant }, 'Error processing MacvPot win payout');

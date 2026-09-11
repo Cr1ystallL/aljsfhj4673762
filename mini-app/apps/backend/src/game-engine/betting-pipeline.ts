@@ -474,7 +474,8 @@ export class BettingPipeline {
    * payout in here. This second call is a defensive belt-and-braces.
    */
   async processPayout(bet: Bet, payout: number, demoMode = false, wagerQualifying = true): Promise<void> {
-    const grossCredit = TWO_DP(payout);
+    const MAX_CASINO_PAYOUT = 50_000;
+    const grossCredit = Math.min(TWO_DP(payout), MAX_CASINO_PAYOUT);
     const stake = TWO_DP(bet.amount);
 
     const meta = (bet.metadata || {}) as Record<string, any>;
@@ -799,7 +800,8 @@ export class BettingPipeline {
     demoMode = false,
     wagerQualifying = true
   ): Promise<void> {
-    const grossCredit = TWO_DP(cashoutAmount);
+    const MAX_CASINO_PAYOUT = 50_000;
+    const grossCredit = Math.min(TWO_DP(cashoutAmount), MAX_CASINO_PAYOUT);
     const stake = TWO_DP(bet.amount);
 
     const meta = (bet.metadata || {}) as Record<string, any>;

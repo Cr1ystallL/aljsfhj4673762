@@ -2880,6 +2880,67 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* -------------------------------------------------------- Engine Mode & Analytics */
+
+  /**
+   * GET /api/_x/engine-mode
+   * Return current master casino engine mode ('script' | 'real')
+   */
+  app.get('/_x/engine-mode', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const mode = await rtpEngine.getEngineMode();
+      return reply.send({ ok: true, mode });
+    } catch (error) {
+      logger.error(error, 'engine.getEngineMode failed');
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  /**
+   * POST /api/_x/engine-mode
+   * Update master casino engine mode ('script' | 'real')
+   */
+  app.post<{ Body: { mode: 'script' | 'real'; reason?: string } }>(
+    '/_x/engine-mode',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const mode = request.body?.mode === 'real' ? 'real' : 'script';
+      const reason = (request.body?.reason || 'Admin mode switch via Hologram Console').trim();
+      try {
+        const before = await rtpEngine.getEngineMode();
+        const updated = await rtpEngine.setEngineMode(mode, reason);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'engine.mode',
+          targetType: 'casino_engine',
+          targetId: 'global',
+          payloadBefore: { mode: before },
+          payloadAfter: { mode: updated },
+          reason,
+        });
+        return reply.send({ ok: true, mode: updated });
+      } catch (error) {
+        logger.error(error, 'engine.setEngineMode failed');
+        return reply.code(400).send({ error: 'Failed to update engine mode' });
+      }
+    }
+  );
+
+  /**
+   * GET /api/_x/engine-analytics
+   * Returns rich 7-day analytics and Script vs Real RTP comparative metrics
+   */
+  app.get('/_x/engine-analytics', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const { engineAnalyticsService } = await import('../services/engine-analytics-service.js');
+      const data = await engineAnalyticsService.getAnalytics();
+      return reply.send({ ok: true, data });
+    } catch (error) {
+      logger.error(error, 'engineAnalyticsService.getAnalytics failed');
+      return reply.code(500).send({ error: 'Failed to fetch engine analytics' });
+    }
+  });
+
   /* -------------------------------------------------------- deposits list */
 
   /**

@@ -424,13 +424,12 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const orderId = payload.order_id;
-    const paidAmount = Number(payload.paid_amount);
 
     try {
       const rows = await app.prisma.$queryRaw<
-        { user_id: string; status: string }[]
+        { user_id: string; status: string; unique_amount: number }[]
       >`
-        SELECT user_id, status FROM macvpay_orders WHERE id = ${orderId} LIMIT 1
+        SELECT user_id, status, unique_amount FROM macvpay_orders WHERE id = ${orderId} LIMIT 1
       `;
 
       if (!rows.length) {
@@ -448,6 +447,15 @@ export async function foluxpayRoutes(app: FastifyInstance): Promise<void> {
         logger.warn({ orderId, status: order.status }, 'FoluxPay webhook for non-pending/expired order');
         return reply.send({ ok: true });
       }
+
+      // Cryptographic / Gateway upstream verification: never trust unauthenticated POST body
+      const remoteStatus = await getOrderStatus(orderId);
+      if (!remoteStatus.success || remoteStatus.status !== 'paid') {
+        logger.warn({ orderId, remoteStatus }, 'FoluxPay webhook verification failed: order not paid with upstream');
+        return reply.code(400).send({ error: 'Order verification with gateway failed' });
+      }
+
+      const paidAmount = Number(remoteStatus.paid_amount) || Number(order.unique_amount);
 
       await app.prisma.$transaction(async (tx) => {
         const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`

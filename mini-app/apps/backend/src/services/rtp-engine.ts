@@ -93,6 +93,7 @@ import { FUNNEL_WINDOW_MS, resolveFunnelPhase } from './funnel-decision.js';
  */
 
 export type RtpMode = 'off' | 'earn' | 'give';
+export type CasinoEngineMode = 'script' | 'real';
 
 export interface RtpConfig {
   mode: RtpMode;
@@ -229,6 +230,43 @@ class RtpEngine {
       logger.error({ err }, 'Failed to set global RTP config');
     }
     return next;
+  }
+
+  async getEngineMode(): Promise<CasinoEngineMode> {
+    try {
+      const r = redisClient.getClient();
+      const cached = await r.get('casino:engine_mode');
+      if (cached === 'real' || cached === 'script') {
+        return cached;
+      }
+      const { prisma } = await import('../lib/prisma.js');
+      const cfg = await prisma.systemConfig.findUnique({
+        where: { key: 'casino_engine_mode' },
+      });
+      const mode = (cfg?.value as any)?.mode === 'real' ? 'real' : 'script';
+      await r.set('casino:engine_mode', mode, 'EX', 3600);
+      return mode;
+    } catch {
+      return 'script';
+    }
+  }
+
+  async setEngineMode(mode: CasinoEngineMode, reason: string): Promise<CasinoEngineMode> {
+    const nextMode = mode === 'real' ? 'real' : 'script';
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      await prisma.systemConfig.upsert({
+        where: { key: 'casino_engine_mode' },
+        update: { value: { mode: nextMode, updated_at: new Date().toISOString(), reason } },
+        create: { key: 'casino_engine_mode', value: { mode: nextMode, updated_at: new Date().toISOString(), reason } },
+      });
+      const r = redisClient.getClient();
+      await r.set('casino:engine_mode', nextMode, 'EX', 86400);
+      logger.info({ mode: nextMode, reason }, 'Casino engine mode updated');
+    } catch (err) {
+      logger.error({ err, mode: nextMode }, 'Failed to set casino engine mode');
+    }
+    return nextMode;
   }
 
   private buildUserDefaults(globalCfg: RtpConfig): RtpConfig {
@@ -453,8 +491,8 @@ class RtpEngine {
    * and clamped to [-1, +1].
    */
   async getBiasFor(userId: string, isTournament: boolean = false): Promise<number> {
-    if (isTournament) {
-      return 0; // 100% Pure RNG for tournament bets
+    if (isTournament || (await this.getEngineMode()) === 'real') {
+      return 0; // 100% Pure RNG for tournament bets or Real RTP mode
     }
 
     // 1. Priority check: SmartDrain active on this user (realistic, natural tilt)
@@ -517,6 +555,9 @@ class RtpEngine {
    * personalised.
    */
   async getGlobalBias(): Promise<number> {
+    if ((await this.getEngineMode()) === 'real') {
+      return 0; // 100% Pure RNG in Real RTP mode
+    }
     const cfg = await this.getConfig();
     if (cfg.mode === 'off' || cfg.intensity <= 0) return 0;
     const status = await this.getStatus();
@@ -765,7 +806,7 @@ class RtpEngine {
    * Checks if SmartDrain is currently active for user.
    */
   async isDrainActive(userId: string, isTournament: boolean = false): Promise<boolean> {
-    if (isTournament) return false;
+    if (isTournament || (await this.getEngineMode()) === 'real') return false;
     try {
       const r = redisClient.getClient();
       const data = await r.hgetall(`rtp:drain:${userId}`);
@@ -853,9 +894,7 @@ class RtpEngine {
       // Albina expire a 30-round admin drain in ~2 minutes then size up.
       const drainActive = await this.isDrainActive(userId, isTournament);
       if (drainActive) {
-        if (won) {
-          await this.consumeDrainRound(userId);
-        }
+        await this.consumeDrainRound(userId);
         return;
       }
 
@@ -993,7 +1032,7 @@ class RtpEngine {
     potentialMultiplier: number,
     isTournament: boolean = false
   ): Promise<{ action: 'must_win' | 'must_bust' | 'neutral' }> {
-    if (isTournament) return { action: 'neutral' };
+    if (isTournament || (await this.getEngineMode()) === 'real') return { action: 'neutral' };
 
     try {
       const r = redisClient.getClient();
@@ -1063,8 +1102,8 @@ class RtpEngine {
     potentialMultiplier: number,
     isTournament: boolean = false
   ): Promise<boolean> {
-    if (isTournament) {
-      return false; // 100% Pure RNG for tournament bets
+    if (isTournament || (await this.getEngineMode()) === 'real') {
+      return false; // 100% Pure RNG for tournament bets or Real RTP mode
     }
     try {
       const funnel = await this.getFunnelState(userId);

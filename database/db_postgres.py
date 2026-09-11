@@ -381,6 +381,20 @@ class DatabasePostgres:
         )
         conn.commit()
         conn.close()
+
+    def is_cryptobot_invoice_paid(self, invoice_id: int) -> bool:
+        """Проверить, был ли уже оплачен и зачислен данный инвойс CryptoBot."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        order_id = f"cryptobot_{invoice_id}"
+        cursor.execute('''
+            SELECT status FROM macvpay_orders 
+            WHERE id = %s AND (status = 'paid' OR credit_tx_id IS NOT NULL)
+            LIMIT 1
+        ''', (order_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return bool(row)
     
     def subtract_balance(self, user_id: int, amount: float) -> float:
         """

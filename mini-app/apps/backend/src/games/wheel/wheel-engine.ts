@@ -588,7 +588,7 @@ function pickSegment(hash: string, bias: number): number {
     2: 6.0 * (1 + b * 0.15),
     3: 4.0 * (1 + b * 0.05),
     5: 2.4 * (1 - b * 0.2),
-    30: 0.2 * (1 - b * 0.6),
+    30: 0.4 * (1 - b * 0.6), // balanced weight: RTP equals other sectors
   };
   // Each individual segment gets its fair share of the category's weight:
   const weights = SLOT_LAYOUT.map((m) =>

@@ -333,6 +333,13 @@ async def auto_check_payment(user_id: int, invoice_id: int, message: Message):
         if invoice_id not in active_invoices:
             break
         
+        try:
+            if db_postgres.is_cryptobot_invoice_paid(invoice_id):
+                active_invoices.pop(invoice_id, None)
+                break
+        except Exception as e:
+            logging.error(f"Error checking is_cryptobot_invoice_paid in auto_check: {e}")
+        
         invoice_data = active_invoices[invoice_id]
         crypto = None
         
@@ -434,6 +441,15 @@ async def check_payment(callback: CallbackQuery):
     invoice_id = int(callback.data.split(":")[1])
     
     invoice_data = active_invoices.get(invoice_id)
+    
+    try:
+        if db_postgres.is_cryptobot_invoice_paid(invoice_id):
+            await callback.answer("✅ Данный инвойс уже был успешно оплачен и зачислен ранее!", show_alert=True)
+            active_invoices.pop(invoice_id, None)
+            return
+    except Exception as e:
+        logging.error(f"Error checking is_cryptobot_invoice_paid in check_payment: {e}")
+        
     crypto = None
     
     try:
@@ -444,6 +460,12 @@ async def check_payment(callback: CallbackQuery):
         if invoices and len(invoices) > 0:
             invoice = invoices[0]
             if invoice.status == 'paid':
+                # Double-check right before crediting to prevent race condition
+                if db_postgres.is_cryptobot_invoice_paid(invoice_id):
+                    await callback.answer("✅ Данный инвойс уже был успешно оплачен и зачислен!", show_alert=True)
+                    active_invoices.pop(invoice_id, None)
+                    return
+
                 # Оплата прошла
                 user_id = invoice_data['user_id'] if invoice_data else callback.from_user.id
                 amount_usdt = (
@@ -456,9 +478,13 @@ async def check_payment(callback: CallbackQuery):
                     invoice_data.get('amount_pln') if invoice_data else fallback_pln
                 )
 
-                # Начисляем баланс
+                # Начисляем баланс (в SQLite ботовой базе и зеркалируем в PostgreSQL)
                 new_balance = db.add_balance(user_id, pln_amount)
                 db.add_deposit_amount_to_lose(user_id, pln_amount)
+                try:
+                    db_postgres.add_balance(user_id, pln_amount)
+                except Exception as e:
+                    logging.error(f"Failed to mirror add_balance to Postgres: {e}")
                 
                 # Проверяем бонус на депозит
                 if db.get_dep_bonus_state(user_id) == 1:
