@@ -12,8 +12,6 @@ from aiogram.types import WebAppInfo
 from database.db import db
 from config import config
 from keyboards.reply import get_main_keyboard
-from keyboards.inline import get_slots_menu, get_games_menu
-from handlers.spider import DIFFICULTY_SETTINGS
 from locales.translations import get_text, format_amount
 
 router = Router()
@@ -114,10 +112,23 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         await state.set_state(DepositStates.waiting_for_amount)
         return
 
-    # Язык установлен - показываем приветствие
+    # Язык установлен - показываем приветствие и сразу предлагаем открыть MiniApp
     lang = current_lang
     welcome_text = get_text(lang, 'welcome', name=username)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang))
+
+    miniapp_url = config.MINI_APP_URL.strip()
+    if miniapp_url:
+        miniapp_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=get_text(lang, 'btn_start_miniapp'),
+                web_app=WebAppInfo(url=miniapp_url),
+            )
+        ]])
+        await message.answer(
+            get_text(lang, 'start_miniapp_prompt'),
+            reply_markup=miniapp_keyboard,
+        )
 
 
 @router.callback_query(F.data.startswith("set_lang:"))
@@ -132,25 +143,28 @@ async def set_language(callback: CallbackQuery):
     username = callback.from_user.first_name
     welcome_text = get_text(lang, 'welcome', name=username)
     await callback.message.answer(welcome_text, reply_markup=get_main_keyboard(lang))
+
+    miniapp_url = config.MINI_APP_URL.strip()
+    if miniapp_url:
+        miniapp_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=get_text(lang, 'btn_start_miniapp'),
+                web_app=WebAppInfo(url=miniapp_url),
+            )
+        ]])
+        await callback.message.answer(
+            get_text(lang, 'start_miniapp_prompt'),
+            reply_markup=miniapp_keyboard,
+        )
     await callback.answer()
 
 
-@router.message(F.text.in_(["🎰 Mini-App", "🎰 Слоты", "🎰 Sloty"]))
+@router.message(F.text.in_(["🔴 Mini-App", "🎰 Mini-App", "🎰 Слоты", "🎰 Sloty", "🎲 Игры TG", "🎲 Gry TG"]))
 async def open_miniapp(message: Message):
-    """Открыть Mini-App.
-
-    Reply-клавиатура шлёт обычное текстовое сообщение, поэтому здесь мы
-    отвечаем коротким описанием + inline-кнопкой `web_app`, которая
-    запускает мини-приложение прямо в Telegram. Старые названия
-    «🎰 Слоты» / «🎰 Sloty» оставлены в фильтре, чтобы пользователи,
-    у которых ещё открыт прежний клиент, не натыкались на «команда не
-    распознана».
-    """
+    """Открыть Mini-App."""
     lang = db.get_user_language(message.from_user.id)
     miniapp_url = config.MINI_APP_URL.strip()
 
-    # Если URL не задан, не показываем заведомо битую кнопку — лучше
-    # сообщить, что сервис временно недоступен, чем уводить юзера в 404.
     if not miniapp_url:
         await message.answer(get_text(lang, 'game_in_dev'))
         return
@@ -170,24 +184,12 @@ async def open_miniapp(message: Message):
 
 @router.callback_query(F.data.in_(["slots_global", "slots_russia"]))
 async def slots_region(callback: CallbackQuery):
-    """Обработка выбора региона слотов (legacy).
-
-    Кнопка больше не показывается, но колбэки могут долететь от старых
-    сообщений в чатах, поэтому оставляем безобидный ответ-заглушку.
-    """
+    """Обработка выбора региона слотов (legacy)."""
     lang = db.get_user_language(callback.from_user.id)
     await callback.answer(get_text(lang, 'game_in_dev'), show_alert=True)
 
 
-@router.message(F.text.in_(["🎲 Игры TG", "🎲 Gry TG"]))
-async def show_games(message: Message):
-    """Показать меню игр Telegram"""
-    lang = db.get_user_language(message.from_user.id)
-    text = get_text(lang, 'games_title')
-    await message.answer(text, reply_markup=get_games_menu(lang))
-
-
-@router.message(F.text.in_(["👤 Профиль", "👤 Profil"]))
+@router.message(F.text.in_(["🔵 Профиль", "🔵 Profil", "👤 Профиль", "👤 Profil"]))
 async def show_profile(event: Union[Message, CallbackQuery]):
     """Показать профиль пользователя"""
     user = event.from_user
@@ -195,21 +197,7 @@ async def show_profile(event: Union[Message, CallbackQuery]):
     lang = db.get_user_language(user_id)
     
     balance = db.get_balance(user_id)
-    bonus_balance = db.get_bonus_balance(user_id)
-    active_type = db.get_active_balance_type(user_id)
-    w_curr, w_req = db.get_wager_info(user_id)
-    
-    active_str = get_text(lang, 'balance_real') if active_type == "real" else get_text(lang, 'balance_bonus')
-    
-    profile_text = (
-        f"{get_text(lang, 'profile_balance', balance=format_amount(balance))}\n"
-        f"{get_text(lang, 'profile_bonus', bonus=format_amount(bonus_balance))}\n\n"
-        f"{get_text(lang, 'profile_active', type=active_str)}"
-    )
-    
-    if bonus_balance > 0 and w_req > 0:
-        percent = min(100, round((w_curr / w_req) * 100, 1))
-        profile_text += f"\n{get_text(lang, 'profile_wager', current=f'{w_curr:.2f}', required=f'{w_req:.2f}', percent=percent)}"
+    profile_text = get_text(lang, 'profile_balance', balance=format_amount(balance))
         
     amount_to_lose = db.get_amount_to_lose(user_id)
     if amount_to_lose > 0:
@@ -226,7 +214,6 @@ async def show_profile(event: Union[Message, CallbackQuery]):
         await event.answer(text=profile_text, reply_markup=keyboard)
     else:
         await event.message.edit_text(text=profile_text, reply_markup=keyboard)
-
 
 
 @router.callback_query(F.data == "change_language")
@@ -248,7 +235,7 @@ async def back_to_profile_from_lang(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message(F.text.in_(["❔ Информация", "❔ Informacje"]))
+@router.message(F.text.in_(["🔵 Информация", "🔵 Informacje", "❔ Информация", "❔ Informacje"]))
 async def show_info(message: Message):
     """Показать информацию о боте"""
     lang = db.get_user_language(message.from_user.id)
@@ -281,13 +268,17 @@ async def dummy_btn_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("game_"))
 async def game_handler(callback: CallbackQuery):
-    """Обработка выбора игр"""
-    if callback.data in ["game_dice", "game_bowling", "game_darts", "game_basketball", 
-                         "game_football", "game_mines", "game_rps", "game_slot"]:
-        return
-    
+    """Обработка legacy вызовов игр"""
     lang = db.get_user_language(callback.from_user.id)
-    await callback.answer(get_text(lang, 'game_in_dev'), show_alert=True)
+    miniapp_url = config.MINI_APP_URL.strip()
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=get_text(lang, 'btn_start_miniapp'),
+            web_app=WebAppInfo(url=miniapp_url),
+        )
+    ]]) if miniapp_url else None
+    await callback.answer()
+    await callback.message.answer(get_text(lang, 'miniapp_intro'), reply_markup=keyboard)
 
 
 @router.callback_query(F.data.startswith("disable_goals:"))

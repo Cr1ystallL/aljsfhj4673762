@@ -1,4 +1,4 @@
 """Модуль обработчиков команд и событий"""
-from . import basic, dice, bowling, darts, basketball, football, mines, rps, payment, emergency
+from . import basic, payment, emergency, referral, admin, inline
 
-__all__ = ['basic', 'dice', 'bowling', 'darts', 'basketball', 'football', 'mines', 'rps', 'payment', 'emergency']
+__all__ = ['basic', 'payment', 'emergency', 'referral', 'admin', 'inline']
