@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, Trophy, Calendar, X, Ticket } from 'lucide-react';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
-import { SportsTopBar } from '@/components/sports/sports-top-bar';
 import { SportsCategoryNav } from '@/components/sports/sports-category-nav';
 import { FeaturedMatchCard } from '@/components/sports/featured-match-card';
 import { SportEventRow } from '@/components/sports/sport-event-row';
@@ -16,13 +16,39 @@ import { useT } from '@/i18n/use-t';
 import { cn } from '@/lib/utils';
 
 export default function SportPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-midnight-canvas" />}>
+      <SportPageContent />
+    </Suspense>
+  );
+}
+
+function SportPageContent() {
   const { t } = useT();
+  const searchParams = useSearchParams();
 
   const [selectedCategory, setSelectedCategory] = useState<SportCategoryKey>('all');
   const [mode, setMode] = useState<'all' | 'live' | 'prematch'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [myBetsOpen, setMyBetsOpen] = useState(false);
   const syncFromEvents = useSportsSlip((s) => s.syncFromEvents);
+
+  useEffect(() => {
+    const rawCat = searchParams.get('category') || searchParams.get('sport') || searchParams.get('tab');
+    if (rawCat) {
+      const normalized = (rawCat === 'esports' || rawCat === 'cybersport') ? 'cybersport' : rawCat;
+      const validCategories: SportCategoryKey[] = [
+        'all', 'top', 'football', 'tennis', 'hockey', 'basketball', 'cybersport', 'table_tennis', 'mma'
+      ];
+      if (validCategories.includes(normalized as SportCategoryKey)) {
+        setSelectedCategory(normalized as SportCategoryKey);
+      }
+    }
+    const m = searchParams.get('mode');
+    if (m === 'live' || m === 'prematch' || m === 'all') {
+      setMode(m);
+    }
+  }, [searchParams]);
 
   const {
     events: allEvents,
@@ -83,9 +109,7 @@ export default function SportPage() {
 
   return (
     <div className="min-h-screen bg-midnight-canvas text-frost-white pb-40">
-      <SportsTopBar />
-
-      <main className={`mx-auto px-3.5 pt-3 flex flex-col gap-4 ${PAGE_WIDTH.reading}`}>
+      <main className={`mx-auto px-3.5 pt-5 flex flex-col gap-4 ${PAGE_WIDTH.reading}`}>
         <p className="font-roobert text-[11px] text-whisper-gray px-0.5">
           {t('sports.virtualLine')}
         </p>

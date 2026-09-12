@@ -100,7 +100,7 @@ export function BrandWordmark({
         }}
       >
         <span>acv</span>
-        <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+        <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
           Bet
         </span>
       </span>
@@ -132,7 +132,7 @@ export function BrandLockup({
         style={{ fontSize: Math.max(8, Math.round(size * 0.18)), lineHeight: 1 }}
       >
         <span className="text-frost-white">Macv</span>
-        <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+        <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
           Bet
         </span>
       </span>

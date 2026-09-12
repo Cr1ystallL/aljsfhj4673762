@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { History } from 'lucide-react';
@@ -21,21 +21,41 @@ interface MinesRecentBetsProps {
 export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps) {
   const { t, localeTag } = useT();
 
+  const totalWon = bets.reduce((acc, b) => acc + (b.payout > 0 ? b.payout : 0), 0);
+
   return (
-    <section className="rounded-[20px] border border-white/12 bg-white/[0.03] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
-        <History size={12} className="text-frost-white/65" strokeWidth={1.6} />
-        <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-          {t('mines.recent')}
+    <div style={{ borderTop: '1px solid rgb(26, 26, 26)' }}>
+      {/* Stats header bar */}
+      <div
+        className="flex items-center justify-between py-3"
+        style={{ borderBottom: '1px solid rgb(15, 15, 15)' }}
+      >
+        <span
+          className="font-sans uppercase tracking-[0.2em] text-[#636363]"
+          style={{ fontSize: 11 }}
+        >
+          {t('mines.recent')} ({bets.length})
+        </span>
+        <span
+          className="font-sans uppercase tracking-[0.2em] text-[#636363]"
+          style={{ fontSize: 11 }}
+        >
+          {totalWon > 0
+            ? `Выигрыш: ${totalWon.toLocaleString(localeTag, { maximumFractionDigits: 2 })} ${currency}`
+            : `${currency}`}
         </span>
       </div>
 
-      {bets.length === 0 ? (
-        <div className="px-3 py-3 text-center font-roobert text-[12px] text-whisper-gray">
-          {t('mines.recentEmpty')}
-        </div>
-      ) : (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-3">
+      {/* Vertical list styled like LiveBetsTable but slightly larger */}
+      <div className="max-h-[300px] overflow-y-auto scrollbar-hide flex flex-col">
+        {bets.length === 0 ? (
+          <div
+            className="py-10 text-center font-sans text-[#636363]"
+            style={{ fontSize: 13 }}
+          >
+            {t('mines.recentEmpty')}
+          </div>
+        ) : (
           <AnimatePresence initial={false}>
             {bets.map((b) => {
               const won = b.payout > 0 && b.multiplier > 0;
@@ -43,57 +63,72 @@ export function MinesRecentBets({ bets, currency = 'zł' }: MinesRecentBetsProps
                 <motion.div
                   key={b.id}
                   layout
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="shrink-0 min-w-[120px] rounded-[14px] border border-white/10 px-3 py-2"
-                  style={{
-                    background: won
-                      ? b.multiplier >= 5
-                        ? 'linear-gradient(135deg, rgba(255,172,46,0.16), rgba(186,230,253,0.10))'
-                        : 'rgba(255,255,255,0.04)'
-                      : 'rgba(165,45,37,0.10)',
-                  }}
+                  transition={{ duration: 0.18 }}
+                  className="flex items-center justify-between py-3 px-2 border-b border-[#0a0a0a] transition-colors hover:bg-white/[0.02]"
                 >
-                  <div
+                  {/* Left: Stake info */}
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="font-sans text-white font-medium truncate"
+                      style={{ fontSize: 14 }}
+                    >
+                      {t('mines.stake')}{' '}
+                      {b.betAmount.toLocaleString(localeTag, {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      {currency}
+                    </div>
+                    <div
+                      className="font-sans text-[#636363] tabular-nums"
+                      style={{ fontSize: 11 }}
+                    >
+                      {new Date(b.timestamp).toLocaleTimeString(localeTag, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Center: Multiplier pill */}
+                  <span
                     className={cn(
-                      'inline-flex items-center px-2 py-0.5 rounded-pill border text-[10px] font-roobert tabular-nums',
+                      'mx-3 font-sans tabular-nums rounded-full border px-3 py-1 font-bold shrink-0',
                       won
-                        ? b.multiplier >= 5
-                          ? 'border-[rgba(255,172,46,0.5)] bg-[rgba(255,172,46,0.14)] text-frost-white'
-                          : 'border-white/15 bg-white/[0.06] text-frost-white/85'
-                        : 'border-[rgba(165,45,37,0.45)] bg-[rgba(165,45,37,0.16)] text-[#ff8a76]'
+                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400'
+                        : 'border-red-500/35 bg-red-500/15 text-red-400'
                     )}
+                    style={{ fontSize: 13 }}
                   >
-                    {won ? `x${b.multiplier.toFixed(2)}` : t('mines.bust')}
-                  </div>
+                    {won ? `×${b.multiplier.toFixed(2)}` : t('mines.bust')}
+                  </span>
+
+                  {/* Right: Net Payout */}
                   <div
                     className={cn(
-                      'mt-1 font-roobert text-[14px] tabular-nums',
-                      won ? 'text-frost-white' : 'text-[#ff8a76]'
+                      'w-28 text-right font-sans tabular-nums font-semibold shrink-0',
+                      won ? 'text-emerald-400' : 'text-[#636363]'
                     )}
+                    style={{ fontSize: 14 }}
                   >
-                    {won ? '+' : '−'}
-                    {(won ? b.payout : b.betAmount).toLocaleString(localeTag, {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    {currency}
-                  </div>
-                  <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                    {t('mines.stake')}{' '}
-                    {b.betAmount.toLocaleString(localeTag, {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}{' '}
+                    {won
+                      ? `+${b.payout.toLocaleString(localeTag, {
+                          maximumFractionDigits: 2,
+                        })}`
+                      : `−${b.betAmount.toLocaleString(localeTag, {
+                          maximumFractionDigits: 2,
+                        })}`}{' '}
                     {currency}
                   </div>
                 </motion.div>
               );
             })}
           </AnimatePresence>
-        </div>
-      )}
-    </section>
+        )}
+      </div>
+    </div>
   );
 }

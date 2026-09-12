@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { memo, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -106,39 +106,78 @@ export const CrashPlayerFeed = memo(function CrashPlayerFeed({
     });
   }, [players]);
 
+  const uniquePlayerCount = useMemo(() => {
+    return new Set(players.map((p) => p.userId)).size;
+  }, [players]);
+
+  const totalWagered = useMemo(() => {
+    return players.reduce((sum, p) => sum + (p.betAmount || 0), 0);
+  }, [players]);
+
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.03] overflow-hidden">
-      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 border-b border-white/10">
-        <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert">
-          Игрок
+    <div style={{ borderTop: '1px solid rgb(26, 26, 26)' }}>
+      {/* Stats header matching LiveBetsTable */}
+      <div
+        className="flex items-center justify-between py-3"
+        style={{ borderBottom: '1px solid rgb(15, 15, 15)' }}
+      >
+        <span
+          className="font-sans uppercase tracking-[0.2em] text-[#636363]"
+          style={{ fontSize: 10 }}
+        >
+          {uniquePlayerCount}{' '}
+          {uniquePlayerCount === 1
+            ? 'игрок'
+            : uniquePlayerCount >= 2 && uniquePlayerCount <= 4
+            ? 'игрока'
+            : 'игроков'}
         </span>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert text-right w-16">
-          Кэфф.
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-whisper-gray font-roobert text-right w-20">
-          Выигрыш
+        <span
+          className="font-sans uppercase tracking-[0.2em] text-[#636363]"
+          style={{ fontSize: 10 }}
+        >
+          {totalWagered.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+          {currency}
         </span>
       </div>
 
-      <div className="max-h-[260px] overflow-y-auto scrollbar-hide divide-y divide-white/5">
-        {sorted.map((p) => {
-          const name = displayName(p);
-          const isYou = currentUserId && p.userId === currentUserId;
-          return (
-            <div
-              key={p.key}
-              className={cn(
-                'grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5',
-                isYou && 'bg-white/[0.03]'
-              )}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
+      {/* Rows */}
+      <div className="max-h-[280px] overflow-y-auto scrollbar-hide">
+        {sorted.length === 0 ? (
+          <div
+            className="py-10 text-center font-sans text-[#636363]"
+            style={{ fontSize: 12 }}
+          >
+            Ожидание ставок
+          </div>
+        ) : (
+          sorted.map((p) => {
+            const name = displayName(p);
+            const isYou = currentUserId && p.userId === currentUserId;
+            const cashed = p.status === 'cashed';
+            const lost = p.status === 'lost';
+
+            return (
+              <div
+                key={p.key}
+                className={cn(
+                  'flex items-center gap-3 py-3 px-2 border-b border-[#0a0a0a] transition-colors',
+                  isYou && 'bg-white/[0.03]'
+                )}
+              >
                 <PlayerAvatar player={p} />
-                <div className="min-w-0">
-                  <div className="font-roobert text-[13px] text-frost-white truncate">
-                    {isYou ? `${name} · вы` : name}
+
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="font-sans text-[#ffffff] truncate"
+                    style={{ fontSize: 13, fontWeight: 400 }}
+                  >
+                    {isYou ? `${name} (вы)` : name}
                   </div>
-                  <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
+                  <div
+                    className="font-sans text-[#636363] tabular-nums"
+                    style={{ fontSize: 10 }}
+                  >
                     {p.betAmount.toLocaleString('ru-RU', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
@@ -146,45 +185,47 @@ export const CrashPlayerFeed = memo(function CrashPlayerFeed({
                     {currency}
                   </div>
                 </div>
-              </div>
 
-              <div className="text-right w-16 font-roobert text-[12px] tabular-nums">
-                {p.status === 'cashed' && p.multiplier ? (
-                  <span className="text-frost-white">
-                    x{p.multiplier.toFixed(2)}
-                  </span>
-                ) : p.status === 'lost' ? (
-                  <span className="text-whisper-gray">—</span>
-                ) : (
-                  <span className="text-whisper-gray">…</span>
-                )}
-              </div>
+                {/* Multiplier Badge */}
+                <span
+                  className={cn(
+                    'font-sans tabular-nums text-xs px-2.5 py-0.5 rounded-full border',
+                    cashed && p.multiplier
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-semibold'
+                      : lost
+                      ? 'border-white/10 bg-white/[0.04] text-white/40'
+                      : 'border-white/10 bg-white/[0.04] text-white/60'
+                  )}
+                >
+                  {cashed && p.multiplier
+                    ? `×${p.multiplier.toFixed(2)}`
+                    : lost
+                    ? '0×'
+                    : '…'}
+                </span>
 
-              <div className="text-right w-20 font-roobert text-[12px] tabular-nums">
-                {p.status === 'cashed' && p.payout != null ? (
-                  <span className="text-frost-white">
-                    +
-                    {p.payout.toLocaleString('ru-RU', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
-                ) : p.status === 'lost' ? (
-                  <span className="text-[#ff8a76]/80">
-                    −{p.betAmount.toLocaleString('ru-RU')}
-                  </span>
-                ) : (
-                  <span className="text-whisper-gray">…</span>
-                )}
+                {/* Payout */}
+                <div
+                  className={cn(
+                    'w-20 text-right font-sans tabular-nums text-xs',
+                    cashed && p.payout != null
+                      ? 'text-white font-medium'
+                      : lost
+                      ? 'text-[#636363]'
+                      : 'text-[#636363]'
+                  )}
+                >
+                  {cashed && p.payout != null
+                    ? `+${p.payout.toLocaleString('ru-RU', {
+                        maximumFractionDigits: 0,
+                      })} ${currency}`
+                    : lost
+                    ? `0 ${currency}`
+                    : `…`}
+                </div>
               </div>
-            </div>
-          );
-        })}
-
-        {sorted.length === 0 && (
-          <div className="px-4 py-8 text-center font-roobert text-[12px] text-whisper-gray">
-            Игроки появятся, как только сделают ставку
-          </div>
+            );
+          })
         )}
       </div>
     </div>

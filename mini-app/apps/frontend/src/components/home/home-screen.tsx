@@ -27,7 +27,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { BrandLockup } from '@/components/ui/brand-mark';
+import { BrandLockup, BrandMark } from '@/components/ui/brand-mark';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { GameIcon, type GameKey } from '@/components/ui/game-icon';
 import { useAuthStore } from '@/store/auth-store';
@@ -67,19 +67,19 @@ interface InAppGame {
 }
 
 const GAME_COL_SPAN: Record<string, string> = {
-  // Row 1 (3 games: 2+2+2 = 6)
-  crash: 'col-span-2',
-  mines: 'col-span-2',
-  wheel: 'col-span-2',
-  // Row 2 (2 games: 3+3 = 6)
-  blackjack: 'col-span-3',
-  coinflip: 'col-span-3',
-  // Row 3 (2 games: 3+3 = 6)
-  cases: 'col-span-3',
-  keno: 'col-span-3',
-  // Row 4 (2 games: 3+3 = 6)
-  hilo: 'col-span-3',
-  macvpot: 'col-span-3',
+  // Row 1 (3 squares: 1+1+1 = 3 cols)
+  crash: 'col-span-1',
+  mines: 'col-span-1',
+  wheel: 'col-span-1',
+  // Row 2 (1 wide + 1 square: 2+1 = 3 cols)
+  blackjack: 'col-span-2',
+  coinflip: 'col-span-1',
+  // Row 3 (1 wide + 1 square: 2+1 = 3 cols)
+  cases: 'col-span-2',
+  keno: 'col-span-1',
+  // Row 4 (1 wide + 1 square: 2+1 = 3 cols)
+  hilo: 'col-span-2',
+  macvpot: 'col-span-1',
 };
 
 const IN_APP_GAMES: InAppGame[] = [
@@ -552,12 +552,12 @@ export function HomeScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-6 gap-3 sm:gap-3.5">
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
               {filteredGames.map((g) => {
                 const isAllDefault = activeCategory === 'all' && !searchQuery.trim();
                 const colSpan = isAllDefault
-                  ? (GAME_COL_SPAN[g.id] ?? 'col-span-3')
-                  : 'col-span-6 sm:col-span-3 lg:col-span-2';
+                  ? (GAME_COL_SPAN[g.id] ?? 'col-span-1')
+                  : 'col-span-3 sm:col-span-1';
 
                 return (
                   <div key={g.id} className={colSpan}>
@@ -590,17 +590,20 @@ export function HomeScreen() {
           </div>
         </EntranceBlock>
 
-        {/* Minimal Footer (Guarantee badges removed as requested) */}
+        {/* Clean Brand Footer styled like DesktopSidebar */}
         <EntranceBlock>
-          <div className="pt-4 pb-2 text-center border-t border-amber-500/10 space-y-1">
-            <div className="flex items-center justify-center gap-2">
-              <Crown className="w-4 h-4 text-amber-400" />
-              <span className="font-brand font-black text-sm tracking-widest gold-text-gradient">
-                MACVJET CASINO
-              </span>
+          <div className="pt-6 pb-4 border-t border-white/10 flex flex-col items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2.5">
+              <BrandMark variant="gradient" size={28} />
+              <div className="font-brand font-black text-xl sm:text-2xl tracking-wider flex items-center leading-none">
+                <span className="text-white">Macv</span>
+                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                  Bet
+                </span>
+              </div>
             </div>
-            <p className="text-[11px] text-zinc-500">
-              Официальный клуб • Играйте ответственно • 18+
+            <p className="text-[11px] text-zinc-500 font-roobert">
+              Играйте ответственно • 18+
             </p>
           </div>
         </EntranceBlock>
@@ -670,11 +673,8 @@ function GameTile({
   const BadgeIcon = game.badge?.Icon;
   const isWide =
     game.id === 'blackjack' ||
-    game.id === 'coinflip' ||
     game.id === 'cases' ||
-    game.id === 'keno' ||
-    game.id === 'hilo' ||
-    game.id === 'macvpot';
+    game.id === 'hilo';
 
   return (
     <Pressable
@@ -682,8 +682,8 @@ function GameTile({
       className={cn(
         "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg",
         isWide
-          ? "aspect-[2.1/1] sm:aspect-[2.4/1] min-h-[140px] sm:min-h-[160px]"
-          : "aspect-[1.4/1] sm:aspect-[1.5/1] min-h-[140px] sm:min-h-[160px]"
+          ? "aspect-[2.05/1] min-h-[120px] sm:min-h-[150px]"
+          : "aspect-square min-h-[110px] sm:min-h-[140px]"
       )}
     >
       {/* Background artwork */}
@@ -693,8 +693,8 @@ function GameTile({
           className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
           style={{
             backgroundImage: `url(${game.bg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundSize: isWide ? 'cover' : '76%',
+            backgroundPosition: isWide ? 'center' : 'center 42%',
             backgroundRepeat: 'no-repeat',
           }}
         />

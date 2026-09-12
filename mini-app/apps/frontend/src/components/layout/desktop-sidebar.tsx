@@ -58,10 +58,10 @@ const SIDEBAR_GAMES = [
 
 const SIDEBAR_SPORTS = [
   { id: 'all_sports', name: 'Все события / Live', href: '/sport', Icon: Radio },
-  { id: 'football', name: 'Футбол', href: '/sport?sport=football', Icon: SoccerBallIcon },
-  { id: 'basketball', name: 'Баскетбол', href: '/sport?sport=basketball', Icon: Dribbble },
-  { id: 'tennis', name: 'Теннис', href: '/sport?sport=tennis', Icon: CircleDot },
-  { id: 'esports', name: 'Киберспорт (CS2, Dota 2)', href: '/sport?tab=esports', Icon: Gamepad2 },
+  { id: 'football', name: 'Футбол', href: '/sport?category=football', Icon: SoccerBallIcon },
+  { id: 'basketball', name: 'Баскетбол', href: '/sport?category=basketball', Icon: Dribbble },
+  { id: 'tennis', name: 'Теннис', href: '/sport?category=tennis', Icon: CircleDot },
+  { id: 'esports', name: 'Киберспорт (CS2, Dota 2)', href: '/sport?category=cybersport', Icon: Gamepad2 },
 ];
 
 export function DesktopSidebar() {
@@ -96,7 +96,7 @@ export function DesktopSidebar() {
           <div>
             <div className="font-brand font-black text-2xl tracking-wider flex items-center leading-none">
               <span className="text-white">Macv</span>
-              <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
                 Bet
               </span>
             </div>
@@ -337,7 +337,7 @@ export function DesktopSidebar() {
         <BrandMark variant="gradient" size={38} />
         <div className="font-brand font-black text-2xl tracking-wider flex items-center leading-none">
           <span className="text-white">Macv</span>
-          <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
             Bet
           </span>
         </div>
