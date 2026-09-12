@@ -10,6 +10,7 @@ import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-pa
 import { KenoDrawTray } from '@/components/game/keno/keno-draw-tray';
 import { KenoLiveBets, type KenoLiveBetEntry } from '@/components/game/keno/keno-live-bets';
 import { KenoPayoutStrip } from '@/components/game/keno/keno-payout-strip';
+import { PersonalRecentBets, type PersonalRecentBet } from '@/components/game/kit';
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -73,6 +74,7 @@ export default function KenoGamePage() {
   const displayBalance = frozenBalance !== null ? frozenBalance : activeBalance;
 
   const [history, setHistory] = useState<KenoLiveBetEntry[]>([]);
+  const [myBets, setMyBets] = useState<PersonalRecentBet[]>([]);
 
   useEffect(() => {
     soundManager.initialize();
@@ -242,6 +244,19 @@ export default function KenoGamePage() {
 
     setFinalMultiplier(resolvedMult);
     
+    const finalPayout = amount * resolvedMult;
+    setMyBets((prev) => [
+      {
+        id: `keno-${Date.now()}`,
+        betAmount: amount,
+        multiplier: resolvedMult,
+        payout: finalPayout,
+        details: `${actualHits}/${picks.length} совп.`,
+        timestamp: Date.now(),
+      },
+      ...prev,
+    ]);
+
     if (resolvedMult > 0) {
       soundManager.play('win');
       soundManager.play('game.win');
@@ -359,10 +374,20 @@ export default function KenoGamePage() {
           </div>
         </div>
 
-        <KenoLiveBets
-          entries={history}
-          currency={isTournament ? 'T-COIN' : 'zł'}
-        />
+        {/* Bottom Section: Personal Recent Bets & Global Live Bets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+          {/* Left: Player's personal recent bets */}
+          <PersonalRecentBets
+            bets={myBets}
+            currency={isTournament ? 'T-COIN' : 'zł'}
+          />
+
+          {/* Right: Global live bets */}
+          <KenoLiveBets
+            entries={history}
+            currency={isTournament ? 'T-COIN' : 'zł'}
+          />
+        </div>
       </div>
     </main>
   );

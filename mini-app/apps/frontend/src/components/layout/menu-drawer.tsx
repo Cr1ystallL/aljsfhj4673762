@@ -25,9 +25,19 @@ import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
 import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
 import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
 import { useWinStreak } from '@/hooks/use-win-streak';
+import { useVip } from '@/hooks/use-vip';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useT } from '@/i18n/use-t';
+
+const RANK_IMAGES: Record<string, string> = {
+  none: '/Rangs/no_rang.png',
+  bronze: '/Rangs/Bronze.png',
+  silver: '/Rangs/Silver.png',
+  gold: '/Rangs/Gold.png',
+  platinum: '/Rangs/Platinum.png',
+  diamond: '/Rangs/Diamond.png',
+};
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -68,6 +78,11 @@ export function MenuDrawer({
   const { user } = useAuthStore();
   const { streak } = useWinStreak();
   const balanceStore = useBalanceStore((s) => s.balance);
+  const { status: vipStatus } = useVip();
+
+  const currentRankId = vipStatus?.currentTier?.id ?? 'bronze';
+  const currentRankName = vipStatus?.currentTier?.nameRu ?? 'Бронза';
+  const rankImage = RANK_IMAGES[currentRankId] ?? '/Rangs/Bronze.png';
 
   const [availability, setAvailability] = useState<{
     isAdmin: boolean;
@@ -192,9 +207,13 @@ export function MenuDrawer({
                         </span>
                         {streak >= 2 && <StreakFlameBadge streak={streak} size="sm" />}
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-amber-300/90 font-medium">
-                        <Crown size={11} className="text-amber-400" />
-                        <span>VIP Игрок</span>
+                      <div className="flex items-center gap-1.5 text-[11px] text-amber-300 font-semibold mt-0.5">
+                        <img
+                          src={rankImage}
+                          alt={currentRankName}
+                          className="w-4 h-4 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+                        />
+                        <span>{currentRankName}</span>
                       </div>
                     </div>
                   </div>

@@ -9,6 +9,7 @@ import { CoinflipSideButtons } from '@/components/game/coinflip/coinflip-side-bu
 import { CoinflipBetPanel } from '@/components/game/coinflip/coinflip-bet-panel';
 import { CoinflipHistory } from '@/components/game/coinflip/coinflip-history';
 import { CoinflipRulesModal } from '@/components/game/coinflip/coinflip-rules-modal';
+import { PersonalRecentBets, type PersonalRecentBet } from '@/components/game/kit';
 
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -75,6 +76,8 @@ export default function CoinflipGamePage() {
 
   // Live ticker
   const [history, setHistory] = useState<CoinflipHistoryEntry[]>([]);
+  // Player's personal recent bets
+  const [myBets, setMyBets] = useState<PersonalRecentBet[]>([]);
 
   /** Pending side reveal — withheld until the spin animation finishes. */
   const pendingResolveRef = useRef<{
@@ -153,12 +156,34 @@ export default function CoinflipGamePage() {
         } else {
           haptics.notification('error');
         }
+        setMyBets((prev) => [
+          {
+            id: `cf-q-${Date.now()}`,
+            betAmount: pending.quick!.betAmount,
+            multiplier: pending.quick!.multiplier,
+            payout: pending.quick!.won ? pending.quick!.payout : 0,
+            details: pending.quick!.outcome === 'heads' ? 'Орёл' : 'Решка',
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ]);
       }
       if (pending.state) {
         setMulti(pending.state);
         if (pending.state.status === 'busted') {
           soundManager.play('game.lose');
           haptics.notification('error');
+          setMyBets((prev) => [
+            {
+              id: `cf-bust-${Date.now()}`,
+              betAmount: pending.state!.betAmount,
+              multiplier: 0,
+              payout: 0,
+              details: `${Math.max(1, pending.state!.round - 1)} раунд`,
+              timestamp: Date.now(),
+            },
+            ...prev,
+          ]);
         } else if (pending.state.status === 'cashed') {
           soundManager.play('game.cashout');
           haptics.notification('success');
@@ -295,6 +320,17 @@ export default function CoinflipGamePage() {
       setMulti(nextState);
       soundManager.play('game.cashout');
       toast.cashout(nextState.currentMultiplier ?? 0, 'Cashed out');
+      setMyBets((prev) => [
+        {
+          id: `cf-cash-${Date.now()}`,
+          betAmount: nextState.betAmount,
+          multiplier: nextState.currentMultiplier,
+          payout: nextState.payout ?? nextState.betAmount * nextState.currentMultiplier,
+          details: `${nextState.currentMultiplier.toFixed(2)}×`,
+          timestamp: Date.now(),
+        },
+        ...prev,
+      ]);
       void fetchBalance();
     } catch (err) {
       console.error('coinflip:cashout', err);
@@ -536,8 +572,14 @@ export default function CoinflipGamePage() {
           </div>
         </div>
 
-        {/* Live history */}
-        <CoinflipHistory entries={history} />
+        {/* Bottom Section: Personal Recent Bets & Global Live Bets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+          {/* Left: Player's personal recent bets */}
+          <PersonalRecentBets bets={myBets} currency="zł" />
+
+          {/* Right: All bets / rare wins */}
+          <CoinflipHistory entries={history} />
+        </div>
       </div>
 
       <CoinflipRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />

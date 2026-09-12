@@ -357,8 +357,8 @@ export default function WheelPage() {
       />
 
       <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-6 pt-3 pb-32 lg:pb-16 flex flex-col gap-4">
-        {/* History */}
-        {snap && <HistoryStrip history={snap.history.slice(0, 16)} />}
+        {/* Full-width History */}
+        {snap && <HistoryStrip history={snap.history} />}
 
         {/* PC Two-Column Grid / Mobile Single Column */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
@@ -539,66 +539,38 @@ function HistoryStrip({
   history: Array<{ multiplier: number; roundId: string }>;
 }) {
   const { t } = useT();
-  const [expanded, setExpanded] = useState(false);
-
-  const visible = expanded ? history.slice(0, 20) : history.slice(0, 12);
 
   return (
-    <div style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: 12 }}>
-      <div className="flex items-start gap-2">
-        <div
-          className={cn(
-            'flex-1 min-w-0',
-            expanded
-              ? 'flex flex-wrap gap-1.5'
-              : 'flex items-center gap-1.5 overflow-x-auto scrollbar-hide'
-          )}
-        >
-          {visible.length === 0 ? (
-            <span
-              className="font-sans text-[#636363]"
-              style={{ fontSize: 11 }}
-            >
-              {t('wheel.historyEmpty')}
-            </span>
-          ) : (
-            visible.map((h, i) => {
-              const c = SEG_COLOR[h.multiplier] ?? SEG_COLOR[2];
-              return (
-                <div
-                  key={i}
-                  className="shrink-0 inline-flex items-center justify-center font-sans tabular-nums select-none"
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 400,
-                    padding: '4px 10px',
-                    borderRadius: 75,
-                    background: c.pillBg,
-                    color: c.pill,
-                    border: `1px solid ${c.pill}22`,
-                  }}
-                >
-                  ×{h.multiplier}
-                </div>
-              );
-            })
-          )}
-        </div>
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="shrink-0 w-7 h-7 flex items-center justify-center transition-colors"
-          style={{
-            borderRadius: 75,
-            border: '1px solid #2a2a2a',
-            color: '#636363',
-          }}
-          aria-label="Toggle history"
-        >
-          <ChevronDown
-            size={13}
-            className={cn('transition-transform', expanded && 'rotate-180')}
-          />
-        </button>
+    <div className="w-full pb-3 border-b border-white/10">
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 no-scrollbar">
+        {history.length === 0 ? (
+          <span
+            className="font-sans text-[#636363] text-xs py-1"
+          >
+            {t('wheel.historyEmpty')}
+          </span>
+        ) : (
+          history.map((h, i) => {
+            const c = SEG_COLOR[h.multiplier] ?? SEG_COLOR[2];
+            return (
+              <div
+                key={`${h.roundId}-${i}`}
+                className="shrink-0 inline-flex items-center justify-center font-sans tabular-nums select-none transition-transform hover:scale-105"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '4px 12px',
+                  borderRadius: 9999,
+                  background: c.pillBg,
+                  color: c.pill,
+                  border: `1px solid ${c.pill}33`,
+                }}
+              >
+                ×{h.multiplier}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

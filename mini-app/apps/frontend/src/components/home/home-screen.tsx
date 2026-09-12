@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
+  Bomb,
+  Box,
+  Coins,
   Crown,
+  Disc3,
   Flame,
   Gamepad2,
   Gift,
@@ -13,6 +17,7 @@ import {
   Layers,
   Lock,
   ShieldCheck,
+  Spade,
   Sparkles,
   Star,
   TrendingUp,
@@ -37,11 +42,11 @@ import type { TxKey } from '@/i18n/use-t';
 
 /**
  * Home Screen — Luxury Obsidian & Gold Cyber-Casino Lobby (PC & Mobile).
- * Flagship Hero Banner, Responsive 3-col PC / 2-col Mobile Grid,
+ * Flagship Hero Banner, Responsive 6-col Grid (Row 1: 3, Rows 2-4: 2),
  * Gold hairline borders, Provably Fair badges, and instant balance controls.
  */
 
-type CategoryKey = 'all' | 'slots' | 'live' | 'table' | 'fast' | 'favorites';
+type CategoryKey = 'all' | 'crash' | 'cards' | 'wheel_cases' | 'arcades' | 'pvp';
 
 interface GameBadge {
   label: string;
@@ -60,7 +65,24 @@ interface InAppGame {
   category?: 'fast' | 'table' | 'instant';
 }
 
+const GAME_COL_SPAN: Record<string, string> = {
+  // Row 1 (3 games: 2+2+2 = 6)
+  crash: 'col-span-2',
+  mines: 'col-span-2',
+  wheel: 'col-span-2',
+  // Row 2 (2 games: 3+3 = 6)
+  blackjack: 'col-span-3',
+  coinflip: 'col-span-3',
+  // Row 3 (2 games: 3+3 = 6)
+  cases: 'col-span-3',
+  keno: 'col-span-3',
+  // Row 4 (2 games: 3+3 = 6)
+  hilo: 'col-span-3',
+  macvpot: 'col-span-3',
+};
+
 const IN_APP_GAMES: InAppGame[] = [
+  // Row 1
   {
     id: 'crash',
     name: 'MacvJet',
@@ -80,23 +102,6 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'blackjack',
-    name: 'Blackjack',
-    href: '/game/blackjack',
-    bg: '/tiles/bj.webp',
-    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
-    isPopular: true,
-    category: 'table',
-  },
-  {
-    id: 'coinflip',
-    name: 'Coinflip',
-    href: '/game/coinflip',
-    bg: '/tiles/coinflip.webp',
-    badge: { label: 'PVP', color: 'gold', Icon: Zap },
-    category: 'fast',
-  },
-  {
     id: 'wheel',
     name: 'Wheel',
     href: '/game/wheel',
@@ -105,6 +110,25 @@ const IN_APP_GAMES: InAppGame[] = [
     isPopular: true,
     category: 'fast',
   },
+  // Row 2
+  {
+    id: 'blackjack',
+    name: 'BlackJack',
+    href: '/game/blackjack',
+    bg: '/tiles/bj.webp',
+    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
+    isPopular: true,
+    category: 'table',
+  },
+  {
+    id: 'coinflip',
+    name: 'CoinFlip',
+    href: '/game/coinflip',
+    bg: '/tiles/coinflip.webp',
+    badge: { label: 'PVP', color: 'gold', Icon: Zap },
+    category: 'fast',
+  },
+  // Row 3
   {
     id: 'cases',
     name: 'Case',
@@ -121,6 +145,15 @@ const IN_APP_GAMES: InAppGame[] = [
     badge: { label: 'KENO', color: 'purple', Icon: Sparkles },
     category: 'table',
   },
+  // Row 4
+  {
+    id: 'hilo',
+    name: 'Hi-Lo',
+    href: '/game/hilo',
+    bg: '/tiles/hilo.webp',
+    badge: { label: 'HI-LO', color: 'cyan', Icon: Zap },
+    category: 'fast',
+  },
   {
     id: 'macvpot',
     name: 'MacvPot',
@@ -128,14 +161,6 @@ const IN_APP_GAMES: InAppGame[] = [
     bg: '/tiles/macvpot.webp',
     badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
     isPopular: true,
-    category: 'fast',
-  },
-  {
-    id: 'hilo',
-    name: 'Hi-Lo',
-    href: '/game/hilo',
-    bg: '/tiles/hilo.webp',
-    badge: { label: 'HI-LO', color: 'cyan', Icon: Zap },
     category: 'fast',
   },
 ];
@@ -357,16 +382,16 @@ export function HomeScreen() {
   const filteredGames = useMemo(() => {
     let list = IN_APP_GAMES.filter((g) => isGameVisible(g.id));
 
-    if (activeCategory === 'slots') {
-      list = list.filter((g) => g.id === 'wheel' || g.id === 'cases' || g.category === 'fast');
-    } else if (activeCategory === 'live') {
-      list = list.filter((g) => g.id === 'crash' || g.id === 'blackjack' || g.id === 'macvpot');
-    } else if (activeCategory === 'table') {
-      list = list.filter((g) => g.category === 'table');
-    } else if (activeCategory === 'fast') {
-      list = list.filter((g) => g.category === 'fast');
-    } else if (activeCategory === 'favorites') {
-      list = list.filter((g) => g.isPopular);
+    if (activeCategory === 'crash') {
+      list = list.filter((g) => g.id === 'crash');
+    } else if (activeCategory === 'cards') {
+      list = list.filter((g) => g.id === 'blackjack' || g.id === 'hilo');
+    } else if (activeCategory === 'wheel_cases') {
+      list = list.filter((g) => g.id === 'wheel' || g.id === 'cases');
+    } else if (activeCategory === 'arcades') {
+      list = list.filter((g) => g.id === 'mines' || g.id === 'keno');
+    } else if (activeCategory === 'pvp') {
+      list = list.filter((g) => g.id === 'coinflip' || g.id === 'macvpot');
     }
 
     if (searchQuery.trim()) {
@@ -454,40 +479,40 @@ export function HomeScreen() {
                 label="Все игры"
               />
               <CategoryTab
-                active={activeCategory === 'slots'}
-                onClick={() => setActiveCategory('slots')}
-                icon={<Layers size={14} className={activeCategory === 'slots' ? 'text-black' : 'text-amber-400'} />}
-                label="Слоты"
+                active={activeCategory === 'crash'}
+                onClick={() => setActiveCategory('crash')}
+                icon={<Flame size={14} className={activeCategory === 'crash' ? 'text-black' : 'text-red-400'} />}
+                label="Краш"
               />
               <CategoryTab
-                active={activeCategory === 'live'}
-                onClick={() => setActiveCategory('live')}
-                icon={<Flame size={14} className={activeCategory === 'live' ? 'text-black' : 'text-orange-400'} />}
-                label="Live Казино"
+                active={activeCategory === 'cards'}
+                onClick={() => setActiveCategory('cards')}
+                icon={<Spade size={14} className={activeCategory === 'cards' ? 'text-black' : 'text-amber-400'} />}
+                label="Карточные"
               />
               <CategoryTab
-                active={activeCategory === 'table'}
-                onClick={() => setActiveCategory('table')}
-                icon={<Gamepad2 size={14} className={activeCategory === 'table' ? 'text-black' : 'text-amber-400'} />}
-                label="Настольные"
+                active={activeCategory === 'wheel_cases'}
+                onClick={() => setActiveCategory('wheel_cases')}
+                icon={<Disc3 size={14} className={activeCategory === 'wheel_cases' ? 'text-black' : 'text-amber-400'} />}
+                label="Рулетка & Кейсы"
               />
               <CategoryTab
-                active={activeCategory === 'fast'}
-                onClick={() => setActiveCategory('fast')}
-                icon={<Zap size={14} className={activeCategory === 'fast' ? 'text-black' : 'text-amber-400'} />}
-                label="Лайв игры"
+                active={activeCategory === 'arcades'}
+                onClick={() => setActiveCategory('arcades')}
+                icon={<Bomb size={14} className={activeCategory === 'arcades' ? 'text-black' : 'text-cyan-400'} />}
+                label="Аркады"
               />
               <CategoryTab
-                active={activeCategory === 'favorites'}
-                onClick={() => setActiveCategory('favorites')}
-                icon={<Star size={14} className={activeCategory === 'favorites' ? 'text-black' : 'text-amber-400'} />}
-                label="Избранное"
+                active={activeCategory === 'pvp'}
+                onClick={() => setActiveCategory('pvp')}
+                icon={<Trophy size={14} className={activeCategory === 'pvp' ? 'text-black' : 'text-purple-400'} />}
+                label="PvP & Джекпот"
               />
             </div>
           </div>
         </EntranceBlock>
 
-        {/* Section Header: Crown + "Все доступные игры" + "Показать все →" */}
+        {/* Section Header: Crown + "Все доступные игры" */}
         <EntranceBlock>
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -496,17 +521,19 @@ export function HomeScreen() {
                 Все доступные игры
               </h2>
             </div>
-            <button
-              onClick={() => setActiveCategory('all')}
-              className="font-roobert text-[12px] text-amber-400/90 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <span>Все игры ({filteredGames.length})</span>
-              <ArrowRight size={13} />
-            </button>
+            {activeCategory !== 'all' && (
+              <button
+                onClick={() => setActiveCategory('all')}
+                className="font-roobert text-[12px] text-amber-400/90 hover:text-amber-300 flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <span>Показать все</span>
+                <ArrowRight size={13} />
+              </button>
+            )}
           </div>
         </EntranceBlock>
 
-        {/* 3-col PC / 2-col Mobile Compact Games Grid */}
+        {/* Exact Layout Grid: Row 1 (3 items), Rows 2-4 (2 items each) */}
         <EntranceBlock>
           {filteredGames.length === 0 ? (
             <div className="py-12 text-center rounded-2xl border border-amber-500/20 bg-[#121217]">
@@ -524,14 +551,22 @@ export function HomeScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-3.5">
-              {filteredGames.map((g) => (
-                <GameTile
-                  key={g.id}
-                  game={g}
-                  router={router}
-                />
-              ))}
+            <div className="grid grid-cols-6 gap-3 sm:gap-3.5">
+              {filteredGames.map((g) => {
+                const isAllDefault = activeCategory === 'all' && !searchQuery.trim();
+                const colSpan = isAllDefault
+                  ? (GAME_COL_SPAN[g.id] ?? 'col-span-3')
+                  : 'col-span-6 sm:col-span-3 lg:col-span-2';
+
+                return (
+                  <div key={g.id} className={colSpan}>
+                    <GameTile
+                      game={g}
+                      router={router}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </EntranceBlock>
@@ -861,7 +896,7 @@ function TournamentHeroCard({
           src={tournament.bannerUrl}
           alt=""
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-500"
+          className="absolute right-0 top-0 bottom-0 w-1/2 md:w-2/5 h-full object-contain object-right opacity-60 pointer-events-none group-hover:scale-105 transition-transform duration-500"
         />
       )}
       <div
@@ -942,7 +977,7 @@ function ContestHero({
           src={contest.bannerUrl}
           alt=""
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-500"
+          className="absolute right-0 top-0 bottom-0 w-1/2 md:w-2/5 h-full object-contain object-right opacity-60 pointer-events-none group-hover:scale-105 transition-transform duration-500"
         />
       ) : null}
       <div

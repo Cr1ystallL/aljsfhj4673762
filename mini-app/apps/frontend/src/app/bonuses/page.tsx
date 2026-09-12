@@ -100,11 +100,11 @@ export default function BonusesPage() {
       <GameTopBar title={t('bonuses.title')} Icon={Sparkles} width="wide" />
       
       <div className={`mx-auto w-full ${PAGE_WIDTH.wide} px-4 pt-4 pb-32 flex flex-col gap-6`}>
-        {/* Promo Code & Lucky Wheel Heroes */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          <PromoCodeHero onRedeemed={() => void fetchBalance()} />
-          <LuckyWheelHero onWin={() => void fetchBalance()} />
-        </div>
+        {/* Promo Code Hero */}
+        <PromoCodeHero onRedeemed={() => void fetchBalance()} />
+
+        {/* Lucky Wheel Hero */}
+        <LuckyWheelHero onWin={() => void fetchBalance()} />
 
         {/* Freebets Section (Rendered when user has active freebets) */}
         <UserFreebetsSection />
@@ -336,7 +336,7 @@ function DepositBonusesSection() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {offers.map((offer) => {
           const isActive = offer.userStatus === 'active';
           const isUsed = offer.userStatus === 'used';
@@ -1251,11 +1251,9 @@ function TournamentsList() {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {list.map((row) => (
-          <TournamentCard key={row.id} tournament={row} onJoin={() => join(row.id)} busy={busyId === row.id} />
-        ))}
-      </div>
+      {list.map((row) => (
+        <TournamentCard key={row.id} tournament={row} onJoin={() => join(row.id)} busy={busyId === row.id} />
+      ))}
     </section>
   );
 }
@@ -1432,16 +1430,14 @@ function ContestsList({ currentUserId }: { currentUserId: string | null }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {list.map((c) => (
-          <ContestCard
-            key={c.id}
-            contest={c}
-            onJoin={() => join(c.id)}
-            busy={busyId === c.id}
-          />
-        ))}
-      </div>
+      {list.map((c) => (
+        <ContestCard
+          key={c.id}
+          contest={c}
+          onJoin={() => join(c.id)}
+          busy={busyId === c.id}
+        />
+      ))}
     </section>
   );
 }

@@ -16,7 +16,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { distributePercentages } from '@casino/shared';
 import type { CaseTier, CasePrize } from '../page';
 import { useT } from '@/i18n/use-t';
-import { GamePrimaryButton } from '@/components/game/kit';
+import { GamePrimaryButton, PersonalRecentBets, type PersonalRecentBet } from '@/components/game/kit';
 import { haptics } from '@/lib/haptics';
 
 function Confetti({ active }: { active: boolean }) {
@@ -69,6 +69,7 @@ export default function CaseOpeningPage() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningIds, setWinningIds] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [myBets, setMyBets] = useState<PersonalRecentBet[]>([]);
   
   const { balance, fetchBalance, optimisticUpdate, freezeBalance, unfreezeBalance } = useBalance();
   const { amount: activeBalance, isReady: isBalanceReady } = useActiveBalance('cases');
@@ -181,6 +182,20 @@ export default function CaseOpeningPage() {
       }
       
       const totalCost = caseTier.price * count;
+      const mult = totalCost > 0 ? Number((totalWon / totalCost).toFixed(2)) : (totalWon > 0 ? 1 : 0);
+      setMyBets((prev) => [
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          betAmount: totalCost,
+          multiplier: mult,
+          won: totalWon >= totalCost,
+          payout: totalWon,
+          timestamp: Date.now(),
+          details: winningIds.join(', '),
+        },
+        ...prev.slice(0, 19),
+      ]);
+
       if (totalWon >= totalCost * 2) {
         setShowConfetti(true);
         haptics.notification('success');
@@ -355,9 +370,12 @@ export default function CaseOpeningPage() {
           </div>
         </div>
 
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">Live История</h2>
-          <CasesHistory />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-8 pt-2">
+          <PersonalRecentBets bets={myBets} />
+          <div>
+            <h2 className="text-sm font-semibold text-white/50 mb-3 px-1 uppercase tracking-wider">Live История</h2>
+            <CasesHistory />
+          </div>
         </div>
 
       </div>

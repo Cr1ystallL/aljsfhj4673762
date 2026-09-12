@@ -24,6 +24,8 @@ import {
   BetPanelShell,
   GamePrimaryButton,
   StakeField,
+  PersonalRecentBets,
+  type PersonalRecentBet,
 } from '@/components/game/kit';
 
 type HiloStatus = 'idle' | 'playing' | 'cashed_out' | 'busted';
@@ -53,6 +55,7 @@ export function HiloClient() {
   const [loading, setLoading] = useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [history, setHistory] = useState<HiloHistoryEntry[]>([]);
+  const [myBets, setMyBets] = useState<PersonalRecentBet[]>([]);
   
   const refreshHistory = async () => {
     try {
@@ -192,6 +195,17 @@ export function HiloClient() {
         if (res.state.status === 'busted') {
           soundManager.play('game.lose');
           haptics.notification('error');
+          setMyBets((prev) => [
+            {
+              id: `hilo-bust-${Date.now()}`,
+              betAmount: res.state.betAmount,
+              multiplier: 0,
+              payout: 0,
+              details: `${Math.max(0, res.state.history.length - 1)} угадано`,
+              timestamp: Date.now(),
+            },
+            ...prev,
+          ]);
           fetchBalance();
           refreshHistory();
         } else {
@@ -227,6 +241,18 @@ export function HiloClient() {
         setState(res.state);
         soundManager.play('game.cashout');
         haptics.notification('success');
+        const mult = res.state.currentMultiplier ?? 1;
+        setMyBets((prev) => [
+          {
+            id: `hilo-cash-${Date.now()}`,
+            betAmount: res.state.betAmount,
+            multiplier: mult,
+            payout: res.state.betAmount * mult,
+            details: `Кэшаут ${mult.toFixed(2)}x`,
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ]);
         fetchBalance();
         refreshHistory();
       }
@@ -519,11 +545,42 @@ export function HiloClient() {
                 </div>
               </button>
             </div>
+
+            {/* Personal Recent Games under choice buttons */}
+            {myBets.length > 0 && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                <div className="text-[10px] text-white/50 uppercase tracking-wider font-roobert mb-1.5 flex items-center justify-between">
+                  <span>Недавние исходы</span>
+                  <span className="text-[9px] text-white/40">{myBets.length} сыграно</span>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {myBets.slice(0, 6).map((b) => (
+                    <div
+                      key={b.id}
+                      className={cn(
+                        'px-2 py-1 rounded-lg text-[10px] font-bold font-mono shrink-0 border',
+                        b.multiplier > 0
+                          ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
+                          : 'border-red-500/30 bg-red-500/15 text-red-300'
+                      )}
+                    >
+                      {b.multiplier > 0 ? `×${b.multiplier.toFixed(2)}` : '0×'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Live History Ticker */}
-        <HiloHistory entries={history} currency={currencyLabel} />
+        {/* Bottom Section: Personal Recent Bets & Global Live Bets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+          {/* Left: Player's personal recent bets */}
+          <PersonalRecentBets bets={myBets} currency={currencyLabel} />
+
+          {/* Right: Global live platform bets */}
+          <HiloHistory entries={history} currency={currencyLabel} />
+        </div>
       </div>
       
       {/* Hide scrollbar styles injected */}

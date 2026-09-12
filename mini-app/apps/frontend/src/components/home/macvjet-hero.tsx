@@ -242,11 +242,12 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.28]"
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
         style={{
           backgroundImage: "url(/tiles/macvjet-hero.webp)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
+          backgroundSize: "contain",
+          backgroundPosition: "right center",
+          backgroundRepeat: "no-repeat",
         }}
       />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_80%_110%,rgba(165,45,37,0.28),transparent_55%),radial-gradient(80%_50%_at_10%_-10%,rgba(251,191,36,0.10),transparent_50%),linear-gradient(90deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.42)_55%,rgba(0,0,0,0.18)_100%)]" />
