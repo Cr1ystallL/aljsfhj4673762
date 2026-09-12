@@ -413,7 +413,7 @@ export function HomeScreen() {
       />
 
       <motion.div
-        className="mx-auto w-full max-w-[480px] sm:max-w-[640px] md:max-w-[800px] lg:max-w-[920px] px-3.5 sm:px-5 pt-3 pb-28 flex flex-col gap-5"
+        className="mx-auto w-full max-w-[480px] sm:max-w-[640px] md:max-w-[960px] lg:max-w-[1200px] xl:max-w-[1360px] px-3.5 sm:px-6 lg:px-8 pt-3 pb-28 flex flex-col gap-5 sm:gap-6"
         initial={skipEntrance ? false : 'hidden'}
         animate={lobbyReady ? 'show' : 'hidden'}
         variants={{
@@ -552,7 +552,7 @@ export function HomeScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 lg:gap-4">
               {filteredGames.map((g) => {
                 const isAllDefault = activeCategory === 'all' && !searchQuery.trim();
                 const colSpan = isAllDefault
@@ -671,19 +671,12 @@ function GameTile({
 }) {
   const { t } = useT();
   const BadgeIcon = game.badge?.Icon;
-  const isWide =
-    game.id === 'blackjack' ||
-    game.id === 'cases' ||
-    game.id === 'hilo';
 
   return (
     <Pressable
       onClick={() => router.push(game.href)}
       className={cn(
-        "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-md",
-        isWide
-          ? "aspect-[2.1/1] sm:aspect-[2.2/1] max-h-[200px] min-h-[105px] sm:min-h-[135px]"
-          : "aspect-square max-h-[200px] min-h-[105px] sm:min-h-[135px]"
+        "w-full h-[125px] sm:h-[150px] md:h-[175px] lg:h-[190px] xl:h-[205px] block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_25px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-md"
       )}
     >
       {/* Background artwork — Full-bleed HD cover */}
@@ -706,7 +699,7 @@ function GameTile({
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'linear-gradient(180deg, rgba(0,0,0,0.22) 0%, transparent 35%, rgba(0,0,0,0.15) 60%, rgba(10,10,14,0.85) 100%)',
+            'linear-gradient(180deg, rgba(0,0,0,0.18) 0%, transparent 40%, rgba(0,0,0,0.12) 65%, rgba(10,10,14,0.65) 100%)',
         }}
       />
 
@@ -750,11 +743,11 @@ function GameTile({
         </div>
 
         {/* Bottom bar: Title & Subtitle */}
-        <div>
-          <div className="font-roobert text-[13px] sm:text-[14px] font-bold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-300 transition-colors truncate">
+        <div className="min-w-0">
+          <div className="font-roobert text-[12px] sm:text-[13.5px] font-bold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] group-hover:text-amber-300 transition-colors truncate">
             {game.name}
           </div>
-          <div className="mt-0.5 font-roobert text-[10px] text-zinc-400 tracking-wide">
+          <div className="mt-0.5 font-roobert text-[9.5px] sm:text-[10px] text-zinc-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] tracking-wide">
             {game.id === 'crash'
               ? 'Crash Game'
               : game.id === 'blackjack'
