@@ -35,7 +35,7 @@ import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { Pressable } from '@/components/ui/pressable';
 import { cn } from '@/lib/utils';
-import { MacvJetHero, useCrashLobby } from '@/components/home/macvjet-hero';
+import { LobbyHeroBanner } from '@/components/home/lobby-hero-banner';
 import { HomeLuckFeed, type LuckFeedItem } from '@/components/home/home-luck-feed';
 import { useSplashStore } from '@/store/splash-store';
 import { useT } from '@/i18n/use-t';
@@ -199,7 +199,6 @@ export function HomeScreen() {
   const [lobbyReady, setLobbyReady] = useState(false);
   const [skipEntrance, setSkipEntrance] = useState(false);
   const [online, setOnline] = useState(0);
-  const crashLobby = useCrashLobby();
 
   // Dynamic live online state
   const [rawOnline, setRawOnline] = useState<number>(6);
@@ -413,13 +412,21 @@ export function HomeScreen() {
           },
         }}
       >
-        {/* Featured Events Showcase (Tournaments, Contests, or Hero Game - previous mechanics restored) */}
-        <ActiveEventsShowcase
-          tournaments={activeTournaments}
-          contests={activeContests}
-          router={router}
-          showMacvJet={isGameVisible('crash')}
-        />
+        {/* Flagship Casino Hero Banner Carousel */}
+        <EntranceBlock>
+          <LobbyHeroBanner />
+        </EntranceBlock>
+
+        {/* Featured Events Showcase (Tournaments & Contests when active) */}
+        {(activeTournaments.length > 0 || activeContests.length > 0) && (
+          <EntranceBlock>
+            <ActiveEventsShowcase
+              tournaments={activeTournaments}
+              contests={activeContests}
+              router={router}
+            />
+          </EntranceBlock>
+        )}
 
         {/* Search (Mobile Only) & Category Navigation Pills */}
         <EntranceBlock>
@@ -776,19 +783,16 @@ function ActiveEventsShowcase({
   tournaments,
   contests,
   router,
-  showMacvJet,
 }: {
   tournaments: HeroTournament[];
   contests: HeroContest[];
   router: ReturnType<typeof useRouter>;
-  showMacvJet: boolean;
 }) {
   const hasTournaments = tournaments.length > 0;
   const hasContests = contests.length > 0;
 
   if (!hasTournaments && !hasContests) {
-    if (!showMacvJet) return null;
-    return <MacvJetHero onOpen={() => router.push('/game/crash')} />;
+    return null;
   }
 
   return (
