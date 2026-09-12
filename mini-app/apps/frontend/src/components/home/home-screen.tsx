@@ -83,13 +83,12 @@ const GAME_COL_SPAN: Record<string, string> = {
 };
 
 const IN_APP_GAMES: InAppGame[] = [
-  // Row 1
+  // Row 1 (3 squares)
   {
     id: 'crash',
     name: 'MacvJet',
     href: '/game/crash',
     bg: '/tiles/macvjet.webp',
-    badge: { label: 'TOP', color: 'red', Icon: Flame },
     isPopular: true,
     category: 'fast',
   },
@@ -98,7 +97,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Mines',
     href: '/game/mines',
     bg: '/tiles/mines.webp',
-    badge: { label: 'MINES', color: 'cyan', Icon: Zap },
     isPopular: true,
     category: 'fast',
   },
@@ -107,17 +105,15 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Wheel',
     href: '/game/wheel',
     bg: '/tiles/wheel.webp',
-    badge: { label: 'x50', color: 'gold', Icon: Zap },
     isPopular: true,
     category: 'fast',
   },
-  // Row 2
+  // Row 2 (1 wide + 1 square)
   {
     id: 'blackjack',
     name: 'BlackJack',
     href: '/game/blackjack',
     bg: '/tiles/bj.webp',
-    badge: { label: 'HOT', color: 'gold', Icon: Sparkles },
     isPopular: true,
     category: 'table',
   },
@@ -126,16 +122,14 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'CoinFlip',
     href: '/game/coinflip',
     bg: '/tiles/coinflip.webp',
-    badge: { label: 'PVP', color: 'gold', Icon: Zap },
     category: 'fast',
   },
-  // Row 3
+  // Row 3 (1 wide + 1 square)
   {
     id: 'cases',
     name: 'Case',
     href: '/game/cases',
     bg: '/tiles/case.webp',
-    badge: { label: 'CASES', color: 'green', Icon: Sparkles },
     category: 'fast',
   },
   {
@@ -143,16 +137,14 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'Keno',
     href: '/game/keno',
     bg: '/tiles/keno.webp',
-    badge: { label: 'KENO', color: 'purple', Icon: Sparkles },
     category: 'table',
   },
-  // Row 4
+  // Row 4 (1 wide + 1 square)
   {
     id: 'hilo',
     name: 'Hi-Lo',
     href: '/game/hilo',
     bg: '/tiles/hilo.webp',
-    badge: { label: 'HI-LO', color: 'cyan', Icon: Zap },
     category: 'fast',
   },
   {
@@ -160,7 +152,6 @@ const IN_APP_GAMES: InAppGame[] = [
     name: 'MacvPot',
     href: '/game/macvpot',
     bg: '/tiles/macvpot.webp',
-    badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy },
     isPopular: true,
     category: 'fast',
   },
@@ -669,21 +660,19 @@ function GameTile({
   game: InAppGame;
   router: ReturnType<typeof useRouter>;
 }) {
-  const { t } = useT();
-  const BadgeIcon = game.badge?.Icon;
   const isCrash = game.id === 'crash';
 
   return (
     <Pressable
       onClick={() => router.push(game.href)}
       className={cn(
-        "w-full h-[125px] sm:h-[150px] md:h-[175px] lg:h-[190px] xl:h-[205px] block group relative rounded-2xl text-left active:scale-[0.97] transition-all duration-300"
+        "w-full h-[130px] sm:h-[155px] md:h-[180px] lg:h-[200px] xl:h-[215px] flex items-center justify-center group relative text-left active:scale-[0.97] transition-all duration-300 cursor-pointer"
       )}
     >
-      {/* Floor Spotlight glow (no boxy border, pure ambient light) */}
+      {/* Floor Spotlight glow (pure ambient light under the 3D model) */}
       <div
         aria-hidden
-        className="absolute bottom-1 inset-x-4 h-12 rounded-full blur-xl opacity-25 group-hover:opacity-55 transition-opacity pointer-events-none"
+        className="absolute bottom-0 inset-x-6 h-10 rounded-full blur-xl opacity-25 group-hover:opacity-60 transition-opacity pointer-events-none"
         style={{
           background:
             GAME_GLOW[game.id] ??
@@ -713,40 +702,14 @@ function GameTile({
         </div>
       )}
 
-      {/* 3D Game Object (transparent floating with drop shadow) */}
+      {/* 3D Game Object (transparent floating with drop shadow and hover lift) */}
       {game.bg && (
         <img
           src={game.bg}
           alt={game.name}
-          className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] group-hover:scale-105 group-hover:drop-shadow-[0_18px_32px_rgba(255,172,46,0.35)] transition-all duration-300 pointer-events-none select-none"
+          className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] group-hover:scale-105 group-hover:-translate-y-1 group-hover:drop-shadow-[0_20px_35px_rgba(255,172,46,0.35)] transition-all duration-300 pointer-events-none select-none"
         />
       )}
-
-      {/* Floating Badge (Top-left) & Floating Arrow (Top-right) */}
-      <div className="absolute inset-0 p-2 sm:p-2.5 flex items-start justify-between z-20 pointer-events-none">
-        {game.badge ? (
-          <span
-            className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 ${
-              game.badge.color === 'red'
-                ? 'border-red-500/40 bg-red-500/25 text-red-300'
-                : game.badge.color === 'gold'
-                ? 'border-amber-500/40 bg-amber-500/25 text-amber-300'
-                : game.badge.color === 'cyan'
-                ? 'border-cyan-500/40 bg-cyan-500/25 text-cyan-300'
-                : game.badge.color === 'purple'
-                ? 'border-purple-500/40 bg-purple-500/25 text-purple-300'
-                : 'border-emerald-500/40 bg-emerald-500/25 text-emerald-300'
-            }`}
-          >
-            {BadgeIcon && <BadgeIcon size={9} className="shrink-0 stroke-[2.2]" />}
-            <span>{game.badge.label}</span>
-          </span>
-        ) : <div />}
-
-        <span className="w-6 h-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-zinc-400 group-hover:text-amber-300 group-hover:border-amber-400/40 transition-all opacity-0 group-hover:opacity-100 sm:opacity-100 shadow-sm">
-          <ArrowRight size={11} strokeWidth={2.2} />
-        </span>
-      </div>
     </Pressable>
   );
 }
