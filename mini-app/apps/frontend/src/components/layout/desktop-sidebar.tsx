@@ -160,7 +160,7 @@ export function DesktopSidebar() {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}{' '}
-                ₽
+                zł
               </div>
             </div>
 

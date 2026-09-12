@@ -221,7 +221,7 @@ export function MenuDrawer({
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}{' '}
-                      ₽
+                      zł
                     </div>
                   </div>
 

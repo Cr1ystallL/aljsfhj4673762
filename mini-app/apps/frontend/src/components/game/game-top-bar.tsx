@@ -72,7 +72,7 @@ export function GameTopBar({
     ? currency
     : activeTournamentBalance
     ? '🏆'
-    : '₽';
+    : 'zł';
 
   const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
   const showPillWrapper = !hideBalance || !isProfilePage;

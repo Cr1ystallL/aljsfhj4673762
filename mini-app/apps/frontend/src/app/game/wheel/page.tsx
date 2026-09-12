@@ -434,7 +434,7 @@ export default function WheelPage() {
                     {(amount * pick).toLocaleString(localeTag, {
                       maximumFractionDigits: 2,
                     })}{' '}
-                    ₽
+                    zł
                   </div>
                 </div>
               </div>
