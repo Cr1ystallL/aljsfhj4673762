@@ -67,21 +67,20 @@ interface InAppGame {
 }
 
 const GAME_COL_SPAN: Record<string, string> = {
-  // Mobile: 3 columns (Row 1: 3 squares, Rows 2-4: 1 wide + 1 square)
-  // Desktop: 4 columns balanced Bento grid (Row 1: 2 squares + 1 wide; Row 2: 1 wide + 2 squares; Row 3: 1 wide + 2 squares)
-  crash: 'col-span-1 lg:col-span-1 lg:order-1',
-  mines: 'col-span-1 lg:col-span-1 lg:order-2',
-  blackjack: 'col-span-2 lg:col-span-2 lg:order-3',
-  cases: 'col-span-2 lg:col-span-2 lg:order-4',
-  wheel: 'col-span-1 lg:col-span-1 lg:order-5',
-  coinflip: 'col-span-1 lg:col-span-1 lg:order-6',
-  hilo: 'col-span-2 lg:col-span-2 lg:order-7',
-  keno: 'col-span-1 lg:col-span-1 lg:order-8',
-  macvpot: 'col-span-1 lg:col-span-1 lg:order-9',
+  // 3x3 Grid: Row 1 (MacvJet, BlackJack, Mines), Row 2 (Wheel, Case, Coinflip), Row 3 (Keno, HiLo, MacvPot)
+  crash: 'col-span-1',
+  blackjack: 'col-span-1',
+  mines: 'col-span-1',
+  wheel: 'col-span-1',
+  cases: 'col-span-1',
+  coinflip: 'col-span-1',
+  keno: 'col-span-1',
+  hilo: 'col-span-1',
+  macvpot: 'col-span-1',
 };
 
 const IN_APP_GAMES: InAppGame[] = [
-  // Row 1
+  // Row 1: MacvJet, BlackJack, Mines
   {
     id: 'crash',
     name: 'MacvJet',
@@ -91,23 +90,6 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
-    id: 'mines',
-    name: 'Mines',
-    href: '/game/mines',
-    bg: '/mines.png?v=3d_3',
-    isPopular: true,
-    category: 'fast',
-  },
-  {
-    id: 'wheel',
-    name: 'Wheel',
-    href: '/game/wheel',
-    bg: '/wheel.png?v=3d_3',
-    isPopular: true,
-    category: 'fast',
-  },
-  // Row 2
-  {
     id: 'blackjack',
     name: 'BlackJack',
     href: '/game/blackjack',
@@ -116,13 +98,22 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'table',
   },
   {
-    id: 'coinflip',
-    name: 'CoinFlip',
-    href: '/game/coinflip',
-    bg: '/coinflip.png?v=3d_3',
+    id: 'mines',
+    name: 'Mines',
+    href: '/game/mines',
+    bg: '/mines.png?v=3d_3',
+    isPopular: true,
     category: 'fast',
   },
-  // Row 3
+  // Row 2: Wheel, Case, Coinflip
+  {
+    id: 'wheel',
+    name: 'Wheel',
+    href: '/game/wheel',
+    bg: '/wheel.png?v=3d_3',
+    isPopular: true,
+    category: 'fast',
+  },
   {
     id: 'cases',
     name: 'Case',
@@ -131,13 +122,20 @@ const IN_APP_GAMES: InAppGame[] = [
     category: 'fast',
   },
   {
+    id: 'coinflip',
+    name: 'CoinFlip',
+    href: '/game/coinflip',
+    bg: '/coinflip.png?v=3d_3',
+    category: 'fast',
+  },
+  // Row 3: Keno, HiLo, MacvPot
+  {
     id: 'keno',
     name: 'Keno',
     href: '/game/keno',
     bg: '/keno.png?v=3d_3',
     category: 'table',
   },
-  // Row 4
   {
     id: 'hilo',
     name: 'Hi-Lo',
@@ -541,12 +539,12 @@ export function HomeScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 lg:gap-4">
               {filteredGames.map((g) => {
                 const isAllDefault = activeCategory === 'all' && !searchQuery.trim();
                 const colSpan = isAllDefault
                   ? (GAME_COL_SPAN[g.id] ?? 'col-span-1')
-                  : 'col-span-3 sm:col-span-1 lg:col-span-1';
+                  : 'col-span-3 sm:col-span-1';
 
                 return (
                   <div key={g.id} className={colSpan}>
