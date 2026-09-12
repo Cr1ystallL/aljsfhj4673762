@@ -671,92 +671,81 @@ function GameTile({
 }) {
   const { t } = useT();
   const BadgeIcon = game.badge?.Icon;
+  const isCrash = game.id === 'crash';
 
   return (
     <Pressable
       onClick={() => router.push(game.href)}
       className={cn(
-        "w-full h-[125px] sm:h-[150px] md:h-[175px] lg:h-[190px] xl:h-[205px] block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_25px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-md"
+        "w-full h-[125px] sm:h-[150px] md:h-[175px] lg:h-[190px] xl:h-[205px] block group relative rounded-2xl text-left active:scale-[0.97] transition-all duration-300"
       )}
     >
-      {/* Background artwork — Full-bleed HD cover */}
-      {game.bg && (
-        <div
-          aria-hidden
-          className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
-          style={{
-            backgroundImage: `url(${game.bg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-            backgroundRepeat: 'no-repeat',
-          }}
-        />
-      )}
-
-      {/* Subtle vignette overlay so text & badge pop without drowning the artwork */}
+      {/* Floor Spotlight glow (no boxy border, pure ambient light) */}
       <div
         aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(0,0,0,0.18) 0%, transparent 40%, rgba(0,0,0,0.12) 65%, rgba(10,10,14,0.65) 100%)',
-        }}
-      />
-
-      {/* Ambient color glow on hover */}
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-20 group-hover:opacity-45 transition-opacity pointer-events-none"
+        className="absolute bottom-1 inset-x-4 h-12 rounded-full blur-xl opacity-25 group-hover:opacity-55 transition-opacity pointer-events-none"
         style={{
           background:
             GAME_GLOW[game.id] ??
-            'radial-gradient(110% 90% at 100% 100%, rgba(212, 175, 55, 0.25) 0%, transparent 70%)',
+            'radial-gradient(110% 90% at 50% 100%, rgba(212, 175, 55, 0.25) 0%, transparent 70%)',
         }}
       />
 
-      {/* Card Content */}
-      <div className="relative h-full w-full p-2.5 sm:p-3 flex flex-col justify-between z-10">
-        {/* Top bar: Badge & Arrow */}
-        <div className="flex items-center justify-between">
-          {game.badge ? (
-            <span
-              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 ${
-                game.badge.color === 'red'
-                  ? 'border-red-500/40 bg-red-500/25 text-red-300'
-                  : game.badge.color === 'gold'
-                  ? 'border-amber-500/40 bg-amber-500/25 text-amber-300'
-                  : game.badge.color === 'cyan'
-                  ? 'border-cyan-500/40 bg-cyan-500/25 text-cyan-300'
-                  : game.badge.color === 'purple'
-                  ? 'border-purple-500/40 bg-purple-500/25 text-purple-300'
-                  : 'border-emerald-500/40 bg-emerald-500/25 text-emerald-300'
-              }`}
-            >
-              {BadgeIcon && <BadgeIcon size={9} className="shrink-0 stroke-[2.2]" />}
-              <span>{game.badge.label}</span>
-            </span>
-          ) : <div />}
+      {/* MacvJet animated downward smoke effect */}
+      {isCrash && (
+        <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible z-0">
+          <div className="relative w-full h-full max-w-[240px] max-h-[190px] flex items-center justify-center">
+            {/* Thruster core hot glow */}
+            <div className="absolute top-[52%] inset-x-10 h-8 bg-amber-500/20 blur-xl rounded-full group-hover:bg-amber-500/35 transition-colors" />
 
-          <span className="w-6 h-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-zinc-400 group-hover:text-amber-300 group-hover:border-amber-400/40 transition-all opacity-0 group-hover:opacity-100 sm:opacity-100">
-            <ArrowRight size={11} strokeWidth={2.2} />
+            {/* Thruster nozzle flames pulsing right under nozzles */}
+            <div className="macvjet-flame-left absolute top-[52%] left-[29%] w-3.5 h-7 bg-gradient-to-b from-cyan-400 via-emerald-400/80 to-transparent rounded-full blur-[2px] origin-top" />
+            <div className="macvjet-flame-center absolute top-[54%] left-[47%] w-4 h-9 bg-gradient-to-b from-yellow-300 via-amber-400/90 to-transparent rounded-full blur-[2px] origin-top" />
+            <div className="macvjet-flame-right absolute top-[52%] right-[29%] w-3.5 h-7 bg-gradient-to-b from-orange-400 via-red-500/80 to-transparent rounded-full blur-[2px] origin-top" />
+
+            {/* Downward flowing smoke plumes */}
+            <div className="macvjet-smoke-1 absolute top-[56%] left-[45%] w-8 h-8 rounded-full bg-gradient-to-b from-amber-200/40 via-white/20 to-transparent blur-[6px]" />
+            <div className="macvjet-smoke-2 absolute top-[54%] left-[30%] w-7 h-7 rounded-full bg-gradient-to-b from-cyan-200/30 via-slate-400/20 to-transparent blur-[6px]" />
+            <div className="macvjet-smoke-3 absolute top-[54%] right-[30%] w-7 h-7 rounded-full bg-gradient-to-b from-orange-200/30 via-slate-400/20 to-transparent blur-[6px]" />
+            <div className="macvjet-smoke-4 absolute top-[58%] left-[38%] w-10 h-10 rounded-full bg-gradient-to-b from-white/25 via-zinc-400/15 to-transparent blur-[8px]" />
+            <div className="macvjet-smoke-5 absolute top-[58%] left-[48%] w-9 h-9 rounded-full bg-gradient-to-b from-amber-100/25 via-zinc-400/15 to-transparent blur-[7px]" />
+          </div>
+        </div>
+      )}
+
+      {/* 3D Game Object (transparent floating with drop shadow) */}
+      {game.bg && (
+        <img
+          src={game.bg}
+          alt={game.name}
+          className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] group-hover:scale-105 group-hover:drop-shadow-[0_18px_32px_rgba(255,172,46,0.35)] transition-all duration-300 pointer-events-none select-none"
+        />
+      )}
+
+      {/* Floating Badge (Top-left) & Floating Arrow (Top-right) */}
+      <div className="absolute inset-0 p-2 sm:p-2.5 flex items-start justify-between z-20 pointer-events-none">
+        {game.badge ? (
+          <span
+            className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 ${
+              game.badge.color === 'red'
+                ? 'border-red-500/40 bg-red-500/25 text-red-300'
+                : game.badge.color === 'gold'
+                ? 'border-amber-500/40 bg-amber-500/25 text-amber-300'
+                : game.badge.color === 'cyan'
+                ? 'border-cyan-500/40 bg-cyan-500/25 text-cyan-300'
+                : game.badge.color === 'purple'
+                ? 'border-purple-500/40 bg-purple-500/25 text-purple-300'
+                : 'border-emerald-500/40 bg-emerald-500/25 text-emerald-300'
+            }`}
+          >
+            {BadgeIcon && <BadgeIcon size={9} className="shrink-0 stroke-[2.2]" />}
+            <span>{game.badge.label}</span>
           </span>
-        </div>
+        ) : <div />}
 
-        {/* Bottom bar: Title & Subtitle */}
-        <div className="min-w-0">
-          <div className="font-roobert text-[12px] sm:text-[13.5px] font-bold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] group-hover:text-amber-300 transition-colors truncate">
-            {game.name}
-          </div>
-          <div className="mt-0.5 font-roobert text-[9.5px] sm:text-[10px] text-zinc-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] tracking-wide">
-            {game.id === 'crash'
-              ? 'Crash Game'
-              : game.id === 'blackjack'
-              ? 'Live Table'
-              : game.id === 'macvpot'
-              ? 'Jackpot Game'
-              : 'Фирменная игра'}
-          </div>
-        </div>
+        <span className="w-6 h-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-zinc-400 group-hover:text-amber-300 group-hover:border-amber-400/40 transition-all opacity-0 group-hover:opacity-100 sm:opacity-100 shadow-sm">
+          <ArrowRight size={11} strokeWidth={2.2} />
+        </span>
       </div>
     </Pressable>
   );
