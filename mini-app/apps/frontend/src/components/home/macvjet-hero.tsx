@@ -253,12 +253,12 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#07090d] via-[#07090d]/80 to-transparent" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_80%_110%,rgba(165,45,37,0.35),transparent_55%),radial-gradient(80%_50%_at_10%_-10%,rgba(251,191,36,0.15),transparent_50%)]" />
 
-      <div className="relative z-10 flex min-h-[168px] flex-col justify-between px-5 py-4">
+      <div className="relative z-10 flex min-h-[135px] sm:min-h-[145px] flex-col justify-between px-4 py-3 sm:px-5 sm:py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.08] text-emerald-300 ring-1 ring-white/10">
-                <Rocket className="h-3.5 w-3.5" />
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/[0.08] text-emerald-300 ring-1 ring-white/10">
+                <Rocket className="h-3 w-3" />
               </span>
               <span className="font-roobert text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
                 MacvJet
@@ -282,18 +282,18 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
                 {statusLabel}
               </span>
             </div>
-            <p className="mt-2 max-w-[230px] font-roobert text-[13px] leading-snug text-white/50">
+            <p className="mt-1.5 max-w-[230px] font-roobert text-[12px] leading-snug text-white/50">
               {t("home.heroCrashSub")}
             </p>
           </div>
 
           {live.last != null && live.phase !== "crashed" && (
-            <div className="shrink-0 rounded-2xl bg-black/45 px-2.5 py-1.5 text-right ring-1 ring-white/10">
+            <div className="shrink-0 rounded-2xl bg-black/45 px-2.5 py-1 text-right ring-1 ring-white/10">
               <div className="font-roobert text-[9px] font-semibold uppercase tracking-wider text-white/35">
                 {t("home.jetLast")}
               </div>
               <div
-                className={`font-roobert text-[13px] font-bold tabular-nums ${
+                className={`font-roobert text-[12px] font-bold tabular-nums ${
                   live.last >= 2 ? "text-emerald-300" : "text-white/70"
                 }`}
               >
@@ -303,13 +303,13 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
           )}
         </div>
 
-        <div className="mt-4 flex items-end justify-between gap-3">
+        <div className="mt-2.5 flex items-end justify-between gap-3">
           <div className="min-w-0">
             <motion.div
               key={live.phase}
               initial={reduceMotion ? false : { opacity: 0.6, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`font-roobert text-[44px] font-bold leading-none tracking-[-0.04em] tabular-nums ${
+              className={`font-roobert text-[32px] sm:text-[38px] font-bold leading-none tracking-[-0.04em] tabular-nums ${
                 live.phase === "crashed"
                   ? "text-rose-300"
                   : liveOn

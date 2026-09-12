@@ -413,7 +413,7 @@ export function HomeScreen() {
       />
 
       <motion.div
-        className={`mx-auto w-full ${PAGE_WIDTH.wide} px-3.5 sm:px-6 pt-4 pb-32 flex flex-col gap-6`}
+        className="mx-auto w-full max-w-[480px] sm:max-w-[640px] md:max-w-[800px] lg:max-w-[920px] px-3.5 sm:px-5 pt-3 pb-28 flex flex-col gap-5"
         initial={skipEntrance ? false : 'hidden'}
         animate={lobbyReady ? 'show' : 'hidden'}
         variants={{
@@ -680,10 +680,10 @@ function GameTile({
     <Pressable
       onClick={() => router.push(game.href)}
       className={cn(
-        "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_25px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg",
+        "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-md",
         isWide
-          ? "aspect-[16/9] min-h-[140px] sm:min-h-[170px]"
-          : "aspect-[1/1.12] min-h-[130px] sm:min-h-[160px]"
+          ? "aspect-[2.1/1] sm:aspect-[2.2/1] max-h-[200px] min-h-[105px] sm:min-h-[135px]"
+          : "aspect-square max-h-[200px] min-h-[105px] sm:min-h-[135px]"
       )}
     >
       {/* Background artwork — Full-bleed HD cover */}
@@ -722,12 +722,12 @@ function GameTile({
       />
 
       {/* Card Content */}
-      <div className="relative h-full w-full p-3 sm:p-4 flex flex-col justify-between z-10">
+      <div className="relative h-full w-full p-2.5 sm:p-3 flex flex-col justify-between z-10">
         {/* Top bar: Badge & Arrow */}
         <div className="flex items-center justify-between">
           {game.badge ? (
             <span
-              className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 ${
+              className={`px-2 py-0.5 rounded-full text-[9px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border shadow-sm inline-flex items-center gap-1 ${
                 game.badge.color === 'red'
                   ? 'border-red-500/40 bg-red-500/25 text-red-300'
                   : game.badge.color === 'gold'
@@ -739,22 +739,22 @@ function GameTile({
                   : 'border-emerald-500/40 bg-emerald-500/25 text-emerald-300'
               }`}
             >
-              {BadgeIcon && <BadgeIcon size={10} className="shrink-0 stroke-[2.2]" />}
+              {BadgeIcon && <BadgeIcon size={9} className="shrink-0 stroke-[2.2]" />}
               <span>{game.badge.label}</span>
             </span>
           ) : <div />}
 
-          <span className="w-7 h-7 rounded-lg border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-zinc-400 group-hover:text-amber-300 group-hover:border-amber-400/40 transition-all opacity-0 group-hover:opacity-100 sm:opacity-100">
-            <ArrowRight size={13} strokeWidth={2.2} />
+          <span className="w-6 h-6 rounded-lg border border-white/10 bg-black/40 backdrop-blur-md flex items-center justify-center text-zinc-400 group-hover:text-amber-300 group-hover:border-amber-400/40 transition-all opacity-0 group-hover:opacity-100 sm:opacity-100">
+            <ArrowRight size={11} strokeWidth={2.2} />
           </span>
         </div>
 
         {/* Bottom bar: Title & Subtitle */}
         <div>
-          <div className="font-roobert text-[15px] sm:text-[17px] font-bold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-300 transition-colors truncate">
+          <div className="font-roobert text-[13px] sm:text-[14px] font-bold leading-tight text-frost-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-300 transition-colors truncate">
             {game.name}
           </div>
-          <div className="mt-0.5 font-roobert text-[10px] sm:text-[11px] text-zinc-400 tracking-wide">
+          <div className="mt-0.5 font-roobert text-[10px] text-zinc-400 tracking-wide">
             {game.id === 'crash'
               ? 'Crash Game'
               : game.id === 'blackjack'
@@ -928,24 +928,24 @@ function TournamentHeroCard({
             'radial-gradient(120% 100% at 100% 100%, rgba(255, 172, 46, 0.32) 0%, rgba(160, 224, 171, 0.14) 50%, transparent 80%)',
         }}
       />
-      <div className="relative px-5 py-4 sm:px-6 sm:py-5 flex flex-col gap-3 z-10">
+      <div className="relative px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col gap-2.5 z-10">
         <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/20 text-amber-300 text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md">
-            <Trophy size={11} className="text-amber-400" strokeWidth={2.2} />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/20 text-amber-300 text-[9px] sm:text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md">
+            <Trophy size={10} className="text-amber-400" strokeWidth={2.2} />
             Турнир {tournament.gameType ? `· ${tournament.gameType.toUpperCase()}` : ''}
           </span>
-          <span className="font-roobert text-[11px] text-amber-200/90 font-medium tabular-nums flex items-center gap-1">
+          <span className="font-roobert text-[10px] sm:text-[11px] text-amber-200/90 font-medium tabular-nums flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             до конца {remaining}
           </span>
         </div>
 
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-semibold leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
+            <div className="font-roobert text-frost-white text-[17px] sm:text-[20px] font-semibold leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-amber-200 transition-colors">
               {tournament.title}
             </div>
-            <div className="mt-1 flex items-center gap-2.5 font-roobert text-[12px] text-whisper-gray tabular-nums">
+            <div className="mt-0.5 flex items-center gap-2 font-roobert text-[11px] text-whisper-gray tabular-nums">
               <span>
                 Призовой фонд:{' '}
                 <span className="text-amber-300 font-bold">
@@ -961,8 +961,8 @@ function TournamentHeroCard({
               </span>
             </div>
           </div>
-          <span className="shrink-0 w-10 h-10 rounded-xl border border-amber-500/40 bg-amber-500/15 flex items-center justify-center backdrop-blur-md text-amber-300 group-hover:scale-105 transition-transform">
-            <ArrowRight size={18} strokeWidth={2.2} />
+          <span className="shrink-0 w-8 h-8 rounded-lg border border-amber-500/40 bg-amber-500/15 flex items-center justify-center backdrop-blur-md text-amber-300 group-hover:scale-105 transition-transform">
+            <ArrowRight size={15} strokeWidth={2.2} />
           </span>
         </div>
       </div>
@@ -1009,26 +1009,26 @@ function ContestHero({
             'radial-gradient(120% 100% at 100% 100%, rgba(168, 85, 247, 0.30) 0%, rgba(255, 172, 46, 0.16) 50%, transparent 80%)',
         }}
       />
-      <div className="relative px-5 py-4 sm:px-6 sm:py-5 flex flex-col gap-3 z-10">
+      <div className="relative px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col gap-2.5 z-10">
         <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-purple-500/40 bg-purple-500/20 text-purple-300 text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md">
-            <Gift size={11} className="text-purple-300" strokeWidth={2.2} />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-purple-500/40 bg-purple-500/20 text-purple-300 text-[9px] sm:text-[10px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md">
+            <Gift size={10} className="text-purple-300" strokeWidth={2.2} />
             {contest.visibility === 'global'
               ? 'Глобальный конкурс'
               : 'Активный конкурс'}
           </span>
-          <span className="font-roobert text-[11px] text-purple-200/90 font-medium tabular-nums flex items-center gap-1">
+          <span className="font-roobert text-[10px] sm:text-[11px] text-purple-200/90 font-medium tabular-nums flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
             до конца {remaining}
           </span>
         </div>
 
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-roobert text-frost-white text-[22px] sm:text-[26px] font-semibold leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-purple-200 transition-colors">
+            <div className="font-roobert text-frost-white text-[17px] sm:text-[20px] font-semibold leading-tight tracking-tight truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] group-hover:text-purple-200 transition-colors">
               {contest.title}
             </div>
-            <div className="mt-1 flex items-center gap-2.5 font-roobert text-[12px] text-whisper-gray tabular-nums">
+            <div className="mt-0.5 flex items-center gap-2 font-roobert text-[11px] text-purple-200/80 tabular-nums">
               <span>
                 Призовой фонд:{' '}
                 <span className="text-purple-300 font-bold">
@@ -1042,8 +1042,8 @@ function ContestHero({
               <span>Победителей: {contest.winnersCount}</span>
             </div>
           </div>
-          <span className="shrink-0 w-10 h-10 rounded-xl border border-purple-500/40 bg-purple-500/15 flex items-center justify-center backdrop-blur-md text-purple-300 group-hover:scale-105 transition-transform">
-            <ArrowRight size={18} strokeWidth={2.2} />
+          <span className="shrink-0 w-8 h-8 rounded-lg border border-purple-500/40 bg-purple-500/15 flex items-center justify-center backdrop-blur-md text-purple-300 group-hover:scale-105 transition-transform">
+            <ArrowRight size={15} strokeWidth={2.2} />
           </span>
         </div>
       </div>
