@@ -680,33 +680,33 @@ function GameTile({
     <Pressable
       onClick={() => router.push(game.href)}
       className={cn(
-        "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg",
+        "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_25px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg",
         isWide
-          ? "aspect-[2.05/1] min-h-[120px] sm:min-h-[150px]"
-          : "aspect-square min-h-[110px] sm:min-h-[140px]"
+          ? "aspect-[16/9] min-h-[140px] sm:min-h-[170px]"
+          : "aspect-[1/1.12] min-h-[130px] sm:min-h-[160px]"
       )}
     >
-      {/* Background artwork */}
+      {/* Background artwork — Full-bleed HD cover */}
       {game.bg && (
         <div
           aria-hidden
           className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
           style={{
             backgroundImage: `url(${game.bg})`,
-            backgroundSize: isWide ? 'cover' : '76%',
-            backgroundPosition: isWide ? 'center' : 'center 42%',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center center',
             backgroundRepeat: 'no-repeat',
           }}
         />
       )}
 
-      {/* Dark gradient overlay */}
+      {/* Subtle vignette overlay so text & badge pop without drowning the artwork */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(10,10,14,0.65) 60%, rgba(10,10,14,0.95) 100%)',
+            'linear-gradient(180deg, rgba(0,0,0,0.22) 0%, transparent 35%, rgba(0,0,0,0.15) 60%, rgba(10,10,14,0.85) 100%)',
         }}
       />
 
