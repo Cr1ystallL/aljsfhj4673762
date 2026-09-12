@@ -1,33 +1,40 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   BookOpen,
+  ChevronDown,
+  ChevronUp,
   ChevronRight,
-  Crown,
-  Flame,
-  Gem,
+  Gamepad2,
   Gift,
   Headphones,
-  Layers,
+  Home,
   Percent,
   Sparkles,
+  Plus,
+  Rocket,
+  Bomb,
+  Spade,
+  Coins,
+  Disc3,
+  Box,
+  Dice5,
   Trophy,
-  Wallet,
+  Dribbble,
+  CircleDot,
+  Radio,
   X,
-  Zap,
-  type LucideIcon,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { GameIcon, type GameKey } from '@/components/ui/game-icon';
+import { BrandMark } from '@/components/ui/brand-mark';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
-import { BrandLockup, BrandWordmark } from '@/components/ui/brand-mark';
 import { StreakFlameBadge } from '@/components/ui/streak-flame-badge';
-import { useWinStreak } from '@/hooks/use-win-streak';
-import { useVip } from '@/hooks/use-vip';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
+import { useWinStreak } from '@/hooks/use-win-streak';
+import { useVip } from '@/hooks/use-vip';
 import { useT } from '@/i18n/use-t';
 
 const RANK_IMAGES: Record<string, string> = {
@@ -39,33 +46,32 @@ const RANK_IMAGES: Record<string, string> = {
   diamond: '/Rangs/Diamond.png',
 };
 
+const SIDEBAR_GAMES = [
+  { id: 'crash', name: 'MacvJet', href: '/game/crash', Icon: Rocket },
+  { id: 'mines', name: 'Mines', href: '/game/mines', Icon: Bomb },
+  { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', Icon: Spade },
+  { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', Icon: Coins },
+  { id: 'wheel', name: 'Wheel', href: '/game/wheel', Icon: Disc3 },
+  { id: 'cases', name: 'Case', href: '/game/cases', Icon: Box },
+  { id: 'keno', name: 'Keno', href: '/game/keno', Icon: Dice5 },
+  { id: 'macvpot', name: 'MacvPot', href: '/game/macvpot', Icon: Trophy },
+  { id: 'hilo', name: 'Hi-Lo', href: '/game/hilo', Icon: ChevronUp },
+];
+
+const SIDEBAR_SPORTS = [
+  { id: 'all_sports', name: 'Все события / Live', href: '/sport', Icon: Radio },
+  { id: 'football', name: 'Футбол', href: '/sport?category=football', Icon: SoccerBallIcon },
+  { id: 'basketball', name: 'Баскетбол', href: '/sport?category=basketball', Icon: Dribbble },
+  { id: 'tennis', name: 'Теннис', href: '/sport?category=tennis', Icon: CircleDot },
+  { id: 'esports', name: 'Киберспорт (CS2, Dota 2)', href: '/sport?category=cybersport', Icon: Gamepad2 },
+];
+
 interface MenuDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onGameSelect: (game: string) => void;
+  onGameSelect?: (game: string) => void;
   isAuthenticated?: boolean;
 }
-
-interface InAppGame {
-  id: GameKey;
-  name: string;
-  bg: string;
-  badge?: { label: string; color: string; Icon: LucideIcon };
-}
-
-type SupportedDrawerGame = 'crash' | 'mines' | 'blackjack' | 'coinflip' | 'wheel' | 'hilo' | 'macvpot' | 'keno' | 'cases';
-
-const GAME_BY_ID: Record<SupportedDrawerGame, InAppGame> = {
-  crash: { id: 'crash', name: 'MacvJet', bg: '/tiles/macvjet.webp', badge: { label: 'TOP', color: 'red', Icon: Flame } },
-  mines: { id: 'mines', name: 'Mines', bg: '/tiles/mines.webp', badge: { label: 'HOT', color: 'gold', Icon: Sparkles } },
-  blackjack: { id: 'blackjack', name: 'BlackJack', bg: '/tiles/bj.webp', badge: { label: 'PRO', color: 'gold', Icon: Crown } },
-  coinflip: { id: 'coinflip', name: 'CoinFlip', bg: '/tiles/coinflip.webp', badge: { label: '50/50', color: 'cyan', Icon: Gem } },
-  wheel: { id: 'wheel', name: 'Wheel', bg: '/tiles/wheel.webp', badge: { label: 'x50', color: 'gold', Icon: Zap } },
-  hilo: { id: 'hilo', name: 'Hi-Lo', bg: '/tiles/hilo.webp', badge: { label: 'FAST', color: 'cyan', Icon: Zap } },
-  macvpot: { id: 'macvpot', name: 'MacvPot', bg: '/tiles/macvpot.webp', badge: { label: 'JACKPOT', color: 'purple', Icon: Trophy } },
-  keno: { id: 'keno', name: 'Keno', bg: '/tiles/keno.webp', badge: { label: 'LOTTO', color: 'purple', Icon: Layers } },
-  cases: { id: 'cases', name: 'Case', bg: '/tiles/case.webp', badge: { label: 'BONUS', color: 'green', Icon: Gift } },
-};
 
 export function MenuDrawer({
   isOpen,
@@ -73,57 +79,23 @@ export function MenuDrawer({
   onGameSelect,
   isAuthenticated = false,
 }: MenuDrawerProps) {
+  const pathname = usePathname() ?? '/';
   const router = useRouter();
   const { t, localeTag } = useT();
   const { user } = useAuthStore();
-  const { streak } = useWinStreak();
   const balanceStore = useBalanceStore((s) => s.balance);
+  const { streak } = useWinStreak();
   const { status: vipStatus } = useVip();
+
+  const [gamesOpen, setGamesOpen] = useState(true);
+  const [sportsOpen, setSportsOpen] = useState(false);
+
+  const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
+  const balanceAmount = balanceStore?.amount ?? 0;
 
   const currentRankId = vipStatus?.currentTier?.id ?? 'bronze';
   const currentRankName = vipStatus?.currentTier?.nameRu ?? 'Бронза';
   const rankImage = RANK_IMAGES[currentRankId] ?? '/Rangs/Bronze.png';
-
-  const [availability, setAvailability] = useState<{
-    isAdmin: boolean;
-    hidden: Record<string, boolean>;
-  } | null>(null);
-
-  // Fetch Admin hidden games availability
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/games/availability', {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (cancelled) return;
-        const hidden: Record<string, boolean> = {};
-        if (Array.isArray(json.games)) {
-          for (const g of json.games) {
-            if (g?.gameType) hidden[g.gameType] = !!g.hidden;
-          }
-        }
-        setAvailability({ isAdmin: !!json.isAdmin, hidden });
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen]);
-
-  const isGameVisible = (id: GameKey) => {
-    const hidden = availability?.hidden ?? {};
-    const isAdmin = availability?.isAdmin ?? false;
-    if (hidden[id] && !isAdmin) return false;
-    return true;
-  };
 
   // Close on Escape key
   useEffect(() => {
@@ -140,57 +112,68 @@ export function MenuDrawer({
     };
   }, [isOpen, onClose]);
 
-  const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
-
-  const handleOpenGame = (gameId: string) => {
+  const handleNav = (href: string) => {
     onClose();
-    router.push(`/game/${gameId}`);
+    router.push(href);
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop overlay */}
+          {/* Backdrop overlay (dimmed blurred area on the right, tapping closes drawer) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/80"
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm cursor-pointer"
           />
 
-          {/* Drawer panel */}
+          {/* Drawer panel: opens partially (w-[78%] sm:w-[320px] max-w-[320px]) so background stays visible */}
           <motion.div
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
-            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="relative z-10 w-[88%] max-w-[350px] h-full bg-midnight-canvas border-r border-white/10 flex flex-col justify-between overflow-y-auto shadow-2xl no-scrollbar"
+            transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+            className="relative z-10 w-[78%] sm:w-[320px] max-w-[320px] h-full bg-black border-r border-white/10 flex flex-col justify-between p-4 overflow-y-auto shadow-2xl no-scrollbar selection:bg-amber-500/30"
           >
-            {/* Top Header */}
-            <div className="p-4 border-b border-white/10 flex flex-col gap-3.5">
-              <div className="flex items-center justify-between">
-                <BrandWordmark size={32} />
+            <div className="space-y-4">
+              {/* Brand Logo & Close Button */}
+              <div className="flex items-center justify-between px-1 py-1">
+                <div
+                  onClick={() => handleNav('/')}
+                  className="flex items-center gap-3 cursor-pointer group"
+                >
+                  <BrandMark variant="gradient" size={38} />
+                  <div className="font-brand font-black text-2xl tracking-wider flex items-center leading-none">
+                    <span className="text-white">Macv</span>
+                    <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                      Bet
+                    </span>
+                  </div>
+                </div>
+
                 <button
                   onClick={onClose}
-                  aria-label={t('nav.closeMenu')}
-                  className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-whisper-gray hover:text-frost-white active:scale-95 transition-transform"
+                  aria-label="Закрыть меню"
+                  className="w-8 h-8 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white active:scale-95 transition-all"
                 >
                   <X size={16} />
                 </button>
               </div>
 
-              {/* User Header Card */}
-              <div className="p-3 rounded-2xl border border-amber-500/25 bg-gradient-to-b from-[#16151c] to-[#0f0e13] flex flex-col gap-2.5 shadow-md">
-                <div className="flex items-center justify-between gap-2.5">
+              {/* User Profile Header Card (identical to PC sidebar) */}
+              <div className="p-3.5 rounded-2xl border border-white/10 bg-[#121217] shadow-[0_8px_20px_rgba(0,0,0,0.5)] flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-10 h-10 rounded-full border border-amber-400/40 bg-amber-500/10 flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-amber-400/20">
+                    <div className="relative w-10 h-10 rounded-full border border-amber-400/40 bg-amber-500/10 flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-amber-400/20">
                       {user?.photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={user.photoUrl}
-                          alt="User"
+                          alt={user.firstName || 'User'}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
@@ -202,8 +185,8 @@ export function MenuDrawer({
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-roobert font-bold text-[14px] text-frost-white truncate">
-                          {user?.firstName || t('profile.player')}
+                        <span className="font-roobert font-bold text-[14px] text-white truncate">
+                          {user?.firstName || 'Игрок'}
                         </span>
                         {streak >= 2 && <StreakFlameBadge streak={streak} size="sm" />}
                       </div>
@@ -219,326 +202,213 @@ export function MenuDrawer({
                   </div>
 
                   <button
-                    onClick={() => {
-                      onClose();
-                      router.push('/profile');
-                    }}
+                    onClick={() => handleNav('/profile')}
                     title="Профиль"
-                    className="p-1.5 rounded-xl border border-amber-500/20 bg-white/[0.04] text-zinc-400 hover:text-white shrink-0 active:scale-95 transition-transform cursor-pointer"
+                    className="p-2 rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 hover:text-white hover:border-white/20 transition-all cursor-pointer shrink-0"
                   >
-                    <ChevronRight size={16} />
+                    <ChevronRight size={16} className="text-white/80" />
                   </button>
                 </div>
 
+                {/* Balance & Deposit Button */}
                 <div className="pt-2 border-t border-amber-500/15 flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-medium">Баланс</div>
-                    <div className="font-roobert text-[14px] font-extrabold gold-text-gradient tabular-nums truncate">
-                      {(balanceStore?.amount ?? 0).toLocaleString(localeTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
+                      Баланс
+                    </div>
+                    <div className="font-roobert font-extrabold text-[15px] text-frost-white tabular-nums tracking-tight gold-text-gradient truncate">
+                      {balanceAmount.toLocaleString(localeTag, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{' '}
                       ₽
                     </div>
                   </div>
+
                   <button
-                    onClick={() => {
-                      onClose();
-                      router.push('/balance');
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-extrabold text-[11px] shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
+                    onClick={() => handleNav('/balance')}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-extrabold text-xs shadow-md shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
                   >
-                    + Пополнить
+                    <Plus size={13} strokeWidth={3} />
+                    <span>Пополнить</span>
                   </button>
                 </div>
               </div>
-            </div>
 
-            {/* Main Content Area */}
-            <div className="p-4 flex flex-col gap-5 flex-1">
-              {/* Games Layout in exact requested structure:
-                  2 squares (MacvJet, Mines)
-                  1 rect (BlackJack)
-                  2 squares (CoinFlip, Wheel)
-                  1 rect (HiLo)
-                  2 squares (MacvPot, Keno)
-                  1 rect (Case)
-              */}
-              <div className="flex flex-col gap-2.5">
-                <div className="flex items-baseline justify-between">
-                  <span className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                    {t('nav.gamesMiniApp')}
-                  </span>
-                </div>
+              {/* Navigation Rail with Categories & Accordions (identical to PC sidebar) */}
+              <nav className="space-y-1 text-sm font-medium">
+                {/* Главная */}
+                <button
+                  onClick={() => handleNav('/')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left cursor-pointer ${
+                    pathname === '/'
+                      ? 'bg-white/10 text-white font-semibold shadow-md'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <Home className="w-4 h-4 text-white shrink-0" />
+                  <span className="text-[13px]">Главная</span>
+                </button>
 
-                <div className="flex flex-col gap-2">
-                  {/* Block 1: 2 Squares (MacvJet, Mines) */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {isGameVisible('crash') && (
-                      <DrawerGameSquare game={GAME_BY_ID.crash} onClick={() => handleOpenGame('crash')} />
+                {/* Категория: Игры (Dropdown / Accordion) */}
+                <div className="pt-1">
+                  <button
+                    onClick={() => setGamesOpen(!gamesOpen)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/[0.03] transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Gamepad2 className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-[13px] font-bold">Игры</span>
+                    </div>
+                    {gamesOpen ? (
+                      <ChevronUp size={15} className="text-zinc-400" />
+                    ) : (
+                      <ChevronDown size={15} className="text-zinc-400" />
                     )}
-                    {isGameVisible('mines') && (
-                      <DrawerGameSquare game={GAME_BY_ID.mines} onClick={() => handleOpenGame('mines')} />
-                    )}
-                  </div>
+                  </button>
 
-                  {/* Block 2: 1 Rectangle (BlackJack) */}
-                  {isGameVisible('blackjack') && (
-                    <DrawerGameRectangle game={GAME_BY_ID.blackjack} onClick={() => handleOpenGame('blackjack')} />
-                  )}
-
-                  {/* Block 3: 2 Squares (CoinFlip, Wheel) */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {isGameVisible('coinflip') && (
-                      <DrawerGameSquare game={GAME_BY_ID.coinflip} onClick={() => handleOpenGame('coinflip')} />
-                    )}
-                    {isGameVisible('wheel') && (
-                      <DrawerGameSquare game={GAME_BY_ID.wheel} onClick={() => handleOpenGame('wheel')} />
-                    )}
-                  </div>
-
-                  {/* Block 4: 1 Rectangle (HiLo) */}
-                  {isGameVisible('hilo') && (
-                    <DrawerGameRectangle game={GAME_BY_ID.hilo} onClick={() => handleOpenGame('hilo')} />
-                  )}
-
-                  {/* Block 5: 2 Squares (MacvPot, Keno) */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {isGameVisible('macvpot') && (
-                      <DrawerGameSquare game={GAME_BY_ID.macvpot} onClick={() => handleOpenGame('macvpot')} />
-                    )}
-                    {isGameVisible('keno') && (
-                      <DrawerGameSquare game={GAME_BY_ID.keno} onClick={() => handleOpenGame('keno')} />
-                    )}
-                  </div>
-
-                  {/* Block 6: 1 Rectangle (Case) */}
-                  {isGameVisible('cases') && (
-                    <DrawerGameRectangle game={GAME_BY_ID.cases} onClick={() => handleOpenGame('cases')} />
+                  {gamesOpen && (
+                    <div className="pl-3 pr-1 pt-1 space-y-0.5 border-l border-white/10 ml-4 my-1">
+                      {SIDEBAR_GAMES.map((g) => {
+                        const isActive = pathname.startsWith(g.href);
+                        const IconComp = g.Icon;
+                        return (
+                          <button
+                            key={g.id}
+                            onClick={() => handleNav(g.href)}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-white/15 text-white font-semibold'
+                                : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                            }`}
+                          >
+                            <IconComp size={15} className="text-white shrink-0" />
+                            <span className="text-[12px] truncate">{g.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-              </div>
 
-              {/* Sections in Mobile 2-col Grid */}
-              <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
-                <div className="font-roobert text-[10px] uppercase tracking-[0.3em] text-whisper-gray">
-                  {t('nav.sections')}
+                {/* Категория: Ставки на спорт (Dropdown / Accordion) */}
+                <div className="pt-1">
+                  <button
+                    onClick={() => setSportsOpen(!sportsOpen)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/[0.03] transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <SoccerBallIcon size={16} className="text-white shrink-0" />
+                      <span className="text-[13px] font-bold">Ставки на спорт</span>
+                    </div>
+                    {sportsOpen ? (
+                      <ChevronUp size={15} className="text-zinc-400" />
+                    ) : (
+                      <ChevronDown size={15} className="text-zinc-400" />
+                    )}
+                  </button>
+
+                  {sportsOpen && (
+                    <div className="pl-3 pr-1 pt-1 space-y-0.5 border-l border-white/10 ml-4 my-1">
+                      {SIDEBAR_SPORTS.map((s) => {
+                        const isActive = pathname === s.href;
+                        const SportIcon = s.Icon;
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => handleNav(s.href)}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-white/15 text-white font-semibold'
+                                : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                            }`}
+                          >
+                            <SportIcon size={14} className="text-white/80 shrink-0" />
+                            <span className="text-[12px] truncate">{s.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <MobileSectionTile
-                    icon={<SoccerBallIcon size={18} className="text-frost-white" />}
-                    title={t('nav.sportsTitle')}
-                    subtitle="Ставки на спорт"
-                    onClick={() => {
-                      onClose();
-                      router.push('/sport');
-                    }}
-                  />
-                  <MobileSectionTile
-                    icon={<Wallet size={18} className="text-frost-white" />}
-                    title={t('nav.walletTitle')}
-                    subtitle="Баланс и касса"
-                    onClick={() => {
-                      onClose();
-                      router.push('/balance');
-                    }}
-                  />
-                  <MobileSectionTile
-                    icon={<Sparkles size={18} className="text-frost-white" />}
-                    title={t('nav.bonusesTitle')}
-                    subtitle="Промо и колесо"
-                    onClick={() => {
-                      onClose();
-                      router.push('/bonuses');
-                    }}
-                  />
-                  <MobileSectionTile
-                    icon={<Percent size={18} className="text-emerald-400" />}
-                    title="Кэшбэк"
-                    subtitle="Возврат до 10%"
-                    onClick={() => {
-                      onClose();
-                      router.push('/cashback');
-                    }}
-                  />
-                  <MobileSectionTile
-                    icon={<BookOpen size={18} className="text-frost-white" />}
-                    title={t('nav.faqTitle')}
-                    subtitle="FAQ & Правила"
-                    onClick={() => {
-                      onClose();
-                      router.push('/info');
-                    }}
-                  />
-                  <MobileSectionTile
-                    icon={<Headphones size={18} className="text-frost-white" />}
-                    title={t('nav.supportTitle')}
-                    subtitle="24/7 Саппорт"
+                {/* Дополнительные разделы */}
+                <div className="pt-2 space-y-1 border-t border-white/10">
+                  {/* Бонусы */}
+                  <button
+                    onClick={() => handleNav('/bonuses')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left cursor-pointer ${
+                      pathname.startsWith('/bonuses')
+                        ? 'bg-white/10 text-white font-semibold'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Gift className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-[13px]">Бонусы и акции</span>
+                    </div>
+                    <Sparkles size={13} className="text-amber-400" />
+                  </button>
+
+                  {/* Кэшбэк */}
+                  <button
+                    onClick={() => handleNav('/cashback')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left cursor-pointer ${
+                      pathname.startsWith('/cashback')
+                        ? 'bg-white/10 text-white font-semibold'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Percent className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-[13px]">Кэшбэк</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      до 10%
+                    </span>
+                  </button>
+
+                  {/* FAQ и Правила */}
+                  <button
+                    onClick={() => handleNav('/info')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left cursor-pointer ${
+                      pathname.startsWith('/info')
+                        ? 'bg-white/10 text-white font-semibold'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-[13px]">FAQ & Правила</span>
+                  </button>
+
+                  {/* Техподдержка 24/7 */}
+                  <button
                     onClick={() => {
                       onClose();
                       window.open('https://t.me/MacvBetSupport', '_blank');
                     }}
-                  />
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-all text-left cursor-pointer"
+                  >
+                    <Headphones className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-[13px]">Поддержка (ТП)</span>
+                  </button>
                 </div>
-              </div>
+              </nav>
             </div>
 
-            {/* Drawer Footer */}
-            <div className="p-4 border-t border-white/10 flex flex-col items-center gap-2 bg-black/30">
-              <BrandLockup size={44} />
-              <div className="font-roobert text-[10px] text-whisper-gray/60">
-                MACVBET © 2026. All rights reserved.
+            {/* Clean Brand Footer (identical to PC sidebar) */}
+            <div className="pt-4 pb-1 border-t border-white/10 flex items-center justify-center gap-2.5">
+              <BrandMark variant="gradient" size={34} />
+              <div className="font-brand font-black text-xl tracking-wider flex items-center leading-none">
+                <span className="text-white">Macv</span>
+                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                  Bet
+                </span>
               </div>
             </div>
           </motion.div>
         </div>
       )}
     </AnimatePresence>
-  );
-}
-
-function DrawerGameSquare({
-  game,
-  onClick,
-}: {
-  game: InAppGame;
-  onClick: () => void;
-}) {
-  const BadgeIcon = game.badge?.Icon;
-  return (
-    <button
-      key={game.id}
-      onClick={onClick}
-      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#12141a] text-center active:scale-[0.96] hover:border-amber-400/40 transition-all duration-200 shadow-md aspect-square flex flex-col items-center justify-between p-2.5"
-    >
-      {game.bg && (
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity duration-300"
-          style={{
-            backgroundImage: `url(${game.bg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
-        />
-      )}
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20"
-      />
-      <div className="relative z-10 w-full flex justify-end">
-        {game.badge ? (
-          <span className="px-1.5 py-0.5 rounded-full text-[7.5px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-0.5">
-            {BadgeIcon && <BadgeIcon size={7} className="shrink-0" />}
-            <span>{game.badge.label}</span>
-          </span>
-        ) : (
-          <span className="h-3" />
-        )}
-      </div>
-      <div className="relative z-10 w-9 h-9 rounded-xl border border-white/15 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shadow-md group-hover:scale-110 transition-transform">
-        <GameIcon game={game.id} size={20} strokeWidth={2} />
-      </div>
-      <div className="relative z-10 w-full truncate">
-        <div className="font-roobert text-[11.5px] font-bold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors truncate">
-          {game.name}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function DrawerGameRectangle({
-  game,
-  onClick,
-}: {
-  game: InAppGame;
-  onClick: () => void;
-}) {
-  const BadgeIcon = game.badge?.Icon;
-  return (
-    <button
-      key={game.id}
-      onClick={onClick}
-      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#12141a] text-left active:scale-[0.97] hover:border-amber-400/40 transition-all duration-200 shadow-md h-[66px] w-full flex items-center justify-between px-3.5"
-    >
-      {game.bg && (
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity duration-300"
-          style={{
-            backgroundImage: `url(${game.bg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
-        />
-      )}
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/65 to-black/35"
-      />
-      <div className="relative z-10 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl border border-white/15 bg-black/60 backdrop-blur-md flex items-center justify-center text-frost-white shadow-md group-hover:scale-110 transition-transform shrink-0">
-          <GameIcon game={game.id} size={20} strokeWidth={2} />
-        </div>
-        <div>
-          <div className="font-roobert text-[13.5px] font-extrabold text-frost-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-amber-200 transition-colors">
-            {game.name}
-          </div>
-          <span className="text-[9.5px] uppercase font-bold tracking-wider text-whisper-gray/70">
-            Играть
-          </span>
-        </div>
-      </div>
-      {game.badge && (
-        <div className="relative z-10">
-          <span className="px-2 py-0.5 rounded-full text-[8px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border border-amber-400/30 bg-black/60 text-amber-300 flex items-center gap-1">
-            {BadgeIcon && <BadgeIcon size={8} className="shrink-0" />}
-            <span>{game.badge.label}</span>
-          </span>
-        </div>
-      )}
-    </button>
-  );
-}
-
-function MobileSectionTile({
-  icon,
-  title,
-  subtitle,
-  badge,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  badge?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="p-3 rounded-2xl border border-white/10 bg-[#12141a] hover:border-white/20 active:scale-[0.96] transition-all flex flex-col justify-between gap-2 text-left group overflow-hidden"
-    >
-      <div className="flex items-center justify-between w-full">
-        <span className="w-8 h-8 rounded-xl border border-white/15 bg-white/[0.06] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform text-frost-white">
-          {icon}
-        </span>
-        {badge && (
-          <span className="px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            {badge}
-          </span>
-        )}
-      </div>
-
-      <div>
-        <div className="font-roobert text-[13px] font-bold text-frost-white group-hover:text-amber-200 transition-colors">
-          {title}
-        </div>
-        <div className="font-roobert text-[10px] text-whisper-gray truncate mt-0.5">
-          {subtitle}
-        </div>
-      </div>
-    </button>
   );
 }
