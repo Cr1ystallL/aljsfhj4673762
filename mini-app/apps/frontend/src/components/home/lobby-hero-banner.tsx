@@ -6,19 +6,19 @@ import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Flame,
   Gift,
   Crown,
   Rocket,
   ArrowRight,
+  type LucideIcon,
 } from 'lucide-react';
 
 interface HeroSlide {
   id: string;
   badge: {
     label: string;
-    icon: typeof Sparkles;
+    icon: LucideIcon;
     color: string;
     bg: string;
     border: string;
@@ -29,6 +29,7 @@ interface HeroSlide {
   href: string;
   image: string;
   glowColor: string;
+  floorColor: string;
   accentGradient: string;
 }
 
@@ -39,16 +40,17 @@ const HERO_SLIDES: HeroSlide[] = [
       label: 'Приветственный бонус',
       icon: Flame,
       color: 'text-amber-300',
-      bg: 'bg-amber-500/20',
+      bg: 'bg-amber-500/15',
       border: 'border-amber-500/40',
     },
     title: '+200% К ДЕПОЗИТУ',
     subtitle: 'Удвой свой баланс и забери фриспины в подарок прямо сейчас',
     ctaText: 'Забрать бонус',
     href: '/balance',
-    image: '/coinflip.png?v=3d_3',
-    glowColor: 'rgba(245, 158, 11, 0.28)',
-    accentGradient: 'from-amber-400 via-amber-500 to-orange-500',
+    image: '/banerbonus.png',
+    glowColor: 'rgba(245, 158, 11, 0.35)',
+    floorColor: 'rgba(245, 158, 11, 0.45)',
+    accentGradient: 'from-amber-300 via-amber-400 to-orange-500',
   },
   {
     id: 'cashback',
@@ -56,16 +58,17 @@ const HERO_SLIDES: HeroSlide[] = [
       label: 'VIP Привилегия',
       icon: Crown,
       color: 'text-emerald-300',
-      bg: 'bg-emerald-500/20',
+      bg: 'bg-emerald-500/15',
       border: 'border-emerald-500/40',
     },
     title: 'КЭШБЭК ДО 10%',
-    subtitle: 'Возвращаем часть проигрыша каждую неделю без скрытых вейджеров',
+    subtitle: 'Возвращаем часть проигрыша каждую неделю на реальный баланс',
     ctaText: 'Подробнее',
     href: '/cashback',
-    image: '/Rangs/Diamond.png',
-    glowColor: 'rgba(16, 185, 129, 0.25)',
-    accentGradient: 'from-emerald-400 via-teal-500 to-emerald-600',
+    image: '/banercashback.png',
+    glowColor: 'rgba(16, 185, 129, 0.32)',
+    floorColor: 'rgba(16, 185, 129, 0.45)',
+    accentGradient: 'from-emerald-300 via-teal-400 to-emerald-500',
   },
   {
     id: 'daily_wheel',
@@ -73,16 +76,17 @@ const HERO_SLIDES: HeroSlide[] = [
       label: 'Ежедневный приз',
       icon: Gift,
       color: 'text-purple-300',
-      bg: 'bg-purple-500/20',
+      bg: 'bg-purple-500/15',
       border: 'border-purple-500/40',
     },
     title: 'КОЛЕСО ФОРТУНЫ',
     subtitle: 'Крути колесо каждый день бесплатно и забирай до 500 zł',
     ctaText: 'Крутить колесо',
     href: '/bonuses',
-    image: '/wheel.png?v=3d_3',
-    glowColor: 'rgba(168, 85, 247, 0.30)',
-    accentGradient: 'from-purple-400 via-fuchsia-500 to-pink-500',
+    image: '/banetlw.png',
+    glowColor: 'rgba(168, 85, 247, 0.35)',
+    floorColor: 'rgba(168, 85, 247, 0.45)',
+    accentGradient: 'from-purple-300 via-fuchsia-400 to-pink-500',
   },
   {
     id: 'macvjet_jackpot',
@@ -90,16 +94,17 @@ const HERO_SLIDES: HeroSlide[] = [
       label: 'Хит сезона',
       icon: Rocket,
       color: 'text-rose-300',
-      bg: 'bg-rose-500/20',
+      bg: 'bg-rose-500/15',
       border: 'border-rose-500/40',
     },
     title: 'MACVJET: ДО x10,000',
-    subtitle: 'Лови максимальный множитель и взлетай на вершину таблицы лидеров',
+    subtitle: 'Срывай сумасшедшие иксы и взлетай на вершину таблицы лидеров',
     ctaText: 'Взлететь',
     href: '/game/crash',
-    image: '/macvjet.png?v=3d_3',
-    glowColor: 'rgba(244, 63, 94, 0.28)',
-    accentGradient: 'from-rose-400 via-orange-500 to-amber-500',
+    image: '/banermj.png',
+    glowColor: 'rgba(244, 63, 94, 0.35)',
+    floorColor: 'rgba(249, 115, 22, 0.45)',
+    accentGradient: 'from-rose-400 via-amber-400 to-orange-500',
   },
 ];
 
@@ -153,25 +158,40 @@ export function LobbyHeroBanner() {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className="relative w-full rounded-3xl overflow-hidden border border-white/15 bg-gradient-to-br from-[#121217] via-[#0b0c10] to-black shadow-[0_16px_45px_rgba(0,0,0,0.7)] group"
+      className="relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden border border-white/[0.12] bg-[#07080b] shadow-[0_22px_60px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)] group select-none transition-colors duration-700"
     >
-      {/* Background ambient spotlight */}
+      {/* Deep luxury obsidian gradient base */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 pointer-events-none transition-all duration-700 blur-3xl opacity-60"
+        className="absolute inset-0 bg-gradient-to-r from-[#07080b] via-[#090b10] to-[#0c0d14] pointer-events-none"
+      />
+
+      {/* Dynamic studio backlight halo behind 3D artwork */}
+      <div
+        aria-hidden="true"
+        className="absolute right-0 top-0 bottom-0 w-[65%] sm:w-[55%] pointer-events-none transition-all duration-700 blur-[75px] opacity-70"
         style={{
-          background: `radial-gradient(100% 120% at 75% 50%, ${slide.glowColor} 0%, transparent 70%)`,
+          background: `radial-gradient(ellipse at 75% 50%, ${slide.glowColor} 0%, transparent 75%)`,
         }}
       />
 
-      {/* Decorative cyber grid lines */}
+      {/* Pedestal stage floor reflection under the 3D element */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none opacity-40"
+        className="absolute right-4 sm:right-12 bottom-0 w-[160px] sm:w-[240px] md:w-[320px] h-[32px] sm:h-[48px] rounded-[100%] pointer-events-none transition-all duration-700 blur-2xl opacity-60"
+        style={{
+          background: slide.floorColor,
+        }}
+      />
+
+      {/* Subtle diagonal luxury sheen highlight across card */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(255,255,255,0.06)_0%,transparent_50%)] pointer-events-none"
       />
 
       {/* Content wrapper */}
-      <div className="relative z-10 w-full min-h-[165px] sm:min-h-[190px] md:min-h-[215px] lg:min-h-[235px] flex items-center justify-between p-4 sm:p-6 lg:p-7">
+      <div className="relative z-10 w-full min-h-[175px] sm:min-h-[200px] md:min-h-[225px] lg:min-h-[245px] flex items-center justify-between p-4 sm:p-6 lg:p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={slide.id}
@@ -179,13 +199,17 @@ export function LobbyHeroBanner() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="flex-1 min-w-0 pr-3 sm:pr-6 flex flex-col justify-center gap-2 sm:gap-3"
+            className="flex-1 min-w-0 pr-2 sm:pr-6 flex flex-col justify-center gap-2 sm:gap-3"
           >
-            {/* Promo Badge */}
+            {/* Promo Badge with glowing status pulse */}
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-roobert font-bold uppercase tracking-wider backdrop-blur-md border ${slide.badge.border} ${slide.badge.bg} ${slide.badge.color} shadow-sm`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-roobert font-extrabold uppercase tracking-wider backdrop-blur-md border ${slide.badge.border} ${slide.badge.bg} ${slide.badge.color} shadow-sm`}
               >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-current" />
+                </span>
                 <BadgeIcon size={12} strokeWidth={2.4} />
                 <span>{slide.badge.label}</span>
               </span>
@@ -193,12 +217,12 @@ export function LobbyHeroBanner() {
 
             {/* Big Headline */}
             <div className="min-w-0">
-              <h2 className="font-roobert font-black text-xl sm:text-2xl md:text-3xl lg:text-4xl text-white tracking-tight leading-tight uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+              <h2 className="font-roobert font-black text-xl sm:text-2xl md:text-3xl lg:text-[34px] xl:text-[38px] text-white tracking-tight leading-[1.1] uppercase drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
                 <span className={`bg-gradient-to-r ${slide.accentGradient} bg-clip-text text-transparent`}>
                   {slide.title}
                 </span>
               </h2>
-              <p className="mt-1 font-roobert text-[11.5px] sm:text-[13px] md:text-[14px] text-zinc-300 leading-snug max-w-[420px] drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+              <p className="mt-1.5 font-roobert text-[11.5px] sm:text-[13px] md:text-[14px] text-zinc-300/90 leading-snug max-w-[440px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                 {slide.subtitle}
               </p>
             </div>
@@ -207,32 +231,41 @@ export function LobbyHeroBanner() {
             <div className="pt-1">
               <button
                 onClick={() => router.push(slide.href)}
-                className={`inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r ${slide.accentGradient} text-black font-extrabold text-[12px] sm:text-[13px] shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer`}
+                className={`relative overflow-hidden inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r ${slide.accentGradient} text-black font-roobert font-black text-[12px] sm:text-[13px] uppercase tracking-wide shadow-[0_6px_20px_rgba(0,0,0,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer group/btn`}
               >
+                {/* Subtle shine sweep on hover */}
+                <div className="absolute inset-0 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
                 <span>{slide.ctaText}</span>
-                <ArrowRight size={14} strokeWidth={2.8} />
+                <ArrowRight size={14} strokeWidth={3} />
               </button>
             </div>
           </motion.div>
         </AnimatePresence>
 
-        {/* 3D Floating Artwork on the right */}
+        {/* Heroic 3D Artwork on the right */}
         <AnimatePresence mode="wait">
           <motion.div
             key={slide.id + '-img'}
-            initial={{ opacity: 0, scale: 0.88, y: 8 }}
+            initial={{ opacity: 0, scale: 0.88, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: -8 }}
+            exit={{ opacity: 0, scale: 0.92, y: -10 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             onClick={() => router.push(slide.href)}
-            className="shrink-0 w-[120px] sm:w-[170px] md:w-[210px] lg:w-[240px] h-[120px] sm:h-[160px] md:h-[190px] lg:h-[210px] flex items-center justify-center cursor-pointer select-none"
+            className="shrink-0 relative w-[140px] sm:w-[190px] md:w-[250px] lg:w-[290px] xl:w-[330px] h-[135px] sm:h-[180px] md:h-[210px] lg:h-[235px] xl:h-[250px] flex items-center justify-center cursor-pointer select-none -mr-1 sm:-mr-2"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={slide.image}
-              alt={slide.title}
-              className="w-full h-full object-contain filter drop-shadow-[0_14px_28px_rgba(0,0,0,0.85)] group-hover:scale-105 transition-transform duration-500"
-            />
+            {/* Gentle floating animation loop */}
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-full h-full flex items-center justify-center"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={slide.image}
+                alt={slide.title}
+                className="w-full h-full object-contain filter drop-shadow-[0_16px_32px_rgba(0,0,0,0.85)] group-hover:scale-105 transition-transform duration-500"
+              />
+            </motion.div>
           </motion.div>
         </AnimatePresence>
       </div>
@@ -241,30 +274,30 @@ export function LobbyHeroBanner() {
       <button
         onClick={prevSlide}
         aria-label="Предыдущий слайд"
-        className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border border-white/15 bg-black/60 backdrop-blur-md items-center justify-center text-white/80 hover:text-white hover:bg-black/90 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-20"
+        className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full border border-white/15 bg-black/60 backdrop-blur-md items-center justify-center text-white/80 hover:text-white hover:bg-black/90 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-20 shadow-lg"
       >
-        <ChevronLeft size={18} strokeWidth={2.4} />
+        <ChevronLeft size={19} strokeWidth={2.4} />
       </button>
 
       <button
         onClick={nextSlide}
         aria-label="Следующий слайд"
-        className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border border-white/15 bg-black/60 backdrop-blur-md items-center justify-center text-white/80 hover:text-white hover:bg-black/90 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-20"
+        className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full border border-white/15 bg-black/60 backdrop-blur-md items-center justify-center text-white/80 hover:text-white hover:bg-black/90 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-20 shadow-lg"
       >
-        <ChevronRight size={18} strokeWidth={2.4} />
+        <ChevronRight size={19} strokeWidth={2.4} />
       </button>
 
-      {/* Pagination Dots (Bottom Center/Left) */}
+      {/* Segmented Capsule Indicators (Bottom Left) */}
       <div className="absolute bottom-2.5 left-4 sm:left-6 flex items-center gap-1.5 z-20">
         {HERO_SLIDES.map((s, idx) => (
           <button
             key={s.id}
             onClick={() => setCurrentIdx(idx)}
             aria-label={`Слайд ${idx + 1}`}
-            className={`h-1.5 rounded-full transition-all cursor-pointer ${
+            className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
               idx === currentIdx
-                ? 'w-6 bg-amber-400 shadow-sm shadow-amber-400/50'
-                : 'w-1.5 bg-white/20 hover:bg-white/40'
+                ? `w-8 bg-gradient-to-r ${slide.accentGradient} shadow-[0_0_10px_rgba(255,255,255,0.3)]`
+                : 'w-2 bg-white/20 hover:bg-white/40'
             }`}
           />
         ))}
