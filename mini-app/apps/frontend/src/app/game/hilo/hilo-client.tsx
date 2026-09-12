@@ -24,7 +24,6 @@ import {
   BetPanelShell,
   GamePrimaryButton,
   StakeField,
-  PersonalRecentBets,
   type PersonalRecentBet,
 } from '@/components/game/kit';
 
@@ -573,12 +572,8 @@ export function HiloClient() {
           </div>
         </div>
 
-        {/* Bottom Section: Personal Recent Bets & Global Live Bets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-          {/* Left: Player's personal recent bets */}
-          <PersonalRecentBets bets={myBets} currency={currencyLabel} />
-
-          {/* Right: Global live platform bets */}
+        {/* Bottom Section: Live bets */}
+        <div className="pt-2">
           <HiloHistory entries={history} currency={currencyLabel} />
         </div>
       </div>

@@ -34,6 +34,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useBalance } from '@/hooks/use-balance';
 import { PAGE_WIDTH } from '@/components/layout/page-width';
 import { Pressable } from '@/components/ui/pressable';
+import { cn } from '@/lib/utils';
 import { MacvJetHero, useCrashLobby } from '@/components/home/macvjet-hero';
 import { HomeLuckFeed, type LuckFeedItem } from '@/components/home/home-luck-feed';
 import { useSplashStore } from '@/store/splash-store';
@@ -667,11 +668,23 @@ function GameTile({
 }) {
   const { t } = useT();
   const BadgeIcon = game.badge?.Icon;
+  const isWide =
+    game.id === 'blackjack' ||
+    game.id === 'coinflip' ||
+    game.id === 'cases' ||
+    game.id === 'keno' ||
+    game.id === 'hilo' ||
+    game.id === 'macvpot';
 
   return (
     <Pressable
       onClick={() => router.push(game.href)}
-      className="group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] aspect-[1.4/1] sm:aspect-[1.5/1] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg"
+      className={cn(
+        "w-full h-full block group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121217] text-left active:scale-[0.97] hover:border-amber-400/80 hover:shadow-[0_0_20px_rgba(212,175,55,0.25)] transition-all duration-300 shadow-lg",
+        isWide
+          ? "aspect-[2.1/1] sm:aspect-[2.4/1] min-h-[140px] sm:min-h-[160px]"
+          : "aspect-[1.4/1] sm:aspect-[1.5/1] min-h-[140px] sm:min-h-[160px]"
+      )}
     >
       {/* Background artwork */}
       {game.bg && (
@@ -896,7 +909,7 @@ function TournamentHeroCard({
           src={tournament.bannerUrl}
           alt=""
           referrerPolicy="no-referrer"
-          className="absolute right-0 top-0 bottom-0 w-1/2 md:w-2/5 h-full object-contain object-right opacity-60 pointer-events-none group-hover:scale-105 transition-transform duration-500"
+          className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none group-hover:scale-105 transition-transform duration-500"
         />
       )}
       <div
@@ -977,7 +990,7 @@ function ContestHero({
           src={contest.bannerUrl}
           alt=""
           referrerPolicy="no-referrer"
-          className="absolute right-0 top-0 bottom-0 w-1/2 md:w-2/5 h-full object-contain object-right opacity-60 pointer-events-none group-hover:scale-105 transition-transform duration-500"
+          className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none group-hover:scale-105 transition-transform duration-500"
         />
       ) : null}
       <div

@@ -9,8 +9,7 @@ import { KenoBoard } from '@/components/game/keno/keno-board';
 import { KenoBetPanel, type KenoPhase } from '@/components/game/keno/keno-bet-panel';
 import { KenoDrawTray } from '@/components/game/keno/keno-draw-tray';
 import { KenoLiveBets, type KenoLiveBetEntry } from '@/components/game/keno/keno-live-bets';
-import { KenoPayoutStrip } from '@/components/game/keno/keno-payout-strip';
-import { PersonalRecentBets, type PersonalRecentBet } from '@/components/game/kit';
+import type { PersonalRecentBet } from '@/components/game/kit';
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
 import { soundManager } from '@/lib/sound/sound-manager';
@@ -350,7 +349,7 @@ export default function KenoGamePage() {
             />
           </div>
 
-          {/* Right Column: Bet Panel */}
+          {/* Right Column: Bet Panel & Personal history under elements */}
           <div className="lg:col-span-4 flex flex-col gap-4">
             <KenoBetPanel
               amount={amount}
@@ -371,18 +370,36 @@ export default function KenoGamePage() {
               activeBalance={displayBalance}
               currency={isTournament ? 'T-COIN' : 'zł'}
             />
+
+            {/* Personal history under bet elements */}
+            {myBets.length > 0 && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                <div className="text-[10px] text-white/50 uppercase tracking-wider font-roobert mb-1.5 flex items-center justify-between">
+                  <span>Недавние исходы</span>
+                  <span className="text-[9px] text-white/40">{myBets.length} сыграно</span>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {myBets.slice(0, 8).map((b) => (
+                    <div
+                      key={b.id}
+                      className={cn(
+                        'px-2 py-1 rounded-lg text-[10px] font-bold font-mono shrink-0 border',
+                        b.multiplier > 0
+                          ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
+                          : 'border-red-500/30 bg-red-500/15 text-red-300'
+                      )}
+                    >
+                      {b.multiplier > 0 ? `×${b.multiplier.toFixed(2)}` : '0×'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bottom Section: Personal Recent Bets & Global Live Bets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-          {/* Left: Player's personal recent bets */}
-          <PersonalRecentBets
-            bets={myBets}
-            currency={isTournament ? 'T-COIN' : 'zł'}
-          />
-
-          {/* Right: Global live bets */}
+        {/* Bottom Section: Live bets */}
+        <div className="pt-2">
           <KenoLiveBets
             entries={history}
             currency={isTournament ? 'T-COIN' : 'zł'}

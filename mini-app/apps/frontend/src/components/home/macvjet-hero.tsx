@@ -242,15 +242,16 @@ export function MacvJetHero({ onOpen }: { onOpen: () => void }) {
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        className="pointer-events-none absolute inset-0 opacity-70 group-hover:scale-105 transition-transform duration-700"
         style={{
           backgroundImage: "url(/tiles/macvjet-hero.webp)",
-          backgroundSize: "contain",
-          backgroundPosition: "right center",
+          backgroundSize: "cover",
+          backgroundPosition: "center right",
           backgroundRepeat: "no-repeat",
         }}
       />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_80%_110%,rgba(165,45,37,0.28),transparent_55%),radial-gradient(80%_50%_at_10%_-10%,rgba(251,191,36,0.10),transparent_50%),linear-gradient(90deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.42)_55%,rgba(0,0,0,0.18)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#07090d] via-[#07090d]/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_80%_110%,rgba(165,45,37,0.35),transparent_55%),radial-gradient(80%_50%_at_10%_-10%,rgba(251,191,36,0.15),transparent_50%)]" />
 
       <div className="relative z-10 flex min-h-[168px] flex-col justify-between px-5 py-4">
         <div className="flex items-start justify-between gap-3">

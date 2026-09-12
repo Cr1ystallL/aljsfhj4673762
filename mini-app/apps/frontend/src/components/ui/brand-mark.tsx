@@ -92,14 +92,17 @@ export function BrandWordmark({
     >
       <BrandMark variant="gradient" size={size} title="Macv" />
       <span
-        className="font-roobert font-light text-frost-white tracking-tight"
+        className="font-brand font-black text-frost-white tracking-wider inline-flex items-center"
         style={{
           fontSize: Math.round(size * 0.62),
           lineHeight: 1,
           marginLeft: -Math.round(size * 0.06),
         }}
       >
-        acvBet
+        <span>acv</span>
+        <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+          Bet
+        </span>
       </span>
     </span>
   );
@@ -125,10 +128,13 @@ export function BrandLockup({
     >
       <BrandMark variant="gradient" size={size} title="MacvBet" />
       <span
-        className="font-roobert font-light text-frost-white tracking-[0.18em] uppercase"
+        className="font-brand font-bold tracking-[0.18em] uppercase inline-flex items-center"
         style={{ fontSize: Math.max(8, Math.round(size * 0.18)), lineHeight: 1 }}
       >
-        MacvBet
+        <span className="text-frost-white">Macv</span>
+        <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+          Bet
+        </span>
       </span>
     </span>
   );

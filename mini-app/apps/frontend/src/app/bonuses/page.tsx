@@ -804,7 +804,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
       <div className="relative px-4 pt-6 pb-2">
         <div
           aria-hidden
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full pointer-events-none"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[320px] sm:w-[380px] sm:h-[380px] rounded-full pointer-events-none"
           style={{
             background:
               'radial-gradient(circle, rgba(244,232,200,0.16) 0%, transparent 70%)',
@@ -812,7 +812,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
         />
         
         <div
-          className="relative w-full max-w-[320px] mx-auto transition-transform hover:scale-[1.01] duration-500"
+          className="relative w-full max-w-[380px] sm:max-w-[430px] mx-auto transition-transform hover:scale-[1.01] duration-500"
           style={{ aspectRatio: '1 / 1' }}
         >
           <FullWheelCanvas

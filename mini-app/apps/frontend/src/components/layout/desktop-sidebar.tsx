@@ -22,6 +22,9 @@ import {
   Box,
   Dice5,
   Trophy,
+  Dribbble,
+  CircleDot,
+  Radio,
 } from 'lucide-react';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { SoccerBallIcon } from '@/components/ui/soccer-ball-icon';
@@ -42,23 +45,23 @@ const RANK_IMAGES: Record<string, string> = {
 };
 
 const SIDEBAR_GAMES = [
-  { id: 'crash', name: 'MacvJet', href: '/game/crash', Icon: Rocket, badge: 'TOP', badgeColor: 'bg-red-500/20 text-red-300 border-red-500/30' },
-  { id: 'mines', name: 'Mines', href: '/game/mines', Icon: Bomb, badge: 'MINES', badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-  { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', Icon: Spade, badge: 'HOT', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', Icon: Coins, badge: 'PVP', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  { id: 'wheel', name: 'Wheel', href: '/game/wheel', Icon: Disc3, badge: 'x50', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  { id: 'cases', name: 'Case', href: '/game/cases', Icon: Box, badge: 'CASES', badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-  { id: 'keno', name: 'Keno', href: '/game/keno', Icon: Dice5, badge: 'KENO', badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-  { id: 'macvpot', name: 'MacvPot', href: '/game/macvpot', Icon: Trophy, badge: 'JACKPOT', badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-  { id: 'hilo', name: 'Hi-Lo', href: '/game/hilo', Icon: ChevronUp, badge: 'HI-LO', badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+  { id: 'crash', name: 'MacvJet', href: '/game/crash', Icon: Rocket },
+  { id: 'mines', name: 'Mines', href: '/game/mines', Icon: Bomb },
+  { id: 'blackjack', name: 'Blackjack', href: '/game/blackjack', Icon: Spade },
+  { id: 'coinflip', name: 'Coinflip', href: '/game/coinflip', Icon: Coins },
+  { id: 'wheel', name: 'Wheel', href: '/game/wheel', Icon: Disc3 },
+  { id: 'cases', name: 'Case', href: '/game/cases', Icon: Box },
+  { id: 'keno', name: 'Keno', href: '/game/keno', Icon: Dice5 },
+  { id: 'macvpot', name: 'MacvPot', href: '/game/macvpot', Icon: Trophy },
+  { id: 'hilo', name: 'Hi-Lo', href: '/game/hilo', Icon: ChevronUp },
 ];
 
 const SIDEBAR_SPORTS = [
-  { id: 'all_sports', name: 'Все события / Live', href: '/sport' },
-  { id: 'football', name: 'Футбол', href: '/sport?sport=football' },
-  { id: 'basketball', name: 'Баскетбол', href: '/sport?sport=basketball' },
-  { id: 'tennis', name: 'Теннис', href: '/sport?sport=tennis' },
-  { id: 'esports', name: 'Киберспорт (CS2, Dota 2)', href: '/sport?tab=esports' },
+  { id: 'all_sports', name: 'Все события / Live', href: '/sport', Icon: Radio },
+  { id: 'football', name: 'Футбол', href: '/sport?sport=football', Icon: SoccerBallIcon },
+  { id: 'basketball', name: 'Баскетбол', href: '/sport?sport=basketball', Icon: Dribbble },
+  { id: 'tennis', name: 'Теннис', href: '/sport?sport=tennis', Icon: CircleDot },
+  { id: 'esports', name: 'Киберспорт (CS2, Dota 2)', href: '/sport?tab=esports', Icon: Gamepad2 },
 ];
 
 export function DesktopSidebar() {
@@ -89,10 +92,13 @@ export function DesktopSidebar() {
           onClick={() => router.push('/')}
           className="flex items-center gap-3 px-2 py-2 cursor-pointer group"
         >
-          <BrandMark variant="gradient" size={38} />
+          <BrandMark variant="gradient" size={46} />
           <div>
-            <div className="font-brand font-black text-2xl tracking-wider text-white">
-              MacvBet
+            <div className="font-brand font-black text-2xl tracking-wider flex items-center leading-none">
+              <span className="text-white">Macv</span>
+              <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+                Bet
+              </span>
             </div>
           </div>
         </div>
@@ -209,23 +215,14 @@ export function DesktopSidebar() {
                     <button
                       key={g.id}
                       onClick={() => router.push(g.href)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
                         isActive
                           ? 'bg-white/15 text-white font-semibold'
                           : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <IconComp size={15} className="text-white shrink-0" />
-                        <span className="text-[12px] truncate">{g.name}</span>
-                      </div>
-                      {g.badge && (
-                        <span
-                          className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider ${g.badgeColor}`}
-                        >
-                          {g.badge}
-                        </span>
-                      )}
+                      <IconComp size={15} className="text-white shrink-0" />
+                      <span className="text-[12px] truncate">{g.name}</span>
                     </button>
                   );
                 })}
@@ -254,17 +251,19 @@ export function DesktopSidebar() {
               <div className="pl-3 pr-1 pt-1 space-y-0.5 border-l border-white/10 ml-4 my-1">
                 {SIDEBAR_SPORTS.map((s) => {
                   const isActive = pathname === s.href;
+                  const SportIcon = s.Icon;
                   return (
                     <button
                       key={s.id}
                       onClick={() => router.push(s.href)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer ${
                         isActive
                           ? 'bg-white/15 text-white font-semibold'
                           : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
                       }`}
                     >
-                      <span className="text-[12px]">{s.name}</span>
+                      <SportIcon size={14} className="text-white/80 shrink-0" />
+                      <span className="text-[12px] truncate">{s.name}</span>
                     </button>
                   );
                 })}
@@ -333,11 +332,14 @@ export function DesktopSidebar() {
         </nav>
       </div>
 
-      {/* Clean Brand Footer with larger gold gradient logo + white MacvBet */}
+      {/* Clean Brand Footer with larger gold gradient logo + gradient MacvBet */}
       <div className="pt-4 border-t border-white/10 flex items-center justify-center gap-3">
-        <BrandMark variant="gradient" size={32} />
-        <div className="font-brand font-black text-xl tracking-wider text-white">
-          MacvBet
+        <BrandMark variant="gradient" size={38} />
+        <div className="font-brand font-black text-2xl tracking-wider flex items-center leading-none">
+          <span className="text-white">Macv</span>
+          <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+            Bet
+          </span>
         </div>
       </div>
     </aside>

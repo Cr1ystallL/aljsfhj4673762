@@ -394,7 +394,7 @@ export default function MinesGamePage() {
             </div>
           </div>
 
-          {/* Right Column: Bet controls */}
+          {/* Right Column: Bet controls & Personal history under elements */}
           <div className="lg:col-span-4 flex flex-col gap-3.5">
             <MinesBetPanel
               amount={displayAmount}
@@ -409,15 +409,14 @@ export default function MinesGamePage() {
               canCashout={canCashout}
               onPrimary={handlePrimary}
             />
+
+            {/* Personal history under bet elements */}
+            <MinesRecentBets bets={recentBets} />
           </div>
         </div>
 
-        {/* Bottom Section: History and Recent Bets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-          {/* Player's last 5 completed rounds */}
-          <MinesRecentBets bets={recentBets} />
-
-          {/* Live ticker — recent mines bets across all players */}
+        {/* Bottom Section: Live bets */}
+        <div className="pt-2">
           <MinesHistory entries={history} />
         </div>
       </div>

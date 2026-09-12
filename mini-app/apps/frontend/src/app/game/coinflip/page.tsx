@@ -9,7 +9,7 @@ import { CoinflipSideButtons } from '@/components/game/coinflip/coinflip-side-bu
 import { CoinflipBetPanel } from '@/components/game/coinflip/coinflip-bet-panel';
 import { CoinflipHistory } from '@/components/game/coinflip/coinflip-history';
 import { CoinflipRulesModal } from '@/components/game/coinflip/coinflip-rules-modal';
-import { PersonalRecentBets, type PersonalRecentBet } from '@/components/game/kit';
+import type { PersonalRecentBet } from '@/components/game/kit';
 
 import { useBalance } from '@/hooks/use-balance';
 import { useActiveBalance } from '@/hooks/use-active-balance';
@@ -569,15 +569,36 @@ export default function CoinflipGamePage() {
                 </button>
               </div>
             )}
+
+            {/* Personal history under bet elements */}
+            {myBets.length > 0 && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                <div className="text-[10px] text-white/50 uppercase tracking-wider font-roobert mb-1.5 flex items-center justify-between">
+                  <span>Недавние исходы</span>
+                  <span className="text-[9px] text-white/40">{myBets.length} сыграно</span>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {myBets.slice(0, 8).map((b) => (
+                    <div
+                      key={b.id}
+                      className={cn(
+                        'px-2 py-1 rounded-lg text-[10px] font-bold font-mono shrink-0 border',
+                        b.multiplier > 0
+                          ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
+                          : 'border-red-500/30 bg-red-500/15 text-red-300'
+                      )}
+                    >
+                      {b.multiplier > 0 ? `×${b.multiplier.toFixed(2)}` : '0×'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bottom Section: Personal Recent Bets & Global Live Bets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-          {/* Left: Player's personal recent bets */}
-          <PersonalRecentBets bets={myBets} currency="zł" />
-
-          {/* Right: All bets / rare wins */}
+        {/* Bottom Section: Live bets */}
+        <div className="pt-2">
           <CoinflipHistory entries={history} />
         </div>
       </div>
