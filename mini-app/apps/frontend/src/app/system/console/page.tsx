@@ -199,7 +199,7 @@ export default function AdminDashboardPage() {
       {data && (
         <div className="flex flex-col gap-5">
           {/* KPI grid */}
-          <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
             <Kpi
               icon={<Users size={14} strokeWidth={1.6} />}
               label="Игроки"
@@ -221,27 +221,29 @@ export default function AdminDashboardPage() {
               label="Обязательства"
               value={`${formatPln(data.balances.withdrawableLiability ?? data.balances.real?.amount ?? 0)} zł`}
               hint={
-                <span>
-                  <strong className="text-emerald-300 font-medium">
-                    {data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0}
-                  </strong>{' '}
-                  {(data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) === 1
-                    ? 'счёт к выводу'
-                    : (data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) >= 2 &&
-                      (data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) <= 4
-                    ? 'счёта к выводу'
-                    : 'счетов к выводу'}{' '}
-                  <span className="text-white/40">· всего {formatPln(data.balances.totalLiability)} zł ({data.balances.accounts} сч.)</span>
-                </span>
+                <div className="space-y-0.5">
+                  <div className="text-emerald-300 font-medium truncate">
+                    {data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0}{' '}
+                    {(data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) === 1
+                      ? 'счёт к выводу'
+                      : (data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) >= 2 &&
+                        (data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) <= 4
+                      ? 'счёта к выводу'
+                      : 'счетов к выводу'}
+                  </div>
+                  <div className="text-white/40 text-[9.5px] sm:text-[10px] truncate">
+                    Всего {formatPln(data.balances.totalLiability)} zł ({data.balances.accounts} сч.)
+                  </div>
+                </div>
               }
               action={
                 <button
                   type="button"
                   onClick={() => setDormantModalOpen(true)}
-                  className="px-2 py-0.5 rounded-pill bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-roobert font-medium transition-all active:scale-95"
+                  className="px-2 py-0.5 rounded-pill bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[9.5px] sm:text-[10px] font-roobert font-medium transition-all active:scale-95 cursor-pointer"
                   title="Обнулить балансы неактивных (>30 дней) и заблокированных игроков"
                 >
-                  Очистить
+                  Очистить неактивных
                 </button>
               }
               help={{
@@ -287,6 +289,7 @@ export default function AdminDashboardPage() {
               icon={<TrendingUp size={14} strokeWidth={1.6} />}
               label="GGR"
               value={`${formatPln(data.bets.ggr)} zł`}
+              hint={data.bets.rtp ? `RTP ${data.bets.rtp.toFixed(1)}%` : undefined}
               accent={data.bets.ggr >= 0 ? 'good' : 'warn'}
               help={{
                 title: 'GGR',
@@ -305,19 +308,20 @@ export default function AdminDashboardPage() {
               }}
             />
             <Kpi
+              className="col-span-2 sm:col-span-1 md:col-span-1"
               icon={<Wallet size={14} strokeWidth={1.6} />}
               label="Профит"
               value={`${data.casinoProfit > 0 ? '+' : ''}${formatPln(data.casinoProfit)} zł`}
               hint={
-                <span className="inline-flex items-center gap-1.5 tabular-nums">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums text-[10px] sm:text-[11px]">
                   <span className="text-[#a0e0ab] font-medium">
                     Деп: +{formatPln(Math.abs(data.depositsTotal ?? 0))} zł
                   </span>
-                  <span className="text-white/20">·</span>
+                  <span className="text-white/20 hidden sm:inline">·</span>
                   <span className="text-[#ff8a76] font-medium">
                     Выв: -{formatPln(Math.abs(data.withdrawalsTotal ?? 0))} zł
                   </span>
-                </span>
+                </div>
               }
               accent={data.casinoProfit >= 0 ? 'good' : 'warn'}
               help={{
@@ -576,6 +580,7 @@ function Kpi({
   accent,
   help,
   action,
+  className,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -584,41 +589,49 @@ function Kpi({
   accent?: 'good' | 'warn';
   help?: { title: string; body: React.ReactNode };
   action?: React.ReactNode;
+  className?: string;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl p-5 flex flex-col gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+      className={cn(
+        "rounded-[20px] sm:rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl p-3 sm:p-5 flex flex-col justify-between gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.12)] min-w-0 overflow-hidden",
+        className
+      )}
     >
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-frost-white/65">
-          {icon}
-          <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
-            {label}
+      <div>
+        <div className="flex items-center justify-between gap-1 mb-1">
+          <span className="inline-flex items-center gap-1.5 text-frost-white/65 min-w-0">
+            {icon}
+            <span className="font-roobert text-[10px] sm:text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray truncate">
+              {label}
+            </span>
           </span>
-        </span>
-        {help && (
-          <HelpButton title={help.title} size={12}>
-            {help.body}
-          </HelpButton>
-        )}
+          {help && (
+            <HelpButton title={help.title} size={12}>
+              {help.body}
+            </HelpButton>
+          )}
+        </div>
+        <div
+          className={cn(
+            "font-roobert text-[17px] sm:text-[22px] font-light leading-snug tabular-nums tracking-[-0.02em] truncate",
+            accent === 'warn'
+              ? 'text-[#ff8a76]'
+              : accent === 'good'
+              ? 'text-frost-white'
+              : 'text-frost-white'
+          )}
+        >
+          {value}
+        </div>
       </div>
-      <div
-        className={`font-roobert text-[22px] font-light leading-none tabular-nums tracking-[-0.02em] ${
-          accent === 'warn'
-            ? 'text-[#ff8a76]'
-            : accent === 'good'
-            ? 'text-frost-white'
-            : 'text-frost-white'
-        }`}
-      >
-        {value}
-      </div>
+
       {(hint || action) && (
-        <div className="flex items-center justify-between gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums">
-          <span>{hint}</span>
-          {action}
+        <div className="flex flex-col gap-1 mt-auto pt-1.5 border-t border-white/5 font-roobert text-[10px] sm:text-[11px] text-whisper-gray tabular-nums">
+          {hint && <div className="leading-snug min-w-0 break-words">{hint}</div>}
+          {action && <div className="pt-0.5 flex items-center justify-end">{action}</div>}
         </div>
       )}
     </motion.div>
@@ -1707,101 +1720,113 @@ function LivePresence() {
                   return (
                     <div
                       key={u.userId}
-                      className="px-5 py-3 hover:bg-white/[0.025] transition-colors flex items-center justify-between gap-3"
+                      className="px-3.5 sm:px-5 py-2.5 sm:py-3 hover:bg-white/[0.025] transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3"
                     >
-                      {/* Левая колонка: Аватар + Пользователь */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Аватар с индикатором онлайна */}
-                        <div className="relative shrink-0 select-none" aria-hidden="true">
-                          {u.photoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={u.photoUrl}
-                              alt=""
-                              referrerPolicy="no-referrer"
-                              draggable={false}
-                              className="w-10 h-10 rounded-pill border border-white/15 object-cover"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-pill border border-white/15 bg-gradient-to-br from-white/10 to-white/[0.02] flex items-center justify-center text-frost-white font-roobert font-medium text-[15px]">
-                              {u.name.charAt(0).toUpperCase()}
+                      {/* Верхняя строка на мобилках / левая колонка на ПК: Аватар + Пользователь */}
+                      <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-3 min-w-0">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                          {/* Аватар с индикатором онлайна */}
+                          <div className="relative shrink-0 select-none" aria-hidden="true">
+                            {u.photoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={u.photoUrl}
+                                alt=""
+                                referrerPolicy="no-referrer"
+                                draggable={false}
+                                className="w-9 h-9 sm:w-10 sm:h-10 rounded-pill border border-white/15 object-cover"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-pill border border-white/15 bg-gradient-to-br from-white/10 to-white/[0.02] flex items-center justify-center text-frost-white font-roobert font-medium text-[14px] sm:text-[15px]">
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            {/* Пульсирующая зеленая точка онлайна */}
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0d1117]" />
+                          </div>
+
+                          {/* Инфо игрока */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-roobert text-[13px] sm:text-[13.5px] font-medium text-frost-white truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">
+                                {u.name}
+                              </span>
+
+                              {/* Роли и бейджи */}
+                              {u.isAdmin && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                  <Shield size={9} />
+                                  Админ
+                                </span>
+                              )}
+                              {u.isBlocked && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30 shrink-0">
+                                  Бан
+                                </span>
+                              )}
+                              {typeof u.vipLevel === 'number' && u.vipLevel > 0 && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                  VIP {u.vipLevel}
+                                </span>
+                              )}
                             </div>
-                          )}
-                          {/* Пульсирующая зеленая точка онлайна */}
-                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0d1117]" />
-                        </div>
 
-                        {/* Инфо игрока */}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-roobert text-[13.5px] font-medium text-frost-white truncate">
-                              {u.name}
-                            </span>
-
-                            {/* Роли и бейджи */}
-                            {u.isAdmin && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                <Shield size={9} />
-                                Админ
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] sm:text-[11px] font-roobert text-whisper-gray truncate">
+                              {u.telegramId && (
+                                <span className="tabular-nums">#{u.telegramId}</span>
+                              )}
+                              {u.username && (
+                                <span className="text-frost-white/70 truncate">
+                                  @{u.username}
+                                </span>
+                              )}
+                              {/* Баланс игрока прямо в строке */}
+                              <span className="text-[#a0e0ab] font-medium tabular-nums flex items-center gap-1">
+                                • {formatPln(u.balance ?? 0)} zł
                               </span>
-                            )}
-                            {u.isBlocked && (
-                              <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                                Бан
-                              </span>
-                            )}
-                            {typeof u.vipLevel === 'number' && u.vipLevel > 0 && (
-                              <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                VIP {u.vipLevel}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-0.5 text-[11px] font-roobert text-whisper-gray truncate">
-                            {u.telegramId && (
-                              <span className="tabular-nums">#{u.telegramId}</span>
-                            )}
-                            {u.username && (
-                              <span className="text-frost-white/70 truncate">
-                                @{u.username}
-                              </span>
-                            )}
-                            {/* Баланс игрока прямо в строке */}
-                            <span className="text-[#a0e0ab] font-medium tabular-nums flex items-center gap-1">
-                              • {formatPln(u.balance ?? 0)} zł
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Правая колонка: Экран + Время + Быстрый переход в профиль */}
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <div className="text-right">
-                          <div
-                            className={cn(
-                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border text-[10.5px] font-roobert',
-                              meta.colorClass
-                            )}
-                            title={u.pathname}
-                          >
-                            <IconComponent size={11} className="shrink-0" />
-                            <span className="truncate max-w-[130px] sm:max-w-[180px]">
-                              {meta.title}
-                            </span>
-                          </div>
-                          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums mt-0.5">
-                            {ageLabel(u.ts)}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Кнопка быстрого перехода в карточку игрока в админке */}
+                        {/* Кнопка быстрого перехода (мобильная версия в первой строке) */}
                         <Link
                           href={`/system/console/users/${u.userId}`}
-                          className="w-8 h-8 rounded-pill bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-whisper-gray hover:text-frost-white transition-colors"
+                          className="sm:hidden w-7 h-7 rounded-pill bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-whisper-gray hover:text-frost-white transition-colors shrink-0"
                           title="Открыть карточку пользователя"
                         >
-                          <ExternalLink size={13} />
+                          <ExternalLink size={12} />
                         </Link>
+                      </div>
+
+                      {/* Нижняя строка на мобилках / правая колонка на ПК: Экран + Время + Переход */}
+                      <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pl-11 sm:pl-0">
+                        <div
+                          className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border text-[10px] sm:text-[10.5px] font-roobert max-w-[210px] sm:max-w-[180px] truncate',
+                            meta.colorClass
+                          )}
+                          title={u.pathname}
+                        >
+                          <IconComponent size={11} className="shrink-0" />
+                          <span className="truncate">
+                            {meta.title}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="font-roobert text-[10px] text-whisper-gray tabular-nums shrink-0">
+                            {ageLabel(u.ts)}
+                          </span>
+
+                          {/* Кнопка быстрого перехода (десктопная версия) */}
+                          <Link
+                            href={`/system/console/users/${u.userId}`}
+                            className="hidden sm:flex w-8 h-8 rounded-pill bg-white/5 hover:bg-white/15 border border-white/10 items-center justify-center text-whisper-gray hover:text-frost-white transition-colors"
+                            title="Открыть карточку пользователя"
+                          >
+                            <ExternalLink size={13} />
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   );
