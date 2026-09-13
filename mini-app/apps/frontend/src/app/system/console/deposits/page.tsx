@@ -53,6 +53,49 @@ export default function DepositsPage() {
   const [foluxTestResult, setFoluxTestResult] = useState<any>(null);
   const [testingFolux, setTestingFolux] = useState(false);
 
+  const [creditTarget, setCreditTarget] = useState<Deposit | null>(null);
+  const [creditAmount, setCreditAmount] = useState<string>('');
+  const [creditReason, setCreditReason] = useState<string>('');
+  const [crediting, setCrediting] = useState(false);
+
+  const handleOpenCredit = (dep: Deposit) => {
+    setCreditTarget(dep);
+    setCreditAmount(String(dep.uniqueAmount || dep.amount));
+    setCreditReason('Ручное дозачисление по чеку P2P');
+  };
+
+  const handleConfirmCredit = async () => {
+    if (!creditTarget) return;
+    if (!creditReason || creditReason.trim().length < 3) {
+      alert('Укажите причину зачисления (минимум 3 символа)');
+      return;
+    }
+    const amt = Number(creditAmount);
+    if (!amt || amt <= 0) {
+      alert('Укажите корректную сумму');
+      return;
+    }
+    setCrediting(true);
+    try {
+      const res = await fetch(`/api/_x/deposits/${creditTarget.id}/credit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amt, reason: creditReason }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        alert(j.error || 'Ошибка зачисления');
+        return;
+      }
+      setCreditTarget(null);
+      await load();
+    } catch (e: any) {
+      alert(e?.message || 'Ошибка сети');
+    } finally {
+      setCrediting(false);
+    }
+  };
+
   const load = useCallback(async () => {
     try {
       const [depRes, cfgRes] = await Promise.all([
@@ -268,6 +311,92 @@ export default function DepositsPage() {
           )}
         </div>
 
+        {/* Manual Credit Modal */}
+        {creditTarget && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#121214] border border-white/15 rounded-card max-w-md w-full p-5 flex flex-col gap-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-400 font-roobert text-[16px] font-medium">
+                  <Check size={18} />
+                  Ручное зачисление депозита
+                </div>
+                <button
+                  onClick={() => setCreditTarget(null)}
+                  className="text-whisper-gray hover:text-frost-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="bg-white/[0.03] border border-white/5 rounded-lg p-3 text-[12px] text-whisper-gray flex flex-col gap-1">
+                <div>
+                  Игрок: <span className="text-frost-white font-medium">{creditTarget.name}</span>
+                </div>
+                <div>
+                  ID ордера: <span className="font-mono text-frost-white/80">{creditTarget.id}</span>
+                </div>
+                <div>
+                  Запрошено: <span className="text-frost-white font-medium">{fmt(creditTarget.amount)} {creditTarget.currency}</span>
+                  {creditTarget.uniqueAmount > 0 && ` (уникальная: ${fmt(creditTarget.uniqueAmount)})`}
+                </div>
+                <div>
+                  Текущий статус: <span className="text-amber-300 uppercase">{creditTarget.status}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-roobert text-frost-white/70">
+                  Сумма к зачислению ({creditTarget.currency})
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                  className="w-full bg-white/[0.05] border border-white/15 rounded-lg px-3 py-2 text-[14px] text-frost-white font-roobert focus:outline-none focus:border-emerald-500/60"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-roobert text-frost-white/70">
+                  Причина / Обоснование (аудит)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Например: подтверждение по чеку P2P / ошибочная сумма"
+                  value={creditReason}
+                  onChange={(e) => setCreditReason(e.target.value)}
+                  className="w-full bg-white/[0.05] border border-white/15 rounded-lg px-3 py-2 text-[14px] text-frost-white font-roobert focus:outline-none focus:border-emerald-500/60"
+                />
+              </div>
+
+              <p className="text-[11px] text-whisper-gray leading-relaxed">
+                ⚠️ Средства будут мгновенно зачислены на реальный баланс пользователя с начислением вейджера и сменой статуса заявки на <span className="text-emerald-400 font-mono">credited</span>.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreditTarget(null)}
+                  disabled={crediting}
+                  className="px-4 py-2 rounded-pill border border-white/10 hover:bg-white/5 text-[13px] font-roobert text-whisper-gray"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCredit}
+                  disabled={crediting}
+                  className="px-4 py-2 rounded-pill bg-emerald-500 hover:bg-emerald-600 text-black font-roobert text-[13px] font-medium flex items-center gap-2"
+                >
+                  {crediting && <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
+                  Зачислить {creditAmount} {creditTarget.currency}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {filtered === null ? (
           <div className="rounded-card border border-white/10 bg-white/[0.03] py-16 flex items-center justify-center">
             <div className="w-6 h-6 rounded-full border border-white/20 border-t-frost-white animate-spin" />
@@ -284,6 +413,7 @@ export default function DepositsPage() {
                 deposit={d}
                 now={now}
                 onClick={() => router.push(`/system/console/users/${d.userId}`)}
+                onManualCredit={() => handleOpenCredit(d)}
               />
             ))}
           </div>
@@ -297,10 +427,12 @@ function DepositRow({
   deposit,
   now,
   onClick,
+  onManualCredit,
 }: {
   deposit: Deposit;
   now: number;
   onClick: () => void;
+  onManualCredit: () => void;
 }) {
   const remaining =
     deposit.status === 'pending' && deposit.expiresAt
@@ -354,7 +486,7 @@ function DepositRow({
         )}
       </div>
 
-      <div className="text-right">
+      <div className="text-right flex flex-col items-end">
         <div
           className={cn(
             'font-roobert text-[14px] tabular-nums',
@@ -372,6 +504,18 @@ function DepositRow({
           <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
             → {fmt(deposit.uniqueAmount)}
           </div>
+        )}
+        {deposit.status !== 'paid' && deposit.status !== 'credited' && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onManualCredit();
+            }}
+            className="mt-1.5 px-2.5 py-1 rounded-pill border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 font-roobert text-[11px] font-medium transition-colors"
+          >
+            Зачислить
+          </button>
         )}
       </div>
     </button>

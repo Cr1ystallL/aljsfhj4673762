@@ -28,6 +28,8 @@ import { freebetService } from '../services/freebet-service.js';
 import { vipService } from '../services/vip-service.js';
 import { securityService } from '../services/security-service.js';
 import { telegramApi } from '../lib/telegram-api.js';
+import { bannersConfig, type LobbyBanner } from '../services/banners-config.js';
+
 
 /**
  * Admin Routes — covert.
@@ -168,6 +170,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         withdrawalsRaw,
         activityRaw,
         newUsersRaw,
+        bonusesRaw,
+        cashbackRaw,
+        activeBettorsRaw,
+        orderUsersRaw,
+        ftdRaw,
+        repeatDepositorsRaw,
+        paidOrdersRaw,
       ] = await Promise.all([
         app.prisma.user.count(),
         app.prisma.user.count({ where: { createdAt: { gte: since24h } } }),
@@ -221,6 +230,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           GROUP BY date_trunc('hour', created_at)
           ORDER BY hour ASC
         `,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT COALESCE(SUM(amount), 0) as sum FROM transactions WHERE type IN ('deposit_bonus', 'bonus', 'promo_code', 'promo', 'freebet')`,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT COALESCE(SUM(amount), 0) as sum FROM transactions WHERE type = 'cashback'`,
+        app.prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(DISTINCT user_id) as count FROM bets WHERE metadata->>'demoMode' IS NULL`,
+        app.prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(DISTINCT user_id) as count FROM macvpay_orders`,
+        app.prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(DISTINCT user_id) as count FROM macvpay_orders WHERE status IN ('credited', 'paid', 'completed', 'success')`,
+        app.prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) as count FROM (SELECT user_id FROM macvpay_orders WHERE status IN ('credited', 'paid', 'completed', 'success') GROUP BY user_id HAVING COUNT(*) >= 2) t`,
+        app.prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) as count FROM macvpay_orders WHERE status IN ('credited', 'paid', 'completed', 'success')`,
       ]);
 
       const betCount = Number(betCountRows[0]?.count || 0);
@@ -589,42 +605,74 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       ];
 
+      const bonusesSum = Number(bonusesRaw[0]?.sum || 0);
+      const cashbackSum = Number(cashbackRaw[0]?.sum || 0);
+      const activeBettors = Number(activeBettorsRaw[0]?.count || 0);
+      const depositIntended = Number(orderUsersRaw[0]?.count || 0);
+      const ftdCount = Number(ftdRaw[0]?.count || 0);
+      const repeatDepositors = Number(repeatDepositorsRaw[0]?.count || 0);
+      const paidOrdersCount = Number(paidOrdersRaw[0]?.count || 0);
+
+      const ggrVal = wagerAgg._sum.amount - payoutAgg._sum.payout;
+      const paymentFees = depositsTotal * 0.05;
+      const ngrVal = Math.max(0, ggrVal - bonusesSum - cashbackSum - paymentFees);
+
+      const unitEconomics = {
+        ngr: Math.round(ngrVal * 100) / 100,
+        ggr: Math.round(ggrVal * 100) / 100,
+        bonusesSum: Math.round(bonusesSum * 100) / 100,
+        cashbackSum: Math.round(cashbackSum * 100) / 100,
+        paymentFees: Math.round(paymentFees * 100) / 100,
+        arpu: userCount > 0 ? Math.round((ggrVal / userCount) * 100) / 100 : 0,
+        arppu: ftdCount > 0 ? Math.round((ggrVal / ftdCount) * 100) / 100 : 0,
+        avgDeposit: paidOrdersCount > 0 ? Math.round((depositsTotal / paidOrdersCount) * 100) / 100 : 0,
+        ltv: ftdCount > 0 ? Math.round(((depositsTotal - withdrawalsTotal) / ftdCount) * 100) / 100 : 0,
+      };
+
+      const funnel = {
+        totalUsers: userCount,
+        activeBettors,
+        depositIntended,
+        ftdCount,
+        repeatDepositors,
+        conversionToBettor: userCount > 0 ? Math.round((activeBettors / userCount) * 1000) / 10 : 0,
+        conversionToFtd: userCount > 0 ? Math.round((ftdCount / userCount) * 1000) / 10 : 0,
+        retentionRepeat: ftdCount > 0 ? Math.round((repeatDepositors / ftdCount) * 1000) / 10 : 0,
+      };
+
       return reply.send({
-        ok: true,
         generatedAt: now,
         geoStats,
         users: { total: userCount, new24h: users24h, new7d: users7d },
         balances: {
           totalLiability,
-          withdrawableLiability,
-          withdrawableAccounts,
+          withdrawableLiability: realLiability,
+          withdrawableAccounts: realAccounts,
           totalDemo,
-          accounts: balances.length,
+          accounts: balances.filter((b) => !b.demoMode).length,
           demoAccounts: balances.filter((b) => b.demoMode).length,
           real: {
-            amount: withdrawableLiability,
-            accounts: withdrawableAccounts,
-            immediateAmount: Math.round(realImmediateAmount * 100) / 100,
+            amount: realLiability,
+            accounts: realAccounts,
+            immediateAmount: realImmediateAmount,
             immediateAccounts: realImmediateAccounts,
-            fullRealAmount: Math.round(realLiability * 100) / 100,
-            fullRealAccounts: realAccounts,
           },
           potential: {
-            amount: Math.round(potentialLiability * 100) / 100,
+            amount: potentialLiability,
             accounts: potentialAccounts,
             breakdown: {
               noDepositAccounts,
-              noDepositAmount: Math.round(noDepositAmount * 100) / 100,
+              noDepositAmount,
               needDepositAccounts,
-              needDepositAmount: Math.round(needDepositAmount * 100) / 100,
+              needDepositAmount,
               needWagerAccounts,
-              needWagerAmount: Math.round(needWagerAmount * 100) / 100,
+              needWagerAmount,
               blockedAccounts,
-              blockedAmount: Math.round(blockedAmount * 100) / 100,
+              blockedAmount,
             },
             economics: {
-              requiredDeposits: Math.round(totalRequiredDeposits * 100) / 100,
-              requiredTurnover: Math.round(totalRequiredTurnover * 100) / 100,
+              requiredDeposits: totalRequiredDeposits,
+              requiredTurnover: totalRequiredTurnover,
               expectedWagerProfit,
               netCasinoProfit,
               profitMultiplier,
@@ -633,10 +681,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
         bets: {
           count: betCount,
-          totalWagered,
-          totalPaidOut,
-          ggr,
-          rtp: totalWagered > 0 ? totalPaidOut / totalWagered : 0,
+          totalWagered: wagerAgg._sum.amount,
+          totalPaidOut: payoutAgg._sum.payout,
+          ggr: wagerAgg._sum.amount - payoutAgg._sum.payout,
+          rtp:
+            wagerAgg._sum.amount > 0
+              ? (payoutAgg._sum.payout / wagerAgg._sum.amount) * 100
+              : 0,
         },
         perGame,
         topPlayers,
@@ -658,6 +709,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         withdrawalsTotal,
         activityGraph,
         newUsersGraph,
+        unitEconomics,
+        funnel,
       });
     } catch (error) {
       logger.error(error, 'Admin stats fetch failed');
@@ -2321,6 +2374,40 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  app.get('/_x/sports/risks', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const risks = await sportsEngine.getSportsRisks();
+      return reply.send({ ok: true, ...risks });
+    } catch (err) {
+      logger.error(err, 'Failed to fetch sports risks');
+      return reply.code(500).send({ error: 'Failed to fetch sports risks' });
+    }
+  });
+
+  app.post<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/sports/bets/:id/void',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const reason = String(request.body?.reason ?? '').trim();
+      if (reason.length < 3) return reply.code(400).send({ error: 'Reason required (min 3 chars)' });
+      try {
+        const out = await sportsEngine.adminVoidBet(request.params.id);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'sports.bet_void',
+          targetType: 'bet',
+          targetId: request.params.id,
+          payloadAfter: out,
+          reason,
+        });
+        return reply.send(out);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Void bet failed';
+        return reply.code(400).send({ error: message });
+      }
+    }
+  );
+
   /* ============================================================== Phase 3 */
   /* --------------------------------------------------------------- alerts */
 
@@ -3637,6 +3724,216 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         logger.error(err, 'Failed to confirm crypto deposit');
         return reply.code(500).send({ error: 'Ошибка подтверждения депозита' });
+      }
+    }
+  );
+
+  /**
+   * POST /api/_x/deposits/:id/credit
+   * Body: { amount?: number, reason: string }
+   * Manually credits an unconfirmed or expired deposit (FoluxPay / MacvPay / general).
+   */
+  app.post<{ Params: { id: string }; Body: { amount?: number; reason: string } }>(
+    '/_x/deposits/:id/credit',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const depositId = (request.params.id ?? '').trim();
+      const reason = String(request.body?.reason ?? '').trim();
+      if (!depositId) return reply.code(400).send({ error: 'depositId is required' });
+      if (reason.length < 3) return reply.code(400).send({ error: 'Причина обязательна (минимум 3 символа)' });
+
+      try {
+        // 1. Check in macvpay_orders
+        interface OrderRow {
+          id: string;
+          user_id: string;
+          requested_amount: number;
+          unique_amount: number;
+          status: string;
+        }
+        const orderRows = await app.prisma.$queryRaw<OrderRow[]>`
+          SELECT id, user_id, requested_amount, unique_amount, status
+          FROM macvpay_orders
+          WHERE id = ${depositId}
+          LIMIT 1
+        `;
+
+        if (orderRows.length > 0) {
+          const order = orderRows[0];
+          if (order.status === 'credited' || order.status === 'paid') {
+            return reply.code(400).send({ error: 'Этот депозит уже зачислен' });
+          }
+
+          const creditAmount = Number(request.body?.amount) > 0
+            ? Number(request.body.amount)
+            : Number(order.unique_amount || order.requested_amount);
+
+          const wCfg = await walletConfig.get();
+          const wagerMult = wCfg.wagerMultiplier || 2;
+          const wagerAdd = creditAmount * wagerMult;
+
+          const txId = `dep_manual_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+          await app.prisma.$transaction(async (tx) => {
+            const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
+              UPDATE balances
+              SET amount = amount + ${creditAmount}::numeric,
+                  wager_target = wager_target + ${wagerAdd}::numeric,
+                  auto_rtp_target = auto_rtp_target + ${wagerAdd}::numeric,
+                  updated_at = NOW()
+              WHERE user_id = ${order.user_id} AND demo_mode = false
+              RETURNING amount
+            `;
+
+            let afterAmount: number;
+            if (balanceRows.length === 0) {
+              const created = await tx.$queryRaw<Array<{ amount: string }>>`
+                INSERT INTO balances (id, user_id, amount, currency, demo_mode, wager_target, auto_rtp_target, created_at, updated_at)
+                VALUES (gen_random_uuid(), ${order.user_id}, ${creditAmount}::numeric, 'PLN', false, ${wagerAdd}::numeric, ${wagerAdd}::numeric, NOW(), NOW())
+                RETURNING amount
+              `;
+              afterAmount = Number(created[0]?.amount ?? creditAmount);
+            } else {
+              afterAmount = Number(balanceRows[0].amount);
+            }
+            const beforeAmount = afterAmount - creditAmount;
+
+            await tx.transaction.create({
+              data: {
+                id: txId,
+                userId: order.user_id,
+                type: 'deposit',
+                amount: creditAmount,
+                balanceBefore: beforeAmount,
+                balanceAfter: afterAmount,
+                metadata: {
+                  foluxPayOrderId: order.id,
+                  provider: 'manual_credit',
+                  adminUserId: (request as AuthenticatedRequest).user.userId,
+                  reason,
+                },
+              },
+            });
+
+            await tx.$executeRaw`
+              UPDATE macvpay_orders
+              SET status = 'credited',
+                  paid_amount = ${creditAmount},
+                  paid_at = NOW(),
+                  credit_tx_id = ${txId},
+                  updated_at = NOW()
+              WHERE id = ${order.id}
+            `;
+          });
+
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: 'deposit.manual_credit',
+            targetType: 'deposit',
+            targetId: order.id,
+            payloadAfter: { userId: order.user_id, amount: creditAmount, reason },
+            reason,
+          });
+
+          void freebetService.checkAndGrantDepositFreebets(order.user_id, creditAmount, order.id);
+
+          return reply.send({
+            ok: true,
+            id: order.id,
+            userId: order.user_id,
+            creditedAmount: creditAmount,
+            status: 'credited',
+          });
+        }
+
+        // 2. Check in direct_crypto_deposits
+        const cryptoRows = await app.prisma.$queryRaw<Array<{
+          id: string;
+          user_id: string;
+          requested_pln: string;
+          status: string;
+        }>>`
+          SELECT id, user_id, requested_pln::text, status
+          FROM direct_crypto_deposits
+          WHERE id = ${depositId}
+          LIMIT 1
+        `;
+
+        if (cryptoRows.length > 0) {
+          const dep = cryptoRows[0];
+          if (dep.status === 'credited' || dep.status === 'paid') {
+            return reply.code(400).send({ error: 'Этот крипто-депозит уже зачислен' });
+          }
+
+          const creditAmount = Number(request.body?.amount) > 0
+            ? Number(request.body.amount)
+            : Number(dep.requested_pln);
+
+          const wCfg = await walletConfig.get();
+          const wagerMult = wCfg.wagerMultiplier || 2;
+          const wagerAdd = creditAmount * wagerMult;
+          const txId = `crypto_manual_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+          await app.prisma.$transaction(async (tx) => {
+            const balanceRows = await tx.$queryRaw<Array<{ amount: string }>>`
+              UPDATE balances
+              SET amount = amount + ${creditAmount}::numeric,
+                  wager_target = wager_target + ${wagerAdd}::numeric,
+                  auto_rtp_target = auto_rtp_target + ${wagerAdd}::numeric,
+                  updated_at = NOW()
+              WHERE user_id = ${dep.user_id} AND demo_mode = false
+              RETURNING amount
+            `;
+
+            const afterAmount = Number(balanceRows[0]?.amount ?? creditAmount);
+            const beforeAmount = afterAmount - creditAmount;
+
+            await tx.transaction.create({
+              data: {
+                id: txId,
+                userId: dep.user_id,
+                type: 'deposit',
+                amount: creditAmount,
+                balanceBefore: beforeAmount,
+                balanceAfter: afterAmount,
+                metadata: {
+                  cryptoDepositId: dep.id,
+                  provider: 'crypto_manual_credit',
+                  adminUserId: (request as AuthenticatedRequest).user.userId,
+                  reason,
+                },
+              },
+            });
+
+            await tx.$executeRaw`
+              UPDATE direct_crypto_deposits
+              SET status = 'credited', paid_at = NOW(), updated_at = NOW()
+              WHERE id = ${dep.id}
+            `;
+          });
+
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: 'deposit.crypto_manual_credit',
+            targetType: 'deposit',
+            targetId: dep.id,
+            payloadAfter: { userId: dep.user_id, amount: creditAmount, reason },
+            reason,
+          });
+
+          return reply.send({
+            ok: true,
+            id: dep.id,
+            userId: dep.user_id,
+            creditedAmount: creditAmount,
+            status: 'credited',
+          });
+        }
+
+        return reply.code(404).send({ error: 'Депозит не найден' });
+      } catch (err) {
+        logger.error(err, 'Manual deposit credit failed');
+        return reply.code(500).send({ error: 'Ошибка ручного зачисления депозита' });
       }
     }
   );
@@ -6911,145 +7208,371 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  /* ---------------------------------------------------------------- partner management */
+  /* ---------------------------------------------------------------- support workspace */
 
-  app.get('/_x/partners', { preHandler: adminOnly }, async (request, reply) => {
-    try {
-      const promos = await app.prisma.affiliatePromoCode.findMany();
-      const promoUserIds = Array.from(new Set(promos.map(p => p.userId)));
+  app.get<{ Querystring: { q?: string } }>(
+    '/_x/support/lookup',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const q = String(request.query.q ?? '').trim();
+      if (!q) return reply.code(400).send({ error: 'Search query required' });
 
-      const referrers = await app.prisma.user.groupBy({
-        by: ['referrerTelegramId'],
-        where: { referrerTelegramId: { not: null } },
-        _count: { referrerTelegramId: true }
-      });
-      const referrerMap = new Map();
-      const referrerTelegramIds: bigint[] = [];
-      for (const r of referrers) {
-        if (r.referrerTelegramId) {
-          referrerMap.set(String(r.referrerTelegramId), r._count.referrerTelegramId);
-          referrerTelegramIds.push(r.referrerTelegramId);
+      try {
+        const cleanQ = q.replace(/^@/, '').trim();
+        const isNumeric = /^\d+$/.test(cleanQ);
+
+        const user = await app.prisma.user.findFirst({
+          where: {
+            OR: [
+              { id: cleanQ },
+              ...(isNumeric ? [{ telegramId: BigInt(cleanQ) }] : []),
+              { username: { equals: cleanQ, mode: 'insensitive' } },
+            ],
+          },
+          include: {
+            balance: true,
+          },
+        });
+
+        if (!user) {
+          return reply.code(404).send({ error: 'Пользователь не найден' });
         }
+
+        const realBalance = Number(user.balance?.amount ?? 0);
+        const wagerTarget = Number(user.balance?.wagerTarget ?? 0);
+        const wagerProgress = Number(user.balance?.wagerProgress ?? 0);
+        const remainingWager = Math.max(0, wagerTarget - wagerProgress);
+        const canWithdraw = remainingWager === 0 && !user.withdrawalLocked && !user.isBlocked;
+
+        let drainStatus = { active: false, roundsLeft: 0, expiresAt: 0, reason: null as string | null };
+        try {
+          const drainRaw = await redisClient.getClient().get(`user:drain:${user.id}`);
+          if (drainRaw) {
+            drainStatus = JSON.parse(drainRaw);
+          }
+        } catch {}
+
+        const [orders, depositsTx, withdrawals, bets, notes, alerts] = await Promise.all([
+          app.prisma.$queryRaw<any[]>`
+            SELECT id, requested_amount, unique_amount, status, payment_type, created_at, paid_at
+            FROM macvpay_orders
+            WHERE user_id = ${user.id}
+            ORDER BY created_at DESC
+            LIMIT 5
+          `,
+          app.prisma.transaction.findMany({
+            where: { userId: user.id, type: 'deposit' },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: { id: true, amount: true, createdAt: true, metadata: true },
+          }),
+          app.prisma.withdrawalRequest.findMany({
+            where: { userId: user.id },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: { id: true, amount: true, status: true, method: true, destination: true, rejectionReason: true, createdAt: true },
+          }),
+          app.prisma.bet.findMany({
+            where: { userId: user.id },
+            orderBy: { placedAt: 'desc' },
+            take: 5,
+            select: { id: true, gameType: true, amount: true, payout: true, multiplier: true, state: true, placedAt: true },
+          }),
+          app.prisma.$queryRaw<any[]>`
+            SELECT id, admin_telegram_id, action, reason, created_at
+            FROM admin_audit_log
+            WHERE target_id = ${user.id}
+            ORDER BY created_at DESC
+            LIMIT 5
+          `,
+          app.prisma.$queryRaw<any[]>`
+            SELECT id, type, severity, message, created_at
+            FROM anti_fraud_alerts
+            WHERE user_id = ${user.id}
+            ORDER BY created_at DESC
+            LIMIT 5
+          `.catch(() => []),
+        ]);
+
+        const vipStatus = await vipService.getVipStatus(user.id).catch(() => null);
+
+        return reply.send({
+          ok: true,
+          user: {
+            id: user.id,
+            telegramId: Number(user.telegramId),
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            photoUrl: user.photoUrl,
+            createdAt: user.createdAt.getTime(),
+            isBlocked: user.isBlocked,
+            withdrawalLocked: user.withdrawalLocked,
+            ignoreIpCollision: user.ignoreIpCollision,
+            adminNote: user.adminNote,
+            balance: realBalance,
+            wagerTarget,
+            wagerProgress,
+            remainingWager,
+            canWithdraw,
+            vip: vipStatus,
+            drain: drainStatus,
+          },
+          recentOrders: orders.map((o) => ({
+            id: o.id,
+            amount: Number(o.unique_amount || o.requested_amount),
+            status: o.status,
+            paymentType: o.payment_type,
+            createdAt: new Date(o.created_at).getTime(),
+            paidAt: o.paid_at ? new Date(o.paid_at).getTime() : null,
+          })),
+          recentDeposits: depositsTx.map((d) => ({
+            id: d.id,
+            amount: Number(d.amount),
+            description: 'Депозит',
+            createdAt: d.createdAt.getTime(),
+          })),
+          recentWithdrawals: withdrawals.map((w) => ({
+            id: w.id,
+            amount: Number(w.amount),
+            status: w.status,
+            method: w.method,
+            destination: w.destination,
+            rejectionReason: w.rejectionReason,
+            createdAt: w.createdAt.getTime(),
+          })),
+          recentBets: bets.map((b) => ({
+            id: b.id,
+            gameType: b.gameType,
+            amount: Number(b.amount),
+            payout: Number(b.payout ?? 0),
+            multiplier: Number(b.multiplier ?? 0),
+            state: b.state,
+            placedAt: b.placedAt.getTime(),
+          })),
+          recentAudits: notes.map((n) => ({
+            id: n.id,
+            adminTelegramId: Number(n.admin_telegram_id),
+            action: n.action,
+            reason: n.reason,
+            createdAt: new Date(n.created_at).getTime(),
+          })),
+          alerts: alerts.map((a: any) => ({
+            id: a.id,
+            type: a.type,
+            severity: a.severity,
+            message: a.message,
+            createdAt: new Date(a.created_at).getTime(),
+          })),
+        });
+      } catch (err) {
+        logger.error(err, 'Support lookup failed');
+        return reply.code(500).send({ error: 'Ошибка поиска пользователя' });
+      }
+    }
+  );
+
+  app.post<{
+    Body: {
+      userId: string;
+      action: 'clear_wager' | 'toggle_withdrawal_lock' | 'grant_freebet' | 'append_note';
+      amount?: number;
+      note?: string;
+      reason: string;
+    };
+  }>(
+    '/_x/support/quick-action',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { userId, action, amount, note, reason } = request.body || {};
+      if (!userId) return reply.code(400).send({ error: 'userId required' });
+      if (!reason || reason.trim().length < 3) {
+        return reply.code(400).send({ error: 'Причина обязательна (минимум 3 символа)' });
       }
 
-      const users = await app.prisma.user.findMany({
-        where: {
-          OR: [
-            { revshareBalance: { gt: 0 } },
-            { negativeCarryover: { lt: 0 } },
-            { id: { in: promoUserIds } },
-            { telegramId: { in: referrerTelegramIds } }
-          ]
-        },
-        select: {
-          id: true,
-          telegramId: true,
-          firstName: true,
-          username: true,
-          revshareBalance: true,
-          negativeCarryover: true
-        },
-        orderBy: [{ revshareBalance: 'desc' }],
-        take: 100
-      });
-
-      const partners = users.map(u => ({
-        ...u,
-        telegramId: String(u.telegramId),
-        _count: { referrals: referrerMap.get(String(u.telegramId)) || 0 }
-      }));
-
-      return reply.send({ ok: true, data: partners });
-    } catch (e) {
-      return reply.code(500).send({ error: 'Internal Server Error' });
-    }
-  });
-
-  app.get<{ Params: { id: string } }>('/_x/partners/:id', { preHandler: adminOnly }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const user = await app.prisma.user.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          telegramId: true,
-          firstName: true,
-          username: true,
-          revshareBalance: true,
-          negativeCarryover: true,
-          createdAt: true
+      try {
+        if (action === 'clear_wager') {
+          await app.prisma.$executeRaw`
+            UPDATE balances
+            SET wager_target = wager_progress, updated_at = NOW()
+            WHERE user_id = ${userId} AND demo_mode = false
+          `;
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: 'support.clear_wager',
+            targetType: 'user',
+            targetId: userId,
+            reason,
+          });
+          return reply.send({ ok: true, message: 'Вейджер успешно сброшен' });
         }
-      });
-      if (!user) return reply.code(404).send({ error: 'Not found' });
 
-      const referrals = await app.prisma.user.count({
-        where: { referrerTelegramId: user.telegramId }
-      });
-
-      const affiliatePromoCodes = await app.prisma.affiliatePromoCode.findMany({
-        where: { userId: user.id }
-      });
-
-      const fullUser = {
-        ...user,
-        telegramId: String(user.telegramId),
-        _count: { referrals },
-        affiliatePromoCodes
-      };
-
-      const stats = await app.prisma.affiliateStatsDaily.findMany({
-        where: { affiliateTelegramId: user.telegramId },
-        orderBy: { date: 'desc' },
-        take: 30
-      });
-      const serializedStats = stats.map(s => ({ ...s, affiliateTelegramId: String(s.affiliateTelegramId) }));
-
-      const allTimeStatsRows = await app.prisma.affiliateStatsDaily.aggregate({
-        where: { affiliateTelegramId: user.telegramId },
-        _sum: { clicks: true, fdCount: true, rdCount: true, depSum: true, income: true, ggr: true }
-      });
-
-      const allTimeStats = {
-        clicks: allTimeStatsRows._sum.clicks || 0,
-        fds: allTimeStatsRows._sum.fdCount || 0,
-        rds: allTimeStatsRows._sum.rdCount || 0,
-        depSum: Number(allTimeStatsRows._sum.depSum || 0),
-        income: Number(allTimeStatsRows._sum.income || 0),
-        ggr: Number(allTimeStatsRows._sum.ggr || 0)
-      };
-
-      return reply.send({ ok: true, data: { user: fullUser, stats: serializedStats, allTimeStats } });
-    } catch (e) {
-      return reply.code(500).send({ error: 'Internal Server Error' });
-    }
-  });
-
-  app.put<{ Params: { id: string }, Body: { revshareBalance?: number, negativeCarryover?: number } }>('/_x/partners/:id/balance', { preHandler: adminOnly }, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const { revshareBalance, negativeCarryover } = request.body;
-
-      const user = await app.prisma.user.update({
-        where: { id },
-        data: {
-          ...(revshareBalance !== undefined && { revshareBalance }),
-          ...(negativeCarryover !== undefined && { negativeCarryover })
+        if (action === 'toggle_withdrawal_lock') {
+          const u = await app.prisma.user.findUnique({ where: { id: userId }, select: { withdrawalLocked: true } });
+          const next = !u?.withdrawalLocked;
+          await app.prisma.user.update({
+            where: { id: userId },
+            data: { withdrawalLocked: next },
+          });
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: next ? 'support.lock_withdrawal' : 'support.unlock_withdrawal',
+            targetType: 'user',
+            targetId: userId,
+            payloadAfter: { withdrawalLocked: next },
+            reason,
+          });
+          return reply.send({ ok: true, withdrawalLocked: next });
         }
-      });
 
-      await audit({
-        request: request as AuthenticatedRequest,
-        action: 'system.update_partner_balance',
-        targetType: 'user',
-        targetId: id,
-        payloadAfter: { revshareBalance, negativeCarryover }
-      });
+        if (action === 'grant_freebet') {
+          const fbAmount = Number(amount);
+          if (!fbAmount || fbAmount <= 0) {
+            return reply.code(400).send({ error: 'Сумма фрибета должна быть больше 0' });
+          }
+          await freebetService.grantManualFreebet({
+            userId,
+            amount: fbAmount,
+            validDays: 7,
+          });
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: 'support.grant_freebet',
+            targetType: 'user',
+            targetId: userId,
+            payloadAfter: { amount: fbAmount },
+            reason,
+          });
+          return reply.send({ ok: true, message: `Фрибет на ${fbAmount} PLN выдан` });
+        }
 
-      return reply.send({ ok: true, data: user });
-    } catch (e) {
-      return reply.code(500).send({ error: 'Internal Server Error' });
+        if (action === 'append_note') {
+          if (!note || note.trim().length === 0) {
+            return reply.code(400).send({ error: 'Текст заметки обязателен' });
+          }
+          const existing = await app.prisma.user.findUnique({ where: { id: userId }, select: { adminNote: true } });
+          const newNote = existing?.adminNote
+            ? `${existing.adminNote}\n[${new Date().toISOString().slice(0, 16)}] ${note.trim()}`
+            : `[${new Date().toISOString().slice(0, 16)}] ${note.trim()}`;
+          await app.prisma.user.update({
+            where: { id: userId },
+            data: { adminNote: newNote },
+          });
+          await audit({
+            request: request as AuthenticatedRequest,
+            action: 'support.append_note',
+            targetType: 'user',
+            targetId: userId,
+            payloadAfter: { adminNote: newNote },
+            reason,
+          });
+          return reply.send({ ok: true, adminNote: newNote });
+        }
+
+        return reply.code(400).send({ error: 'Неизвестное действие' });
+      } catch (err) {
+        logger.error(err, 'Support quick action failed');
+        return reply.code(500).send({ error: 'Ошибка выполнения действия саппорта' });
+      }
+    }
+  );
+
+  /* ---------------------------------------------------------------- lobby hero banners */
+
+  // Public endpoint for mini-app
+  app.get('/banners', async (_req, reply) => {
+    try {
+      const banners = await bannersConfig.getActive();
+      return reply.send({ ok: true, banners });
+    } catch (err) {
+      logger.error(err, 'Failed to fetch public banners');
+      return reply.send({ ok: true, banners: [] });
     }
   });
+
+  // Admin endpoints
+  app.get('/_x/banners', { preHandler: adminOnly }, async (_req, reply) => {
+    try {
+      const banners = await bannersConfig.getAll();
+      return reply.send({ ok: true, banners });
+    } catch (err) {
+      logger.error(err, 'Failed to fetch admin banners');
+      return reply.code(500).send({ error: 'Failed to fetch banners' });
+    }
+  });
+
+  app.post<{ Body: { banner: LobbyBanner; reason?: string } }>(
+    '/_x/banners',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { banner, reason } = request.body || {};
+      if (!banner || !banner.id || !banner.title) {
+        return reply.code(400).send({ error: 'Banner id and title required' });
+      }
+      try {
+        const banners = await bannersConfig.createOrUpdate(banner);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'banners.upsert',
+          targetType: 'banner',
+          targetId: banner.id,
+          payloadAfter: banner,
+          reason: reason || 'Updated banner configuration',
+        });
+        return reply.send({ ok: true, banners });
+      } catch (err) {
+        logger.error(err, 'Failed to save banner');
+        return reply.code(500).send({ error: 'Failed to save banner' });
+      }
+    }
+  );
+
+  app.delete<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/_x/banners/:id',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        const banners = await bannersConfig.delete(id);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'banners.delete',
+          targetType: 'banner',
+          targetId: id,
+          reason: request.body?.reason || 'Deleted banner',
+        });
+        return reply.send({ ok: true, banners });
+      } catch (err) {
+        logger.error(err, 'Failed to delete banner');
+        return reply.code(500).send({ error: 'Failed to delete banner' });
+      }
+    }
+  );
+
+  app.patch<{ Body: { ids: string[]; reason?: string } }>(
+    '/_x/banners/reorder',
+    { preHandler: adminOnly },
+    async (request, reply) => {
+      const { ids, reason } = request.body || {};
+      if (!Array.isArray(ids)) {
+        return reply.code(400).send({ error: 'ids array required' });
+      }
+      try {
+        const banners = await bannersConfig.reorder(ids);
+        await audit({
+          request: request as AuthenticatedRequest,
+          action: 'banners.reorder',
+          targetType: 'banners',
+          payloadAfter: { ids },
+          reason: reason || 'Reordered banners',
+        });
+        return reply.send({ ok: true, banners });
+      } catch (err) {
+        logger.error(err, 'Failed to reorder banners');
+        return reply.code(500).send({ error: 'Failed to reorder banners' });
+      }
+    }
+  );
 
   // ---------------------------------------------------------------------------
   // FREEBETS MANAGEMENT

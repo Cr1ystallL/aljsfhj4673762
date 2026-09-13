@@ -27,6 +27,8 @@ import {
   UserCheck,
   ArrowRight,
   Info,
+  BarChart3,
+  Filter,
 } from 'lucide-react';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 import { HelpButton } from '@/components/admin/help-button';
@@ -129,6 +131,27 @@ interface AdminStats {
   withdrawalsTotal?: number;
   activityGraph: Array<{ hour: string; count: number }>;
   newUsersGraph: Array<{ hour: string; count: number }>;
+  unitEconomics?: {
+    ngr: number;
+    ggr: number;
+    bonusesSum: number;
+    cashbackSum: number;
+    paymentFees: number;
+    arpu: number;
+    arppu: number;
+    avgDeposit: number;
+    ltv: number;
+  };
+  funnel?: {
+    totalUsers: number;
+    activeBettors: number;
+    depositIntended: number;
+    ftdCount: number;
+    repeatDepositors: number;
+    conversionToBettor: number;
+    conversionToFtd: number;
+    retentionRepeat: number;
+  };
 }
 
 export default function AdminDashboardPage() {
@@ -338,6 +361,12 @@ export default function AdminDashboardPage() {
           <OnlineAnalyticsSection graph={data.activityGraph} newUsersGraph={data.newUsersGraph} />
           {/* World Geo Map analytics section */}
           <WorldGeoMap serverGeoStats={data.geoStats} />
+
+          {/* Unit Economics & NGR */}
+          <UnitEconomicsSection unitEconomics={data.unitEconomics} />
+
+          {/* Player Conversion Funnel */}
+          <ConversionFunnelSection funnel={data.funnel} />
 
           {/* Biggest win */}
           {data.biggestWin && (
@@ -763,6 +792,251 @@ function ActivityChart({ points }: { points: AdminStats['activityGraph'] }) {
         {n > 1 && <span>{formatDate(points[n - 1].hour)} {formatHour(points[n - 1].hour)}</span>}
       </div>
     </div>
+  );
+}
+
+function UnitEconomicsSection({
+  unitEconomics,
+}: {
+  unitEconomics?: AdminStats['unitEconomics'];
+}) {
+  if (!unitEconomics) return null;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BarChart3 size={16} className="text-emerald-400" />
+          <h2 className="font-roobert text-[15px] font-medium text-frost-white uppercase tracking-[0.05em]">
+            Юнит-экономика & NGR
+          </h2>
+        </div>
+        <HelpButton title="Юнит-экономика и NGR">
+          <div className="space-y-2 text-xs text-frost-white/80 font-roobert">
+            <p>
+              <strong>NGR (Net Gaming Revenue):</strong> чистая выручка казино после вычета расходов.
+              <br />
+              <code className="text-emerald-300">NGR = GGR - Бонусы - Кэшбэк - Комиссии эквайринга (5%)</code>
+            </p>
+            <p>
+              <strong>ARPU:</strong> средний доход GGR в расчете на 1 зарегистрированного пользователя.
+            </p>
+            <p>
+              <strong>ARPPU:</strong> средний доход GGR в расчете на 1 платящего игрока (FTD).
+            </p>
+            <p>
+              <strong>LTV:</strong> чистая ценность игрока за все время ((Депозиты - Выводы) / FTD).
+            </p>
+            <p>
+              <strong>Средний депозит:</strong> средний чек одного успешного депозита.
+            </p>
+          </div>
+        </HelpButton>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* NGR Main Card */}
+        <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl flex flex-col justify-between">
+          <div className="text-[11px] uppercase tracking-wider text-whisper-gray font-medium flex items-center justify-between">
+            <span>NGR (Чистый доход)</span>
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full',
+                unitEconomics.ngr >= 0 ? 'bg-emerald-400' : 'bg-rose-400'
+              )}
+            />
+          </div>
+          <div className="my-2 text-2xl font-light text-frost-white tabular-nums">
+            <span className={unitEconomics.ngr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+              {unitEconomics.ngr > 0 ? '+' : ''}
+              {formatPln(unitEconomics.ngr)} zł
+            </span>
+          </div>
+          <div className="space-y-1 text-[10.5px] text-whisper-gray/80 border-t border-white/5 pt-2">
+            <div className="flex justify-between">
+              <span>GGR:</span>
+              <span className="text-white font-mono">+{formatPln(unitEconomics.ggr)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Бонусы + Кэшбэк:</span>
+              <span className="text-rose-400 font-mono">
+                -{formatPln(unitEconomics.bonusesSum + unitEconomics.cashbackSum)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Эквайринг (5%):</span>
+              <span className="text-amber-400 font-mono">-{formatPln(unitEconomics.paymentFees)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ARPU */}
+        <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl flex flex-col justify-between">
+          <div className="text-[11px] uppercase tracking-wider text-whisper-gray font-medium">
+            ARPU (На игрока)
+          </div>
+          <div className="my-2 text-2xl font-light text-frost-white tabular-nums">
+            {formatPln(unitEconomics.arpu)} <span className="text-xs text-whisper-gray">zł / рег</span>
+          </div>
+          <p className="text-[10.5px] text-whisper-gray border-t border-white/5 pt-2">
+            Выручка GGR деленная на общее число аккаунтов
+          </p>
+        </div>
+
+        {/* ARPPU */}
+        <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl flex flex-col justify-between">
+          <div className="text-[11px] uppercase tracking-wider text-whisper-gray font-medium">
+            ARPPU (На платящего)
+          </div>
+          <div className="my-2 text-2xl font-light text-frost-white tabular-nums">
+            <span className="text-amber-300">{formatPln(unitEconomics.arppu)}</span>{' '}
+            <span className="text-xs text-whisper-gray">zł / деп</span>
+          </div>
+          <p className="text-[10.5px] text-whisper-gray border-t border-white/5 pt-2">
+            Выручка GGR на одного депозитора (FTD)
+          </p>
+        </div>
+
+        {/* LTV */}
+        <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl flex flex-col justify-between">
+          <div className="text-[11px] uppercase tracking-wider text-whisper-gray font-medium">
+            LTV (Ценность платящего)
+          </div>
+          <div className="my-2 text-2xl font-light text-frost-white tabular-nums">
+            <span className="text-emerald-400">{formatPln(unitEconomics.ltv)}</span>{' '}
+            <span className="text-xs text-whisper-gray">zł</span>
+          </div>
+          <p className="text-[10.5px] text-whisper-gray border-t border-white/5 pt-2">
+            Чистый баланс (депы минус выводы) на одного FTD
+          </p>
+        </div>
+
+        {/* Avg Deposit */}
+        <div className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl flex flex-col justify-between">
+          <div className="text-[11px] uppercase tracking-wider text-whisper-gray font-medium">
+            Средний депозит
+          </div>
+          <div className="my-2 text-2xl font-light text-frost-white tabular-nums">
+            {formatPln(unitEconomics.avgDeposit)} <span className="text-xs text-whisper-gray">zł</span>
+          </div>
+          <p className="text-[10.5px] text-whisper-gray border-t border-white/5 pt-2">
+            Средний размер успешного пополнения
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ConversionFunnelSection({ funnel }: { funnel?: AdminStats['funnel'] }) {
+  if (!funnel) return null;
+
+  const steps = [
+    {
+      title: '1. Регистрации',
+      count: funnel.totalUsers,
+      suffix: 'игроков',
+      pct: '100%',
+      desc: 'Все аккаунты',
+      color: 'from-blue-500 to-indigo-500',
+    },
+    {
+      title: '2. Активные ставки',
+      count: funnel.activeBettors,
+      suffix: 'игроков',
+      pct: `${funnel.conversionToBettor}%`,
+      desc: 'Сделали >= 1 ставки',
+      color: 'from-indigo-500 to-purple-500',
+    },
+    {
+      title: '3. Инвойс на деп',
+      count: funnel.depositIntended,
+      suffix: 'заявок',
+      pct: `${funnel.totalUsers > 0 ? Math.round((funnel.depositIntended / funnel.totalUsers) * 100) : 0}%`,
+      desc: 'Создали оплату в кассе',
+      color: 'from-purple-500 to-pink-500',
+    },
+    {
+      title: '4. Первый депозит (FTD)',
+      count: funnel.ftdCount,
+      suffix: 'игроков',
+      pct: `${funnel.conversionToFtd}%`,
+      desc: 'Успешно оплатили',
+      color: 'from-emerald-500 to-teal-500',
+    },
+    {
+      title: '5. Повторные (Ретеншн)',
+      count: funnel.repeatDepositors,
+      suffix: 'игроков',
+      pct: `${funnel.retentionRepeat}%`,
+      desc: '>= 2 депозитов',
+      color: 'from-amber-400 to-orange-500',
+    },
+  ];
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-amber-400" />
+          <h2 className="font-roobert text-[15px] font-medium text-frost-white uppercase tracking-[0.05em]">
+            Воронка конверсии игроков (Funnel)
+          </h2>
+        </div>
+        <HelpButton title="Воронка конверсии">
+          <div className="space-y-2 text-xs text-frost-white/80 font-roobert">
+            <p>
+              Показывает путь игрока от первой регистрации до повторных депозитов.
+            </p>
+            <p>
+              <strong>Конверсия в ставки:</strong> процент зарегистрированных, начавших играть.
+            </p>
+            <p>
+              <strong>Конверсия в FTD:</strong> процент игроков, внесших хотя бы один реальный депозит.
+            </p>
+            <p>
+              <strong>Ретеншн повторных депозитов:</strong> процент от FTD-игроков, совершивших 2 и более депозитов.
+            </p>
+          </div>
+        </HelpButton>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {steps.map((s) => (
+          <div
+            key={s.title}
+            className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl relative overflow-hidden flex flex-col justify-between"
+          >
+            <div>
+              <div className="text-[11px] font-medium text-whisper-gray truncate">{s.title}</div>
+              <div className="mt-2 text-2xl font-light text-frost-white tabular-nums flex items-baseline gap-1.5">
+                <span>{s.count.toLocaleString('ru-RU')}</span>
+                <span className="text-xs text-whisper-gray font-normal">{s.suffix}</span>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden mb-1.5">
+                <div
+                  className={`h-full rounded-full bg-gradient-to-r ${s.color}`}
+                  style={{
+                    width: `${
+                      funnel.totalUsers > 0
+                        ? Math.max(5, Math.min(100, (s.count / funnel.totalUsers) * 100))
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10.5px] text-whisper-gray/80">
+                <span>{s.desc}</span>
+                <span className="font-mono text-white/90 font-semibold">{s.pct}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

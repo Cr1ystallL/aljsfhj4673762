@@ -18,6 +18,8 @@ import {
   Cpu,
   Gamepad2,
   Gauge,
+  Headset,
+  Image as ImageIcon,
   KeyRound,
   Megaphone,
   Network,
@@ -26,10 +28,10 @@ import {
   Shield,
   Sliders,
   Sparkles,
+  Target,
   Users,
   Wallet,
   Database,
-  Handshake,
   Trophy,
   type LucideIcon,
 } from 'lucide-react';
@@ -73,7 +75,19 @@ interface AdminLink {
 
 const links: AdminLink[] = [
   { id: 'dashboard', label: 'Сводка', Icon: Gauge, href: '/system/console' },
+  {
+    id: 'support',
+    label: 'Поддержка',
+    Icon: Headset,
+    href: '/system/console/support',
+  },
   { id: 'users', label: 'Игроки', Icon: Users, href: '/system/console/users' },
+  {
+    id: 'rtp',
+    label: 'RTP Движок',
+    Icon: Target,
+    href: '/system/console/rtp',
+  },
   { id: 'games', label: 'Игры', Icon: Gamepad2, href: '/system/console/games' },
   { id: 'sports', label: 'Спорт', Icon: Trophy, href: '/system/console/sports' },
   {
@@ -107,10 +121,10 @@ const links: AdminLink[] = [
     href: '/system/console/vip',
   },
   {
-    id: 'partners',
-    label: 'Партнеры',
-    Icon: Handshake,
-    href: '/system/console/partners',
+    id: 'banners',
+    label: 'Баннеры',
+    Icon: ImageIcon,
+    href: '/system/console/banners',
   },
   {
     id: 'broadcasts',

@@ -516,6 +516,117 @@ class SportsEngine {
     return { eventId, score1, score2 };
   }
 
+  async adminVoidBet(betId: string): Promise<{ ok: boolean; betId: string }> {
+    const tracked = this.bets.get(betId);
+    if (tracked) {
+      await bettingPipeline.rollbackBet(tracked.bet, false);
+      this.unindexBet(betId);
+      const notifyKey = `sports:notified:settle:${betId}`;
+      const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX').catch(() => null);
+      if (canNotify === 'OK' || canNotify === 1) {
+        void notifySportsUser(
+          tracked.bet.userId,
+          sportsSettleText(String((tracked.bet.metadata as Record<string, unknown>)?.eventName ?? ''), tracked.legs.length >= 2 ? 'express' : 'single', 'void', tracked.bet.amount)
+        );
+      }
+      return { ok: true, betId };
+    }
+    const bet = await prisma.bet.findUnique({ where: { id: betId } });
+    if (!bet || bet.gameType !== 'sports') throw new Error('Ставка не найдена');
+    if (bet.state !== 'pending') throw new Error(`Ставка уже завершена со статусом ${bet.state}`);
+    await bettingPipeline.rollbackBet({ ...bet, gameId: (bet as any).gameId ?? bet.gameType } as any, false);
+    return { ok: true, betId };
+  }
+
+  async getSportsRisks() {
+    interface OutcomeExposure {
+      outcomeKey: string;
+      label: string;
+      betsCount: number;
+      stake: number;
+      liability: number;
+    }
+    interface EventRisk {
+      eventId: string;
+      sport: string;
+      league: string;
+      team1: string;
+      team2: string;
+      status: string;
+      totalBets: number;
+      totalStake: number;
+      outcomes: Record<string, OutcomeExposure>;
+      maxLiability: number;
+      netExposure: number;
+    }
+
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const eventRisks: EventRisk[] = [];
+    let globalActiveStake = 0;
+    let globalMaxLiability = 0;
+
+    for (const [eventId, ev] of this.events.entries()) {
+      const betIds = this.byEvent.get(eventId) ?? [];
+      if (betIds.length === 0) continue;
+
+      let eventStake = 0;
+      const outcomes: Record<string, OutcomeExposure> = {
+        '1': { outcomeKey: '1', label: ev.feed.team1.name || 'П1', betsCount: 0, stake: 0, liability: 0 },
+        'X': { outcomeKey: 'X', label: 'Ничья', betsCount: 0, stake: 0, liability: 0 },
+        '2': { outcomeKey: '2', label: ev.feed.team2.name || 'П2', betsCount: 0, stake: 0, liability: 0 },
+        'other': { outcomeKey: 'other', label: 'Другие исходы', betsCount: 0, stake: 0, liability: 0 },
+      };
+
+      for (const bId of betIds) {
+        const tracked = this.bets.get(bId);
+        if (!tracked || tracked.settled || tracked.bet.state !== 'pending') continue;
+
+        const leg = tracked.legs.find((l) => l.eventId === eventId);
+        if (!leg) continue;
+
+        const stake = Number(tracked.bet.amount);
+        const odds = Number(leg.odds || 1);
+        const payout = round(stake * odds);
+        eventStake += stake;
+
+        const key = leg.outcomeKey === '1' || leg.outcomeKey === 'X' || leg.outcomeKey === '2' ? leg.outcomeKey : 'other';
+        outcomes[key].betsCount += 1;
+        outcomes[key].stake = round(outcomes[key].stake + stake);
+        outcomes[key].liability = round(outcomes[key].liability + payout);
+      }
+
+      const liabilities = Object.values(outcomes).map((o) => o.liability);
+      const maxL = liabilities.length > 0 ? Math.max(...liabilities) : 0;
+      const netExp = round(maxL - eventStake);
+
+      globalActiveStake += eventStake;
+      globalMaxLiability += maxL;
+
+      eventRisks.push({
+        eventId,
+        sport: ev.feed.sport,
+        league: ev.feed.league,
+        team1: ev.feed.team1.name,
+        team2: ev.feed.team2.name,
+        status: ev.feed.status,
+        totalBets: betIds.length,
+        totalStake: round(eventStake),
+        outcomes,
+        maxLiability: round(maxL),
+        netExposure: netExp,
+      });
+    }
+
+    eventRisks.sort((a, b) => b.totalStake - a.totalStake);
+
+    return {
+      globalActiveStake: round(globalActiveStake),
+      globalMaxLiability: round(globalMaxLiability),
+      activeEventsCount: eventRisks.length,
+      events: eventRisks,
+    };
+  }
+
   async listAdminBets(take = 40) {
     const rows = await prisma.bet.findMany({
       where: { gameType: 'sports' },

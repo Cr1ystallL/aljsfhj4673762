@@ -11,8 +11,19 @@ import {
   Crown,
   Rocket,
   ArrowRight,
+  Sparkles,
+  Trophy,
   type LucideIcon,
 } from 'lucide-react';
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  Flame,
+  Crown,
+  Gift,
+  Rocket,
+  Sparkles,
+  Trophy,
+};
 
 interface HeroSlide {
   id: string;
@@ -110,29 +121,67 @@ const HERO_SLIDES: HeroSlide[] = [
 
 export function LobbyHeroBanner() {
   const router = useRouter();
+  const [slides, setSlides] = useState<HeroSlide[]>(HERO_SLIDES);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
-  const nextSlide = useCallback(() => {
-    setCurrentIdx((prev) => (prev + 1) % HERO_SLIDES.length);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/banners')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.ok && Array.isArray(data.banners) && data.banners.length > 0) {
+          const mapped: HeroSlide[] = data.banners.map((b: any) => ({
+            id: b.id,
+            badge: {
+              label: b.badge?.label || 'Спецпредложение',
+              icon: (b.badge?.icon && ICON_MAP[b.badge.icon]) || Flame,
+              color: b.badge?.color || 'text-amber-300',
+              bg: b.badge?.bg || 'bg-amber-500/15',
+              border: b.badge?.border || 'border-amber-500/40',
+            },
+            title: b.title,
+            subtitle: b.subtitle,
+            ctaText: b.ctaText || 'Играть',
+            href: b.href || '/balance',
+            image: b.image || '/banerbonus.png',
+            glowColor: b.glowColor || 'rgba(245, 158, 11, 0.35)',
+            floorColor: b.floorColor || 'rgba(245, 158, 11, 0.45)',
+            accentGradient: b.accentGradient || 'from-amber-300 via-amber-400 to-orange-500',
+          }));
+          setSlides(mapped);
+        }
+      })
+      .catch(() => {
+        // Fallback to static slides
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const totalSlides = slides.length || 1;
+  const nextSlide = useCallback(() => {
+    setCurrentIdx((prev) => (prev + 1) % totalSlides);
+  }, [totalSlides]);
+
   const prevSlide = useCallback(() => {
-    setCurrentIdx((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
-  }, []);
+    setCurrentIdx((prev) => (prev - 1 + totalSlides) % totalSlides);
+  }, [totalSlides]);
 
   // Auto-advance carousel
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || totalSlides <= 1) return;
     const timer = setInterval(() => {
       nextSlide();
     }, 5500);
     return () => clearInterval(timer);
-  }, [isPaused, nextSlide]);
+  }, [isPaused, nextSlide, totalSlides]);
 
-  const slide = HERO_SLIDES[currentIdx];
+  const slide = slides[currentIdx % totalSlides] || HERO_SLIDES[0];
   const BadgeIcon = slide.badge.icon;
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -289,7 +338,7 @@ export function LobbyHeroBanner() {
 
       {/* Segmented Capsule Indicators (Bottom Left) */}
       <div className="absolute bottom-2.5 left-4 sm:left-6 flex items-center gap-1.5 z-20">
-        {HERO_SLIDES.map((s, idx) => (
+        {slides.map((s, idx) => (
           <button
             key={s.id}
             onClick={() => setCurrentIdx(idx)}
