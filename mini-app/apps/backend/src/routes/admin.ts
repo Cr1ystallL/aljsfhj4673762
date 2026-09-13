@@ -614,15 +614,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const paidOrdersCount = Number(paidOrdersRaw[0]?.count || 0);
 
       const ggrVal = wagerAgg._sum.amount - payoutAgg._sum.payout;
-      const paymentFees = depositsTotal * 0.05;
-      const ngrVal = Math.max(0, ggrVal - bonusesSum - cashbackSum - paymentFees);
+      const ngrVal = Math.max(0, ggrVal - bonusesSum - cashbackSum);
 
       const unitEconomics = {
         ngr: Math.round(ngrVal * 100) / 100,
         ggr: Math.round(ggrVal * 100) / 100,
         bonusesSum: Math.round(bonusesSum * 100) / 100,
         cashbackSum: Math.round(cashbackSum * 100) / 100,
-        paymentFees: Math.round(paymentFees * 100) / 100,
         arpu: userCount > 0 ? Math.round((ggrVal / userCount) * 100) / 100 : 0,
         arppu: ftdCount > 0 ? Math.round((ggrVal / ftdCount) * 100) / 100 : 0,
         avgDeposit: paidOrdersCount > 0 ? Math.round((depositsTotal / paidOrdersCount) * 100) / 100 : 0,

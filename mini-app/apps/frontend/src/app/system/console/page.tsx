@@ -136,7 +136,6 @@ interface AdminStats {
     ggr: number;
     bonusesSum: number;
     cashbackSum: number;
-    paymentFees: number;
     arpu: number;
     arppu: number;
     avgDeposit: number;
@@ -814,9 +813,9 @@ function UnitEconomicsSection({
         <HelpButton title="Юнит-экономика и NGR">
           <div className="space-y-2 text-xs text-frost-white/80 font-roobert">
             <p>
-              <strong>NGR (Net Gaming Revenue):</strong> чистая выручка казино после вычета расходов.
+              <strong>NGR (Net Gaming Revenue):</strong> чистая выручка казино после вычета бонусов и кэшбэка.
               <br />
-              <code className="text-emerald-300">NGR = GGR - Бонусы - Кэшбэк - Комиссии эквайринга (5%)</code>
+              <code className="text-emerald-300">NGR = GGR - Бонусы - Кэшбэк</code>
             </p>
             <p>
               <strong>ARPU:</strong> средний доход GGR в расчете на 1 зарегистрированного пользователя.
@@ -862,10 +861,6 @@ function UnitEconomicsSection({
               <span className="text-rose-400 font-mono">
                 -{formatPln(unitEconomics.bonusesSum + unitEconomics.cashbackSum)}
               </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Эквайринг (5%):</span>
-              <span className="text-amber-400 font-mono">-{formatPln(unitEconomics.paymentFees)}</span>
             </div>
           </div>
         </div>
