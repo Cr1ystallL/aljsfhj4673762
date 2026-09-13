@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { balanceService } from '../services/balance-service.js';
 import { logger } from '../utils/logger.js';
 import { rtpEngine } from '../services/rtp-engine.js';
+import { telegramApi } from '../lib/telegram-api.js';
 
 type PrizeMode = 'percent' | 'fixed';
 export const MIN_TOURNAMENT_BETS_FOR_QUALIFICATION = 5;
@@ -78,6 +79,30 @@ async function ensureCycle(t: { id: string; startAtGmt1: Date; durationHours: nu
         where: { id: cycle.id },
         data: updates,
       });
+    }
+
+    // If cycle is expired, ensure prizes are paid out!
+    if (now > expectedEnd.getTime()) {
+      try {
+        const prizeCount = await (prisma as any).transaction.count({
+          where: {
+            type: 'tournament_prize',
+            metadata: { path: ['cycleId'], equals: cycle.id },
+          },
+        });
+        if (prizeCount === 0) {
+          const participantCount = await (prisma as any).tournamentParticipant.count({
+            where: { cycleId: cycle.id },
+          });
+          if (participantCount > 0) {
+            logger.info({ cycleId: cycle.id, tournamentId: t.id }, 'Found unawarded tournament cycle in ensureCycle, settling payout');
+            await payoutCycle(t, cycle);
+            cycle = (await (prisma as any).tournamentCycle.findUnique({ where: { id: cycle.id } })) || cycle;
+          }
+        }
+      } catch (err) {
+        logger.error({ err, cycleId: cycle.id }, 'Failed to check/payout expired cycle in ensureCycle');
+      }
     }
   }
   return cycle;
@@ -169,6 +194,18 @@ async function creditRealBalance(
 }
 
 export async function payoutCycle(t: any, cycle: any) {
+  // 1. Check if prizes were already distributed for this cycle
+  const existingPrizeCount = await (prisma as any).transaction.count({
+    where: {
+      type: 'tournament_prize',
+      metadata: { path: ['cycleId'], equals: cycle.id },
+    },
+  });
+  if (existingPrizeCount > 0) {
+    logger.info({ cycleId: cycle.id }, 'Tournament prizes already distributed for this cycle');
+    return { winnersPaid: existingPrizeCount };
+  }
+
   const participants = await (prisma as any).tournamentParticipant.findMany({
     where: { cycleId: cycle.id },
     orderBy: [
@@ -176,6 +213,21 @@ export async function payoutCycle(t: any, cycle: any) {
       { reachedAt: 'asc' },
     ],
   });
+
+  if (participants.length === 0) {
+    logger.info({ cycleId: cycle.id }, 'No participants in tournament cycle to pay out');
+    await (prisma as any).tournamentCycle.update({
+      where: { id: cycle.id },
+      data: { state: 'ended', endsAt: new Date() },
+    });
+    if (t.repeatType === 'once') {
+      await (prisma as any).tournament.update({
+        where: { id: t.id },
+        data: { active: false },
+      });
+    }
+    return { winnersPaid: 0 };
+  }
 
   // Fetch actual bets count from bets table
   let betCounts: Array<{ user_id: string; cnt: string }> = [];
@@ -204,25 +256,52 @@ export async function payoutCycle(t: any, cycle: any) {
     return { ...p, betsCount, isQualified };
   });
 
-  // Qualified participants rank first, then by balance desc, reachedAt asc
+  // Qualified participants rank first, then by balance desc, betsCount desc, reachedAt asc
   enrichedParticipants.sort((a: any, b: any) => {
     if (a.isQualified !== b.isQualified) {
       return a.isQualified ? -1 : 1;
     }
     const balDiff = toNumber(b.balance) - toNumber(a.balance);
     if (balDiff !== 0) return balDiff;
+    const betDiff = Number(b.betsCount || 0) - Number(a.betsCount || 0);
+    if (betDiff !== 0) return betDiff;
     return new Date(a.reachedAt).getTime() - new Date(b.reachedAt).getTime();
   });
 
   const qualifiedParticipants = enrichedParticipants.filter((p: any) => p.isQualified);
 
-  const winnerIds: string[] = [];
+  // If there are qualified participants, they take top prize places.
+  // If qualified count < winnersCount (or 0 qualified), fill remaining winning places from
+  // the rest of enrichedParticipants so tournament prizes are ALWAYS awarded to competitors!
+  const candidateWinners = qualifiedParticipants.length >= t.winnersCount
+    ? qualifiedParticipants
+    : [
+        ...qualifiedParticipants,
+        ...enrichedParticipants.filter((p: any) => !p.isQualified),
+      ];
+
+  const winnersToPay = candidateWinners.slice(0, t.winnersCount);
   const pool = toNumber(cycle.prizePool);
   const fixedPrize = t.fixedPrize ? toNumber(t.fixedPrize) : null;
+  const winnerDetails: Array<{ userId: string; prize: number; place: number }> = [];
 
   await prisma.$transaction(async (tx) => {
-    for (let idx = 0; idx < Math.min(t.winnersCount, qualifiedParticipants.length); idx += 1) {
-      const p = qualifiedParticipants[idx];
+    // Row-level lock on tournament cycle to prevent double payout race conditions
+    await tx.$queryRaw`SELECT id FROM tournament_cycles WHERE id = ${cycle.id} FOR UPDATE`;
+
+    const checkAgain = await (tx as any).transaction.count({
+      where: {
+        type: 'tournament_prize',
+        metadata: { path: ['cycleId'], equals: cycle.id },
+      },
+    });
+    if (checkAgain > 0) {
+      logger.info({ cycleId: cycle.id }, 'Cycle already paid out in concurrent transaction');
+      return;
+    }
+
+    for (let idx = 0; idx < winnersToPay.length; idx += 1) {
+      const p = winnersToPay[idx];
       const prize = computePrize(pool, t.prizeMode as PrizeMode, idx, t.winnersCount, fixedPrize);
       if (prize <= 0) continue;
       await creditRealBalance(tx, p.userId, prize, {
@@ -232,7 +311,7 @@ export async function payoutCycle(t: any, cycle: any) {
         wagerMultiplier: t.wagerMultiplier ?? 0,
         reason: 'payout',
       });
-      winnerIds.push(p.userId);
+      winnerDetails.push({ userId: p.userId, prize, place: idx + 1 });
     }
 
     await (tx as any).tournamentCycle.update({
@@ -248,16 +327,40 @@ export async function payoutCycle(t: any, cycle: any) {
     }
   });
 
-  for (const userId of winnerIds) {
-    await balanceService.syncBalance(userId);
+  for (const w of winnerDetails) {
+    await balanceService.syncBalance(w.userId);
     try {
-      await rtpEngine.getUserStatus(userId);
+      await rtpEngine.getUserStatus(w.userId);
     } catch (e) {
       logger.error(e, 'Failed to update rtp status for tournament winner');
     }
+
+    // Send Telegram notification to the winner
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: w.userId },
+        select: { telegramId: true, firstName: true },
+      });
+      const chatId = user?.telegramId ? Number(user.telegramId) : 0;
+      if (chatId) {
+        const placeEmoji = w.place === 1 ? '🥇' : w.place === 2 ? '🥈' : w.place === 3 ? '🥉' : '🎖';
+        const msg = [
+          `🏆 <b>ПОЗДРАВЛЯЕМ С ПОБЕДОЙ В ТУРНИРЕ!</b>`,
+          ``,
+          `Турнир: <b>${t.title}</b>`,
+          `Место: <b>${placeEmoji} ${w.place} место</b>`,
+          `Приз: <b>${w.prize.toFixed(2)} zł</b> зачислен на ваш баланс!`,
+          ``,
+          `Благодарим за участие и желаем удачи в MACVBET! 🎰`,
+        ].join('\n');
+        await telegramApi.sendMessage(chatId, msg);
+      }
+    } catch (err) {
+      logger.warn({ err, userId: w.userId }, 'Failed to send tournament prize Telegram notification');
+    }
   }
 
-  return { winnersPaid: winnerIds.length };
+  return { winnersPaid: winnerDetails.length };
 }
 
 function computePrize(pool: number, mode: PrizeMode, idx: number, winnersCount: number, fixedPrize: number | null) {
@@ -864,13 +967,15 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         };
       });
 
-      // Sort qualified first, then by balance desc, reachedAt asc
+      // Sort qualified first, then by balance desc, betsCount desc, reachedAt asc
       enrichedRows.sort((a: any, b: any) => {
         if (a.isQualified !== b.isQualified) {
           return a.isQualified ? -1 : 1;
         }
         const balDiff = toNumber(b.balance) - toNumber(a.balance);
         if (balDiff !== 0) return balDiff;
+        const betDiff = Number(b.betsCount || 0) - Number(a.betsCount || 0);
+        if (betDiff !== 0) return betDiff;
         return new Date(a.reachedAt).getTime() - new Date(b.reachedAt).getTime();
       });
 
@@ -881,7 +986,7 @@ export async function tournamentRoutes(app: FastifyInstance): Promise<void> {
         balance: toNumber(p.balance),
         betsCount: p.betsCount,
         isQualified: p.isQualified,
-        prize: p.isQualified
+        prize: idx < t.winnersCount
           ? computePrize(toNumber(cycle.prizePool), t.prizeMode as PrizeMode, idx, t.winnersCount, t.fixedPrize ? toNumber(t.fixedPrize) : null)
           : 0,
       }));
