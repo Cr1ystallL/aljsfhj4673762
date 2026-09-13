@@ -167,10 +167,25 @@ export class TelegramApi {
     }
   }
 
-  async editMessageText(chatId: string | number, messageId: number, text: string): Promise<boolean> {
+  async editMessageText(
+    chatId: string | number,
+    messageId: number,
+    text: string,
+    replyMarkup?: TelegramReplyMarkup | null
+  ): Promise<boolean> {
     try {
       if (!config.telegramBotToken) {
         return false;
+      }
+
+      const body: Record<string, any> = {
+        chat_id: String(chatId),
+        message_id: Number(messageId),
+        text,
+        parse_mode: 'HTML',
+      };
+      if (replyMarkup) {
+        body.reply_markup = replyMarkup;
       }
 
       const response = await fetch(`${this.baseUrl}/editMessageText`, {
@@ -178,12 +193,7 @@ export class TelegramApi {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          chat_id: chatId,
-          message_id: messageId,
-          text,
-          parse_mode: 'HTML',
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

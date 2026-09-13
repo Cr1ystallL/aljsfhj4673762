@@ -8,6 +8,7 @@ import { wsManager } from '../lib/websocket-manager.js';
 import { telegramApi } from '../lib/telegram-api.js';
 import { redisClient } from '../lib/redis.js';
 import { logger } from '../utils/logger.js';
+import { prisma } from '../lib/prisma.js';
 
 const MAX_UPLOAD_FILE_SIZE = 3 * 1024 * 1024; // 3 MB
 const MAX_UPLOAD_FILES_COUNT = 5;
@@ -107,65 +108,52 @@ async function notifyAdminsAboutTicketMessage(params: {
 
     if (!targetChatIds.length) return;
 
+    // Check if ticket is closed
+    const closedRaw = await redis.get(`support:ticket:${params.ticketId}:closed`);
+    const closedData = closedRaw ? (JSON.parse(closedRaw) as { adminName: string }) : null;
+
     // Check if ticket is claimed
     const claimRaw = await redis.get(`support:ticket:${params.ticketId}:claim`);
     const claim = claimRaw ? (JSON.parse(claimRaw) as { adminName: string }) : null;
-
-    const categoryLabels: Record<string, string> = {
-      deposit: 'Депозит / BLIK',
-      withdrawal: 'Вывод средств',
-      bonus: 'Бонусы и вейджер',
-      game: 'Ошибка в игре',
-      general: 'Общие вопросы',
-    };
-    const catLabel = categoryLabels[params.category] || params.category;
-    const tgUserStr = params.telegramId ? ` [<code>${params.telegramId}</code>]` : '';
-    const usernameStr = params.username ? ` (@${params.username})` : '';
-    const balStr =
-      typeof params.balance === 'number'
-        ? `\n<b>Баланс:</b> ${params.balance.toFixed(2)} zł`
-        : '';
-    const snippet =
-      params.text.length > 350 ? `${params.text.slice(0, 350)}...` : params.text;
 
     const attachCount = params.attachments?.length || 0;
     const attachTypes = params.attachments && params.attachments.length > 0
       ? params.attachments.map((a) => (a.type?.includes('pdf') || a.name?.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Фото/Чек')).join(', ')
       : '';
-    const attachStr = attachCount > 0
-      ? `\n<b>Файлы:</b> ${attachCount} шт. (${attachTypes})`
-      : '';
+    const snippet =
+      params.text.length > 350 ? `${params.text.slice(0, 350)}...` : params.text;
 
-    const claimStatusStr = claim
-      ? `\n<b>В работе:</b> ${escapeHtml(claim.adminName)}`
-      : '';
+    // Cache info in Redis for subsequent status/claim updates
+    await redis.set(
+      `support:ticket:${params.ticketId}:info`,
+      JSON.stringify({
+        ticketId: params.ticketId,
+        userName: params.userName,
+        username: params.username,
+        telegramId: params.telegramId ? String(params.telegramId) : null,
+        balance: params.balance,
+        category: params.category,
+        attachCount,
+        attachTypes,
+        snippet,
+      }),
+      'EX',
+      7 * 24 * 3600
+    );
 
-    const messageText =
-      `<b>Поддержка</b> | <code>#${params.ticketId.slice(0, 8)}</code>\n\n` +
-      `<b>Игрок:</b> <b>${escapeHtml(params.userName)}</b>${usernameStr}${tgUserStr}${balStr}\n` +
-      `<b>Тема:</b> ${catLabel}` +
-      `${attachStr}` +
-      `${claimStatusStr}\n\n` +
-      `<blockquote>${escapeHtml(snippet)}</blockquote>`;
-
-    const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
-    const claimBtnText = claim ? `✅ Забрал(а): ${claim.adminName}` : '📥 Забрать';
-    const replyMarkup = {
-      inline_keyboard: [
-        [
-          {
-            text: claimBtnText,
-            callback_data: `claim_ticket:${params.ticketId}`,
-          },
-        ],
-        [
-          {
-            text: '💬 Открыть в админке',
-            web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${params.ticketId}` },
-          },
-        ],
-      ],
-    };
+    const { text: messageText, replyMarkup } = buildTelegramTicketMessage({
+      ticketId: params.ticketId,
+      userName: params.userName,
+      username: params.username,
+      telegramId: params.telegramId,
+      balance: params.balance,
+      category: params.category,
+      attachCount,
+      attachTypes,
+      snippet,
+      claim: closedData ? null : claim,
+      closedBy: closedData?.adminName || null,
+    });
 
     const sent = await Promise.allSettled(
       targetChatIds.map(async (chatId) => {
@@ -202,42 +190,212 @@ async function notifyAdminsAboutTicketMessage(params: {
   }
 }
 
+function buildTelegramTicketMessage(params: {
+  ticketId: string;
+  userName: string;
+  username?: string | null;
+  telegramId?: bigint | string | number | null;
+  balance?: number;
+  category: string;
+  attachCount?: number;
+  attachTypes?: string;
+  snippet: string;
+  claim?: { adminName: string } | null;
+  closedBy?: string | null;
+}): { text: string; replyMarkup: any } {
+  const categoryLabels: Record<string, string> = {
+    deposit: 'Депозит / BLIK',
+    withdrawal: 'Вывод средств',
+    bonus: 'Бонусы и вейджер',
+    game: 'Ошибка в игре',
+    general: 'Общие вопросы',
+  };
+  const catLabel = categoryLabels[params.category] || params.category;
+  const tgUserStr = params.telegramId ? ` [<code>${params.telegramId}</code>]` : '';
+  const usernameStr = params.username ? ` (@${params.username})` : '';
+  const balStr =
+    typeof params.balance === 'number'
+      ? `\n<b>Баланс:</b> ${params.balance.toFixed(2)} zł`
+      : '';
+  const snippet =
+    params.snippet.length > 350 ? `${params.snippet.slice(0, 350)}...` : params.snippet;
+
+  const attachCount = params.attachCount || 0;
+  const attachStr = attachCount > 0
+    ? `\n<b>Файлы:</b> ${attachCount} шт. (${params.attachTypes || 'Фото/Чек'})`
+    : '';
+
+  const isClosed = Boolean(params.closedBy);
+
+  let statusStr = '';
+  if (isClosed) {
+    statusStr = `\n<b>Закрыл(а):</b> 🔒 ${escapeHtml(params.closedBy || 'Оператор')}`;
+  } else if (params.claim) {
+    statusStr = `\n<b>В работе:</b> ${escapeHtml(params.claim.adminName)}`;
+  }
+
+  const headerTag = isClosed
+    ? `<b>Поддержка</b> | <code>#${params.ticketId.slice(0, 8)}</code> [ЗАКРЫТ 🔒]`
+    : `<b>Поддержка</b> | <code>#${params.ticketId.slice(0, 8)}</code>`;
+
+  const text =
+    `${headerTag}\n\n` +
+    `<b>Игрок:</b> <b>${escapeHtml(params.userName)}</b>${usernameStr}${tgUserStr}${balStr}\n` +
+    `<b>Тема:</b> ${catLabel}` +
+    `${attachStr}` +
+    `${statusStr}\n\n` +
+    `<blockquote>${escapeHtml(snippet)}</blockquote>`;
+
+  const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
+
+  let keyboardRows: any[][] = [];
+
+  if (isClosed) {
+    keyboardRows = [
+      [
+        {
+          text: `🔒 Закрыт: ${params.closedBy || 'Оператор'}`,
+          callback_data: `closed_ticket:${params.ticketId}`,
+        },
+      ],
+      [
+        {
+          text: '💬 Открыть в админке',
+          web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${params.ticketId}` },
+        },
+      ],
+    ];
+  } else if (params.claim) {
+    keyboardRows = [
+      [
+        {
+          text: `✅ Забрал(а): ${params.claim.adminName}`,
+          callback_data: `claim_ticket:${params.ticketId}`,
+        },
+        {
+          text: '🔒 Закрыть',
+          callback_data: `close_ticket:${params.ticketId}`,
+        },
+      ],
+      [
+        {
+          text: '💬 Открыть в админке',
+          web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${params.ticketId}` },
+        },
+      ],
+    ];
+  } else {
+    keyboardRows = [
+      [
+        {
+          text: '📥 Забрать',
+          callback_data: `claim_ticket:${params.ticketId}`,
+        },
+      ],
+      [
+        {
+          text: '💬 Открыть в админке',
+          web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${params.ticketId}` },
+        },
+      ],
+    ];
+  }
+
+  return { text, replyMarkup: { inline_keyboard: keyboardRows } };
+}
+
+async function updateTelegramTicketDisplay(
+  ticketId: string,
+  options?: {
+    claim?: { adminName: string } | null;
+    closedBy?: string | null;
+    status?: string;
+  }
+): Promise<void> {
+  try {
+    const redis = redisClient.getClient();
+    const rawMsgs = await redis.get(`support:ticket:${ticketId}:messages`);
+    if (!rawMsgs) return;
+
+    const msgs = JSON.parse(rawMsgs) as Array<{ chatId: number; messageId: number }>;
+    if (!msgs.length) return;
+
+    // 1. Get cached info or fallback to database
+    let info: any = null;
+    const rawInfo = await redis.get(`support:ticket:${ticketId}:info`);
+    if (rawInfo) {
+      info = JSON.parse(rawInfo);
+    } else {
+      const ticket = await prisma.supportTicket.findUnique({
+        where: { id: ticketId },
+        include: {
+          user: { include: { balance: true } },
+          messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+      });
+      if (ticket) {
+        info = {
+          ticketId,
+          userName: ticket.user.firstName || ticket.user.username || 'Игрок',
+          username: ticket.user.username,
+          telegramId: ticket.user.telegramId ? String(ticket.user.telegramId) : null,
+          balance: Number(ticket.user.balance?.amount || 0),
+          category: ticket.category,
+          attachCount: 0,
+          attachTypes: '',
+          snippet: ticket.messages[0]?.text || '...',
+        };
+      }
+    }
+
+    if (!info) return;
+
+    // 2. Determine closedBy
+    let closedBy = options?.closedBy;
+    if (closedBy === undefined) {
+      const rawClosed = await redis.get(`support:ticket:${ticketId}:closed`);
+      if (rawClosed) {
+        const closedObj = JSON.parse(rawClosed);
+        closedBy = closedObj.adminName;
+      } else {
+        closedBy = null;
+      }
+    }
+
+    // 3. Determine claim
+    let claim = options?.claim;
+    if (claim === undefined && !closedBy) {
+      const rawClaim = await redis.get(`support:ticket:${ticketId}:claim`);
+      claim = rawClaim ? JSON.parse(rawClaim) : null;
+    }
+
+    const { text, replyMarkup } = buildTelegramTicketMessage({
+      ticketId,
+      userName: info.userName,
+      username: info.username,
+      telegramId: info.telegramId,
+      balance: info.balance,
+      category: info.category,
+      attachCount: info.attachCount,
+      attachTypes: info.attachTypes,
+      snippet: info.snippet,
+      claim: closedBy ? null : claim,
+      closedBy,
+    });
+
+    await Promise.allSettled(
+      msgs.map((m) => telegramApi.editMessageText(m.chatId, m.messageId, text, replyMarkup))
+    );
+  } catch (err) {
+    logger.warn({ err, ticketId }, 'Failed to broadcast Telegram ticket display updates');
+  }
+}
+
 async function updateTelegramTicketMarkups(
   ticketId: string,
   claim: { adminName: string } | null
 ): Promise<void> {
-  try {
-    const redis = redisClient.getClient();
-    const raw = await redis.get(`support:ticket:${ticketId}:messages`);
-    if (!raw) return;
-
-    const msgs = JSON.parse(raw) as Array<{ chatId: number; messageId: number }>;
-    const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
-    const claimBtnText = claim ? `✅ Забрал(а): ${claim.adminName}` : '📥 Забрать';
-
-    const replyMarkup = {
-      inline_keyboard: [
-        [
-          {
-            text: claimBtnText,
-            callback_data: `claim_ticket:${ticketId}`,
-          },
-        ],
-        [
-          {
-            text: '💬 Открыть в админке',
-            web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${ticketId}` },
-          },
-        ],
-      ],
-    };
-
-    await Promise.allSettled(
-      msgs.map((m) => telegramApi.editMessageReplyMarkup(m.chatId, m.messageId, replyMarkup))
-    );
-  } catch (err) {
-    logger.warn({ err, ticketId }, 'Failed to broadcast Telegram ticket markup updates');
-  }
+  return updateTelegramTicketDisplay(ticketId, { claim });
 }
 
 export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): Promise<void> => {
@@ -1079,6 +1237,21 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         data: { status },
       });
 
+      const authReq = request as AuthenticatedRequest;
+      const adminTelegramId = authReq.user?.telegramId;
+      let adminName = 'Оператор';
+      if (adminTelegramId) {
+        const adminUser = await app.prisma.user.findFirst({
+          where: { telegramId: BigInt(adminTelegramId) },
+          select: { firstName: true, username: true },
+        });
+        adminName = adminUser?.username
+          ? `@${adminUser.username}`
+          : adminUser?.firstName || `Саппорт ${adminTelegramId}`;
+      }
+
+      const redis = redisClient.getClient();
+
       if (status === 'resolved' || status === 'closed') {
         await app.prisma.supportMessage.create({
           data: {
@@ -1089,7 +1262,32 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
             text: 'Обращение закрыто специалистом поддержки. Если у вас возникнут новые вопросы, напишите сюда в любое время.',
           },
         });
+
+        await redis.set(
+          `support:ticket:${id}:closed`,
+          JSON.stringify({ adminName, closedAt: Date.now() }),
+          'EX',
+          7 * 24 * 3600
+        );
+
+        void updateTelegramTicketDisplay(id, { closedBy: adminName, status });
+      } else if (status === 'open') {
+        await redis.del(`support:ticket:${id}:closed`);
+        void updateTelegramTicketDisplay(id, { closedBy: null, status: 'open' });
       }
+
+      // Broadcast WS event to admin support room
+      try {
+        await wsManager.publishBroadcast({
+          room: 'admin:support',
+          message: {
+            type: 'support_ticket_status_changed',
+            ticketId: id,
+            status,
+            closedBy: status === 'resolved' || status === 'closed' ? adminName : null,
+          },
+        });
+      } catch {}
 
       return reply.send({ ok: true, ticket });
     } catch (err) {

@@ -783,6 +783,58 @@ async def process_bonus_amount(message: Message, state: FSMContext):
     await state.clear()
 
 
+def escape_tg_html(text: str) -> str:
+    if not text:
+        return ""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def format_support_ticket_text(info: dict, claim_name: str = None, closed_by: str = None) -> str:
+    category_labels = {
+        'deposit': 'Депозит / BLIK',
+        'withdrawal': 'Вывод средств',
+        'bonus': 'Бонусы и вейджер',
+        'game': 'Ошибка в игре',
+        'general': 'Общие вопросы',
+    }
+    raw_cat = info.get('category', 'general')
+    cat = category_labels.get(raw_cat, raw_cat)
+    ticket_short = str(info.get('ticketId', ''))[:8]
+    user_name = escape_tg_html(info.get('userName', 'Игрок'))
+    username = info.get('username')
+    user_str = f" (@{escape_tg_html(username)})" if username else ""
+    tg_id = info.get('telegramId')
+    tg_str = f" [<code>{tg_id}</code>]" if tg_id else ""
+    bal = info.get('balance')
+    bal_str = f"\n<b>Баланс:</b> {float(bal):.2f} zł" if isinstance(bal, (int, float)) else ""
+
+    attach_count = info.get('attachCount', 0)
+    attach_types = info.get('attachTypes', 'Фото/Чек')
+    attach_str = f"\n<b>Файлы:</b> {attach_count} шт. ({attach_types})" if attach_count > 0 else ""
+
+    snippet = str(info.get('snippet', ''))
+    if len(snippet) > 350:
+        snippet = snippet[:350] + '...'
+
+    is_closed = bool(closed_by)
+    header = f"<b>Поддержка</b> | <code>#{ticket_short}</code> [ЗАКРЫТ 🔒]" if is_closed else f"<b>Поддержка</b> | <code>#{ticket_short}</code>"
+
+    status_str = ""
+    if is_closed:
+        status_str = f"\n<b>Закрыл(а):</b> 🔒 {escape_tg_html(closed_by)}"
+    elif claim_name:
+        status_str = f"\n<b>В работе:</b> {escape_tg_html(claim_name)}"
+
+    return (
+        f"{header}\n\n"
+        f"<b>Игрок:</b> <b>{user_name}</b>{user_str}{tg_str}{bal_str}\n"
+        f"<b>Тема:</b> {cat}"
+        f"{attach_str}"
+        f"{status_str}\n\n"
+        f"<blockquote>{escape_tg_html(snippet)}</blockquote>"
+    )
+
+
 @router.callback_query(F.data.startswith("claim_ticket:"))
 async def claim_ticket_callback_handler(callback: CallbackQuery):
     """
@@ -811,8 +863,25 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
     mini_app_url = config.MINI_APP_URL or "https://macvbet.nl"
+
+    # Проверяем, не закрыт ли уже тикет
+    raw_closed = await redis_client.get(f"support:ticket:{ticket_id}:closed")
+    if raw_closed:
+        closed_info = json.loads(raw_closed)
+        closed_admin = closed_info.get("adminName", "оператором")
+        await callback.answer(f"🔒 Этот тикет уже закрыт ({closed_admin})", show_alert=True)
+        return
+
     claim_key = f"support:ticket:{ticket_id}:claim"
     raw_claim = await redis_client.get(claim_key)
+
+    raw_info = await redis_client.get(f"support:ticket:{ticket_id}:info")
+    ticket_info = json.loads(raw_info) if raw_info else {
+        "ticketId": ticket_id,
+        "userName": "Игрок",
+        "snippet": "...",
+        "category": "general",
+    }
 
     if not raw_claim:
         # 1. Тикет свободен -> забираем
@@ -826,22 +895,29 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
         # Публикуем событие через Redis Pub/Sub для веб-консоли админки
         try:
             await redis_client.publish(
-                "broadcast:admin:support",
+                "ws:broadcast",
                 json.dumps({
-                    "type": "support_ticket_claimed",
-                    "ticketId": ticket_id,
-                    "claimedBy": claim_data,
+                    "room": "admin:support",
+                    "message": {
+                        "type": "support_ticket_claimed",
+                        "ticketId": ticket_id,
+                        "claimedBy": claim_data,
+                    }
                 })
             )
         except Exception:
             pass
 
-        # Формируем новую клавиатуру с указанием оператора
+        # Формируем новую клавиатуру с указанием оператора и кнопкой Закрыть
         claimed_kb = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=f"✅ Забрал(а): {admin_display}",
                     callback_data=f"claim_ticket:{ticket_id}"
+                ),
+                InlineKeyboardButton(
+                    text="🔒 Закрыть",
+                    callback_data=f"close_ticket:{ticket_id}"
                 )
             ],
             [
@@ -852,12 +928,17 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
             ]
         ])
 
-        try:
-            await callback.message.edit_reply_markup(reply_markup=claimed_kb)
-        except Exception:
-            pass
+        claimed_text = format_support_ticket_text(ticket_info, claim_name=admin_display)
 
-        # Обновляем кнопку во всех отслеживаемых сообщениях (в группе и у других админов)
+        try:
+            await callback.message.edit_text(text=claimed_text, reply_markup=claimed_kb)
+        except Exception:
+            try:
+                await callback.message.edit_reply_markup(reply_markup=claimed_kb)
+            except Exception:
+                pass
+
+        # Обновляем сообщение во всех отслеживаемых чатах
         try:
             raw_msgs = await redis_client.get(f"support:ticket:{ticket_id}:messages")
             if raw_msgs:
@@ -867,9 +948,10 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
                     m_id = item.get("messageId")
                     if c_id and m_id and (c_id != callback.message.chat.id or m_id != callback.message.message_id):
                         try:
-                            await callback.bot.edit_message_reply_markup(
+                            await callback.bot.edit_message_text(
                                 chat_id=c_id,
                                 message_id=m_id,
+                                text=claimed_text,
                                 reply_markup=claimed_kb
                             )
                         except Exception:
@@ -889,10 +971,13 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
 
             try:
                 await redis_client.publish(
-                    "broadcast:admin:support",
+                    "ws:broadcast",
                     json.dumps({
-                        "type": "support_ticket_unclaimed",
-                        "ticketId": ticket_id,
+                        "room": "admin:support",
+                        "message": {
+                            "type": "support_ticket_unclaimed",
+                            "ticketId": ticket_id,
+                        }
                     })
                 )
             except Exception:
@@ -913,10 +998,15 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
                 ]
             ])
 
+            reverted_text = format_support_ticket_text(ticket_info)
+
             try:
-                await callback.message.edit_reply_markup(reply_markup=reverted_kb)
+                await callback.message.edit_text(text=reverted_text, reply_markup=reverted_kb)
             except Exception:
-                pass
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=reverted_kb)
+                except Exception:
+                    pass
 
             # Обновляем во всех админ-чатах
             try:
@@ -928,9 +1018,10 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
                         m_id = item.get("messageId")
                         if c_id and m_id and (c_id != callback.message.chat.id or m_id != callback.message.message_id):
                             try:
-                                await callback.bot.edit_message_reply_markup(
+                                await callback.bot.edit_message_text(
                                     chat_id=c_id,
                                     message_id=m_id,
+                                    text=reverted_text,
                                     reply_markup=reverted_kb
                                 )
                             except Exception:
@@ -948,12 +1039,15 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
                 show_alert=True
             )
 
-            # Актуализируем кнопку на сообщении
             synced_kb = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(
                         text=f"✅ Забрал(а): {other_name}",
                         callback_data=f"claim_ticket:{ticket_id}"
+                    ),
+                    InlineKeyboardButton(
+                        text="🔒 Закрыть",
+                        callback_data=f"close_ticket:{ticket_id}"
                     )
                 ],
                 [
@@ -967,4 +1061,151 @@ async def claim_ticket_callback_handler(callback: CallbackQuery):
                 await callback.message.edit_reply_markup(reply_markup=synced_kb)
             except Exception:
                 pass
+
+
+@router.callback_query(F.data.startswith("close_ticket:"))
+async def close_ticket_callback_handler(callback: CallbackQuery):
+    """
+    Обработчик закрытия тикета поддержки прямо из Telegram.
+    Помечает тикет закрытым в базе, уведомляет операторов и обновляет сообщение.
+    """
+    ticket_id = callback.data.split(":", 1)[1]
+    admin_id = callback.from_user.id
+
+    is_admin = await check_is_admin(admin_id)
+    if not is_admin:
+        await callback.answer("⛔ Доступ разрешен только администраторам и операторам", show_alert=True)
+        return
+
+    admin_display = (
+        f"@{callback.from_user.username}"
+        if callback.from_user.username
+        else (callback.from_user.full_name or f"Саппорт {admin_id}")
+    )
+
+    import json
+    import time
+    from middleware import redis_client
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+
+    mini_app_url = config.MINI_APP_URL or "https://macvbet.nl"
+
+    # 1. Обновляем статус в базе данных (PostgreSQL)
+    try:
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE support_tickets SET status = 'resolved' WHERE id = %s", (ticket_id,))
+        cursor.execute(
+            """
+            INSERT INTO support_messages (id, ticket_id, sender_type, sender_id, sender_name, text, is_read, created_at)
+            VALUES (gen_random_uuid()::text, %s, 'system', 'system', 'Система',
+                    'Обращение закрыто специалистом поддержки. Если у вас возникнут новые вопросы, напишите сюда в любое время.',
+                    false, NOW())
+            """,
+            (ticket_id,)
+        )
+        conn.commit()
+        conn.close()
+    except Exception as db_err:
+        log_action(admin_id, "close_ticket_db_error", f"err: {db_err}")
+
+    # 2. Сохраняем в Redis данные о закрытии
+    closed_data = {
+        "adminName": admin_display,
+        "closedAt": int(time.time() * 1000),
+    }
+    await redis_client.set(f"support:ticket:{ticket_id}:closed", json.dumps(closed_data), ex=7 * 24 * 3600)
+
+    # 3. Формируем обновленный текст и кнопку
+    raw_info = await redis_client.get(f"support:ticket:{ticket_id}:info")
+    ticket_info = json.loads(raw_info) if raw_info else {
+        "ticketId": ticket_id,
+        "userName": "Игрок",
+        "snippet": "...",
+        "category": "general",
+    }
+    closed_text = format_support_ticket_text(ticket_info, closed_by=admin_display)
+
+    closed_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=f"🔒 Закрыт: {admin_display}",
+                callback_data=f"closed_ticket:{ticket_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="💬 Открыть тикет в админке",
+                web_app=WebAppInfo(url=f"{mini_app_url}/system/console/support?ticketId={ticket_id}")
+            )
+        ]
+    ])
+
+    try:
+        await callback.message.edit_text(text=closed_text, reply_markup=closed_kb)
+    except Exception:
+        try:
+            await callback.message.edit_reply_markup(reply_markup=closed_kb)
+        except Exception:
+            pass
+
+    # 4. Обновляем все копии сообщений в группах/чатах
+    try:
+        raw_msgs = await redis_client.get(f"support:ticket:{ticket_id}:messages")
+        if raw_msgs:
+            msgs = json.loads(raw_msgs)
+            for item in msgs:
+                c_id = item.get("chatId")
+                m_id = item.get("messageId")
+                if c_id and m_id and (c_id != callback.message.chat.id or m_id != callback.message.message_id):
+                    try:
+                        await callback.bot.edit_message_text(
+                            chat_id=c_id,
+                            message_id=m_id,
+                            text=closed_text,
+                            reply_markup=closed_kb
+                        )
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    # 5. Публикуем событие в WebSocket для веб-панели админки
+    try:
+        await redis_client.publish(
+            "ws:broadcast",
+            json.dumps({
+                "room": "admin:support",
+                "message": {
+                    "type": "support_ticket_status_changed",
+                    "ticketId": ticket_id,
+                    "status": "resolved",
+                    "closedBy": admin_display,
+                }
+            })
+        )
+    except Exception:
+        pass
+
+    await callback.answer(f"🔒 Тикет #{ticket_id[:8]} закрыт!", show_alert=False)
+
+
+@router.callback_query(F.data.startswith("closed_ticket:"))
+async def closed_ticket_callback_handler(callback: CallbackQuery):
+    """
+    Информационный обработчик для уже закрытого тикета.
+    """
+    ticket_id = callback.data.split(":", 1)[1]
+    import json
+    from middleware import redis_client
+    raw_closed = await redis_client.get(f"support:ticket:{ticket_id}:closed")
+    if raw_closed:
+        try:
+            closed_info = json.loads(raw_closed)
+            by = closed_info.get("adminName", "оператором")
+            await callback.answer(f"🔒 Обращение закрыто ({by})", show_alert=True)
+            return
+        except Exception:
+            pass
+    await callback.answer("🔒 Это обращение уже закрыто", show_alert=True)
 
