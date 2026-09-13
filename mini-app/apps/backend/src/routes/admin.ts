@@ -9,6 +9,7 @@ import {
   adminOnly,
   isAdminTelegramId,
   isAdminTelegramIdAsync,
+  getAllAdminTelegramIds,
   type AuthenticatedRequest,
 } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
@@ -257,6 +258,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         lifetime_deposits: string | null;
         has_recent_deposit: number | null;
         deposit_count: bigint | null;
+        folux_deposits: string | null;
+        folux_count: bigint | null;
       }>>`
         SELECT 
           b.user_id,
@@ -269,7 +272,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           COALESCE(u.withdrawal_locked, false) as withdrawal_locked,
           ud.lifetime_deposits::text as lifetime_deposits,
           ud.has_recent_deposit,
-          ud.deposit_count
+          ud.deposit_count,
+          mo.folux_deposits::text as folux_deposits,
+          mo.folux_count
         FROM balances b
         JOIN users u ON u.id = b.user_id
         LEFT JOIN (
@@ -279,9 +284,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             MAX(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) as has_recent_deposit,
             COUNT(*)::bigint as deposit_count
           FROM transactions
-          WHERE type = 'deposit'
+          WHERE type IN ('deposit', 'manual_deposit', 'deposit_bonus', 'foluxpay', 'cryptobot', 'topup', 'credit', 'manual', 'deposit_credit')
+             OR LOWER(COALESCE(description, '')) LIKE '%депозит%'
+             OR LOWER(COALESCE(description, '')) LIKE '%пополнени%'
+             OR LOWER(COALESCE(description, '')) LIKE '%deposit%'
           GROUP BY user_id
         ) ud ON ud.user_id = u.id
+        LEFT JOIN (
+          SELECT
+            user_id,
+            SUM(requested_amount) as folux_deposits,
+            COUNT(*)::bigint as folux_count
+          FROM macvpay_orders
+          WHERE status IN ('credited', 'paid', 'completed', 'success')
+          GROUP BY user_id
+        ) mo ON mo.user_id = u.id
         WHERE b.demo_mode = false AND b.amount > 0
       `;
 
@@ -308,22 +325,27 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       let totalRequiredDeposits = 0;
       let totalRemainingWager = 0;
 
+      const adminIds = new Set(await getAllAdminTelegramIds());
+
       for (const row of liabilityRows) {
         const bal = Number(row.amount);
         if (bal <= 0) continue;
 
         const tgId = Number(row.telegram_id);
-        const isAdmin = await isAdminTelegramIdAsync(tgId);
-        if (isAdmin) continue;
+        if (adminIds.has(tgId)) continue;
 
         const isBlocked = row.is_blocked || row.withdrawal_locked;
-        const lifetimeDeposits = Number(row.lifetime_deposits ?? 0);
-        const hasRecentDeposit = Number(row.has_recent_deposit ?? 0) === 1;
+        const txDeposits = Number(row.lifetime_deposits ?? 0);
+        const moDeposits = Number(row.folux_deposits ?? 0);
+        const lifetimeDeposits = Math.max(txDeposits, moDeposits);
+        const depositCount = Number(row.deposit_count ?? 0) + Number(row.folux_count ?? 0);
+
         const wagerTarget = Number(row.wager_target ?? 0);
         const wagerProgress = Number(row.wager_progress ?? 0);
         const wagerSatisfied = wagerProgress >= wagerTarget;
 
-        const canWithdraw = !isBlocked && lifetimeDeposits >= 100 && hasRecentDeposit && wagerSatisfied;
+        const hasDeposited = lifetimeDeposits > 0 || depositCount > 0;
+        const canWithdraw = !isBlocked && hasDeposited && wagerSatisfied;
 
         if (canWithdraw) {
           realLiability += bal;
@@ -341,10 +363,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             blockedAmount += bal;
           }
 
-          if (lifetimeDeposits === 0) {
+          if (!hasDeposited) {
             noDepositAccounts += 1;
             noDepositAmount += bal;
-          } else if (lifetimeDeposits < 100 || !hasRecentDeposit) {
+          } else if (lifetimeDeposits < 50) {
             needDepositAccounts += 1;
             needDepositAmount += bal;
           }
@@ -356,14 +378,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           }
 
           let reqDep = 0;
-          if (lifetimeDeposits < 100) {
-            reqDep = 100 - lifetimeDeposits;
-          } else if (!hasRecentDeposit) {
-            reqDep = 50;
+          if (lifetimeDeposits < 50) {
+            reqDep = 50 - lifetimeDeposits;
           }
           totalRequiredDeposits += reqDep;
         }
       }
+
+      const withdrawableLiability = Math.round((realImmediateAmount > 0 ? realImmediateAmount : realLiability) * 100) / 100;
+      const withdrawableAccounts = realImmediateAmount > 0 ? realImmediateAccounts : realAccounts;
 
       const totalRequiredTurnover = totalRemainingWager + (totalRequiredDeposits * 2);
       const expectedWagerProfit = Math.round(totalRequiredTurnover * 0.05 * 100) / 100;
@@ -574,12 +597,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         users: { total: userCount, new24h: users24h, new7d: users7d },
         balances: {
           totalLiability,
+          withdrawableLiability,
+          withdrawableAccounts,
           totalDemo,
           accounts: balances.length,
           demoAccounts: balances.filter((b) => b.demoMode).length,
           real: {
-            amount: Math.round(realImmediateAmount * 100) / 100,
-            accounts: realImmediateAccounts,
+            amount: withdrawableLiability,
+            accounts: withdrawableAccounts,
             immediateAmount: Math.round(realImmediateAmount * 100) / 100,
             immediateAccounts: realImmediateAccounts,
             fullRealAmount: Math.round(realLiability * 100) / 100,

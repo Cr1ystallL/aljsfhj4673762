@@ -52,6 +52,8 @@ interface AdminStats {
   users: { total: number; new24h: number; new7d: number };
   balances: {
     totalLiability: number;
+    withdrawableLiability?: number;
+    withdrawableAccounts?: number;
     totalDemo: number;
     accounts: number;
     demoAccounts: number;
@@ -195,8 +197,21 @@ export default function AdminDashboardPage() {
             <Kpi
               icon={<Wallet size={14} strokeWidth={1.6} />}
               label="Обязательства"
-              value={`${formatPln(data.balances.totalLiability)} zł`}
-              hint={`${data.balances.accounts} счетов`}
+              value={`${formatPln(data.balances.withdrawableLiability ?? data.balances.real?.amount ?? 0)} zł`}
+              hint={
+                <span>
+                  <strong className="text-emerald-300 font-medium">
+                    {data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0}
+                  </strong>{' '}
+                  {(data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) === 1
+                    ? 'счёт к выводу'
+                    : (data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) >= 2 &&
+                      (data.balances.withdrawableAccounts ?? data.balances.real?.accounts ?? 0) <= 4
+                    ? 'счёта к выводу'
+                    : 'счетов к выводу'}{' '}
+                  <span className="text-white/40">· всего {formatPln(data.balances.totalLiability)} zł ({data.balances.accounts} сч.)</span>
+                </span>
+              }
               action={
                 <button
                   type="button"
@@ -208,11 +223,18 @@ export default function AdminDashboardPage() {
                 </button>
               }
               help={{
-                title: 'Обязательства казино',
+                title: 'Обязательства казино (к выводу)',
                 body: (
-                  <p>
-                    Сумма всех реальных балансов на счетах пользователей. Это деньги, которые игроки держат на платформе.
-                  </p>
+                  <div className="space-y-2">
+                    <p>
+                      <strong>К выводу ({formatPln(data.balances.withdrawableLiability ?? data.balances.real?.amount ?? 0)} zł):</strong>{' '}
+                      сумма балансов счетов, которые выполнили все условия для вывода (пополнили счет, отыграли вейджер, не заблокированы и имеют баланс от 50 zł) и могут вывести деньги прямо сейчас без ограничений.
+                    </p>
+                    <p className="text-whisper-gray">
+                      <strong>Всего на счетах ({formatPln(data.balances.totalLiability)} zł / {data.balances.accounts} счетов):</strong>{' '}
+                      общая сумма балансов всех пользователей. Разница — условные средства (бонусы без депозита, не отыгранный вейджер или заблокированные счета).
+                    </p>
+                  </div>
                 ),
               }}
             />
