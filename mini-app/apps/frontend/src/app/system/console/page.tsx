@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import Link from 'next/link';
 import {
   Activity,
   ChevronDown,
@@ -13,6 +14,17 @@ import {
   Users,
   Wallet,
   Zap,
+  ShieldAlert,
+  ExternalLink,
+  Search,
+  Shield,
+  Trophy,
+  Gift,
+  X,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw,
+  UserCheck,
 } from 'lucide-react';
 import { resolveGameKey, gameLabel } from '@/components/ui/game-icon';
 import { HelpButton } from '@/components/admin/help-button';
@@ -89,29 +101,29 @@ interface AdminStats {
 export default function AdminDashboardPage() {
   const [data, setData] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dormantModalOpen, setDormantModalOpen] = useState(false);
+
+  const reloadStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/_x/stats', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        setError('not-found');
+        return;
+      }
+      const json = (await res.json()) as AdminStats;
+      setData(json);
+      setError(null);
+    } catch {
+      setError('not-found');
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/_x/stats', {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (!res.ok) {
-          if (!cancelled) setError('not-found');
-          return;
-        }
-        const json = (await res.json()) as AdminStats;
-        if (!cancelled) setData(json);
-      } catch {
-        if (!cancelled) setError('not-found');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void reloadStats();
+  }, [reloadStats]);
 
   return (
     <>
@@ -152,6 +164,16 @@ export default function AdminDashboardPage() {
               label="Обязательства"
               value={`${formatPln(data.balances.totalLiability)} zł`}
               hint={`${data.balances.accounts} счетов`}
+              action={
+                <button
+                  type="button"
+                  onClick={() => setDormantModalOpen(true)}
+                  className="px-2 py-0.5 rounded-pill bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-roobert font-medium transition-all active:scale-95"
+                  title="Обнулить балансы неактивных (>30 дней) и заблокированных игроков"
+                >
+                  Очистить
+                </button>
+              }
               help={{
                 title: 'Обязательства казино',
                 body: (
@@ -163,10 +185,8 @@ export default function AdminDashboardPage() {
                       вывести.
                     </p>
                     <p>
-                      Чем больше число — тем больше депозитов осело на
-                      счетах. Резкий рост может означать что игроки не
-                      выводят выигрыши; резкое падение — много выводов
-                      или серия больших проигрышей.
+                      Нажмите кнопку «Очистить», чтобы автоматически обнулить
+                      балансы неактивных (&gt;30 дней) или заблокированных аккаунтов.
                     </p>
                   </>
                 ),
@@ -431,6 +451,12 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      <ResetDormantBalancesModal
+        isOpen={dormantModalOpen}
+        onClose={() => setDormantModalOpen(false)}
+        onSuccess={reloadStats}
+      />
     </>
   );
 }
@@ -449,6 +475,7 @@ function Kpi({
   hint,
   accent,
   help,
+  action,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -456,6 +483,7 @@ function Kpi({
   hint?: string;
   accent?: 'good' | 'warn';
   help?: { title: string; body: React.ReactNode };
+  action?: React.ReactNode;
 }) {
   return (
     <motion.div
@@ -487,9 +515,10 @@ function Kpi({
       >
         {value}
       </div>
-      {hint && (
-        <div className="font-roobert text-[11px] text-whisper-gray tabular-nums">
-          {hint}
+      {(hint || action) && (
+        <div className="flex items-center justify-between gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums">
+          <span>{hint}</span>
+          {action}
         </div>
       )}
     </motion.div>
@@ -774,7 +803,303 @@ function OnlineAnalyticsSection({ graph, newUsersGraph }: { graph: AdminStats['a
 }
 
 /* -------------------------------------------------------------------------- */
-/* Live presence widget                                                       */
+/* Reset Dormant Balances Modal                                               */
+/* -------------------------------------------------------------------------- */
+
+interface DormantPreviewData {
+  ok: boolean;
+  count: number;
+  totalAmount: number;
+  blockedCount: number;
+  inactiveCount: number;
+  sample: Array<{
+    userId: string;
+    telegramId: number;
+    name: string;
+    amount: number;
+    isBlocked: boolean;
+  }>;
+}
+
+function ResetDormantBalancesModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [data, setData] = useState<DormantPreviewData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successResult, setSuccessResult] = useState<{
+    resetCount: number;
+    resetSum: number;
+  } | null>(null);
+
+  const fetchPreview = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/_x/balances/dormant-preview', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        throw new Error(`Ошибка загрузки данных (${res.status})`);
+      }
+      const j = (await res.json()) as DormantPreviewData;
+      setData(j);
+    } catch (err: any) {
+      setError(err?.message || 'Не удалось получить предпросмотр неактивных счетов');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSuccessResult(null);
+      setError(null);
+      void fetchPreview();
+    }
+  }, [isOpen, fetchPreview]);
+
+  const handleReset = async () => {
+    setResetting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/_x/balances/reset-dormant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        throw new Error(j.error || 'Ошибка при списании балансов');
+      }
+      setSuccessResult({
+        resetCount: j.resetCount,
+        resetSum: j.resetSum,
+      });
+      onSuccess();
+    } catch (err: any) {
+      setError(err?.message || 'Ошибка списания балансов');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-lg rounded-[24px] border border-white/10 bg-[#0d1117] p-6 shadow-2xl relative overflow-hidden"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-whisper-gray hover:text-frost-white transition-colors"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-pill bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
+            <ShieldAlert size={20} />
+          </div>
+          <div>
+            <h3 className="font-roobert text-[16px] text-frost-white font-medium">
+              Очистка спящих обязательств
+            </h3>
+            <p className="font-roobert text-[12px] text-whisper-gray">
+              Обнуление балансов заблокированных и неактивных &gt;30д игроков
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3">
+            <RefreshCw size={24} className="animate-spin text-whisper-gray" />
+            <span className="font-roobert text-[13px] text-whisper-gray">
+              Анализ счетов в базе данных...
+            </span>
+          </div>
+        ) : successResult ? (
+          <div className="py-6 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-pill bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+              <CheckCircle2 size={28} />
+            </div>
+            <div className="font-roobert text-[16px] text-frost-white font-medium">
+              Балансы успешно списаны
+            </div>
+            <p className="font-roobert text-[13px] text-whisper-gray max-w-sm">
+              Обнулено {successResult.resetCount} счетов на сумму{' '}
+              <span className="text-frost-white font-semibold tabular-nums">
+                {formatPln(successResult.resetSum)} zł
+              </span>
+              . Обязательства казино уменьшены.
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-4 px-6 py-2.5 rounded-pill bg-white/10 hover:bg-white/15 text-frost-white font-roobert text-[13px] transition-colors"
+            >
+              Закрыть
+            </button>
+          </div>
+        ) : error ? (
+          <div className="py-6 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-pill bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
+              <AlertTriangle size={28} />
+            </div>
+            <div className="font-roobert text-[14px] text-rose-300 font-medium">
+              {error}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => void fetchPreview()}
+                className="px-4 py-2 rounded-pill bg-white/10 hover:bg-white/15 text-frost-white font-roobert text-[12px]"
+              >
+                Повторить
+              </button>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-pill bg-white/5 hover:bg-white/10 text-whisper-gray font-roobert text-[12px]"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        ) : data ? (
+          <div>
+            {data.count === 0 ? (
+              <div className="py-8 text-center">
+                <div className="w-10 h-10 rounded-pill bg-emerald-500/10 border border-emerald-500/25 mx-auto flex items-center justify-center text-emerald-400 mb-3">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div className="font-roobert text-[14px] text-frost-white font-medium">
+                  Нет неактивных счетов
+                </div>
+                <p className="font-roobert text-[12px] text-whisper-gray mt-1">
+                  Все счета с балансом принадлежат активным пользователям или администраторам.
+                </p>
+                <button
+                  onClick={onClose}
+                  className="mt-5 px-5 py-2 rounded-pill bg-white/10 hover:bg-white/15 text-frost-white font-roobert text-[13px]"
+                >
+                  Понятно
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3.5 rounded-[16px] bg-white/[0.03] border border-white/10">
+                    <div className="font-roobert text-[11px] uppercase tracking-wider text-whisper-gray">
+                      К списанию
+                    </div>
+                    <div className="mt-1 font-roobert text-[20px] font-medium text-rose-400 tabular-nums">
+                      {formatPln(data.totalAmount)} zł
+                    </div>
+                  </div>
+                  <div className="p-3.5 rounded-[16px] bg-white/[0.03] border border-white/10">
+                    <div className="font-roobert text-[11px] uppercase tracking-wider text-whisper-gray">
+                      Счетов
+                    </div>
+                    <div className="mt-1 font-roobert text-[20px] font-medium text-frost-white tabular-nums">
+                      {data.count}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[12px] font-roobert text-whisper-gray">
+                  <span className="px-2.5 py-1 rounded-pill bg-white/[0.04] border border-white/10">
+                    Неактивны &gt;30д:{' '}
+                    <strong className="text-frost-white">{data.inactiveCount}</strong>
+                  </span>
+                  <span className="px-2.5 py-1 rounded-pill bg-white/[0.04] border border-white/10">
+                    Заблокированы:{' '}
+                    <strong className="text-rose-400">{data.blockedCount}</strong>
+                  </span>
+                </div>
+
+                {data.sample && data.sample.length > 0 && (
+                  <div className="rounded-[16px] border border-white/10 bg-black/30 p-3 max-h-48 overflow-y-auto space-y-2">
+                    <div className="font-roobert text-[11px] uppercase tracking-wider text-whisper-gray px-1">
+                      Примеры счетов:
+                    </div>
+                    {data.sample.map((s) => (
+                      <div
+                        key={s.userId}
+                        className="flex items-center justify-between text-[12px] font-roobert px-2 py-1.5 rounded-lg bg-white/[0.02]"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-frost-white truncate font-medium">{s.name}</span>
+                          <span className="text-whisper-gray text-[10.5px]">#{s.telegramId}</span>
+                          {s.isBlocked ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">
+                              Бан
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                              &gt;30д
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-rose-300 font-semibold tabular-nums shrink-0 ml-2">
+                          {formatPln(s.amount)} zł
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="p-3 rounded-[14px] bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-[11.5px] font-roobert text-rose-200">
+                  <AlertTriangle size={16} className="shrink-0 text-rose-400 mt-0.5" />
+                  <div>
+                    Балансы будут сброшены до 0.00 zł с записью аудита в транзакции.
+                    Администраторы защищены от списания.
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    onClick={onClose}
+                    disabled={resetting}
+                    className="px-4 py-2.5 rounded-pill bg-white/5 hover:bg-white/10 text-whisper-gray font-roobert text-[12.5px] transition-colors"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={() => void handleReset()}
+                    disabled={resetting}
+                    className="px-5 py-2.5 rounded-pill bg-rose-600 hover:bg-rose-500 text-white font-roobert text-[12.5px] font-medium shadow-lg shadow-rose-900/30 flex items-center gap-2 transition-all active:scale-[0.98]"
+                  >
+                    {resetting ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        Списание...
+                      </>
+                    ) : (
+                      <>Обнулить {formatPln(data.totalAmount)} zł</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </motion.div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live presence widget (Redesigned & Enriched)                                */
 /* -------------------------------------------------------------------------- */
 
 interface PresenceUser {
@@ -785,6 +1110,10 @@ interface PresenceUser {
   telegramId: number | null;
   pathname: string;
   ts: number;
+  balance?: number;
+  vipLevel?: number;
+  isAdmin?: boolean;
+  isBlocked?: boolean;
 }
 
 interface PresenceResponse {
@@ -794,18 +1123,11 @@ interface PresenceResponse {
   pages: Array<{ pathname: string; count: number }>;
 }
 
-/**
- * Карточка «Сейчас в мини-аппе».
- *
- * Сворачивается/разворачивается тапом по шапке. В свёрнутом виде —
- * только большой счётчик и подсказка по топ-страницам. В раскрытом —
- * список игроков с аватарами и текущей страницей. Список ужат до 50
- * человек: больше — это уже не оперативная задача, а аналитика, и
- * для неё лучше отдельный отчёт.
- */
 function LivePresence() {
   const [data, setData] = useState<PresenceResponse | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterRole, setFilterRole] = useState<'all' | 'players' | 'admins'>('all');
 
   const load = useCallback(async () => {
     try {
@@ -817,7 +1139,7 @@ function LivePresence() {
       const j = (await res.json()) as PresenceResponse;
       setData(j);
     } catch {
-      // тихо игнорируем — следующий тик всё перепроверит
+      // Тихо игнорируем ошибку сети — следующий тик повторит
     }
   }, []);
 
@@ -827,126 +1149,332 @@ function LivePresence() {
     return () => clearInterval(id);
   }, [load]);
 
-  const top = useMemo(() => (data?.pages ?? []).slice(0, 3), [data]);
-  const sorted = useMemo(
-    () => (data?.users ?? []).slice(0, 50),
-    [data]
-  );
+  const topPages = useMemo(() => (data?.pages ?? []).slice(0, 4), [data]);
+
+  const onlineBalanceTotal = useMemo(() => {
+    if (!data?.users) return 0;
+    return data.users.reduce((acc, u) => acc + (u.balance || 0), 0);
+  }, [data]);
+
+  const filteredUsers = useMemo(() => {
+    if (!data?.users) return [];
+    let list = data.users;
+
+    if (filterRole === 'players') {
+      list = list.filter((u) => !u.isAdmin);
+    } else if (filterRole === 'admins') {
+      list = list.filter((u) => Boolean(u.isAdmin));
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((u) => {
+        const n = u.name.toLowerCase();
+        const un = (u.username ?? '').toLowerCase();
+        const tg = u.telegramId ? String(u.telegramId) : '';
+        const meta = getPageMeta(u.pathname);
+        return (
+          n.includes(q) ||
+          un.includes(q) ||
+          tg.includes(q) ||
+          meta.title.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    return list;
+  }, [data, filterRole, searchQuery]);
+
+  const counts = useMemo(() => {
+    const total = data?.users.length ?? 0;
+    const admins = data?.users.filter((u) => u.isAdmin).length ?? 0;
+    const players = total - admins;
+    return { total, admins, players };
+  }, [data]);
 
   return (
-    <section className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+    <section className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)] transition-all">
+      {/* Шапка виджета с быстрой сводкой */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full px-5 py-4 flex items-center justify-between gap-3 active:scale-[0.98] transition-transform"
+        className="w-full px-5 py-4 flex items-center justify-between gap-3 active:scale-[0.99] transition-transform select-none"
         aria-expanded={open}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-pill border border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-[#a0e0ab] shrink-0">
-            <Radio size={14} strokeWidth={1.7} />
-            {/* живая зелёная точка-«пульс» — намёк, что данные real-time */}
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="relative inline-flex items-center justify-center w-10 h-10 rounded-pill border border-[#a0e0ab]/40 bg-[#a0e0ab]/10 text-[#a0e0ab] shrink-0">
+            <Radio size={16} strokeWidth={2} />
             <span
-              aria-hidden
-              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#a0e0ab] animate-pulse"
+              aria-hidden="true"
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#a0e0ab] animate-ping opacity-75"
             />
-          </span>
-          <div className="min-w-0">
-            <div className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
-              Сейчас в мини-аппе
+            <span
+              aria-hidden="true"
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#a0e0ab]"
+            />
+          </div>
+          <div className="min-w-0 text-left">
+            <div className="flex items-center gap-2">
+              <span className="font-roobert text-[11px] uppercase tracking-[0.06em] text-whisper-gray font-medium">
+                Сейчас в мини-аппе
+              </span>
+              <span className="inline-flex items-center px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+                LIVE
+              </span>
             </div>
-            <div className="mt-0.5 font-roobert text-frost-white text-[20px] font-light leading-none tabular-nums tracking-[-0.02em]">
-              {data ? data.count : '—'}
-              {data && (
-                <span className="ml-1.5 text-whisper-gray text-[11px] tabular-nums">
-                  игрок{plural(data.count)}
+            <div className="mt-0.5 flex items-baseline gap-2.5 flex-wrap">
+              <span className="font-roobert text-frost-white text-[22px] font-light leading-none tabular-nums tracking-[-0.02em]">
+                {data ? data.count : '—'}
+              </span>
+              <span className="text-whisper-gray text-[12px] font-roobert">
+                {data ? `игрок${plural(data.count)} онлайн` : 'подключение…'}
+              </span>
+              {data && data.count > 0 && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11.5px] font-roobert text-[#a0e0ab] tabular-nums px-2 py-0.5 rounded-full bg-[#a0e0ab]/10 border border-[#a0e0ab]/20">
+                  <Coins size={12} className="shrink-0 text-[#a0e0ab]" />
+                  Баланс онлайн: {formatPln(onlineBalanceTotal)} zł
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {top.length > 0 && (
-            <div className="hidden sm:flex items-center gap-1.5">
-              {top.map((p) => (
-                <span
-                  key={p.pathname}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border border-white/10 bg-white/[0.03] font-roobert text-[10px] text-frost-white/85"
-                  title={p.pathname}
-                >
-                  <span className="text-whisper-gray">
-                    {prettyPath(p.pathname)}
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          {topPages.length > 0 && (
+            <div className="hidden md:flex items-center gap-1.5">
+              {topPages.map((p) => {
+                const meta = getPageMeta(p.pathname);
+                const IconComponent = meta.icon;
+                return (
+                  <span
+                    key={p.pathname}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border text-[11px] font-roobert',
+                      meta.colorClass
+                    )}
+                    title={p.pathname}
+                  >
+                    <IconComponent size={12} className="shrink-0 opacity-80" />
+                    <span>{meta.title}</span>
+                    <span className="tabular-nums font-semibold opacity-90">{p.count}</span>
                   </span>
-                  <span className="tabular-nums text-frost-white">{p.count}</span>
-                </span>
-              ))}
+                );
+              })}
             </div>
           )}
-          <ChevronDown
-            size={14}
-            strokeWidth={1.8}
-            className={cn(
-              'text-frost-white/60 transition-transform',
-              open && 'rotate-180'
-            )}
-          />
+          <div className="w-8 h-8 rounded-pill bg-white/5 border border-white/10 flex items-center justify-center text-frost-white/70">
+            <ChevronDown
+              size={15}
+              strokeWidth={2}
+              className={cn(
+                'transition-transform duration-200',
+                open && 'rotate-180 text-frost-white'
+              )}
+            />
+          </div>
         </div>
       </button>
 
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
-            key="body"
+            key="presence-body"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-            className="overflow-hidden"
+            transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+            className="overflow-hidden border-t border-white/10"
           >
-            {sorted.length === 0 ? (
-              <div className="px-4 py-6 text-center font-roobert text-[12px] text-whisper-gray border-t border-white/10">
-                Никто не в мини-аппе прямо сейчас.
+            {/* Панель фильтрации и поиска */}
+            <div className="px-5 py-3 bg-white/[0.015] border-b border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1 p-0.5 rounded-pill bg-white/5 border border-white/10 self-start">
+                <button
+                  onClick={() => setFilterRole('all')}
+                  className={cn(
+                    'px-3 py-1 rounded-pill text-[11.5px] font-roobert transition-colors',
+                    filterRole === 'all'
+                      ? 'bg-white/15 text-frost-white font-medium shadow-sm'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  )}
+                >
+                  Все ({counts.total})
+                </button>
+                <button
+                  onClick={() => setFilterRole('players')}
+                  className={cn(
+                    'px-3 py-1 rounded-pill text-[11.5px] font-roobert transition-colors',
+                    filterRole === 'players'
+                      ? 'bg-white/15 text-frost-white font-medium shadow-sm'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  )}
+                >
+                  Игроки ({counts.players})
+                </button>
+                <button
+                  onClick={() => setFilterRole('admins')}
+                  className={cn(
+                    'px-3 py-1 rounded-pill text-[11.5px] font-roobert transition-colors',
+                    filterRole === 'admins'
+                      ? 'bg-white/15 text-frost-white font-medium shadow-sm'
+                      : 'text-whisper-gray hover:text-frost-white'
+                  )}
+                >
+                  Админы ({counts.admins})
+                </button>
+              </div>
+
+              <div className="relative flex-1 sm:max-w-xs">
+                <Search
+                  size={13}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-whisper-gray pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Поиск по имени, @нику, ID…"
+                  className="w-full pl-8 pr-3 py-1.5 rounded-pill bg-white/5 border border-white/10 text-frost-white text-[11.5px] font-roobert placeholder:text-whisper-gray/50 focus:outline-none focus:border-white/20 transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-whisper-gray hover:text-frost-white"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Список карточек пользователей */}
+            {!data || data.users.length === 0 ? (
+              <div className="px-5 py-10 text-center font-roobert text-[12.5px] text-whisper-gray flex flex-col items-center gap-2">
+                <div className="w-9 h-9 rounded-pill bg-white/5 border border-white/10 flex items-center justify-center text-whisper-gray/60">
+                  <Users size={16} />
+                </div>
+                <span>Прямо сейчас в мини-аппе нет активных пользователей.</span>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="px-5 py-8 text-center font-roobert text-[12.5px] text-whisper-gray">
+                По запросу «{searchQuery}» никто не найден.
               </div>
             ) : (
-              <ul className="divide-y divide-white/5 border-t border-white/10">
-                {sorted.map((u) => (
-                  <li
-                    key={u.userId}
-                    className="px-4 py-2.5 grid grid-cols-[auto_1fr_auto] items-center gap-3"
-                  >
-                    {u.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={u.photoUrl}
-                        alt={u.name}
-                        referrerPolicy="no-referrer"
-                        draggable={false}
-                        className="w-16 h-16 rounded-pill border border-white/10 object-cover"
-                      />
-                    ) : (
-                      <span className="w-16 h-16 rounded-pill border border-white/10 bg-white/[0.04] flex items-center justify-center font-roobert text-[24px]">
-                        {u.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <div className="font-roobert text-[13px] text-frost-white truncate">
-                        {u.name}
+              <div className="divide-y divide-white/5 max-h-[460px] overflow-y-auto">
+                {filteredUsers.map((u) => {
+                  const meta = getPageMeta(u.pathname);
+                  const IconComponent = meta.icon;
+
+                  return (
+                    <div
+                      key={u.userId}
+                      className="px-5 py-3 hover:bg-white/[0.025] transition-colors flex items-center justify-between gap-3"
+                    >
+                      {/* Левая колонка: Аватар + Пользователь */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Аватар с индикатором онлайна */}
+                        <div className="relative shrink-0 select-none" aria-hidden="true">
+                          {u.photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={u.photoUrl}
+                              alt=""
+                              referrerPolicy="no-referrer"
+                              draggable={false}
+                              className="w-10 h-10 rounded-pill border border-white/15 object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-pill border border-white/15 bg-gradient-to-br from-white/10 to-white/[0.02] flex items-center justify-center text-frost-white font-roobert font-medium text-[15px]">
+                              {u.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          {/* Пульсирующая зеленая точка онлайна */}
+                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0d1117]" />
+                        </div>
+
+                        {/* Инфо игрока */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-roobert text-[13.5px] font-medium text-frost-white truncate">
+                              {u.name}
+                            </span>
+
+                            {/* Роли и бейджи */}
+                            {u.isAdmin && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                <Shield size={9} />
+                                Админ
+                              </span>
+                            )}
+                            {u.isBlocked && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                Бан
+                              </span>
+                            )}
+                            {typeof u.vipLevel === 'number' && u.vipLevel > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                VIP {u.vipLevel}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] font-roobert text-whisper-gray truncate">
+                            {u.telegramId && (
+                              <span className="tabular-nums">#{u.telegramId}</span>
+                            )}
+                            {u.username && (
+                              <span className="text-frost-white/70 truncate">
+                                @{u.username}
+                              </span>
+                            )}
+                            {/* Баланс игрока прямо в строке */}
+                            <span className="text-[#a0e0ab] font-medium tabular-nums flex items-center gap-1">
+                              • {formatPln(u.balance ?? 0)} zł
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-roobert text-[10.5px] text-whisper-gray truncate tabular-nums">
-                        {u.telegramId ? `#${u.telegramId}` : ''}
-                        {u.username ? ` · @${u.username}` : ''}
+
+                      {/* Правая колонка: Экран + Время + Быстрый переход в профиль */}
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <div className="text-right">
+                          <div
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-pill border text-[10.5px] font-roobert',
+                              meta.colorClass
+                            )}
+                            title={u.pathname}
+                          >
+                            <IconComponent size={11} className="shrink-0" />
+                            <span className="truncate max-w-[130px] sm:max-w-[180px]">
+                              {meta.title}
+                            </span>
+                          </div>
+                          <div className="font-roobert text-[10px] text-whisper-gray tabular-nums mt-0.5">
+                            {ageLabel(u.ts)}
+                          </div>
+                        </div>
+
+                        {/* Кнопка быстрого перехода в карточку игрока в админке */}
+                        <Link
+                          href={`/system/console/users/${u.userId}`}
+                          className="w-8 h-8 rounded-pill bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-whisper-gray hover:text-frost-white transition-colors"
+                          title="Открыть карточку пользователя"
+                        >
+                          <ExternalLink size={13} />
+                        </Link>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-roobert text-[11px] text-frost-white truncate max-w-[180px]">
-                        {prettyPath(u.pathname)}
-                      </div>
-                      <div className="font-roobert text-[10px] text-whisper-gray tabular-nums">
-                        {ageLabel(u.ts)}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                  );
+                })}
+              </div>
             )}
+
+            {/* Подвал виджета */}
+            <div className="px-5 py-2.5 bg-white/[0.02] border-t border-white/5 flex items-center justify-between text-[11px] font-roobert text-whisper-gray">
+              <span>Автообновление каждые 5 сек</span>
+              <span className="tabular-nums">
+                Показано: {filteredUsers.length} из {data?.users.length ?? 0}
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -955,33 +1483,128 @@ function LivePresence() {
 }
 
 /**
- * Превращает технический pathname в человекочитаемое название экрана —
- * админу удобнее видеть «MacvJet» чем «/game/crash» в строке отчёта.
- * Маппинг расширяется по мере появления новых страниц.
+ * Превращает путь в структурированные метаданные экрана для красивого отображения.
  */
-function prettyPath(p: string): string {
-  if (p === '/' || p === '') return 'Главная';
-  if (p === '/balance') return 'Кошелёк';
-  if (p === '/profile') return 'Профиль';
-  if (p === '/bonuses') return 'Бонусы';
-  if (p === '/partner') return 'Партнёрка';
-  if (p.startsWith('/game/')) {
-    const slug = p.split('/')[2] ?? '';
-    if (slug === 'crash') return 'Игра · MacvJet';
-    if (slug === 'mines') return 'Игра · Mines';
-    if (slug === 'coinflip') return 'Игра · Coinflip';
-    if (slug === 'wheel') return 'Игра · Wheel';
-    return `Игра · ${slug}`;
+function getPageMeta(pathname: string): {
+  title: string;
+  category: 'game' | 'sport' | 'bonus' | 'finance' | 'admin' | 'general';
+  icon: any;
+  colorClass: string;
+} {
+  const p = (pathname || '').toLowerCase();
+
+  if (p === '/' || p === '') {
+    return {
+      title: 'Главная',
+      category: 'general',
+      icon: Sparkles,
+      colorClass: 'bg-white/5 text-frost-white border-white/10',
+    };
   }
-  if (p === '/system/console') return 'Админка · Сводка';
-  if (p === '/system/console/users') return 'Админка · Игроки';
-  if (p === '/system/console/users/:id') return 'Админка · Карточка';
-  if (p === '/system/console/deposits') return 'Админка · Депозиты';
-  if (p === '/system/console/withdrawals') return 'Админка · Вывод';
-  if (p === '/system/console/bonuses') return 'Админка · Бонусы';
-  if (p === '/system/console/games') return 'Админка · Игры';
-  if (p === '/system/console/audit') return 'Админка · Аудит';
-  return p;
+  if (p.startsWith('/game/crash')) {
+    return {
+      title: 'MacvJet',
+      category: 'game',
+      icon: Zap,
+      colorClass: 'bg-purple-500/15 text-purple-300 border-purple-500/25',
+    };
+  }
+  if (p.startsWith('/game/mines')) {
+    return {
+      title: 'Mines',
+      category: 'game',
+      icon: Coins,
+      colorClass: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+    };
+  }
+  if (p.startsWith('/game/wheel')) {
+    return {
+      title: 'Wheel',
+      category: 'game',
+      icon: Sparkles,
+      colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+    };
+  }
+  if (p.startsWith('/game/coinflip')) {
+    return {
+      title: 'Coinflip',
+      category: 'game',
+      icon: Coins,
+      colorClass: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/25',
+    };
+  }
+  if (p.startsWith('/game/')) {
+    const slug = p.split('/')[2] ?? 'игра';
+    return {
+      title: `Игра · ${slug}`,
+      category: 'game',
+      icon: Activity,
+      colorClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+    };
+  }
+  if (p.startsWith('/sports') || p.startsWith('/sport')) {
+    return {
+      title: p.includes('live') ? 'Спорт · Live' : 'Спорт · Линия',
+      category: 'sport',
+      icon: Trophy,
+      colorClass: 'bg-sky-500/15 text-sky-300 border-sky-500/25',
+    };
+  }
+  if (p.startsWith('/balance') || p.startsWith('/deposit') || p.startsWith('/withdraw')) {
+    return {
+      title: 'Касса / Кошелёк',
+      category: 'finance',
+      icon: Wallet,
+      colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+    };
+  }
+  if (p.startsWith('/bonuses') || p.startsWith('/tournaments')) {
+    return {
+      title: p.startsWith('/tournaments') ? 'Турниры' : 'Бонусы',
+      category: 'bonus',
+      icon: Gift,
+      colorClass: 'bg-rose-500/15 text-rose-300 border-rose-500/25',
+    };
+  }
+  if (p.startsWith('/system/console')) {
+    let sub = 'Сводка';
+    if (p.includes('/users')) sub = 'Игроки';
+    else if (p.includes('/deposits')) sub = 'Депозиты';
+    else if (p.includes('/withdrawals')) sub = 'Выводы';
+    else if (p.includes('/bonuses')) sub = 'Бонусы';
+    else if (p.includes('/games')) sub = 'Игры';
+    else if (p.includes('/security')) sub = 'Безопасность';
+    else if (p.includes('/audit')) sub = 'Аудит';
+    return {
+      title: `Админка · ${sub}`,
+      category: 'admin',
+      icon: Shield,
+      colorClass: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+    };
+  }
+  if (p.startsWith('/profile')) {
+    return {
+      title: 'Профиль',
+      category: 'general',
+      icon: Users,
+      colorClass: 'bg-white/5 text-frost-white border-white/10',
+    };
+  }
+  if (p.startsWith('/partner')) {
+    return {
+      title: 'Партнёрка',
+      category: 'general',
+      icon: Users,
+      colorClass: 'bg-white/5 text-frost-white border-white/10',
+    };
+  }
+
+  return {
+    title: pathname,
+    category: 'general',
+    icon: Activity,
+    colorClass: 'bg-white/5 text-whisper-gray border-white/10',
+  };
 }
 
 function ageLabel(ts: number): string {
@@ -993,8 +1616,6 @@ function ageLabel(ts: number): string {
 }
 
 function plural(n: number): string {
-  // «1 игрок», «2 игрока», «5 игроков» — без полноценной библиотеки
-  // склонения, но достаточно для одной цифры онлайна.
   const a = Math.abs(n) % 100;
   const b = a % 10;
   if (a > 10 && a < 20) return 'ов';
@@ -1002,3 +1623,4 @@ function plural(n: number): string {
   if (b === 1) return '';
   return 'ов';
 }
+

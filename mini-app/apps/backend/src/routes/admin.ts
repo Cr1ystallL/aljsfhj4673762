@@ -1270,6 +1270,208 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  /* ------------------------------------------- dormant balance reset */
+
+  app.get('/_x/balances/dormant-preview', { preHandler: adminOnly }, async (_request, reply) => {
+    try {
+      const candidateRows = await app.prisma.$queryRaw<Array<{
+        user_id: string;
+        telegram_id: bigint;
+        first_name: string | null;
+        username: string | null;
+        is_blocked: boolean;
+        balance_amount: string;
+      }>>`
+        SELECT 
+          u.id as user_id,
+          u.telegram_id,
+          u.first_name,
+          u.username,
+          u.is_blocked,
+          b.amount::text as balance_amount
+        FROM users u
+        JOIN balances b ON b.user_id = u.id AND b.demo_mode = false
+        WHERE b.amount > 0
+          AND (
+            u.is_blocked = true
+            OR (
+              u.created_at < NOW() - INTERVAL '30 days'
+              AND u.updated_at < NOW() - INTERVAL '30 days'
+              AND NOT EXISTS (
+                SELECT 1 FROM sessions s 
+                WHERE s.user_id = u.id AND s.created_at >= NOW() - INTERVAL '30 days'
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM bets bt 
+                WHERE bt.user_id = u.id AND bt.placed_at >= NOW() - INTERVAL '30 days'
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM transactions tx 
+                WHERE tx.user_id = u.id AND tx.created_at >= NOW() - INTERVAL '30 days'
+              )
+            )
+          )
+        ORDER BY b.amount DESC
+      `;
+
+      const accounts: typeof candidateRows = [];
+      for (const row of candidateRows) {
+        if (!(await isAdminTelegramIdAsync(Number(row.telegram_id)))) {
+          accounts.push(row);
+        }
+      }
+
+      const totalAmount = accounts.reduce((acc, r) => acc + Number(r.balance_amount), 0);
+      const blockedCount = accounts.filter((r) => r.is_blocked).length;
+      const inactiveCount = accounts.filter((r) => !r.is_blocked).length;
+
+      return reply.send({
+        ok: true,
+        count: accounts.length,
+        totalAmount,
+        blockedCount,
+        inactiveCount,
+        sample: accounts.slice(0, 10).map((r) => ({
+          userId: r.user_id,
+          telegramId: Number(r.telegram_id),
+          name: r.first_name || r.username || `#${r.telegram_id}`,
+          amount: Number(r.balance_amount),
+          isBlocked: r.is_blocked,
+        })),
+      });
+    } catch (err) {
+      logger.error({ err }, 'Failed to preview dormant balances');
+      return reply.code(500).send({ ok: false, error: 'Failed to preview dormant balances' });
+    }
+  });
+
+  app.post('/_x/balances/reset-dormant', { preHandler: adminOnly }, async (request, reply) => {
+    try {
+      const candidateRows = await app.prisma.$queryRaw<Array<{
+        user_id: string;
+        telegram_id: bigint;
+        first_name: string | null;
+        username: string | null;
+        is_blocked: boolean;
+        balance_amount: string;
+      }>>`
+        SELECT 
+          u.id as user_id,
+          u.telegram_id,
+          u.first_name,
+          u.username,
+          u.is_blocked,
+          b.amount::text as balance_amount
+        FROM users u
+        JOIN balances b ON b.user_id = u.id AND b.demo_mode = false
+        WHERE b.amount > 0
+          AND (
+            u.is_blocked = true
+            OR (
+              u.created_at < NOW() - INTERVAL '30 days'
+              AND u.updated_at < NOW() - INTERVAL '30 days'
+              AND NOT EXISTS (
+                SELECT 1 FROM sessions s 
+                WHERE s.user_id = u.id AND s.created_at >= NOW() - INTERVAL '30 days'
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM bets bt 
+                WHERE bt.user_id = u.id AND bt.placed_at >= NOW() - INTERVAL '30 days'
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM transactions tx 
+                WHERE tx.user_id = u.id AND tx.created_at >= NOW() - INTERVAL '30 days'
+              )
+            )
+          )
+      `;
+
+      const accountsToReset: typeof candidateRows = [];
+      for (const row of candidateRows) {
+        if (!(await isAdminTelegramIdAsync(Number(row.telegram_id)))) {
+          accountsToReset.push(row);
+        }
+      }
+
+      let successCount = 0;
+      let resetSum = 0;
+
+      for (const acc of accountsToReset) {
+        const amount = Number(acc.balance_amount);
+        if (amount <= 0) continue;
+
+        try {
+          await app.prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`
+              UPDATE balances
+              SET amount = 0,
+                  wager_target = 0,
+                  auto_rtp_target = 0,
+                  updated_at = NOW(),
+                  last_synced_at = NOW(),
+                  version = version + 1
+              WHERE user_id = ${acc.user_id} AND demo_mode = false
+            `;
+
+            const txId = (globalThis as { crypto?: { randomUUID(): string } }).crypto?.randomUUID?.() ||
+              `dormant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+            const meta = {
+              reason: acc.is_blocked ? 'blocked_account_balance_reset' : 'dormant_30d_balance_reset',
+              previousAmount: amount,
+              resetAt: new Date().toISOString(),
+              adminTelegramId: (request as AuthenticatedRequest).user.telegramId,
+            };
+
+            await tx.$executeRaw`
+              INSERT INTO transactions (
+                id, user_id, type, amount, balance_before, balance_after, metadata, created_at
+              ) VALUES (
+                ${txId}, ${acc.user_id}, 'adjustment', ${-amount}::numeric, ${amount}::numeric, 0,
+                ${JSON.stringify(meta)}::jsonb, NOW()
+              )
+            `;
+          });
+
+          try {
+            await balanceService.invalidateCache(acc.user_id);
+          } catch {}
+
+          successCount += 1;
+          resetSum += amount;
+        } catch (err) {
+          logger.error({ err, userId: acc.user_id }, 'Failed to reset dormant balance');
+        }
+      }
+
+      const finalBalances = await app.prisma.balance.findMany({
+        where: { demoMode: false },
+        select: { amount: true },
+      });
+      const newTotalLiability = finalBalances.reduce((acc, b) => acc + Number(b.amount), 0);
+
+      await audit({
+        request: request as AuthenticatedRequest,
+        action: 'balances.reset_dormant',
+        targetType: 'system',
+        targetId: 'all',
+        payloadBefore: { candidateCount: accountsToReset.length },
+        payloadAfter: { resetCount: successCount, resetAmount: resetSum, newTotalLiability },
+        reason: 'Reset dormant (>30d) and blocked accounts balances',
+      });
+
+      return reply.send({
+        ok: true,
+        resetCount: successCount,
+        resetAmount: resetSum,
+        newTotalLiability,
+      });
+    } catch (err) {
+      logger.error({ err }, 'Failed to reset dormant balances');
+      return reply.code(500).send({ ok: false, error: 'Failed to reset dormant balances' });
+    }
+  });
+
   /* ----------------------------------------------------- wager adjust */
 
   app.patch<{

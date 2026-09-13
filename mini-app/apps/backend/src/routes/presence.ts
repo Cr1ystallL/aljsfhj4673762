@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   authenticate,
   adminOnly,
+  isAdminTelegramIdAsync,
   type AuthenticatedRequest,
 } from '../middleware/auth.js';
 import { redisClient } from '../lib/redis.js';
@@ -48,6 +49,10 @@ interface PresenceRecord {
   telegramId: number | null;
   pathname: string;
   ts: number;
+  balance?: number;
+  vipLevel?: number;
+  isAdmin?: boolean;
+  isBlocked?: boolean;
 }
 
 export async function presenceRoutes(app: FastifyInstance): Promise<void> {
@@ -70,14 +75,15 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
       const pathname = rawPath.slice(0, MAX_PATHNAME_LENGTH) || '/';
 
       try {
-        // Сначала пытаемся достать профиль из Prisma — это нужно, чтобы
-        // у админа в списке были аватарки и имена, а не голые UUID'ы.
-        // Если БД лежит, всё равно пишем запись, просто с пустыми
-        // полями — оператор увидит хотя бы telegramId.
         let name = 'Игрок';
         let username: string | null = null;
         let photoUrl: string | null = null;
         let telegramId: number | null = null;
+        let balance = 0;
+        let vipLevel = 0;
+        let isBlocked = false;
+        let isAdmin = false;
+
         try {
           const u = await app.prisma.user.findUnique({
             where: { id: userId },
@@ -87,6 +93,11 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
               username: true,
               photoUrl: true,
               telegramId: true,
+              vipLevel: true,
+              isBlocked: true,
+              balance: {
+                select: { amount: true },
+              },
             },
           });
           if (u) {
@@ -94,6 +105,12 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
             username = u.username ?? null;
             photoUrl = u.photoUrl ?? null;
             telegramId = Number(u.telegramId) || null;
+            balance = u.balance ? Number(u.balance.amount) : 0;
+            vipLevel = u.vipLevel ?? 0;
+            isBlocked = Boolean(u.isBlocked);
+            if (telegramId) {
+              isAdmin = await isAdminTelegramIdAsync(telegramId);
+            }
           }
         } catch (err) {
           logger.warn({ err, userId }, 'Presence: failed to fetch user profile');
@@ -107,11 +124,13 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
           telegramId,
           pathname,
           ts: Date.now(),
+          balance,
+          vipLevel,
+          isBlocked,
+          isAdmin,
         };
 
         const client = redisClient.getClient();
-        // ioredis-style API в проекте — `setex`/`set` с EX. Используем
-        // setex для атомарной установки TTL в одну операцию.
         await client.setex(
           PRESENCE_KEY(userId),
           PRESENCE_TTL_SECONDS,
@@ -135,14 +154,12 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
   app.get('/_x/presence', { preHandler: adminOnly }, async (_request, reply) => {
     try {
       const client = redisClient.getClient();
-      // `KEYS` по маленькому набору `presence:*` (десятки-сотни ключей)
-      // дешевле и проще, чем держать второй Redis-set с участниками.
-      // Если когда-нибудь онлайн станет >5000, заменим на SCAN.
       const keys = await client.keys('presence:*');
       if (keys.length === 0) {
         return reply.send({
           ok: true,
           count: 0,
+          totalOnlineBalance: 0,
           users: [],
           pages: [],
         });
@@ -157,13 +174,52 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
             users.push(parsed);
           }
         } catch {
-          // Поврежденный JSON в ключе — пропускаем, не валим эндпоинт.
+          // Поврежденный JSON в ключе — пропускаем
         }
       }
       users.sort((a, b) => b.ts - a.ts);
 
-      // Группировка по странице — даёт админу прикинуть, кто чем
-      // занят, без раскрытия полного списка пользователей.
+      // Enrich users with live data from DB (balance, VIP, blocked, admin)
+      const userIds = users.map((u) => u.userId);
+      if (userIds.length > 0) {
+        try {
+          const dbUsers = await app.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: {
+              id: true,
+              firstName: true,
+              username: true,
+              photoUrl: true,
+              telegramId: true,
+              vipLevel: true,
+              isBlocked: true,
+              balance: { select: { amount: true } },
+            },
+          });
+          const userMap = new Map(dbUsers.map((dbU) => [dbU.id, dbU]));
+          for (const u of users) {
+            const dbU = userMap.get(u.userId);
+            if (dbU) {
+              u.name = dbU.firstName?.trim() || dbU.username?.trim() || u.name;
+              u.username = dbU.username ?? u.username;
+              u.photoUrl = dbU.photoUrl ?? u.photoUrl;
+              u.telegramId = Number(dbU.telegramId) || u.telegramId;
+              u.balance = dbU.balance ? Number(dbU.balance.amount) : 0;
+              u.vipLevel = dbU.vipLevel ?? 0;
+              u.isBlocked = Boolean(dbU.isBlocked);
+              if (u.telegramId) {
+                u.isAdmin = await isAdminTelegramIdAsync(u.telegramId);
+              }
+            }
+          }
+        } catch (enrichErr) {
+          logger.warn({ enrichErr }, 'Failed to enrich presence users from DB');
+        }
+      }
+
+      const totalOnlineBalance = users.reduce((acc, u) => acc + (u.balance || 0), 0);
+
+      // Группировка по странице
       const counts = new Map<string, number>();
       for (const u of users) {
         const key = normalisePathname(u.pathname);
@@ -176,6 +232,7 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({
         ok: true,
         count: users.length,
+        totalOnlineBalance,
         users,
         pages,
       });
