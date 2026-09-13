@@ -621,7 +621,7 @@ async function fetchFeed(feed: { sport: SportKind; query: string }): Promise<Fee
 export async function fetchLiveBoard(priorityEventIds?: Set<string>): Promise<FeedEvent[]> {
   const chunks = await Promise.allSettled([
     ...FEEDS.map((f) => fetchFeed(f)),
-    fetchEsportsBoard(),
+    fetchEsportsBoard(priorityEventIds),
   ]);
   const merged = new Map<string, FeedEvent>();
   for (const chunk of chunks) {

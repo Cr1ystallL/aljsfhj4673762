@@ -238,12 +238,59 @@ function cyberEvent(input: {
   };
 }
 
-export async function fetchEsportsBoard(): Promise<FeedEvent[]> {
+export async function fetchOpenDotaMatchResult(matchId: string | number): Promise<FeedEvent | null> {
+  const cleanId = String(matchId).replace(/^dota-/, '');
+  try {
+    const res = await fetch(`https://api.opendota.com/api/matches/${cleanId}`, {
+      headers: { accept: 'application/json', 'user-agent': LP_UA },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      match_id?: number | string;
+      radiant_win?: boolean;
+      radiant_score?: number;
+      dire_score?: number;
+      radiant_team?: { name?: string };
+      dire_team?: { name?: string };
+      start_time?: number;
+      duration?: number;
+    };
+    if (data.radiant_win === undefined) return null;
+    const s1 = data.radiant_win ? 1 : 0;
+    const s2 = data.radiant_win ? 0 : 1;
+    const startTime = data.start_time ? data.start_time * 1000 : Date.now();
+    const t1 = data.radiant_team?.name || 'Radiant';
+    const t2 = data.dire_team?.name || 'Dire';
+    return cyberEvent({
+      id: `dota-${cleanId}`,
+      league: 'Dota 2 · Match Result',
+      team1: t1,
+      team2: t2,
+      score1: s1,
+      score2: s2,
+      startTime,
+      status: 'finished',
+      now: Date.now(),
+      extra: {
+        scoreKind: 'kills',
+        game: 'dota',
+        kills1: data.radiant_score ?? 0,
+        kills2: data.dire_score ?? 0,
+        duration: data.duration,
+      },
+    });
+  } catch (err) {
+    logger.warn({ err, matchId }, 'Failed to fetch OpenDota match result');
+    return null;
+  }
+}
+
+export async function fetchEsportsBoard(priorityEventIds?: Set<string>): Promise<FeedEvent[]> {
   const now = Date.now();
   const [dota, hltv, liqui] = await Promise.allSettled([
-    fetchDota(now),
+    fetchDota(now, priorityEventIds),
     fetchHltv(now),
-    fetchLiquipediaBoard(now),
+    fetchLiquipediaBoard(now, priorityEventIds),
   ]);
   const out: FeedEvent[] = [];
   if (dota.status === 'fulfilled') out.push(...dota.value);
@@ -252,7 +299,7 @@ export async function fetchEsportsBoard(): Promise<FeedEvent[]> {
   else logger.warn({ err: hltv.reason }, 'HLTV esports feed failed');
   if (liqui.status === 'fulfilled') out.push(...liqui.value);
   else logger.warn({ err: liqui.reason }, 'Liquipedia esports feed failed');
-  return dedupeEsports(out);
+  return dedupeEsports(out, priorityEventIds);
 }
 
 function teamNormalize(s: string): string {
@@ -297,12 +344,13 @@ function mergeEsports(winner: FeedEvent, loser: FeedEvent): FeedEvent {
   };
 }
 
-function dedupeEsports(events: FeedEvent[]): FeedEvent[] {
+function dedupeEsports(events: FeedEvent[], priorityEventIds?: Set<string>): FeedEvent[] {
   const rank = (ev: FeedEvent) => {
     let score = ev.status === 'live' ? 10 : ev.status === 'prematch' ? 5 : 1;
     if ((ev.team1.score ?? 0) > 0 || (ev.team2.score ?? 0) > 0) score += 3;
     if (ev.extra?.maps1 != null || ev.extra?.maps2 != null) score += 2;
     if (ev.extra?.kills1 != null || ev.extra?.kills2 != null) score += 2;
+    if (priorityEventIds?.has(ev.id)) score += 20;
     if (ev.id.startsWith('dota-') || ev.id.startsWith('lp-')) score += 0.5;
     return score;
   };
@@ -316,12 +364,16 @@ function dedupeEsports(events: FeedEvent[]): FeedEvent[] {
     }
     const winner = rank(ev) >= rank(prev) ? ev : prev;
     const loser = winner === ev ? prev : ev;
-    best.set(key, mergeEsports(winner, loser));
+    const merged = mergeEsports(winner, loser);
+    if (priorityEventIds?.has(loser.id) && !priorityEventIds?.has(winner.id)) {
+      merged.id = loser.id;
+    }
+    best.set(key, merged);
   }
   return [...best.values()];
 }
 
-async function fetchDota(now: number): Promise<FeedEvent[]> {
+async function fetchDota(now: number, priorityEventIds?: Set<string>): Promise<FeedEvent[]> {
   const res = await fetch(OPENDOTA_LIVE, {
     headers: { accept: 'application/json', 'user-agent': LP_UA },
   });
@@ -343,7 +395,7 @@ async function fetchDota(now: number): Promise<FeedEvent[]> {
   ];
   await Promise.all(teamIds.map((id) => resolveOpenDotaLogo(id)));
 
-  return sides.flatMap(({ match: m, side1, side2 }) => {
+  const liveEvents = sides.flatMap(({ match: m, side1, side2 }) => {
     if (isPlaceholderSide(side1.name) || isPlaceholderSide(side2.name)) return [];
     const s1 = m.radiant_score ?? 0;
     const s2 = m.dire_score ?? 0;
@@ -375,6 +427,20 @@ async function fetchDota(now: number): Promise<FeedEvent[]> {
       }),
     ];
   });
+
+  if (priorityEventIds) {
+    const liveIds = new Set(liveEvents.map((e) => e.id));
+    for (const pId of priorityEventIds) {
+      if (pId.startsWith('dota-') && !liveIds.has(pId)) {
+        const finished = await fetchOpenDotaMatchResult(pId);
+        if (finished) {
+          liveEvents.push(finished);
+        }
+      }
+    }
+  }
+
+  return liveEvents;
 }
 
 async function fetchHltv(now: number): Promise<FeedEvent[]> {
@@ -410,13 +476,13 @@ async function fetchHltv(now: number): Promise<FeedEvent[]> {
   });
 }
 
-async function fetchLiquipediaBoard(now: number): Promise<FeedEvent[]> {
-  if (liquipediaCache && now - liquipediaCache.at < LP_TTL_MS) {
+async function fetchLiquipediaBoard(now: number, priorityEventIds?: Set<string>): Promise<FeedEvent[]> {
+  if (liquipediaCache && now - liquipediaCache.at < LP_TTL_MS && (!priorityEventIds?.size || priorityEventIds.size === 0)) {
     return liquipediaCache.events;
   }
   const [cs, dota] = await Promise.allSettled([
-    fetchLiquipedia('counterstrike', 'CS2', now),
-    fetchLiquipedia('dota2', 'Dota 2', now),
+    fetchLiquipedia('counterstrike', 'CS2', now, priorityEventIds),
+    fetchLiquipedia('dota2', 'Dota 2', now, priorityEventIds),
   ]);
   const events: FeedEvent[] = [];
   if (cs.status === 'fulfilled') events.push(...cs.value);
@@ -427,7 +493,12 @@ async function fetchLiquipediaBoard(now: number): Promise<FeedEvent[]> {
   return events;
 }
 
-async function fetchLiquipedia(wiki: 'counterstrike' | 'dota2', label: string, now: number): Promise<FeedEvent[]> {
+async function fetchLiquipedia(
+  wiki: 'counterstrike' | 'dota2',
+  label: string,
+  now: number,
+  priorityEventIds?: Set<string>
+): Promise<FeedEvent[]> {
   const url = wiki === 'counterstrike' ? LP_CS : LP_DOTA;
   const res = await fetch(url, {
     headers: {
@@ -439,21 +510,24 @@ async function fetchLiquipedia(wiki: 'counterstrike' | 'dota2', label: string, n
   if (!res.ok) throw new Error(`Liquipedia ${wiki} HTTP ${res.status}`);
   const json = (await res.json()) as { parse?: { text?: { ['*']?: string } } };
   const html = json.parse?.text?.['*'] ?? '';
-  return parseLiquipediaMatches(html, wiki, label, now);
+  return parseLiquipediaMatches(html, wiki, label, now, priorityEventIds);
 }
 
 export function parseLiquipediaMatches(
   html: string,
   wiki: 'counterstrike' | 'dota2',
   label: string,
-  now: number
+  now: number,
+  priorityEventIds?: Set<string>
 ): FeedEvent[] {
   const blocks = splitMatchInfo(html);
   const out: FeedEvent[] = [];
   for (const block of blocks) {
-    const ev = parseLiquipediaBlock(block, wiki, label, now);
-    if (ev) out.push(ev);
-    if (out.length >= 36) break;
+    const ev = parseLiquipediaBlock(block, wiki, label, now, priorityEventIds);
+    if (ev) {
+      out.push(ev);
+      if (out.length >= 100 && !priorityEventIds?.size) break;
+    }
   }
   return out;
 }
@@ -477,12 +551,13 @@ function parseLiquipediaBlock(
   block: string,
   wiki: 'counterstrike' | 'dota2',
   label: string,
-  now: number
+  now: number,
+  priorityEventIds?: Set<string>
 ): FeedEvent | null {
   const tsRaw = Number(block.match(/data-timestamp="(\d+)"/)?.[1]);
   if (!Number.isFinite(tsRaw) || tsRaw <= 0) return null;
   const startTime = tsRaw > 1e12 ? tsRaw : tsRaw * 1000;
-  if (startTime < now - 10 * 3600_000 || startTime > now + 7 * 24 * 3600_000) return null;
+  if (startTime < now - 24 * 3600_000 || startTime > now + 7 * 24 * 3600_000) return null;
 
   const titles = [...block.matchAll(/<a href="[^"]+" title="([^"]+)"/g)].map((m) => decodeHtml(m[1]));
   const teams = uniqueTitles(titles).filter((name) => !/^(vs|bo\d)$/i.test(name));
@@ -495,28 +570,37 @@ function parseLiquipediaBlock(
   const logo1 = proxiedLogo(logos[0]);
   const logo2 = proxiedLogo(logos.find((src, i) => i > 0 && src && src !== logos[0]));
 
-  const scores = [...block.matchAll(/match-info-header-scoreholder-score">([^<]*)</g)].map((m) =>
-    m[1].trim()
-  );
-  const n1 = scores[0] != null && scores[0] !== '' && scores[0] !== 'vs' ? Number(scores[0]) : NaN;
-  const n2 = scores[1] != null && scores[1] !== '' && scores[1] !== 'vs' ? Number(scores[1]) : NaN;
+  const rawScores = [...block.matchAll(/class="[^"]*match-info-header-scoreholder-score[^"]*"[^>]*>([^<]*)<\//g)]
+    .map((m) => m[1].trim())
+    .filter((s) => s !== '');
+
+  const parseScore = (val?: string): number => {
+    if (!val) return NaN;
+    if (/^w$/i.test(val)) return 1;
+    if (/^(ff|l|dq)$/i.test(val)) return 0;
+    const n = Number(val);
+    return Number.isFinite(n) ? n : NaN;
+  };
+
+  const n1 = parseScore(rawScores[0]);
+  const n2 = parseScore(rawScores[1]);
   const hasScore = Number.isFinite(n1) && Number.isFinite(n2);
-  const finished = /match-info-header-winner|match-info-header-loser/.test(block);
+  const finished = /match-info-header-winner|match-info-header-loser|data-finished="finished"/.test(block);
   const live = !finished && startTime <= now && (hasScore || now - startTime < 5 * 3600_000);
   let score1 = hasScore ? n1 : 0;
   let score2 = hasScore ? n2 : 0;
 
   if (finished && (!hasScore || score1 === score2)) {
+    const dividerPos = block.indexOf('match-info-header-divider');
     const winPos = block.indexOf('match-info-header-winner');
-    const losePos = block.indexOf('match-info-header-loser');
     if (winPos >= 0) {
-      if (losePos >= 0) {
-        if (winPos < losePos) {
-          score1 = 1;
+      if (dividerPos >= 0) {
+        if (winPos < dividerPos) {
+          score1 = Math.max(1, score1);
           score2 = 0;
         } else {
           score1 = 0;
-          score2 = 1;
+          score2 = Math.max(1, score2);
         }
       } else {
         score1 = 1;
@@ -526,13 +610,15 @@ function parseLiquipediaBlock(
   }
 
   const status: FeedEvent['status'] = finished ? 'finished' : live ? 'live' : 'prematch';
-  if (status === 'finished' && now - startTime > 6 * 3600_000) return null;
-
   const tour =
     decodeHtml(block.match(/match-info-tournament-name[\s\S]*?<span>([^<]+)</)?.[1] ?? '') ||
     decodeHtml(block.match(/match-info-tournament-name[\s\S]*?title="([^"]+)"/)?.[1] ?? '') ||
     label;
   const slug = `${wiki}-${team1}-${team2}-${startTime}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const eventId = `lp-${slug}`.slice(0, 80);
+
+  const isPriority = priorityEventIds?.has(eventId);
+  if (status === 'finished' && now - startTime > 24 * 3600_000 && !isPriority) return null;
 
   return cyberEvent({
     id: `lp-${slug}`.slice(0, 80),

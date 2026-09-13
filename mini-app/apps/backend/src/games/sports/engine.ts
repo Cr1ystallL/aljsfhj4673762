@@ -23,6 +23,7 @@ import { notifySportsUser, sportsGoalText, sportsGoalCancelledText, sportsSettle
 import { telegramApi } from '../../lib/telegram-api.js';
 import { redisClient } from '../../lib/redis.js';
 import { freebetService } from '../../services/freebet-service.js';
+import { fetchOpenDotaMatchResult } from './esports.js';
 
 export class SportsOddsChangedError extends Error {
   readonly code = 'ODDS_CHANGED';
@@ -328,6 +329,7 @@ class SportsEngine {
         eventName,
         league: firstEv.feed.league,
         scoreAtBet: [firstEv.feed.team1.score ?? 0, firstEv.feed.team2.score ?? 0],
+        startTime: firstEv.feed.startTime,
         freebetId: freebetData?.id,
         freebetAmount: freebetData?.amount,
         freebetPayoutType: freebetData?.payoutType,
@@ -341,6 +343,7 @@ class SportsEngine {
             outcomeKey: leg.outcomeKey,
             line: leg.line,
             odds: leg.odds,
+            startTime: ev?.feed.startTime,
           };
         }),
       },
@@ -713,6 +716,7 @@ class SportsEngine {
           featured: prev?.featured,
           suspended: this.suspended.has(targetId),
         });
+        void redisClient.getClient().set(`sports:event_feed:${targetId}`, JSON.stringify(feed), 'EX', 86400).catch(() => {});
 
         if (lastEvent) {
           if (lastEvent.kind === 'goal' || lastEvent.kind === 'point') {
@@ -777,7 +781,32 @@ class SportsEngine {
         for (const leg of tracked.legs) {
           if (leg.result !== 'pending') continue;
 
-          const ev = this.events.get(leg.eventId);
+          let ev = this.events.get(leg.eventId);
+          if (!ev) {
+            try {
+              const raw = await redisClient.getClient().get(`sports:event_feed:${leg.eventId}`);
+              if (raw) {
+                const cachedFeed = JSON.parse(raw) as FeedEvent;
+                ev = {
+                  feed: cachedFeed,
+                  prevOdds: cachedFeed.odds,
+                };
+                this.events.set(leg.eventId, ev);
+              }
+            } catch {}
+          }
+
+          if ((!ev || ev.feed.status !== 'finished') && leg.eventId.startsWith('dota-')) {
+            const finishedEv = await fetchOpenDotaMatchResult(leg.eventId);
+            if (finishedEv) {
+              ev = {
+                feed: finishedEv,
+                prevOdds: finishedEv.odds,
+              };
+              this.events.set(leg.eventId, ev);
+            }
+          }
+
           if (ev) {
             const elapsed = now - ev.feed.startTime;
             const maxDuration =
@@ -804,11 +833,16 @@ class SportsEngine {
               await this.finishTracked(tracked, betId, res);
             }
           } else {
-            // Missing from live board and memory
-            const betAge = now - tracked.bet.placedAt;
-            // If bet was placed more than 90 minutes ago and event has vanished from live feed:
-            if (betAge > 90 * 60_000) {
-              logger.info({ betId, eventId: leg.eventId, betAge }, 'Missing sports event timed out — voiding leg');
+            // Missing from live board, Redis, and external APIs.
+            // Check match start time (or bet placement time if start time unknown).
+            // NEVER prematurely void after 90m! Wait at least 6 hours after match start.
+            const meta = (tracked.bet.metadata || {}) as Record<string, any>;
+            const storedLeg = (Array.isArray(meta.legs) ? meta.legs : []).find((l: any) => l.eventId === leg.eventId);
+            const refTime = Number(storedLeg?.startTime || meta.startTime || tracked.bet.placedAt);
+            const age = now - refTime;
+
+            if (age > 6 * 3600_000) {
+              logger.info({ betId, eventId: leg.eventId, age }, 'Missing sports event timed out (>6h) — voiding leg');
               leg.result = 'void';
               await this.finishTracked(tracked, betId, 'void');
             }
@@ -1259,8 +1293,8 @@ function fixtureFingerprint(sport: string, team1: string, team2: string, startTi
   const a = norm(team1) || team1.toLowerCase().trim();
   const b = norm(team2) || team2.toLowerCase().trim();
   const pair = [a, b].sort().join(':');
-  const window12h = Math.floor(startTime / (12 * 3600_000));
-  return `${sport}:${pair}:${window12h}`;
+  const day = Math.floor(startTime / (24 * 3600_000));
+  return `${sport}:${pair}:${day}`;
 }
 
 export const sportsEngine = new SportsEngine();
