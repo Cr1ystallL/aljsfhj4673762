@@ -656,6 +656,12 @@ const GAME_GLOW: Record<string, string> = {
     'radial-gradient(110% 90% at 0% 100%, rgba(139, 92, 246, 0.26) 0%, transparent 70%)',
 };
 
+const GAME_IMAGE_MOBILE_SCALE: Record<string, string> = {
+  blackjack: 'scale-[1.24] sm:scale-100',
+  cases: 'scale-[1.28] sm:scale-100',
+  hilo: 'scale-[1.24] sm:scale-100',
+};
+
 function GameTile({
   game,
   router,
@@ -710,7 +716,11 @@ function GameTile({
         <img
           src={game.bg}
           alt={game.name}
-          className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] group-hover:scale-105 group-hover:-translate-y-1 group-hover:drop-shadow-[0_20px_35px_rgba(255,172,46,0.35)] transition-all duration-300 pointer-events-none select-none"
+          className={cn(
+            "relative z-10 w-full h-full object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] pointer-events-none select-none transition-all duration-300",
+            "sm:group-hover:scale-105 sm:group-hover:-translate-y-1 sm:group-hover:drop-shadow-[0_20px_35px_rgba(255,172,46,0.35)]",
+            GAME_IMAGE_MOBILE_SCALE[game.id] ?? 'scale-100'
+          )}
         />
       )}
     </Pressable>
