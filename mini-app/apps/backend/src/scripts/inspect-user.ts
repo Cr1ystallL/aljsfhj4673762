@@ -1,9 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import { redisClient } from '../lib/redis.js';
 import { isAdminTelegramIdAsync } from '../middleware/auth.js';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  try {
+    await redisClient.connect();
+  } catch {}
+
   const targetTgId = process.argv[2] ? BigInt(process.argv[2]) : BigInt('920409454');
   console.log(`=== INSPECTION OF PLAYER TG: ${targetTgId} ===\n`);
 
