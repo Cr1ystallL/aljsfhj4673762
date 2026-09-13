@@ -1,11 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 import { payoutCycle } from '../routes/tournaments.js';
+import { redisClient } from '../lib/redis.js';
 import * as readline from 'readline';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('=== MACVBET TOURNAMENT PAYOUT SCRIPT ===\n');
+
+  try {
+    await redisClient.connect();
+  } catch {
+    // Redis connection optional in standalone script
+  }
 
   const args = process.argv.slice(2);
   const autoMode = args.includes('--auto') || args.includes('-y') || args.includes('--yes') || !process.stdin.isTTY;
@@ -148,4 +155,9 @@ async function main() {
 
 main()
   .catch(console.error)
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    try {
+      await redisClient.disconnect();
+    } catch {}
+    await prisma.$disconnect();
+  });
