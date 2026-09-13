@@ -123,6 +123,8 @@ interface AdminStats {
     name: string;
   } | null;
   casinoProfit: number;
+  depositsTotal?: number;
+  withdrawalsTotal?: number;
   activityGraph: Array<{ hour: string; count: number }>;
   newUsersGraph: Array<{ hour: string; count: number }>;
 }
@@ -244,16 +246,36 @@ export default function AdminDashboardPage() {
               icon={<Wallet size={14} strokeWidth={1.6} />}
               label="Профит"
               value={`${formatPln(data.casinoProfit)} zł`}
-              hint={`Депозиты минус Выводы`}
+              hint={
+                <span className="inline-flex items-center gap-1.5 tabular-nums">
+                  <span className="text-[#a0e0ab] font-medium">
+                    Деп: +{formatPln(data.depositsTotal ?? 0)} zł
+                  </span>
+                  <span className="text-white/20">·</span>
+                  <span className="text-[#ff8a76] font-medium">
+                    Выв: -{formatPln(data.withdrawalsTotal ?? 0)} zł
+                  </span>
+                </span>
+              }
               accent={data.casinoProfit >= 0 ? 'good' : 'warn'}
               help={{
                 title: 'Профит казино',
                 body: (
-                  <p>
-                    Это чистая прибыль проекта. Рассчитывается как:
-                    Сумма всех депозитов минус сумма всех выводов.
-                    Если значение положительное - проект в плюсе.
-                  </p>
+                  <>
+                    <p>
+                      Чистая прибыль проекта. Рассчитывается как сумма всех депозитов минус сумма всех выводов.
+                    </p>
+                    <div className="mt-2.5 space-y-1 font-roobert text-[11.5px]">
+                      <div className="text-[#a0e0ab] flex justify-between">
+                        <span>Депозиты:</span>
+                        <span className="tabular-nums font-medium">+{formatPln(data.depositsTotal ?? 0)} zł</span>
+                      </div>
+                      <div className="text-[#ff8a76] flex justify-between">
+                        <span>Выводы:</span>
+                        <span className="tabular-nums font-medium">-{formatPln(data.withdrawalsTotal ?? 0)} zł</span>
+                      </div>
+                    </div>
+                  </>
                 ),
               }}
             />
@@ -493,13 +515,14 @@ function LiabilitiesKpi({
   onOpenReset: () => void;
 }) {
   const real = balances.real;
-  const potential = balances.potential;
+  const readyAmount = real?.amount ?? real?.immediateAmount ?? balances.totalLiability;
+  const readyAccounts = real?.accounts ?? real?.immediateAccounts ?? balances.accounts;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl p-5 flex flex-col justify-between gap-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.12)] relative overflow-hidden"
+      className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl p-5 flex flex-col justify-between gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.12)] relative overflow-hidden"
     >
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-frost-white/65">
@@ -513,7 +536,7 @@ function LiabilitiesKpi({
             type="button"
             onClick={onOpenAnalysis}
             className="px-2 py-0.5 rounded-pill bg-white/5 hover:bg-white/10 text-frost-white/85 border border-white/10 text-[10px] font-roobert font-medium transition-all flex items-center gap-1 active:scale-95"
-            title="Открыть детальный анализ обязательств и прибыли платформы"
+            title="Открыть детальный анализ обязательств и экономики"
           >
             <TrendingUp size={10} className="text-[#a0e0ab]" />
             Анализ
@@ -526,46 +549,33 @@ function LiabilitiesKpi({
           >
             Очистить
           </button>
+          <HelpButton title="Обязательства (к выводу)" size={12}>
+            <p>
+              Сумма реальных балансов игроков, которые выполнили все условия для вывода (депозит от 100 zł за последние 30 дней, 100% отыгрыш вейджера, нет блокировок, баланс от 50 zł) и могут вывести деньги прямо сейчас без ограничений.
+            </p>
+          </HelpButton>
         </div>
       </div>
 
       <div
-        className="flex flex-col gap-1.5 cursor-pointer group"
+        className="font-roobert text-[22px] font-light leading-none tabular-nums tracking-[-0.02em] text-frost-white cursor-pointer hover:text-emerald-300 transition-colors"
         onClick={onOpenAnalysis}
         title="Нажмите для подробного финансового отчета"
       >
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="font-roobert text-[11px] text-whisper-gray group-hover:text-frost-white transition-colors">
-            Реальные (к выводу):
-          </span>
-          <span className="font-roobert text-[20px] font-light leading-none tabular-nums text-frost-white group-hover:text-emerald-300 transition-colors">
-            {formatPln(real?.amount ?? balances.totalLiability)} zł
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between gap-2 text-[11px] font-roobert">
-          <span className="text-whisper-gray">Потенциальные (условные):</span>
-          <span className="text-amber-300/90 font-medium tabular-nums">
-            {formatPln(potential?.amount ?? 0)} zł
-          </span>
-        </div>
+        {formatPln(readyAmount)} zł
       </div>
 
-      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10.5px] font-roobert">
-        <span className="text-whisper-gray tabular-nums">
-          {real ? `${real.accounts} реал. · ${potential?.accounts ?? 0} условн.` : `${balances.accounts} счетов`}
+      <div className="flex items-center justify-between gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums">
+        <span>
+          {readyAccounts} {readyAccounts === 1 ? 'счёт готов' : readyAccounts >= 2 && readyAccounts <= 4 ? 'счёта готовы' : 'счетов готовы'} к выводу
         </span>
-        {potential?.economics ? (
-          <span
-            className="inline-flex items-center gap-1 text-[#a0e0ab] font-medium tabular-nums cursor-pointer"
-            onClick={onOpenAnalysis}
-            title="Чистый доход казино, если все игроки выполнят условия для вывода"
-          >
-            <span className="opacity-80">Заработаем:</span>
-            <strong>+{formatPln(potential.economics.netCasinoProfit)} zł</strong>
-          </span>
-        ) : (
-          <span className="text-whisper-gray tabular-nums">{balances.accounts} счетов</span>
-        )}
+        <button
+          type="button"
+          onClick={onOpenAnalysis}
+          className="text-[10.5px] text-[#a0e0ab] hover:underline flex items-center gap-0.5"
+        >
+          детали &rarr;
+        </button>
       </div>
     </motion.div>
   );
@@ -640,7 +650,7 @@ function LiabilitiesDetailModal({
                   {formatPln(real?.amount ?? balances.totalLiability)} zł
                 </div>
                 <div className="text-[11.5px] font-roobert text-whisper-gray mt-0.5 tabular-nums">
-                  {real?.accounts ?? 0} счетов (депозит от 100 zł + отыгрыш)
+                  {real?.accounts ?? 0} счетов готовы к выводу прямо сейчас
                 </div>
               </div>
 
@@ -656,6 +666,10 @@ function LiabilitiesDetailModal({
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
                   <span>Аккаунт не имеет блокировок</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                  <span>Баланс ≥ 50 zł (минимум для заявки)</span>
                 </div>
               </div>
             </div>
@@ -807,7 +821,7 @@ function Kpi({
   icon: React.ReactNode;
   label: string;
   value: string;
-  hint?: string;
+  hint?: React.ReactNode;
   accent?: 'good' | 'warn';
   help?: { title: string; body: React.ReactNode };
   action?: React.ReactNode;

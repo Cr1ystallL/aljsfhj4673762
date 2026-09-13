@@ -376,7 +376,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const totalPaidOut = Number(payoutAgg._sum.payout ?? 0);
       const ggr = totalWagered - totalPaidOut;
 
-      const casinoProfit = Number(depositsRaw[0]?.sum || 0) - Number(withdrawalsRaw[0]?.sum || 0);
+      const depositsTotal = Math.round(Number(depositsRaw[0]?.sum || 0) * 100) / 100;
+      const withdrawalsTotal = Math.round(Number(withdrawalsRaw[0]?.sum || 0) * 100) / 100;
+      const casinoProfit = Math.round((depositsTotal - withdrawalsTotal) * 100) / 100;
       const activityGraph = activityRaw.map((a) => ({
         hour: a.hour,
         count: Number(a.count || 0)
@@ -576,10 +578,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           accounts: balances.length,
           demoAccounts: balances.filter((b) => b.demoMode).length,
           real: {
-            amount: Math.round(realLiability * 100) / 100,
-            accounts: realAccounts,
+            amount: Math.round(realImmediateAmount * 100) / 100,
+            accounts: realImmediateAccounts,
             immediateAmount: Math.round(realImmediateAmount * 100) / 100,
             immediateAccounts: realImmediateAccounts,
+            fullRealAmount: Math.round(realLiability * 100) / 100,
+            fullRealAccounts: realAccounts,
           },
           potential: {
             amount: Math.round(potentialLiability * 100) / 100,
@@ -626,6 +630,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             }
           : null,
         casinoProfit,
+        depositsTotal,
+        withdrawalsTotal,
         activityGraph,
         newUsersGraph,
       });
