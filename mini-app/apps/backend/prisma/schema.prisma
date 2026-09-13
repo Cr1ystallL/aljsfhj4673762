@@ -69,6 +69,7 @@ model User {
   macvpayOrders          MacvpayOrder[]
   withdrawalRequests     WithdrawalRequest[]
   userFreebets           UserFreebet[]
+  supportTickets         SupportTicket[]
 
   @@index([telegramId])
   @@index([isBlocked])
@@ -743,3 +744,42 @@ model UserFreebet {
   @@index([status, expiresAt])
   @@map("user_freebets")
 }
+
+// Support System models
+model SupportTicket {
+  id               String           @id @default(uuid())
+  userId           String           @map("user_id")
+  status           String           @default("open") // open, pending, resolved, closed
+  category         String           @default("general") // general, deposit, withdrawal, bonus, game, tech
+  subject          String?
+  lastMessageAt    DateTime         @default(now()) @map("last_message_at")
+  unreadUserCount  Int              @default(0) @map("unread_user_count")
+  unreadAdminCount Int              @default(0) @map("unread_admin_count")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at")
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages         SupportMessage[]
+
+  @@index([userId, status])
+  @@index([status, lastMessageAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id          String        @id @default(uuid())
+  ticketId    String        @map("ticket_id")
+  senderType  String        @map("sender_type") // user, admin, system
+  senderId    String        @map("sender_id")
+  senderName  String?       @map("sender_name")
+  text        String        @db.Text
+  attachments Json?         @default("[]")
+  isRead      Boolean       @default(false) @map("is_read")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}
+

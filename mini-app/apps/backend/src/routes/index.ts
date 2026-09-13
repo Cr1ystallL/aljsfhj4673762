@@ -17,6 +17,7 @@ import { cryptoDepositRoutes } from './crypto-deposit.js';
 import { cryptoWorker } from '../services/crypto-worker.js';
 import { sportsRoutes } from '../games/sports/routes.js';
 import { vipRoutes } from './vip.js';
+import { supportRoutes } from './support.js';
 
 let luckFeedCache: {
   at: number;
@@ -174,6 +175,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Регистрируется до admin-роутов, чтобы /api/_x/presence резолвился
   // именно из этого файла, а не накладывался на admin-неймспейс.
   await app.register(presenceRoutes, { prefix: '/api' });
+
+  // Support Chat & Ticket System
+  await app.register(supportRoutes, { prefix: '/api/support' });
 
   // Admin (covert — see admin.ts for the security posture)
   await app.register(adminRoutes, { prefix: '/api' });

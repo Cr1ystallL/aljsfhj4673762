@@ -385,12 +385,17 @@ export function MenuDrawer({
                   <button
                     onClick={() => {
                       onClose();
-                      window.open('https://t.me/MacvBetSupport', '_blank');
+                      router.push('/support');
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-all text-left cursor-pointer"
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-all text-left cursor-pointer"
                   >
-                    <Headphones className="w-4 h-4 text-white shrink-0" />
-                    <span className="text-[13px]">Поддержка (ТП)</span>
+                    <div className="flex items-center gap-3">
+                      <Headphones className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-[13px]">Поддержка (ТП)</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                      LIVE
+                    </span>
                   </button>
                 </div>
               </nav>

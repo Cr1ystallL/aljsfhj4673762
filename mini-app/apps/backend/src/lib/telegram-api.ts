@@ -1,6 +1,17 @@
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 
+export interface TelegramInlineButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+  web_app?: { url: string };
+}
+
+export interface TelegramReplyMarkup {
+  inline_keyboard: TelegramInlineButton[][];
+}
+
 export class TelegramApi {
   private readonly baseUrl: string;
 
@@ -43,7 +54,7 @@ export class TelegramApi {
   async sendMessageWithMarkup(
     chatId: string | number,
     text: string,
-    replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> }
+    replyMarkup?: TelegramReplyMarkup
   ): Promise<boolean> {
     try {
       if (!config.telegramBotToken) {
@@ -84,7 +95,7 @@ export class TelegramApi {
   async sendMessageWithMarkupAndGetId(
     chatId: string | number,
     text: string,
-    replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> }
+    replyMarkup?: TelegramReplyMarkup
   ): Promise<number | null> {
     try {
       if (!config.telegramBotToken) {
