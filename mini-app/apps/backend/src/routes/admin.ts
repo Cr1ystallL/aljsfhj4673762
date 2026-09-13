@@ -7240,7 +7240,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const wagerTarget = Number(user.balance?.wagerTarget ?? 0);
         const wagerProgress = Number(user.balance?.wagerProgress ?? 0);
         const remainingWager = Math.max(0, wagerTarget - wagerProgress);
-        const canWithdraw = remainingWager === 0 && !user.withdrawalLocked && !user.isBlocked;
+
+        const totalDepRow = await app.prisma.$queryRaw<{ sum: number }[]>`
+          SELECT COALESCE(SUM(amount), 0) as sum FROM transactions WHERE user_id = ${user.id} AND type = 'deposit'
+        `;
+        const totalDeposits = Number(totalDepRow[0]?.sum || 0);
+        const canWithdraw = remainingWager === 0 && !user.withdrawalLocked && !user.isBlocked && totalDeposits >= 100;
 
         let drainStatus = { active: false, roundsLeft: 0, expiresAt: 0, reason: null as string | null };
         try {
@@ -7312,6 +7317,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             wagerTarget,
             wagerProgress,
             remainingWager,
+            totalDeposits,
             canWithdraw,
             vip: vipStatus,
             drain: drainStatus,

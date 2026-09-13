@@ -421,8 +421,10 @@ export class BlackjackEngine extends EventEmitter {
       this.state.roundId = `blackjack_${Date.now()}_${randomUUID()}`;
       this.state.dealerHand = [];
       
-      // Create deterministic cryptographically shuffled deck
-      this.deck = provablyFair.generateBlackjackDeck(serverSeed, clientSeed, 1, 6);
+      // Cut card shoe management: reshuffle fresh 6-deck shoe only when reaching cut card (< 100 cards)
+      if (!this.deck || this.deck.length < 100) {
+        this.deck = provablyFair.generateBlackjackDeck(serverSeed, clientSeed, this.currentSeeds.nonce, 6);
+      }
 
       // Process bets first
       for (const player of [...this.state.players]) {
@@ -1026,7 +1028,7 @@ export class BlackjackEngine extends EventEmitter {
     currentHand?: Card[],
     context?: 'deal_player' | 'deal_dealer_up' | 'deal_dealer_hole' | 'player_hit' | 'player_double' | 'dealer_hit'
   ): Promise<Card> {
-    if (this.deck.length < 15) {
+    if (this.deck.length < 100) {
       this.currentSeeds.nonce++;
       const freshShoe = provablyFair.generateBlackjackDeck(
         this.currentSeeds.serverSeed,
@@ -1034,7 +1036,7 @@ export class BlackjackEngine extends EventEmitter {
         this.currentSeeds.nonce,
         6
       );
-      this.deck.push(...freshShoe);
+      this.deck = freshShoe;
     }
 
     // Dealer always takes the top of the shoe. Sculpting hole/bust cards

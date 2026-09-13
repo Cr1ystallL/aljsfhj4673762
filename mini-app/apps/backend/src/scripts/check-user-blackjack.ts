@@ -44,7 +44,7 @@ async function main() {
   console.log(`- User ID: ${user.id}`);
   console.log(`- Баланс сейчас: ${curBal.toFixed(2)} zł`);
   console.log(`- Вейджер: ${wProg.toFixed(2)} / ${wTar.toFixed(2)} zł (Осталось: ${remWager.toFixed(2)} zł)`);
-  console.log(`- Вывод заблокирован: ${user.withdrawalLocked ? '⛔ ДА' : '✅ НЕТ'}`);
+  console.log(`- Ручная блокировка админом: ${user.withdrawalLocked ? '⛔ ДА' : '✅ НЕТ'}`);
   console.log(`- Аккаунт в бане: ${user.isBlocked ? '⛔ ДА' : '✅ НЕТ'}`);
 
   // Redis RTP and Drain status
@@ -72,10 +72,24 @@ async function main() {
   const depTotal = Number(depSumRow[0]?.sum || 0);
   const wdTotal = Number(wdSumRow[0]?.sum || 0);
 
+  const canWithdraw = remWager === 0 && !user.withdrawalLocked && !user.isBlocked && depTotal >= 100;
+
   console.log(`\n💵 ОБЩАЯ КАССА ИГРОКА:`);
   console.log(`- Внес депозитов: ${depTotal.toFixed(2)} zł`);
   console.log(`- Вывел из казино: ${wdTotal.toFixed(2)} zł`);
   console.log(`- Итоговый профит казино по игроку: ${(depTotal - wdTotal).toFixed(2)} zł`);
+  console.log(`- ДОСТУПЕН ЛИ ВЫВОД В КАССЕ: ${canWithdraw ? '✅ ДА' : '⛔ НЕТ'}`);
+  if (!canWithdraw) {
+    console.log(`  └─ Причина запрета вывода: ${
+      depTotal < 100
+        ? `⚠️ Депозиты за всё время (${depTotal.toFixed(2)} zł) < 100.00 zł (Правило платформы: вывод от 100 zł депов)`
+        : remWager > 0
+        ? `⏳ Не закрыт вейджер (${remWager.toFixed(2)} zł)`
+        : user.withdrawalLocked
+        ? `⛔ Ручная блокировка админом`
+        : `⛔ Аккаунт заблокирован`
+    }`);
+  }
 
   // Статистика Блекджека
   const bjBets = await prisma.bet.findMany({

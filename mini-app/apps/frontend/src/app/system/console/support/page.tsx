@@ -43,6 +43,7 @@ interface SupportUser {
   wagerTarget: number;
   wagerProgress: number;
   remainingWager: number;
+  totalDeposits?: number;
   canWithdraw: boolean;
   vip: {
     tier: string;
@@ -476,6 +477,9 @@ export default function SupportWorkspacePage() {
               <div className="mt-2 text-xs text-whisper-gray">
                 {!user.canWithdraw && (
                   <ul className="list-disc list-inside space-y-1">
+                    {user.totalDeposits !== undefined && user.totalDeposits < 100 && (
+                      <li>Депозиты за все время ({user.totalDeposits.toFixed(2)} zł) меньше 100 zł</li>
+                    )}
                     {user.remainingWager > 0 && (
                       <li>Не закрыт вейджер ({user.remainingWager.toFixed(2)} zł)</li>
                     )}
