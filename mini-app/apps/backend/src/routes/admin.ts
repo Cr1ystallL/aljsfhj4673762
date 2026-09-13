@@ -244,6 +244,134 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         .filter((b) => b.demoMode)
         .reduce((acc, b) => acc + Number(b.amount), 0);
 
+      // Detailed liabilities calculation: Real vs Potential and Casino Economics
+      const liabilityRows = await app.prisma.$queryRaw<Array<{
+        user_id: string;
+        telegram_id: bigint;
+        amount: string;
+        demo_mode: boolean;
+        wager_target: string;
+        wager_progress: string;
+        is_blocked: boolean;
+        withdrawal_locked: boolean;
+        lifetime_deposits: string | null;
+        has_recent_deposit: number | null;
+        deposit_count: bigint | null;
+      }>>`
+        SELECT 
+          b.user_id,
+          u.telegram_id,
+          b.amount::text as amount,
+          b.demo_mode,
+          b.wager_target::text as wager_target,
+          b.wager_progress::text as wager_progress,
+          COALESCE(u.is_blocked, false) as is_blocked,
+          COALESCE(u.withdrawal_locked, false) as withdrawal_locked,
+          ud.lifetime_deposits::text as lifetime_deposits,
+          ud.has_recent_deposit,
+          ud.deposit_count
+        FROM balances b
+        JOIN users u ON u.id = b.user_id
+        LEFT JOIN (
+          SELECT 
+            user_id,
+            SUM(amount) as lifetime_deposits,
+            MAX(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) as has_recent_deposit,
+            COUNT(*)::bigint as deposit_count
+          FROM transactions
+          WHERE type = 'deposit'
+          GROUP BY user_id
+        ) ud ON ud.user_id = u.id
+        WHERE b.demo_mode = false AND b.amount > 0
+      `;
+
+      let realLiability = 0;
+      let realAccounts = 0;
+      let realImmediateAmount = 0;
+      let realImmediateAccounts = 0;
+
+      let potentialLiability = 0;
+      let potentialAccounts = 0;
+
+      let noDepositAccounts = 0;
+      let noDepositAmount = 0;
+
+      let needDepositAccounts = 0;
+      let needDepositAmount = 0;
+
+      let needWagerAccounts = 0;
+      let needWagerAmount = 0;
+
+      let blockedAccounts = 0;
+      let blockedAmount = 0;
+
+      let totalRequiredDeposits = 0;
+      let totalRemainingWager = 0;
+
+      for (const row of liabilityRows) {
+        const bal = Number(row.amount);
+        if (bal <= 0) continue;
+
+        const tgId = Number(row.telegram_id);
+        const isAdmin = await isAdminTelegramIdAsync(tgId);
+        if (isAdmin) continue;
+
+        const isBlocked = row.is_blocked || row.withdrawal_locked;
+        const lifetimeDeposits = Number(row.lifetime_deposits ?? 0);
+        const hasRecentDeposit = Number(row.has_recent_deposit ?? 0) === 1;
+        const wagerTarget = Number(row.wager_target ?? 0);
+        const wagerProgress = Number(row.wager_progress ?? 0);
+        const wagerSatisfied = wagerProgress >= wagerTarget;
+
+        const canWithdraw = !isBlocked && lifetimeDeposits >= 100 && hasRecentDeposit && wagerSatisfied;
+
+        if (canWithdraw) {
+          realLiability += bal;
+          realAccounts += 1;
+          if (bal >= 50) {
+            realImmediateAmount += bal;
+            realImmediateAccounts += 1;
+          }
+        } else {
+          potentialLiability += bal;
+          potentialAccounts += 1;
+
+          if (isBlocked) {
+            blockedAccounts += 1;
+            blockedAmount += bal;
+          }
+
+          if (lifetimeDeposits === 0) {
+            noDepositAccounts += 1;
+            noDepositAmount += bal;
+          } else if (lifetimeDeposits < 100 || !hasRecentDeposit) {
+            needDepositAccounts += 1;
+            needDepositAmount += bal;
+          }
+
+          if (!wagerSatisfied) {
+            needWagerAccounts += 1;
+            needWagerAmount += bal;
+            totalRemainingWager += Math.max(0, wagerTarget - wagerProgress);
+          }
+
+          let reqDep = 0;
+          if (lifetimeDeposits < 100) {
+            reqDep = 100 - lifetimeDeposits;
+          } else if (!hasRecentDeposit) {
+            reqDep = 50;
+          }
+          totalRequiredDeposits += reqDep;
+        }
+      }
+
+      const totalRequiredTurnover = totalRemainingWager + (totalRequiredDeposits * 2);
+      const expectedWagerProfit = Math.round(totalRequiredTurnover * 0.05 * 100) / 100;
+      const netCasinoProfit = Math.round((totalRequiredDeposits + expectedWagerProfit - potentialLiability) * 100) / 100;
+      const profitMultiplier = potentialLiability > 0
+        ? Math.round(((totalRequiredDeposits + expectedWagerProfit) / potentialLiability) * 10) / 10
+        : 1;
+
       const totalWagered = Number(wagerAgg._sum.amount ?? 0);
       const totalPaidOut = Number(payoutAgg._sum.payout ?? 0);
       const ggr = totalWagered - totalPaidOut;
@@ -447,6 +575,33 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           totalDemo,
           accounts: balances.length,
           demoAccounts: balances.filter((b) => b.demoMode).length,
+          real: {
+            amount: Math.round(realLiability * 100) / 100,
+            accounts: realAccounts,
+            immediateAmount: Math.round(realImmediateAmount * 100) / 100,
+            immediateAccounts: realImmediateAccounts,
+          },
+          potential: {
+            amount: Math.round(potentialLiability * 100) / 100,
+            accounts: potentialAccounts,
+            breakdown: {
+              noDepositAccounts,
+              noDepositAmount: Math.round(noDepositAmount * 100) / 100,
+              needDepositAccounts,
+              needDepositAmount: Math.round(needDepositAmount * 100) / 100,
+              needWagerAccounts,
+              needWagerAmount: Math.round(needWagerAmount * 100) / 100,
+              blockedAccounts,
+              blockedAmount: Math.round(blockedAmount * 100) / 100,
+            },
+            economics: {
+              requiredDeposits: Math.round(totalRequiredDeposits * 100) / 100,
+              requiredTurnover: Math.round(totalRequiredTurnover * 100) / 100,
+              expectedWagerProfit,
+              netCasinoProfit,
+              profitMultiplier,
+            },
+          },
         },
         bets: {
           count: betCount,
