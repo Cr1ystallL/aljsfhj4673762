@@ -19,6 +19,8 @@ async function main() {
     lifetime_deposits: string | null;
     has_recent_deposit: number | null;
     deposit_count: bigint | null;
+    folux_deposits: string | null;
+    folux_count: bigint | null;
   }>>`
     SELECT 
       b.user_id,
@@ -32,7 +34,9 @@ async function main() {
       COALESCE(u.withdrawal_locked, false) as withdrawal_locked,
       ud.lifetime_deposits::text as lifetime_deposits,
       ud.has_recent_deposit,
-      ud.deposit_count
+      ud.deposit_count,
+      mo.folux_deposits::text as folux_deposits,
+      mo.folux_count
     FROM balances b
     JOIN users u ON u.id = b.user_id
     LEFT JOIN (
@@ -42,11 +46,20 @@ async function main() {
         MAX(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) as has_recent_deposit,
         COUNT(*)::bigint as deposit_count
       FROM transactions
-      WHERE type IN ('deposit', 'manual_deposit', 'foluxpay', 'cryptobot', 'topup', 'deposit_credit')
-         OR LOWER(COALESCE(description, '')) LIKE '%депозит%'
-         OR LOWER(COALESCE(description, '')) LIKE '%пополнени%'
+      WHERE type IN ('deposit', 'manual_deposit', 'deposit_bonus', 'foluxpay', 'cryptobot', 'topup', 'credit', 'manual', 'deposit_credit')
+         OR metadata::text ILIKE '%deposit%'
+         OR metadata::text ILIKE '%депозит%'
       GROUP BY user_id
     ) ud ON ud.user_id = u.id
+    LEFT JOIN (
+      SELECT
+        user_id,
+        SUM(requested_amount) as folux_deposits,
+        COUNT(*)::bigint as folux_count
+      FROM macvpay_orders
+      WHERE status IN ('credited', 'paid', 'completed', 'success')
+      GROUP BY user_id
+    ) mo ON mo.user_id = u.id
     WHERE b.demo_mode = false AND b.amount > 0
     ORDER BY b.amount DESC
   `;
@@ -73,7 +86,8 @@ async function main() {
     const bal = Number(r.amount);
     const tgId = Number(r.telegram_id);
     const isAdmin = await isAdminTelegramIdAsync(tgId);
-    const depTotal = Number(r.lifetime_deposits ?? 0);
+    const depTotal = Math.max(Number(r.lifetime_deposits ?? 0), Number(r.folux_deposits ?? 0));
+    const depCount = Number(r.deposit_count ?? 0) + Number(r.folux_count ?? 0);
     const hasRecent = Number(r.has_recent_deposit ?? 0) === 1;
     const wTar = Number(r.wager_target ?? 0);
     const wProg = Number(r.wager_progress ?? 0);
@@ -82,9 +96,10 @@ async function main() {
 
     // Conditions:
     // Can withdraw = Not blocked, Not admin, Has deposited at least once, Wager completed, Balance >= 50 (min withdrawal)
-    const canWithdraw = !isAdmin && !isBlocked && depTotal > 0 && wagerSatisfied && bal >= 50;
+    const hasDeposited = depTotal > 0 || depCount > 0;
+    const canWithdraw = !isAdmin && !isBlocked && hasDeposited && wagerSatisfied && bal >= 50;
 
-    if (depTotal > 0 && !isAdmin) {
+    if (hasDeposited && !isAdmin) {
       withDepositCount++;
       withDepositBalSum += bal;
     }

@@ -285,9 +285,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             COUNT(*)::bigint as deposit_count
           FROM transactions
           WHERE type IN ('deposit', 'manual_deposit', 'deposit_bonus', 'foluxpay', 'cryptobot', 'topup', 'credit', 'manual', 'deposit_credit')
-             OR LOWER(COALESCE(description, '')) LIKE '%депозит%'
-             OR LOWER(COALESCE(description, '')) LIKE '%пополнени%'
-             OR LOWER(COALESCE(description, '')) LIKE '%deposit%'
+             OR metadata::text ILIKE '%deposit%'
+             OR metadata::text ILIKE '%депозит%'
           GROUP BY user_id
         ) ud ON ud.user_id = u.id
         LEFT JOIN (
@@ -3365,15 +3364,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
                    user_id::text AS user_id,
                    amount::text AS amount,
                    type,
-                   description,
+                   NULL::text AS description,
                    metadata,
                    created_at
               FROM transactions
              WHERE type IN ('deposit', 'manual_deposit', 'deposit_bonus', 'foluxpay', 'cryptobot', 'topup', 'credit', 'manual', 'deposit_credit')
-                OR LOWER(COALESCE(description, '')) LIKE '%депозит%'
-                OR LOWER(COALESCE(description, '')) LIKE '%пополнени%'
-                OR LOWER(COALESCE(description, '')) LIKE '%deposit%'
-                OR LOWER(COALESCE(description, '')) LIKE '%crypto-%'
+                OR metadata::text ILIKE '%deposit%'
+                OR metadata::text ILIKE '%депозит%'
+                OR metadata::text ILIKE '%crypto-%'
              ORDER BY created_at DESC
              LIMIT ${limit}
           `);
