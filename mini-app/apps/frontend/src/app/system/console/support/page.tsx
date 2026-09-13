@@ -146,6 +146,11 @@ interface AdminTicketItem {
     isBlocked: boolean;
     withdrawalLocked: boolean;
   };
+  claimedBy?: {
+    adminId: number;
+    adminName: string;
+    claimedAt: number;
+  } | null;
 }
 
 interface AdminMessageItem {
@@ -363,6 +368,28 @@ export default function SupportWorkspacePage() {
         void loadTicketMessages(selectedTicketId, true);
       }
     } catch {}
+  };
+
+  const handleToggleClaim = async (ticketId: string) => {
+    try {
+      const res = await fetch(`/api/support/_x/tickets/${ticketId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'toggle' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось изменить статус тикета');
+        return;
+      }
+      setTickets((prev) =>
+        prev.map((t) => (t.id === ticketId ? { ...t, claimedBy: data.claim } : t))
+      );
+      void loadTickets(true);
+    } catch {
+      alert('Ошибка при изменении оператора тикета');
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -624,7 +651,17 @@ export default function SupportWorkspacePage() {
 
                       {/* Bottom quick stats */}
                       <div className="flex items-center justify-between text-[10px] text-zinc-400 border-t border-white/5 pt-2 mt-0.5">
-                        <span>Баланс: {t.user.balance.toFixed(2)} zł</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span>Баланс: {t.user.balance.toFixed(2)} zł</span>
+                          {t.claimedBy && (
+                            <span
+                              className="px-1.5 py-0.2 rounded text-[9.5px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 truncate max-w-[120px]"
+                              title={`В работе: ${t.claimedBy.adminName}`}
+                            >
+                              🛡️ {t.claimedBy.adminName}
+                            </span>
+                          )}
+                        </div>
                         {t.user.remainingWager > 0 ? (
                           <span className="text-amber-400 font-medium">Вейджер: {t.user.remainingWager.toFixed(2)} zł</span>
                         ) : (
@@ -712,6 +749,29 @@ export default function SupportWorkspacePage() {
                     >
                       <Gift size={13} />
                       <span>Фрибет</span>
+                    </button>
+
+                    {/* Кнопка "Забрать тикет" / "В работе" */}
+                    <button
+                      onClick={() => handleToggleClaim(selectedTicket.id)}
+                      className={cn(
+                        'px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer',
+                        selectedTicket.claimedBy
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                          : 'bg-white/5 border-white/10 text-zinc-300 hover:text-white hover:bg-white/10'
+                      )}
+                      title={
+                        selectedTicket.claimedBy
+                          ? `Взял(а): ${selectedTicket.claimedBy.adminName}. Нажмите, чтобы освободить тикет.`
+                          : 'Взять тикет в работу'
+                      }
+                    >
+                      <ShieldCheck size={13} />
+                      <span>
+                        {selectedTicket.claimedBy
+                          ? `Взял: ${selectedTicket.claimedBy.adminName}`
+                          : 'Забрать тикет'}
+                      </span>
                     </button>
 
                     <button

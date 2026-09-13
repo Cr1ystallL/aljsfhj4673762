@@ -14,6 +14,10 @@ import {
   AlertCircle,
   Minimize2,
   LogIn,
+  CreditCard,
+  Zap,
+  Gift,
+  Gamepad2,
 } from 'lucide-react';
 import { useSupportStore } from '@/store/support-store';
 import { useAuthStore } from '@/store/auth-store';
@@ -42,10 +46,10 @@ interface SupportTicket {
 }
 
 const QUICK_TOPICS = [
-  { id: 'deposit', label: '💳 Депозит / BLIK' },
-  { id: 'withdrawal', label: '⚡ Вывод средств' },
-  { id: 'bonus', label: '🎁 Бонусы и вейджер' },
-  { id: 'game', label: '🎰 Ошибка в игре' },
+  { id: 'deposit', label: 'Депозит / BLIK', icon: CreditCard },
+  { id: 'withdrawal', label: 'Вывод средств', icon: Zap },
+  { id: 'bonus', label: 'Бонусы и вейджер', icon: Gift },
+  { id: 'game', label: 'Ошибка в игре', icon: Gamepad2 },
 ];
 
 export function SupportChatWidget() {
@@ -228,7 +232,7 @@ export function SupportChatWidget() {
   const handleSelectTopic = (topic: typeof QUICK_TOPICS[0]) => {
     triggerHaptic('light');
     setActiveCategory(topic.id);
-    setInputText(`Здравствуйте! Вопрос по теме «${topic.label.replace(/^[^\s]+\s/, '')}»: `);
+    setInputText(`Здравствуйте! Вопрос по теме «${topic.label}»: `);
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
@@ -329,23 +333,16 @@ export function SupportChatWidget() {
             {/* ── Widget Header ── */}
             <div className="px-4 py-3 bg-gradient-to-r from-[#161928] via-[#121522] to-[#161928] border-b border-white/10 flex items-center justify-between shrink-0 relative z-10">
               <div className="flex items-center gap-2.5">
-                <div className="relative">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center">
-                    <Headphones size={16} className="text-amber-400" />
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#121522]" />
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Headphones size={16} className="text-amber-400" />
                 </div>
 
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-white tracking-tight">Поддержка MACVBET</span>
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      LIVE
-                    </span>
                   </div>
-                  <p className="text-[10px] text-zinc-400 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                    Операторы онлайн • Ответ ~2 мин
+                  <p className="text-[10.5px] text-zinc-400">
+                    Ответ ~2-30 мин.
                   </p>
                 </div>
               </div>
@@ -430,15 +427,19 @@ export function SupportChatWidget() {
                         Частые темы:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
-                        {QUICK_TOPICS.map((topic) => (
-                          <button
-                            key={topic.id}
-                            onClick={() => handleSelectTopic(topic)}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#151926] hover:bg-[#1D2235] border border-white/10 hover:border-amber-400/30 text-[11px] text-zinc-300 hover:text-amber-300 transition-all cursor-pointer text-left active:scale-95"
-                          >
-                            {topic.label}
-                          </button>
-                        ))}
+                        {QUICK_TOPICS.map((topic) => {
+                          const Icon = topic.icon;
+                          return (
+                            <button
+                              key={topic.id}
+                              onClick={() => handleSelectTopic(topic)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#151926] hover:bg-[#1D2235] border border-white/10 hover:border-amber-400/30 text-[11px] text-zinc-300 hover:text-amber-300 transition-all cursor-pointer text-left active:scale-95"
+                            >
+                              <Icon size={13} className="text-amber-400 shrink-0" />
+                              <span>{topic.label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

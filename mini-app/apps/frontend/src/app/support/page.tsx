@@ -15,6 +15,11 @@ import {
   RefreshCw,
   AlertCircle,
   HelpCircle,
+  CreditCard,
+  Zap,
+  Gift,
+  Gamepad2,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,11 +46,11 @@ interface SupportTicket {
 }
 
 const QUICK_TOPICS = [
-  { id: 'deposit', label: '💳 Проблема с депозитом', hint: 'Не поступил депозит BLIK / Крипто' },
-  { id: 'withdrawal', label: '⚡ Вопрос по выводу', hint: 'Статус заявки на вывод' },
-  { id: 'bonus', label: '🎁 Бонусы и вейджер', hint: 'Как закрыть или активировать бонус' },
-  { id: 'game', label: '🎰 Ошибка в игре', hint: 'Завис раунд или расчет ставки' },
-  { id: 'general', label: '💬 Другой вопрос', hint: 'Связаться с дежурным оператором' },
+  { id: 'deposit', label: 'Проблема с депозитом', icon: CreditCard, hint: 'Не поступил депозит BLIK / Крипто' },
+  { id: 'withdrawal', label: 'Вопрос по выводу', icon: Zap, hint: 'Статус заявки на вывод' },
+  { id: 'bonus', label: 'Бонусы и вейджер', icon: Gift, hint: 'Как закрыть или активировать бонус' },
+  { id: 'game', label: 'Ошибка в игре', icon: Gamepad2, hint: 'Завис раунд или расчет ставки' },
+  { id: 'general', label: 'Другой вопрос', icon: MessageSquare, hint: 'Связаться с дежурным оператором' },
 ];
 
 export default function SupportPage() {
@@ -209,7 +214,7 @@ export default function SupportPage() {
   const handleSelectTopic = (topic: typeof QUICK_TOPICS[0]) => {
     triggerHaptic('light');
     setActiveCategory(topic.id);
-    setInputText(`Здравствуйте! У меня вопрос по теме «${topic.label.replace(/^[^\s]+\s/, '')}»: `);
+    setInputText(`Здравствуйте! У меня вопрос по теме «${topic.label}»: `);
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
@@ -236,11 +241,8 @@ export default function SupportPage() {
             <ChevronLeft size={20} className="text-zinc-300" />
           </button>
 
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center">
-              <Headphones size={18} className="text-amber-400" />
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0A0B0E]" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center shrink-0">
+            <Headphones size={18} className="text-amber-400" />
           </div>
 
           <div>
@@ -248,13 +250,9 @@ export default function SupportPage() {
               <span className="text-sm font-bold tracking-tight text-white">
                 Поддержка MACVBET
               </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                LIVE
-              </span>
             </div>
-            <p className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Операторы на связи • Ответ ~2 мин
+            <p className="text-[11px] text-zinc-400">
+              Ответ ~2-30 мин.
             </p>
           </div>
         </div>
@@ -320,20 +318,24 @@ export default function SupportPage() {
                   Частые темы обращений:
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {QUICK_TOPICS.map((topic) => (
-                    <button
-                      key={topic.id}
-                      onClick={() => handleSelectTopic(topic)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer text-left active:scale-95',
-                        activeCategory === topic.id
-                          ? 'bg-amber-400/15 border-amber-400/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]'
-                          : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:border-white/20 hover:text-white'
-                      )}
-                    >
-                      {topic.label}
-                    </button>
-                  ))}
+                  {QUICK_TOPICS.map((topic) => {
+                    const Icon = topic.icon;
+                    return (
+                      <button
+                        key={topic.id}
+                        onClick={() => handleSelectTopic(topic)}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer text-left active:scale-95',
+                          activeCategory === topic.id
+                            ? 'bg-amber-400/15 border-amber-400/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]'
+                            : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:border-white/20 hover:text-white'
+                        )}
+                      >
+                        <Icon size={14} className="text-amber-400 shrink-0" />
+                        <span>{topic.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </motion.div>
             )}

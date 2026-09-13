@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { authenticate, adminOnly, type AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticate, adminOnly, getAllAdminTelegramIds, type AuthenticatedRequest } from '../middleware/auth.js';
 import { wsManager } from '../lib/websocket-manager.js';
 import { telegramApi } from '../lib/telegram-api.js';
+import { redisClient } from '../lib/redis.js';
 import { logger } from '../utils/logger.js';
 
 function escapeHtml(text: string): string {
@@ -9,6 +10,168 @@ function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+async function notifyAdminsAboutTicketMessage(params: {
+  ticketId: string;
+  userId: string;
+  userName: string;
+  telegramId?: bigint | number | null;
+  username?: string | null;
+  balance?: number;
+  category: string;
+  text: string;
+  isNewTicket: boolean;
+}): Promise<void> {
+  try {
+    const redis = redisClient.getClient();
+    const cdKey = `support:ticket:${params.ticketId}:notify_cd`;
+
+    // Throttle repeated notifications within 45s unless it's a new ticket
+    if (!params.isNewTicket) {
+      const onCooldown = await redis.get(cdKey);
+      if (onCooldown) {
+        logger.debug({ ticketId: params.ticketId }, 'Admin Telegram notify throttled');
+        return;
+      }
+    }
+    await redis.set(cdKey, '1', 'EX', 45);
+
+    const adminIds = await getAllAdminTelegramIds();
+    const groupRaw =
+      process.env.WITHDRAWAL_GROUP_ID ||
+      process.env.SUPPORT_GROUP_ID ||
+      process.env.ADMIN_GROUP_ID;
+    const groupId = groupRaw ? parseInt(groupRaw, 10) : 0;
+    const targetChatIds = Array.from(
+      new Set([...adminIds, ...(groupId ? [groupId] : [])])
+    );
+
+    if (!targetChatIds.length) return;
+
+    // Check if ticket is claimed
+    const claimRaw = await redis.get(`support:ticket:${params.ticketId}:claim`);
+    const claim = claimRaw ? (JSON.parse(claimRaw) as { adminName: string }) : null;
+
+    const categoryLabels: Record<string, string> = {
+      deposit: '💳 Депозит / BLIK',
+      withdrawal: '⚡ Вывод средств',
+      bonus: '🎁 Бонусы и вейджер',
+      game: '🎰 Ошибка в игре',
+      general: '💬 Общие вопросы',
+    };
+    const catLabel = categoryLabels[params.category] || params.category;
+    const tgUserStr = params.telegramId ? ` [<code>${params.telegramId}</code>]` : '';
+    const usernameStr = params.username ? ` (@${params.username})` : '';
+    const balStr =
+      typeof params.balance === 'number'
+        ? `\n💰 <b>Баланс:</b> ${params.balance.toFixed(2)} zł`
+        : '';
+    const snippet =
+      params.text.length > 350 ? `${params.text.slice(0, 350)}...` : params.text;
+
+    const claimStatusStr = claim
+      ? `\n👨‍💻 <b>В работе:</b> ${escapeHtml(claim.adminName)}`
+      : '';
+
+    const messageText =
+      `🆘 <b>НОВОЕ ОБРАЩЕНИЕ В ПОДДЕРЖКУ!</b>\n\n` +
+      `👤 <b>Игрок:</b> <b>${escapeHtml(params.userName)}</b>${usernameStr}${tgUserStr}${balStr}\n` +
+      `📂 <b>Тема:</b> ${catLabel}\n` +
+      `💬 <b>Сообщение:</b>\n<i>«${escapeHtml(snippet)}»</i>\n` +
+      `${claimStatusStr}\n` +
+      `🎫 <b>ID:</b> <code>#${params.ticketId.slice(0, 8)}</code>`;
+
+    const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
+    const claimBtnText = claim ? `✅ Забрал(а): ${claim.adminName}` : '📥 Забрать';
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: claimBtnText,
+            callback_data: `claim_ticket:${params.ticketId}`,
+          },
+        ],
+        [
+          {
+            text: '💬 Открыть в админке',
+            web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${params.ticketId}` },
+          },
+        ],
+      ],
+    };
+
+    const sent = await Promise.allSettled(
+      targetChatIds.map(async (chatId) => {
+        const msgId = await telegramApi.sendMessageWithMarkupAndGetId(
+          chatId,
+          messageText,
+          replyMarkup
+        );
+        if (msgId) {
+          return { chatId, messageId: msgId };
+        }
+        return null;
+      })
+    );
+
+    const successfulMsgs = sent
+      .filter(
+        (
+          s
+        ): s is PromiseFulfilledResult<{ chatId: number; messageId: number } | null> =>
+          s.status === 'fulfilled' && s.value !== null
+      )
+      .map((s) => s.value!);
+
+    if (successfulMsgs.length > 0) {
+      const msgCacheKey = `support:ticket:${params.ticketId}:messages`;
+      const existing = await redis.get(msgCacheKey);
+      const list = existing ? JSON.parse(existing) : [];
+      list.push(...successfulMsgs);
+      await redis.set(msgCacheKey, JSON.stringify(list.slice(-25)), 'EX', 7 * 24 * 3600);
+    }
+  } catch (err) {
+    logger.error({ err, ticketId: params.ticketId }, 'Failed to send admin support notification');
+  }
+}
+
+async function updateTelegramTicketMarkups(
+  ticketId: string,
+  claim: { adminName: string } | null
+): Promise<void> {
+  try {
+    const redis = redisClient.getClient();
+    const raw = await redis.get(`support:ticket:${ticketId}:messages`);
+    if (!raw) return;
+
+    const msgs = JSON.parse(raw) as Array<{ chatId: number; messageId: number }>;
+    const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
+    const claimBtnText = claim ? `✅ Забрал(а): ${claim.adminName}` : '📥 Забрать';
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: claimBtnText,
+            callback_data: `claim_ticket:${ticketId}`,
+          },
+        ],
+        [
+          {
+            text: '💬 Открыть в админке',
+            web_app: { url: `${miniAppUrl}/system/console/support?ticketId=${ticketId}` },
+          },
+        ],
+      ],
+    };
+
+    await Promise.allSettled(
+      msgs.map((m) => telegramApi.editMessageReplyMarkup(m.chatId, m.messageId, replyMarkup))
+    );
+  } catch (err) {
+    logger.warn({ err, ticketId }, 'Failed to broadcast Telegram ticket markup updates');
+  }
 }
 
 export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): Promise<void> => {
@@ -182,6 +345,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
           firstName: true,
           username: true,
           telegramId: true,
+          balance: { select: { amount: true } },
         },
       });
 
@@ -197,6 +361,8 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         },
         orderBy: { lastMessageAt: 'desc' },
       });
+
+      const isNewTicket = !ticket;
 
       if (!ticket) {
         ticket = await app.prisma.supportTicket.create({
@@ -257,6 +423,19 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
       } catch (wsErr) {
         logger.debug({ wsErr }, 'Broadcast to admin:support failed');
       }
+
+      // Notify admins in Telegram with inline "Забрать" button
+      void notifyAdminsAboutTicketMessage({
+        ticketId: ticket.id,
+        userId,
+        userName: senderName,
+        telegramId: user.telegramId,
+        username: user.username,
+        balance: Number(user.balance?.amount || 0),
+        category: category || ticket.category,
+        text: msg.text,
+        isNewTicket,
+      });
 
       return reply.send({
         ok: true,
@@ -371,7 +550,19 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         app.prisma.supportTicket.count({ where }),
       ]);
 
-      const formatted = tickets.map((t) => {
+      const redis = redisClient.getClient();
+      const claims = await Promise.all(
+        tickets.map(async (t) => {
+          try {
+            const raw = await redis.get(`support:ticket:${t.id}:claim`);
+            return raw ? JSON.parse(raw) : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const formatted = tickets.map((t, idx) => {
         const lastMsg = t.messages[0];
         const bal = t.user.balance;
         const wRem = bal ? Math.max(0, Number(bal.wagerTarget) - Number(bal.wagerProgress)) : 0;
@@ -386,6 +577,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
           unreadAdminCount: t.unreadAdminCount,
           unreadUserCount: t.unreadUserCount,
           createdAt: t.createdAt.getTime(),
+          claimedBy: claims[idx],
           lastMessage: lastMsg
             ? {
                 text: lastMsg.text,
@@ -473,6 +665,10 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         });
       }
 
+      const redis = redisClient.getClient();
+      const rawClaim = await redis.get(`support:ticket:${id}:claim`);
+      const claimedBy = rawClaim ? JSON.parse(rawClaim) : null;
+
       return reply.send({
         ok: true,
         ticket: {
@@ -482,6 +678,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
           subject: ticket.subject,
           lastMessageAt: ticket.lastMessageAt.getTime(),
           createdAt: ticket.createdAt.getTime(),
+          claimedBy,
         },
         user: {
           id: ticket.user.id,
@@ -673,6 +870,103 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
       return reply.send({ ok: true, ticket });
     } catch (err) {
       logger.error({ err, id }, 'Change ticket status failed');
+      return reply.code(500).send({ error: 'Ошибка обновления статуса' });
+    }
+  });
+
+  /**
+   * Get ticket claim status
+   */
+  app.get<{
+    Params: { id: string };
+  }>('/_x/tickets/:id/claim', { preHandler: adminOnly }, async (request, reply) => {
+    const { id } = request.params;
+    try {
+      const redis = redisClient.getClient();
+      const raw = await redis.get(`support:ticket:${id}:claim`);
+      const claim = raw ? JSON.parse(raw) : null;
+      return reply.send({ ok: true, claim });
+    } catch (err) {
+      logger.error({ err, id }, 'Failed to get ticket claim');
+      return reply.code(500).send({ error: 'Ошибка получения статуса' });
+    }
+  });
+
+  /**
+   * Toggle or set ticket claim status by admin
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { action?: 'claim' | 'unclaim' | 'toggle' };
+  }>('/_x/tickets/:id/claim', { preHandler: adminOnly }, async (request, reply) => {
+    const { id } = request.params;
+    const authReq = request as AuthenticatedRequest;
+    const adminTelegramId = authReq.user.telegramId;
+    const { action = 'toggle' } = request.body || {};
+
+    try {
+      const redis = redisClient.getClient();
+      const claimKey = `support:ticket:${id}:claim`;
+      const raw = await redis.get(claimKey);
+      const existing = raw ? JSON.parse(raw) : null;
+
+      // Determine admin display name
+      const adminUser = await app.prisma.user.findFirst({
+        where: { telegramId: BigInt(adminTelegramId) },
+        select: { firstName: true, username: true },
+      });
+      const adminName = adminUser?.username
+        ? `@${adminUser.username}`
+        : adminUser?.firstName || `Саппорт ${adminTelegramId}`;
+
+      let updatedClaim: any = null;
+
+      if (!existing) {
+        if (action === 'unclaim') {
+          return reply.send({ ok: true, claim: null });
+        }
+        updatedClaim = {
+          adminId: Number(adminTelegramId),
+          adminName,
+          claimedAt: Date.now(),
+        };
+        await redis.set(claimKey, JSON.stringify(updatedClaim), 'EX', 7 * 24 * 3600);
+      } else {
+        if (existing.adminId === Number(adminTelegramId)) {
+          if (action === 'claim') {
+            return reply.send({ ok: true, claim: existing });
+          }
+          await redis.del(claimKey);
+          updatedClaim = null;
+        } else {
+          if (action === 'unclaim') {
+            return reply.code(403).send({ error: `Тикет уже взят оператором ${existing.adminName}` });
+          }
+          return reply.code(409).send({
+            error: `Тикет уже взят оператором ${existing.adminName}`,
+            claim: existing,
+          });
+        }
+      }
+
+      // Update Telegram buttons across all admin messages
+      void updateTelegramTicketMarkups(id, updatedClaim);
+
+      // Broadcast WS event to admin support room
+      try {
+        await wsManager.publishBroadcast({
+          room: 'admin:support',
+          message: {
+            type: updatedClaim ? 'support_ticket_claimed' : 'support_ticket_unclaimed',
+            ticketId: id,
+            claimedBy: updatedClaim,
+          },
+        });
+      } catch {}
+
+      return reply.send({ ok: true, claim: updatedClaim });
+    } catch (err) {
+      logger.error({ err, id }, 'Failed to toggle ticket claim');
       return reply.code(500).send({ error: 'Ошибка обновления статуса' });
     }
   });

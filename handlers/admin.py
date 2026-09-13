@@ -781,3 +781,190 @@ async def process_bonus_amount(message: Message, state: FSMContext):
     )
     
     await state.clear()
+
+
+@router.callback_query(F.data.startswith("claim_ticket:"))
+async def claim_ticket_callback_handler(callback: CallbackQuery):
+    """
+    Обработчик кнопки 'Забрать' / 'Освободить' тикет техподдержки.
+    Позволяет операторам брать тикет в работу и освобождать его,
+    исключая одновременный ответ нескольких саппортов на один тикет.
+    """
+    ticket_id = callback.data.split(":", 1)[1]
+    admin_id = callback.from_user.id
+
+    # Проверка прав администратора
+    is_admin = await check_is_admin(admin_id)
+    if not is_admin:
+        await callback.answer("⛔ Доступ разрешен только администраторам и операторам", show_alert=True)
+        return
+
+    admin_display = (
+        f"@{callback.from_user.username}"
+        if callback.from_user.username
+        else (callback.from_user.full_name or f"Саппорт {admin_id}")
+    )
+
+    import json
+    import time
+    from middleware import redis_client
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+
+    mini_app_url = config.MINI_APP_URL or "https://macvbet.nl"
+    claim_key = f"support:ticket:{ticket_id}:claim"
+    raw_claim = await redis_client.get(claim_key)
+
+    if not raw_claim:
+        # 1. Тикет свободен -> забираем
+        claim_data = {
+            "adminId": admin_id,
+            "adminName": admin_display,
+            "claimedAt": int(time.time() * 1000),
+        }
+        await redis_client.set(claim_key, json.dumps(claim_data), ex=7 * 24 * 3600)
+
+        # Публикуем событие через Redis Pub/Sub для веб-консоли админки
+        try:
+            await redis_client.publish(
+                "broadcast:admin:support",
+                json.dumps({
+                    "type": "support_ticket_claimed",
+                    "ticketId": ticket_id,
+                    "claimedBy": claim_data,
+                })
+            )
+        except Exception:
+            pass
+
+        # Формируем новую клавиатуру с указанием оператора
+        claimed_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"✅ Забрал(а): {admin_display}",
+                    callback_data=f"claim_ticket:{ticket_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💬 Открыть тикет в админке",
+                    web_app=WebAppInfo(url=f"{mini_app_url}/system/console/support?ticketId={ticket_id}")
+                )
+            ]
+        ])
+
+        try:
+            await callback.message.edit_reply_markup(reply_markup=claimed_kb)
+        except Exception:
+            pass
+
+        # Обновляем кнопку во всех отслеживаемых сообщениях (в группе и у других админов)
+        try:
+            raw_msgs = await redis_client.get(f"support:ticket:{ticket_id}:messages")
+            if raw_msgs:
+                msgs = json.loads(raw_msgs)
+                for item in msgs:
+                    c_id = item.get("chatId")
+                    m_id = item.get("messageId")
+                    if c_id and m_id and (c_id != callback.message.chat.id or m_id != callback.message.message_id):
+                        try:
+                            await callback.bot.edit_message_reply_markup(
+                                chat_id=c_id,
+                                message_id=m_id,
+                                reply_markup=claimed_kb
+                            )
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        await callback.answer(f"✅ Вы взяли тикет в работу!", show_alert=False)
+
+    else:
+        claim_data = json.loads(raw_claim)
+        claimed_admin_id = claim_data.get("adminId")
+
+        if claimed_admin_id == admin_id:
+            # 2. Тот же админ нажал еще раз -> освобождаем тикет!
+            await redis_client.delete(claim_key)
+
+            try:
+                await redis_client.publish(
+                    "broadcast:admin:support",
+                    json.dumps({
+                        "type": "support_ticket_unclaimed",
+                        "ticketId": ticket_id,
+                    })
+                )
+            except Exception:
+                pass
+
+            reverted_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📥 Забрать",
+                        callback_data=f"claim_ticket:{ticket_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="💬 Открыть тикет в админке",
+                        web_app=WebAppInfo(url=f"{mini_app_url}/system/console/support?ticketId={ticket_id}")
+                    )
+                ]
+            ])
+
+            try:
+                await callback.message.edit_reply_markup(reply_markup=reverted_kb)
+            except Exception:
+                pass
+
+            # Обновляем во всех админ-чатах
+            try:
+                raw_msgs = await redis_client.get(f"support:ticket:{ticket_id}:messages")
+                if raw_msgs:
+                    msgs = json.loads(raw_msgs)
+                    for item in msgs:
+                        c_id = item.get("chatId")
+                        m_id = item.get("messageId")
+                        if c_id and m_id and (c_id != callback.message.chat.id or m_id != callback.message.message_id):
+                            try:
+                                await callback.bot.edit_message_reply_markup(
+                                    chat_id=c_id,
+                                    message_id=m_id,
+                                    reply_markup=reverted_kb
+                                )
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
+            await callback.answer("🔓 Тикет освобождён! Теперь его может взять другой оператор.", show_alert=False)
+
+        else:
+            # 3. Тикет уже взят другим саппортом
+            other_name = claim_data.get("adminName", "другой оператор")
+            await callback.answer(
+                f"⚠️ Этот тикет уже взял(а) оператор {other_name}!\nВы не можете его забрать.",
+                show_alert=True
+            )
+
+            # Актуализируем кнопку на сообщении
+            synced_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=f"✅ Забрал(а): {other_name}",
+                        callback_data=f"claim_ticket:{ticket_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="💬 Открыть тикет в админке",
+                        web_app=WebAppInfo(url=f"{mini_app_url}/system/console/support?ticketId={ticket_id}")
+                    )
+                ]
+            ])
+            try:
+                await callback.message.edit_reply_markup(reply_markup=synced_kb)
+            except Exception:
+                pass
+
