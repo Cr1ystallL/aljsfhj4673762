@@ -20,8 +20,35 @@ import {
   Gift,
   Gamepad2,
   MessageSquare,
+  Paperclip,
+  FileText,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+interface PendingAttachment {
+  id: string;
+  file: File;
+  previewUrl: string;
+  isImage: boolean;
+  name: string;
+  size: number;
+  type: string;
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 interface SupportMessage {
   id: string;
@@ -30,7 +57,7 @@ interface SupportMessage {
   senderId: string;
   senderName: string | null;
   text: string;
-  attachments?: any;
+  attachments?: MessageAttachment[];
   isRead: boolean;
   createdAt: number;
 }
@@ -63,8 +90,115 @@ export default function SupportPage() {
   const [activeCategory, setActiveCategory] = useState('general');
   const [error, setError] = useState<string | null>(null);
 
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3 MB
+  const MAX_FILES = 5;
+  const ALLOWED_EXTS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp'];
+
+  const addFiles = (filesToAdd: File[]) => {
+    const currentCount = pendingFiles.length;
+    if (currentCount >= MAX_FILES) {
+      setError(`Можно прикрепить максимум ${MAX_FILES} файлов.`);
+      triggerHaptic('warning');
+      return;
+    }
+
+    const validNew: PendingAttachment[] = [];
+    let sizeError = false;
+    let formatError = false;
+    let countExceeded = false;
+
+    for (const file of filesToAdd) {
+      if (currentCount + validNew.length >= MAX_FILES) {
+        countExceeded = true;
+        break;
+      }
+
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      const isAllowedExt = ALLOWED_EXTS.includes(ext);
+      const isAllowedMime = file.type === 'application/pdf' || file.type.startsWith('image/');
+
+      if (!isAllowedExt && !isAllowedMime) {
+        formatError = true;
+        continue;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        sizeError = true;
+        continue;
+      }
+
+      const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+      const previewUrl = isImage ? URL.createObjectURL(file) : '';
+
+      validNew.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        previewUrl,
+        isImage,
+        name: file.name,
+        size: file.size,
+        type: file.type || (isImage ? 'image/png' : 'application/pdf'),
+      });
+    }
+
+    if (validNew.length > 0) {
+      setPendingFiles((prev) => [...prev, ...validNew]);
+      triggerHaptic('light');
+    }
+
+    if (countExceeded) {
+      setError(`Максимально можно прикрепить до ${MAX_FILES} файлов за раз.`);
+      triggerHaptic('warning');
+    } else if (sizeError) {
+      setError('Размер файла превышает 3 МБ. Допустимы только чеки и фото до 3 МБ.');
+      triggerHaptic('warning');
+    } else if (formatError) {
+      setError('Неподдерживаемый формат. Допустимы только чеки: PDF, PNG, JPG, WEBP.');
+      triggerHaptic('warning');
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
+    addFiles(selected);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePendingFile = (id: string) => {
+    setPendingFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+    triggerHaptic('light');
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/') || items[i].type === 'application/pdf') {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
 
   const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'warning' = 'light') => {
     try {
@@ -142,11 +276,50 @@ export default function SupportPage() {
   // Send message
   const handleSendMessage = async (customText?: string, categoryOverride?: string) => {
     const textToSend = (customText ?? inputText).trim();
-    if (!textToSend || sending) return;
+    const hasPending = pendingFiles.length > 0;
+    if ((!textToSend && !hasPending) || sending || uploadingFiles) return;
 
     triggerHaptic('medium');
     setSending(true);
     setError(null);
+
+    // 1. Upload files first if any
+    let uploadedAttachments: MessageAttachment[] = [];
+    if (hasPending) {
+      setUploadingFiles(true);
+      try {
+        const formData = new FormData();
+        pendingFiles.forEach((p) => {
+          formData.append('files', p.file, p.name);
+        });
+
+        const uploadRes = await fetch('/api/support/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        const uploadJson = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadJson.error || 'Не удалось загрузить файлы чеков');
+        }
+        uploadedAttachments = uploadJson.files || [];
+      } catch (upErr: any) {
+        setError(upErr?.message || 'Ошибка загрузки чеков');
+        setSending(false);
+        setUploadingFiles(false);
+        triggerHaptic('warning');
+        return;
+      } finally {
+        setUploadingFiles(false);
+      }
+    }
+
+    // Clean up local blob URLs and pending state
+    pendingFiles.forEach((p) => {
+      if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+    });
+    setPendingFiles([]);
 
     const tempId = `temp_${Date.now()}`;
     const optimisticMessage: SupportMessage = {
@@ -155,7 +328,8 @@ export default function SupportPage() {
       senderType: 'user',
       senderId: 'me',
       senderName: 'Вы',
-      text: textToSend,
+      text: textToSend || (uploadedAttachments.length === 1 ? '📎 Чек / вложение' : `📎 Вложения (${uploadedAttachments.length})`),
+      attachments: uploadedAttachments,
       isRead: false,
       createdAt: Date.now(),
     };
@@ -177,6 +351,7 @@ export default function SupportPage() {
         body: JSON.stringify({
           text: textToSend,
           category: categoryOverride || activeCategory,
+          attachments: uploadedAttachments,
         }),
       });
 
@@ -391,6 +566,58 @@ export default function SupportPage() {
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
 
+                      {/* Attachments rendering */}
+                      {m.attachments && Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5">
+                          {m.attachments.map((att: any, idx: number) => {
+                            const isImg =
+                              att.type?.startsWith('image/') ||
+                              /\.(png|jpe?g|webp)$/i.test(att.url || att.name);
+                            if (isImg) {
+                              return (
+                                <div
+                                  key={idx}
+                                  className="relative group rounded-xl overflow-hidden border border-white/15 bg-black/40 max-w-[280px]"
+                                >
+                                  <img
+                                    src={att.url}
+                                    alt={att.name || 'Прикрепленный чек'}
+                                    className="w-full max-h-56 object-contain rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                                    onClick={() => setPreviewImageModal(att.url)}
+                                    loading="lazy"
+                                  />
+                                  <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-xs text-[9px] text-zinc-300 font-mono">
+                                    {formatFileSize(att.size)}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <a
+                                key={idx}
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-colors group cursor-pointer max-w-[300px]"
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                                  <FileText size={16} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[12px] font-semibold text-white truncate group-hover:text-amber-400 transition-colors">
+                                    {att.name || 'Чек / квитанция PDF'}
+                                  </p>
+                                  <p className="text-[10px] text-zinc-400">
+                                    PDF • {formatFileSize(att.size)}
+                                  </p>
+                                </div>
+                                <ExternalLink size={13} className="text-zinc-500 group-hover:text-white shrink-0 mr-1" />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       {/* Footer time and checkmarks for user */}
                       {isUser && (
                         <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-zinc-400">
@@ -438,40 +665,123 @@ export default function SupportPage() {
       {/* ── Bottom Input Dock (Anti-AI-Slop Engineered Cluster) ── */}
       <footer className="shrink-0 p-3 bg-[#0C0E17] border-t border-white/10 pb-[max(14px,env(safe-area-inset-bottom))]">
         <div className="max-w-2xl mx-auto">
+          {/* Hidden Native File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          {/* Pending Attachments Tray */}
+          {pendingFiles.length > 0 && (
+            <div className="mb-2.5 p-2.5 rounded-2xl bg-[#131620] border border-white/10 space-y-1.5 shadow-lg">
+              <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1">
+                <span className="font-semibold text-zinc-300">
+                  Прикрепленные чеки / файлы ({pendingFiles.length}/5):
+                </span>
+                <span className="text-[10px] text-zinc-500">макс. 3 МБ</span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+                {pendingFiles.map((p) => (
+                  <div
+                    key={p.id}
+                    className="relative shrink-0 group rounded-xl overflow-hidden border border-white/15 bg-black/40 p-1 flex items-center gap-2"
+                  >
+                    {p.isImage ? (
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black shrink-0">
+                        <img
+                          src={p.previewUrl}
+                          alt={p.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-rose-500/15 border border-rose-500/20 flex flex-col items-center justify-center text-rose-400 shrink-0">
+                        <FileText size={18} />
+                        <span className="text-[8px] font-bold mt-0.5">PDF</span>
+                      </div>
+                    )}
+
+                    <div className="max-w-[110px] pr-5">
+                      <p className="text-[11px] font-medium text-white truncate">{p.name}</p>
+                      <p className="text-[9.5px] text-zinc-400">{formatFileSize(p.size)}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(p.id)}
+                      className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500/80 hover:bg-rose-500 text-white flex items-center justify-center cursor-pointer transition-colors shadow-sm"
+                      aria-label="Удалить файл"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+
+                {pendingFiles.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-12 px-3 rounded-xl border border-dashed border-white/20 hover:border-amber-400/50 hover:bg-white/[0.03] text-zinc-400 hover:text-amber-400 flex items-center gap-1.5 text-xs font-medium transition-colors shrink-0 cursor-pointer"
+                  >
+                    <span className="text-sm font-bold">+</span>
+                    <span>Еще</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div
             className={cn(
-              'flex items-end gap-2 p-1.5 pl-3 rounded-2xl bg-[#13161F] border transition-all duration-200',
-              inputText.trim()
+              'flex items-end gap-2 p-1.5 pl-2.5 rounded-2xl bg-[#13161F] border transition-all duration-200',
+              inputText.trim() || pendingFiles.length > 0
                 ? 'border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-400/20'
                 : 'border-white/10 hover:border-white/20'
             )}
           >
+            {/* Paperclip attachment button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending || uploadingFiles || pendingFiles.length >= 5}
+              className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.12] text-zinc-400 hover:text-amber-400 flex items-center justify-center transition-colors shrink-0 disabled:opacity-40 cursor-pointer"
+              title="Прикрепить чек или файл (PDF, PNG, JPG до 3 МБ)"
+              aria-label="Прикрепить чек"
+            >
+              <Paperclip size={18} />
+            </button>
+
             {/* Auto-growing clean textarea */}
             <textarea
               ref={textareaRef}
               rows={1}
               value={inputText}
               onChange={handleInputChange}
+              onPaste={handlePaste}
               onKeyDown={handleKeyDown}
-              placeholder="Напишите ваш вопрос поддержке..."
+              placeholder="Напишите ваш вопрос или прикрепите чек..."
               className="flex-1 max-h-28 min-h-[38px] py-2 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none resize-none leading-relaxed"
             />
 
             {/* Tactile Engineered Action Button (Strictly Anti-AI Slop) */}
             <AnimatePresence mode="wait">
-              {inputText.trim() ? (
+              {inputText.trim() || pendingFiles.length > 0 ? (
                 <motion.button
                   key="active-send"
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.85 }}
                   transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-                  disabled={sending}
+                  disabled={sending || uploadingFiles}
                   onClick={() => handleSendMessage()}
                   className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_2px_14px_rgba(245,158,11,0.35)] hover:brightness-110 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                   aria-label="Отправить сообщение"
                 >
-                  {sending ? (
+                  {sending || uploadingFiles ? (
                     <RefreshCw size={14} className="animate-spin text-black" />
                   ) : (
                     <>
@@ -506,11 +816,51 @@ export default function SupportPage() {
           </div>
 
           <div className="mt-1.5 px-2 flex items-center justify-between text-[10px] text-zinc-500">
+            <span>📎 Чеки PDF, PNG, JPG, WEBP (до 3 МБ, до 5 шт.)</span>
             <span>Enter для отправки • Shift+Enter новая строка</span>
-            <span>Диалог сохраняется в вашем профиле</span>
           </div>
         </div>
       </footer>
+
+      {/* ── Full-Screen Image Lightbox Modal ── */}
+      <AnimatePresence>
+        {previewImageModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPreviewImageModal(null)}
+            className="fixed inset-0 z-[10000] bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-4"
+          >
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+              <a
+                href={previewImageModal}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                title="Открыть в новом окне"
+              >
+                <ExternalLink size={18} />
+              </a>
+              <button
+                onClick={() => setPreviewImageModal(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Закрыть"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <img
+              src={previewImageModal}
+              alt="Увеличенный чек"
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[85vh] max-w-[95vw] rounded-2xl object-contain shadow-2xl border border-white/20"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

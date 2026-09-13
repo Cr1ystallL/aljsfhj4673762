@@ -1,9 +1,66 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import '@fastify/multipart';
 import { authenticate, adminOnly, getAllAdminTelegramIds, type AuthenticatedRequest } from '../middleware/auth.js';
 import { wsManager } from '../lib/websocket-manager.js';
 import { telegramApi } from '../lib/telegram-api.js';
 import { redisClient } from '../lib/redis.js';
 import { logger } from '../utils/logger.js';
+
+const MAX_UPLOAD_FILE_SIZE = 3 * 1024 * 1024; // 3 MB
+const MAX_UPLOAD_FILES_COUNT = 5;
+const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp']);
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+]);
+
+function getUploadsDir(): string {
+  const candidates = [
+    path.resolve(process.cwd(), '../frontend/public/uploads'),
+    path.resolve(process.cwd(), 'apps/frontend/public/uploads'),
+    path.resolve(process.cwd(), 'public/uploads'),
+    path.resolve('/var/www/MACVBET/mini-app/apps/frontend/public/uploads'),
+  ];
+  for (const c of candidates) {
+    const parent = path.dirname(c);
+    if (fs.existsSync(parent)) {
+      return c;
+    }
+  }
+  return candidates[0];
+}
+
+function isValidReceiptSignature(buffer: Buffer, ext: string): boolean {
+  if (buffer.length < 4) return false;
+  if (ext === '.pdf') {
+    return buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+  }
+  if (ext === '.png') {
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    );
+  }
+  if (ext === '.jpg' || ext === '.jpeg') {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (ext === '.webp') {
+    return (
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.length >= 12 &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    );
+  }
+  return false;
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -21,6 +78,7 @@ async function notifyAdminsAboutTicketMessage(params: {
   balance?: number;
   category: string;
   text: string;
+  attachments?: Array<{ url: string; name: string; size: number; type: string }>;
   isNewTicket: boolean;
 }): Promise<void> {
   try {
@@ -70,6 +128,14 @@ async function notifyAdminsAboutTicketMessage(params: {
     const snippet =
       params.text.length > 350 ? `${params.text.slice(0, 350)}...` : params.text;
 
+    const attachCount = params.attachments?.length || 0;
+    const attachTypes = params.attachments && params.attachments.length > 0
+      ? params.attachments.map((a) => (a.type?.includes('pdf') || a.name?.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Фото/Чек')).join(', ')
+      : '';
+    const attachStr = attachCount > 0
+      ? `\n📎 <b>Прикреплено файлов:</b> ${attachCount} шт. (${attachTypes})`
+      : '';
+
     const claimStatusStr = claim
       ? `\n👨‍💻 <b>В работе:</b> ${escapeHtml(claim.adminName)}`
       : '';
@@ -79,6 +145,7 @@ async function notifyAdminsAboutTicketMessage(params: {
       `👤 <b>Игрок:</b> <b>${escapeHtml(params.userName)}</b>${usernameStr}${tgUserStr}${balStr}\n` +
       `📂 <b>Тема:</b> ${catLabel}\n` +
       `💬 <b>Сообщение:</b>\n<i>«${escapeHtml(snippet)}»</i>\n` +
+      `${attachStr}` +
       `${claimStatusStr}\n` +
       `🎫 <b>ID:</b> <code>#${params.ticketId.slice(0, 8)}</code>`;
 
@@ -229,6 +296,122 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
   // ==========================================
 
   /**
+   * Upload receipt/check/document files for support tickets
+   * Allowed: PDF, PNG, JPG, WEBP (up to 3MB each, max 5 files per request)
+   */
+  app.post('/upload', { preHandler: authenticate }, async (request, reply) => {
+    if (!request.isMultipart()) {
+      return reply.code(400).send({ error: 'Запрос должен быть в формате multipart/form-data' });
+    }
+
+    try {
+      const parts = request.files({
+        limits: {
+          fileSize: MAX_UPLOAD_FILE_SIZE,
+          files: MAX_UPLOAD_FILES_COUNT,
+        },
+      });
+
+      const uploadedFiles: Array<{
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }> = [];
+
+      const uploadDir = getUploadsDir();
+      await fs.promises.mkdir(uploadDir, { recursive: true });
+
+      for await (const part of parts) {
+        if (uploadedFiles.length >= MAX_UPLOAD_FILES_COUNT) {
+          return reply.code(400).send({
+            error: `Превышен лимит файлов: можно прикрепить максимум ${MAX_UPLOAD_FILES_COUNT} файлов за один раз`,
+          });
+        }
+
+        const originalName = part.filename || 'receipt.png';
+        const ext = path.extname(originalName).toLowerCase();
+        const mime = (part.mimetype || '').toLowerCase();
+
+        if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext) || !ALLOWED_UPLOAD_MIMES.has(mime)) {
+          return reply.code(400).send({
+            error: `Недопустимый формат файла «${originalName}». Разрешены только чеки и квитанции: PDF, PNG, JPG, WEBP`,
+          });
+        }
+
+        const buffer = await part.toBuffer();
+
+        if (part.file.truncated || buffer.length > MAX_UPLOAD_FILE_SIZE) {
+          return reply.code(400).send({
+            error: `Файл «${originalName}» превышает допустимый размер 3 МБ.`,
+          });
+        }
+
+        if (!isValidReceiptSignature(buffer, ext)) {
+          return reply.code(400).send({
+            error: `Содержимое файла «${originalName}» повреждено или не соответствует формату чека.`,
+          });
+        }
+
+        const uniqueFilename = `support-${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
+        const filePath = path.join(uploadDir, uniqueFilename);
+        await fs.promises.writeFile(filePath, buffer);
+
+        uploadedFiles.push({
+          url: `/api/support/files/${uniqueFilename}`,
+          name: originalName,
+          size: buffer.length,
+          type: mime,
+        });
+      }
+
+      if (uploadedFiles.length === 0) {
+        return reply.code(400).send({ error: 'Файлы не были прикреплены' });
+      }
+
+      return reply.send({
+        ok: true,
+        files: uploadedFiles,
+      });
+    } catch (err: any) {
+      logger.error({ err }, 'Support file upload failed');
+      return reply.code(500).send({
+        error: err?.message || 'Ошибка загрузки файлов на сервер',
+      });
+    }
+  });
+
+  /**
+   * Serve uploaded support files securely
+   */
+  app.get<{
+    Params: { filename: string };
+  }>('/files/:filename', async (request, reply) => {
+    const { filename } = request.params;
+    const safeFilename = path.basename(filename);
+    const uploadDir = getUploadsDir();
+    const filePath = path.join(uploadDir, safeFilename);
+
+    if (!fs.existsSync(filePath)) {
+      return reply.code(404).send({ error: 'Файл не найден' });
+    }
+
+    const ext = path.extname(safeFilename).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.pdf': 'application/pdf',
+    };
+    const contentType = mimeMap[ext] || 'application/octet-stream';
+
+    reply.header('Content-Type', contentType);
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    return reply.send(fs.createReadStream(filePath));
+  });
+
+  /**
    * Get active ticket and message history for the authenticated user
    */
   app.get('/ticket', { preHandler: authenticate }, async (request, reply) => {
@@ -322,20 +505,38 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
    */
   app.post<{
     Body: {
-      text: string;
+      text?: string;
       category?: string;
+      attachments?: Array<{
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }>;
     };
   }>('/message', { preHandler: authenticate }, async (request, reply) => {
     const authReq = request as AuthenticatedRequest;
     const userId = authReq.user.userId;
-    const { text, category } = request.body || {};
+    const { text, category, attachments } = request.body || {};
 
-    if (!text || !text.trim()) {
-      return reply.code(400).send({ error: 'Текст сообщения не может быть пустым' });
+    const safeAttachments = Array.isArray(attachments)
+      ? attachments.slice(0, 5).map((a) => ({
+          url: String(a.url || ''),
+          name: String(a.name || 'receipt'),
+          size: Number(a.size || 0),
+          type: String(a.type || 'application/octet-stream'),
+        }))
+      : [];
+
+    const rawText = (text || '').trim();
+    if (!rawText && safeAttachments.length === 0) {
+      return reply.code(400).send({ error: 'Введите текст сообщения или прикрепите чек/файл' });
     }
-    if (text.length > 4000) {
+    if (rawText.length > 4000) {
       return reply.code(400).send({ error: 'Сообщение слишком длинное (макс. 4000 символов)' });
     }
+
+    const finalText = rawText || (safeAttachments.length === 1 ? '📎 Чек / вложение' : `📎 Вложения (${safeAttachments.length})`);
 
     try {
       const user = await app.prisma.user.findUnique({
@@ -402,7 +603,8 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
           senderType: 'user',
           senderId: userId,
           senderName,
-          text: text.trim(),
+          text: finalText,
+          attachments: safeAttachments,
         },
       });
 
@@ -417,6 +619,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
             userName: senderName,
             telegramId: Number(user.telegramId),
             text: msg.text,
+            attachments: safeAttachments,
             createdAt: msg.createdAt.getTime(),
           },
         });
@@ -434,6 +637,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         balance: Number(user.balance?.amount || 0),
         category: category || ticket.category,
         text: msg.text,
+        attachments: safeAttachments,
         isNewTicket,
       });
 
@@ -713,18 +917,36 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
       id: string;
     };
     Body: {
-      text: string;
+      text?: string;
       cannedAction?: string;
+      attachments?: Array<{
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+      }>;
     };
   }>('/_x/tickets/:id/reply', { preHandler: adminOnly }, async (request, reply) => {
     const { id } = request.params;
-    const { text } = request.body || {};
+    const { text, attachments } = request.body || {};
     const authReq = request as AuthenticatedRequest;
     const adminTelegramId = authReq.user.telegramId;
 
-    if (!text || !text.trim()) {
-      return reply.code(400).send({ error: 'Текст ответа обязателен' });
+    const safeAttachments = Array.isArray(attachments)
+      ? attachments.slice(0, 5).map((a) => ({
+          url: String(a.url || ''),
+          name: String(a.name || 'attachment'),
+          size: Number(a.size || 0),
+          type: String(a.type || 'application/octet-stream'),
+        }))
+      : [];
+
+    const rawText = (text || '').trim();
+    if (!rawText && safeAttachments.length === 0) {
+      return reply.code(400).send({ error: 'Текст ответа или прикрепленный файл обязателен' });
     }
+
+    const finalText = rawText || (safeAttachments.length === 1 ? '📎 Вложение от поддержки' : `📎 Вложения (${safeAttachments.length})`);
 
     try {
       const ticket = await app.prisma.supportTicket.findUnique({
@@ -752,7 +974,8 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
           senderType: 'admin',
           senderId: String(adminTelegramId),
           senderName: 'Поддержка MACVBET',
-          text: text.trim(),
+          text: finalText,
+          attachments: safeAttachments,
         },
       });
 
@@ -772,6 +995,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         senderType: msg.senderType,
         senderName: msg.senderName,
         text: msg.text,
+        attachments: msg.attachments,
         createdAt: msg.createdAt.getTime(),
       };
 
@@ -797,12 +1021,13 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
         try {
           const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
           const cleanSnippet =
-            text.trim().length > 300 ? `${text.trim().slice(0, 300)}...` : text.trim();
+            finalText.length > 300 ? `${finalText.slice(0, 300)}...` : finalText;
+          const attachSnippet = safeAttachments.length > 0 ? `\n📎 <i>Прикреплены файлы (${safeAttachments.length} шт.)</i>\n` : '';
 
           await telegramApi.sendMessageWithMarkup(
             userTelegramId,
             `👨‍💻 <b>Служба поддержки ответила на ваше обращение:</b>\n\n` +
-              `<i>«${escapeHtml(cleanSnippet)}»</i>\n\n` +
+              `<i>«${escapeHtml(cleanSnippet)}»</i>${attachSnippet}\n\n` +
               `Нажмите кнопку ниже, чтобы перейти в диалог.`,
             {
               inline_keyboard: [

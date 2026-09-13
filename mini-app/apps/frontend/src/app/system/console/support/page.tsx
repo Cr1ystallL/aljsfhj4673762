@@ -28,9 +28,35 @@ import {
   Check,
   CheckCheck,
   ChevronRight,
+  Paperclip,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HelpButton } from '@/components/admin/help-button';
+
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+interface PendingAttachment {
+  id: string;
+  file: File;
+  previewUrl: string;
+  isImage: boolean;
+  name: string;
+  size: number;
+  type: string;
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 interface SupportUser {
   id: string;
@@ -159,7 +185,7 @@ interface AdminMessageItem {
   senderId: string;
   senderName: string | null;
   text: string;
-  attachments?: any;
+  attachments?: MessageAttachment[];
   isRead: boolean;
   createdAt: number;
 }
@@ -228,6 +254,75 @@ export default function SupportWorkspacePage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'pending' | 'resolved'>('all');
   const [ticketSearch, setTicketSearch] = useState('');
 
+  const [adminPendingFiles, setAdminPendingFiles] = useState<PendingAttachment[]>([]);
+  const [adminUploading, setAdminUploading] = useState(false);
+  const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
+  const adminFileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_FILE_SIZE = 3 * 1024 * 1024;
+  const MAX_FILES = 5;
+  const ALLOWED_EXTS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp'];
+
+  const addAdminFiles = (filesToAdd: File[]) => {
+    const currentCount = adminPendingFiles.length;
+    if (currentCount >= MAX_FILES) {
+      alert(`Можно прикрепить максимум ${MAX_FILES} файлов.`);
+      return;
+    }
+
+    const validNew: PendingAttachment[] = [];
+    for (const file of filesToAdd) {
+      if (currentCount + validNew.length >= MAX_FILES) break;
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!ALLOWED_EXTS.includes(ext) && !file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        alert('Неподдерживаемый формат. Допустимы только чеки: PDF, PNG, JPG, WEBP.');
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`Файл ${file.name} превышает лимит 3 МБ.`);
+        continue;
+      }
+      const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+      validNew.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        previewUrl: isImage ? URL.createObjectURL(file) : '',
+        isImage,
+        name: file.name,
+        size: file.size,
+        type: file.type || (isImage ? 'image/png' : 'application/pdf'),
+      });
+    }
+
+    if (validNew.length > 0) {
+      setAdminPendingFiles((prev) => [...prev, ...validNew]);
+    }
+  };
+
+  const removeAdminPendingFile = (id: string) => {
+    setAdminPendingFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  const handleAdminPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/') || items[i].type === 'application/pdf') {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      addAdminFiles(files);
+    }
+  };
+
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToChatBottom = () => {
@@ -264,20 +359,22 @@ export default function SupportWorkspacePage() {
   const loadTickets = useCallback(async (isSilent = false) => {
     if (!isSilent) setTicketsLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterStatus !== 'all') params.set('status', filterStatus);
-      if (ticketSearch.trim()) params.set('search', ticketSearch.trim());
+      const q = new URLSearchParams();
+      if (filterStatus !== 'all') q.set('status', filterStatus);
+      if (ticketSearch.trim()) q.set('search', ticketSearch.trim());
+      q.set('limit', '50');
 
-      const res = await fetch(`/api/support/_x/tickets?${params.toString()}`, {
+      const res = await fetch(`/api/support/_x/tickets?${q.toString()}`, {
         credentials: 'include',
         cache: 'no-store',
       });
-      const json = await res.json();
-      if (res.ok && json.tickets) {
-        setTickets(json.tickets);
+      const data = await res.json();
+      if (res.ok) {
+        setTickets(data.tickets || []);
       }
-    } catch {}
-    finally {
+    } catch {
+      // silently fail on background polling
+    } finally {
       if (!isSilent) setTicketsLoading(false);
     }
   }, [filterStatus, ticketSearch]);
@@ -289,13 +386,16 @@ export default function SupportWorkspacePage() {
         credentials: 'include',
         cache: 'no-store',
       });
-      const json = await res.json();
-      if (res.ok && json.messages) {
-        setTicketMessages(json.messages);
-        setTimeout(scrollToChatBottom, 50);
+      const data = await res.json();
+      if (res.ok) {
+        setTicketMessages(data.messages || []);
+        if (!isSilent) {
+          setTimeout(scrollToChatBottom, 50);
+        }
       }
-    } catch {}
-    finally {
+    } catch {
+      // ignore
+    } finally {
       if (!isSilent) setMessagesLoading(false);
     }
   }, []);
@@ -329,14 +429,52 @@ export default function SupportWorkspacePage() {
   };
 
   const handleSendReply = async () => {
-    if (!selectedTicketId || !replyText.trim() || sendingReply) return;
+    const hasPending = adminPendingFiles.length > 0;
+    if (!selectedTicketId || (!replyText.trim() && !hasPending) || sendingReply || adminUploading) return;
     setSendingReply(true);
+
+    let uploadedAttachments: MessageAttachment[] = [];
+    if (hasPending) {
+      setAdminUploading(true);
+      try {
+        const formData = new FormData();
+        adminPendingFiles.forEach((p) => {
+          formData.append('files', p.file, p.name);
+        });
+        const uploadRes = await fetch('/api/support/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        const uploadJson = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadJson.error || 'Ошибка загрузки файлов');
+        }
+        uploadedAttachments = uploadJson.files || [];
+      } catch (upErr: any) {
+        alert(upErr?.message || 'Ошибка загрузки файлов');
+        setSendingReply(false);
+        setAdminUploading(false);
+        return;
+      } finally {
+        setAdminUploading(false);
+      }
+    }
+
+    adminPendingFiles.forEach((p) => {
+      if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+    });
+    setAdminPendingFiles([]);
+
     try {
       const res = await fetch(`/api/support/_x/tickets/${selectedTicketId}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ text: replyText.trim() }),
+        body: JSON.stringify({
+          text: replyText.trim(),
+          attachments: uploadedAttachments,
+        }),
       });
       const json = await res.json();
       if (res.ok && json.message) {
@@ -850,6 +988,59 @@ export default function SupportWorkspacePage() {
                             )}
                           >
                             <p className="whitespace-pre-wrap">{m.text}</p>
+
+                            {/* Attachments rendering for operator view */}
+                            {m.attachments && Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                              <div className="mt-2.5 space-y-1.5">
+                                {m.attachments.map((att: any, idx: number) => {
+                                  const isImg =
+                                    att.type?.startsWith('image/') ||
+                                    /\.(png|jpe?g|webp)$/i.test(att.url || att.name);
+                                  if (isImg) {
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="relative group rounded-xl overflow-hidden border border-white/20 bg-black/50 max-w-[280px]"
+                                      >
+                                        <img
+                                          src={att.url}
+                                          alt={att.name || 'Чек игрока'}
+                                          className="w-full max-h-56 object-contain rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                                          onClick={() => setPreviewModalImage(att.url)}
+                                          loading="lazy"
+                                        />
+                                        <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-xs text-[9px] text-zinc-300 font-mono">
+                                          {formatFileSize(att.size)}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={att.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-colors group cursor-pointer max-w-[320px]"
+                                    >
+                                      <div className="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                                        <FileText size={16} />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-[12px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
+                                          {att.name || 'Чек / квитанция PDF'}
+                                        </p>
+                                        <p className="text-[10px] text-zinc-400">
+                                          PDF • {formatFileSize(att.size)}
+                                        </p>
+                                      </div>
+                                      <ExternalLink size={13} className="text-zinc-500 group-hover:text-white shrink-0 mr-1" />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+
                             {!isUser && (
                               <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-zinc-400">
                                 {m.isRead ? (
@@ -885,11 +1076,98 @@ export default function SupportWorkspacePage() {
 
                 {/* Admin Reply Input Bar */}
                 <div className="p-3 bg-[#0A0B0E] border-t border-white/10 shrink-0">
-                  <div className="flex items-end gap-2 bg-[#141720] border border-white/15 focus-within:border-emerald-500/50 rounded-2xl p-2 pl-3">
+                  {/* Hidden Native File Input */}
+                  <input
+                    ref={adminFileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.files || []);
+                      if (selected.length > 0) addAdminFiles(selected);
+                      if (adminFileInputRef.current) adminFileInputRef.current.value = '';
+                    }}
+                    className="hidden"
+                  />
+
+                  {/* Admin Pending Attachments Tray */}
+                  {adminPendingFiles.length > 0 && (
+                    <div className="mb-2 p-2 rounded-xl bg-[#141720] border border-white/10 space-y-1.5 shadow-md">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400 px-1">
+                        <span className="font-semibold text-zinc-300">
+                          Прикрепленные файлы ({adminPendingFiles.length}/5):
+                        </span>
+                        <span className="text-[9px] text-zinc-500">макс. 3 МБ</span>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+                        {adminPendingFiles.map((p) => (
+                          <div
+                            key={p.id}
+                            className="relative shrink-0 group rounded-xl overflow-hidden border border-white/15 bg-black/40 p-1 flex items-center gap-1.5"
+                          >
+                            {p.isImage ? (
+                              <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-black shrink-0">
+                                <img
+                                  src={p.previewUrl}
+                                  alt={p.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-11 h-11 rounded-lg bg-rose-500/15 border border-rose-500/20 flex flex-col items-center justify-center text-rose-400 shrink-0">
+                                <FileText size={16} />
+                                <span className="text-[7.5px] font-bold mt-0.5">PDF</span>
+                              </div>
+                            )}
+
+                            <div className="max-w-[100px] pr-5">
+                              <p className="text-[10px] font-medium text-white truncate">{p.name}</p>
+                              <p className="text-[9px] text-zinc-400">{formatFileSize(p.size)}</p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => removeAdminPendingFile(p.id)}
+                              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500/80 hover:bg-rose-500 text-white flex items-center justify-center cursor-pointer transition-colors shadow-sm"
+                              aria-label="Удалить файл"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+
+                        {adminPendingFiles.length < 5 && (
+                          <button
+                            type="button"
+                            onClick={() => adminFileInputRef.current?.click()}
+                            className="h-11 px-2.5 rounded-xl border border-dashed border-white/20 hover:border-emerald-400/50 hover:bg-white/[0.03] text-zinc-400 hover:text-emerald-400 flex items-center gap-1 text-[11px] font-medium transition-colors shrink-0 cursor-pointer"
+                          >
+                            <span className="text-sm font-bold">+</span>
+                            <span>Еще</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-end gap-2 bg-[#141720] border border-white/15 focus-within:border-emerald-500/50 rounded-2xl p-2 pl-2.5">
+                    {/* Paperclip Button for Admin */}
+                    <button
+                      type="button"
+                      onClick={() => adminFileInputRef.current?.click()}
+                      disabled={sendingReply || adminUploading || adminPendingFiles.length >= 5}
+                      className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.12] text-zinc-400 hover:text-emerald-400 flex items-center justify-center transition-colors shrink-0 disabled:opacity-40 cursor-pointer mb-0.5"
+                      title="Прикрепить файл или скриншот (PDF, PNG, JPG до 3 МБ)"
+                      aria-label="Прикрепить файл"
+                    >
+                      <Paperclip size={16} />
+                    </button>
+
                     <textarea
                       rows={2}
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
+                      onPaste={handleAdminPaste}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
@@ -902,10 +1180,10 @@ export default function SupportWorkspacePage() {
 
                     <button
                       onClick={handleSendReply}
-                      disabled={sendingReply || !replyText.trim()}
+                      disabled={sendingReply || adminUploading || (!replyText.trim() && adminPendingFiles.length === 0)}
                       className="h-9 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold text-xs flex items-center gap-1.5 hover:brightness-110 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shrink-0"
                     >
-                      {sendingReply ? (
+                      {sendingReply || adminUploading ? (
                         <RefreshCw size={14} className="animate-spin" />
                       ) : (
                         <>
@@ -1418,6 +1696,41 @@ export default function SupportWorkspacePage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Full-Screen Image Lightbox Modal for Admin ── */}
+      {previewModalImage && (
+        <div
+          onClick={() => setPreviewModalImage(null)}
+          className="fixed inset-0 z-[10000] bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-pointer"
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <a
+              href={previewModalImage}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+              title="Открыть в новом окне"
+            >
+              <ExternalLink size={18} />
+            </a>
+            <button
+              onClick={() => setPreviewModalImage(null)}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Закрыть"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <img
+            src={previewModalImage}
+            alt="Чек"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[88vh] max-w-[95vw] rounded-2xl object-contain shadow-2xl border border-white/20 cursor-default"
+          />
         </div>
       )}
     </div>
