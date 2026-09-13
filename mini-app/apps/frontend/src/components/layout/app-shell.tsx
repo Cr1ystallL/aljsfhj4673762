@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useT } from '@/i18n/use-t';
 import { SportsBetaNotice } from '@/components/sports/sports-beta-notice';
 import { ChevronRight, Menu } from 'lucide-react';
+import { SupportChatWidget } from '@/components/support/support-chat-widget';
 
 import { DesktopSidebar } from './desktop-sidebar';
 
@@ -83,6 +84,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onGameSelect={handleGameSelect}
           isAuthenticated={isAuthenticated}
         />
+
+        <SupportChatWidget />
       </div>
     </div>
   );

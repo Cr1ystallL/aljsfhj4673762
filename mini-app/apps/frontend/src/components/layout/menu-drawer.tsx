@@ -36,6 +36,7 @@ import { useBalanceStore } from '@/store/balance-store';
 import { useWinStreak } from '@/hooks/use-win-streak';
 import { useVip } from '@/hooks/use-vip';
 import { useT } from '@/i18n/use-t';
+import { useSupportStore } from '@/store/support-store';
 
 const RANK_IMAGES: Record<string, string> = {
   none: '/Rangs/no_rang.png',
@@ -385,7 +386,7 @@ export function MenuDrawer({
                   <button
                     onClick={() => {
                       onClose();
-                      router.push('/support');
+                      useSupportStore.getState().open();
                     }}
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-all text-left cursor-pointer"
                   >
