@@ -28,6 +28,8 @@ module.exports = {
       max_restarts: 20,
       restart_delay: 3000,   // 3s between restarts
       min_uptime: '10s',     // must stay up 10s to count as "started"
+      max_memory_restart: '1200M',
+      node_args: '--max-old-space-size=2048',
 
       // Environment
       env: {

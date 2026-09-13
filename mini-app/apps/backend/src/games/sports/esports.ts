@@ -9,7 +9,7 @@ const HLTV = 'https://hltv-api.vercel.app/api/matches.json';
 const LP_CS = 'https://liquipedia.net/counterstrike/api.php?action=parse&page=Liquipedia:Matches&prop=text&format=json';
 const LP_DOTA = 'https://liquipedia.net/dota2/api.php?action=parse&page=Liquipedia:Matches&prop=text&format=json';
 const LP_TTL_MS = 75_000;
-const LP_UA = 'MacvBetSports/1.0 (sports-line; https://macvbet.com)';
+const LP_UA = 'MacvBetBot/1.0 (https://t.me/MacvBetSupport; contact@macvbet.com)';
 
 interface OpenDotaLive {
   match_id?: number | string;
@@ -450,54 +450,104 @@ async function fetchDota(now: number, priorityEventIds?: Set<string>): Promise<F
   return liveEvents;
 }
 
+let hltvBlockedUntil = 0;
+let liquipediaBlockedUntil = 0;
+
 async function fetchHltv(now: number): Promise<FeedEvent[]> {
-  const res = await fetch(HLTV, {
-    headers: { accept: 'application/json', 'user-agent': LP_UA },
-  });
-  if (!res.ok) throw new Error(`HLTV HTTP ${res.status}`);
-  const rows = (await res.json()) as HltvMatch[];
-  const list = (Array.isArray(rows) ? rows : []).slice(0, 24);
-  return list.flatMap((m) => {
-    const t1 = m.team1?.name?.trim() || 'TBD';
-    const t2 = m.team2?.name?.trim() || 'TBD';
-    if (isPlaceholderSide(t1) || isPlaceholderSide(t2)) return [];
-    const start = m.date ? Date.parse(m.date) : now + 3_600_000;
-    if (!Number.isFinite(start) || start < now - 8 * 3600_000) return [];
-    if (start > now + 7 * 24 * 3600_000) return [];
-    const live = start <= now && now - start < 6 * 3600_000;
-    return [
-      cyberEvent({
-        id: `cs-${m.id ?? `${t1}-${t2}-${start}`}`,
-        league: m.event?.name || 'CS2',
-        team1: t1,
-        team2: t2,
-        logo1: hltvLogo(m.team1),
-        logo2: hltvLogo(m.team2),
-        startTime: start,
-        status: live ? 'live' : 'prematch',
-        liveTime: live ? 'LIVE' : undefined,
-        now,
-        extra: { scoreKind: 'maps', game: 'cs' },
-      }),
-    ];
-  });
+  if (now < hltvBlockedUntil) return [];
+  try {
+    const res = await fetch(HLTV, {
+      headers: { accept: 'application/json', 'user-agent': LP_UA },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      if (res.status === 403 || res.status === 404 || res.status === 429) {
+        hltvBlockedUntil = now + 15 * 60_000;
+        logger.info(`HLTV API returned ${res.status}, backing off for 15m`);
+      }
+      return [];
+    }
+    const rows = (await res.json()) as HltvMatch[];
+    const list = (Array.isArray(rows) ? rows : []).slice(0, 24);
+    return list.flatMap((m) => {
+      const t1 = m.team1?.name?.trim() || 'TBD';
+      const t2 = m.team2?.name?.trim() || 'TBD';
+      if (isPlaceholderSide(t1) || isPlaceholderSide(t2)) return [];
+      const start = m.date ? Date.parse(m.date) : now + 3_600_000;
+      if (!Number.isFinite(start) || start < now - 8 * 3600_000) return [];
+      if (start > now + 7 * 24 * 3600_000) return [];
+      const live = start <= now && now - start < 6 * 3600_000;
+      return [
+        cyberEvent({
+          id: `cs-${m.id ?? `${t1}-${t2}-${start}`}`,
+          league: m.event?.name || 'CS2',
+          team1: t1,
+          team2: t2,
+          logo1: hltvLogo(m.team1),
+          logo2: hltvLogo(m.team2),
+          startTime: start,
+          status: live ? 'live' : 'prematch',
+          liveTime: live ? 'LIVE' : undefined,
+          now,
+          extra: { scoreKind: 'maps', game: 'cs' },
+        }),
+      ];
+    });
+  } catch {
+    hltvBlockedUntil = now + 5 * 60_000;
+    return [];
+  }
 }
 
 async function fetchLiquipediaBoard(now: number, priorityEventIds?: Set<string>): Promise<FeedEvent[]> {
-  if (liquipediaCache && now - liquipediaCache.at < LP_TTL_MS && (!priorityEventIds?.size || priorityEventIds.size === 0)) {
+  if (now < liquipediaBlockedUntil) {
+    return liquipediaCache?.events ?? [];
+  }
+  const minFreshMs = priorityEventIds?.size ? 45_000 : LP_TTL_MS;
+  if (liquipediaCache && now - liquipediaCache.at < minFreshMs) {
     return liquipediaCache.events;
   }
-  const [cs, dota] = await Promise.allSettled([
-    fetchLiquipedia('counterstrike', 'CS2', now, priorityEventIds),
-    fetchLiquipedia('dota2', 'Dota 2', now, priorityEventIds),
-  ]);
+
   const events: FeedEvent[] = [];
-  if (cs.status === 'fulfilled') events.push(...cs.value);
-  else logger.warn({ err: cs.reason }, 'Liquipedia CS feed failed');
-  if (dota.status === 'fulfilled') events.push(...dota.value);
-  else logger.warn({ err: dota.reason }, 'Liquipedia Dota feed failed');
-  liquipediaCache = { at: now, events };
-  return events;
+
+  // Sequential fetching with delay to respect Liquipedia rate limit (max 1 req / 2 sec)
+  try {
+    const csEvents = await fetchLiquipedia('counterstrike', 'CS2', now, priorityEventIds);
+    events.push(...csEvents);
+  } catch (err: any) {
+    if (String(err?.message || '').includes('429')) {
+      liquipediaBlockedUntil = now + 120_000;
+      logger.warn('Liquipedia CS rate limit (429), backing off for 2 minutes');
+      return liquipediaCache?.events ?? [];
+    } else {
+      logger.warn({ err }, 'Liquipedia CS feed failed');
+      if (liquipediaCache?.events) {
+        events.push(...liquipediaCache.events.filter((e) => e.league?.includes('CS2') || e.id.includes('counterstrike')));
+      }
+    }
+  }
+
+  await new Promise((r) => setTimeout(r, 2200));
+
+  try {
+    const dotaEvents = await fetchLiquipedia('dota2', 'Dota 2', now, priorityEventIds);
+    events.push(...dotaEvents);
+  } catch (err: any) {
+    if (String(err?.message || '').includes('429')) {
+      liquipediaBlockedUntil = now + 120_000;
+      logger.warn('Liquipedia Dota rate limit (429), backing off for 2 minutes');
+    } else {
+      logger.warn({ err }, 'Liquipedia Dota feed failed');
+      if (liquipediaCache?.events) {
+        events.push(...liquipediaCache.events.filter((e) => e.league?.includes('Dota') || e.id.includes('dota2')));
+      }
+    }
+  }
+
+  if (events.length > 0) {
+    liquipediaCache = { at: now, events };
+  }
+  return liquipediaCache?.events ?? events;
 }
 
 async function fetchLiquipedia(
