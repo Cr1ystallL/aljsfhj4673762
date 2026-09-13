@@ -112,18 +112,18 @@ async function notifyAdminsAboutTicketMessage(params: {
     const claim = claimRaw ? (JSON.parse(claimRaw) as { adminName: string }) : null;
 
     const categoryLabels: Record<string, string> = {
-      deposit: '💳 Депозит / BLIK',
-      withdrawal: '⚡ Вывод средств',
-      bonus: '🎁 Бонусы и вейджер',
-      game: '🎰 Ошибка в игре',
-      general: '💬 Общие вопросы',
+      deposit: 'Депозит / BLIK',
+      withdrawal: 'Вывод средств',
+      bonus: 'Бонусы и вейджер',
+      game: 'Ошибка в игре',
+      general: 'Общие вопросы',
     };
     const catLabel = categoryLabels[params.category] || params.category;
     const tgUserStr = params.telegramId ? ` [<code>${params.telegramId}</code>]` : '';
     const usernameStr = params.username ? ` (@${params.username})` : '';
     const balStr =
       typeof params.balance === 'number'
-        ? `\n💰 <b>Баланс:</b> ${params.balance.toFixed(2)} zł`
+        ? `\n<b>Баланс:</b> ${params.balance.toFixed(2)} zł`
         : '';
     const snippet =
       params.text.length > 350 ? `${params.text.slice(0, 350)}...` : params.text;
@@ -133,21 +133,20 @@ async function notifyAdminsAboutTicketMessage(params: {
       ? params.attachments.map((a) => (a.type?.includes('pdf') || a.name?.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Фото/Чек')).join(', ')
       : '';
     const attachStr = attachCount > 0
-      ? `\n📎 <b>Прикреплено файлов:</b> ${attachCount} шт. (${attachTypes})`
+      ? `\n<b>Файлы:</b> ${attachCount} шт. (${attachTypes})`
       : '';
 
     const claimStatusStr = claim
-      ? `\n👨‍💻 <b>В работе:</b> ${escapeHtml(claim.adminName)}`
+      ? `\n<b>В работе:</b> ${escapeHtml(claim.adminName)}`
       : '';
 
     const messageText =
-      `🆘 <b>НОВОЕ ОБРАЩЕНИЕ В ПОДДЕРЖКУ!</b>\n\n` +
-      `👤 <b>Игрок:</b> <b>${escapeHtml(params.userName)}</b>${usernameStr}${tgUserStr}${balStr}\n` +
-      `📂 <b>Тема:</b> ${catLabel}\n` +
-      `💬 <b>Сообщение:</b>\n<i>«${escapeHtml(snippet)}»</i>\n` +
+      `<b>Поддержка</b> | <code>#${params.ticketId.slice(0, 8)}</code>\n\n` +
+      `<b>Игрок:</b> <b>${escapeHtml(params.userName)}</b>${usernameStr}${tgUserStr}${balStr}\n` +
+      `<b>Тема:</b> ${catLabel}` +
       `${attachStr}` +
-      `${claimStatusStr}\n` +
-      `🎫 <b>ID:</b> <code>#${params.ticketId.slice(0, 8)}</code>`;
+      `${claimStatusStr}\n\n` +
+      `<blockquote>${escapeHtml(snippet)}</blockquote>`;
 
     const miniAppUrl = process.env.MINI_APP_URL || 'https://macvbet.nl';
     const claimBtnText = claim ? `✅ Забрал(а): ${claim.adminName}` : '📥 Забрать';
@@ -1027,14 +1026,14 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
           await telegramApi.sendMessageWithMarkup(
             userTelegramId,
             `👨‍💻 <b>Служба поддержки ответила на ваше обращение:</b>\n\n` +
-              `<i>«${escapeHtml(cleanSnippet)}»</i>${attachSnippet}\n\n` +
+              `<blockquote>${escapeHtml(cleanSnippet)}</blockquote>${attachSnippet}\n\n` +
               `Нажмите кнопку ниже, чтобы перейти в диалог.`,
             {
               inline_keyboard: [
                 [
                   {
                     text: '💬 Открыть чат поддержки',
-                    web_app: { url: `${miniAppUrl}/support` },
+                    web_app: { url: `${miniAppUrl}/?support=true` },
                   },
                 ],
               ],

@@ -91,6 +91,16 @@ export function SupportChatWidget() {
   const [activeCategory, setActiveCategory] = useState('general');
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-open if ?support=true is in the URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('support') === 'true') {
+        open();
+      }
+    }
+  }, [pathname, open]);
+
   const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
@@ -417,10 +427,9 @@ export function SupportChatWidget() {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Hide widget completely on admin console or standalone support page
+  // Hide widget completely on admin console
   const isConsole = pathname.startsWith('/system/console');
-  const isStandaloneSupport = pathname === '/support';
-  if (isConsole || isStandaloneSupport) return null;
+  if (isConsole) return null;
 
   return (
     <>
@@ -549,6 +558,23 @@ export function SupportChatWidget() {
               </div>
             </div>
 
+            {/* ── Pinned Security & Verified Session Strip ── */}
+            {token && (
+              <div className="px-4 py-2 bg-[#10131E] border-b border-white/5 flex items-center justify-between text-[11px] text-zinc-400 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ShieldCheck size={13} className="text-amber-400 shrink-0" />
+                  <span className="truncate text-zinc-300">
+                    Верифицированная сессия • Оператор видит баланс
+                  </span>
+                </div>
+                {ticket?.id && (
+                  <span className="text-[9.5px] text-zinc-500 font-mono shrink-0 ml-2">
+                    #{ticket.id.slice(0, 8).toUpperCase()}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* ── Widget Message Stream (Explicit solid background) ── */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain bg-[#0B0D14]">
               {!token ? (
@@ -578,22 +604,6 @@ export function SupportChatWidget() {
                 </div>
               ) : (
                 <>
-                  {/* System greeting card */}
-                  <div className="p-3.5 rounded-2xl bg-[#121522] border border-white/10 text-xs shadow-sm">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-amber-400 flex items-center gap-1 text-[11px]">
-                        <ShieldCheck size={14} />
-                        Верифицированная сессия
-                      </span>
-                      <span className="text-[9px] text-zinc-500 font-mono">
-                        #{ticket?.id ? ticket.id.slice(0, 8).toUpperCase() : 'AUTH'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">
-                      Оператор видит данные вашего аккаунта и баланс. Напишите ваш вопрос ниже — дежурный специалист ответит в ближайшее время.
-                    </p>
-                  </div>
-
                   {/* Quick Topics if conversation is just beginning */}
                   {messages.length <= 2 && (
                     <div className="space-y-1.5 pt-1">

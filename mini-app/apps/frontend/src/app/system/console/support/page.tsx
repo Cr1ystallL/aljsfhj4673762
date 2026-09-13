@@ -722,6 +722,7 @@ export default function SupportWorkspacePage() {
                 tickets.map((t) => {
                   const isSelected = t.id === selectedTicketId;
                   const hasUnread = t.unreadAdminCount > 0;
+                  const isClosed = t.status === 'resolved' || t.status === 'closed';
 
                   return (
                     <button
@@ -733,6 +734,8 @@ export default function SupportWorkspacePage() {
                           ? 'bg-emerald-500/[0.07] border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.1)] ring-1 ring-emerald-500/20'
                           : hasUnread
                           ? 'bg-white/[0.05] border-amber-400/30 hover:border-amber-400/50'
+                          : isClosed
+                          ? 'bg-white/[0.01] border-white/5 opacity-65 hover:opacity-100 hover:bg-white/[0.03]'
                           : 'bg-white/[0.02] border-white/10 hover:border-white/20 hover:bg-white/[0.04]'
                       )}
                     >
@@ -743,7 +746,10 @@ export default function SupportWorkspacePage() {
                             <img
                               src={t.user.photoUrl}
                               alt=""
-                              className="w-8 h-8 rounded-xl object-cover border border-white/10 shrink-0"
+                              className={cn(
+                                'w-8 h-8 rounded-xl object-cover border border-white/10 shrink-0',
+                                isClosed && 'grayscale-[40%]'
+                              )}
                             />
                           ) : (
                             <div className="w-8 h-8 rounded-xl bg-white/[0.08] border border-white/10 flex items-center justify-center text-zinc-300 text-xs font-bold shrink-0">
@@ -751,9 +757,30 @@ export default function SupportWorkspacePage() {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-white truncate block">
-                              {t.user.firstName || t.user.username || `ID ${t.user.telegramId}`}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-white truncate">
+                                {t.user.firstName || t.user.username || `ID ${t.user.telegramId}`}
+                              </span>
+
+                              {/* Ticket status badge */}
+                              {t.status === 'resolved' ? (
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0 flex items-center gap-0.5">
+                                  ✓ Решён
+                                </span>
+                              ) : t.status === 'closed' ? (
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-zinc-800 text-zinc-400 border border-zinc-700/60 shrink-0 flex items-center gap-0.5">
+                                  🔒 Закрыт
+                                </span>
+                              ) : t.status === 'pending' ? (
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0 flex items-center gap-0.5">
+                                  ⏳ Ожидает
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30 shrink-0 flex items-center gap-0.5">
+                                  Открыт
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-zinc-400 truncate block">
                               @{t.user.username || 'нет юзернейма'} • ID: {t.user.telegramId}
                             </span>
@@ -833,7 +860,7 @@ export default function SupportWorkspacePage() {
                       </div>
                     )}
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-white">
                           {selectedTicket.user.firstName || 'Игрок'}
                         </span>
@@ -843,6 +870,23 @@ export default function SupportWorkspacePage() {
                         <span className="text-xs font-mono text-zinc-500">
                           [{selectedTicket.user.telegramId}]
                         </span>
+                        {selectedTicket.status === 'resolved' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            ✓ Решён
+                          </span>
+                        ) : selectedTicket.status === 'closed' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 text-zinc-400 border border-zinc-700/60">
+                            🔒 Закрыт
+                          </span>
+                        ) : selectedTicket.status === 'pending' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            ⏳ Ожидает
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                            Открыт
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-[11px] text-zinc-400 mt-0.5">
                         <span>Баланс: <strong className="text-white">{user?.balance?.toFixed(2) ?? selectedTicket.user.balance.toFixed(2)} zł</strong></span>
