@@ -28,7 +28,6 @@ import {
   Shield,
   Sliders,
   Sparkles,
-  Target,
   Users,
   Wallet,
   Database,
@@ -82,12 +81,6 @@ const links: AdminLink[] = [
     href: '/system/console/support',
   },
   { id: 'users', label: 'Игроки', Icon: Users, href: '/system/console/users' },
-  {
-    id: 'rtp',
-    label: 'RTP Движок',
-    Icon: Target,
-    href: '/system/console/rtp',
-  },
   { id: 'games', label: 'Игры', Icon: Gamepad2, href: '/system/console/games' },
   { id: 'sports', label: 'Спорт', Icon: Trophy, href: '/system/console/sports' },
   {
