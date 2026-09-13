@@ -23,7 +23,7 @@ import { notifySportsUser, sportsGoalText, sportsGoalCancelledText, sportsSettle
 import { telegramApi } from '../../lib/telegram-api.js';
 import { redisClient } from '../../lib/redis.js';
 import { freebetService } from '../../services/freebet-service.js';
-import { fetchOpenDotaMatchResult } from './esports.js';
+import { fetchOpenDotaMatchResult, fetchLiquipediaMatchResult } from './esports.js';
 
 export class SportsOddsChangedError extends Error {
   readonly code = 'ODDS_CHANGED';
@@ -152,6 +152,8 @@ interface TrackedBet {
   bet: Bet;
   legs: TrackedLeg[];
   combinedOdds: number;
+  settling?: boolean;
+  settled?: boolean;
 }
 
 const SYNC_MS = 20_000;
@@ -488,10 +490,14 @@ class SportsEngine {
       try {
         await bettingPipeline.rollbackBet(tracked.bet, false);
         this.unindexBet(betId);
-        void notifySportsUser(
-          tracked.bet.userId,
-          sportsSettleText(String((tracked.bet.metadata as Record<string, unknown>)?.eventName ?? ''), tracked.legs.length >= 2 ? 'express' : 'single', 'void', tracked.bet.amount)
-        );
+        const notifyKey = `sports:notified:settle:${betId}`;
+        const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX').catch(() => '1');
+        if (canNotify) {
+          void notifySportsUser(
+            tracked.bet.userId,
+            sportsSettleText(String((tracked.bet.metadata as Record<string, unknown>)?.eventName ?? ''), tracked.legs.length >= 2 ? 'express' : 'single', 'void', tracked.bet.amount)
+          );
+        }
       } catch (err) {
         logger.error({ err, betId }, 'Sports void failed');
       }
@@ -679,9 +685,9 @@ class SportsEngine {
         if (!existing) {
           fixtureMap.set(key, feed);
         } else {
-          // If duplicate feed item arrives, pick the one with live status or higher score
+          // If duplicate feed item arrives, pick the one with live status or finished result with score
           const rank = (ev: FeedEvent) =>
-            (ev.status === 'live' ? 10 : ev.status === 'prematch' ? 5 : 1) +
+            (ev.status === 'live' ? 10 : ev.status === 'finished' ? 8 : 5) +
             ((ev.team1.score ?? 0) + (ev.team2.score ?? 0) > 0 ? 3 : 0);
           if (rank(feed) > rank(existing)) {
             fixtureMap.set(key, feed);
@@ -796,14 +802,32 @@ class SportsEngine {
             } catch {}
           }
 
-          if ((!ev || ev.feed.status !== 'finished') && leg.eventId.startsWith('dota-')) {
-            const finishedEv = await fetchOpenDotaMatchResult(leg.eventId);
-            if (finishedEv) {
-              ev = {
-                feed: finishedEv,
-                prevOdds: finishedEv.odds,
-              };
-              this.events.set(leg.eventId, ev);
+          if (!ev || ev.feed.status !== 'finished') {
+            if (leg.eventId.startsWith('dota-')) {
+              const finishedEv = await fetchOpenDotaMatchResult(leg.eventId);
+              if (finishedEv) {
+                ev = {
+                  feed: finishedEv,
+                  prevOdds: finishedEv.odds,
+                };
+                this.events.set(leg.eventId, ev);
+              }
+            } else if (leg.eventId.startsWith('lp-') || leg.eventId.startsWith('cs-')) {
+              const meta = (tracked.bet.metadata || {}) as Record<string, any>;
+              const rawLegs = Array.isArray(meta.legs) ? meta.legs : [];
+              const storedLeg = rawLegs.find((l: any) => l.eventId === leg.eventId);
+              const eventName = storedLeg?.eventName || meta.eventName || '';
+              const parts = eventName.split('—').map((s: string) => s.trim());
+              const t1 = parts[0];
+              const t2 = parts[1];
+              const finishedEv = await fetchLiquipediaMatchResult(leg.eventId, t1, t2, storedLeg?.startTime);
+              if (finishedEv && finishedEv.status === 'finished') {
+                ev = {
+                  feed: finishedEv,
+                  prevOdds: finishedEv.odds,
+                };
+                this.events.set(leg.eventId, ev);
+              }
             }
           }
 
@@ -898,7 +922,7 @@ class SportsEngine {
 
     for (const betId of betIds) {
       const tracked = this.bets.get(betId);
-      if (!tracked) continue;
+      if (!tracked || tracked.settling || tracked.settled) continue;
       const leg = tracked.legs.find((l) => l.eventId === feed.id && l.result === 'pending');
       if (!leg) continue;
 
@@ -946,86 +970,102 @@ class SportsEngine {
   }
 
   private async finishTracked(tracked: TrackedBet, betId: string, lastResult: SettleResult): Promise<void> {
-    const limits = await sportsLimits();
-    const meta = (tracked.bet.metadata || {}) as Record<string, any>;
-    const name = String(meta.eventName ?? '');
-    const type = tracked.legs.length >= 2 ? 'express' : 'single';
-    const freebetId = meta.freebetId as string | undefined;
-    const freebetPayoutType = meta.freebetPayoutType as string | undefined;
-    const freebetAmount = Number(meta.freebetAmount || tracked.bet.amount);
+    if (tracked.settling || tracked.settled) return;
+    tracked.settling = true;
+    try {
+      const limits = await sportsLimits();
+      const meta = (tracked.bet.metadata || {}) as Record<string, any>;
+      const name = String(meta.eventName ?? '');
+      const type = tracked.legs.length >= 2 ? 'express' : 'single';
+      const freebetId = meta.freebetId as string | undefined;
+      const freebetPayoutType = meta.freebetPayoutType as string | undefined;
+      const freebetAmount = Number(meta.freebetAmount || tracked.bet.amount);
 
-    // Persist updated leg results to DB so server restarts don't revert progress
-    const rawLegs = Array.isArray(meta.legs) ? meta.legs : [];
-    const updatedRawLegs = rawLegs.map((l: any) => {
-      const found = tracked.legs.find(
-        (tl) => tl.eventId === l.eventId && tl.marketKind === l.marketKind && tl.outcomeKey === l.outcomeKey
-      );
-      return found ? { ...l, result: found.result } : l;
-    });
-    tracked.bet.metadata = { ...meta, legs: updatedRawLegs };
-    await prisma.bet
-      .update({
-        where: { id: betId },
-        data: { metadata: tracked.bet.metadata as any },
-      })
-      .catch((err) => logger.warn({ err, betId }, 'Failed to persist leg result'));
+      const sendNotification = async (text: string) => {
+        try {
+          const notifyKey = `sports:notified:settle:${betId}`;
+          const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX');
+          if (canNotify) {
+            void notifySportsUser(tracked.bet.userId, text);
+          }
+        } catch (err) {
+          logger.warn({ err, betId }, 'Sports settle notify lock failed');
+        }
+      };
 
-    if (lastResult === 'lost') {
-      tracked.bet.multiplier = 0;
-      tracked.bet.payout = 0;
-      if (freebetId) {
-        await freebetService.settleFreebet(freebetId, betId, 'lost');
-      }
-      await bettingPipeline.processLoss(tracked.bet, false);
-      this.unindexBet(betId);
-      this.pushActivity('settle', `Проигрыш · ${name}`, tracked.legs[0]?.eventId);
-      void notifySportsUser(
-        tracked.bet.userId,
-        sportsSettleText(name, type, 'lost', 0, undefined, freebetAmount)
-      );
-      return;
-    }
-    if (tracked.legs.every((l) => l.result === 'won' || l.result === 'void')) {
-      const allVoid = tracked.legs.every((l) => l.result === 'void');
-      if (allVoid) {
-        tracked.bet.multiplier = 1.0;
-        tracked.bet.payout = tracked.bet.amount;
+      // Persist updated leg results to DB so server restarts don't revert progress
+      const rawLegs = Array.isArray(meta.legs) ? meta.legs : [];
+      const updatedRawLegs = rawLegs.map((l: any) => {
+        const found = tracked.legs.find(
+          (tl) => tl.eventId === l.eventId && tl.marketKind === l.marketKind && tl.outcomeKey === l.outcomeKey
+        );
+        return found ? { ...l, result: found.result } : l;
+      });
+      tracked.bet.metadata = { ...meta, legs: updatedRawLegs };
+      await prisma.bet
+        .update({
+          where: { id: betId },
+          data: { metadata: tracked.bet.metadata as any },
+        })
+        .catch((err) => logger.warn({ err, betId }, 'Failed to persist leg result'));
+
+      if (lastResult === 'lost') {
+        tracked.bet.multiplier = 0;
+        tracked.bet.payout = 0;
         if (freebetId) {
           await freebetService.settleFreebet(freebetId, betId, 'lost');
-        } else {
-          await bettingPipeline.rollbackBet(tracked.bet, false);
         }
+        await bettingPipeline.processLoss(tracked.bet, false);
         this.unindexBet(betId);
-        this.pushActivity('settle', `Возврат ставки · ${name}`, tracked.legs[0]?.eventId);
-        void notifySportsUser(
-          tracked.bet.userId,
-          sportsSettleText(name, type, 'void', tracked.bet.amount, 1.0, freebetAmount)
+        this.pushActivity('settle', `Проигрыш · ${name}`, tracked.legs[0]?.eventId);
+        void sendNotification(
+          sportsSettleText(name, type, 'lost', 0, undefined, freebetAmount)
         );
         return;
       }
+      if (tracked.legs.every((l) => l.result === 'won' || l.result === 'void')) {
+        const allVoid = tracked.legs.every((l) => l.result === 'void');
+        if (allVoid) {
+          tracked.bet.multiplier = 1.0;
+          tracked.bet.payout = tracked.bet.amount;
+          if (freebetId) {
+            await freebetService.settleFreebet(freebetId, betId, 'lost');
+          } else {
+            await bettingPipeline.rollbackBet(tracked.bet, false);
+          }
+          this.unindexBet(betId);
+          this.pushActivity('settle', `Возврат ставки · ${name}`, tracked.legs[0]?.eventId);
+          void sendNotification(
+            sportsSettleText(name, type, 'void', tracked.bet.amount, 1.0, freebetAmount)
+          );
+          return;
+        }
 
-      const multiplier = formatCombined(
-        tracked.legs.reduce((acc, l) => acc * (l.result === 'void' ? 1 : l.odds), 1)
-      );
-      let payout = 0;
-      if (freebetId) {
-        const isNet = freebetPayoutType === 'net_win';
-        const winMult = isNet ? Math.max(0, multiplier - 1) : multiplier;
-        payout = Math.min(limits.maxPayout, roundMoney(freebetAmount * winMult));
-        await freebetService.settleFreebet(freebetId, betId, 'won');
-      } else {
-        payout = Math.min(limits.maxPayout, roundMoney(tracked.bet.amount * multiplier));
+        const multiplier = formatCombined(
+          tracked.legs.reduce((acc, l) => acc * (l.result === 'void' ? 1 : l.odds), 1)
+        );
+        let payout = 0;
+        if (freebetId) {
+          const isNet = freebetPayoutType === 'net_win';
+          const winMult = isNet ? Math.max(0, multiplier - 1) : multiplier;
+          payout = Math.min(limits.maxPayout, roundMoney(freebetAmount * winMult));
+          await freebetService.settleFreebet(freebetId, betId, 'won');
+        } else {
+          payout = Math.min(limits.maxPayout, roundMoney(tracked.bet.amount * multiplier));
+        }
+
+        tracked.bet.multiplier = multiplier;
+        tracked.bet.payout = payout;
+        await bettingPipeline.processPayout(tracked.bet, payout, false);
+        this.unindexBet(betId);
+        this.pushActivity('settle', `Выигрыш ${payout.toFixed(2)} zł · ${name}`, tracked.legs[0]?.eventId);
+        void sendNotification(
+          sportsSettleText(name, type, 'won', payout, multiplier, freebetAmount)
+        );
       }
-
-      tracked.bet.multiplier = multiplier;
-      tracked.bet.payout = payout;
-      await bettingPipeline.processPayout(tracked.bet, payout, false);
-      this.unindexBet(betId);
-      this.pushActivity('settle', `Выигрыш ${payout.toFixed(2)} zł · ${name}`, tracked.legs[0]?.eventId);
-      void notifySportsUser(
-        tracked.bet.userId,
-        sportsSettleText(name, type, 'won', payout, multiplier, freebetAmount)
-      );
+    } finally {
+      tracked.settling = false;
+      tracked.settled = true;
     }
   }
 

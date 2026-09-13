@@ -11,6 +11,7 @@ import { MARKET_KINDS, type BetLegSpec, type MarketKind } from './markets.js';
 import { sportsLimits } from './limits.js';
 import { sportsLogoRoutes } from './logo-route.js';
 import { freebetService } from '../../services/freebet-service.js';
+import { redisClient } from '../../lib/redis.js';
 
 const LEGACY_OUTCOMES = new Set(['p1', 'x', 'p2']);
 
@@ -140,6 +141,17 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: message });
     }
 
+    const userLockKey = `lock:sports:user_bet:${user.userId}`;
+    let lockAcquired = false;
+    try {
+      lockAcquired = !!(await redisClient.getClient().set(userLockKey, '1', 'PX', 2000, 'NX'));
+    } catch {
+      lockAcquired = true; // Redis fallback
+    }
+    if (!lockAcquired) {
+      return reply.code(429).send({ error: 'Ставка уже обрабатывается, подождите...' });
+    }
+
     try {
       const receipt = await sportsEngine.placeBet(user.userId, stake, legs, {
         quotedOdds: Array.isArray(request.body?.quotedOdds) ? request.body.quotedOdds : undefined,
@@ -159,6 +171,8 @@ export async function sportsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({
         error: message === 'Insufficient balance' ? 'Недостаточно средств' : message,
       });
+    } finally {
+      await redisClient.getClient().del(userLockKey).catch(() => {});
     }
   });
 }

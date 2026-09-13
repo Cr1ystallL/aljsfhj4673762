@@ -335,10 +335,17 @@ function mergeEsports(winner: FeedEvent, loser: FeedEvent): FeedEvent {
   // Retain the best non-empty team scores
   const s1 = winner.team1.score != null && winner.team1.score > 0 ? winner.team1.score : loser.team1.score;
   const s2 = winner.team2.score != null && winner.team2.score > 0 ? winner.team2.score : loser.team2.score;
+  const status =
+    winner.status === 'finished' || loser.status === 'finished'
+      ? 'finished'
+      : winner.status === 'live' || loser.status === 'live'
+      ? 'live'
+      : 'prematch';
   return {
     ...winner,
-    team1: { ...winner.team1, score: winner.status === 'prematch' ? undefined : s1, logo: winner.team1.logo || loser.team1.logo },
-    team2: { ...winner.team2, score: winner.status === 'prematch' ? undefined : s2, logo: winner.team2.logo || loser.team2.logo },
+    status,
+    team1: { ...winner.team1, score: status === 'prematch' ? undefined : s1, logo: winner.team1.logo || loser.team1.logo },
+    team2: { ...winner.team2, score: status === 'prematch' ? undefined : s2, logo: winner.team2.logo || loser.team2.logo },
     streamUrl: winner.streamUrl || loser.streamUrl,
     extra,
   };
@@ -346,7 +353,7 @@ function mergeEsports(winner: FeedEvent, loser: FeedEvent): FeedEvent {
 
 function dedupeEsports(events: FeedEvent[], priorityEventIds?: Set<string>): FeedEvent[] {
   const rank = (ev: FeedEvent) => {
-    let score = ev.status === 'live' ? 10 : ev.status === 'prematch' ? 5 : 1;
+    let score = ev.status === 'live' ? 10 : ev.status === 'finished' ? 8 : 5;
     if ((ev.team1.score ?? 0) > 0 || (ev.team2.score ?? 0) > 0) score += 3;
     if (ev.extra?.maps1 != null || ev.extra?.maps2 != null) score += 2;
     if (ev.extra?.kills1 != null || ev.extra?.kills2 != null) score += 2;
@@ -614,14 +621,21 @@ function parseLiquipediaBlock(
     decodeHtml(block.match(/match-info-tournament-name[\s\S]*?<span>([^<]+)</)?.[1] ?? '') ||
     decodeHtml(block.match(/match-info-tournament-name[\s\S]*?title="([^"]+)"/)?.[1] ?? '') ||
     label;
-  const slug = `${wiki}-${team1}-${team2}-${startTime}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const norm1 = cyrillicToLatin(team1);
+  const norm2 = cyrillicToLatin(team2);
+  const slug = `${wiki}-${norm1}-${norm2}-${startTime}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const legacySlug = `${wiki}-${team1}-${team2}-${startTime}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const eventId = `lp-${slug}`.slice(0, 80);
+  const legacyEventId = `lp-${legacySlug}`.slice(0, 80);
 
-  const isPriority = priorityEventIds?.has(eventId);
+  const isPriority = priorityEventIds?.has(eventId) || priorityEventIds?.has(legacyEventId);
   if (status === 'finished' && now - startTime > 24 * 3600_000 && !isPriority) return null;
 
+  // If a priority bet was tracked using the legacy slug, preserve that exact ID so tracking succeeds
+  const assignedId = priorityEventIds?.has(legacyEventId) && !priorityEventIds?.has(eventId) ? legacyEventId : eventId;
+
   return cyberEvent({
-    id: `lp-${slug}`.slice(0, 80),
+    id: assignedId,
     league: `${label} · ${tour}`,
     team1,
     team2,
@@ -643,11 +657,21 @@ function parseLiquipediaBlock(
   });
 }
 
+function cyrillicToLatin(str: string): string {
+  const ru: Record<string, string> = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh',
+    з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o',
+    п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+    ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya'
+  };
+  return str.split('').map((char) => ru[char.toLowerCase()] ?? char).join('');
+}
+
 function uniqueTitles(titles: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of titles) {
-    const name = raw.replace(/\/.+$/, '').trim();
+    const name = raw.replace(/\/.+$/, '').replace(/\s*\([^)]*\)$/, '').trim();
     if (!name || seen.has(name.toLowerCase())) continue;
     if (/^special:/i.test(name)) continue;
     if (/^(file:|blast|esl|iem|pgl|dreamhack)/i.test(name) && name.includes('/')) continue;
@@ -666,4 +690,52 @@ function decodeHtml(value: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .trim();
+}
+
+export async function fetchLiquipediaMatchResult(
+  eventId: string,
+  team1?: string,
+  team2?: string,
+  startTime?: number
+): Promise<FeedEvent | null> {
+  try {
+    const isCs = eventId.startsWith('cs-') || eventId.includes('counterstrike');
+    const wiki = isCs ? 'counterstrike' : 'dota2';
+    const label = isCs ? 'CS2' : 'Dota 2';
+    const events = await fetchLiquipedia(wiki, label, Date.now(), new Set([eventId]));
+
+    // 1. Direct ID match
+    const direct = events.find((e) => e.id === eventId);
+    if (direct && direct.status === 'finished') return direct;
+
+    // 2. Team name + time window match
+    if (team1 && team2) {
+      const norm = (s: string) =>
+        s
+          .toLowerCase()
+          .replace(/[^a-z0-9а-яё]+/g, '')
+          .replace(/^(team|esports|gaming|clan|club|org|fc|fk)/, '')
+          .replace(/(team|esports|gaming|clan|club|org|fc|fk)$/, '');
+      const t1Norm = norm(team1);
+      const t2Norm = norm(team2);
+
+      const matched = events.find((e) => {
+        const e1 = norm(e.team1.name);
+        const e2 = norm(e.team2.name);
+        const matchTeams = (e1 === t1Norm && e2 === t2Norm) || (e1 === t2Norm && e2 === t1Norm);
+        if (!matchTeams) return false;
+        if (startTime) {
+          const diffHours = Math.abs(e.startTime - startTime) / 3600_000;
+          return diffHours < 18;
+        }
+        return true;
+      });
+      if (matched && matched.status === 'finished') return matched;
+    }
+
+    return direct || null;
+  } catch (err) {
+    logger.warn({ err, eventId }, 'Failed to fetch Liquipedia match result');
+    return null;
+  }
 }
