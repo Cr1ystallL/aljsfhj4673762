@@ -13,6 +13,7 @@ import {
   RefreshCw,
   AlertCircle,
   Minimize2,
+  LogIn,
 } from 'lucide-react';
 import { useSupportStore } from '@/store/support-store';
 import { useAuthStore } from '@/store/auth-store';
@@ -138,6 +139,7 @@ export function SupportChatWidget() {
 
   // Interval polling
   useEffect(() => {
+    if (!token) return;
     const interval = setInterval(() => {
       if (isOpen) {
         loadConversation(true);
@@ -146,7 +148,7 @@ export function SupportChatWidget() {
       }
     }, isOpen ? 3500 : 15000);
     return () => clearInterval(interval);
-  }, [isOpen, loadConversation, checkUnreadCount]);
+  }, [isOpen, token, loadConversation, checkUnreadCount]);
 
   // Scroll to bottom on message updates
   useEffect(() => {
@@ -258,7 +260,7 @@ export function SupportChatWidget() {
               triggerHaptic('medium');
               open();
             }}
-            className="fixed bottom-24 lg:bottom-6 right-3 lg:right-6 z-40 p-3 rounded-2xl bg-[#0E1015]/95 border border-amber-400/30 hover:border-amber-400/60 backdrop-blur-2xl shadow-[0_4px_24px_rgba(0,0,0,0.6)] flex items-center gap-2 cursor-pointer transition-colors group"
+            className="fixed bottom-24 lg:bottom-6 right-3 lg:right-6 z-[9990] p-3 rounded-2xl bg-[#0E1015] border border-amber-400/40 hover:border-amber-400/80 shadow-[0_4px_24px_rgba(0,0,0,0.85)] flex items-center gap-2 cursor-pointer transition-colors group"
             aria-label="Открыть поддержку"
           >
             <div className="relative">
@@ -280,15 +282,16 @@ export function SupportChatWidget() {
         )}
       </AnimatePresence>
 
-      {/* ── Backdrop for mobile ── */}
+      {/* ── Backdrop for mobile (Solid deep dimming to prevent see-through) ── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            key="support-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => close()}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[9998] bg-black/85 backdrop-blur-sm lg:hidden"
           />
         )}
       </AnimatePresence>
@@ -301,34 +304,42 @@ export function SupportChatWidget() {
             initial={{ y: '100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             className={cn(
-              'fixed z-50 bg-[#0A0B0E]/98 border border-white/15 backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden',
-              // Mobile: Bottom Sheet
-              'inset-x-0 bottom-0 h-[88dvh] max-h-[88dvh] rounded-t-3xl',
-              // Desktop: Floating Window
-              'lg:inset-auto lg:bottom-6 lg:right-6 lg:w-[410px] lg:h-[630px] lg:max-h-[85vh] lg:rounded-3xl'
+              'fixed z-[9999] flex flex-col overflow-hidden',
+              // Solid dark opaque foundation that never becomes transparent in Telegram WebViews:
+              'bg-[#0B0D14] border border-white/15 shadow-[0_-16px_50px_rgba(0,0,0,0.95)]',
+              // Mobile Bottom Sheet: full width, 88dvh height, rounded top, border-t specular
+              'inset-x-0 bottom-0 h-[88dvh] max-h-[92dvh] rounded-t-[28px] border-x-0 border-b-0 border-t border-white/20',
+              // Desktop Floating Window:
+              'lg:inset-auto lg:bottom-6 lg:right-6 lg:w-[420px] lg:h-[640px] lg:max-h-[85vh] lg:rounded-3xl lg:border lg:border-white/15'
             )}
           >
+            {/* Top specular glossy reflection line */}
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent pointer-events-none z-20" />
+
             {/* Mobile Drag Indicator Handle */}
-            <div className="lg:hidden w-full pt-2 pb-1 flex justify-center cursor-pointer" onClick={() => close()}>
-              <div className="w-10 h-1 rounded-full bg-white/25" />
+            <div
+              className="lg:hidden w-full pt-2.5 pb-1 flex justify-center cursor-pointer bg-[#121522] active:opacity-70 transition-opacity shrink-0"
+              onClick={() => close()}
+            >
+              <div className="w-12 h-1.5 rounded-full bg-white/30" />
             </div>
 
             {/* ── Widget Header ── */}
-            <div className="px-4 py-3 bg-[#0E1015] border-b border-white/10 flex items-center justify-between shrink-0">
+            <div className="px-4 py-3 bg-gradient-to-r from-[#161928] via-[#121522] to-[#161928] border-b border-white/10 flex items-center justify-between shrink-0 relative z-10">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
                   <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center">
                     <Headphones size={16} className="text-amber-400" />
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0E1015]" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#121522]" />
                 </div>
 
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-white tracking-tight">Поддержка MACVBET</span>
-                    <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                       LIVE
                     </span>
                   </div>
@@ -346,7 +357,7 @@ export function SupportChatWidget() {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => triggerHaptic('light')}
-                  className="px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-[10px] text-zinc-300 flex items-center gap-1 transition-all"
+                  className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-[10px] text-zinc-300 flex items-center gap-1 transition-all"
                   title="Открыть диалог в Telegram"
                 >
                   <span>В Telegram</span>
@@ -358,7 +369,7 @@ export function SupportChatWidget() {
                     triggerHaptic('light');
                     close();
                   }}
-                  className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
                   aria-label="Свернуть поддержку"
                 >
                   <Minimize2 size={15} className="hidden lg:block" />
@@ -367,28 +378,48 @@ export function SupportChatWidget() {
               </div>
             </div>
 
-            {/* ── Widget Message Stream ── */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain">
-              {loading ? (
-                <div className="h-full flex flex-col items-center justify-center gap-2 text-zinc-500 text-xs">
-                  <RefreshCw size={20} className="animate-spin text-amber-400" />
+            {/* ── Widget Message Stream (Explicit solid background) ── */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain bg-[#0B0D14]">
+              {!token ? (
+                /* Unauthorized state */
+                <div className="h-full flex flex-col items-center justify-center p-6 text-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                    <Headphones size={24} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white">Персональная поддержка 24/7</h4>
+                  <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">
+                    Для просмотра истории обращений войдите в аккаунт, либо свяжитесь с нашим оператором напрямую в Telegram:
+                  </p>
+                  <a
+                    href="https://t.me/MacvBetSupport"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-bold text-xs flex items-center gap-1.5 shadow-[0_2px_12px_rgba(245,158,11,0.3)] hover:brightness-110 active:scale-95 transition-all"
+                  >
+                    <span>Открыть @MacvBetSupport</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
+              ) : loading ? (
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-zinc-400 text-xs">
+                  <RefreshCw size={22} className="animate-spin text-amber-400" />
                   <span>Загрузка защищенного канала...</span>
                 </div>
               ) : (
                 <>
                   {/* System greeting card */}
-                  <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-[#121522] border border-white/10 text-xs shadow-sm">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-amber-400 flex items-center gap-1 text-[11px]">
-                        <ShieldCheck size={13} />
+                        <ShieldCheck size={14} />
                         Верифицированная сессия
                       </span>
-                      <span className="text-[9px] text-zinc-500">
+                      <span className="text-[9px] text-zinc-500 font-mono">
                         #{ticket?.id ? ticket.id.slice(0, 8).toUpperCase() : 'AUTH'}
                       </span>
                     </div>
                     <p className="text-[11px] text-zinc-300 leading-relaxed">
-                      Оператор видит данные вашего аккаунта и баланс. Напишите ваш вопрос ниже.
+                      Оператор видит данные вашего аккаунта и баланс. Напишите ваш вопрос ниже — дежурный специалист ответит в ближайшее время.
                     </p>
                   </div>
 
@@ -403,7 +434,7 @@ export function SupportChatWidget() {
                           <button
                             key={topic.id}
                             onClick={() => handleSelectTopic(topic)}
-                            className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-amber-400/10 border border-white/10 hover:border-amber-400/30 text-[11px] text-zinc-300 hover:text-amber-300 transition-all cursor-pointer text-left"
+                            className="px-2.5 py-1.5 rounded-xl bg-[#151926] hover:bg-[#1D2235] border border-white/10 hover:border-amber-400/30 text-[11px] text-zinc-300 hover:text-amber-300 transition-all cursor-pointer text-left active:scale-95"
                           >
                             {topic.label}
                           </button>
@@ -421,7 +452,7 @@ export function SupportChatWidget() {
                       if (isSystem) {
                         return (
                           <div key={m.id} className="flex justify-center my-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-white/[0.04] border border-white/10 text-zinc-400 text-center">
+                            <span className="px-3 py-1 rounded-full text-[10px] bg-white/[0.05] border border-white/10 text-zinc-400 text-center">
                               {m.text}
                             </span>
                           </div>
@@ -446,10 +477,10 @@ export function SupportChatWidget() {
 
                           <div
                             className={cn(
-                              'px-3.5 py-2 rounded-2xl text-xs leading-relaxed break-words shadow-sm',
+                              'px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm',
                               isUser
-                                ? 'bg-gradient-to-br from-amber-500/20 via-white/[0.06] to-white/[0.02] border border-amber-500/30 text-white rounded-tr-xs'
-                                : 'bg-[#151821] border border-white/10 text-zinc-100 rounded-tl-xs'
+                                ? 'bg-gradient-to-br from-amber-500/25 via-amber-600/15 to-[#1c1708] border border-amber-500/40 text-white rounded-tr-xs'
+                                : 'bg-[#141824] border border-white/10 text-zinc-100 rounded-tl-xs shadow-[0_2px_10px_rgba(0,0,0,0.3)]'
                             )}
                           >
                             <p className="whitespace-pre-wrap">{m.text}</p>
@@ -473,32 +504,36 @@ export function SupportChatWidget() {
               )}
             </div>
 
-            {/* Error message */}
+            {/* Error message bar with retry button */}
             {error && (
-              <div className="px-3 py-1.5 bg-rose-500/20 border-t border-rose-500/30 text-rose-300 text-[11px] flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <AlertCircle size={12} />
-                  <span>{error}</span>
+              <div className="px-3 py-2 bg-rose-500/15 border-t border-rose-500/30 text-rose-300 text-xs flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                  <AlertCircle size={14} className="shrink-0 text-rose-400" />
+                  <span className="truncate">{error}</span>
                 </div>
-                <button onClick={() => setError(null)} className="underline text-[10px]">
-                  Ок
+                <button
+                  onClick={() => loadConversation()}
+                  className="px-2 py-0.5 rounded bg-rose-500/25 hover:bg-rose-500/40 text-[11px] font-semibold text-rose-200 transition-colors shrink-0"
+                >
+                  Повторить
                 </button>
               </div>
             )}
 
-            {/* ── Widget Input Dock (Anti-AI Slop) ── */}
-            <div className="p-2.5 bg-[#0E1015] border-t border-white/10 shrink-0">
+            {/* ── Widget Input Dock (Safe area padded for iPhone / Android Telegram) ── */}
+            <div className="p-3 bg-[#10121A] border-t border-white/10 shrink-0 pb-[max(14px,env(safe-area-inset-bottom))]">
               <div
                 className={cn(
-                  'flex items-end gap-2 p-1 pl-2.5 rounded-2xl bg-[#13161F] border transition-all duration-200',
+                  'flex items-end gap-2 p-1.5 pl-3 rounded-2xl bg-[#151926] border transition-all duration-200',
                   inputText.trim()
-                    ? 'border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.12)]'
-                    : 'border-white/10'
+                    ? 'border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] ring-1 ring-amber-400/20'
+                    : 'border-white/10 hover:border-white/20'
                 )}
               >
                 <textarea
                   ref={textareaRef}
                   rows={1}
+                  disabled={!token}
                   value={inputText}
                   onChange={handleInputChange}
                   onKeyDown={(e) => {
@@ -507,8 +542,8 @@ export function SupportChatWidget() {
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Задайте вопрос оператору..."
-                  className="flex-1 max-h-24 min-h-[34px] py-1.5 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none leading-relaxed"
+                  placeholder={token ? "Задайте вопрос оператору..." : "Войдите для отправки сообщений"}
+                  className="flex-1 max-h-24 min-h-[34px] py-1.5 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none leading-relaxed disabled:opacity-50"
                 />
 
                 <AnimatePresence mode="wait">
@@ -518,9 +553,9 @@ export function SupportChatWidget() {
                       initial={{ scale: 0.85, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.85, opacity: 0 }}
-                      disabled={sending}
+                      disabled={sending || !token}
                       onClick={() => handleSendMessage()}
-                      className="h-8 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-bold text-xs flex items-center gap-1 shadow-[0_2px_10px_rgba(245,158,11,0.3)] active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+                      className="h-8 px-3.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold text-xs flex items-center gap-1 shadow-[0_2px_12px_rgba(245,158,11,0.35)] active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-50"
                     >
                       {sending ? (
                         <RefreshCw size={12} className="animate-spin text-black" />
@@ -535,7 +570,7 @@ export function SupportChatWidget() {
                 </AnimatePresence>
               </div>
 
-              <div className="mt-1 px-1 flex items-center justify-between text-[9px] text-zinc-500">
+              <div className="mt-1.5 px-1 flex items-center justify-between text-[9px] text-zinc-500">
                 <span>Enter для отправки</span>
                 <span>История синхронизируется</span>
               </div>

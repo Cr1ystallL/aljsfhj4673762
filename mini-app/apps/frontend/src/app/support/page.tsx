@@ -434,7 +434,7 @@ export default function SupportPage() {
       </AnimatePresence>
 
       {/* ── Bottom Input Dock (Anti-AI-Slop Engineered Cluster) ── */}
-      <footer className="shrink-0 p-3 bg-[#0A0B0E]/95 border-t border-white/[0.08] backdrop-blur-2xl">
+      <footer className="shrink-0 p-3 bg-[#0C0E17] border-t border-white/10 pb-[max(14px,env(safe-area-inset-bottom))]">
         <div className="max-w-2xl mx-auto">
           <div
             className={cn(

@@ -14,10 +14,11 @@ function escapeHtml(text: string): string {
 export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): Promise<void> => {
   // Ensure database tables exist for support tickets and messages
   try {
+    await app.prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS pgcrypto;`;
     await app.prisma.$executeRaw`
       CREATE TABLE IF NOT EXISTS support_tickets (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        id VARCHAR(64) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         status VARCHAR(20) NOT NULL DEFAULT 'open',
         category VARCHAR(50) NOT NULL DEFAULT 'general',
         subject VARCHAR(255),
@@ -39,8 +40,8 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
     `;
     await app.prisma.$executeRaw`
       CREATE TABLE IF NOT EXISTS support_messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        ticket_id UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+        id VARCHAR(64) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        ticket_id VARCHAR(64) NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
         sender_type VARCHAR(20) NOT NULL,
         sender_id VARCHAR(100) NOT NULL,
         sender_name VARCHAR(100),
@@ -57,7 +58,7 @@ export const supportRoutes: FastifyPluginAsync = async (app: FastifyInstance): P
       CREATE INDEX IF NOT EXISTS idx_support_messages_created_at ON support_messages(created_at ASC);
     `;
   } catch (err) {
-    logger.warn({ err }, 'Could not ensure support tables via raw SQL; using existing schema');
+    logger.error({ err }, 'Could not ensure support tables via raw SQL; using existing schema');
   }
 
   // ==========================================
