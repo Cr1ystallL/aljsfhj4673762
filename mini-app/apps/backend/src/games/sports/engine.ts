@@ -491,8 +491,8 @@ class SportsEngine {
         await bettingPipeline.rollbackBet(tracked.bet, false);
         this.unindexBet(betId);
         const notifyKey = `sports:notified:settle:${betId}`;
-        const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX').catch(() => '1');
-        if (canNotify) {
+        const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX').catch(() => null);
+        if (canNotify === 'OK' || canNotify === 1) {
           void notifySportsUser(
             tracked.bet.userId,
             sportsSettleText(String((tracked.bet.metadata as Record<string, unknown>)?.eventName ?? ''), tracked.legs.length >= 2 ? 'express' : 'single', 'void', tracked.bet.amount)
@@ -984,8 +984,8 @@ class SportsEngine {
       const sendNotification = async (text: string) => {
         try {
           const notifyKey = `sports:notified:settle:${betId}`;
-          const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX');
-          if (canNotify) {
+          const canNotify = await redisClient.getClient().set(notifyKey, '1', 'EX', 86400, 'NX').catch(() => null);
+          if (canNotify === 'OK' || canNotify === 1) {
             void notifySportsUser(tracked.bet.userId, text);
           }
         } catch (err) {

@@ -133,7 +133,6 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dormantModalOpen, setDormantModalOpen] = useState(false);
-  const [liabilitiesModalOpen, setLiabilitiesModalOpen] = useState(false);
 
   const reloadStats = useCallback(async () => {
     try {
@@ -193,10 +192,29 @@ export default function AdminDashboardPage() {
                 ),
               }}
             />
-            <LiabilitiesKpi
-              balances={data.balances}
-              onOpenAnalysis={() => setLiabilitiesModalOpen(true)}
-              onOpenReset={() => setDormantModalOpen(true)}
+            <Kpi
+              icon={<Wallet size={14} strokeWidth={1.6} />}
+              label="Обязательства"
+              value={`${formatPln(data.balances.totalLiability)} zł`}
+              hint={`${data.balances.accounts} счетов`}
+              action={
+                <button
+                  type="button"
+                  onClick={() => setDormantModalOpen(true)}
+                  className="px-2 py-0.5 rounded-pill bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-roobert font-medium transition-all active:scale-95"
+                  title="Обнулить балансы неактивных (>30 дней) и заблокированных игроков"
+                >
+                  Очистить
+                </button>
+              }
+              help={{
+                title: 'Обязательства казино',
+                body: (
+                  <p>
+                    Сумма всех реальных балансов на счетах пользователей. Это деньги, которые игроки держат на платформе.
+                  </p>
+                ),
+              }}
             />
             <Kpi
               icon={<Coins size={14} strokeWidth={1.6} />}
@@ -489,17 +507,6 @@ export default function AdminDashboardPage() {
         onClose={() => setDormantModalOpen(false)}
         onSuccess={reloadStats}
       />
-      {data && (
-        <LiabilitiesDetailModal
-          isOpen={liabilitiesModalOpen}
-          onClose={() => setLiabilitiesModalOpen(false)}
-          onOpenReset={() => {
-            setLiabilitiesModalOpen(false);
-            setDormantModalOpen(true);
-          }}
-          balances={data.balances}
-        />
-      )}
     </>
   );
 }
@@ -509,310 +516,6 @@ function formatPln(v: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
-}
-
-function LiabilitiesKpi({
-  balances,
-  onOpenAnalysis,
-  onOpenReset,
-}: {
-  balances: AdminStats['balances'];
-  onOpenAnalysis: () => void;
-  onOpenReset: () => void;
-}) {
-  const real = balances.real;
-  const readyAmount = real?.amount ?? real?.immediateAmount ?? balances.totalLiability;
-  const readyAccounts = real?.accounts ?? real?.immediateAccounts ?? balances.accounts;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-[24px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl p-5 flex flex-col justify-between gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.12)] relative overflow-hidden"
-    >
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-frost-white/65">
-          <Wallet size={14} strokeWidth={1.6} />
-          <span className="font-roobert text-[10.5px] uppercase tracking-[0.05em] text-whisper-gray">
-            Обязательства
-          </span>
-        </span>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onOpenAnalysis}
-            className="px-2 py-0.5 rounded-pill bg-white/5 hover:bg-white/10 text-frost-white/85 border border-white/10 text-[10px] font-roobert font-medium transition-all flex items-center gap-1 active:scale-95"
-            title="Открыть детальный анализ обязательств и экономики"
-          >
-            <TrendingUp size={10} className="text-[#a0e0ab]" />
-            Анализ
-          </button>
-          <button
-            type="button"
-            onClick={onOpenReset}
-            className="px-2 py-0.5 rounded-pill bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-roobert font-medium transition-all active:scale-95"
-            title="Обнулить балансы неактивных (>30 дней) и заблокированных игроков"
-          >
-            Очистить
-          </button>
-          <HelpButton title="Обязательства (к выводу)" size={12}>
-            <p>
-              Сумма реальных балансов игроков, которые выполнили все условия для вывода (депозит от 100 zł за последние 30 дней, 100% отыгрыш вейджера, нет блокировок, баланс от 50 zł) и могут вывести деньги прямо сейчас без ограничений.
-            </p>
-          </HelpButton>
-        </div>
-      </div>
-
-      <div
-        className="font-roobert text-[22px] font-light leading-none tabular-nums tracking-[-0.02em] text-frost-white cursor-pointer hover:text-emerald-300 transition-colors"
-        onClick={onOpenAnalysis}
-        title="Нажмите для подробного финансового отчета"
-      >
-        {formatPln(readyAmount)} zł
-      </div>
-
-      <div className="flex items-center justify-between gap-1 font-roobert text-[11px] text-whisper-gray tabular-nums">
-        <span>
-          {readyAccounts} {readyAccounts === 1 ? 'счёт готов' : readyAccounts >= 2 && readyAccounts <= 4 ? 'счёта готовы' : 'счетов готовы'} к выводу
-        </span>
-        <button
-          type="button"
-          onClick={onOpenAnalysis}
-          className="text-[10.5px] text-[#a0e0ab] hover:underline flex items-center gap-0.5"
-        >
-          детали &rarr;
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-function LiabilitiesDetailModal({
-  isOpen,
-  onClose,
-  onOpenReset,
-  balances,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onOpenReset: () => void;
-  balances: AdminStats['balances'];
-}) {
-  if (!isOpen) return null;
-
-  const real = balances.real;
-  const potential = balances.potential;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96 }}
-        className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-[#0d1117] p-6 sm:p-7 shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto"
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 w-8 h-8 rounded-pill bg-white/5 hover:bg-white/10 flex items-center justify-center text-whisper-gray hover:text-frost-white transition-colors z-10"
-        >
-          <X size={16} />
-        </button>
-
-        {/* Шапка модального окна */}
-        <div className="flex items-center gap-3.5 mb-6">
-          <div className="w-12 h-12 rounded-pill bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
-            <Wallet size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-roobert text-[18px] text-frost-white font-medium">
-                Аналитика обязательств платформы
-              </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#a0e0ab]/10 text-[#a0e0ab] border border-[#a0e0ab]/25">
-                SMART AUDIT
-              </span>
-            </div>
-            <p className="font-roobert text-[12.5px] text-whisper-gray mt-0.5">
-              Разделение балансов на гарантированные к выводу и условные (бонусные/неотыгранные)
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {/* Сравнительные карточки: Реальные vs Потенциальные */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Реальные */}
-            <div className="p-4 rounded-[20px] bg-emerald-500/[0.04] border border-emerald-500/25 flex flex-col justify-between gap-3">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="font-roobert text-[11px] uppercase tracking-wider text-emerald-400 font-medium">
-                    Реальные обязательства
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-medium">
-                    К выводу
-                  </span>
-                </div>
-                <div className="mt-2 font-roobert text-[24px] font-medium text-frost-white tabular-nums">
-                  {formatPln(real?.amount ?? balances.totalLiability)} zł
-                </div>
-                <div className="text-[11.5px] font-roobert text-whisper-gray mt-0.5 tabular-nums">
-                  {real?.accounts ?? 0} счетов готовы к выводу прямо сейчас
-                </div>
-              </div>
-
-              <div className="space-y-1 text-[11px] font-roobert text-frost-white/70 pt-2 border-t border-emerald-500/15">
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                  <span>Депозит ≥ 100 zł и свежее 30 дней</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                  <span>Вейджер полностью отыгран (100%)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                  <span>Аккаунт не имеет блокировок</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                  <span>Баланс ≥ 50 zł (минимум для заявки)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Потенциальные */}
-            <div className="p-4 rounded-[20px] bg-amber-500/[0.04] border border-amber-500/25 flex flex-col justify-between gap-3">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="font-roobert text-[11px] uppercase tracking-wider text-amber-300 font-medium">
-                    Потенциальные балансы
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 font-medium">
-                    Условные
-                  </span>
-                </div>
-                <div className="mt-2 font-roobert text-[24px] font-medium text-amber-300 tabular-nums">
-                  {formatPln(potential?.amount ?? 0)} zł
-                </div>
-                <div className="text-[11.5px] font-roobert text-whisper-gray mt-0.5 tabular-nums">
-                  {potential?.accounts ?? 0} счетов требуют действий для вывода
-                </div>
-              </div>
-
-              {potential?.breakdown && (
-                <div className="space-y-1 text-[11px] font-roobert text-whisper-gray pt-2 border-t border-amber-500/15">
-                  <div className="flex items-center justify-between">
-                    <span>Без депозита (бонусы):</span>
-                    <strong className="text-frost-white tabular-nums">
-                      {potential.breakdown.noDepositAccounts} сч. ({formatPln(potential.breakdown.noDepositAmount)} zł)
-                    </strong>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Не отыгран вейджер:</span>
-                    <strong className="text-frost-white tabular-nums">
-                      {potential.breakdown.needWagerAccounts} сч. ({formatPln(potential.breakdown.needWagerAmount)} zł)
-                    </strong>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Заблокированы / бан:</span>
-                    <strong className="text-rose-400 tabular-nums">
-                      {potential.breakdown.blockedAccounts} сч. ({formatPln(potential.breakdown.blockedAmount)} zł)
-                    </strong>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Главный блок экономики: Сколько мы заработаем */}
-          {potential?.economics && (
-            <div className="p-5 rounded-[22px] bg-gradient-to-br from-[#a0e0ab]/10 via-emerald-500/[0.04] to-transparent border border-[#a0e0ab]/30">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <div className="font-roobert text-[11px] uppercase tracking-wider text-[#a0e0ab] font-semibold flex items-center gap-1.5">
-                    <TrendingUp size={13} />
-                    Сколько заработает казино при выводе
-                  </div>
-                  <div className="mt-1 font-roobert text-[26px] sm:text-[28px] font-light text-frost-white leading-tight tabular-nums flex items-baseline gap-2 flex-wrap">
-                    <span className="text-[#a0e0ab] font-medium">
-                      +{formatPln(potential.economics.netCasinoProfit)} zł
-                    </span>
-                    <span className="text-whisper-gray text-[13px] font-normal">чистой прибыли</span>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded-pill bg-[#a0e0ab]/15 border border-[#a0e0ab]/30 text-[#a0e0ab] text-[11px] font-medium tabular-nums shrink-0">
-                  x{potential.economics.profitMultiplier} ROI
-                </span>
-              </div>
-
-              {/* Пошаговый расчет */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[12px] font-roobert">
-                <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/5">
-                  <div className="text-whisper-gray text-[11px]">1. Входящие депозиты:</div>
-                  <div className="text-emerald-400 font-medium text-[15px] mt-0.5 tabular-nums">
-                    +{formatPln(potential.economics.requiredDeposits)} zł
-                  </div>
-                  <div className="text-[10.5px] text-whisper-gray/70 mt-1">
-                    Игроки обязаны пополнить счет минимум до 100 zł для открытия вывода
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/5">
-                  <div className="text-whisper-gray text-[11px]">2. Обязательный оборот ставок:</div>
-                  <div className="text-frost-white font-medium text-[15px] mt-0.5 tabular-nums">
-                    {formatPln(potential.economics.requiredTurnover)} zł
-                  </div>
-                  <div className="text-[10.5px] text-whisper-gray/70 mt-1">
-                    Остаток вейджера + 2x на каждый новый депозит
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/5">
-                  <div className="text-whisper-gray text-[11px]">3. Маржа казино (~5% House Edge):</div>
-                  <div className="text-emerald-400 font-medium text-[15px] mt-0.5 tabular-nums">
-                    +{formatPln(potential.economics.expectedWagerProfit)} zł
-                  </div>
-                  <div className="text-[10.5px] text-whisper-gray/70 mt-1">
-                    Гарантированный профит с открутки обязательного вейджера
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-[14px] bg-white/[0.03] border border-white/5">
-                  <div className="text-whisper-gray text-[11px]">4. Выплаты балансов игрокам:</div>
-                  <div className="text-rose-400 font-medium text-[15px] mt-0.5 tabular-nums">
-                    -{formatPln(potential.amount)} zł
-                  </div>
-                  <div className="text-[10.5px] text-whisper-gray/70 mt-1">
-                    Сумма условных балансов, подлежащая выплате после выполнения правил
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3.5 p-3 rounded-[12px] bg-black/30 border border-white/5 text-[11.5px] font-roobert text-whisper-gray">
-                💡 <strong className="text-frost-white">Вывод:</strong> Бонусные и условные обязательства выгодны казино. Чтобы вывести <span className="text-amber-300 font-medium">{formatPln(potential.amount)} zł</span>, игроки должны внести <span className="text-emerald-400 font-medium">+{formatPln(potential.economics.requiredDeposits)} zł</span> реальных депозитов и прокрутить ставок на <span className="text-frost-white font-medium">{formatPln(potential.economics.requiredTurnover)} zł</span>!
-              </div>
-            </div>
-          )}
-
-          {/* Подвал с кнопками */}
-          <div className="flex items-center justify-between pt-2">
-            <button
-              onClick={onOpenReset}
-              className="px-4 py-2.5 rounded-pill bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-roobert text-[12.5px] font-medium transition-all active:scale-95"
-            >
-              Очистить спящие обязательства (&gt;30 дней)
-            </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-pill bg-white/10 hover:bg-white/15 text-frost-white font-roobert text-[12.5px] transition-colors"
-            >
-              Закрыть
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
 }
 
 function Kpi({

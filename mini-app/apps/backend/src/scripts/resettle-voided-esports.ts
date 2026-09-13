@@ -125,7 +125,61 @@ async function main() {
         console.log(`  [OK] Bet ${bet.id} successfully settled as WON!`);
       }
     } else {
-      console.log(`  Outcome did not win. Keeping original refund.`);
+      console.log(`  Outcome did not win -> Bet LOST!`);
+      console.log(`  Action: Settle bet as LOST and reclaim erroneous refund -${stake.toFixed(2)} zł`);
+
+      if (execute) {
+        await prisma.$transaction(async (tx) => {
+          if (bet.state === 'cancelled') {
+            await tx.$queryRaw`
+              UPDATE balances
+              SET amount = GREATEST(0, amount - ${stake}::numeric),
+                  updated_at = NOW(),
+                  last_synced_at = NOW(),
+                  version = version + 1
+              WHERE user_id::text = ${bet.userId}::text AND demo_mode = false
+            `;
+
+            const curRows = await tx.$queryRaw<Array<{ amount: string }>>`
+              SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = false LIMIT 1
+            `;
+            const balanceAfter = curRows[0] ? Number(curRows[0].amount) : 0;
+
+            await tx.transaction.create({
+              data: {
+                userId: bet.userId,
+                type: 'bet',
+                amount: -stake,
+                balanceBefore: balanceAfter + stake,
+                balanceAfter,
+                gameType: 'sports',
+                gameRoundId: bet.roundId || null,
+                metadata: {
+                  betId: bet.id,
+                  resettled: true,
+                  reason: 'Reclaim of erroneous refund on lost match',
+                  lostOutcome: outcomeKey,
+                  winner: match.winner,
+                  score: `${match.s1}:${match.s2}`,
+                },
+              },
+            });
+          }
+
+          await tx.bet.update({
+            where: { id: bet.id },
+            data: {
+              state: 'lost',
+              payout: 0,
+              multiplier: 0,
+              resolvedAt: new Date(),
+            },
+          });
+        });
+
+        await balanceService.syncBalance(bet.userId);
+        console.log(`  [OK] Bet ${bet.id} successfully settled as LOST (refund reclaimed)!`);
+      }
     }
   }
 
