@@ -245,15 +245,15 @@ export default function AdminDashboardPage() {
             <Kpi
               icon={<Wallet size={14} strokeWidth={1.6} />}
               label="Профит"
-              value={`${formatPln(data.casinoProfit)} zł`}
+              value={`${data.casinoProfit > 0 ? '+' : ''}${formatPln(data.casinoProfit)} zł`}
               hint={
                 <span className="inline-flex items-center gap-1.5 tabular-nums">
                   <span className="text-[#a0e0ab] font-medium">
-                    Деп: +{formatPln(data.depositsTotal ?? 0)} zł
+                    Деп: +{formatPln(Math.abs(data.depositsTotal ?? 0))} zł
                   </span>
                   <span className="text-white/20">·</span>
                   <span className="text-[#ff8a76] font-medium">
-                    Выв: -{formatPln(data.withdrawalsTotal ?? 0)} zł
+                    Выв: -{formatPln(Math.abs(data.withdrawalsTotal ?? 0))} zł
                   </span>
                 </span>
               }
@@ -265,14 +265,20 @@ export default function AdminDashboardPage() {
                     <p>
                       Чистая прибыль проекта. Рассчитывается как сумма всех депозитов минус сумма всех выводов.
                     </p>
-                    <div className="mt-2.5 space-y-1 font-roobert text-[11.5px]">
+                    <div className="mt-2.5 space-y-1.5 font-roobert text-[11.5px]">
                       <div className="text-[#a0e0ab] flex justify-between">
                         <span>Депозиты:</span>
-                        <span className="tabular-nums font-medium">+{formatPln(data.depositsTotal ?? 0)} zł</span>
+                        <span className="tabular-nums font-medium">+{formatPln(Math.abs(data.depositsTotal ?? 0))} zł</span>
                       </div>
                       <div className="text-[#ff8a76] flex justify-between">
                         <span>Выводы:</span>
-                        <span className="tabular-nums font-medium">-{formatPln(data.withdrawalsTotal ?? 0)} zł</span>
+                        <span className="tabular-nums font-medium">-{formatPln(Math.abs(data.withdrawalsTotal ?? 0))} zł</span>
+                      </div>
+                      <div className="border-t border-white/10 pt-1.5 mt-1.5 flex justify-between font-medium">
+                        <span>Итоговый профит:</span>
+                        <span className={`tabular-nums ${data.casinoProfit >= 0 ? 'text-[#a0e0ab]' : 'text-[#ff8a76]'}`}>
+                          {data.casinoProfit > 0 ? '+' : ''}{formatPln(data.casinoProfit)} zł
+                        </span>
                       </div>
                     </div>
                   </>

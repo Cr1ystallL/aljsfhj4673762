@@ -204,8 +204,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           ORDER BY b.payout DESC
           LIMIT 1
         `,
-        app.prisma.$queryRaw<{ sum: number }[]>`SELECT SUM(amount) as sum FROM transactions WHERE type = 'deposit'`,
-        app.prisma.$queryRaw<{ sum: number }[]>`SELECT SUM(amount) as sum FROM transactions WHERE type = 'withdrawal'`,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT COALESCE(SUM(amount), 0) as sum FROM transactions WHERE type = 'deposit'`,
+        app.prisma.$queryRaw<{ sum: number }[]>`SELECT COALESCE(ABS(SUM(amount)), 0) as sum FROM transactions WHERE type = 'withdrawal'`,
         app.prisma.$queryRaw<{ hour: Date, count: bigint }[]>`
           SELECT date_trunc('hour', placed_at) as hour, COUNT(DISTINCT user_id) as count
           FROM bets
@@ -376,8 +376,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const totalPaidOut = Number(payoutAgg._sum.payout ?? 0);
       const ggr = totalWagered - totalPaidOut;
 
-      const depositsTotal = Math.round(Number(depositsRaw[0]?.sum || 0) * 100) / 100;
-      const withdrawalsTotal = Math.round(Number(withdrawalsRaw[0]?.sum || 0) * 100) / 100;
+      const depositsTotal = Math.round(Math.abs(Number(depositsRaw[0]?.sum || 0)) * 100) / 100;
+      const withdrawalsTotal = Math.round(Math.abs(Number(withdrawalsRaw[0]?.sum || 0)) * 100) / 100;
       const casinoProfit = Math.round((depositsTotal - withdrawalsTotal) * 100) / 100;
       const activityGraph = activityRaw.map((a) => ({
         hour: a.hour,
