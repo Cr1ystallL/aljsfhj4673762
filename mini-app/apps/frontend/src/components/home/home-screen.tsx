@@ -40,6 +40,8 @@ import { HomeLuckFeed, type LuckFeedItem } from '@/components/home/home-luck-fee
 import { useSplashStore } from '@/store/splash-store';
 import { useT } from '@/i18n/use-t';
 import type { TxKey } from '@/i18n/use-t';
+import { useIsAdmin } from '@/lib/admin-probe';
+import { HomeAdminSlotBanner } from '@/components/home/home-admin-slot-banner';
 
 /**
  * Home Screen — Luxury Obsidian & Gold Cyber-Casino Lobby (PC & Mobile).
@@ -199,6 +201,7 @@ export function HomeScreen() {
   const [lobbyReady, setLobbyReady] = useState(false);
   const [skipEntrance, setSkipEntrance] = useState(false);
   const [online, setOnline] = useState(0);
+  const isAdminProbe = useIsAdmin();
 
   // Dynamic live online state
   const [rawOnline, setRawOnline] = useState<number>(6);
@@ -416,6 +419,13 @@ export function HomeScreen() {
         <EntranceBlock>
           <LobbyHeroBanner />
         </EntranceBlock>
+
+        {/* Exclusive Admin Preview: MacvSpin Slot */}
+        {(isAdminProbe === true || availability?.isAdmin === true) && (
+          <EntranceBlock>
+            <HomeAdminSlotBanner />
+          </EntranceBlock>
+        )}
 
         {/* Featured Events Showcase (Tournaments & Contests when active) */}
         {(activeTournaments.length > 0 || activeContests.length > 0) && (

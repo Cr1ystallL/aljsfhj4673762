@@ -91,6 +91,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     'cases',
     'macvpot',
     'sports',
+    'macvslot',
   ];
 
   app.get('/availability', { preHandler: authenticate }, async (request, reply) => {

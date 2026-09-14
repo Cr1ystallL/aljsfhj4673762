@@ -18,6 +18,7 @@ import { cryptoWorker } from '../services/crypto-worker.js';
 import { sportsRoutes } from '../games/sports/routes.js';
 import { vipRoutes } from './vip.js';
 import { supportRoutes } from './support.js';
+import { macvSlotRoutes } from './macvslot.js';
 
 let luckFeedCache: {
   at: number;
@@ -149,6 +150,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // Games
   await app.register(gameRoutes, { prefix: '/api/games' });
+  await app.register(macvSlotRoutes, { prefix: '/api/games/macvslot' });
 
   // Virtual sports line
   await app.register(sportsRoutes, { prefix: '/api/sports' });

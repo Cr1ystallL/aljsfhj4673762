@@ -22,7 +22,8 @@ export type WagerGameType =
   | 'hilo'
   | 'cases'
   | 'macvpot'
-  | 'sports';
+  | 'sports'
+  | 'macvslot';
 
 export const WAGER_CONTRIBUTION_DEFAULTS: Record<WagerGameType, number> = {
   // Fixed-odds, high edge, no early exit → full weight.
@@ -30,6 +31,7 @@ export const WAGER_CONTRIBUTION_DEFAULTS: Record<WagerGameType, number> = {
   keno: 1.0,
   cases: 1.0,
   macvpot: 1.0,
+  macvslot: 1.0,
   // Early cashout at 1.0x–1.2x is close to a no-risk churn.
   crash: 0.5,
   // 50/50 at 1.94x — the classic wager farm.
@@ -55,10 +57,12 @@ export const WAGER_GAME_LABELS: Record<WagerGameType, string> = {
   mines: 'Mines',
   hilo: 'Hi-Lo',
   blackjack: 'Blackjack',
+  macvslot: 'MacvSpin (Слот)',
 };
 
 /** Display order: full-weight games first, then descending. */
 export const WAGER_GAME_ORDER: WagerGameType[] = [
+  'macvslot',
   'crash',
   'wheel',
   'keno',

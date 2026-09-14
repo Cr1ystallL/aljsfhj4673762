@@ -27,7 +27,8 @@ export type GameType =
   | 'hilo'
   | 'cases'
   | 'macvpot'
-  | 'sports';
+  | 'sports'
+  | 'macvslot';
 
 export interface GameConfig {
   /** True freezes the game — engines refuse new bets but resolve
@@ -187,6 +188,18 @@ const DEFAULTS: Record<GameType, GameConfig> = {
         'mma',
         'cybersport',
       ],
+    },
+  },
+  macvslot: {
+    paused: false,
+    hidden: true, // Visible ONLY to admins by default
+    minBet: 0.20,
+    maxBet: 500,
+    houseEdge: 0.04, // 96% RTP
+    wagerContribution: WC.macvslot,
+    extras: {
+      rtp: 96,
+      freeSpinsCount: 10,
     },
   },
 };
