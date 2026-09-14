@@ -86,7 +86,7 @@ export function MacvSlotPaytableModal({ isOpen, onClose }: MacvSlotPaytableModal
             <div>
               <span className="font-brand font-black text-yellow-400 text-sm">SCATTER (Фриспины)</span>
               <p className="text-[11px] text-zinc-300 leading-snug mt-0.5">
-                3+ символа в любом месте активируют <strong className="text-amber-300">10 Free Spins</strong> + мгновенную выплату!
+                Выпадает только на <strong className="text-amber-300">1, 3 и 5</strong> барабанах. 3 символа активируют <strong className="text-amber-300">10 Free Spins</strong> + мгновенную выплату!
               </p>
             </div>
           </div>

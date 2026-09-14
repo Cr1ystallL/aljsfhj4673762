@@ -109,6 +109,12 @@ for (const [symbol, weight] of REEL_WEIGHTS) {
   }
 }
 
+// Pool without scatter for reels where scatter is forbidden
+const SYMBOL_POOL_NO_SCATTER: SlotSymbol[] = SYMBOL_POOL.filter((s) => s !== 'scatter');
+
+// Scatters are strictly allowed ONLY on reels 1, 3, and 5 (indices 0, 2, 4)
+const SCATTER_ALLOWED_REELS = new Set<number>([0, 2, 4]);
+
 export class MacvSlotEngine {
   private getRedisKey(userId: string): string {
     return `macvslot:freespins:${userId}`;
@@ -147,14 +153,26 @@ export class MacvSlotEngine {
 
   /**
    * Generates a random 5x3 grid using cryptographically secure random integers.
+   * Scatters can ONLY appear on reels 1, 3, and 5 (indices 0, 2, 4), max 1 per reel.
    */
   generateGrid(): SlotSymbol[][] {
     const grid: SlotSymbol[][] = [];
     for (let reel = 0; reel < 5; reel++) {
       const col: SlotSymbol[] = [];
+      const canHaveScatter = SCATTER_ALLOWED_REELS.has(reel);
+      let scatterPlacedInCol = false;
+
       for (let row = 0; row < 3; row++) {
-        const idx = randomInt(0, SYMBOL_POOL.length);
-        col.push(SYMBOL_POOL[idx]);
+        const pool = canHaveScatter && !scatterPlacedInCol
+          ? SYMBOL_POOL
+          : SYMBOL_POOL_NO_SCATTER;
+
+        const idx = randomInt(0, pool.length);
+        const sym = pool[idx];
+        if (sym === 'scatter') {
+          scatterPlacedInCol = true;
+        }
+        col.push(sym);
       }
       grid.push(col);
     }
@@ -311,12 +329,17 @@ export class MacvSlotEngine {
     // Generate outcome
     const grid = this.generateGrid();
 
-    // If Bonus Buy: guarantee at least 3 scatters on distinct reels
+    // If Bonus Buy: guarantee exactly 3 scatters on reels 1, 3, 5 (indices 0, 2, 4)
     if (isBonusBuy) {
       const selectedReels = [0, 2, 4]; // reels 1, 3, 5
       for (const r of selectedReels) {
-        const row = randomInt(0, 3);
-        grid[r][row] = 'scatter';
+        for (let row = 0; row < 3; row++) {
+          if (grid[r][row] === 'scatter') {
+            grid[r][row] = '10';
+          }
+        }
+        const targetRow = randomInt(0, 3);
+        grid[r][targetRow] = 'scatter';
       }
     }
 

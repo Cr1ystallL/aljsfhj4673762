@@ -143,8 +143,10 @@ export function MacvSlotReels({
     let landedScatters = 0;
 
     for (let reel = 0; reel < 5; reel++) {
-      // Suspense triggers if at least 2 scatters landed on earlier stopped reels
-      const isSuspense = landedScatters >= 2;
+      // Suspense triggers if at least 2 scatters landed on earlier stopped reels.
+      // Since scatters can ONLY appear on reels 0, 2, 4 (reels 1, 3, 5),
+      // the anticipation for the 3rd bonus scatter can ONLY happen on reel 4 (reel 5)!
+      const isSuspense = reel === 4 && landedScatters >= 2;
 
       if (isSuspense) {
         const suspenseStartDelay = accumulatedTime;
@@ -241,8 +243,7 @@ export function MacvSlotReels({
                 key={reelIdx}
                 className={cn(
                   'relative h-full flex flex-col justify-between overflow-visible transition-all duration-300',
-                  isSuspense && 'scale-105 z-25',
-                  isAnySuspense && !isSuspense && 'opacity-60 filter brightness-75'
+                  isSuspense && 'scale-105 z-25'
                 )}
               >
                 {/* Golden Anticipation Spotlight Border */}
@@ -256,7 +257,12 @@ export function MacvSlotReels({
 
                 {isReelSpinning ? (
                   // REAL SLIDE-DOWN SPINNING REEL STRIP
-                  <div className="w-full h-full relative overflow-hidden">
+                  <div
+                    className={cn(
+                      'w-full h-full relative overflow-hidden',
+                      isAnySuspense && !isSuspense && 'opacity-35 filter brightness-50'
+                    )}
+                  >
                     <motion.div
                       animate={{ y: ['-50%', '0%'] }}
                       transition={{
@@ -306,6 +312,7 @@ export function MacvSlotReels({
                       const isScatter = symbol === 'scatter';
                       const isScatterShaking =
                         isScatter && (isScatterAnticipating || (isAnySuspense && reelsStopped[reelIdx]));
+                      const isDimmedBySuspense = isAnySuspense && !isSuspense && !isScatter;
 
                       return (
                         <div
@@ -340,7 +347,8 @@ export function MacvSlotReels({
                               isWield ? 'max-w-[102px] scale-110' : 'max-w-[94px]',
                               isScatterShaking && 'z-30 scale-125',
                               isWinning && !isScatterShaking &&
-                                'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25'
+                                'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25',
+                              isDimmedBySuspense && 'opacity-35 filter brightness-50 grayscale-[30%]'
                             )}
                           >
                             {/* Scatter anticipation radiating background aura */}
