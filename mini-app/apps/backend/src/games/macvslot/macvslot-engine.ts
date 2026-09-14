@@ -256,7 +256,8 @@ export class MacvSlotEngine {
   async spin(
     userId: string,
     requestedBetAmount: number,
-    demoMode: boolean = false
+    demoMode: boolean = false,
+    isBonusBuy: boolean = false
   ): Promise<SlotSpinResult> {
     const roundId = randomUUID();
     const cfg = await gameConfig.get('macvslot');
@@ -268,8 +269,14 @@ export class MacvSlotEngine {
     // Check active free spins
     let fsState = await this.getFreeSpinsState(userId);
     const isFreeSpin = !!(fsState && fsState.remaining > 0);
-    const actualBetAmount = isFreeSpin ? 0 : requestedBetAmount;
+
+    if (isBonusBuy && isFreeSpin) {
+      throw new Error('Нельзя купить бонуску во время активных фриспинов.');
+    }
+
     const baseBetForCalculations = isFreeSpin ? fsState!.betAmount : requestedBetAmount;
+    // Bonus Buy costs exactly 100x of base bet
+    const actualBetAmount = isFreeSpin ? 0 : (isBonusBuy ? baseBetForCalculations * 100 : requestedBetAmount);
 
     if (!isFreeSpin) {
       if (requestedBetAmount < cfg.minBet) {
@@ -290,7 +297,7 @@ export class MacvSlotEngine {
       roundId,
       amount: actualBetAmount,
       state: 'active',
-      metadata: { isFreeSpin, baseBet: baseBetForCalculations },
+      metadata: { isFreeSpin, isBonusBuy, baseBet: baseBetForCalculations },
       placedAt: Date.now(),
     };
 
@@ -300,6 +307,16 @@ export class MacvSlotEngine {
 
     // Generate outcome
     const grid = this.generateGrid();
+
+    // If Bonus Buy: guarantee at least 3 scatters on distinct reels
+    if (isBonusBuy) {
+      const selectedReels = [0, 2, 4]; // reels 1, 3, 5
+      for (const r of selectedReels) {
+        const row = randomInt(0, 3);
+        grid[r][row] = 'scatter';
+      }
+    }
+
     const { winningLines, lineWinTotal } = this.evaluateLines(grid, lineBet);
     const { scatterCount, scatterWin, freeSpinsAwarded } = this.evaluateScatters(grid, baseBetForCalculations);
 

@@ -155,6 +155,47 @@ export default function MacvSlotPage() {
     }
   };
 
+  // Buy Bonus Action (Guarantees 3+ scatters and triggers 10 Free Spins)
+  const handleBuyBonus = useCallback(async () => {
+    if (isSpinning) return;
+
+    const cost = Math.round(betAmount * 100 * 100) / 100;
+    const currentBalance = balance?.amount ?? 0;
+    if (currentBalance < cost) {
+      toast.warn(`Недостаточно средств. Для покупки бонуски требуется ${cost.toFixed(2)} zł.`);
+      return;
+    }
+
+    setIsSpinning(true);
+    setWinningLines([]);
+    setLastWin(0);
+
+    soundManager.play('ui.success', { volume: 0.8 });
+
+    try {
+      const res = await fetch('/api/games/macvslot/spin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ betAmount, demoMode: false, isBonusBuy: true }),
+      });
+
+      const data: SlotSpinResponse = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error((data as any).error || 'Ошибка покупки бонуски');
+      }
+
+      pendingResultRef.current = data;
+      setGrid(data.grid);
+      setFreeSpinsLeft(data.freeSpinsRemaining);
+
+      void fetchBalance();
+    } catch (err: any) {
+      toast.error(err.message || 'Ошибка покупки бонуски');
+      setIsSpinning(false);
+    }
+  }, [isSpinning, betAmount, balance, fetchBalance]);
+
   // Restrict access to Admins only
   if (isAdmin === false) {
     return (
@@ -213,45 +254,39 @@ export default function MacvSlotPage() {
           onSpinComplete={handleSpinComplete}
         />
 
-        {/* Round Win Display directly under the reels frame */}
-        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-1 px-3 flex items-center justify-between min-h-[46px]">
-          {/* Left: Free spins badge if active */}
-          <div>
-            {freeSpinsLeft > 0 ? (
-              <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-black font-extrabold text-xs tracking-wider animate-pulse flex items-center gap-1.5 shadow-lg">
-                <span>🔥 БОНУСНЫЙ РАУНД: {freeSpinsLeft} ФРИСПИНОВ</span>
-              </div>
-            ) : (
-              <span className="text-[11px] text-zinc-400 font-mono tracking-wider uppercase">
-                20 фиксированных линий
+        {/* Strictly Centered Round Win Display under the reels frame */}
+        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-2 flex flex-col items-center justify-center min-h-[50px]">
+          {lastWin > 0 ? (
+            <div className="px-6 py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_30px_rgba(251,191,36,0.5)] flex items-center gap-2.5 animate-in zoom-in-95 duration-200">
+              <span className="text-xs uppercase tracking-widest text-amber-200/90 font-extrabold">
+                ВЫИГРЫШ:
               </span>
-            )}
-          </div>
-
-          {/* Right: Prominent round win */}
-          <div className="flex items-center gap-2">
-            {lastWin > 0 ? (
-              <div className="px-5 py-1.5 rounded-2xl bg-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_25px_rgba(251,191,36,0.6)] flex items-center gap-2 animate-in zoom-in-95 duration-200">
-                <span className="text-xs uppercase tracking-widest text-amber-200 font-bold">
-                  ВЫИГРЫШ:
-                </span>
-                <span className="font-brand font-black text-2xl sm:text-3xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]">
-                  +{lastWin.toFixed(2)} zł
-                </span>
-              </div>
-            ) : (
-              <div className="text-xs text-zinc-500 font-mono tracking-wider uppercase">
-                {isSpinning ? 'Вращение...' : 'Выигрыш: 0.00 zł'}
-              </div>
-            )}
-          </div>
+              <span className="font-brand font-black text-2xl sm:text-3xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]">
+                +{lastWin.toFixed(2)} zł
+              </span>
+            </div>
+          ) : freeSpinsLeft > 0 ? (
+            <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-black font-extrabold text-xs tracking-wider animate-pulse flex items-center gap-1.5 shadow-lg">
+              <span>🔥 БОНУСНЫЙ РАУНД: ОСТАЛОСЬ {freeSpinsLeft} ФРИСПИНОВ</span>
+            </div>
+          ) : isSpinning ? (
+            <span className="text-xs text-zinc-400 font-mono tracking-widest uppercase animate-pulse">
+              Вращение барабанов...
+            </span>
+          ) : (
+            <span className="text-xs text-zinc-500 font-mono tracking-wider uppercase">
+              Сделайте ставку и нажмите SPIN
+            </span>
+          )}
         </div>
 
         {/* 4. Controls Dock */}
         <MacvSlotControls
+          balance={balance?.amount ?? 0}
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onSpin={handleSpin}
+          onBuyBonus={handleBuyBonus}
           isSpinning={isSpinning}
           isTurbo={isTurbo}
           onToggleTurbo={() => setIsTurbo((prev) => !prev)}

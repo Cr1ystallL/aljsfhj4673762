@@ -205,6 +205,7 @@ export function MacvSlotReels({
                   >
                     {reelSymbols.map((symbol, rowIdx) => {
                       const isWinning = winningCellsSet.has(`${reelIdx},${rowIdx}`);
+                      const isWield = symbol === 'wield';
 
                       return (
                         <div
@@ -213,18 +214,18 @@ export function MacvSlotReels({
                         >
                           <div
                             className={cn(
-                              'relative w-full h-full max-w-[88px] max-h-[88px] transition-all duration-300 flex items-center justify-center',
+                              'relative w-full h-full max-h-[88px] transition-all duration-300 flex items-center justify-center',
+                              isWield ? 'max-w-[96px] scale-110' : 'max-w-[86px]',
                               isWinning &&
-                                'scale-115 drop-shadow-[0_0_20px_rgba(251,191,36,1)] z-25'
+                                'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25'
                             )}
                           >
-                            {/* Win highlight halo */}
+                            {/* Softer, subtler ambient win glow without harsh borders */}
                             {isWinning && (
                               <div
-                                className="absolute inset-[-6px] rounded-2xl animate-pulse blur-sm -z-10 border-2"
+                                className="absolute inset-[-4px] rounded-full animate-pulse blur-md -z-10"
                                 style={{
-                                  backgroundColor: `${lineColor}33`,
-                                  borderColor: lineColor,
+                                  backgroundColor: `${lineColor}30`,
                                 }}
                               />
                             )}
@@ -235,7 +236,7 @@ export function MacvSlotReels({
                               sizes="(max-width: 768px) 80px, 105px"
                               className={cn(
                                 'object-contain transition-transform duration-200',
-                                isWinning && 'animate-bounce'
+                                isWinning && 'animate-pulse'
                               )}
                               priority
                             />
@@ -263,13 +264,13 @@ export function MacvSlotReels({
 
               return (
                 <g>
-                  {/* Thick glowing background path */}
+                  {/* Soft glowing background path */}
                   <polyline
                     points={points.join(' ')}
                     fill="none"
                     stroke={lineColor}
-                    strokeWidth="8"
-                    strokeOpacity="0.4"
+                    strokeWidth="6"
+                    strokeOpacity="0.3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     className="blur-sm"
@@ -279,17 +280,17 @@ export function MacvSlotReels({
                     points={points.join(' ')}
                     fill="none"
                     stroke="#ffffff"
-                    strokeWidth="3.5"
+                    strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="drop-shadow-[0_0_10px_#fbbf24]"
+                    className="drop-shadow-[0_0_8px_#fbbf24]"
                   />
                   {/* Colored outline line */}
                   <polyline
                     points={points.join(' ')}
                     fill="none"
                     stroke={lineColor}
-                    strokeWidth="5"
+                    strokeWidth="4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
@@ -300,29 +301,18 @@ export function MacvSlotReels({
         )}
       </div>
 
-      {/* 5. Foreground Frame: ramka.webp positioned on top */}
+      {/* 5. Foreground Frame: ramka.webp with unoptimized to preserve full 1671x941 pixel-crisp quality */}
       <div className="absolute inset-0 pointer-events-none z-30 w-full h-full">
         <Image
           src="/MacvSlot/ramka.webp"
           alt="MacvSpin Frame"
           fill
           priority
+          unoptimized
           sizes="(max-width: 1200px) 100vw, 1120px"
           className="object-contain drop-shadow-[0_16px_35px_rgba(0,0,0,0.9)]"
         />
       </div>
-
-      {/* 6. Active Winning Line Badge (Top Center of Frame) */}
-      {!isSpinning && winningLines.length > 0 && currentWinningLine && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-40 px-4 py-1 rounded-full bg-black/90 border border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)] flex items-center gap-2 animate-pulse">
-          <span className="text-[11px] font-extrabold uppercase text-amber-300 tracking-wider">
-            ЛИНИЯ {currentWinningLine.lineIndex + 1}
-          </span>
-          <span className="text-[11px] font-black text-white">
-            +{currentWinningLine.payout.toFixed(2)} zł
-          </span>
-        </div>
-      )}
     </div>
   );
 }

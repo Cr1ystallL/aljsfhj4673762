@@ -9,6 +9,7 @@ import { logger } from '../utils/logger.js';
 const SpinSchema = z.object({
   betAmount: z.number().min(0.20).max(1000).default(1),
   demoMode: z.boolean().default(false),
+  isBonusBuy: z.boolean().default(false),
 });
 
 export async function macvSlotRoutes(app: FastifyInstance): Promise<void> {
@@ -64,10 +65,10 @@ export async function macvSlotRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Неверные параметры ставки.', details: parseResult.error.format() });
     }
 
-    const { betAmount, demoMode } = parseResult.data;
+    const { betAmount, demoMode, isBonusBuy } = parseResult.data;
 
     try {
-      const result = await macvSlotEngine.spin(req.user.userId, betAmount, demoMode);
+      const result = await macvSlotEngine.spin(req.user.userId, betAmount, demoMode, isBonusBuy);
       const newBalance = await balanceService.getBalance(req.user.userId);
 
       return reply.send({
