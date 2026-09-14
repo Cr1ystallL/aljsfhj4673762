@@ -60,6 +60,7 @@ export function MacvSlotPaytableModal({ isOpen, onClose }: MacvSlotPaytableModal
                 src={SYMBOL_IMAGES.wield}
                 alt="WILD"
                 fill
+                unoptimized
                 className="object-contain"
               />
             </div>
@@ -78,6 +79,7 @@ export function MacvSlotPaytableModal({ isOpen, onClose }: MacvSlotPaytableModal
                 src={SYMBOL_IMAGES.scatter}
                 alt="SCATTER"
                 fill
+                unoptimized
                 className="object-contain"
               />
             </div>
@@ -108,6 +110,7 @@ export function MacvSlotPaytableModal({ isOpen, onClose }: MacvSlotPaytableModal
                       src={SYMBOL_IMAGES[item.id as keyof typeof SYMBOL_IMAGES]}
                       alt={item.name}
                       fill
+                      unoptimized
                       className="object-contain"
                     />
                   </div>

@@ -43,6 +43,7 @@ export function MacvSlotBonusModal({
               src="/MacvSlot/scatter.webp"
               alt="Scatter Bonus"
               fill
+              unoptimized
               className="object-contain"
               priority
             />

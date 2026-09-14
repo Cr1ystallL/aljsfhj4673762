@@ -105,13 +105,13 @@ export function MacvSlotControls({
         </div>
 
         {/* 2. Symmetrical Action Trio: [AUTO] --- [SPIN] --- [TURBO] */}
-        <div className="flex items-center gap-2 sm:gap-4 md:gap-6 shrink-0">
-          {/* AUTO BUTTON */}
+        <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 shrink-0">
+          {/* AUTO BUTTON - Sleeker satellite button */}
           <button
             type="button"
             onClick={onToggleAuto}
             className={cn(
-              'relative w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none',
+              'relative w-9 h-9 sm:w-12 sm:h-12 md:w-13 md:h-13 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
               autoSpinsLeft > 0 ? 'drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'hover:scale-105 opacity-85 hover:opacity-100'
             )}
             title={autoSpinsLeft > 0 ? 'Остановить авто-спины' : 'Авто-спины'}
@@ -122,11 +122,12 @@ export function MacvSlotControls({
                   src="/MacvSlot/autobutton.webp"
                   alt="Auto"
                   fill
+                  unoptimized
                   className="object-contain filter hue-rotate-90"
                 />
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                  <Square className="w-3.5 h-3.5 text-white fill-white" />
-                  <span className="text-[9px] sm:text-[10px] font-black text-white">{autoSpinsLeft}</span>
+                  <Square className="w-3 h-3 text-white fill-white" />
+                  <span className="text-[8px] sm:text-[9px] font-black text-white">{autoSpinsLeft}</span>
                 </div>
               </div>
             ) : (
@@ -134,16 +135,17 @@ export function MacvSlotControls({
                 src="/MacvSlot/autobutton.webp"
                 alt="Auto"
                 fill
+                unoptimized
                 className="object-contain"
               />
             )}
           </button>
 
-          {/* BIG SPIN BUTTON (Center) - No rotation */}
+          {/* MASTER SPIN BUTTON - Substantially larger centerpiece */}
           <motion.button
             type="button"
             whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.94 }}
+            whileTap={{ scale: 0.93 }}
             disabled={disabled || (isSpinning && !isFreeSpinActive)}
             onClick={() => {
               if (window?.Telegram?.WebApp?.HapticFeedback) {
@@ -152,30 +154,31 @@ export function MacvSlotControls({
               onSpin();
             }}
             className={cn(
-              'relative w-16 h-16 sm:w-22 sm:h-22 md:w-26 md:h-26 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer',
+              'relative w-18 h-18 sm:w-24 sm:h-24 md:w-28 md:h-28 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer shrink-0',
               isSpinning && 'opacity-85 cursor-not-allowed'
             )}
           >
-            {/* Ambient pulse glow */}
-            <div className="absolute inset-[-4px] rounded-full bg-amber-400/25 blur-lg animate-pulse pointer-events-none" />
+            {/* Ambient golden pulse glow */}
+            <div className="absolute inset-[-6px] rounded-full bg-amber-400/30 blur-xl animate-pulse pointer-events-none" />
 
-            <div className="relative w-full h-full drop-shadow-[0_8px_20px_rgba(245,158,11,0.6)]">
+            <div className="relative w-full h-full drop-shadow-[0_10px_25px_rgba(245,158,11,0.7)]">
               <Image
                 src="/MacvSlot/spinbutton.webp"
                 alt="SPIN"
                 fill
                 priority
+                unoptimized
                 className="object-contain transition-transform duration-200"
               />
             </div>
           </motion.button>
 
-          {/* TURBO BUTTON */}
+          {/* TURBO BUTTON - Sleeker satellite button */}
           <button
             type="button"
             onClick={onToggleTurbo}
             className={cn(
-              'relative w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none',
+              'relative w-9 h-9 sm:w-12 sm:h-12 md:w-13 md:h-13 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
               isTurbo
                 ? 'drop-shadow-[0_0_18px_rgba(251,191,36,0.95)] scale-105'
                 : 'opacity-75 hover:opacity-100 hover:scale-105'
@@ -186,6 +189,7 @@ export function MacvSlotControls({
               src="/MacvSlot/turbobutton.webp"
               alt="Turbo"
               fill
+              unoptimized
               className={cn(
                 'object-contain',
                 isTurbo && 'filter brightness-125'

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Play, Zap, X, RotateCw } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 
@@ -40,9 +41,15 @@ export function MacvSlotAutoModal({
 
         {/* Header with Close */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <RotateCw className="w-4 h-4 animate-[spin_8s_linear_infinite]" />
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-9 h-9 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.5)]">
+              <Image
+                src="/MacvSlot/autobutton.webp"
+                alt="Auto"
+                fill
+                unoptimized
+                className="object-contain"
+              />
             </div>
             <div>
               <h3 className="font-brand font-black text-base sm:text-lg text-white uppercase tracking-wider">
@@ -60,7 +67,8 @@ export function MacvSlotAutoModal({
               soundManager.play('ui.click', { volume: 0.3 });
               onClose();
             }}
-            className="w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-zinc-700/50"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
@@ -96,22 +104,28 @@ export function MacvSlotAutoModal({
           </div>
         </div>
 
-        {/* 2. Turbo Mode Switch */}
+        {/* 2. Turbo Mode Switch with Authentic 3D Turbo Asset */}
         <div
           onClick={() => {
             soundManager.play('ui.click', { volume: 0.35 });
             setTurboEnabled((prev) => !prev);
           }}
-          className="flex items-center justify-between p-3 rounded-2xl bg-black/60 border border-amber-500/25 hover:border-amber-400/50 transition-all cursor-pointer mb-5"
+          className="flex items-center justify-between p-3 rounded-2xl bg-black/60 border border-amber-500/25 hover:border-amber-400/50 transition-all cursor-pointer mb-5 group"
         >
-          <div className="flex items-center gap-2.5">
-            <div
-              className={cn(
-                'w-8 h-8 rounded-xl flex items-center justify-center transition-colors',
-                turboEnabled ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800 text-zinc-500'
-              )}
-            >
-              <Zap className={cn('w-4 h-4', turboEnabled && 'fill-amber-400')} />
+          <div className="flex items-center gap-3">
+            <div className="relative w-8 h-8 shrink-0">
+              <Image
+                src="/MacvSlot/turbobutton.webp"
+                alt="Turbo"
+                fill
+                unoptimized
+                className={cn(
+                  'object-contain transition-all duration-200',
+                  turboEnabled
+                    ? 'filter brightness-125 drop-shadow-[0_0_10px_rgba(251,191,36,0.85)] scale-105'
+                    : 'opacity-40 grayscale group-hover:opacity-70'
+                )}
+              />
             </div>
             <div>
               <span className="text-xs font-bold text-white block">Турбо-режим</span>
@@ -139,16 +153,24 @@ export function MacvSlotAutoModal({
           </div>
         </div>
 
-        {/* 3. Start Auto-Spins Button */}
+        {/* 3. Start Auto-Spins Button with 3D Spin Graphic */}
         <button
           type="button"
           onClick={() => {
             soundManager.play('ui.success', { volume: 0.7 });
             onStartAuto(selectedRounds, turboEnabled);
           }}
-          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:brightness-105 active:scale-[0.98] text-black font-brand font-black text-sm uppercase tracking-widest transition-all cursor-pointer shadow-[0_4px_20px_rgba(251,191,36,0.4)] flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:brightness-105 active:scale-[0.98] text-black font-brand font-black text-sm uppercase tracking-widest transition-all cursor-pointer shadow-[0_4px_20px_rgba(251,191,36,0.4)] flex items-center justify-center gap-2.5"
         >
-          <Play className="w-4 h-4 fill-black" />
+          <div className="relative w-5 h-5 shrink-0">
+            <Image
+              src="/MacvSlot/spinbutton.webp"
+              alt="Spin"
+              fill
+              unoptimized
+              className="object-contain"
+            />
+          </div>
           <span>СТАРТ ({selectedRounds} СПИНОВ)</span>
         </button>
       </motion.div>

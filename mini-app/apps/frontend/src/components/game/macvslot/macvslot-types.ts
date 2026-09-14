@@ -38,17 +38,17 @@ export interface SlotSpinResponse {
 }
 
 export const SYMBOL_IMAGES: Record<SlotSymbol, string> = {
-  macvjet: '/MacvSlot/macvjet.webp',
-  mines: '/MacvSlot/mines.webp',
-  wheel: '/MacvSlot/wheel.webp',
-  coinflip: '/MacvSlot/coinflip.webp',
-  a: '/MacvSlot/a.webp',
-  k: '/MacvSlot/k.webp',
-  q: '/MacvSlot/q.webp',
-  j: '/MacvSlot/j.webp',
-  '10': '/MacvSlot/10.webp',
-  wield: '/MacvSlot/wield.webp',
-  scatter: '/MacvSlot/scatter.webp',
+  macvjet: '/MacvSlot/macvjet.webp?v=20260914v2',
+  mines: '/MacvSlot/mines.webp?v=20260914v2',
+  wheel: '/MacvSlot/wheel.webp?v=20260914v2',
+  coinflip: '/MacvSlot/coinflip.webp?v=20260914v2',
+  a: '/MacvSlot/a.webp?v=20260914v2',
+  k: '/MacvSlot/k.webp?v=20260914v2',
+  q: '/MacvSlot/q.webp?v=20260914v2',
+  j: '/MacvSlot/j.webp?v=20260914v2',
+  '10': '/MacvSlot/10.webp?v=20260914v2',
+  wield: '/MacvSlot/wield.webp?v=20260914v2',
+  scatter: '/MacvSlot/scatter.webp?v=20260914v2',
 };
 
 export const SYMBOL_NAMES: Record<SlotSymbol, string> = {

@@ -52,6 +52,7 @@ export function MacvSlotReels({
 }: MacvSlotReelsProps) {
   // Track which of the 5 reels have stopped: [r0, r1, r2, r3, r4]
   const [reelsStopped, setReelsStopped] = useState<boolean[]>([true, true, true, true, true]);
+  const [suspenseReel, setSuspenseReel] = useState<number | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number>(0);
   const spinTimerRefs = useRef<NodeJS.Timeout[]>([]);
 
@@ -80,50 +81,93 @@ export function MacvSlotReels({
     return () => clearInterval(interval);
   }, [isSpinning, winningLines.length]);
 
-  // Handle sequential spin timings: Reel 1 -> 2 -> 3 -> 4 -> 5
+  // Handle sequential spin timings with authentic Scatter Anticipation / Suspense Slowdown
   useEffect(() => {
     if (isSpinning) {
       spinTimerRefs.current.forEach(clearTimeout);
       spinTimerRefs.current = [];
       setReelsStopped([false, false, false, false, false]);
+      setSuspenseReel(null);
 
       const baseDelay = isTurbo ? 180 : 550;
-      const stagger = isTurbo ? 60 : 220;
+      const standardStagger = isTurbo ? 70 : 220;
+      const suspenseDuration = isTurbo ? 750 : 1600;
+
+      // Check which reels have scatters in final grid
+      const reelScatters = [0, 1, 2, 3, 4].map(
+        (r) => grid[r]?.includes('scatter') ?? false
+      );
+
+      let accumulatedTime = baseDelay;
+      let landedScatters = 0;
 
       for (let reel = 0; reel < 5; reel++) {
-        const timer = setTimeout(() => {
+        // Suspense triggers if at least 2 scatters landed on earlier stopped reels
+        const isSuspense = landedScatters >= 2;
+
+        if (isSuspense) {
+          // Trigger suspense visual/audio state right when previous reel finishes stopping
+          const suspenseStartDelay = accumulatedTime;
+          const suspenseTimer = setTimeout(() => {
+            setSuspenseReel(reel);
+            soundManager.play('ui.click', { volume: 0.6 });
+            if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+              (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+            }
+          }, suspenseStartDelay);
+          spinTimerRefs.current.push(suspenseTimer);
+
+          accumulatedTime += standardStagger + suspenseDuration;
+        } else if (reel > 0) {
+          accumulatedTime += standardStagger;
+        }
+
+        const stopTime = accumulatedTime;
+        const stopTimer = setTimeout(() => {
           setReelsStopped((prev) => {
             const next = [...prev];
             next[reel] = true;
             return next;
           });
 
-          // Play authentic reel landing sound
-          soundManager.play('ui.click', { volume: 0.4 });
-
-          // Haptic impact for mobile
-          if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
-            (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('light');
+          // Check if this reel had scatter
+          if (reelScatters[reel]) {
+            soundManager.play('game.win', { volume: 0.65 });
+            if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+              (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('heavy');
+            }
+          } else {
+            soundManager.play('ui.click', { volume: 0.4 });
+            if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+              (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('light');
+            }
           }
 
           if (reel === 4) {
+            setSuspenseReel(null);
             onSpinComplete?.();
           }
-        }, baseDelay + reel * stagger);
+        }, stopTime);
 
-        spinTimerRefs.current.push(timer);
+        spinTimerRefs.current.push(stopTimer);
+
+        if (reelScatters[reel]) {
+          landedScatters++;
+        }
       }
     } else {
       setReelsStopped([true, true, true, true, true]);
+      setSuspenseReel(null);
     }
 
     return () => {
       spinTimerRefs.current.forEach(clearTimeout);
     };
-  }, [isSpinning, isTurbo, onSpinComplete]);
+  }, [isSpinning, isTurbo, grid, onSpinComplete]);
 
   const currentWinningLine = winningLines[activeLineIndex % winningLines.length];
   const lineColor = LINE_COLORS[activeLineIndex % LINE_COLORS.length] || '#fbbf24';
+  const isAnySuspense = suspenseReel !== null;
 
   return (
     <div className="relative w-full max-w-full sm:max-w-[1020px] xl:max-w-[1120px] aspect-[1671/941] mx-auto select-none">
@@ -155,12 +199,26 @@ export function MacvSlotReels({
         <div className="grid grid-cols-5 h-full w-full relative z-0">
           {grid.map((reelSymbols, reelIdx) => {
             const isReelSpinning = !reelsStopped[reelIdx];
+            const isSuspense = suspenseReel === reelIdx;
 
             return (
               <div
                 key={reelIdx}
-                className="relative h-full flex flex-col justify-between overflow-hidden"
+                className={cn(
+                  'relative h-full flex flex-col justify-between overflow-visible transition-all duration-300',
+                  isSuspense && 'scale-105 z-25',
+                  isAnySuspense && !isSuspense && 'opacity-60 filter brightness-75'
+                )}
               >
+                {/* Golden Anticipation Spotlight Border */}
+                {isSuspense && (
+                  <div className="absolute inset-0 z-20 pointer-events-none rounded-lg border-2 border-amber-400 bg-gradient-to-b from-amber-400/25 via-amber-300/10 to-amber-500/30 animate-pulse shadow-[0_0_25px_rgba(251,191,36,0.9),inset_0_0_15px_rgba(251,191,36,0.4)]">
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-amber-400 text-black font-brand font-black text-[8px] sm:text-[9px] uppercase tracking-wider shadow-lg whitespace-nowrap animate-bounce">
+                      SCATTER?
+                    </div>
+                  </div>
+                )}
+
                 {isReelSpinning ? (
                   // REAL SLIDE-DOWN SPINNING REEL STRIP
                   <div className="w-full h-full relative overflow-hidden">
@@ -168,7 +226,7 @@ export function MacvSlotReels({
                       animate={{ y: ['-50%', '0%'] }}
                       transition={{
                         repeat: Infinity,
-                        duration: isTurbo ? 0.15 : 0.22,
+                        duration: isSuspense ? 0.35 : (isTurbo ? 0.15 : 0.22),
                         ease: 'linear',
                       }}
                       className="w-full flex flex-col items-center filter blur-[1.5px] opacity-85"
@@ -184,6 +242,7 @@ export function MacvSlotReels({
                               src={SYMBOL_IMAGES[sym]}
                               alt="spin"
                               fill
+                              unoptimized
                               sizes="(max-width: 768px) 70px, 95px"
                               className="object-contain"
                             />
@@ -209,7 +268,8 @@ export function MacvSlotReels({
                       const isWinning = winningCellsSet.has(`${reelIdx},${rowIdx}`);
                       const isWield = symbol === 'wield';
                       const isScatter = symbol === 'scatter';
-                      const isScatterActive = isScatter && isScatterAnticipating;
+                      const isScatterShaking =
+                        isScatter && (isScatterAnticipating || (isAnySuspense && reelsStopped[reelIdx]));
 
                       return (
                         <div
@@ -218,23 +278,23 @@ export function MacvSlotReels({
                         >
                           <motion.div
                             animate={
-                              isScatterActive
+                              isScatterShaking
                                 ? {
-                                    scale: [1.18, 1.32, 1.22, 1.32],
-                                    rotate: [-3, 3, -2, 2, 0],
+                                    scale: [1.1, 1.25, 1.15, 1.25, 1.1],
+                                    rotate: [-2.5, 2.5, -2, 2, 0],
                                     filter: [
-                                      'drop-shadow(0 0 12px rgba(251,191,36,0.85))',
-                                      'drop-shadow(0 0 28px rgba(251,191,36,1))',
-                                      'drop-shadow(0 0 16px rgba(251,191,36,0.9))',
+                                      'drop-shadow(0 0 10px rgba(251,191,36,0.8))',
+                                      'drop-shadow(0 0 24px rgba(251,191,36,1))',
+                                      'drop-shadow(0 0 14px rgba(251,191,36,0.85))',
                                     ],
                                   }
                                 : undefined
                             }
                             transition={
-                              isScatterActive
+                              isScatterShaking
                                 ? {
                                     repeat: Infinity,
-                                    duration: 0.35,
+                                    duration: 0.85, // Slower, heavier, majestic tempo instead of frenetic 0.35s
                                     ease: 'easeInOut',
                                   }
                                 : undefined
@@ -242,18 +302,18 @@ export function MacvSlotReels({
                             className={cn(
                               'relative w-full h-full max-h-[96px] transition-all duration-300 flex items-center justify-center',
                               isWield ? 'max-w-[102px] scale-110' : 'max-w-[94px]',
-                              isScatterActive && 'z-30 scale-125',
-                              isWinning && !isScatterActive &&
+                              isScatterShaking && 'z-30 scale-125',
+                              isWinning && !isScatterShaking &&
                                 'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25'
                             )}
                           >
                             {/* Scatter anticipation radiating background aura */}
-                            {isScatterActive && (
+                            {isScatterShaking && (
                               <div className="absolute inset-[-12px] rounded-full bg-amber-400/35 blur-xl animate-pulse -z-10" />
                             )}
 
                             {/* Softer, subtler ambient win glow without harsh borders */}
-                            {isWinning && !isScatterActive && (
+                            {isWinning && !isScatterShaking && (
                               <div
                                 className="absolute inset-[-4px] rounded-full animate-pulse blur-md -z-10"
                                 style={{
@@ -265,10 +325,11 @@ export function MacvSlotReels({
                               src={SYMBOL_IMAGES[symbol]}
                               alt={symbol}
                               fill
+                              unoptimized
                               sizes="(max-width: 768px) 80px, 105px"
                               className={cn(
                                 'object-contain transition-transform duration-200',
-                                isWinning && !isScatterActive && 'animate-pulse'
+                                isWinning && !isScatterShaking && 'animate-pulse'
                               )}
                               priority
                             />
