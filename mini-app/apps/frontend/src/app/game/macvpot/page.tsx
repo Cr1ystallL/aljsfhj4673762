@@ -144,9 +144,14 @@ export default function MacvpotPage() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      const sessionId = useAuthStore.getState().sessionId;
-      if (sessionId) {
-        ws.send(JSON.stringify({ type: 'auth', payload: { sessionId }, timestamp: Date.now() }));
+      const sessionId =
+        useAuthStore.getState().sessionId ||
+        (typeof window !== 'undefined' ? localStorage.getItem('macvbet_sessionId') : null);
+      const token =
+        useAuthStore.getState().token ||
+        (typeof window !== 'undefined' ? localStorage.getItem('macvbet_token') : null);
+      if (sessionId || token) {
+        ws.send(JSON.stringify({ type: 'auth', payload: { sessionId, token }, timestamp: Date.now() }));
       } else {
         ws.send(JSON.stringify({ type: 'game:join', payload: { roomId: 'macvpot_main' } }));
       }

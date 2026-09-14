@@ -74,7 +74,13 @@ export function GameTopBar({
     ? '🏆'
     : 'zł';
 
-  const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
+  const tgUser = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initDataUnsafe?.user : undefined;
+  const initials = (
+    user?.firstName?.charAt(0) ??
+    tgUser?.first_name?.charAt(0) ??
+    'U'
+  ).toUpperCase();
+  const effectivePhotoUrl = user?.photoUrl || tgUser?.photo_url || undefined;
   const showPillWrapper = !hideBalance || !isProfilePage;
 
   return (
@@ -206,11 +212,11 @@ export function GameTopBar({
                   aria-label={t('nav.profile')}
                   className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-amber-500/35 hover:border-amber-400/60 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-amber-500/10 ring-1 ring-amber-400/20"
                 >
-                  {user?.photoUrl ? (
+                  {effectivePhotoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={user.photoUrl}
-                      alt={user.firstName || t('nav.profile')}
+                      src={effectivePhotoUrl}
+                      alt={user?.firstName || tgUser?.first_name || t('nav.profile')}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       draggable={false}

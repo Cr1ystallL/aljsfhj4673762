@@ -29,11 +29,17 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const sessionId = useAuthStore((s) => s.sessionId);
-  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const authSessionId = useAuthStore((s) => s.sessionId);
+  const authUserId = useAuthStore((s) => s.user?.id ?? null);
+  const sessionId =
+    authSessionId ||
+    (typeof window !== 'undefined' ? localStorage.getItem('macvbet_sessionId') : null);
+  const userId =
+    authUserId ||
+    (typeof window !== 'undefined' ? useAuthStore.getState().user?.id ?? null : null);
 
   useEffect(() => {
-    if (!isAuthenticated || !sessionId || !userId) return;
+    if (!sessionId || !userId) return;
 
     let wsUrl = '';
     if (process.env.NEXT_PUBLIC_WS_URL) {

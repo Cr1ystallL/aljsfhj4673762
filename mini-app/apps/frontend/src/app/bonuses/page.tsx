@@ -672,7 +672,6 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const load = useCallback(async () => {
-    if (!isAuthenticated) return;
     try {
       const res = await fetch('/api/bonuses/wheel/state', {
         credentials: 'include',
@@ -684,7 +683,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
     } catch {
       // ignore
     }
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -696,7 +695,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
     ? Math.max(0, state.cooldownEndsAt - now)
     : 0;
   const onCooldown = cooldownLeftMs > 0;
-  const noSpins = (state?.remaining ?? 0) <= 0;
+  const noSpins = Boolean(state && state.remaining <= 0);
   const canSpin = !!state && !busy && !onCooldown && !noSpins && spinRef.current === null;
 
   const spin = async () => {
@@ -752,13 +751,15 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
     }
   };
 
-  const buttonLabel = onCooldown
-    ? t('bonuses.wheelWait', { time: formatCooldownMs(cooldownLeftMs, t) })
-    : noSpins
-      ? t('bonuses.wheelTomorrow')
-      : busy || spinRef.current
-        ? t('bonuses.wheelSpinning')
-        : t('bonuses.wheelSpin');
+  const buttonLabel = !state
+    ? (busy ? t('bonuses.wheelSpinning') : t('common.loading'))
+    : onCooldown
+      ? t('bonuses.wheelWait', { time: formatCooldownMs(cooldownLeftMs, t) })
+      : noSpins
+        ? t('bonuses.wheelTomorrow')
+        : busy || spinRef.current
+          ? t('bonuses.wheelSpinning')
+          : t('bonuses.wheelSpin');
 
   return (
     <motion.section 
@@ -858,7 +859,7 @@ function LuckyWheelHero({ onWin }: { onWin: () => void }) {
           <span>
             {state
               ? t('bonuses.wheelLeft', { n: state.remaining, cap: state.dailyCap })
-              : '—'}
+              : t('common.loading')}
           </span>
           {onCooldown && (
             <span className="text-white/50">

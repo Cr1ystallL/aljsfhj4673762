@@ -19,8 +19,29 @@ export interface TelegramAuthResponse {
     username?: string;
     firstName?: string;
     lastName?: string;
+    photoUrl?: string;
     isPremium: boolean;
   };
+}
+
+export interface CurrentUserResponse {
+  sessionId?: string;
+  user: {
+    id: string;
+    telegramId: number;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    photoUrl?: string;
+    isPremium: boolean;
+    languageCode?: string;
+    createdAt: string;
+  };
+  balance: {
+    amount: number;
+    currency: string;
+    demoMode: boolean;
+  } | null;
 }
 
 /**
@@ -57,8 +78,8 @@ export async function refreshAccessToken(): Promise<{ success: boolean }> {
 /**
  * Get current user
  */
-export async function getCurrentUser() {
-  return apiClient.get('/api/auth/me');
+export async function getCurrentUser(): Promise<CurrentUserResponse> {
+  return apiClient.get<CurrentUserResponse>('/api/auth/me');
 }
 
 /**

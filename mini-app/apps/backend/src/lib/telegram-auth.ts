@@ -79,10 +79,10 @@ export function validateTelegramInitData(initData: string): TelegramInitData | n
       return null;
     }
 
-    // Validate auth_date (not older than 1 hour)
+    // Validate auth_date (allow cached mobile WebViews up to 30 days)
     const authDate = parseInt(params.get('auth_date') || '0', 10);
     const now = Math.floor(Date.now() / 1000);
-    const maxAge = 3600; // 1 hour
+    const maxAge = 86400 * 30; // 30 days
 
     if (now - authDate > maxAge) {
       logger.warn({ authDate, now, age: now - authDate }, 'Telegram initData expired');

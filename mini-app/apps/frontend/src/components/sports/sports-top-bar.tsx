@@ -22,7 +22,13 @@ export function SportsTopBar({ backHref = '/' }: { backHref?: string }) {
   }, [fetchBalance]);
 
   const balanceAmount = balanceStore?.amount ?? 0;
-  const initials = (user?.firstName?.charAt(0) ?? 'U').toUpperCase();
+  const tgUser = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initDataUnsafe?.user : undefined;
+  const initials = (
+    user?.firstName?.charAt(0) ??
+    tgUser?.first_name?.charAt(0) ??
+    'U'
+  ).toUpperCase();
+  const effectivePhotoUrl = user?.photoUrl || tgUser?.photo_url || undefined;
 
   return (
     <header className="sticky top-0 z-40 w-full bg-midnight-canvas/95 backdrop-blur-md border-b border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.07)]">
@@ -79,11 +85,11 @@ export function SportsTopBar({ backHref = '/' }: { backHref?: string }) {
             aria-label={t('nav.profile')}
             className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all active:scale-[0.95] flex items-center justify-center shrink-0 shadow-md bg-white/10"
           >
-            {user?.photoUrl ? (
+            {effectivePhotoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={user.photoUrl}
-                alt={user.firstName || t('nav.profile')}
+                src={effectivePhotoUrl}
+                alt={user?.firstName || tgUser?.first_name || t('nav.profile')}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
                 draggable={false}

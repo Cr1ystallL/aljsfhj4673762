@@ -25,8 +25,14 @@ export function useCrashLive(): {
   stream: CrashLiveStream | null;
   userId: string | null;
 } {
-  const sessionId = useAuthStore((s) => s.sessionId);
-  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const authSessionId = useAuthStore((s) => s.sessionId);
+  const sessionId =
+    authSessionId ||
+    (typeof window !== 'undefined' ? localStorage.getItem('macvbet_sessionId') : null);
+  const authUserId = useAuthStore((s) => s.user?.id ?? null);
+  const userId =
+    authUserId ||
+    (typeof window !== 'undefined' ? useAuthStore.getState().user?.id ?? null : null);
 
   // The stream URL is stable across the page lifetime, so we resolve it
   // once and memo the stream instance keyed by sessionId.

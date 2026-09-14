@@ -893,13 +893,26 @@ export function BlackjackMultiplayer() {
         wsRef.current = ws;
 
         ws.onopen = () => {
+          const effectiveSessionId =
+            sessionId ||
+            (typeof window !== 'undefined' ? localStorage.getItem('macvbet_sessionId') : null) ||
+            undefined;
+          const effectiveToken =
+            token ||
+            (typeof window !== 'undefined' ? localStorage.getItem('macvbet_token') : null) ||
+            undefined;
+          const effectiveUserId =
+            user?.id ||
+            (typeof window !== 'undefined' ? useAuthStore.getState().user?.id : null) ||
+            undefined;
+
           ws?.send(
             JSON.stringify({
               type: 'auth',
               payload: {
-                sessionId: sessionId || undefined,
-                token: token || undefined,
-                userId: user?.id || undefined,
+                sessionId: effectiveSessionId,
+                token: effectiveToken,
+                userId: effectiveUserId,
               },
               timestamp: Date.now(),
             })

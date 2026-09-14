@@ -171,9 +171,13 @@ export class CrashLiveStream extends EventEmitter {
     }
 
     this.ws.onopen = () => {
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('macvbet_token') || undefined
+          : undefined;
       this.send({
         type: 'auth',
-        payload: { sessionId: this.sessionId },
+        payload: { sessionId: this.sessionId, token },
         timestamp: Date.now(),
       });
     };

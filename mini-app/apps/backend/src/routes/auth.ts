@@ -118,6 +118,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             username: user.username,
             firstName: user.firstName,
             lastName: user.lastName,
+            photoUrl: user.photoUrl ?? validatedData.user.photo_url ?? undefined,
             isPremium: user.isPremium,
           },
         });
@@ -317,7 +318,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       preHandler: authenticate,
     },
     async (request, reply) => {
-      const { userId } = (request as AuthenticatedRequest).user;
+      const { userId, sessionId } = (request as AuthenticatedRequest).user;
 
       try {
         const user = await userService.getUserWithBalance(userId);
@@ -331,12 +332,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         }
 
         return reply.send({
+          sessionId,
           user: {
             id: user.id,
             telegramId: Number(user.telegramId),
             username: user.username,
             firstName: user.firstName,
             lastName: user.lastName,
+            photoUrl: user.photoUrl ?? undefined,
             isPremium: user.isPremium,
             languageCode: user.languageCode,
             createdAt: user.createdAt,
