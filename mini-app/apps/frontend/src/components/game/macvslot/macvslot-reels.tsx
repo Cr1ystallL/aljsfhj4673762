@@ -13,6 +13,7 @@ interface MacvSlotReelsProps {
   winningLines: WinningLine[];
   isSpinning: boolean;
   isTurbo: boolean;
+  isScatterAnticipating?: boolean;
   onSpinComplete?: () => void;
 }
 
@@ -46,6 +47,7 @@ export function MacvSlotReels({
   winningLines,
   isSpinning,
   isTurbo,
+  isScatterAnticipating = false,
   onSpinComplete,
 }: MacvSlotReelsProps) {
   // Track which of the 5 reels have stopped: [r0, r1, r2, r3, r4]
@@ -206,22 +208,52 @@ export function MacvSlotReels({
                     {reelSymbols.map((symbol, rowIdx) => {
                       const isWinning = winningCellsSet.has(`${reelIdx},${rowIdx}`);
                       const isWield = symbol === 'wield';
+                      const isScatter = symbol === 'scatter';
+                      const isScatterActive = isScatter && isScatterAnticipating;
 
                       return (
                         <div
                           key={rowIdx}
                           className="relative w-full h-[33.33%] flex items-center justify-center p-1 sm:p-2"
                         >
-                          <div
+                          <motion.div
+                            animate={
+                              isScatterActive
+                                ? {
+                                    scale: [1.18, 1.32, 1.22, 1.32],
+                                    rotate: [-3, 3, -2, 2, 0],
+                                    filter: [
+                                      'drop-shadow(0 0 12px rgba(251,191,36,0.85))',
+                                      'drop-shadow(0 0 28px rgba(251,191,36,1))',
+                                      'drop-shadow(0 0 16px rgba(251,191,36,0.9))',
+                                    ],
+                                  }
+                                : undefined
+                            }
+                            transition={
+                              isScatterActive
+                                ? {
+                                    repeat: Infinity,
+                                    duration: 0.35,
+                                    ease: 'easeInOut',
+                                  }
+                                : undefined
+                            }
                             className={cn(
                               'relative w-full h-full max-h-[88px] transition-all duration-300 flex items-center justify-center',
                               isWield ? 'max-w-[96px] scale-110' : 'max-w-[86px]',
-                              isWinning &&
+                              isScatterActive && 'z-30 scale-125',
+                              isWinning && !isScatterActive &&
                                 'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25'
                             )}
                           >
+                            {/* Scatter anticipation radiating background aura */}
+                            {isScatterActive && (
+                              <div className="absolute inset-[-12px] rounded-full bg-amber-400/35 blur-xl animate-pulse -z-10" />
+                            )}
+
                             {/* Softer, subtler ambient win glow without harsh borders */}
-                            {isWinning && (
+                            {isWinning && !isScatterActive && (
                               <div
                                 className="absolute inset-[-4px] rounded-full animate-pulse blur-md -z-10"
                                 style={{
@@ -236,11 +268,11 @@ export function MacvSlotReels({
                               sizes="(max-width: 768px) 80px, 105px"
                               className={cn(
                                 'object-contain transition-transform duration-200',
-                                isWinning && 'animate-pulse'
+                                isWinning && !isScatterActive && 'animate-pulse'
                               )}
                               priority
                             />
-                          </div>
+                          </motion.div>
                         </div>
                       );
                     })}
@@ -251,15 +283,19 @@ export function MacvSlotReels({
           })}
         </div>
 
-        {/* 4. Winning Payline SVG Overlay */}
+        {/* 4. Winning Payline SVG Overlay (Standard user-space 1000x600 coordinates) */}
         {!isSpinning && winningLines.length > 0 && currentWinningLine && (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible">
+          <svg
+            viewBox="0 0 1000 600"
+            preserveAspectRatio="none"
+            className="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible"
+          >
             {(() => {
-              // Calculate center coordinates of each winning symbol in the line
+              // Calculate numeric user-space center coordinates of each winning symbol
               const points = currentWinningLine.positions.map(([reel, row]) => {
-                const x = ((reel + 0.5) / 5) * 100;
-                const y = ((row + 0.5) / 3) * 100;
-                return `${x}%,${y}%`;
+                const x = (reel + 0.5) * 200;
+                const y = (row + 0.5) * 200;
+                return `${x},${y}`;
               });
 
               return (
@@ -269,8 +305,8 @@ export function MacvSlotReels({
                     points={points.join(' ')}
                     fill="none"
                     stroke={lineColor}
-                    strokeWidth="6"
-                    strokeOpacity="0.3"
+                    strokeWidth="8"
+                    strokeOpacity="0.35"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     className="blur-sm"

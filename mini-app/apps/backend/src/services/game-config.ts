@@ -194,7 +194,7 @@ const DEFAULTS: Record<GameType, GameConfig> = {
     paused: false,
     hidden: true, // Visible ONLY to admins by default
     minBet: 0.20,
-    maxBet: 500,
+    maxBet: 1000,
     houseEdge: 0.04, // 96% RTP
     wagerContribution: WC.macvslot,
     extras: {

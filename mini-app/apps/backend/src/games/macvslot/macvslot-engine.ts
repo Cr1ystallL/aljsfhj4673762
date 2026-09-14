@@ -3,6 +3,7 @@ import { bettingPipeline } from '../../game-engine/betting-pipeline.js';
 import { redisClient } from '../../lib/redis.js';
 import { logger } from '../../utils/logger.js';
 import { gameConfig } from '../../services/game-config.js';
+import { balanceService } from '../../services/balance-service.js';
 import type { Bet } from '../../game-engine/types.js';
 
 export type SlotSymbol =
@@ -276,7 +277,7 @@ export class MacvSlotEngine {
 
     const baseBetForCalculations = isFreeSpin ? fsState!.betAmount : requestedBetAmount;
     // Bonus Buy costs exactly 100x of base bet
-    const actualBetAmount = isFreeSpin ? 0 : (isBonusBuy ? baseBetForCalculations * 100 : requestedBetAmount);
+    const actualBetAmount = isFreeSpin ? 0 : (isBonusBuy ? Math.round(baseBetForCalculations * 100 * 100) / 100 : requestedBetAmount);
 
     if (!isFreeSpin) {
       if (requestedBetAmount < cfg.minBet) {
@@ -285,11 +286,15 @@ export class MacvSlotEngine {
       if (requestedBetAmount > cfg.maxBet) {
         throw new Error(`Максимальная ставка: ${cfg.maxBet} PLN`);
       }
+      const userBalance = await balanceService.getBalance(userId);
+      if (userBalance.amount < actualBetAmount) {
+        throw new Error(`Недостаточно средств на балансе. Требуется: ${actualBetAmount.toFixed(2)} PLN`);
+      }
     }
 
     const lineBet = Math.round((baseBetForCalculations / 20) * 10000) / 10000;
 
-    // Deduct bet if not free spin
+    // Register bet in bettingPipeline (handles both normal bets and free spins with 0 debit)
     const bet: Bet = {
       id: randomUUID(),
       userId,
@@ -301,9 +306,7 @@ export class MacvSlotEngine {
       placedAt: Date.now(),
     };
 
-    if (!isFreeSpin) {
-      await bettingPipeline.processBet(bet, demoMode);
-    }
+    await bettingPipeline.processBet(bet, demoMode);
 
     // Generate outcome
     const grid = this.generateGrid();
@@ -347,9 +350,7 @@ export class MacvSlotEngine {
       if (totalWin > 0) {
         await bettingPipeline.processPayout(bet, totalWin, demoMode, true);
       } else {
-        if (!isFreeSpin) {
-          await bettingPipeline.processLoss(bet, demoMode, true);
-        }
+        await bettingPipeline.processLoss(bet, demoMode, true);
       }
     } catch (err) {
       logger.error({ err, betId: bet.id, totalWin }, 'Failed to settle MacvSlot bet');

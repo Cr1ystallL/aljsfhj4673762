@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Minus, Square, Zap, Sparkles, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, Minus, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { soundManager } from '@/lib/sound/sound-manager';
 
@@ -12,7 +12,6 @@ interface MacvSlotControlsProps {
   betAmount: number;
   onBetChange: (amount: number) => void;
   onSpin: () => void;
-  onBuyBonus: () => void;
   isSpinning: boolean;
   isTurbo: boolean;
   onToggleTurbo: () => void;
@@ -29,7 +28,6 @@ export function MacvSlotControls({
   betAmount,
   onBetChange,
   onSpin,
-  onBuyBonus,
   isSpinning,
   isTurbo,
   onToggleTurbo,
@@ -39,7 +37,6 @@ export function MacvSlotControls({
   disabled = false,
 }: MacvSlotControlsProps) {
   const [showBetModal, setShowBetModal] = useState(false);
-  const [showBuyBonusConfirm, setShowBuyBonusConfirm] = useState(false);
 
   const handleStepBet = (delta: number) => {
     soundManager.play('ui.click', { volume: 0.4 });
@@ -54,7 +51,6 @@ export function MacvSlotControls({
   };
 
   const isFreeSpinActive = freeSpinsLeft > 0;
-  const bonusBuyCost = Math.round(betAmount * 100 * 100) / 100;
 
   return (
     <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto px-2 select-none">
@@ -105,28 +101,6 @@ export function MacvSlotControls({
             aria-label="Increase bet"
           >
             <Plus className="w-5 h-5 stroke-[2.5]" />
-          </button>
-
-          {/* BUY BONUS BUTTON (100x) */}
-          <button
-            type="button"
-            disabled={disabled || isSpinning || isFreeSpinActive || balance < bonusBuyCost}
-            onClick={() => {
-              soundManager.play('ui.click', { volume: 0.4 });
-              setShowBuyBonusConfirm(true);
-            }}
-            className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:brightness-110 active:scale-95 disabled:opacity-40 flex items-center gap-2 text-white font-brand font-black text-xs sm:text-sm tracking-wide shadow-[0_2px_15px_rgba(147,51,234,0.4)] transition-all cursor-pointer border border-purple-400/40"
-            title="Купить 10 фриспинов за 100x от ставки"
-          >
-            <Zap className="w-4 h-4 fill-amber-300 text-amber-300 shrink-0" />
-            <div className="flex flex-col text-left leading-tight">
-              <span className="text-[9px] uppercase tracking-wider text-purple-200 font-bold">
-                КУПИТЬ БОНУСКУ
-              </span>
-              <span className="text-xs sm:text-sm font-black text-amber-300">
-                {bonusBuyCost.toFixed(2)} zł (100x)
-              </span>
-            </div>
           </button>
         </div>
 
@@ -249,58 +223,6 @@ export function MacvSlotControls({
               {amount.toFixed(amount < 1 ? 2 : 0)} zł
             </button>
           ))}
-        </div>
-      )}
-
-      {/* Buy Bonus Confirmation Modal */}
-      {showBuyBonusConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm rounded-3xl bg-gradient-to-b from-[#181329] to-[#0b0c10] border-2 border-purple-500 p-6 text-center text-white shadow-[0_0_50px_rgba(147,51,234,0.5)]">
-            <div className="relative w-16 h-16 mx-auto mb-3">
-              <Image
-                src="/MacvSlot/scatter.webp"
-                alt="Scatter"
-                fill
-                className="object-contain animate-bounce"
-              />
-            </div>
-
-            <h3 className="font-brand font-black text-xl sm:text-2xl text-amber-300 uppercase tracking-wide">
-              Купить Бонуску?
-            </h3>
-
-            <p className="text-zinc-300 text-xs sm:text-sm mt-1.5">
-              Вы мгновенно получите гарантированные <strong>3+ Scatter</strong> и запустите <strong>10 Free Spins</strong> по базовой ставке {betAmount.toFixed(2)} zł!
-            </p>
-
-            <div className="my-4 py-2.5 px-4 rounded-2xl bg-purple-500/20 border border-purple-400/40">
-              <span className="text-xs text-purple-200 block uppercase font-bold">Стоимость:</span>
-              <span className="font-brand font-black text-2xl text-white">
-                {bonusBuyCost.toFixed(2)} zł
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowBuyBonusConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs transition-all cursor-pointer"
-              >
-                Отмена
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBuyBonusConfirm(false);
-                  onBuyBonus();
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-amber-500 hover:brightness-110 text-black font-brand font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
-              >
-                Купить
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

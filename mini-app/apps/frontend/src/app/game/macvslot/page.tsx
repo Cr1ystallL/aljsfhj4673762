@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ShieldAlert, Sparkles, HelpCircle, Dices } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
 import { useIsAdmin } from '@/lib/admin-probe';
@@ -41,6 +42,8 @@ export default function MacvSlotPage() {
   const [awardedFreeSpins, setAwardedFreeSpins] = useState<number>(0);
   const [showPaytable, setShowPaytable] = useState<boolean>(false);
   const [bigWinAmount, setBigWinAmount] = useState<number | null>(null);
+  const [isScatterAnticipating, setIsScatterAnticipating] = useState<boolean>(false);
+  const [showBuyBonusConfirm, setShowBuyBonusConfirm] = useState<boolean>(false);
 
   const pendingResultRef = useRef<SlotSpinResponse | null>(null);
 
@@ -125,13 +128,23 @@ export default function MacvSlotPage() {
       }
     }
 
-    // Free Spins Awarded Trigger
+    // Free Spins Awarded Trigger with dramatic Scatter anticipation vibration
     if (result.freeSpinsAwarded > 0) {
-      setAwardedFreeSpins(result.freeSpinsAwarded);
+      setIsScatterAnticipating(true);
+      soundManager.play('game.win', { volume: 0.95 });
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+        (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+
+      // 1.8s anticipation delay before showing the bonus modal
+      setTimeout(() => {
+        setIsScatterAnticipating(false);
+        setAwardedFreeSpins(result.freeSpinsAwarded);
+      }, 1800);
     }
 
     // Auto-spin continuation
-    if (autoSpinsLeft > 0) {
+    if (autoSpinsLeft > 0 && result.freeSpinsAwarded <= 0) {
       setAutoSpinsLeft((prev) => prev - 1);
       setTimeout(() => {
         void handleSpin();
@@ -246,15 +259,65 @@ export default function MacvSlotPage() {
 
       {/* 3. Center Reel Stage */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-2 py-1">
-        <MacvSlotReels
-          grid={grid}
-          winningLines={winningLines}
-          isSpinning={isSpinning}
-          isTurbo={isTurbo}
-          onSpinComplete={handleSpinComplete}
-        />
+        <div className="relative w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto">
+          {/* LUXURY BUY BONUS BUTTON - Pinned to the left of the reel frame */}
+          <button
+            type="button"
+            disabled={
+              isAdmin === null ||
+              isSpinning ||
+              freeSpinsLeft > 0 ||
+              (balance?.amount ?? 0) < Math.round(betAmount * 100 * 100) / 100
+            }
+            onClick={() => {
+              soundManager.play('ui.click', { volume: 0.4 });
+              setShowBuyBonusConfirm(true);
+            }}
+            className={cn(
+              'z-30 flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
+              'bg-[#090b12]/95 border border-amber-500/35 hover:border-amber-400/70 shadow-[0_8px_30px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(251,191,36,0.15)] backdrop-blur-2xl group',
+              // Desktop: pinned on the left side of the frame
+              'md:absolute md:-left-22 xl:-left-26 md:top-1/2 md:-translate-y-1/2 md:p-3 md:w-20 xl:w-22 md:flex-col text-center',
+              // Mobile: compact badge at top-left
+              'absolute left-2 top-2 p-2 sm:p-2.5 md:left-auto md:top-auto flex-row gap-2 md:gap-1'
+            )}
+            title="Купить 10 фриспинов (100x)"
+          >
+            <div className="relative w-6 h-6 sm:w-7 sm:h-7 shrink-0">
+              <Image
+                src="/MacvSlot/scatter.webp"
+                alt="Bonus"
+                fill
+                className="object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.6)] group-hover:scale-110 transition-transform"
+              />
+            </div>
+            <div className="flex flex-col items-center leading-tight">
+              <span className="text-[9px] uppercase font-mono tracking-wider text-amber-200/90 font-bold">
+                КУПИТЬ
+              </span>
+              <span className="text-[8px] uppercase font-mono tracking-widest text-zinc-400 font-semibold md:block hidden">
+                БОНУС
+              </span>
+              <span className="font-mono font-black text-[11px] sm:text-xs text-amber-300 mt-0.5">
+                {(Math.round(betAmount * 100 * 100) / 100).toFixed(0)} zł
+              </span>
+              <span className="text-[8px] font-mono text-zinc-400 px-1 py-0.2 rounded bg-black/50 border border-amber-500/20 mt-0.5 md:inline-block hidden">
+                100x
+              </span>
+            </div>
+          </button>
 
-        {/* Strictly Centered Round Win Display under the reels frame */}
+          <MacvSlotReels
+            grid={grid}
+            winningLines={winningLines}
+            isSpinning={isSpinning}
+            isTurbo={isTurbo}
+            isScatterAnticipating={isScatterAnticipating}
+            onSpinComplete={handleSpinComplete}
+          />
+        </div>
+
+        {/* Strictly Centered Round Win / Status Display under the reels frame */}
         <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-2 flex flex-col items-center justify-center min-h-[50px]">
           {lastWin > 0 ? (
             <div className="px-6 py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_30px_rgba(251,191,36,0.5)] flex items-center gap-2.5 animate-in zoom-in-95 duration-200">
@@ -266,8 +329,15 @@ export default function MacvSlotPage() {
               </span>
             </div>
           ) : freeSpinsLeft > 0 ? (
-            <div className="px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-black font-extrabold text-xs tracking-wider animate-pulse flex items-center gap-1.5 shadow-lg">
-              <span>🔥 БОНУСНЫЙ РАУНД: ОСТАЛОСЬ {freeSpinsLeft} ФРИСПИНОВ</span>
+            <div className="px-5 py-2 rounded-2xl bg-[#080a12]/95 border border-amber-500/40 backdrop-blur-2xl shadow-[0_8px_30px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(251,191,36,0.2)] flex items-center gap-3 animate-in zoom-in-95 duration-200">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-semibold">
+                BONUS ROUND
+              </span>
+              <div className="w-px h-3.5 bg-amber-500/30" />
+              <span className="text-xs font-mono font-medium text-zinc-300">
+                ОСТАЛОСЬ: <strong className="text-amber-400 font-brand font-black text-sm">{freeSpinsLeft}</strong> СПИНОВ
+              </span>
             </div>
           ) : isSpinning ? (
             <span className="text-xs text-zinc-400 font-mono tracking-widest uppercase animate-pulse">
@@ -286,7 +356,6 @@ export default function MacvSlotPage() {
           betAmount={betAmount}
           onBetChange={setBetAmount}
           onSpin={handleSpin}
-          onBuyBonus={handleBuyBonus}
           isSpinning={isSpinning}
           isTurbo={isTurbo}
           onToggleTurbo={() => setIsTurbo((prev) => !prev)}
@@ -310,6 +379,60 @@ export default function MacvSlotPage() {
           void handleSpin();
         }}
       />
+
+      {/* Luxury Buy Bonus Confirmation Modal */}
+      {showBuyBonusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200 select-none">
+          <div className="relative w-full max-w-sm rounded-3xl bg-[#080a12]/98 border border-amber-500/40 p-6 sm:p-7 text-center text-white shadow-[0_20px_60px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(251,191,36,0.25)] overflow-hidden">
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
+
+            <div className="relative w-16 h-16 mx-auto mb-3 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
+              <Image
+                src="/MacvSlot/scatter.webp"
+                alt="Scatter"
+                fill
+                className="object-contain"
+              />
+            </div>
+
+            <h3 className="font-brand font-black text-xl sm:text-2xl text-white uppercase tracking-wider">
+              КУПИТЬ БОНУСКУ?
+            </h3>
+
+            <p className="text-zinc-400 text-xs sm:text-sm mt-1.5 font-sans">
+              Гарантированные <strong>3+ Scatter</strong> и <strong>10 бесплатных вращений</strong> по текущей ставке {betAmount.toFixed(2)} zł.
+            </p>
+
+            <div className="my-5 py-2.5 px-4 rounded-2xl bg-black/60 border border-amber-500/30">
+              <span className="text-[10px] text-zinc-400 block uppercase font-mono tracking-widest">СТОИМОСТЬ:</span>
+              <span className="font-brand font-black text-2xl text-amber-300">
+                {(Math.round(betAmount * 100 * 100) / 100).toFixed(2)} zł
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBuyBonusConfirm(false)}
+                className="flex-1 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold text-xs transition-all cursor-pointer"
+              >
+                ОТМЕНА
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBuyBonusConfirm(false);
+                  void handleBuyBonus();
+                }}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:brightness-105 active:scale-[0.98] text-black font-brand font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-[0_2px_15px_rgba(251,191,36,0.4)]"
+              >
+                КУПИТЬ (100x)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Big Win Toast / Celebration */}
       {bigWinAmount !== null && (

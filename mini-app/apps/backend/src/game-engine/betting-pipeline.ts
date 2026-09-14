@@ -326,7 +326,7 @@ export class BettingPipeline {
         return true;
       }
 
-      if (bet.metadata?.freebetId) {
+      if (bet.metadata?.freebetId || bet.metadata?.isFreeSpin) {
         await prisma.$transaction(async (tx) => {
           const userRows = await tx.$queryRaw<
             Array<{ is_blocked: boolean; telegram_id: bigint }>
@@ -341,7 +341,7 @@ export class BettingPipeline {
             throw new Error('Аккаунт заблокирован администратором');
           }
 
-          const curRows = await tx.$queryRaw<Array<{ amount: string }>>`SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = false LIMIT 1`;
+          const curRows = await tx.$queryRaw<Array<{ amount: string }>>`SELECT amount FROM balances WHERE user_id = ${bet.userId} AND demo_mode = ${demoMode} LIMIT 1`;
           const currentBalance = curRows[0] ? Number(curRows[0].amount) : 0;
 
           await tx.bet.create({
@@ -372,15 +372,16 @@ export class BettingPipeline {
                 roundId: bet.roundId,
                 freebetId: bet.metadata?.freebetId,
                 freebetAmount: bet.metadata?.freebetAmount,
-                demoMode: false,
+                isFreeSpin: bet.metadata?.isFreeSpin,
+                demoMode,
               },
             },
           });
         });
 
         logger.info(
-          { betId: bet.id, userId: bet.userId, freebetId: bet.metadata.freebetId },
-          'Freebet processed without balance debit'
+          { betId: bet.id, userId: bet.userId, isFreeSpin: bet.metadata?.isFreeSpin, freebetId: bet.metadata?.freebetId },
+          'Free spin / freebet processed without balance debit'
         );
         return false;
       }
