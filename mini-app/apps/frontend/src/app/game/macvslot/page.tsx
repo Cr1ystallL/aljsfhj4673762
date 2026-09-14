@@ -14,6 +14,7 @@ import { MacvSlotReels } from '@/components/game/macvslot/macvslot-reels';
 import { MacvSlotControls } from '@/components/game/macvslot/macvslot-controls';
 import { MacvSlotPaytableModal } from '@/components/game/macvslot/macvslot-paytable-modal';
 import { MacvSlotBonusModal } from '@/components/game/macvslot/macvslot-bonus-modal';
+import { MacvSlotAutoModal } from '@/components/game/macvslot/macvslot-autospin-modal';
 import type { SlotSymbol, WinningLine, SlotSpinResponse } from '@/components/game/macvslot/macvslot-types';
 
 // Default initial grid
@@ -44,6 +45,7 @@ export default function MacvSlotPage() {
   const [bigWinAmount, setBigWinAmount] = useState<number | null>(null);
   const [isScatterAnticipating, setIsScatterAnticipating] = useState<boolean>(false);
   const [showBuyBonusConfirm, setShowBuyBonusConfirm] = useState<boolean>(false);
+  const [showAutoModal, setShowAutoModal] = useState<boolean>(false);
 
   const pendingResultRef = useRef<SlotSpinResponse | null>(null);
 
@@ -154,17 +156,25 @@ export default function MacvSlotPage() {
     pendingResultRef.current = null;
   }, [autoSpinsLeft, betAmount, handleSpin, isTurbo]);
 
-  // Toggle Auto-Spins
+  // Toggle Auto-Spins / Open settings modal
   const handleToggleAuto = () => {
     if (autoSpinsLeft > 0) {
       setAutoSpinsLeft(0);
+      soundManager.play('ui.click', { volume: 0.35 });
       toast.info('Авто-спины остановлены.');
     } else {
-      setAutoSpinsLeft(25);
-      toast.success('Запущено 25 авто-спинов.');
-      if (!isSpinning) {
-        void handleSpin();
-      }
+      soundManager.play('ui.click', { volume: 0.4 });
+      setShowAutoModal(true);
+    }
+  };
+
+  const handleStartAuto = (rounds: number, turbo: boolean) => {
+    setShowAutoModal(false);
+    setIsTurbo(turbo);
+    setAutoSpinsLeft(rounds);
+    toast.success(`Запущено ${rounds} авто-спинов${turbo ? ' (Турбо)' : ''}.`);
+    if (!isSpinning) {
+      void handleSpin();
     }
   };
 
@@ -258,8 +268,8 @@ export default function MacvSlotPage() {
       </div>
 
       {/* 3. Center Reel Stage */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-2 py-1">
-        <div className="relative w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-3 py-0 sm:py-1">
+        <div className="relative w-full max-w-full sm:max-w-[1020px] xl:max-w-[1120px] mx-auto">
           {/* LUXURY BUY BONUS BUTTON - Pinned to the left of the reel frame */}
           <button
             type="button"
@@ -279,7 +289,7 @@ export default function MacvSlotPage() {
               // Desktop: pinned on the left side of the frame
               'md:absolute md:-left-22 xl:-left-26 md:top-1/2 md:-translate-y-1/2 md:p-3 md:w-20 xl:w-22 md:flex-col text-center',
               // Mobile: compact badge at top-left
-              'absolute left-2 top-2 p-2 sm:p-2.5 md:left-auto md:top-auto flex-row gap-2 md:gap-1'
+              'absolute left-1.5 top-1.5 p-1.5 sm:p-2.5 md:left-auto md:top-auto flex-row gap-1.5 md:gap-1'
             )}
             title="Купить 10 фриспинов (100x)"
           >
@@ -318,25 +328,25 @@ export default function MacvSlotPage() {
         </div>
 
         {/* Strictly Centered Round Win / Status Display under the reels frame */}
-        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-2 flex flex-col items-center justify-center min-h-[50px]">
+        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-1.5 sm:my-2 flex flex-col items-center justify-center min-h-[44px] sm:min-h-[50px]">
           {lastWin > 0 ? (
-            <div className="px-6 py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_30px_rgba(251,191,36,0.5)] flex items-center gap-2.5 animate-in zoom-in-95 duration-200">
-              <span className="text-xs uppercase tracking-widest text-amber-200/90 font-extrabold">
+            <div className="px-5 sm:px-6 py-1.5 sm:py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_30px_rgba(251,191,36,0.5)] flex items-center gap-2 sm:gap-2.5 animate-in zoom-in-95 duration-200">
+              <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-200/90 font-extrabold">
                 ВЫИГРЫШ:
               </span>
-              <span className="font-brand font-black text-2xl sm:text-3xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]">
+              <span className="font-brand font-black text-xl sm:text-3xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]">
                 +{lastWin.toFixed(2)} zł
               </span>
             </div>
           ) : freeSpinsLeft > 0 ? (
-            <div className="px-5 py-2 rounded-2xl bg-[#080a12]/95 border border-amber-500/40 backdrop-blur-2xl shadow-[0_8px_30px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(251,191,36,0.2)] flex items-center gap-3 animate-in zoom-in-95 duration-200">
+            <div className="px-4 sm:px-5 py-1.5 sm:py-2 rounded-2xl bg-[#080a12]/95 border border-amber-500/40 backdrop-blur-2xl shadow-[0_8px_30px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(251,191,36,0.2)] flex items-center gap-2 sm:gap-3 animate-in zoom-in-95 duration-200">
               <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-semibold">
+              <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-semibold">
                 BONUS ROUND
               </span>
               <div className="w-px h-3.5 bg-amber-500/30" />
               <span className="text-xs font-mono font-medium text-zinc-300">
-                ОСТАЛОСЬ: <strong className="text-amber-400 font-brand font-black text-sm">{freeSpinsLeft}</strong> СПИНОВ
+                ОСТАЛОСЬ: <strong className="text-amber-400 font-brand font-black text-xs sm:text-sm">{freeSpinsLeft}</strong> СПИНОВ
               </span>
             </div>
           ) : isSpinning ? (
@@ -378,6 +388,13 @@ export default function MacvSlotPage() {
           setAwardedFreeSpins(0);
           void handleSpin();
         }}
+      />
+
+      <MacvSlotAutoModal
+        isOpen={showAutoModal}
+        onClose={() => setShowAutoModal(false)}
+        onStartAuto={handleStartAuto}
+        currentTurbo={isTurbo}
       />
 
       {/* Luxury Buy Bonus Confirmation Modal */}

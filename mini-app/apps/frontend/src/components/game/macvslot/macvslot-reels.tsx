@@ -126,7 +126,7 @@ export function MacvSlotReels({
   const lineColor = LINE_COLORS[activeLineIndex % LINE_COLORS.length] || '#fbbf24';
 
   return (
-    <div className="relative w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] aspect-[1671/941] mx-auto select-none">
+    <div className="relative w-full max-w-full sm:max-w-[1020px] xl:max-w-[1120px] aspect-[1671/941] mx-auto select-none">
       {/* 1. Behind the frame: Exact pixel-calibrated Inner Stage */}
       {/* Measured from ramka.webp: top: 29.3%, bottom: 15.0%, left: 8.2%, right: 8.2% */}
       <div
@@ -214,7 +214,7 @@ export function MacvSlotReels({
                       return (
                         <div
                           key={rowIdx}
-                          className="relative w-full h-[33.33%] flex items-center justify-center p-1 sm:p-2"
+                          className="relative w-full h-[33.33%] flex items-center justify-center p-0.5 sm:p-1 md:p-2"
                         >
                           <motion.div
                             animate={
@@ -240,8 +240,8 @@ export function MacvSlotReels({
                                 : undefined
                             }
                             className={cn(
-                              'relative w-full h-full max-h-[88px] transition-all duration-300 flex items-center justify-center',
-                              isWield ? 'max-w-[96px] scale-110' : 'max-w-[86px]',
+                              'relative w-full h-full max-h-[96px] transition-all duration-300 flex items-center justify-center',
+                              isWield ? 'max-w-[102px] scale-110' : 'max-w-[94px]',
                               isScatterActive && 'z-30 scale-125',
                               isWinning && !isScatterActive &&
                                 'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25'

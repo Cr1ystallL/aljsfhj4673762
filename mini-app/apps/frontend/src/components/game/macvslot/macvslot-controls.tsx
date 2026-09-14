@@ -55,27 +55,27 @@ export function MacvSlotControls({
   return (
     <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto px-2 select-none">
       {/* Main Controls Dock */}
-      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-6 p-3 sm:p-4 rounded-3xl bg-[#080a0f]/90 border border-amber-500/20 backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
-        {/* 1. Bet & Balance Selector + Bonus Buy */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-4 md:gap-6 p-2 sm:p-3 md:p-4 rounded-2xl sm:rounded-3xl bg-[#080a0f]/92 border border-amber-500/20 backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.85)]">
+        {/* 1. Compact Bet & Balance Selector */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             type="button"
             disabled={disabled || isSpinning || isFreeSpinActive}
             onClick={() => handleStepBet(-1)}
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
             aria-label="Decrease bet"
           >
-            <Minus className="w-5 h-5 stroke-[2.5]" />
+            <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
           </button>
 
-          {/* Large Bet Pill with Live Balance and Current Bet */}
+          {/* Compact Bet Pill with Live Balance and Current Bet */}
           <button
             type="button"
             disabled={disabled || isSpinning || isFreeSpinActive}
             onClick={() => setShowBetModal((prev) => !prev)}
-            className="relative px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 border border-amber-500/40 active:scale-98 flex items-center gap-2.5 sm:gap-3 transition-all min-w-[140px] sm:min-w-[170px] justify-center cursor-pointer shadow-lg hover:border-amber-400/60"
+            className="relative px-2 sm:px-4 py-1 sm:py-2 rounded-xl sm:rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 border border-amber-500/40 active:scale-98 flex items-center gap-1.5 sm:gap-2.5 transition-all justify-center cursor-pointer shadow-lg hover:border-amber-400/60"
           >
-            <div className="relative w-7 h-7 sm:w-8 sm:h-8 shrink-0">
+            <div className="relative w-5 h-5 sm:w-7 sm:h-7 shrink-0">
               <Image
                 src="/MacvSlot/coinbutton.webp"
                 alt="coin"
@@ -84,11 +84,11 @@ export function MacvSlotControls({
               />
             </div>
             <div className="flex flex-col text-left leading-tight">
-              <span className="text-[10px] sm:text-xs text-zinc-400 font-semibold tracking-wide flex items-center gap-1">
-                Баланс: <strong className="text-zinc-200 font-mono font-bold">{balance.toFixed(2)} zł</strong>
+              <span className="text-[9px] sm:text-[11px] text-zinc-400 font-medium tracking-tight whitespace-nowrap">
+                Баланс: <strong className="text-zinc-200 font-mono font-bold">{balance.toFixed(1)} zł</strong>
               </span>
-              <span className="font-black text-sm sm:text-lg text-amber-300 font-brand">
-                Ставка: {isFreeSpinActive ? 'FREE' : `${betAmount.toFixed(2)} zł`}
+              <span className="font-black text-xs sm:text-base text-amber-300 font-brand whitespace-nowrap">
+                Ставка: {isFreeSpinActive ? 'FREE' : `${betAmount.toFixed(betAmount < 1 ? 2 : 1)} zł`}
               </span>
             </div>
           </button>
@@ -97,21 +97,21 @@ export function MacvSlotControls({
             type="button"
             disabled={disabled || isSpinning || isFreeSpinActive}
             onClick={() => handleStepBet(1)}
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
             aria-label="Increase bet"
           >
-            <Plus className="w-5 h-5 stroke-[2.5]" />
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
           </button>
         </div>
 
         {/* 2. Symmetrical Action Trio: [AUTO] --- [SPIN] --- [TURBO] */}
-        <div className="flex items-center gap-4 sm:gap-6 mx-auto sm:mx-0">
-          {/* AUTO BUTTON (Left of Spin, NO border, larger) */}
+        <div className="flex items-center gap-2 sm:gap-4 md:gap-6 shrink-0">
+          {/* AUTO BUTTON */}
           <button
             type="button"
             onClick={onToggleAuto}
             className={cn(
-              'relative w-14 h-14 sm:w-17 sm:h-17 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none',
+              'relative w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none',
               autoSpinsLeft > 0 ? 'drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'hover:scale-105 opacity-85 hover:opacity-100'
             )}
             title={autoSpinsLeft > 0 ? 'Остановить авто-спины' : 'Авто-спины'}
@@ -122,11 +122,11 @@ export function MacvSlotControls({
                   src="/MacvSlot/autobutton.webp"
                   alt="Auto"
                   fill
-                  className="object-contain filter hue-rotate-90 animate-spin"
+                  className="object-contain filter hue-rotate-90"
                 />
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                  <Square className="w-4 h-4 text-white fill-white" />
-                  <span className="text-[10px] font-black text-white">{autoSpinsLeft}</span>
+                  <Square className="w-3.5 h-3.5 text-white fill-white" />
+                  <span className="text-[9px] sm:text-[10px] font-black text-white">{autoSpinsLeft}</span>
                 </div>
               </div>
             ) : (
@@ -139,11 +139,11 @@ export function MacvSlotControls({
             )}
           </button>
 
-          {/* BIG SPIN BUTTON (Center) */}
+          {/* BIG SPIN BUTTON (Center) - No rotation */}
           <motion.button
             type="button"
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.92 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.94 }}
             disabled={disabled || (isSpinning && !isFreeSpinActive)}
             onClick={() => {
               if (window?.Telegram?.WebApp?.HapticFeedback) {
@@ -152,33 +152,30 @@ export function MacvSlotControls({
               onSpin();
             }}
             className={cn(
-              'relative w-20 h-20 sm:w-26 sm:h-26 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer',
-              isSpinning && 'opacity-90 cursor-not-allowed'
+              'relative w-16 h-16 sm:w-22 sm:h-22 md:w-26 md:h-26 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer',
+              isSpinning && 'opacity-85 cursor-not-allowed'
             )}
           >
             {/* Ambient pulse glow */}
             <div className="absolute inset-[-4px] rounded-full bg-amber-400/25 blur-lg animate-pulse pointer-events-none" />
 
-            <div className="relative w-full h-full drop-shadow-[0_10px_22px_rgba(245,158,11,0.6)]">
+            <div className="relative w-full h-full drop-shadow-[0_8px_20px_rgba(245,158,11,0.6)]">
               <Image
                 src="/MacvSlot/spinbutton.webp"
                 alt="SPIN"
                 fill
                 priority
-                className={cn(
-                  'object-contain transition-transform duration-500',
-                  isSpinning && 'animate-spin'
-                )}
+                className="object-contain transition-transform duration-200"
               />
             </div>
           </motion.button>
 
-          {/* TURBO BUTTON (Right of Spin, NO border, larger) */}
+          {/* TURBO BUTTON */}
           <button
             type="button"
             onClick={onToggleTurbo}
             className={cn(
-              'relative w-14 h-14 sm:w-17 sm:h-17 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none',
+              'relative w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none',
               isTurbo
                 ? 'drop-shadow-[0_0_18px_rgba(251,191,36,0.95)] scale-105'
                 : 'opacity-75 hover:opacity-100 hover:scale-105'
