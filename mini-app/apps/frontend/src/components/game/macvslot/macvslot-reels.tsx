@@ -10,6 +10,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 
 interface MacvSlotReelsProps {
   grid: SlotSymbol[][]; // 5 reels x 3 rows
+  spinId?: string;
   winningLines: WinningLine[];
   isSpinning: boolean;
   isTurbo: boolean;
@@ -31,6 +32,24 @@ const ALL_SYMBOLS: SlotSymbol[] = [
   '10',
 ];
 
+// Compact seamless tape strip for infinite roll without DOM bloat
+const TAPE_SYMBOLS: SlotSymbol[] = [
+  'macvjet',
+  'mines',
+  'wheel',
+  'scatter',
+  'wield',
+  'a',
+  '10',
+  'macvjet',
+  'mines',
+  'wheel',
+  'scatter',
+  'wield',
+  'a',
+  '10',
+];
+
 const LINE_COLORS = [
   '#fbbf24', // Amber/Gold
   '#a3e635', // Lime Green
@@ -44,6 +63,7 @@ const LINE_COLORS = [
 
 export function MacvSlotReels({
   grid,
+  spinId = 'init',
   winningLines,
   isSpinning,
   isTurbo,
@@ -55,6 +75,15 @@ export function MacvSlotReels({
   const [suspenseReel, setSuspenseReel] = useState<number | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number>(0);
   const spinTimerRefs = useRef<NodeJS.Timeout[]>([]);
+
+  // Preload all 11 symbol images into memory on mount to prevent lazy-load placeholders
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    ALL_SYMBOLS.forEach((sym) => {
+      const img = new window.Image();
+      img.src = SYMBOL_IMAGES[sym];
+    });
+  }, []);
 
   // Collect winning cells for quick lookup: "reel,row"
   const winningCellsSet = useMemo(() => {
@@ -81,89 +110,95 @@ export function MacvSlotReels({
     return () => clearInterval(interval);
   }, [isSpinning, winningLines.length]);
 
-  // Handle sequential spin timings with authentic Scatter Anticipation / Suspense Slowdown
+  // When spin starts, set all reels to rolling immediately
   useEffect(() => {
     if (isSpinning) {
-      spinTimerRefs.current.forEach(clearTimeout);
-      spinTimerRefs.current = [];
       setReelsStopped([false, false, false, false, false]);
       setSuspenseReel(null);
-
-      const baseDelay = isTurbo ? 180 : 550;
-      const standardStagger = isTurbo ? 70 : 220;
-      const suspenseDuration = isTurbo ? 750 : 1600;
-
-      // Check which reels have scatters in final grid
-      const reelScatters = [0, 1, 2, 3, 4].map(
-        (r) => grid[r]?.includes('scatter') ?? false
-      );
-
-      let accumulatedTime = baseDelay;
-      let landedScatters = 0;
-
-      for (let reel = 0; reel < 5; reel++) {
-        // Suspense triggers if at least 2 scatters landed on earlier stopped reels
-        const isSuspense = landedScatters >= 2;
-
-        if (isSuspense) {
-          // Trigger suspense visual/audio state right when previous reel finishes stopping
-          const suspenseStartDelay = accumulatedTime;
-          const suspenseTimer = setTimeout(() => {
-            setSuspenseReel(reel);
-            soundManager.play('ui.click', { volume: 0.6 });
-            if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
-              (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-            }
-          }, suspenseStartDelay);
-          spinTimerRefs.current.push(suspenseTimer);
-
-          accumulatedTime += standardStagger + suspenseDuration;
-        } else if (reel > 0) {
-          accumulatedTime += standardStagger;
-        }
-
-        const stopTime = accumulatedTime;
-        const stopTimer = setTimeout(() => {
-          setReelsStopped((prev) => {
-            const next = [...prev];
-            next[reel] = true;
-            return next;
-          });
-
-          // Check if this reel had scatter
-          if (reelScatters[reel]) {
-            soundManager.play('game.win', { volume: 0.65 });
-            if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
-              (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('heavy');
-            }
-          } else {
-            soundManager.play('ui.click', { volume: 0.4 });
-            if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
-              (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('light');
-            }
-          }
-
-          if (reel === 4) {
-            setSuspenseReel(null);
-            onSpinComplete?.();
-          }
-        }, stopTime);
-
-        spinTimerRefs.current.push(stopTimer);
-
-        if (reelScatters[reel]) {
-          landedScatters++;
-        }
-      }
     } else {
       setReelsStopped([true, true, true, true, true]);
       setSuspenseReel(null);
+      spinTimerRefs.current.forEach(clearTimeout);
+      spinTimerRefs.current = [];
+    }
+  }, [isSpinning]);
+
+  // When spinId arrives from server (outcome ready), schedule the sequential reel stops with anticipation
+  useEffect(() => {
+    if (!isSpinning || !spinId || spinId === 'init') return;
+
+    spinTimerRefs.current.forEach(clearTimeout);
+    spinTimerRefs.current = [];
+
+    const baseDelay = isTurbo ? 180 : 520;
+    const standardStagger = isTurbo ? 70 : 220;
+    const suspenseDuration = isTurbo ? 750 : 1600;
+
+    // Check which reels have scatters in the final grid
+    const reelScatters = [0, 1, 2, 3, 4].map(
+      (r) => grid[r]?.includes('scatter') ?? false
+    );
+
+    let accumulatedTime = baseDelay;
+    let landedScatters = 0;
+
+    for (let reel = 0; reel < 5; reel++) {
+      // Suspense triggers if at least 2 scatters landed on earlier stopped reels
+      const isSuspense = landedScatters >= 2;
+
+      if (isSuspense) {
+        const suspenseStartDelay = accumulatedTime;
+        const suspenseTimer = setTimeout(() => {
+          setSuspenseReel(reel);
+          soundManager.play('ui.click', { volume: 0.6 });
+          if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+            (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+          }
+        }, suspenseStartDelay);
+        spinTimerRefs.current.push(suspenseTimer);
+
+        accumulatedTime += standardStagger + suspenseDuration;
+      } else if (reel > 0) {
+        accumulatedTime += standardStagger;
+      }
+
+      const stopTime = accumulatedTime;
+      const stopTimer = setTimeout(() => {
+        setReelsStopped((prev) => {
+          const next = [...prev];
+          next[reel] = true;
+          return next;
+        });
+
+        if (reelScatters[reel]) {
+          soundManager.play('game.win', { volume: 0.65 });
+          if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+            (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('heavy');
+          }
+        } else {
+          soundManager.play('ui.click', { volume: 0.4 });
+          if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+            (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('light');
+          }
+        }
+
+        if (reel === 4) {
+          setSuspenseReel(null);
+          onSpinComplete?.();
+        }
+      }, stopTime);
+
+      spinTimerRefs.current.push(stopTimer);
+
+      if (reelScatters[reel]) {
+        landedScatters++;
+      }
     }
 
     return () => {
       spinTimerRefs.current.forEach(clearTimeout);
     };
-  }, [isSpinning, isTurbo, grid, onSpinComplete]);
+  }, [spinId, isSpinning, isTurbo, grid, onSpinComplete]);
 
   const currentWinningLine = winningLines[activeLineIndex % winningLines.length];
   const lineColor = LINE_COLORS[activeLineIndex % LINE_COLORS.length] || '#fbbf24';
@@ -229,13 +264,13 @@ export function MacvSlotReels({
                         duration: isSuspense ? 0.35 : (isTurbo ? 0.15 : 0.22),
                         ease: 'linear',
                       }}
-                      className="w-full flex flex-col items-center filter blur-[1.5px] opacity-85"
+                      className="w-full h-[200%] flex flex-col items-center filter blur-[1.2px] opacity-90"
                     >
-                      {/* Repeated symbol loop to simulate continuous rapid tape rolling */}
-                      {[...ALL_SYMBOLS, ...ALL_SYMBOLS].map((sym, i) => (
+                      {/* Seamless 14-symbol rolling strip */}
+                      {TAPE_SYMBOLS.map((sym, i) => (
                         <div
                           key={i}
-                          className="w-full h-[60px] sm:h-[80px] md:h-[95px] flex items-center justify-center p-1.5 shrink-0"
+                          className="w-full h-[14.285%] flex items-center justify-center p-1 shrink-0"
                         >
                           <div className="relative w-full h-full max-w-[85px] max-h-[85px]">
                             <Image
@@ -243,6 +278,7 @@ export function MacvSlotReels({
                               alt="spin"
                               fill
                               unoptimized
+                              priority={i < 4}
                               sizes="(max-width: 768px) 70px, 95px"
                               className="object-contain"
                             />

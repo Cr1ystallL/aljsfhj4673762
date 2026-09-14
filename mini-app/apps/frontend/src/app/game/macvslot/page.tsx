@@ -33,6 +33,7 @@ export default function MacvSlotPage() {
 
   // Game state
   const [grid, setGrid] = useState<SlotSymbol[][]>(INITIAL_GRID);
+  const [spinId, setSpinId] = useState<string>('init');
   const [winningLines, setWinningLines] = useState<WinningLine[]>([]);
   const [betAmount, setBetAmount] = useState<number>(1.0);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
@@ -48,6 +49,38 @@ export default function MacvSlotPage() {
   const [showAutoModal, setShowAutoModal] = useState<boolean>(false);
 
   const pendingResultRef = useRef<SlotSpinResponse | null>(null);
+
+  // Synchronization refs to eliminate React state closure staleness during auto-play
+  const isSpinningRef = useRef(false);
+  const autoSpinsLeftRef = useRef(0);
+  const betAmountRef = useRef(1.0);
+  const isTurboRef = useRef(false);
+  const freeSpinsLeftRef = useRef(0);
+  const balanceRef = useRef(balance?.amount ?? 0);
+
+  useEffect(() => {
+    isSpinningRef.current = isSpinning;
+  }, [isSpinning]);
+
+  useEffect(() => {
+    autoSpinsLeftRef.current = autoSpinsLeft;
+  }, [autoSpinsLeft]);
+
+  useEffect(() => {
+    betAmountRef.current = betAmount;
+  }, [betAmount]);
+
+  useEffect(() => {
+    isTurboRef.current = isTurbo;
+  }, [isTurbo]);
+
+  useEffect(() => {
+    freeSpinsLeftRef.current = freeSpinsLeft;
+  }, [freeSpinsLeft]);
+
+  useEffect(() => {
+    balanceRef.current = balance?.amount ?? 0;
+  }, [balance?.amount]);
 
   // Sync initial state & free spins
   useEffect(() => {
@@ -65,53 +98,81 @@ export default function MacvSlotPage() {
       .catch(() => {});
   }, [fetchBalance]);
 
-  // Main Spin Action
-  const handleSpin = useCallback(async () => {
-    if (isSpinning) return;
+  // Core spin runner (handles both standard spins and bonus buys without stale closures)
+  const executeSpin = useCallback(
+    async (isBonusBuy = false) => {
+      if (isSpinningRef.current) return;
 
-    // Check balance if not a free spin
-    const currentBalance = balance?.amount ?? 0;
-    if (freeSpinsLeft <= 0 && currentBalance < betAmount) {
-      toast.warn('Недостаточно средств для ставки.');
-      setAutoSpinsLeft(0);
-      return;
-    }
+      const currentBalance = balanceRef.current;
+      const currentBet = betAmountRef.current;
+      const currentFree = freeSpinsLeftRef.current;
 
-    setIsSpinning(true);
-    setWinningLines([]);
-    setLastWin(0);
-
-    // Audio cue
-    soundManager.play('ui.click', { volume: 0.5 });
-
-    try {
-      const res = await fetch('/api/games/macvslot/spin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ betAmount, demoMode: false }),
-      });
-
-      const data: SlotSpinResponse = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error((data as any).error || 'Ошибка вращения');
+      if (isBonusBuy) {
+        const cost = Math.round(currentBet * 100 * 100) / 100;
+        if (currentBalance < cost) {
+          toast.warn(`Недостаточно средств. Для покупки бонуски требуется ${cost.toFixed(2)} zł.`);
+          return;
+        }
+      } else if (currentFree <= 0 && currentBalance < currentBet) {
+        toast.warn('Недостаточно средств для ставки.');
+        autoSpinsLeftRef.current = 0;
+        setAutoSpinsLeft(0);
+        return;
       }
 
-      // Store pending result to reveal when reels stop
-      pendingResultRef.current = data;
-      setGrid(data.grid);
-      setFreeSpinsLeft(data.freeSpinsRemaining);
+      isSpinningRef.current = true;
+      setIsSpinning(true);
+      setWinningLines([]);
+      setLastWin(0);
 
-      void fetchBalance();
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка связи с сервером');
-      setIsSpinning(false);
-      setAutoSpinsLeft(0);
-    }
-  }, [isSpinning, freeSpinsLeft, balance, betAmount, fetchBalance]);
+      soundManager.play(isBonusBuy ? 'ui.success' : 'ui.click', { volume: 0.6 });
+
+      try {
+        const res = await fetch('/api/games/macvslot/spin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            betAmount: currentBet,
+            demoMode: false,
+            isBonusBuy,
+          }),
+        });
+
+        const data: SlotSpinResponse = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error((data as any).error || 'Ошибка вращения');
+        }
+
+        // Store pending result and notify reels to begin their calibrated sequential stop
+        pendingResultRef.current = data;
+        setGrid(data.grid);
+        setSpinId(data.roundId);
+        setFreeSpinsLeft(data.freeSpinsRemaining);
+
+        void fetchBalance();
+      } catch (err: any) {
+        toast.error(err.message || 'Ошибка связи с сервером');
+        isSpinningRef.current = false;
+        setIsSpinning(false);
+        autoSpinsLeftRef.current = 0;
+        setAutoSpinsLeft(0);
+      }
+    },
+    [fetchBalance]
+  );
+
+  const handleSpin = useCallback(() => {
+    void executeSpin(false);
+  }, [executeSpin]);
+
+  const handleBuyBonus = useCallback(() => {
+    void executeSpin(true);
+  }, [executeSpin]);
 
   // Callback when reels complete their spinning animation
   const handleSpinComplete = useCallback(() => {
+    isSpinningRef.current = false;
     setIsSpinning(false);
 
     const result = pendingResultRef.current;
@@ -122,7 +183,7 @@ export default function MacvSlotPage() {
 
     // Win Audio & Celebrations
     if (result.totalWin > 0) {
-      if (result.totalWin >= betAmount * 15) {
+      if (result.totalWin >= betAmountRef.current * 15) {
         soundManager.play('game.win', { volume: 0.9 });
         setBigWinAmount(result.totalWin);
       } else {
@@ -143,22 +204,31 @@ export default function MacvSlotPage() {
         setIsScatterAnticipating(false);
         setAwardedFreeSpins(result.freeSpinsAwarded);
       }, 1800);
+
+      // Stop auto spins when bonus feature triggers
+      autoSpinsLeftRef.current = 0;
+      setAutoSpinsLeft(0);
     }
 
-    // Auto-spin continuation
-    if (autoSpinsLeft > 0 && result.freeSpinsAwarded <= 0) {
-      setAutoSpinsLeft((prev) => prev - 1);
+    // Auto-spin continuation using ref (avoids stale closures)
+    if (autoSpinsLeftRef.current > 0 && result.freeSpinsAwarded <= 0) {
+      autoSpinsLeftRef.current -= 1;
+      setAutoSpinsLeft(autoSpinsLeftRef.current);
+      const delay = isTurboRef.current ? 350 : 850;
       setTimeout(() => {
-        void handleSpin();
-      }, isTurbo ? 400 : 900);
+        if (autoSpinsLeftRef.current >= 0 && !isSpinningRef.current) {
+          void executeSpin(false);
+        }
+      }, delay);
     }
 
     pendingResultRef.current = null;
-  }, [autoSpinsLeft, betAmount, handleSpin, isTurbo]);
+  }, [executeSpin]);
 
   // Toggle Auto-Spins / Open settings modal
   const handleToggleAuto = () => {
-    if (autoSpinsLeft > 0) {
+    if (autoSpinsLeftRef.current > 0) {
+      autoSpinsLeftRef.current = 0;
       setAutoSpinsLeft(0);
       soundManager.play('ui.click', { volume: 0.35 });
       toast.info('Авто-спины остановлены.');
@@ -171,53 +241,14 @@ export default function MacvSlotPage() {
   const handleStartAuto = (rounds: number, turbo: boolean) => {
     setShowAutoModal(false);
     setIsTurbo(turbo);
+    isTurboRef.current = turbo;
+    autoSpinsLeftRef.current = rounds;
     setAutoSpinsLeft(rounds);
     toast.success(`Запущено ${rounds} авто-спинов${turbo ? ' (Турбо)' : ''}.`);
-    if (!isSpinning) {
-      void handleSpin();
+    if (!isSpinningRef.current) {
+      void executeSpin(false);
     }
   };
-
-  // Buy Bonus Action (Guarantees 3+ scatters and triggers 10 Free Spins)
-  const handleBuyBonus = useCallback(async () => {
-    if (isSpinning) return;
-
-    const cost = Math.round(betAmount * 100 * 100) / 100;
-    const currentBalance = balance?.amount ?? 0;
-    if (currentBalance < cost) {
-      toast.warn(`Недостаточно средств. Для покупки бонуски требуется ${cost.toFixed(2)} zł.`);
-      return;
-    }
-
-    setIsSpinning(true);
-    setWinningLines([]);
-    setLastWin(0);
-
-    soundManager.play('ui.success', { volume: 0.8 });
-
-    try {
-      const res = await fetch('/api/games/macvslot/spin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ betAmount, demoMode: false, isBonusBuy: true }),
-      });
-
-      const data: SlotSpinResponse = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error((data as any).error || 'Ошибка покупки бонуски');
-      }
-
-      pendingResultRef.current = data;
-      setGrid(data.grid);
-      setFreeSpinsLeft(data.freeSpinsRemaining);
-
-      void fetchBalance();
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка покупки бонуски');
-      setIsSpinning(false);
-    }
-  }, [isSpinning, betAmount, balance, fetchBalance]);
 
   // Restrict access to Admins only
   if (isAdmin === false) {
@@ -269,8 +300,8 @@ export default function MacvSlotPage() {
 
       {/* 3. Center Reel Stage */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-3 py-0 sm:py-1">
-        <div className="relative w-full max-w-full sm:max-w-[1020px] xl:max-w-[1120px] mx-auto">
-          {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame */}
+        <div className="relative w-full max-w-full sm:max-w-[960px] lg:max-w-[1000px] xl:max-w-[1080px] mx-auto">
+          {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame, noticeably larger */}
           <button
             type="button"
             disabled={
@@ -284,32 +315,32 @@ export default function MacvSlotPage() {
               setShowBuyBonusConfirm(true);
             }}
             className={cn(
-              'z-30 hidden md:flex flex-col items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
-              'bg-[#090b12]/95 border border-amber-500/35 hover:border-amber-400/70 shadow-[0_8px_30px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(251,191,36,0.15)] backdrop-blur-2xl group text-center',
-              'absolute -left-20 lg:-left-24 xl:-left-26 top-1/2 -translate-y-1/2 p-3 w-18 lg:w-22'
+              'z-30 hidden md:flex flex-col items-center justify-center rounded-3xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
+              'bg-gradient-to-b from-[#141926]/98 via-[#090b12]/98 to-[#0f121d]/98 border-2 border-amber-500/50 hover:border-amber-400 shadow-[0_14px_45px_rgba(0,0,0,0.95),0_0_24px_rgba(251,191,36,0.3)] backdrop-blur-2xl group text-center',
+              'absolute -left-28 lg:-left-34 xl:-left-38 top-1/2 -translate-y-1/2 p-3.5 sm:p-4 w-24 lg:w-28 xl:w-32'
             )}
             title="Купить 10 фриспинов (100x)"
           >
-            <div className="relative w-8 h-8 lg:w-10 lg:h-10 shrink-0 mb-1">
+            <div className="relative w-12 h-12 lg:w-16 lg:h-16 shrink-0 mb-1.5">
               <Image
                 src="/MacvSlot/scatter.webp"
                 alt="Bonus"
                 fill
                 unoptimized
-                className="object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.6)] group-hover:scale-110 transition-transform"
+                className="object-contain drop-shadow-[0_0_15px_rgba(251,191,36,0.85)] group-hover:scale-110 transition-transform"
               />
             </div>
-            <div className="flex flex-col items-center leading-tight">
-              <span className="text-[10px] lg:text-[11px] uppercase font-brand font-black tracking-wider text-amber-200">
+            <div className="flex flex-col items-center leading-tight gap-1">
+              <span className="text-xs lg:text-sm uppercase font-brand font-black tracking-wider text-amber-200 drop-shadow">
                 КУПИТЬ
               </span>
-              <span className="text-[8px] lg:text-[9px] uppercase font-mono tracking-widest text-zinc-400 font-bold">
+              <span className="text-[11px] lg:text-xs uppercase font-mono tracking-widest text-amber-400 font-black">
                 БОНУС
               </span>
-              <span className="font-mono font-black text-xs lg:text-sm text-amber-300 mt-1">
+              <span className="font-mono font-black text-sm lg:text-base text-white mt-1 drop-shadow">
                 {(Math.round(betAmount * 100 * 100) / 100).toFixed(0)} zł
               </span>
-              <span className="text-[8px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-black/60 border border-amber-500/20 mt-1">
+              <span className="text-[10px] font-mono text-amber-300 font-black px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 mt-1 shadow-inner">
                 100x
               </span>
             </div>
@@ -317,6 +348,7 @@ export default function MacvSlotPage() {
 
           <MacvSlotReels
             grid={grid}
+            spinId={spinId}
             winningLines={winningLines}
             isSpinning={isSpinning}
             isTurbo={isTurbo}
