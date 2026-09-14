@@ -204,7 +204,7 @@ export default function MacvSlotPage() {
       </div>
 
       {/* 3. Center Reel Stage */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-2 py-3">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-2 py-1">
         <MacvSlotReels
           grid={grid}
           winningLines={winningLines}
@@ -212,6 +212,40 @@ export default function MacvSlotPage() {
           isTurbo={isTurbo}
           onSpinComplete={handleSpinComplete}
         />
+
+        {/* Round Win Display directly under the reels frame */}
+        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-1 px-3 flex items-center justify-between min-h-[46px]">
+          {/* Left: Free spins badge if active */}
+          <div>
+            {freeSpinsLeft > 0 ? (
+              <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-black font-extrabold text-xs tracking-wider animate-pulse flex items-center gap-1.5 shadow-lg">
+                <span>🔥 БОНУСНЫЙ РАУНД: {freeSpinsLeft} ФРИСПИНОВ</span>
+              </div>
+            ) : (
+              <span className="text-[11px] text-zinc-400 font-mono tracking-wider uppercase">
+                20 фиксированных линий
+              </span>
+            )}
+          </div>
+
+          {/* Right: Prominent round win */}
+          <div className="flex items-center gap-2">
+            {lastWin > 0 ? (
+              <div className="px-5 py-1.5 rounded-2xl bg-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_25px_rgba(251,191,36,0.6)] flex items-center gap-2 animate-in zoom-in-95 duration-200">
+                <span className="text-xs uppercase tracking-widest text-amber-200 font-bold">
+                  ВЫИГРЫШ:
+                </span>
+                <span className="font-brand font-black text-2xl sm:text-3xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]">
+                  +{lastWin.toFixed(2)} zł
+                </span>
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-500 font-mono tracking-wider uppercase">
+                {isSpinning ? 'Вращение...' : 'Выигрыш: 0.00 zł'}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* 4. Controls Dock */}
         <MacvSlotControls
@@ -223,7 +257,6 @@ export default function MacvSlotPage() {
           onToggleTurbo={() => setIsTurbo((prev) => !prev)}
           autoSpinsLeft={autoSpinsLeft}
           onToggleAuto={handleToggleAuto}
-          lastWin={lastWin}
           freeSpinsLeft={freeSpinsLeft}
           disabled={isAdmin === null}
         />
