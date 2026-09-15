@@ -298,8 +298,8 @@ export default function MacvSlotPage() {
 
       {/* 3. Center Reel Stage */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-3 py-0 sm:py-1">
-        <div className="relative w-full max-w-full sm:max-w-[960px] lg:max-w-[1000px] xl:max-w-[1080px] mx-auto">
-          {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame on large screens */}
+        <div className="relative w-full max-w-full sm:max-w-[960px] lg:max-w-[980px] xl:max-w-[1040px] mx-auto">
+          {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame, never overlapping */}
           <button
             type="button"
             disabled={
@@ -313,13 +313,13 @@ export default function MacvSlotPage() {
               setShowBuyBonusConfirm(true);
             }}
             className={cn(
-              'z-30 hidden xl:flex flex-col items-center justify-center rounded-3xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
+              'z-30 hidden lg:flex flex-col items-center justify-center rounded-3xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
               'bg-gradient-to-b from-[#141926]/98 via-[#090b12]/98 to-[#0f121d]/98 border-2 border-amber-500/50 hover:border-amber-400 shadow-[0_14px_45px_rgba(0,0,0,0.95),0_0_24px_rgba(251,191,36,0.3)] backdrop-blur-2xl group text-center',
-              'absolute -left-30 lg:-left-34 xl:-left-38 top-1/2 -translate-y-1/2 p-3.5 sm:p-4 w-24 lg:w-28 xl:w-32'
+              'absolute right-full mr-4 xl:mr-6 top-1/2 -translate-y-1/2 p-4 w-28 lg:w-32 xl:w-36'
             )}
             title="Купить 10 фриспинов (100x)"
           >
-            <div className="relative w-12 h-12 lg:w-16 lg:h-16 shrink-0 mb-1.5">
+            <div className="relative w-14 h-14 lg:w-16 lg:h-16 xl:w-20 xl:h-20 shrink-0 mb-2">
               <Image
                 src="/MacvSlot/scatter.webp"
                 alt="Bonus"
