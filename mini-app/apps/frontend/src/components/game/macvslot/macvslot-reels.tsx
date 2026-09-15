@@ -323,6 +323,31 @@ export function MacvSlotReels({
                         </div>
                       ))}
                     </motion.div>
+
+                    {/* Anchored already-landed sticky multipliers over rolling tape (only for symbols already landed on previous spins!) */}
+                    {stickyMap.size > 0 && (
+                      <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-around py-0.5">
+                        {[0, 1, 2].map((rowIdx) => {
+                          const stickySym = stickyMap.get(`${reelIdx},${rowIdx}`);
+                          if (!stickySym) return <div key={rowIdx} className="w-full h-[33.33%]" />;
+                          return (
+                            <div key={rowIdx} className="relative w-full h-[33.33%] flex items-center justify-center p-0.5 sm:p-1 md:p-2">
+                              <div className="relative w-full h-full max-h-[96px] flex items-center justify-center drop-shadow-[0_0_10px_rgba(251,191,36,0.65)]">
+                                {/* Subtle ambient glow - no harsh card outlines or borders */}
+                                <div className="absolute inset-1 rounded-full bg-amber-400/20 blur-md pointer-events-none -z-10 animate-pulse" />
+                                <Image
+                                  src={SYMBOL_IMAGES[stickySym]}
+                                  alt={stickySym}
+                                  fill
+                                  unoptimized
+                                  className="object-contain"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   // STOPPED: Symbols land and drop from top with physical bounce

@@ -135,6 +135,9 @@ const SYMBOL_POOL_NO_SCATTER: SlotSymbol[] = SYMBOL_POOL.filter((s) => s !== 'sc
 // Scatters are strictly allowed ONLY on reels 1, 3, and 5 (indices 0, 2, 4)
 const SCATTER_ALLOWED_REELS = new Set<number>([0, 2, 4]);
 
+// Multipliers (x2, x3, x5) are strictly allowed ONLY on reels 2, 3, and 4 (indices 1, 2, 3)
+export const MULTIPLIER_ALLOWED_REELS = [1, 2, 3];
+
 export class MacvSlotEngine {
   private getRedisKey(userId: string): string {
     return `macvslot:freespins:${userId}`;
@@ -201,14 +204,14 @@ export class MacvSlotEngine {
     }
 
     // Multiplier placement rules:
-    // Multipliers (x2, x3, x5) appear ONLY on reels 3, 4, 5 (indices 2, 3, 4).
+    // Multipliers (x2, x3, x5) appear ONLY on reels 2, 3, 4 (indices 1, 2, 3). Reels 1 & 5 (indices 0 & 4) CANNOT have multipliers.
     if (!isFreeSpin) {
       // 1. Regular spins: up to 30% chance per spin to drop a multiplier (non-sticky)
       const baseRoll = randomInt(0, 100);
       if (baseRoll < 30) {
-        // Find candidate cells on reels 2, 3, 4 that do not contain scatter
+        // Find candidate cells on reels 1, 2, 3 that do not contain scatter
         const candidateCells: { reel: number; row: number }[] = [];
-        for (let r = 2; r < 5; r++) {
+        for (const r of MULTIPLIER_ALLOWED_REELS) {
           for (let row = 0; row < 3; row++) {
             if (grid[r][row] !== 'scatter') {
               candidateCells.push({ reel: r, row });
@@ -233,9 +236,9 @@ export class MacvSlotEngine {
       const thresh = Math.round(bonusChancePercent * 10); // e.g. 450 for 45%, 360 for 36%, etc.
 
       if (bonusRoll < thresh) {
-        // Find candidate cells on reels 2, 3, 4 that are NOT already occupied by sticky multipliers and NOT scatter
+        // Find candidate cells on reels 1, 2, 3 that are NOT already occupied by sticky multipliers and NOT scatter
         const availableCells: { reel: number; row: number }[] = [];
-        for (let r = 2; r < 5; r++) {
+        for (const r of MULTIPLIER_ALLOWED_REELS) {
           for (let row = 0; row < 3; row++) {
             const isSticky = stickyMultipliers.some((m) => m.reel === r && m.row === row);
             if (!isSticky && grid[r][row] !== 'scatter') {
@@ -441,11 +444,11 @@ export class MacvSlotEngine {
       }
     }
 
-    // In Free Spins, update sticky multipliers with any newly landed x2, x3, x5 on reels 3, 4, 5
+    // In Free Spins, update sticky multipliers with any newly landed x2, x3, x5 on reels 2, 3, 4 (indices 1, 2, 3)
     let currentSticky: StickyMultiplier[] = [];
     if (isFreeSpin) {
       currentSticky = [...existingSticky];
-      for (let r = 2; r < 5; r++) {
+      for (const r of MULTIPLIER_ALLOWED_REELS) {
         for (let row = 0; row < 3; row++) {
           const sym = grid[r][row];
           if (sym === 'x2' || sym === 'x3' || sym === 'x5') {
