@@ -228,6 +228,7 @@ export default function MacvSlotPage() {
 
       isSpinningRef.current = true;
       setIsSpinning(true);
+      setSpinId('');
       setWinningLines([]);
       setLastWin(0);
 
@@ -285,7 +286,10 @@ export default function MacvSlotPage() {
         void executeSpin(false);
         return;
       }
-      return; // Automated spins are actively advancing, ignore clicks
+      if (!isSpinningRef.current) {
+        void executeSpin(false);
+      }
+      return;
     }
     void executeSpin(false);
   }, [executeSpin, bigWinAmount]);
@@ -431,7 +435,7 @@ export default function MacvSlotPage() {
 
       setTimeout(() => {
         if (result.freeSpinsRemaining > 0) {
-          if (!isSpinningRef.current && !isBonusPausedRef.current) {
+          if (!isBonusPausedRef.current) {
             void executeSpin(false);
           }
         } else {

@@ -83,6 +83,20 @@ export function MacvSlotReels({
   const [activeLineIndex, setActiveLineIndex] = useState<number>(0);
   const spinTimerRefs = useRef<NodeJS.Timeout[]>([]);
 
+  const onSpinCompleteRef = useRef(onSpinComplete);
+  onSpinCompleteRef.current = onSpinComplete;
+
+  // Active grid snapshot locked to current spin outcome
+  const [activeGrid, setActiveGrid] = useState<SlotSymbol[][]>(grid);
+  const lastProcessedSpinIdRef = useRef<string>('init');
+
+  // Keep activeGrid in sync when idle (initial render or state sync)
+  useEffect(() => {
+    if (!isSpinning && reelsStopped.every(Boolean)) {
+      setActiveGrid(grid);
+    }
+  }, [grid, isSpinning, reelsStopped]);
+
   // Quick lookup for sticky multiplier cells: "reel,row" -> symbol
   const stickyMap = useMemo(() => {
     const map = new Map<string, 'x2' | 'x3' | 'x5'>();
@@ -125,12 +139,12 @@ export function MacvSlotReels({
     for (let r = 0; r < 5; r++) {
       if (reelsStopped[r]) {
         for (let row = 0; row < 3; row++) {
-          if (grid[r]?.[row] === 'scatter') count++;
+          if (activeGrid[r]?.[row] === 'scatter') count++;
         }
       }
     }
     return count;
-  }, [grid, reelsStopped]);
+  }, [activeGrid, reelsStopped]);
 
   // Cycle through winning lines every 1.8s
   useEffect(() => {
@@ -156,7 +170,11 @@ export function MacvSlotReels({
 
   // When spinId arrives from server (outcome ready), schedule the sequential reel stops with anticipation
   useEffect(() => {
-    if (!isSpinning || !spinId || spinId === 'init') return;
+    if (!isSpinning || !spinId || spinId === 'init' || spinId === lastProcessedSpinIdRef.current) return;
+    lastProcessedSpinIdRef.current = spinId;
+
+    // Snapshot target symbols for this spin
+    setActiveGrid(grid);
 
     spinTimerRefs.current.forEach(clearTimeout);
     spinTimerRefs.current = [];
@@ -219,7 +237,7 @@ export function MacvSlotReels({
           setSuspenseReel(null);
           // Wait 360ms for the physical landing bounce of reel 4 to completely settle before completing spin
           const settleTimer = setTimeout(() => {
-            onSpinComplete?.();
+            onSpinCompleteRef.current?.();
           }, 360);
           spinTimerRefs.current.push(settleTimer);
         }
@@ -235,7 +253,7 @@ export function MacvSlotReels({
     return () => {
       spinTimerRefs.current.forEach(clearTimeout);
     };
-  }, [spinId, isSpinning, isTurbo, grid, onSpinComplete]);
+  }, [spinId, isSpinning, isTurbo, grid]);
 
   const currentWinningLine = winningLines[activeLineIndex % winningLines.length];
   const lineColor = LINE_COLORS[activeLineIndex % LINE_COLORS.length] || '#fbbf24';
@@ -269,7 +287,7 @@ export function MacvSlotReels({
 
         {/* 3. The 5 Reel Columns */}
         <div className="grid grid-cols-5 h-full w-full relative z-0">
-          {grid.map((reelSymbols, reelIdx) => {
+          {activeGrid.map((reelSymbols, reelIdx) => {
             const isReelSpinning = !reelsStopped[reelIdx];
             const isSuspense = suspenseReel === reelIdx;
 
