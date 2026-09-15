@@ -79,8 +79,6 @@ export function MacvSlotReels({
 }: MacvSlotReelsProps) {
   // Track which of the 5 reels have stopped: [r0, r1, r2, r3, r4]
   const [reelsStopped, setReelsStopped] = useState<boolean[]>([true, true, true, true, true]);
-  // Internal displayedGrid locks symbols on each stopped reel so symbols never jump or glitch
-  const [displayedGrid, setDisplayedGrid] = useState<SlotSymbol[][]>(grid);
   const [suspenseReel, setSuspenseReel] = useState<number | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number>(0);
   const spinTimerRefs = useRef<NodeJS.Timeout[]>([]);
@@ -127,19 +125,12 @@ export function MacvSlotReels({
     for (let r = 0; r < 5; r++) {
       if (reelsStopped[r]) {
         for (let row = 0; row < 3; row++) {
-          if (displayedGrid[r]?.[row] === 'scatter') count++;
+          if (grid[r]?.[row] === 'scatter') count++;
         }
       }
     }
     return count;
-  }, [displayedGrid, reelsStopped]);
-
-  // Keep displayedGrid in sync when idle (e.g. initial load or reset)
-  useEffect(() => {
-    if (!isSpinning && reelsStopped.every(Boolean)) {
-      setDisplayedGrid(grid);
-    }
-  }, [grid, isSpinning, reelsStopped]);
+  }, [grid, reelsStopped]);
 
   // Cycle through winning lines every 1.8s
   useEffect(() => {
@@ -206,15 +197,6 @@ export function MacvSlotReels({
 
       const stopTime = accumulatedTime;
       const stopTimer = setTimeout(() => {
-        // Lock this stopped reel's exact symbols in displayedGrid
-        setDisplayedGrid((prev) => {
-          const next = [...prev];
-          if (grid[reel]) {
-            next[reel] = grid[reel];
-          }
-          return next;
-        });
-
         setReelsStopped((prev) => {
           const next = [...prev];
           next[reel] = true;
@@ -287,7 +269,7 @@ export function MacvSlotReels({
 
         {/* 3. The 5 Reel Columns */}
         <div className="grid grid-cols-5 h-full w-full relative z-0">
-          {displayedGrid.map((reelSymbols, reelIdx) => {
+          {grid.map((reelSymbols, reelIdx) => {
             const isReelSpinning = !reelsStopped[reelIdx];
             const isSuspense = suspenseReel === reelIdx;
 

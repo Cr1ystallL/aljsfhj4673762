@@ -199,6 +199,13 @@ export class SoundManager {
   }
 
   /**
+   * Get master volume
+   */
+  getMasterVolume(): number {
+    return this.masterVolume;
+  }
+
+  /**
    * Set category volume
    */
   setCategoryVolume(category: SoundCategory, volume: number): void {

@@ -735,6 +735,7 @@ export default function MacvSlotPage() {
             (balance?.amount ?? 0) >= Math.round(betAmount * 100 * 100) / 100
           }
           buyBonusCost={Math.round(betAmount * 100 * 100) / 100}
+          onOpenInfo={() => setShowPaytable(true)}
         />
       </div>
 
