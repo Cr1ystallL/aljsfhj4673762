@@ -300,7 +300,7 @@ export default function MacvSlotPage() {
           isBonusModeRef.current = false;
           setIsBonusMode(false);
           setVictoryBonusTotal(bonusTotalWonRef.current);
-          setVictoryTotalSpins(bonusSpinsPlayedRef.current || 10);
+          setVictoryTotalSpins(Math.max(10, bonusInitialSpinsRef.current || 10));
           setShowBonusVictory(true);
           soundManager.play('game.win', { volume: 1.0 });
         }
@@ -387,10 +387,38 @@ export default function MacvSlotPage() {
 
   return (
     <main className="relative flex flex-col h-dvh w-full overflow-hidden bg-black select-none">
-      {/* 1. Background Ambience */}
+      {/* 1. Background Ambience with Smooth Bonus Transition */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[600px] h-[500px] rounded-full bg-amber-500/10 blur-[120px]" />
-        <div className="absolute -bottom-[20%] left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full bg-orange-600/10 blur-[140px]" />
+        {/* Base Game Slot Background Image */}
+        <div
+          className={cn(
+            'absolute inset-0 transition-opacity duration-1000 ease-in-out',
+            isFreeSpinActive ? 'opacity-35 scale-105' : 'opacity-100 scale-100'
+          )}
+          style={{ transitionProperty: 'opacity, transform' }}
+        >
+          <Image
+            src="/MacvSlot/background.webp"
+            alt="Slot Background"
+            fill
+            priority
+            unoptimized
+            className="object-cover object-center filter brightness-95"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70" />
+        </div>
+
+        {/* Free Spins Glowing Bonus Atmosphere (Smooth Fade In) */}
+        <div
+          className={cn(
+            'absolute inset-0 transition-opacity duration-1000 ease-in-out pointer-events-none',
+            isFreeSpinActive ? 'opacity-100' : 'opacity-0'
+          )}
+        >
+          <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[700px] h-[550px] rounded-full bg-amber-500/25 blur-[120px] animate-pulse" />
+          <div className="absolute -bottom-[20%] left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-red-600/20 blur-[140px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-amber-950/20 via-transparent to-black/80" />
+        </div>
       </div>
 
       {/* 2. Top Bar */}

@@ -147,6 +147,9 @@ export function MacvSlotBonusVictoryModal({
     onDismiss();
   };
 
+  // Always display at least 10 spins for the completed bonus round
+  const displaySpinsCount = Math.max(10, totalSpins);
+
   return (
     <div
       onClick={handleBackdropClick}
@@ -207,7 +210,7 @@ export function MacvSlotBonusVictoryModal({
             textShadow: '0 2px 0 #0e7490, 0 4px 0 #155e75, 0 6px 10px rgba(0,0,0,0.8)',
           }}
         >
-          В {totalSpins} БЕСПЛАТНЫХ ВРАЩЕНИЯХ
+          В {displaySpinsCount} БЕСПЛАТНЫХ ВРАЩЕНИЯХ
         </h4>
 
         {/* Bottom prompt: НАЖМИТЕ В ЛЮБОМ МЕСТЕ, ЧТОБЫ ПРОДОЛЖИТЬ */}
@@ -220,7 +223,7 @@ export function MacvSlotBonusVictoryModal({
 }
 
 // ============================================================================
-// 3. FEATURE BUY MODAL (Physical Arcade Machine Dialog, Anti-AI-Slop)
+// 3. FEATURE BUY MODAL (Authentic Pragmatic Wood Scroll with Red/Green Action Badges)
 // ============================================================================
 interface MacvSlotBuyBonusModalProps {
   isOpen: boolean;
@@ -262,7 +265,7 @@ export function MacvSlotBuyBonusModal({
 
   const handleBuy = () => {
     if (!canAfford || isSpinning) return;
-    soundManager.play('ui.success', { volume: 0.7 });
+    soundManager.play('ui.success', { volume: 0.8 });
     if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
       (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('heavy');
     }
@@ -274,125 +277,123 @@ export function MacvSlotBuyBonusModal({
       {/* Backdrop dismiss */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      {/* Arcade Chassis */}
+      {/* Wooden Scroll Chassis matching User Screenshot */}
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        initial={{ scale: 0.88, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 350 }}
-        className="relative z-10 w-full max-w-[430px] rounded-[36px] bg-gradient-to-b from-[#1f1624] via-[#100c18] to-[#08060c] border-3 border-amber-500/60 shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_50px_rgba(245,158,11,0.25)] p-6 sm:p-7 overflow-hidden flex flex-col items-center text-center"
+        exit={{ scale: 0.88, opacity: 0, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+        className="relative z-10 w-full max-w-[420px] rounded-[32px] bg-gradient-to-b from-[#6b3512] via-[#451e08] to-[#2b1003] border-4 border-[#b45309] shadow-[0_30px_90px_rgba(0,0,0,0.95),inset_0_4px_12px_rgba(254,240,138,0.35),inset_0_-4px_12px_rgba(0,0,0,0.9)] p-6 sm:p-7 overflow-hidden flex flex-col items-center text-center"
       >
-        {/* Ambient Top Golden Glow */}
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-48 rounded-full bg-gradient-to-b from-amber-400/25 to-transparent blur-3xl pointer-events-none" />
+        {/* Curled glowing top scroll roll edge */}
+        <div className="absolute top-0 inset-x-0 h-4 bg-gradient-to-b from-amber-200/40 via-amber-400/20 to-transparent blur-[1px] pointer-events-none" />
 
-        {/* Close Button (X) */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer z-20 active:scale-90"
-          aria-label="Close"
-        >
-          <span className="text-lg leading-none">&times;</span>
-        </button>
+        {/* Ambient Top Golden Aura */}
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-40 rounded-full bg-gradient-to-b from-amber-400/30 to-transparent blur-3xl pointer-events-none" />
 
-        {/* 3D Golden Arcade Header: КУПИТЬ БОНУС */}
+        {/* Horizontal plank lines texture overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0px,transparent_38px,rgba(0,0,0,0.35)_39px,rgba(0,0,0,0.35)_40px)] pointer-events-none opacity-60" />
+
+        {/* 3D Cyan Title matching screenshot: КУПИТЬ / БЕСПЛАТНЫЕ / СПИНЫ */}
         <h2
-          className="font-brand font-black uppercase text-3xl sm:text-4xl tracking-wider text-yellow-300 drop-shadow-md mt-1"
+          className="relative z-10 font-brand font-black uppercase text-2xl sm:text-3xl leading-tight tracking-wider text-[#22d3ee] mt-1"
           style={{
-            textShadow: '0 2px 0 #b45309, 0 4px 0 #78350f, 0 6px 10px rgba(0,0,0,0.85)',
+            textShadow: '0 2px 0 #0e7490, 0 4px 0 #155e75, 0 6px 0 #083344, 0 8px 12px rgba(0,0,0,0.9)',
           }}
         >
-          КУПИТЬ БОНУС
+          КУПИТЬ<br />
+          БЕСПЛАТНЫЕ<br />
+          СПИНЫ
         </h2>
 
-        <p className="text-amber-200/75 text-xs mt-1 font-sans">
-          Гарантированный запуск 10 фриспинов со скеттерами
-        </p>
+        {/* Price & Bet Selector Section */}
+        <div className="relative z-10 my-5 flex items-center justify-center gap-3 sm:gap-4">
+          {/* Bet Decrement */}
+          <button
+            type="button"
+            onClick={() => handleStepBet(-1)}
+            className="w-10 h-10 rounded-full bg-gradient-to-b from-[#854d0e] to-[#451a03] border-2 border-amber-400/80 text-yellow-200 font-black text-xl flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.8)] active:scale-90 cursor-pointer transition-transform"
+            aria-label="Уменьшить ставку"
+          >
+            -
+          </button>
 
-        {/* Feature Showcase: 3 Glowing 3D Scatters */}
-        <div className="relative my-4 py-2 flex items-center justify-center gap-3">
-          <div className="relative w-14 h-14 sm:w-16 sm:h-16 -rotate-6 transition-transform hover:scale-110">
-            <Image
-              src="/MacvSlot/scatter.webp"
-              alt="Scatter 1"
-              fill
-              unoptimized
-              className="object-contain drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]"
-            />
-          </div>
-          <div className="relative w-20 h-20 sm:w-22 sm:h-22 z-10 transition-transform hover:scale-110">
-            <div className="absolute inset-0 bg-amber-400/30 rounded-full blur-xl animate-pulse" />
-            <Image
-              src="/MacvSlot/scatter.webp"
-              alt="Scatter Center"
-              fill
-              unoptimized
-              className="object-contain drop-shadow-[0_0_22px_rgba(251,191,36,0.95)]"
-            />
-          </div>
-          <div className="relative w-14 h-14 sm:w-16 sm:h-16 rotate-6 transition-transform hover:scale-110">
-            <Image
-              src="/MacvSlot/scatter.webp"
-              alt="Scatter 3"
-              fill
-              unoptimized
-              className="object-contain drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]"
-            />
-          </div>
+          {/* Giant 3D Yellow Price matching Screenshot */}
+          <span
+            className="font-brand font-black text-4xl sm:text-5xl text-yellow-300 tracking-tight select-none leading-none"
+            style={{
+              textShadow: '0 2px 0 #f59e0b, 0 4px 0 #b91c1c, 0 7px 0 #7f1d1d, 0 10px 16px rgba(0,0,0,0.95)',
+            }}
+          >
+            {cost.toFixed(0)} zł
+          </span>
+
+          {/* Bet Increment */}
+          <button
+            type="button"
+            onClick={() => handleStepBet(1)}
+            className="w-10 h-10 rounded-full bg-gradient-to-b from-[#854d0e] to-[#451a03] border-2 border-amber-400/80 text-yellow-200 font-black text-xl flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.8)] active:scale-90 cursor-pointer transition-transform"
+            aria-label="Увеличить ставку"
+          >
+            +
+          </button>
         </div>
 
-        {/* In-Modal Bet Selector */}
-        <div className="w-full flex items-center justify-between p-3 rounded-2xl bg-black/60 border border-amber-500/30 mb-5 shadow-inner">
-          <div className="flex flex-col text-left leading-tight">
-            <span className="text-[10px] text-amber-200/70 uppercase font-mono tracking-wider font-bold">
-              Базовая ставка:
-            </span>
-            <span className="font-brand font-black text-xl text-white mt-0.5">
-              {betAmount.toFixed(betAmount < 1 ? 2 : 1)} zł
-            </span>
-          </div>
+        {/* Current Bet info */}
+        <span className="relative z-10 text-xs font-mono text-amber-200/90 font-bold mb-6">
+          Базовая ставка: {betAmount.toFixed(betAmount < 1 ? 2 : 1)} zł
+        </span>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleStepBet(-1)}
-              className="w-9 h-9 rounded-xl bg-gradient-to-b from-zinc-700 to-zinc-900 hover:from-zinc-600 hover:to-zinc-800 text-amber-300 border border-amber-500/40 flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-md font-black text-lg"
+        {/* Authentic Red (✕) and Green (✓) Action Buttons matching Screenshot */}
+        <div className="relative z-10 flex items-center justify-center gap-8 sm:gap-10 mt-1 mb-2">
+          {/* CANCEL BUTTON: Red 3D Button with ✕ */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-gradient-to-b from-[#dc2626] via-[#b91c1c] to-[#7f1d1d] border-4 border-[#991b1b] shadow-[0_10px_25px_rgba(0,0,0,0.9),inset_0_3px_6px_rgba(255,255,255,0.4)] active:translate-y-1 active:shadow-none flex items-center justify-center cursor-pointer group transition-all"
+            title="Отмена"
+            aria-label="Отмена"
+          >
+            <span
+              className="text-white font-brand font-black text-3xl sm:text-4xl leading-none"
+              style={{
+                textShadow: '0 2px 0 #7f1d1d, 0 4px 6px rgba(0,0,0,0.85)',
+              }}
             >
-              -
-            </button>
+              ✕
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => handleStepBet(1)}
-              className="w-9 h-9 rounded-xl bg-gradient-to-b from-zinc-700 to-zinc-900 hover:from-zinc-600 hover:to-zinc-800 text-amber-300 border border-amber-500/40 flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-md font-black text-lg"
+          {/* CONFIRM / BUY BUTTON: Green 3D Button with ✓ */}
+          <button
+            type="button"
+            disabled={!canAfford || isSpinning}
+            onClick={handleBuy}
+            className={cn(
+              'w-18 h-18 sm:w-20 sm:h-20 rounded-full border-4 shadow-[0_10px_25px_rgba(0,0,0,0.9),inset_0_3px_6px_rgba(255,255,255,0.4)] active:translate-y-1 active:shadow-none flex items-center justify-center cursor-pointer group transition-all',
+              canAfford
+                ? 'bg-gradient-to-b from-[#10b981] via-[#059669] to-[#047857] border-[#065f46]'
+                : 'bg-zinc-800 border-zinc-700 opacity-50 cursor-not-allowed'
+            )}
+            title={canAfford ? 'Купить бонуску' : 'Недостаточно средств'}
+            aria-label="Купить бонуску"
+          >
+            <span
+              className="text-white font-brand font-black text-3xl sm:text-4xl leading-none"
+              style={{
+                textShadow: '0 2px 0 #064e3b, 0 4px 6px rgba(0,0,0,0.85)',
+              }}
             >
-              +
-            </button>
-          </div>
+              ✓
+            </span>
+          </button>
         </div>
 
-        {/* Heavy Physical 3D Arcade Machine Button */}
-        <button
-          type="button"
-          disabled={!canAfford || isSpinning}
-          onClick={handleBuy}
-          className={cn(
-            'w-full py-4 px-6 rounded-2xl font-brand font-black text-base uppercase tracking-wider transition-all select-none cursor-pointer flex items-center justify-center',
-            canAfford
-              ? 'bg-gradient-to-b from-[#fef08a] via-[#f59e0b] to-[#b45309] border-b-6 border-[#78350f] active:border-b-0 active:translate-y-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.85),0_0_35px_rgba(245,158,11,0.5)] text-black'
-              : 'bg-zinc-800 border-b-4 border-zinc-900 text-zinc-500 cursor-not-allowed opacity-75'
-          )}
-        >
-          {canAfford ? (
-            <span style={{ textShadow: '0 1px 0 rgba(255,255,255,0.6)' }}>
-              КУПИТЬ ЗА {cost.toFixed(0)} zł (100x)
-            </span>
-          ) : (
-            <span className="text-xs">
-              НЕДОСТАТОЧНО СРЕДСТВ ({balance.toFixed(1)} / {cost.toFixed(0)} zł)
-            </span>
-          )}
-        </button>
+        {!canAfford && (
+          <span className="relative z-10 text-[11px] font-mono text-red-300 mt-2 font-bold">
+            Недостаточно средств: {balance.toFixed(1)} / {cost.toFixed(0)} zł
+          </span>
+        )}
       </motion.div>
     </div>
   );
