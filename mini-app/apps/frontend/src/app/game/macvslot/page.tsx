@@ -87,6 +87,7 @@ export default function MacvSlotPage() {
   const [awardedFreeSpins, setAwardedFreeSpins] = useState<number>(0);
   const [showPaytable, setShowPaytable] = useState<boolean>(false);
   const [bigWinAmount, setBigWinAmount] = useState<number | null>(null);
+  const [isBigWinPending, setIsBigWinPending] = useState<boolean>(false);
   const [isScatterAnticipating, setIsScatterAnticipating] = useState<boolean>(false);
   const [showBuyBonusConfirm, setShowBuyBonusConfirm] = useState<boolean>(false);
   const [showAutoModal, setShowAutoModal] = useState<boolean>(false);
@@ -120,6 +121,11 @@ export default function MacvSlotPage() {
   const bonusTotalWonRef = useRef(0);
   const bonusSpinsPlayedRef = useRef(0);
   const bonusInitialSpinsRef = useRef(10);
+  const isBigWinPendingRef = useRef(false);
+
+  useEffect(() => {
+    isBigWinPendingRef.current = isBigWinPending;
+  }, [isBigWinPending]);
 
   useEffect(() => {
     isSpinningRef.current = isSpinning;
@@ -194,11 +200,18 @@ export default function MacvSlotPage() {
   const executeSpin = useCallback(
     async (isBonusBuy = false) => {
       if (isSpinningRef.current) return;
+      if (isBigWinPendingRef.current) return;
+
+      const inBonus = isBonusModeRef.current;
+      const currentFree = freeSpinsLeftRef.current;
+
+      // In bonus mode, if 0 free spins remain, block spins (bonus round is concluding)
+      if (inBonus && currentFree <= 0 && !isBonusBuy) {
+        return;
+      }
 
       const currentBalance = balanceRef.current;
       const currentBet = betAmountRef.current;
-      const currentFree = freeSpinsLeftRef.current;
-      const inBonus = isBonusModeRef.current;
 
       if (isBonusBuy) {
         const cost = Math.round(currentBet * 100 * 100) / 100;
@@ -263,14 +276,19 @@ export default function MacvSlotPage() {
   );
 
   const handleSpin = useCallback(() => {
-    if (isBonusModeRef.current && isBonusPausedRef.current) {
-      isBonusPausedRef.current = false;
-      setIsBonusPaused(false);
-      void executeSpin(false);
-      return;
+    if (isBigWinPendingRef.current || bigWinAmount !== null) return;
+    if (isBonusModeRef.current) {
+      if (freeSpinsLeftRef.current <= 0) return;
+      if (isBonusPausedRef.current) {
+        isBonusPausedRef.current = false;
+        setIsBonusPaused(false);
+        void executeSpin(false);
+        return;
+      }
+      return; // Automated spins are actively advancing, ignore clicks
     }
     void executeSpin(false);
-  }, [executeSpin]);
+  }, [executeSpin, bigWinAmount]);
 
   const handleBuyBonus = useCallback(() => {
     void executeSpin(true);
@@ -278,6 +296,8 @@ export default function MacvSlotPage() {
 
   // Handler when Big Win modal is dismissed: resume next spin or end bonus
   const handleBigWinClose = useCallback(() => {
+    setIsBigWinPending(false);
+    isBigWinPendingRef.current = false;
     setBigWinAmount(null);
     const result = pendingResultRef.current;
     if (!result) return;
@@ -368,6 +388,8 @@ export default function MacvSlotPage() {
     // ========================================================================
     if (isBigWin) {
       soundManager.play('game.win', { volume: 0.9 });
+      setIsBigWinPending(true);
+      isBigWinPendingRef.current = true;
 
       if (inBonus) {
         bonusSpinsPlayedRef.current += 1;
@@ -697,7 +719,8 @@ export default function MacvSlotPage() {
           onToggleAuto={handleToggleAuto}
           freeSpinsLeft={freeSpinsLeft}
           isBonusMode={isBonusMode || showBonusVictory || awardedFreeSpins > 0}
-          disabled={isAdmin === null}
+          isBonusPaused={isBonusPaused}
+          disabled={isAdmin === null || isBigWinPending || bigWinAmount !== null}
           onBuyBonus={() => {
             soundManager.play('ui.click', { volume: 0.4 });
             setShowBuyBonusConfirm(true);

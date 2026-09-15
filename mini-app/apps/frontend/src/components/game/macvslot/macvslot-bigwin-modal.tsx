@@ -10,22 +10,23 @@ interface MacvSlotBigWinModalProps {
   onClose: () => void;
 }
 
-// 60fps cubic rolling number hook
-function useAnimatedNumber(targetValue: number, duration = 1200) {
+// 60fps cubic rolling number hook with instant-complete capability
+function useAnimatedNumber(targetValue: number, duration = 3000) {
   const [displayValue, setDisplayValue] = useState(0);
-  const prevValueRef = useRef(0);
+  const [isFinished, setIsFinished] = useState(false);
+  const animRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!targetValue || targetValue <= 0) {
       setDisplayValue(0);
-      prevValueRef.current = 0;
+      setIsFinished(true);
       return;
     }
 
+    setIsFinished(false);
     const startValue = 0;
     const diff = targetValue - startValue;
     const startTime = performance.now();
-    let animId: number;
 
     const tick = (now: number) => {
       const elapsed = now - startTime;
@@ -35,18 +36,29 @@ function useAnimatedNumber(targetValue: number, duration = 1200) {
       setDisplayValue(startValue + diff * ease);
 
       if (progress < 1) {
-        animId = requestAnimationFrame(tick);
+        animRef.current = requestAnimationFrame(tick);
       } else {
         setDisplayValue(targetValue);
-        prevValueRef.current = targetValue;
+        setIsFinished(true);
       }
     };
 
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
+    animRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
   }, [targetValue, duration]);
 
-  return displayValue;
+  const complete = () => {
+    if (animRef.current) {
+      cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    }
+    setDisplayValue(targetValue);
+    setIsFinished(true);
+  };
+
+  return { displayValue, isFinished, complete };
 }
 
 export function MacvSlotBigWinModal({
@@ -54,8 +66,8 @@ export function MacvSlotBigWinModal({
   onClose,
 }: MacvSlotBigWinModalProps) {
   const isOpen = winAmount !== null && winAmount > 0;
-  // Dramatic, slow rolling counter over 3.0s as requested by user
-  const animatedWin = useAnimatedNumber(winAmount || 0, 3000);
+  // Dramatic, slow rolling counter over 3.0s
+  const { displayValue: animatedWin, isFinished, complete } = useAnimatedNumber(winAmount || 0, 3000);
 
   useEffect(() => {
     if (isOpen) {
@@ -93,12 +105,22 @@ export function MacvSlotBigWinModal({
     });
   }, []);
 
+  const handleClick = () => {
+    if (!isFinished) {
+      // 1-е нажатие: моментально заканчивает анимацию цифр
+      complete();
+    } else {
+      // 2-е нажатие: закрывает окно
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
       <div
-        onClick={onClose}
+        onClick={handleClick}
         className="fixed inset-0 z-50 flex flex-col items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md cursor-pointer select-none animate-in fade-in duration-300"
       >
         {/* Banner + Coins Container */}
@@ -179,11 +201,6 @@ export function MacvSlotBigWinModal({
             </div>
           </motion.div>
         </div>
-
-        {/* Bottom prompt */}
-        <p className="relative z-20 text-amber-300/90 font-black text-xs sm:text-sm uppercase tracking-[0.25em] mt-4 animate-pulse drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] text-center">
-          НАЖМИТЕ В ЛЮБОМ МЕСТЕ, ЧТОБЫ ПРОДОЛЖИТЬ
-        </p>
       </div>
     </AnimatePresence>
   );

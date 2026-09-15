@@ -23,6 +23,7 @@ interface MacvSlotControlsProps {
   canBuyBonus?: boolean;
   buyBonusCost?: number;
   isBonusMode?: boolean;
+  isBonusPaused?: boolean;
 }
 
 const BET_PRESETS = [0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -43,6 +44,7 @@ export function MacvSlotControls({
   canBuyBonus = true,
   buyBonusCost,
   isBonusMode = false,
+  isBonusPaused = false,
 }: MacvSlotControlsProps) {
   const [showBetModal, setShowBetModal] = useState(false);
 
@@ -61,7 +63,9 @@ export function MacvSlotControls({
   const isFreeSpinActive = isBonusMode || freeSpinsLeft > 0;
 
   const handleSpinClick = () => {
-    if (disabled || (isSpinning && !isFreeSpinActive)) return;
+    if (disabled || isSpinning) return;
+    // When free spins are automatically executing (not paused), clicks do nothing
+    if (isBonusMode && !isBonusPaused) return;
     if (typeof window !== 'undefined' && window?.Telegram?.WebApp?.HapticFeedback) {
       window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
     }
@@ -103,10 +107,11 @@ export function MacvSlotControls({
               type="button"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.92 }}
+              disabled={disabled || isSpinning || (isBonusMode && !isBonusPaused)}
               onClick={handleSpinClick}
               className={cn(
                 'relative w-20 h-20 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer shrink-0',
-                isSpinning && 'opacity-90'
+                (isSpinning || (isBonusMode && !isBonusPaused)) && 'opacity-90'
               )}
             >
               <div className="absolute inset-[-6px] rounded-full bg-amber-400/35 blur-xl animate-pulse pointer-events-none" />
@@ -328,10 +333,11 @@ export function MacvSlotControls({
                 type="button"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.93 }}
+                disabled={disabled || isSpinning || (isBonusMode && !isBonusPaused)}
                 onClick={handleSpinClick}
                 className={cn(
                   'relative w-24 h-24 md:w-28 md:h-28 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer shrink-0',
-                  isSpinning && 'opacity-90'
+                  (isSpinning || (isBonusMode && !isBonusPaused)) && 'opacity-90'
                 )}
               >
                 <div className="absolute inset-[-6px] rounded-full bg-amber-400/35 blur-xl animate-pulse pointer-events-none" />
