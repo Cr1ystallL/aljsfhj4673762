@@ -348,11 +348,6 @@ export function MacvSlotControls({
                 </div>
               </motion.button>
             </div>
-
-            {/* Right: Bonus Round Badge */}
-            <div className="px-4 py-2 rounded-2xl bg-amber-500/15 border border-amber-400/40 text-amber-300 font-brand font-black text-xs uppercase tracking-wider shadow-inner">
-              ⭐ БОНУСНЫЙ РАУНД
-            </div>
           </>
         ) : (
           /* Normal Base Game Desktop Dock */

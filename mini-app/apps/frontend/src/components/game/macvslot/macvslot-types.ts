@@ -39,6 +39,7 @@ export interface SlotSpinResponse {
   totalWin: number;
   freeSpinsAwarded: number;
   freeSpinsRemaining: number;
+  freeSpinsInitial?: number;
   isFreeSpin: boolean;
   stickyMultipliers?: StickyMultiplier[];
   newBalance?: {

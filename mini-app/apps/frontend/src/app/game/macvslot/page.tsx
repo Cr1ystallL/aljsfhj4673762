@@ -91,6 +91,7 @@ export default function MacvSlotPage() {
   const [showBuyBonusConfirm, setShowBuyBonusConfirm] = useState<boolean>(false);
   const [showAutoModal, setShowAutoModal] = useState<boolean>(false);
   const [stickyMultipliers, setStickyMultipliers] = useState<StickyMultiplier[]>([]);
+  const [isBonusPaused, setIsBonusPaused] = useState<boolean>(false);
 
   // Bonus Game Tracking
   const [isBonusMode, setIsBonusMode] = useState<boolean>(false);
@@ -105,6 +106,7 @@ export default function MacvSlotPage() {
   const animatedBonusWin = useAnimatedNumber(bonusTotalWon, 700);
 
   const pendingResultRef = useRef<SlotSpinResponse | null>(null);
+  const bigWinTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Synchronization refs to eliminate React state closure staleness during auto-play
   const isSpinningRef = useRef(false);
@@ -114,6 +116,7 @@ export default function MacvSlotPage() {
   const freeSpinsLeftRef = useRef(0);
   const balanceRef = useRef(balance?.amount ?? 0);
   const isBonusModeRef = useRef(false);
+  const isBonusPausedRef = useRef(false);
   const bonusTotalWonRef = useRef(0);
   const bonusSpinsPlayedRef = useRef(0);
   const bonusInitialSpinsRef = useRef(10);
@@ -146,25 +149,41 @@ export default function MacvSlotPage() {
     isBonusModeRef.current = isBonusMode;
   }, [isBonusMode]);
 
-  // Sync initial state & active free spins
+  useEffect(() => {
+    isBonusPausedRef.current = isBonusPaused;
+  }, [isBonusPaused]);
+
+  // Sync initial state & active free spins (Paused on re-entry/exit)
   useEffect(() => {
     void fetchBalance();
     fetch('/api/games/macvslot/state', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data.ok && data.freeSpins && data.freeSpins.remaining > 0) {
-          setFreeSpinsLeft(data.freeSpins.remaining);
-          freeSpinsLeftRef.current = data.freeSpins.remaining;
+          const fs = data.freeSpins;
+          const initial = fs.initialSpins || 10;
+          const remaining = fs.remaining;
+          const played = Math.max(0, initial - remaining);
+
+          setFreeSpinsLeft(remaining);
+          freeSpinsLeftRef.current = remaining;
+          setBonusInitialSpins(initial);
+          bonusInitialSpinsRef.current = initial;
+          setBonusSpinsPlayed(played);
+          bonusSpinsPlayedRef.current = played;
+          setBonusTotalWon(fs.totalWon || 0);
+          bonusTotalWonRef.current = fs.totalWon || 0;
+          setStickyMultipliers(fs.stickyMultipliers || []);
+
+          // Restore bonus mode in PAUSED state so user can resume at their own pace
           setIsBonusMode(true);
           isBonusModeRef.current = true;
-          const totalWon = data.freeSpins.totalWon || 0;
-          setBonusTotalWon(totalWon);
-          bonusTotalWonRef.current = totalWon;
-          setBonusInitialSpins(10);
-          bonusInitialSpinsRef.current = 10;
-          if (data.freeSpins.betAmount) {
-            setBetAmount(data.freeSpins.betAmount);
-            betAmountRef.current = data.freeSpins.betAmount;
+          setIsBonusPaused(true);
+          isBonusPausedRef.current = true;
+
+          if (fs.betAmount) {
+            setBetAmount(fs.betAmount);
+            betAmountRef.current = fs.betAmount;
           }
         }
       })
@@ -222,8 +241,10 @@ export default function MacvSlotPage() {
         pendingResultRef.current = data;
         setGrid(data.grid);
         setSpinId(data.roundId);
-        setFreeSpinsLeft(data.freeSpinsRemaining);
-        freeSpinsLeftRef.current = data.freeSpinsRemaining;
+        if (inBonus || isBonusModeRef.current) {
+          setFreeSpinsLeft(data.freeSpinsRemaining);
+          freeSpinsLeftRef.current = data.freeSpinsRemaining;
+        }
         setStickyMultipliers(data.stickyMultipliers || []);
 
         // In normal play, sync balance immediately.
@@ -243,11 +264,59 @@ export default function MacvSlotPage() {
   );
 
   const handleSpin = useCallback(() => {
+    if (isBonusModeRef.current && isBonusPausedRef.current) {
+      isBonusPausedRef.current = false;
+      setIsBonusPaused(false);
+      void executeSpin(false);
+      return;
+    }
     void executeSpin(false);
   }, [executeSpin]);
 
   const handleBuyBonus = useCallback(() => {
     void executeSpin(true);
+  }, [executeSpin]);
+
+  // Handler when Big Win modal is dismissed: resume next spin or end bonus
+  const handleBigWinClose = useCallback(() => {
+    setBigWinAmount(null);
+    const result = pendingResultRef.current;
+    if (!result) return;
+
+    const inBonus = isBonusModeRef.current || result.isFreeSpin;
+
+    if (inBonus) {
+      if (result.freeSpinsRemaining > 0) {
+        setTimeout(() => {
+          if (!isSpinningRef.current && !isBonusPausedRef.current) {
+            void executeSpin(false);
+          }
+        }, 600);
+      } else {
+        // Bonus finished on a Big Win
+        isBonusModeRef.current = false;
+        setIsBonusMode(false);
+        setVictoryBonusTotal(bonusTotalWonRef.current);
+        setVictoryTotalSpins(Math.max(10, bonusInitialSpinsRef.current || 10));
+        setShowBonusVictory(true);
+        soundManager.play('game.win', { volume: 1.0 });
+      }
+      pendingResultRef.current = null;
+      return;
+    }
+
+    // Base game auto spins continuation
+    if (autoSpinsLeftRef.current > 0 && result.freeSpinsAwarded <= 0) {
+      autoSpinsLeftRef.current -= 1;
+      setAutoSpinsLeft(autoSpinsLeftRef.current);
+      setTimeout(() => {
+        if (autoSpinsLeftRef.current >= 0 && !isSpinningRef.current) {
+          void executeSpin(false);
+        }
+      }, 600);
+    }
+
+    pendingResultRef.current = null;
   }, [executeSpin]);
 
   // Callback when reels complete their spinning animation
@@ -262,15 +331,35 @@ export default function MacvSlotPage() {
     setLastWin(result.totalWin);
 
     const inBonus = isBonusModeRef.current || result.isFreeSpin;
+    const isBigWin = result.totalWin >= betAmountRef.current * 5;
 
-    // Win Audio & Celebrations: Trigger Big Win banner when single spin win >= 5x bet
-    if (result.totalWin > 0) {
-      if (result.totalWin >= betAmountRef.current * 5) {
-        soundManager.play('game.win', { volume: 1.0 });
-        setBigWinAmount(result.totalWin);
-      } else {
-        soundManager.play('ui.success', { volume: 0.7 });
+    // ========================================================================
+    // 1. BIG WIN SEQUENCE:
+    // First display winning lines on reels for 2.0s so the user sees what hit,
+    // then display big win banner with slow rolling counter.
+    // Spins are completely on hold during this time until banner is closed.
+    // ========================================================================
+    if (isBigWin) {
+      soundManager.play('game.win', { volume: 0.9 });
+
+      if (inBonus) {
+        bonusSpinsPlayedRef.current += 1;
+        setBonusSpinsPlayed(bonusSpinsPlayedRef.current);
+
+        if (result.totalWin > 0) {
+          bonusTotalWonRef.current = Math.round((bonusTotalWonRef.current + result.totalWin) * 100) / 100;
+          setBonusTotalWon(bonusTotalWonRef.current);
+        }
       }
+
+      // Display winning lines first for 2.0s, then show Big Win banner
+      if (bigWinTimeoutRef.current) clearTimeout(bigWinTimeoutRef.current);
+      bigWinTimeoutRef.current = setTimeout(() => {
+        setBigWinAmount(result.totalWin);
+      }, 2000);
+
+      // Keep pendingResultRef active so handleBigWinClose can resume spins
+      return;
     }
 
     // ========================================================================
@@ -281,12 +370,11 @@ export default function MacvSlotPage() {
       setBonusSpinsPlayed(bonusSpinsPlayedRef.current);
 
       if (result.totalWin > 0) {
+        soundManager.play('ui.success', { volume: 0.7 });
         bonusTotalWonRef.current = Math.round((bonusTotalWonRef.current + result.totalWin) * 100) / 100;
         setBonusTotalWon(bonusTotalWonRef.current);
       }
 
-      // Exact timing rules requested by user:
-      // "Спины идут автоматически без нажатия кнопки спин но сначала показываются все выигрышные спины(если есть) потом идет некст спин, и если нет линий то 1 с ждет и дальше идет"
       const hasWin = result.totalWin > 0;
       const delay = hasWin
         ? (isTurboRef.current ? 950 : 1800) // Allow user to see winning lines and counter animate
@@ -294,8 +382,7 @@ export default function MacvSlotPage() {
 
       setTimeout(() => {
         if (result.freeSpinsRemaining > 0) {
-          // Automatic continuation to next free spin
-          if (!isSpinningRef.current) {
+          if (!isSpinningRef.current && !isBonusPausedRef.current) {
             void executeSpin(false);
           }
         } else {
@@ -311,6 +398,10 @@ export default function MacvSlotPage() {
 
       pendingResultRef.current = null;
       return;
+    }
+
+    if (result.totalWin > 0) {
+      soundManager.play('ui.success', { volume: 0.7 });
     }
 
     // ========================================================================
@@ -387,17 +478,17 @@ export default function MacvSlotPage() {
     void handleSpin();
   };
 
-  const isFreeSpinActive = isBonusMode || freeSpinsLeft > 0;
+  const isFreeSpinActive = isBonusMode;
 
   return (
     <main className="relative flex flex-col h-dvh w-full overflow-hidden bg-black select-none">
-      {/* 1. Background Ambience with Smooth Bonus Transition */}
+      {/* 1. Background Ambience: Smooth transition ONLY after bonus modal is accepted */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         {/* Base Game Slot Background Image */}
         <div
           className={cn(
             'absolute inset-0 transition-opacity duration-1000 ease-in-out',
-            isFreeSpinActive ? 'opacity-35 scale-105' : 'opacity-100 scale-100'
+            isBonusMode ? 'opacity-35 scale-105' : 'opacity-100 scale-100'
           )}
           style={{ transitionProperty: 'opacity, transform' }}
         >
@@ -412,11 +503,11 @@ export default function MacvSlotPage() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70" />
         </div>
 
-        {/* Free Spins Glowing Bonus Atmosphere (Smooth Fade In) */}
+        {/* Free Spins Glowing Bonus Atmosphere (Smooth Fade In after starting bonus) */}
         <div
           className={cn(
             'absolute inset-0 transition-opacity duration-1000 ease-in-out pointer-events-none',
-            isFreeSpinActive ? 'opacity-100' : 'opacity-0'
+            isBonusMode ? 'opacity-100' : 'opacity-0'
           )}
         >
           <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[700px] h-[550px] rounded-full bg-amber-500/25 blur-[120px] animate-pulse" />
@@ -447,7 +538,7 @@ export default function MacvSlotPage() {
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-3 py-0 sm:py-1">
         <div className="relative w-full max-w-full sm:max-w-[960px] lg:max-w-[980px] xl:max-w-[1040px] mx-auto">
           {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame (hidden during bonus) */}
-          {!isFreeSpinActive && (
+          {!isBonusMode && (
             <button
               type="button"
               disabled={
@@ -504,71 +595,75 @@ export default function MacvSlotPage() {
           />
         </div>
 
-        {/* Dynamic Status / Round Win HUD under the reels */}
-        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-1.5 sm:my-2 px-2 flex flex-col items-center justify-center min-h-[46px] sm:min-h-[52px]">
-          {isFreeSpinActive ? (
-            /* BONUS ROUND ARCADE HUD: Spins count on Left, Spin Win in Center, Rolling Total Win on Right */
-            <div className="w-full flex items-center justify-between gap-2 sm:gap-4 p-2 sm:p-2.5 rounded-2xl bg-gradient-to-r from-[#181a24]/95 via-[#0d0f17]/95 to-[#181a24]/95 border-2 border-amber-500/40 shadow-[0_8px_30px_rgba(0,0,0,0.9),0_0_20px_rgba(245,158,11,0.2)]">
-              {/* Left: Free Spins Remaining Badge */}
-              <div className="flex flex-col items-start px-2.5 sm:px-3.5 py-1 rounded-xl bg-black/60 border border-amber-500/30">
-                <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-wider text-amber-300/80 font-bold leading-none">
-                  СПИНЫ
+        {/* Dynamic Status / Round Win HUD under the reels - Anti-AI-Slop Borderless Arcade Typography */}
+        <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto my-1 sm:my-1.5 px-3 sm:px-6 flex items-center justify-between min-h-[38px]">
+          {isBonusMode ? (
+            /* BONUS ROUND CLEAN ARCADE HUD: Seamless, borderless physical casino HUD */
+            <div className="w-full flex items-center justify-between">
+              {/* Left: Free Spins Remaining */}
+              <div className="flex items-baseline gap-1.5 shrink-0">
+                <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-zinc-400 uppercase">
+                  СПИНЫ:
                 </span>
-                <span className="font-brand font-black text-sm sm:text-base text-white mt-0.5">
+                <span className="font-brand font-black text-sm sm:text-lg text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]">
                   {bonusSpinsPlayed} / {bonusInitialSpins}
                 </span>
               </div>
 
               {/* Center: Spin Win or Status */}
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-1">
+              <div className="flex-1 flex items-center justify-center text-center px-2">
                 {lastWin > 0 ? (
                   <div className="flex items-center gap-1.5 animate-in zoom-in-95 duration-200">
-                    <span className="text-[10px] sm:text-xs uppercase font-extrabold text-amber-200">
+                    <span className="text-[10px] sm:text-xs uppercase font-extrabold text-amber-200/80">
                       В СПИНЕ:
                     </span>
-                    <span className="font-brand font-black text-base sm:text-2xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.85)]">
+                    <span className="font-brand font-black text-base sm:text-xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.85)]">
                       +{lastWin.toFixed(2)} zł
                     </span>
                   </div>
+                ) : isBonusPaused ? (
+                  <span className="text-xs sm:text-sm font-brand font-bold text-amber-400/90 tracking-widest animate-pulse">
+                    ПАУЗА — НАЖМИТЕ SPIN
+                  </span>
                 ) : isSpinning ? (
-                  <span className="text-xs sm:text-sm font-brand font-bold text-amber-300/90 tracking-wider animate-pulse">
-                    ВРАЩЕНИЕ БАРАБАНОВ...
+                  <span className="text-xs sm:text-sm font-mono text-zinc-400 tracking-widest uppercase animate-pulse">
+                    Вращение барабанов...
                   </span>
-                ) : (
-                  <span className="text-xs sm:text-sm font-mono text-zinc-400">
-                    БОНУСНАЯ ИГРА
-                  </span>
-                )}
+                ) : null}
               </div>
 
               {/* Right: Rolling Total Bonus Win */}
-              <div className="flex flex-col items-end px-2.5 sm:px-3.5 py-1 rounded-xl bg-gradient-to-b from-amber-500/20 to-black/60 border border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
-                <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-wider text-amber-200 font-bold leading-none">
-                  ВЫИГРЫШ
+              <div className="flex items-baseline gap-1.5 shrink-0">
+                <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-zinc-400 uppercase">
+                  ВЫИГРЫШ:
                 </span>
-                <span className="font-brand font-black text-sm sm:text-lg text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] mt-0.5">
-                  {animatedBonusWin.toFixed(2)} zł
+                <span className="font-brand font-black text-sm sm:text-lg text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.7)]">
+                  +{animatedBonusWin.toFixed(2)} zł
                 </span>
               </div>
             </div>
           ) : lastWin > 0 ? (
-            /* Base Game Win Banner */
-            <div className="px-5 sm:px-6 py-1.5 sm:py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-400/60 backdrop-blur-md shadow-[0_0_30px_rgba(251,191,36,0.5)] flex items-center gap-2 sm:gap-2.5 animate-in zoom-in-95 duration-200">
-              <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-200/90 font-extrabold">
+            /* Base Game Win Clean Typography (No Card/Border) */
+            <div className="w-full flex items-center justify-center gap-2 animate-in zoom-in-95 duration-200">
+              <span className="text-xs sm:text-sm uppercase tracking-widest text-amber-200/80 font-extrabold">
                 ВЫИГРЫШ:
               </span>
-              <span className="font-brand font-black text-xl sm:text-3xl text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]">
+              <span className="font-brand font-black text-xl sm:text-2xl text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.85)]">
                 +{lastWin.toFixed(2)} zł
               </span>
             </div>
           ) : isSpinning ? (
-            <span className="text-xs text-zinc-400 font-mono tracking-widest uppercase animate-pulse">
-              Вращение барабанов...
-            </span>
+            <div className="w-full flex items-center justify-center">
+              <span className="text-xs text-zinc-400 font-mono tracking-widest uppercase animate-pulse">
+                Вращение барабанов...
+              </span>
+            </div>
           ) : (
-            <span className="text-xs text-zinc-500 font-mono tracking-wider uppercase">
-              Сделайте ставку и нажмите SPIN
-            </span>
+            <div className="w-full flex items-center justify-center">
+              <span className="text-xs text-zinc-500 font-mono tracking-wider uppercase">
+                Сделайте ставку и нажмите SPIN
+              </span>
+            </div>
           )}
         </div>
 
@@ -612,6 +707,10 @@ export default function MacvSlotPage() {
           setAwardedFreeSpins(0);
           setIsBonusMode(true);
           isBonusModeRef.current = true;
+          setIsBonusPaused(false);
+          isBonusPausedRef.current = false;
+          setFreeSpinsLeft(bonusInitialSpinsRef.current);
+          freeSpinsLeftRef.current = bonusInitialSpinsRef.current;
           bonusTotalWonRef.current = 0;
           setBonusTotalWon(0);
           bonusSpinsPlayedRef.current = 0;
@@ -654,7 +753,7 @@ export default function MacvSlotPage() {
       {/* Big Win Banner Modal (>= 5x Bet Celebration with spinning coin animation) */}
       <MacvSlotBigWinModal
         winAmount={bigWinAmount}
-        onClose={() => setBigWinAmount(null)}
+        onClose={handleBigWinClose}
       />
     </main>
   );

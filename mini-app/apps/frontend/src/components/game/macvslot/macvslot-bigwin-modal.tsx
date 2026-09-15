@@ -54,7 +54,8 @@ export function MacvSlotBigWinModal({
   onClose,
 }: MacvSlotBigWinModalProps) {
   const isOpen = winAmount !== null && winAmount > 0;
-  const animatedWin = useAnimatedNumber(winAmount || 0, 1400);
+  // Dramatic, slow rolling counter over 3.0s as requested by user
+  const animatedWin = useAnimatedNumber(winAmount || 0, 3000);
 
   useEffect(() => {
     if (isOpen) {
@@ -62,8 +63,15 @@ export function MacvSlotBigWinModal({
       if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
         (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('success');
       }
+
+      // Auto-dismiss 2.5s after number rolling finishes (total 5.5s) if user doesn't click
+      const autoDismissTimer = setTimeout(() => {
+        onClose();
+      }, 5500);
+
+      return () => clearTimeout(autoDismissTimer);
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   // Generate 18 particles of animated flying coins with randomized trajectories
   const coins = useMemo(() => {

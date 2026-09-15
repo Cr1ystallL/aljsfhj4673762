@@ -46,12 +46,14 @@ export interface SlotSpinResult {
   totalWin: number;
   freeSpinsAwarded: number;
   freeSpinsRemaining: number;
+  freeSpinsInitial?: number;
   isFreeSpin: boolean;
   stickyMultipliers?: StickyMultiplier[];
 }
 
 export interface FreeSpinsState {
   remaining: number;
+  initialSpins: number;
   betAmount: number;
   totalWon: number;
   stickyMultipliers?: StickyMultiplier[];
@@ -195,14 +197,14 @@ export class MacvSlotEngine {
 
         // Multiplier symbols can land ONLY on reels 3, 4, 5 (indices 2, 3, 4)
         if (reel >= 2 && sym !== 'scatter') {
-          // Bonus game has higher chance (14%) to land multipliers; base game has ~3%
+          // Bonus game has higher chance (26%) to land multipliers; base game has ~4%
           const roll = randomInt(0, 1000);
-          const thresh = isFreeSpin ? 140 : 30;
+          const thresh = isFreeSpin ? 260 : 40;
           if (roll < thresh) {
             const mRoll = randomInt(0, 100);
-            if (mRoll < 60) {
+            if (mRoll < 55) {
               sym = 'x2';
-            } else if (mRoll < 90) {
+            } else if (mRoll < 85) {
               sym = 'x3';
             } else {
               sym = 'x5';
@@ -213,6 +215,28 @@ export class MacvSlotEngine {
         col.push(sym);
       }
       grid.push(col);
+    }
+
+    // In Free Spins, guarantee at least 1 multiplier lands if board currently has none
+    if (isFreeSpin) {
+      let hasMultiplier = false;
+      for (let r = 2; r < 5; r++) {
+        for (let row = 0; row < 3; row++) {
+          if (grid[r][row] === 'x2' || grid[r][row] === 'x3' || grid[r][row] === 'x5') {
+            hasMultiplier = true;
+            break;
+          }
+        }
+        if (hasMultiplier) break;
+      }
+
+      if (!hasMultiplier && stickyMultipliers.length === 0) {
+        const targetReel = randomInt(2, 5); // 2, 3, or 4
+        const targetRow = randomInt(0, 3);
+        const mRoll = randomInt(0, 100);
+        const forcedSym: SlotSymbol = mRoll < 55 ? 'x2' : mRoll < 85 ? 'x3' : 'x5';
+        grid[targetReel][targetRow] = forcedSym;
+      }
     }
 
     // Apply Sticky Multipliers across free spins
@@ -428,23 +452,29 @@ export class MacvSlotEngine {
 
     // Handle Free Spins State Updates
     let freeSpinsRemaining = 0;
+    let freeSpinsInitial = 10;
+
     if (isFreeSpin && fsState) {
       fsState.remaining -= 1;
       fsState.totalWon = Math.round((fsState.totalWon + totalWin) * 100) / 100;
       fsState.stickyMultipliers = currentSticky;
       if (freeSpinsAwarded > 0) {
         fsState.remaining += freeSpinsAwarded; // Re-trigger!
+        fsState.initialSpins = (fsState.initialSpins || 10) + freeSpinsAwarded;
       }
       freeSpinsRemaining = fsState.remaining;
+      freeSpinsInitial = fsState.initialSpins || 10;
       await this.setFreeSpinsState(userId, fsState.remaining > 0 ? fsState : null);
     } else if (freeSpinsAwarded > 0) {
       fsState = {
         remaining: freeSpinsAwarded,
+        initialSpins: freeSpinsAwarded,
         betAmount: baseBetForCalculations,
-        totalWon: totalWin,
+        totalWon: 0,
         stickyMultipliers: [],
       };
       freeSpinsRemaining = freeSpinsAwarded;
+      freeSpinsInitial = freeSpinsAwarded;
       await this.setFreeSpinsState(userId, fsState);
     }
 
@@ -470,6 +500,7 @@ export class MacvSlotEngine {
       totalWin,
       freeSpinsAwarded,
       freeSpinsRemaining,
+      freeSpinsInitial,
       isFreeSpin,
       stickyMultipliers: currentSticky,
     };
