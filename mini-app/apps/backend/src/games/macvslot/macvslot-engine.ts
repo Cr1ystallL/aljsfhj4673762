@@ -190,26 +190,9 @@ export class MacvSlotEngine {
           : SYMBOL_POOL_NO_SCATTER;
 
         const idx = randomInt(0, pool.length);
-        let sym = pool[idx];
+        const sym = pool[idx];
         if (sym === 'scatter') {
           scatterPlacedInCol = true;
-        }
-
-        // Multiplier symbols can land ONLY on reels 3, 4, 5 (indices 2, 3, 4)
-        if (reel >= 2 && sym !== 'scatter') {
-          // Bonus game has higher chance (26%) to land multipliers; base game has ~4%
-          const roll = randomInt(0, 1000);
-          const thresh = isFreeSpin ? 260 : 40;
-          if (roll < thresh) {
-            const mRoll = randomInt(0, 100);
-            if (mRoll < 55) {
-              sym = 'x2';
-            } else if (mRoll < 85) {
-              sym = 'x3';
-            } else {
-              sym = 'x5';
-            }
-          }
         }
 
         col.push(sym);
@@ -217,30 +200,59 @@ export class MacvSlotEngine {
       grid.push(col);
     }
 
-    // In Free Spins, guarantee at least 1 multiplier lands if board currently has none
-    if (isFreeSpin) {
-      let hasMultiplier = false;
-      for (let r = 2; r < 5; r++) {
-        for (let row = 0; row < 3; row++) {
-          if (grid[r][row] === 'x2' || grid[r][row] === 'x3' || grid[r][row] === 'x5') {
-            hasMultiplier = true;
-            break;
+    // Multiplier placement rules:
+    // Multipliers (x2, x3, x5) appear ONLY on reels 3, 4, 5 (indices 2, 3, 4).
+    if (!isFreeSpin) {
+      // 1. Regular spins: up to 30% chance per spin to drop a multiplier (non-sticky)
+      const baseRoll = randomInt(0, 100);
+      if (baseRoll < 30) {
+        // Find candidate cells on reels 2, 3, 4 that do not contain scatter
+        const candidateCells: { reel: number; row: number }[] = [];
+        for (let r = 2; r < 5; r++) {
+          for (let row = 0; row < 3; row++) {
+            if (grid[r][row] !== 'scatter') {
+              candidateCells.push({ reel: r, row });
+            }
           }
         }
-        if (hasMultiplier) break;
+        if (candidateCells.length > 0) {
+          const chosen = candidateCells[randomInt(0, candidateCells.length)];
+          const mRoll = randomInt(0, 100);
+          const sym: SlotSymbol = mRoll < 60 ? 'x2' : mRoll < 90 ? 'x3' : 'x5';
+          grid[chosen.reel][chosen.row] = sym;
+        }
+      }
+    } else {
+      // 2. Bonus Game (Free Spins):
+      // Initial chance is 45% when 0 sticky multipliers on board (averaging ~40% across free spins).
+      // With each landed sticky multiplier, the probability drops by 20%:
+      // chance = 45% * (0.8 ^ stickyCount)
+      const stickyCount = stickyMultipliers.length;
+      const bonusChancePercent = Math.max(5, 45 * Math.pow(0.8, stickyCount));
+      const bonusRoll = randomInt(0, 1000);
+      const thresh = Math.round(bonusChancePercent * 10); // e.g. 450 for 45%, 360 for 36%, etc.
+
+      if (bonusRoll < thresh) {
+        // Find candidate cells on reels 2, 3, 4 that are NOT already occupied by sticky multipliers and NOT scatter
+        const availableCells: { reel: number; row: number }[] = [];
+        for (let r = 2; r < 5; r++) {
+          for (let row = 0; row < 3; row++) {
+            const isSticky = stickyMultipliers.some((m) => m.reel === r && m.row === row);
+            if (!isSticky && grid[r][row] !== 'scatter') {
+              availableCells.push({ reel: r, row });
+            }
+          }
+        }
+
+        if (availableCells.length > 0) {
+          const chosen = availableCells[randomInt(0, availableCells.length)];
+          const mRoll = randomInt(0, 100);
+          const sym: SlotSymbol = mRoll < 55 ? 'x2' : mRoll < 85 ? 'x3' : 'x5';
+          grid[chosen.reel][chosen.row] = sym;
+        }
       }
 
-      if (!hasMultiplier && stickyMultipliers.length === 0) {
-        const targetReel = randomInt(2, 5); // 2, 3, or 4
-        const targetRow = randomInt(0, 3);
-        const mRoll = randomInt(0, 100);
-        const forcedSym: SlotSymbol = mRoll < 55 ? 'x2' : mRoll < 85 ? 'x3' : 'x5';
-        grid[targetReel][targetRow] = forcedSym;
-      }
-    }
-
-    // Apply Sticky Multipliers across free spins
-    if (isFreeSpin && stickyMultipliers.length > 0) {
+      // Apply all existing sticky multipliers onto their grid cells
       for (const item of stickyMultipliers) {
         if (item.reel >= 0 && item.reel < 5 && item.row >= 0 && item.row < 3) {
           grid[item.reel][item.row] = item.symbol;
