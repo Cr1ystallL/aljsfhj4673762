@@ -298,10 +298,9 @@ export default function MacvpotPage() {
         onClose={() => setShowWinnerBanner(false)}
       />
 
-      <div className="mx-auto w-full max-w-[800px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-4">
-        {/* 1. TOP BAR */}
-        <GameTopBar title="MacvPot" Icon={Trophy} />
+      <GameTopBar title="MacvPot" Icon={Trophy} />
 
+      <div className="mx-auto w-full max-w-[800px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-4">
         {/* 2. ИСТОРИЯ ПРОШЛЫХ РАУНДОВ */}
         <MacvpotHistory history={state?.history || []} />
 

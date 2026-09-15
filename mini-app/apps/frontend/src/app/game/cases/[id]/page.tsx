@@ -254,13 +254,13 @@ export default function CaseOpeningPage() {
         }
       `}} />
       <Confetti active={showConfetti} />
+      <GameTopBar 
+         title={caseTier.name} 
+         Icon={Box} 
+         extraAction={muteButton}
+      />
       
       <div className="mx-auto w-full max-w-[800px] lg:max-w-[1200px] px-3 pt-3 pb-28 flex flex-col gap-4 relative z-10">
-        <GameTopBar 
-           title={caseTier.name} 
-           Icon={Box} 
-           extraAction={muteButton}
-        />
 
         {/* Roulette Carousel */}
         <div className="w-full relative z-10">

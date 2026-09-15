@@ -275,7 +275,7 @@ export default function MacvSlotPage() {
   }
 
   return (
-    <main className="relative min-h-screen w-full bg-[#050608] text-white flex flex-col justify-between overflow-x-hidden select-none">
+    <main className="relative min-h-screen w-full bg-[#050608] text-white flex flex-col justify-between overflow-x-hidden select-none pb-28 md:pb-8">
       {/* 1. Fullscreen Ambient Background: background.webp */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <Image
@@ -290,18 +290,16 @@ export default function MacvSlotPage() {
       </div>
 
       {/* 2. Top Navigation Bar */}
-      <div className="relative z-20 w-full max-w-[1200px] mx-auto pt-2 px-3 sm:px-6">
-        <GameTopBar
-          title="MacvSpin"
-          Icon={Dices}
-          onHowToPlay={() => setShowPaytable(true)}
-        />
-      </div>
+      <GameTopBar
+        title="MacvSpin"
+        Icon={Dices}
+        onHowToPlay={() => setShowPaytable(true)}
+      />
 
       {/* 3. Center Reel Stage */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-3 py-0 sm:py-1">
         <div className="relative w-full max-w-full sm:max-w-[960px] lg:max-w-[1000px] xl:max-w-[1080px] mx-auto">
-          {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame, noticeably larger */}
+          {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame on large screens */}
           <button
             type="button"
             disabled={
@@ -315,9 +313,9 @@ export default function MacvSlotPage() {
               setShowBuyBonusConfirm(true);
             }}
             className={cn(
-              'z-30 hidden md:flex flex-col items-center justify-center rounded-3xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
+              'z-30 hidden xl:flex flex-col items-center justify-center rounded-3xl transition-all duration-300 cursor-pointer select-none active:scale-95 disabled:opacity-30',
               'bg-gradient-to-b from-[#141926]/98 via-[#090b12]/98 to-[#0f121d]/98 border-2 border-amber-500/50 hover:border-amber-400 shadow-[0_14px_45px_rgba(0,0,0,0.95),0_0_24px_rgba(251,191,36,0.3)] backdrop-blur-2xl group text-center',
-              'absolute -left-28 lg:-left-34 xl:-left-38 top-1/2 -translate-y-1/2 p-3.5 sm:p-4 w-24 lg:w-28 xl:w-32'
+              'absolute -left-30 lg:-left-34 xl:-left-38 top-1/2 -translate-y-1/2 p-3.5 sm:p-4 w-24 lg:w-28 xl:w-32'
             )}
             title="Купить 10 фриспинов (100x)"
           >
@@ -390,51 +388,6 @@ export default function MacvSlotPage() {
           )}
         </div>
 
-        {/* MOBILE BUY BONUS BAR - Ergonomically positioned below reels, above controls (never on top) */}
-        <div className="flex md:hidden w-full max-w-[420px] mx-auto px-2 mb-2 justify-center">
-          <button
-            type="button"
-            disabled={
-              isAdmin === null ||
-              isSpinning ||
-              freeSpinsLeft > 0 ||
-              (balance?.amount ?? 0) < Math.round(betAmount * 100 * 100) / 100
-            }
-            onClick={() => {
-              soundManager.play('ui.click', { volume: 0.4 });
-              setShowBuyBonusConfirm(true);
-            }}
-            className={cn(
-              'w-full flex items-center justify-between px-3.5 py-2 rounded-xl transition-all duration-200 cursor-pointer select-none active:scale-98 disabled:opacity-35',
-              'bg-gradient-to-r from-amber-500/15 via-[#0c0f18] to-amber-500/15 border border-amber-500/35 hover:border-amber-400 shadow-[0_4px_20px_rgba(0,0,0,0.7)] backdrop-blur-xl'
-            )}
-            title="Купить 10 фриспинов (100x)"
-          >
-            <div className="flex items-center gap-2">
-              <div className="relative w-6 h-6 shrink-0">
-                <Image
-                  src="/MacvSlot/scatter.webp"
-                  alt="Bonus"
-                  fill
-                  unoptimized
-                  className="object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]"
-                />
-              </div>
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[11px] font-brand font-black text-amber-300 tracking-wider uppercase">
-                  КУПИТЬ БОНУС
-                </span>
-                <span className="text-[9px] font-mono text-zinc-400">
-                  10 Free Spins (100x)
-                </span>
-              </div>
-            </div>
-            <div className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 text-black font-brand font-black text-xs shadow-md">
-              {(Math.round(betAmount * 100 * 100) / 100).toFixed(0)} zł
-            </div>
-          </button>
-        </div>
-
         {/* 4. Controls Dock */}
         <MacvSlotControls
           balance={balance?.amount ?? 0}
@@ -448,6 +401,17 @@ export default function MacvSlotPage() {
           onToggleAuto={handleToggleAuto}
           freeSpinsLeft={freeSpinsLeft}
           disabled={isAdmin === null}
+          onBuyBonus={() => {
+            soundManager.play('ui.click', { volume: 0.4 });
+            setShowBuyBonusConfirm(true);
+          }}
+          canBuyBonus={
+            isAdmin !== null &&
+            !isSpinning &&
+            freeSpinsLeft === 0 &&
+            (balance?.amount ?? 0) >= Math.round(betAmount * 100 * 100) / 100
+          }
+          buyBonusCost={Math.round(betAmount * 100 * 100) / 100}
         />
       </div>
 

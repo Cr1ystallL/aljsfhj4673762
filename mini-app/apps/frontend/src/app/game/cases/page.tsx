@@ -58,12 +58,13 @@ export default function CasesPage() {
 
   return (
     <main className="min-h-screen w-full bg-[#09090b] text-frost-white selection:bg-amber-500/30">
+      <GameTopBar
+        title={t('cases.title')}
+        Icon={Box}
+        onHowToPlay={() => router.push('/info#faq')}
+      />
+
       <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-6 pt-3 pb-32 flex flex-col gap-6">
-        <GameTopBar
-          title={t('cases.title')}
-          Icon={Box}
-          onHowToPlay={() => router.push('/info#faq')}
-        />
 
         {/* Hero Header */}
         <div className="flex items-center justify-between px-1">

@@ -280,14 +280,15 @@ export default function KenoGamePage() {
 
   return (
     <main className="min-h-screen w-full bg-[#000000] text-frost-white">
+      <GameTopBar
+        title="Keno"
+        Icon={Dice5}
+        balance={displayBalance}
+        currency={isTournament ? 'T-COIN' : 'zł'}
+        serverSeedHash={serverSeedHash ?? undefined}
+      />
+
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] lg:max-w-[1400px] px-3 pt-4 pb-32 flex flex-col gap-5">
-        <GameTopBar
-          title="Keno"
-          Icon={Dice5}
-          balance={displayBalance}
-          currency={isTournament ? 'T-COIN' : 'zł'}
-          serverSeedHash={serverSeedHash ?? undefined}
-        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Column: Board & Multipliers */}

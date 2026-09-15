@@ -392,12 +392,13 @@ export default function CoinflipGamePage() {
 
   return (
     <main className="min-h-screen w-full bg-midnight-canvas text-frost-white">
+      <GameTopBar
+        title="Coinflip"
+        Icon={CoinflipIcon}
+        onHowToPlay={() => setRulesOpen(true)}
+      />
+
       <div className="mx-auto w-full max-w-[480px] sm:max-w-[640px] lg:max-w-[1400px] px-3 pt-3 pb-28 flex flex-col gap-3">
-        <GameTopBar
-          title="Coinflip"
-          Icon={CoinflipIcon}
-          onHowToPlay={() => setRulesOpen(true)}
-        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Left Column: Coin Arena Stage */}

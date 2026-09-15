@@ -19,6 +19,9 @@ interface MacvSlotControlsProps {
   onToggleAuto: () => void;
   freeSpinsLeft: number;
   disabled?: boolean;
+  onBuyBonus?: () => void;
+  canBuyBonus?: boolean;
+  buyBonusCost?: number;
 }
 
 const BET_PRESETS = [0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -35,6 +38,9 @@ export function MacvSlotControls({
   onToggleAuto,
   freeSpinsLeft,
   disabled = false,
+  onBuyBonus,
+  canBuyBonus = true,
+  buyBonusCost,
 }: MacvSlotControlsProps) {
   const [showBetModal, setShowBetModal] = useState(false);
 
@@ -52,66 +58,109 @@ export function MacvSlotControls({
 
   const isFreeSpinActive = freeSpinsLeft > 0;
 
+  const handleSpinClick = () => {
+    if (disabled || (isSpinning && !isFreeSpinActive)) return;
+    if (typeof window !== 'undefined' && window?.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+    }
+    onSpin();
+  };
+
   return (
     <div className="w-full max-w-[960px] sm:max-w-[1020px] xl:max-w-[1120px] mx-auto px-2 select-none">
-      {/* Main Controls Dock */}
-      <div className="flex items-center justify-between gap-1.5 sm:gap-4 md:gap-6 p-2 sm:p-3 md:p-4 rounded-2xl sm:rounded-3xl bg-[#080a0f]/92 border border-amber-500/20 backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.85)]">
-        {/* 1. Compact Bet & Balance Selector */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            disabled={disabled || isSpinning || isFreeSpinActive}
-            onClick={() => handleStepBet(-1)}
-            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
-            aria-label="Decrease bet"
-          >
-            <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
-          </button>
+      {/* ==================================================================== */}
+      {/* 1. MOBILE CONTROLS (Screen < md): 2-Tier Ergonomic Thumb-Ready Dock */}
+      {/* ==================================================================== */}
+      <div className="flex md:hidden flex-col gap-2 w-full max-w-[420px] mx-auto">
+        {/* Tier 1: Utility Row (Buy Bonus + Bet Selector) */}
+        <div className="flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-[#080a0f]/92 border border-amber-500/25 backdrop-blur-xl shadow-lg">
+          {/* Compact Buy Bonus Pill */}
+          {onBuyBonus && (
+            <button
+              type="button"
+              disabled={disabled || isSpinning || isFreeSpinActive || !canBuyBonus}
+              onClick={onBuyBonus}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-[#101420] to-amber-500/20 border border-amber-500/40 hover:border-amber-400 active:scale-95 transition-all cursor-pointer disabled:opacity-40 shadow-sm shrink-0"
+              title="Купить 10 фриспинов (100x)"
+            >
+              <div className="relative w-5 h-5 shrink-0">
+                <Image
+                  src="/MacvSlot/scatter.webp"
+                  alt="Bonus"
+                  fill
+                  unoptimized
+                  className="object-contain drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+                />
+              </div>
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[10px] font-brand font-black text-amber-300 uppercase tracking-wide">
+                  БОНУС
+                </span>
+                {buyBonusCost !== undefined && (
+                  <span className="text-[9px] font-mono text-zinc-300 font-bold">
+                    {buyBonusCost.toFixed(0)} zł
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
 
-          {/* Compact Bet Pill with Live Balance and Current Bet */}
-          <button
-            type="button"
-            disabled={disabled || isSpinning || isFreeSpinActive}
-            onClick={() => setShowBetModal((prev) => !prev)}
-            className="relative px-2 sm:px-4 py-1 sm:py-2 rounded-xl sm:rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 border border-amber-500/40 active:scale-98 flex items-center gap-1.5 sm:gap-2.5 transition-all justify-center cursor-pointer shadow-lg hover:border-amber-400/60"
-          >
-            <div className="relative w-5 h-5 sm:w-7 sm:h-7 shrink-0">
-              <Image
-                src="/MacvSlot/coinbutton.webp"
-                alt="coin"
-                fill
-                className="object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.5)]"
-              />
-            </div>
-            <div className="flex flex-col text-left leading-tight">
-              <span className="text-[9px] sm:text-[11px] text-zinc-400 font-medium tracking-tight whitespace-nowrap">
-                Баланс: <strong className="text-zinc-200 font-mono font-bold">{balance.toFixed(1)} zł</strong>
-              </span>
-              <span className="font-black text-xs sm:text-base text-amber-300 font-brand whitespace-nowrap">
-                Ставка: {isFreeSpinActive ? 'FREE' : `${betAmount.toFixed(betAmount < 1 ? 2 : 1)} zł`}
-              </span>
-            </div>
-          </button>
+          {/* Compact Bet Selector */}
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
+            <button
+              type="button"
+              disabled={disabled || isSpinning || isFreeSpinActive}
+              onClick={() => handleStepBet(-1)}
+              className="w-8 h-8 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
+              aria-label="Decrease bet"
+            >
+              <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
 
-          <button
-            type="button"
-            disabled={disabled || isSpinning || isFreeSpinActive}
-            onClick={() => handleStepBet(1)}
-            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
-            aria-label="Increase bet"
-          >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
-          </button>
+            <button
+              type="button"
+              disabled={disabled || isSpinning || isFreeSpinActive}
+              onClick={() => setShowBetModal((prev) => !prev)}
+              className="px-2.5 py-1 rounded-xl bg-gradient-to-b from-zinc-800 to-zinc-900 border border-amber-500/40 active:scale-95 flex items-center gap-1.5 transition-all justify-center cursor-pointer shadow-md hover:border-amber-400/60"
+            >
+              <div className="relative w-4 h-4 shrink-0">
+                <Image
+                  src="/MacvSlot/coinbutton.webp"
+                  alt="coin"
+                  fill
+                  className="object-contain drop-shadow-[0_1px_4px_rgba(245,158,11,0.5)]"
+                />
+              </div>
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[8px] text-zinc-400 font-medium whitespace-nowrap">
+                  {balance.toFixed(1)} zł
+                </span>
+                <span className="font-black text-[11px] text-amber-300 font-brand whitespace-nowrap">
+                  {isFreeSpinActive ? 'FREE' : `${betAmount.toFixed(betAmount < 1 ? 2 : 1)} zł`}
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={disabled || isSpinning || isFreeSpinActive}
+              onClick={() => handleStepBet(1)}
+              className="w-8 h-8 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
+              aria-label="Increase bet"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+          </div>
         </div>
 
-        {/* 2. Symmetrical Action Trio: [AUTO] --- [SPIN] --- [TURBO] */}
-        <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 shrink-0">
-          {/* AUTO BUTTON - Sleeker satellite button */}
+        {/* Tier 2: Ergonomic Action Row (AUTO - BIG CENTER SPIN - TURBO) */}
+        <div className="flex items-center justify-between px-6 py-1.5 rounded-2xl bg-[#080a0f]/85 border border-amber-500/20 backdrop-blur-xl shadow-lg">
+          {/* AUTO BUTTON */}
           <button
             type="button"
             onClick={onToggleAuto}
             className={cn(
-              'relative w-9 h-9 sm:w-12 sm:h-12 md:w-13 md:h-13 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
+              'relative w-11 h-11 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
               autoSpinsLeft > 0 ? 'drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'hover:scale-105 opacity-85 hover:opacity-100'
             )}
             title={autoSpinsLeft > 0 ? 'Остановить авто-спины' : 'Авто-спины'}
@@ -127,7 +176,7 @@ export function MacvSlotControls({
                 />
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
                   <Square className="w-3 h-3 text-white fill-white" />
-                  <span className="text-[8px] sm:text-[9px] font-black text-white">{autoSpinsLeft}</span>
+                  <span className="text-[8px] font-black text-white">{autoSpinsLeft}</span>
                 </div>
               </div>
             ) : (
@@ -141,26 +190,19 @@ export function MacvSlotControls({
             )}
           </button>
 
-          {/* MASTER SPIN BUTTON - Substantially larger centerpiece */}
+          {/* MASTER SPIN BUTTON - Prominent, Centered, Never Clipped */}
           <motion.button
             type="button"
             whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.93 }}
+            whileTap={{ scale: 0.92 }}
             disabled={disabled || (isSpinning && !isFreeSpinActive)}
-            onClick={() => {
-              if (window?.Telegram?.WebApp?.HapticFeedback) {
-                window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-              }
-              onSpin();
-            }}
+            onClick={handleSpinClick}
             className={cn(
-              'relative w-18 h-18 sm:w-24 sm:h-24 md:w-28 md:h-28 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer shrink-0',
+              'relative w-20 h-20 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer shrink-0',
               isSpinning && 'opacity-85 cursor-not-allowed'
             )}
           >
-            {/* Ambient golden pulse glow */}
             <div className="absolute inset-[-6px] rounded-full bg-amber-400/30 blur-xl animate-pulse pointer-events-none" />
-
             <div className="relative w-full h-full drop-shadow-[0_10px_25px_rgba(245,158,11,0.7)]">
               <Image
                 src="/MacvSlot/spinbutton.webp"
@@ -173,12 +215,182 @@ export function MacvSlotControls({
             </div>
           </motion.button>
 
-          {/* TURBO BUTTON - Sleeker satellite button */}
+          {/* TURBO BUTTON */}
           <button
             type="button"
             onClick={onToggleTurbo}
             className={cn(
-              'relative w-9 h-9 sm:w-12 sm:h-12 md:w-13 md:h-13 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
+              'relative w-11 h-11 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
+              isTurbo
+                ? 'drop-shadow-[0_0_18px_rgba(251,191,36,0.95)] scale-105'
+                : 'opacity-75 hover:opacity-100 hover:scale-105'
+            )}
+            title={isTurbo ? 'Турбо-режим включен' : 'Включить турбо'}
+          >
+            <Image
+              src="/MacvSlot/turbobutton.webp"
+              alt="Turbo"
+              fill
+              unoptimized
+              className={cn(
+                'object-contain',
+                isTurbo && 'filter brightness-125'
+              )}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* ==================================================================== */}
+      {/* 2. DESKTOP CONTROLS (Screen >= md): Luxurious Wide Single-Row Dock   */}
+      {/* ==================================================================== */}
+      <div className="hidden md:flex items-center justify-between gap-4 md:gap-6 p-3 md:p-4 rounded-3xl bg-[#080a0f]/92 border border-amber-500/20 backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.85)]">
+        {/* Left Group: Buy Bonus (when available) + Bet Selector */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {onBuyBonus && (
+            <button
+              type="button"
+              disabled={disabled || isSpinning || isFreeSpinActive || !canBuyBonus}
+              onClick={onBuyBonus}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#101420] to-amber-500/15 border border-amber-500/40 hover:border-amber-400 active:scale-95 transition-all cursor-pointer disabled:opacity-35 shadow-md shrink-0 group"
+              title="Купить 10 фриспинов (100x)"
+            >
+              <div className="relative w-6 h-6 shrink-0 group-hover:scale-110 transition-transform">
+                <Image
+                  src="/MacvSlot/scatter.webp"
+                  alt="Bonus"
+                  fill
+                  unoptimized
+                  className="object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]"
+                />
+              </div>
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-xs font-brand font-black text-amber-300 uppercase tracking-wide">
+                  КУПИТЬ БОНУС
+                </span>
+                {buyBonusCost !== undefined && (
+                  <span className="text-[10px] font-mono text-zinc-300 font-bold">
+                    {buyBonusCost.toFixed(0)} zł (100x)
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={disabled || isSpinning || isFreeSpinActive}
+            onClick={() => handleStepBet(-1)}
+            className="w-10 h-10 rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
+            aria-label="Decrease bet"
+          >
+            <Minus className="w-4 h-4 stroke-[2.5]" />
+          </button>
+
+          {/* Bet Pill with Live Balance and Current Bet */}
+          <button
+            type="button"
+            disabled={disabled || isSpinning || isFreeSpinActive}
+            onClick={() => setShowBetModal((prev) => !prev)}
+            className="relative px-4 py-2 rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 border border-amber-500/40 active:scale-98 flex items-center gap-2.5 transition-all justify-center cursor-pointer shadow-lg hover:border-amber-400/60"
+          >
+            <div className="relative w-7 h-7 shrink-0">
+              <Image
+                src="/MacvSlot/coinbutton.webp"
+                alt="coin"
+                fill
+                className="object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.5)]"
+              />
+            </div>
+            <div className="flex flex-col text-left leading-tight">
+              <span className="text-[11px] text-zinc-400 font-medium tracking-tight whitespace-nowrap">
+                Баланс: <strong className="text-zinc-200 font-mono font-bold">{balance.toFixed(1)} zł</strong>
+              </span>
+              <span className="font-black text-base text-amber-300 font-brand whitespace-nowrap">
+                Ставка: {isFreeSpinActive ? 'FREE' : `${betAmount.toFixed(betAmount < 1 ? 2 : 1)} zł`}
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={disabled || isSpinning || isFreeSpinActive}
+            onClick={() => handleStepBet(1)}
+            className="w-10 h-10 rounded-2xl bg-zinc-800/90 hover:bg-zinc-700 active:scale-95 disabled:opacity-40 flex items-center justify-center text-amber-400 border border-amber-500/30 transition-all cursor-pointer shadow-md"
+            aria-label="Increase bet"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        </div>
+
+        {/* Right Group: Symmetrical Action Trio: [AUTO] --- [SPIN] --- [TURBO] */}
+        <div className="flex items-center gap-4 md:gap-6 shrink-0">
+          {/* AUTO BUTTON */}
+          <button
+            type="button"
+            onClick={onToggleAuto}
+            className={cn(
+              'relative w-12 h-12 md:w-13 md:h-13 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
+              autoSpinsLeft > 0 ? 'drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'hover:scale-105 opacity-85 hover:opacity-100'
+            )}
+            title={autoSpinsLeft > 0 ? 'Остановить авто-спины' : 'Авто-спины'}
+          >
+            {autoSpinsLeft > 0 ? (
+              <div className="relative w-full h-full flex flex-col items-center justify-center">
+                <Image
+                  src="/MacvSlot/autobutton.webp"
+                  alt="Auto"
+                  fill
+                  unoptimized
+                  className="object-contain filter hue-rotate-90"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+                  <Square className="w-3 h-3 text-white fill-white" />
+                  <span className="text-[9px] font-black text-white">{autoSpinsLeft}</span>
+                </div>
+              </div>
+            ) : (
+              <Image
+                src="/MacvSlot/autobutton.webp"
+                alt="Auto"
+                fill
+                unoptimized
+                className="object-contain"
+              />
+            )}
+          </button>
+
+          {/* MASTER SPIN BUTTON */}
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.93 }}
+            disabled={disabled || (isSpinning && !isFreeSpinActive)}
+            onClick={handleSpinClick}
+            className={cn(
+              'relative w-24 h-24 md:w-28 md:h-28 flex items-center justify-center transition-all focus:outline-none select-none cursor-pointer shrink-0',
+              isSpinning && 'opacity-85 cursor-not-allowed'
+            )}
+          >
+            <div className="absolute inset-[-6px] rounded-full bg-amber-400/30 blur-xl animate-pulse pointer-events-none" />
+            <div className="relative w-full h-full drop-shadow-[0_10px_25px_rgba(245,158,11,0.7)]">
+              <Image
+                src="/MacvSlot/spinbutton.webp"
+                alt="SPIN"
+                fill
+                priority
+                unoptimized
+                className="object-contain transition-transform duration-200"
+              />
+            </div>
+          </motion.button>
+
+          {/* TURBO BUTTON */}
+          <button
+            type="button"
+            onClick={onToggleTurbo}
+            className={cn(
+              'relative w-12 h-12 md:w-13 md:h-13 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border-0 bg-transparent outline-none select-none shrink-0',
               isTurbo
                 ? 'drop-shadow-[0_0_18px_rgba(251,191,36,0.95)] scale-105'
                 : 'opacity-75 hover:opacity-100 hover:scale-105'
