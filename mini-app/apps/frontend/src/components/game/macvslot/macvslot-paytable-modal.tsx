@@ -14,15 +14,15 @@ interface MacvSlotPaytableModalProps {
 type TabType = 'payouts' | 'multipliers' | 'paylines' | 'rules';
 
 const PAYTABLE_ITEMS = [
-  { id: 'macvjet', name: 'MacvJet (Ракетный Джет)', m3: '35x', m4: '175x', m5: '1000x', desc: 'Флагманский символ MacvBet' },
-  { id: 'mines', name: 'Mines (Кристаллы & Динамит)', m3: '25x', m4: '120x', m5: '700x', desc: 'Старший символ' },
-  { id: 'wheel', name: 'Wheel (Колесо Фортуны)', m3: '20x', m4: '90x', m5: '500x', desc: 'Старший символ' },
-  { id: 'coinflip', name: 'Coinflip (Золотые Монеты)', m3: '15x', m4: '70x', m5: '400x', desc: 'Старший символ' },
-  { id: 'a', name: 'Туз A', m3: '10x', m4: '45x', m5: '200x', desc: 'Карточный символ' },
-  { id: 'k', name: 'Король K', m3: '8x', m4: '35x', m5: '160x', desc: 'Карточный символ' },
-  { id: 'q', name: 'Дама Q', m3: '6x', m4: '25x', m5: '120x', desc: 'Карточный символ' },
-  { id: 'j', name: 'Валет J', m3: '5x', m4: '20x', m5: '80x', desc: 'Карточный символ' },
-  { id: '10', name: 'Десятка 10', m3: '4x', m4: '15x', m5: '60x', desc: 'Карточный символ' },
+  { id: 'macvjet', name: 'MacvJet (Ракетный Джет)', m3: '10x', m4: '50x', m5: '300x', desc: 'Флагманский символ MacvBet' },
+  { id: 'mines', name: 'Mines (Кристаллы & Динамит)', m3: '8x', m4: '35x', m5: '200x', desc: 'Старший символ' },
+  { id: 'wheel', name: 'Wheel (Колесо Фортуны)', m3: '6x', m4: '25x', m5: '150x', desc: 'Старший символ' },
+  { id: 'coinflip', name: 'Coinflip (Золотые Монеты)', m3: '5x', m4: '20x', m5: '100x', desc: 'Старший символ' },
+  { id: 'a', name: 'Туз A', m3: '3x', m4: '12x', m5: '50x', desc: 'Карточный символ' },
+  { id: 'k', name: 'Король K', m3: '2.5x', m4: '10x', m5: '40x', desc: 'Карточный символ' },
+  { id: 'q', name: 'Дама Q', m3: '2x', m4: '8x', m5: '30x', desc: 'Карточный символ' },
+  { id: 'j', name: 'Валет J', m3: '1.5x', m4: '6x', m5: '25x', desc: 'Карточный символ' },
+  { id: '10', name: 'Десятка 10', m3: '1x', m4: '4x', m5: '20x', desc: 'Карточный символ' },
 ];
 
 export function MacvSlotPaytableModal({ isOpen, onClose }: MacvSlotPaytableModalProps) {

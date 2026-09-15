@@ -85,20 +85,20 @@ export const PAYLINES: number[][] = [
 
 // Multipliers for 3, 4, 5 of a kind applied to Line Bet (Line Bet = Total Bet / 20)
 export const LINE_PAYOUT_MULTIPLIERS: Record<SlotSymbol, Record<number, number>> = {
-  macvjet: { 3: 35, 4: 175, 5: 1000 },
-  mines: { 3: 25, 4: 120, 5: 700 },
-  wheel: { 3: 20, 4: 90, 5: 500 },
-  coinflip: { 3: 15, 4: 70, 5: 400 },
-  a: { 3: 10, 4: 45, 5: 200 },
-  k: { 3: 8, 4: 35, 5: 160 },
-  q: { 3: 6, 4: 25, 5: 120 },
-  j: { 3: 5, 4: 20, 5: 80 },
-  '10': { 3: 4, 4: 15, 5: 60 },
-  wield: { 3: 40, 4: 200, 5: 1000 },
+  macvjet: { 3: 10, 4: 50, 5: 300 },
+  mines: { 3: 8, 4: 35, 5: 200 },
+  wheel: { 3: 6, 4: 25, 5: 150 },
+  coinflip: { 3: 5, 4: 20, 5: 100 },
+  a: { 3: 3, 4: 12, 5: 50 },
+  k: { 3: 2.5, 4: 10, 5: 40 },
+  q: { 3: 2, 4: 8, 5: 30 },
+  j: { 3: 1.5, 4: 6, 5: 25 },
+  '10': { 3: 1, 4: 4, 5: 20 },
+  wield: { 3: 12, 4: 60, 5: 300 },
   scatter: { 3: 0, 4: 0, 5: 0 },
-  x2: { 3: 40, 4: 200, 5: 1000 },
-  x3: { 3: 40, 4: 200, 5: 1000 },
-  x5: { 3: 40, 4: 200, 5: 1000 },
+  x2: { 3: 12, 4: 60, 5: 300 },
+  x3: { 3: 12, 4: 60, 5: 300 },
+  x5: { 3: 12, 4: 60, 5: 300 },
 };
 
 export function isWild(s: SlotSymbol): boolean {
