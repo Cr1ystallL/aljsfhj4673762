@@ -245,7 +245,6 @@ export default function MacvSlotPage() {
           setFreeSpinsLeft(data.freeSpinsRemaining);
           freeSpinsLeftRef.current = data.freeSpinsRemaining;
         }
-        setStickyMultipliers(data.stickyMultipliers || []);
 
         // In normal play, sync balance immediately.
         // During bonus game, balance is credited at the end after the victory modal is dismissed!
@@ -343,6 +342,7 @@ export default function MacvSlotPage() {
 
     setWinningLines(result.winningLines);
     setLastWin(result.totalWin);
+    setStickyMultipliers(result.stickyMultipliers || []);
 
     const inBonus = isBonusModeRef.current || result.isFreeSpin;
     const isBigWin = result.totalWin >= betAmountRef.current * 5;

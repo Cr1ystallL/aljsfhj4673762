@@ -40,11 +40,13 @@ const ALL_SYMBOLS: SlotSymbol[] = [
 const TAPE_SYMBOLS: SlotSymbol[] = [
   'macvjet',
   'mines',
+  'x2',
   'wheel',
   'scatter',
   'wield',
   'a',
   '10',
+  'x3',
   'macvjet',
   'mines',
   'wheel',
@@ -321,30 +323,6 @@ export function MacvSlotReels({
                         </div>
                       ))}
                     </motion.div>
-
-                    {/* Anchored sticky multipliers over rolling tape */}
-                    {stickyMap.size > 0 && (
-                      <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-around py-0.5">
-                        {[0, 1, 2].map((rowIdx) => {
-                          const stickySym = stickyMap.get(`${reelIdx},${rowIdx}`);
-                          if (!stickySym) return <div key={rowIdx} className="w-full h-[33.33%]" />;
-                          return (
-                            <div key={rowIdx} className="relative w-full h-[33.33%] flex items-center justify-center p-0.5 sm:p-1 md:p-2">
-                              <div className="relative w-full h-full max-h-[96px] flex items-center justify-center">
-                                <div className="absolute inset-[-4px] rounded-2xl border-2 border-amber-400/90 bg-amber-500/20 shadow-[0_0_15px_rgba(251,191,36,0.8)] animate-pulse -z-10" />
-                                <Image
-                                  src={SYMBOL_IMAGES[stickySym]}
-                                  alt={stickySym}
-                                  fill
-                                  unoptimized
-                                  className="object-contain"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 ) : (
                   // STOPPED: Symbols land and drop from top with physical bounce
@@ -401,16 +379,16 @@ export function MacvSlotReels({
                             className={cn(
                               'relative w-full h-full max-h-[96px] transition-all duration-300 flex items-center justify-center',
                               isWield ? 'max-w-[102px] scale-110' : 'max-w-[94px]',
-                              isMultiplier && 'drop-shadow-[0_0_16px_rgba(251,191,36,0.9)] scale-105',
+                              isMultiplier && 'drop-shadow-[0_0_10px_rgba(251,191,36,0.65)] scale-105',
                               isScatterShaking && 'z-30 scale-125',
                               isWinning && !isScatterShaking &&
                                 'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25',
                               isDimmedBySuspense && 'opacity-35 filter brightness-50 grayscale-[30%]'
                             )}
                           >
-                            {/* Sticky Multiplier Gold Glowing Frame */}
-                            {isSticky && (
-                              <div className="absolute inset-[-3px] rounded-2xl border-2 border-amber-400/90 bg-amber-500/15 shadow-[0_0_15px_rgba(251,191,36,0.6),inset_0_0_8px_rgba(251,191,36,0.4)] pointer-events-none -z-10 animate-pulse" />
+                            {/* Multiplier subtle ambient glow (no card outlines or box borders) */}
+                            {(isMultiplier || isSticky) && (
+                              <div className="absolute inset-1 rounded-full bg-amber-400/20 blur-md pointer-events-none -z-10 animate-pulse" />
                             )}
                             {/* Scatter anticipation radiating background aura */}
                             {isScatterShaking && (
