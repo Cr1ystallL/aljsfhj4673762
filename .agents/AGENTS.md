@@ -26,3 +26,10 @@ The following rules must be strictly adhered to by any agent or subagent working
 - **Financial Pipeline**: All balance mutations (bets, wins, refunds, cashouts) MUST go strictly through `bettingPipeline` with atomic database transactions. Never mutate user balances directly in raw queries without auditing.
 - **Sports Odds & Settlement**: Quoted ticket odds MUST be permanently locked in `leg.odds` upon bet placement. Max single odds and max combined express odds MUST NOT exceed 35.00.
 - **Notification Hygiene**: Telegram notifications must never spam point-by-point (no spam for basketball points, Dota 2 kills, CS rounds). Goal alerts must always include an inline toggle button.
+
+## 5. Anti-AI-Slop Frontend & Game Design Standard (Taste-Skill Integration)
+- **Zero Card-in-Card Nesting**: Never wrap UI elements in repetitive, nested rectangular cards with generic borders (`rounded-2xl border border-amber-500/20 bg-zinc-900`). UI controls must be cohesive, unified surfaces or borderless tactile elements.
+- **Game-Grade Visual Weight**: Slot machine and casino games must feel like physical arcade/casino game hardware (unified tactile HUD consoles, authentic game badges, metallic bevels, rich iconography), NOT generic Web3 dashboards or SaaS CRUD cards.
+- **No Web-Form Modals in Games**: Feature dialogs (e.g. Feature Buy / Bonus Purchase) must be authentic casino game dialogs with interactive in-modal bet adjusters, custom game art, and punchy single-action CTA buttons — NEVER generic web-form alert boxes with "ОТМЕНА / КУПИТЬ" buttons.
+- **Framework Guidance**: Reference `SKILLS/Визуальная часть (Фронтенд)/taste-skill` for anti-slop guidelines: anti-default typography, singular high-contrast accents, and purposeful spatial hierarchy.
+

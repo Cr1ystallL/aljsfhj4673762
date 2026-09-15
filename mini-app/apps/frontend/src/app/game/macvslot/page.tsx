@@ -13,7 +13,7 @@ import { soundManager } from '@/lib/sound/sound-manager';
 import { MacvSlotReels } from '@/components/game/macvslot/macvslot-reels';
 import { MacvSlotControls } from '@/components/game/macvslot/macvslot-controls';
 import { MacvSlotPaytableModal } from '@/components/game/macvslot/macvslot-paytable-modal';
-import { MacvSlotBonusModal } from '@/components/game/macvslot/macvslot-bonus-modal';
+import { MacvSlotBonusModal, MacvSlotBuyBonusModal } from '@/components/game/macvslot/macvslot-bonus-modal';
 import { MacvSlotAutoModal } from '@/components/game/macvslot/macvslot-autospin-modal';
 import type { SlotSymbol, WinningLine, SlotSpinResponse } from '@/components/game/macvslot/macvslot-types';
 
@@ -436,59 +436,19 @@ export default function MacvSlotPage() {
         currentTurbo={isTurbo}
       />
 
-      {/* Luxury Buy Bonus Confirmation Modal */}
-      {showBuyBonusConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200 select-none">
-          <div className="relative w-full max-w-sm rounded-3xl bg-[#080a12]/98 border border-amber-500/40 p-6 sm:p-7 text-center text-white shadow-[0_20px_60px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(251,191,36,0.25)] overflow-hidden">
-            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
-
-            <div className="relative w-16 h-16 mx-auto mb-3 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
-              <Image
-                src="/MacvSlot/scatter.webp"
-                alt="Scatter"
-                fill
-                className="object-contain"
-              />
-            </div>
-
-            <h3 className="font-brand font-black text-xl sm:text-2xl text-white uppercase tracking-wider">
-              КУПИТЬ БОНУСКУ?
-            </h3>
-
-            <p className="text-zinc-400 text-xs sm:text-sm mt-1.5 font-sans">
-              Гарантированные <strong>3+ Scatter</strong> и <strong>10 бесплатных вращений</strong> по текущей ставке {betAmount.toFixed(2)} zł.
-            </p>
-
-            <div className="my-5 py-2.5 px-4 rounded-2xl bg-black/60 border border-amber-500/30">
-              <span className="text-[10px] text-zinc-400 block uppercase font-mono tracking-widest">СТОИМОСТЬ:</span>
-              <span className="font-brand font-black text-2xl text-amber-300">
-                {(Math.round(betAmount * 100 * 100) / 100).toFixed(2)} zł
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowBuyBonusConfirm(false)}
-                className="flex-1 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold text-xs transition-all cursor-pointer"
-              >
-                ОТМЕНА
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBuyBonusConfirm(false);
-                  void handleBuyBonus();
-                }}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:brightness-105 active:scale-[0.98] text-black font-brand font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-[0_2px_15px_rgba(251,191,36,0.4)]"
-              >
-                КУПИТЬ (100x)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Feature Buy Modal (Casino Arcade Grade) */}
+      <MacvSlotBuyBonusModal
+        isOpen={showBuyBonusConfirm}
+        onClose={() => setShowBuyBonusConfirm(false)}
+        onConfirm={() => {
+          setShowBuyBonusConfirm(false);
+          void handleBuyBonus();
+        }}
+        betAmount={betAmount}
+        onBetChange={setBetAmount}
+        balance={balance?.amount ?? 0}
+        isSpinning={isSpinning}
+      />
 
       {/* Big Win Toast / Celebration */}
       {bigWinAmount !== null && (
