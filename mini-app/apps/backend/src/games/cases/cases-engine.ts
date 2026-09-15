@@ -130,7 +130,7 @@ class CasesEngine {
         amount: betAmount,
         state: 'pending',
         placedAt: Date.now(),
-        metadata: { gameType: 'cases', caseId, prizeId: prize.id, nonce, freeCase: isFree },
+        metadata: { gameType: 'cases', caseId, casePrice: caseTier.price, prizeId: prize.id, nonce, freeCase: isFree },
       };
 
       const isTournament = await bettingPipeline.processBet(bet, false);

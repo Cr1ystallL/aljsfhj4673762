@@ -559,12 +559,12 @@ class RtpEngine {
 
     const profitDelta = stake - grossPayout;
 
-    // Handle Hidden Debt
-    if (grossPayout >= stake * 6) {
+    // Handle Hidden Debt (only for cash bets with stake > 0)
+    if (stake > 0 && grossPayout >= stake * 6) {
       // Net profit is >= 5x stake (large win)
       const netProfit = grossPayout - stake;
       await this.addHiddenDebt(userId, netProfit).catch(e => logger.error(e));
-    } else if (grossPayout < stake) {
+    } else if (stake > 0 && grossPayout < stake) {
       // Net loss
       const netLoss = stake - grossPayout;
       await this.reduceHiddenDebt(userId, netLoss).catch(e => logger.error(e));

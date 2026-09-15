@@ -130,7 +130,11 @@ class LaunchVaultGuard {
    */
   async getDynamicMaxPayout(betAmount: number): Promise<number> {
     const metrics = await this.getVaultMetrics();
-    // At launch, cap is minimum between 50,000 PLN and 15% of vault, or 100x bet amount
+    // For free bets, free spins, or free cases where betAmount <= 0, do not clamp payout to 0!
+    if (betAmount <= 0) {
+      return Math.min(metrics.maxSinglePayoutAllowed, 50000);
+    }
+    // At launch, cap is minimum between 50,000 PLN and 15% of vault, or 120x bet amount
     const betCap = betAmount * 120;
     return Math.min(metrics.maxSinglePayoutAllowed, betCap, 50000);
   }

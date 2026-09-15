@@ -326,7 +326,7 @@ export class BettingPipeline {
         return true;
       }
 
-      if (bet.metadata?.freebetId || bet.metadata?.isFreeSpin) {
+      if (bet.metadata?.freebetId || bet.metadata?.isFreeSpin || bet.metadata?.freeCase || amount === 0) {
         await prisma.$transaction(async (tx) => {
           const userRows = await tx.$queryRaw<
             Array<{ is_blocked: boolean; telegram_id: bigint }>
@@ -373,6 +373,7 @@ export class BettingPipeline {
                 freebetId: bet.metadata?.freebetId,
                 freebetAmount: bet.metadata?.freebetAmount,
                 isFreeSpin: bet.metadata?.isFreeSpin,
+                freeCase: bet.metadata?.freeCase,
                 demoMode,
               },
             },
@@ -380,8 +381,8 @@ export class BettingPipeline {
         });
 
         logger.info(
-          { betId: bet.id, userId: bet.userId, isFreeSpin: bet.metadata?.isFreeSpin, freebetId: bet.metadata?.freebetId },
-          'Free spin / freebet processed without balance debit'
+          { betId: bet.id, userId: bet.userId, isFreeSpin: bet.metadata?.isFreeSpin, freebetId: bet.metadata?.freebetId, freeCase: bet.metadata?.freeCase },
+          'Free spin / freebet / free case processed without balance debit'
         );
         return false;
       }
@@ -476,7 +477,8 @@ export class BettingPipeline {
    * payout in here. This second call is a defensive belt-and-braces.
    */
   async processPayout(bet: Bet, payout: number, demoMode = false, wagerQualifying = true): Promise<void> {
-    const dynamicCap = await launchVaultGuard.getDynamicMaxPayout(bet.amount).catch(() => 50_000);
+    const effectiveStakeForCap = bet.amount > 0 ? bet.amount : Number(bet.metadata?.casePrice || bet.metadata?.baseBet || 0);
+    const dynamicCap = await launchVaultGuard.getDynamicMaxPayout(effectiveStakeForCap).catch(() => 50_000);
     const grossCredit = Math.min(TWO_DP(payout), dynamicCap);
     const stake = TWO_DP(bet.amount);
 
@@ -812,7 +814,8 @@ export class BettingPipeline {
     demoMode = false,
     wagerQualifying = true
   ): Promise<void> {
-    const dynamicCap = await launchVaultGuard.getDynamicMaxPayout(bet.amount).catch(() => 50_000);
+    const effectiveStakeForCap = bet.amount > 0 ? bet.amount : Number(bet.metadata?.casePrice || bet.metadata?.baseBet || 0);
+    const dynamicCap = await launchVaultGuard.getDynamicMaxPayout(effectiveStakeForCap).catch(() => 50_000);
     const grossCredit = Math.min(TWO_DP(cashoutAmount), dynamicCap);
     const stake = TWO_DP(bet.amount);
 
