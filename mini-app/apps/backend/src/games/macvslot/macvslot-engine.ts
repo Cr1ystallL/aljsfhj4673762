@@ -17,7 +17,10 @@ export type SlotSymbol =
   | 'j'
   | '10'
   | 'wield'
-  | 'scatter';
+  | 'scatter'
+  | 'x2'
+  | 'x3'
+  | 'x5';
 
 export interface WinningLine {
   lineIndex: number;
@@ -25,6 +28,12 @@ export interface WinningLine {
   count: number;
   positions: [number, number][]; // [reel, row]
   payout: number;
+}
+
+export interface StickyMultiplier {
+  reel: number; // 2, 3, 4 (0-indexed)
+  row: number;  // 0, 1, 2
+  symbol: 'x2' | 'x3' | 'x5';
 }
 
 export interface SlotSpinResult {
@@ -38,12 +47,14 @@ export interface SlotSpinResult {
   freeSpinsAwarded: number;
   freeSpinsRemaining: number;
   isFreeSpin: boolean;
+  stickyMultipliers?: StickyMultiplier[];
 }
 
 export interface FreeSpinsState {
   remaining: number;
   betAmount: number;
   totalWon: number;
+  stickyMultipliers?: StickyMultiplier[];
 }
 
 // 20 Standard Classic Paylines across 5 reels (row indices: 0 = top, 1 = mid, 2 = bot)
@@ -82,8 +93,15 @@ export const LINE_PAYOUT_MULTIPLIERS: Record<SlotSymbol, Record<number, number>>
   j: { 3: 5, 4: 20, 5: 80 },
   '10': { 3: 4, 4: 15, 5: 60 },
   wield: { 3: 40, 4: 200, 5: 1000 },
-  scatter: { 3: 0, 4: 0, 5: 0 }, // Evaluated separately
+  scatter: { 3: 0, 4: 0, 5: 0 },
+  x2: { 3: 40, 4: 200, 5: 1000 },
+  x3: { 3: 40, 4: 200, 5: 1000 },
+  x5: { 3: 40, 4: 200, 5: 1000 },
 };
+
+export function isWild(s: SlotSymbol): boolean {
+  return s === 'wield' || s === 'x2' || s === 'x3' || s === 'x5';
+}
 
 // Weighted pool for 96.2% RTP
 // Format: [symbol, weight]
@@ -152,10 +170,12 @@ export class MacvSlotEngine {
   }
 
   /**
-   * Generates a random 5x3 grid using cryptographically secure random integers.
-   * Scatters can ONLY appear on reels 1, 3, and 5 (indices 0, 2, 4), max 1 per reel.
+   * Generates a random 5x3 grid.
+   * Scatters: allowed only on reels 1, 3, 5 (indices 0, 2, 4).
+   * Multipliers (x2, x3, x5): allowed ONLY on reels 3, 4, 5 (indices 2, 3, 4).
+   * In Free Spins, any sticky multipliers are preserved in their cells.
    */
-  generateGrid(): SlotSymbol[][] {
+  generateGrid(isFreeSpin: boolean = false, stickyMultipliers: StickyMultiplier[] = []): SlotSymbol[][] {
     const grid: SlotSymbol[][] = [];
     for (let reel = 0; reel < 5; reel++) {
       const col: SlotSymbol[] = [];
@@ -168,19 +188,49 @@ export class MacvSlotEngine {
           : SYMBOL_POOL_NO_SCATTER;
 
         const idx = randomInt(0, pool.length);
-        const sym = pool[idx];
+        let sym = pool[idx];
         if (sym === 'scatter') {
           scatterPlacedInCol = true;
         }
+
+        // Multiplier symbols can land ONLY on reels 3, 4, 5 (indices 2, 3, 4)
+        if (reel >= 2 && sym !== 'scatter') {
+          // Bonus game has higher chance (14%) to land multipliers; base game has ~3%
+          const roll = randomInt(0, 1000);
+          const thresh = isFreeSpin ? 140 : 30;
+          if (roll < thresh) {
+            const mRoll = randomInt(0, 100);
+            if (mRoll < 60) {
+              sym = 'x2';
+            } else if (mRoll < 90) {
+              sym = 'x3';
+            } else {
+              sym = 'x5';
+            }
+          }
+        }
+
         col.push(sym);
       }
       grid.push(col);
     }
+
+    // Apply Sticky Multipliers across free spins
+    if (isFreeSpin && stickyMultipliers.length > 0) {
+      for (const item of stickyMultipliers) {
+        if (item.reel >= 0 && item.reel < 5 && item.row >= 0 && item.row < 3) {
+          grid[item.reel][item.row] = item.symbol;
+        }
+      }
+    }
+
     return grid;
   }
 
   /**
    * Evaluates line wins across 20 paylines.
+   * Wilds ('wield', 'x2', 'x3', 'x5') substitute for non-scatter symbols.
+   * If a payline contains multiplier symbols, the line payout is multiplied accordingly!
    */
   evaluateLines(grid: SlotSymbol[][], lineBet: number): { winningLines: WinningLine[]; lineWinTotal: number } {
     const winningLines: WinningLine[] = [];
@@ -200,7 +250,7 @@ export class MacvSlotEngine {
       // Determine the target symbol (first non-wild, or 'wield' if all wilds)
       let targetSymbol: SlotSymbol = 'wield';
       for (const s of lineSymbols) {
-        if (s !== 'wield' && s !== 'scatter') {
+        if (!isWild(s) && s !== 'scatter') {
           targetSymbol = s;
           break;
         }
@@ -210,7 +260,7 @@ export class MacvSlotEngine {
       let matchCount = 0;
       for (let reel = 0; reel < 5; reel++) {
         const sym = lineSymbols[reel];
-        if (sym === targetSymbol || sym === 'wield') {
+        if (sym === targetSymbol || isWild(sym)) {
           matchCount++;
         } else {
           break;
@@ -218,9 +268,18 @@ export class MacvSlotEngine {
       }
 
       if (matchCount >= 3) {
-        const multiplier = LINE_PAYOUT_MULTIPLIERS[targetSymbol]?.[matchCount] || 0;
-        if (multiplier > 0) {
-          const payout = Math.round(multiplier * lineBet * 100) / 100;
+        const baseMultiplier = LINE_PAYOUT_MULTIPLIERS[targetSymbol]?.[matchCount] || 0;
+        if (baseMultiplier > 0) {
+          // Calculate total multiplier from x2, x3, x5 symbols present on this line
+          let lineMultiplier = 1;
+          for (let r = 0; r < matchCount; r++) {
+            const sym = lineSymbols[r];
+            if (sym === 'x2') lineMultiplier *= 2;
+            else if (sym === 'x3') lineMultiplier *= 3;
+            else if (sym === 'x5') lineMultiplier *= 5;
+          }
+
+          const payout = Math.round(baseMultiplier * lineBet * lineMultiplier * 100) / 100;
           winningLines.push({
             lineIndex,
             symbol: targetSymbol,
@@ -288,6 +347,9 @@ export class MacvSlotEngine {
     // Check active free spins
     let fsState = await this.getFreeSpinsState(userId);
     const isFreeSpin = !!(fsState && fsState.remaining > 0);
+    const existingSticky: StickyMultiplier[] = (isFreeSpin && fsState?.stickyMultipliers)
+      ? [...fsState.stickyMultipliers]
+      : [];
 
     if (isBonusBuy && isFreeSpin) {
       throw new Error('Нельзя купить бонуску во время активных фриспинов.');
@@ -312,7 +374,7 @@ export class MacvSlotEngine {
 
     const lineBet = Math.round((baseBetForCalculations / 20) * 10000) / 10000;
 
-    // Register bet in bettingPipeline (handles both normal bets and free spins with 0 debit)
+    // Register bet in bettingPipeline
     const bet: Bet = {
       id: randomUUID(),
       userId,
@@ -326,8 +388,8 @@ export class MacvSlotEngine {
 
     await bettingPipeline.processBet(bet, demoMode);
 
-    // Generate outcome
-    const grid = this.generateGrid();
+    // Generate outcome grid
+    const grid = this.generateGrid(isFreeSpin, existingSticky);
 
     // If Bonus Buy: guarantee exactly 3 scatters on reels 1, 3, 5 (indices 0, 2, 4)
     if (isBonusBuy) {
@@ -343,6 +405,22 @@ export class MacvSlotEngine {
       }
     }
 
+    // In Free Spins, update sticky multipliers with any newly landed x2, x3, x5 on reels 3, 4, 5
+    let currentSticky: StickyMultiplier[] = [];
+    if (isFreeSpin) {
+      currentSticky = [...existingSticky];
+      for (let r = 2; r < 5; r++) {
+        for (let row = 0; row < 3; row++) {
+          const sym = grid[r][row];
+          if (sym === 'x2' || sym === 'x3' || sym === 'x5') {
+            if (!currentSticky.some((item) => item.reel === r && item.row === row)) {
+              currentSticky.push({ reel: r, row, symbol: sym });
+            }
+          }
+        }
+      }
+    }
+
     const { winningLines, lineWinTotal } = this.evaluateLines(grid, lineBet);
     const { scatterCount, scatterWin, freeSpinsAwarded } = this.evaluateScatters(grid, baseBetForCalculations);
 
@@ -353,6 +431,7 @@ export class MacvSlotEngine {
     if (isFreeSpin && fsState) {
       fsState.remaining -= 1;
       fsState.totalWon = Math.round((fsState.totalWon + totalWin) * 100) / 100;
+      fsState.stickyMultipliers = currentSticky;
       if (freeSpinsAwarded > 0) {
         fsState.remaining += freeSpinsAwarded; // Re-trigger!
       }
@@ -363,6 +442,7 @@ export class MacvSlotEngine {
         remaining: freeSpinsAwarded,
         betAmount: baseBetForCalculations,
         totalWon: totalWin,
+        stickyMultipliers: [],
       };
       freeSpinsRemaining = freeSpinsAwarded;
       await this.setFreeSpinsState(userId, fsState);
@@ -391,6 +471,7 @@ export class MacvSlotEngine {
       freeSpinsAwarded,
       freeSpinsRemaining,
       isFreeSpin,
+      stickyMultipliers: currentSticky,
     };
   }
 }

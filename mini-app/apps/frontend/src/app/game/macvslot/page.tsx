@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ShieldAlert, Sparkles, HelpCircle, Dices } from 'lucide-react';
+import { ShieldAlert, HelpCircle, Dices } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GameTopBar } from '@/components/game/game-top-bar';
 import { useBalance } from '@/hooks/use-balance';
@@ -18,8 +18,9 @@ import {
   MacvSlotBonusVictoryModal,
   MacvSlotBuyBonusModal,
 } from '@/components/game/macvslot/macvslot-bonus-modal';
+import { MacvSlotBigWinModal } from '@/components/game/macvslot/macvslot-bigwin-modal';
 import { MacvSlotAutoModal } from '@/components/game/macvslot/macvslot-autospin-modal';
-import type { SlotSymbol, WinningLine, SlotSpinResponse } from '@/components/game/macvslot/macvslot-types';
+import type { SlotSymbol, WinningLine, SlotSpinResponse, StickyMultiplier } from '@/components/game/macvslot/macvslot-types';
 
 // Smooth animated number hook for live rolling increment during bonus
 function useAnimatedNumber(targetValue: number, duration = 600) {
@@ -89,6 +90,7 @@ export default function MacvSlotPage() {
   const [isScatterAnticipating, setIsScatterAnticipating] = useState<boolean>(false);
   const [showBuyBonusConfirm, setShowBuyBonusConfirm] = useState<boolean>(false);
   const [showAutoModal, setShowAutoModal] = useState<boolean>(false);
+  const [stickyMultipliers, setStickyMultipliers] = useState<StickyMultiplier[]>([]);
 
   // Bonus Game Tracking
   const [isBonusMode, setIsBonusMode] = useState<boolean>(false);
@@ -222,6 +224,7 @@ export default function MacvSlotPage() {
         setSpinId(data.roundId);
         setFreeSpinsLeft(data.freeSpinsRemaining);
         freeSpinsLeftRef.current = data.freeSpinsRemaining;
+        setStickyMultipliers(data.stickyMultipliers || []);
 
         // In normal play, sync balance immediately.
         // During bonus game, balance is credited at the end after the victory modal is dismissed!
@@ -260,10 +263,10 @@ export default function MacvSlotPage() {
 
     const inBonus = isBonusModeRef.current || result.isFreeSpin;
 
-    // Win Audio & Celebrations
+    // Win Audio & Celebrations: Trigger Big Win banner when single spin win >= 5x bet
     if (result.totalWin > 0) {
-      if (result.totalWin >= betAmountRef.current * 15 && !inBonus) {
-        soundManager.play('game.win', { volume: 0.9 });
+      if (result.totalWin >= betAmountRef.current * 5) {
+        soundManager.play('game.win', { volume: 1.0 });
         setBigWinAmount(result.totalWin);
       } else {
         soundManager.play('ui.success', { volume: 0.7 });
@@ -360,6 +363,7 @@ export default function MacvSlotPage() {
     void fetchBalance();
     setWinningLines([]);
     setLastWin(0);
+    setStickyMultipliers([]);
   }, [fetchBalance]);
 
   // Toggle Auto-Spins / Open settings modal
@@ -495,6 +499,7 @@ export default function MacvSlotPage() {
             isSpinning={isSpinning}
             isTurbo={isTurbo}
             isScatterAnticipating={isScatterAnticipating}
+            stickyMultipliers={stickyMultipliers}
             onSpinComplete={handleSpinComplete}
           />
         </div>
@@ -611,6 +616,7 @@ export default function MacvSlotPage() {
           setBonusTotalWon(0);
           bonusSpinsPlayedRef.current = 0;
           setBonusSpinsPlayed(0);
+          setStickyMultipliers([]);
           // Automatically launch first free spin
           void executeSpin(false);
         }}
@@ -645,26 +651,11 @@ export default function MacvSlotPage() {
         isSpinning={isSpinning}
       />
 
-      {/* Big Win Toast / Celebration (Base Game) */}
-      {bigWinAmount !== null && (
-        <div
-          onClick={() => setBigWinAmount(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md cursor-pointer animate-in zoom-in-95 duration-200"
-        >
-          <div className="relative p-8 rounded-3xl bg-gradient-to-b from-zinc-900 to-black border-2 border-amber-400 text-center shadow-[0_0_60px_rgba(251,191,36,0.6)]">
-            <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-2 animate-bounce" />
-            <h2 className="font-brand font-black text-3xl sm:text-5xl text-amber-400 uppercase tracking-wider mb-2">
-              BIG WIN!
-            </h2>
-            <p className="font-brand font-extrabold text-4xl sm:text-6xl text-white tracking-wide">
-              {bigWinAmount.toFixed(2)} zł
-            </p>
-            <span className="text-xs text-zinc-400 block mt-4 font-semibold uppercase tracking-widest">
-              Нажмите в любом месте, чтобы продолжить
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Big Win Banner Modal (>= 5x Bet Celebration with spinning coin animation) */}
+      <MacvSlotBigWinModal
+        winAmount={bigWinAmount}
+        onClose={() => setBigWinAmount(null)}
+      />
     </main>
   );
 }

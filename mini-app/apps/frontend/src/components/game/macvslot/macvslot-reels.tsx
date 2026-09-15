@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import type { SlotSymbol, WinningLine } from './macvslot-types';
+import type { SlotSymbol, WinningLine, StickyMultiplier } from './macvslot-types';
 import { SYMBOL_IMAGES } from './macvslot-types';
 import { soundManager } from '@/lib/sound/sound-manager';
 
@@ -15,6 +15,7 @@ interface MacvSlotReelsProps {
   isSpinning: boolean;
   isTurbo: boolean;
   isScatterAnticipating?: boolean;
+  stickyMultipliers?: StickyMultiplier[];
   onSpinComplete?: () => void;
 }
 
@@ -30,6 +31,9 @@ const ALL_SYMBOLS: SlotSymbol[] = [
   'q',
   'j',
   '10',
+  'x2',
+  'x3',
+  'x5',
 ];
 
 // Compact seamless tape strip for infinite roll without DOM bloat
@@ -68,6 +72,7 @@ export function MacvSlotReels({
   isSpinning,
   isTurbo,
   isScatterAnticipating = false,
+  stickyMultipliers,
   onSpinComplete,
 }: MacvSlotReelsProps) {
   // Track which of the 5 reels have stopped: [r0, r1, r2, r3, r4]
@@ -75,6 +80,17 @@ export function MacvSlotReels({
   const [suspenseReel, setSuspenseReel] = useState<number | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number>(0);
   const spinTimerRefs = useRef<NodeJS.Timeout[]>([]);
+
+  // Quick lookup for sticky multiplier cells: "reel,row" -> symbol
+  const stickyMap = useMemo(() => {
+    const map = new Map<string, 'x2' | 'x3' | 'x5'>();
+    if (stickyMultipliers && stickyMultipliers.length > 0) {
+      for (const item of stickyMultipliers) {
+        map.set(`${item.reel},${item.row}`, item.symbol);
+      }
+    }
+    return map;
+  }, [stickyMultipliers]);
 
   // Preload all 11 symbol images into memory on mount to prevent lazy-load placeholders
   useEffect(() => {
@@ -292,6 +308,30 @@ export function MacvSlotReels({
                         </div>
                       ))}
                     </motion.div>
+
+                    {/* Anchored sticky multipliers over rolling tape */}
+                    {stickyMap.size > 0 && (
+                      <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-around py-0.5">
+                        {[0, 1, 2].map((rowIdx) => {
+                          const stickySym = stickyMap.get(`${reelIdx},${rowIdx}`);
+                          if (!stickySym) return <div key={rowIdx} className="w-full h-[33.33%]" />;
+                          return (
+                            <div key={rowIdx} className="relative w-full h-[33.33%] flex items-center justify-center p-0.5 sm:p-1 md:p-2">
+                              <div className="relative w-full h-full max-h-[96px] flex items-center justify-center">
+                                <div className="absolute inset-[-4px] rounded-2xl border-2 border-amber-400/90 bg-amber-500/20 shadow-[0_0_15px_rgba(251,191,36,0.8)] animate-pulse -z-10" />
+                                <Image
+                                  src={SYMBOL_IMAGES[stickySym]}
+                                  alt={stickySym}
+                                  fill
+                                  unoptimized
+                                  className="object-contain"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   // STOPPED: Symbols land and drop from top with physical bounce
@@ -309,6 +349,8 @@ export function MacvSlotReels({
                     {reelSymbols.map((symbol, rowIdx) => {
                       const isWinning = winningCellsSet.has(`${reelIdx},${rowIdx}`);
                       const isWield = symbol === 'wield';
+                      const isMultiplier = symbol === 'x2' || symbol === 'x3' || symbol === 'x5';
+                      const isSticky = stickyMap.has(`${reelIdx},${rowIdx}`);
                       const isScatter = symbol === 'scatter';
                       const isScatterShaking =
                         isScatter && (isScatterAnticipating || (isAnySuspense && reelsStopped[reelIdx]));
@@ -337,7 +379,7 @@ export function MacvSlotReels({
                               isScatterShaking
                                 ? {
                                     repeat: Infinity,
-                                    duration: 0.85, // Slower, heavier, majestic tempo instead of frenetic 0.35s
+                                    duration: 0.85,
                                     ease: 'easeInOut',
                                   }
                                 : undefined
@@ -345,12 +387,17 @@ export function MacvSlotReels({
                             className={cn(
                               'relative w-full h-full max-h-[96px] transition-all duration-300 flex items-center justify-center',
                               isWield ? 'max-w-[102px] scale-110' : 'max-w-[94px]',
+                              isMultiplier && 'drop-shadow-[0_0_16px_rgba(251,191,36,0.9)] scale-105',
                               isScatterShaking && 'z-30 scale-125',
                               isWinning && !isScatterShaking &&
                                 'scale-108 drop-shadow-[0_0_12px_rgba(251,191,36,0.75)] z-25',
                               isDimmedBySuspense && 'opacity-35 filter brightness-50 grayscale-[30%]'
                             )}
                           >
+                            {/* Sticky Multiplier Gold Glowing Frame */}
+                            {isSticky && (
+                              <div className="absolute inset-[-3px] rounded-2xl border-2 border-amber-400/90 bg-amber-500/15 shadow-[0_0_15px_rgba(251,191,36,0.6),inset_0_0_8px_rgba(251,191,36,0.4)] pointer-events-none -z-10 animate-pulse" />
+                            )}
                             {/* Scatter anticipation radiating background aura */}
                             {isScatterShaking && (
                               <div className="absolute inset-[-12px] rounded-full bg-amber-400/35 blur-xl animate-pulse -z-10" />
