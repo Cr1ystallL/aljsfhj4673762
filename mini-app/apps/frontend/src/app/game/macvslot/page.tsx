@@ -305,6 +305,20 @@ export default function MacvSlotPage() {
       return;
     }
 
+    // 1. If this spin awarded free spins, open the Bonus announcement modal now!
+    if (result.freeSpinsAwarded > 0) {
+      setIsScatterAnticipating(false);
+      setAwardedFreeSpins(result.freeSpinsAwarded);
+      bonusInitialSpinsRef.current = result.freeSpinsAwarded;
+      setBonusInitialSpins(result.freeSpinsAwarded);
+      bonusSpinsPlayedRef.current = 0;
+      setBonusSpinsPlayed(0);
+      bonusTotalWonRef.current = 0;
+      setBonusTotalWon(0);
+      pendingResultRef.current = null;
+      return;
+    }
+
     // Base game auto spins continuation
     if (autoSpinsLeftRef.current > 0 && result.freeSpinsAwarded <= 0) {
       autoSpinsLeftRef.current -= 1;
@@ -333,11 +347,24 @@ export default function MacvSlotPage() {
     const inBonus = isBonusModeRef.current || result.isFreeSpin;
     const isBigWin = result.totalWin >= betAmountRef.current * 5;
 
+    // A. SCATTER BONUS TRIGGER:
+    // If 3+ scatters hit, immediately animate/pulse all scatters on board!
+    if (result.freeSpinsAwarded > 0) {
+      setIsScatterAnticipating(true);
+      soundManager.play('game.win', { volume: 0.95 });
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
+        (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+      autoSpinsLeftRef.current = 0;
+      setAutoSpinsLeft(0);
+    }
+
     // ========================================================================
     // 1. BIG WIN SEQUENCE:
     // First display winning lines on reels for 2.0s so the user sees what hit,
     // then display big win banner with slow rolling counter.
     // Spins are completely on hold during this time until banner is closed.
+    // If bonus was awarded, handleBigWinClose will launch the bonus modal!
     // ========================================================================
     if (isBigWin) {
       soundManager.play('game.win', { volume: 0.9 });
@@ -352,18 +379,18 @@ export default function MacvSlotPage() {
         }
       }
 
-      // Display winning lines first for 2.0s, then show Big Win banner
+      // Display winning lines and glowing scatters first for 2.0s, then show Big Win banner
       if (bigWinTimeoutRef.current) clearTimeout(bigWinTimeoutRef.current);
       bigWinTimeoutRef.current = setTimeout(() => {
         setBigWinAmount(result.totalWin);
       }, 2000);
 
-      // Keep pendingResultRef active so handleBigWinClose can resume spins
+      // Keep pendingResultRef active so handleBigWinClose can resume spins or open bonus modal
       return;
     }
 
     // ========================================================================
-    // A. FREE SPINS BONUS ROUND EXECUTION LOOP (Automatic Sequence)
+    // B. FREE SPINS BONUS ROUND EXECUTION LOOP (Automatic Sequence)
     // ========================================================================
     if (inBonus) {
       bonusSpinsPlayedRef.current += 1;
@@ -405,15 +432,9 @@ export default function MacvSlotPage() {
     }
 
     // ========================================================================
-    // B. BASE GAME: FREE SPINS AWARD TRIGGER (3+ Scatters hit)
+    // C. BASE GAME: NON-BIG-WIN FREE SPINS AWARD TRIGGER
     // ========================================================================
     if (result.freeSpinsAwarded > 0) {
-      setIsScatterAnticipating(true);
-      soundManager.play('game.win', { volume: 0.95 });
-      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
-        (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-      }
-
       // 1.8s anticipation celebration before showing the bonus announcement modal
       setTimeout(() => {
         setIsScatterAnticipating(false);
@@ -425,10 +446,6 @@ export default function MacvSlotPage() {
         bonusTotalWonRef.current = 0;
         setBonusTotalWon(0);
       }, 1800);
-
-      // Stop normal auto spins when bonus triggers
-      autoSpinsLeftRef.current = 0;
-      setAutoSpinsLeft(0);
     }
 
     // Normal base game auto-spin continuation
@@ -538,7 +555,7 @@ export default function MacvSlotPage() {
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-3 py-0 sm:py-1">
         <div className="relative w-full max-w-full sm:max-w-[960px] lg:max-w-[980px] xl:max-w-[1040px] mx-auto">
           {/* DESKTOP LUXURY BUY BONUS BUTTON - Pinned strictly to the left of the reel frame (hidden during bonus) */}
-          {!isBonusMode && (
+          {!isBonusMode && !showBonusVictory && awardedFreeSpins === 0 && (
             <button
               type="button"
               disabled={
@@ -679,6 +696,7 @@ export default function MacvSlotPage() {
           autoSpinsLeft={autoSpinsLeft}
           onToggleAuto={handleToggleAuto}
           freeSpinsLeft={freeSpinsLeft}
+          isBonusMode={isBonusMode || showBonusVictory || awardedFreeSpins > 0}
           disabled={isAdmin === null}
           onBuyBonus={() => {
             soundManager.play('ui.click', { volume: 0.4 });
@@ -688,6 +706,9 @@ export default function MacvSlotPage() {
             isAdmin !== null &&
             !isSpinning &&
             freeSpinsLeft === 0 &&
+            !isBonusMode &&
+            !showBonusVictory &&
+            awardedFreeSpins === 0 &&
             (balance?.amount ?? 0) >= Math.round(betAmount * 100 * 100) / 100
           }
           buyBonusCost={Math.round(betAmount * 100 * 100) / 100}

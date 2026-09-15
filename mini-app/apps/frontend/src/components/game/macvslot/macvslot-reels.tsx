@@ -117,6 +117,19 @@ export function MacvSlotReels({
     return set;
   }, [winningLines, activeLineIndex, isSpinning, reelsStopped]);
 
+  // Count total scatters landed on stopped reels so all scatters glow when 3+ hit
+  const landedScatterCount = useMemo(() => {
+    let count = 0;
+    for (let r = 0; r < 5; r++) {
+      if (reelsStopped[r]) {
+        for (let row = 0; row < 3; row++) {
+          if (grid[r]?.[row] === 'scatter') count++;
+        }
+      }
+    }
+    return count;
+  }, [grid, reelsStopped]);
+
   // Cycle through winning lines every 1.8s
   useEffect(() => {
     if (isSpinning || winningLines.length <= 1) return;
@@ -352,8 +365,9 @@ export function MacvSlotReels({
                       const isMultiplier = symbol === 'x2' || symbol === 'x3' || symbol === 'x5';
                       const isSticky = stickyMap.has(`${reelIdx},${rowIdx}`);
                       const isScatter = symbol === 'scatter';
+                      const isScatterHit3 = isScatter && landedScatterCount >= 3;
                       const isScatterShaking =
-                        isScatter && (isScatterAnticipating || (isAnySuspense && reelsStopped[reelIdx]));
+                        isScatter && (isScatterAnticipating || (isAnySuspense && reelsStopped[reelIdx]) || isScatterHit3);
                       const isDimmedBySuspense = isAnySuspense && !isSuspense && !isScatter;
 
                       return (

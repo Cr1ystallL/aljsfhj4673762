@@ -22,6 +22,7 @@ interface MacvSlotControlsProps {
   onBuyBonus?: () => void;
   canBuyBonus?: boolean;
   buyBonusCost?: number;
+  isBonusMode?: boolean;
 }
 
 const BET_PRESETS = [0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -41,6 +42,7 @@ export function MacvSlotControls({
   onBuyBonus,
   canBuyBonus = true,
   buyBonusCost,
+  isBonusMode = false,
 }: MacvSlotControlsProps) {
   const [showBetModal, setShowBetModal] = useState(false);
 
@@ -56,7 +58,7 @@ export function MacvSlotControls({
     }
   };
 
-  const isFreeSpinActive = freeSpinsLeft > 0;
+  const isFreeSpinActive = isBonusMode || freeSpinsLeft > 0;
 
   const handleSpinClick = () => {
     if (disabled || (isSpinning && !isFreeSpinActive)) return;
